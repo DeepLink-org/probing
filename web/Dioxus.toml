@@ -1,0 +1,14 @@
+[application]
+name = "probing-web"
+default_platform = "web"
+
+[web.app]
+title = "Probing Web Interface"
+base_path = "/"
+
+[web.dev]
+hot_reload = true
+
+[bundle]
+public_url = "/"
+base_path = "/"
