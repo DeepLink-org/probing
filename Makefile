@@ -10,6 +10,11 @@ else
 	TARGET_DIR := debug
 endif
 
+# Frontend framework: leptos (default) or dioxus
+ifndef FRONTEND
+	FRONTEND := leptos
+endif
+
 # OS-specific library extension
 ifeq ($(shell uname -s), Darwin)
 	LIB_EXT := dylib
@@ -54,22 +59,74 @@ help:
 	@echo "  pytest     Run Python tests."
 	@echo "  bootstrap  Install Python versions for testing."
 	@echo "  clean      Remove build artifacts."
-	@echo "  app/dist   Build the web app."
+	@echo "  frontend   Build frontend based on FRONTEND variable."
+	@echo "  frontend-leptos  Build Leptos frontend."
+	@echo "  frontend-dioxus  Build Dioxus frontend."
+	@echo "  app/dist   Build the web app (Leptos)."
+	@echo "  web/dist   Build the web app (Dioxus)."
+	@echo ""
+	@echo "Environment Variables:"
+	@echo "  FRONTEND   Frontend framework: leptos (default) or dioxus"
+	@echo "  DEBUG      Build mode: release (default) or debug"
+	@echo "  ZIG        Use zigbuild for cross-compilation"
+	@echo "  PYTHON     Python version (default: 3.12)"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make frontend-leptos       # Build Leptos frontend"
+	@echo "  make frontend-dioxus       # Build Dioxus frontend"
+	@echo "  make frontend              # Build frontend based on FRONTEND variable"
+	@echo "  FRONTEND=dioxus make all   # Use Dioxus frontend for all builds"
+	@echo "  FRONTEND=leptos make all   # Use Leptos frontend for all builds (default)"
 
 # ==============================================================================
 # Build Targets
 # ==============================================================================
 .PHONY: wheel
-wheel: ${PROBING_CLI} ${PROBING_LIB}
+wheel: ${PROBING_CLI} ${PROBING_LIB} app/dist/index.html
 	@echo "Building wheel..."
 	python make_wheel.py
 
+# Ensure frontend assets exist before packaging
+app/dist/index.html:
+	@echo "Ensuring frontend assets... FRONTEND=$(FRONTEND)"
+	@$(MAKE) --no-print-directory frontend
+
 .PHONY: app/dist
 app/dist:
-	@echo "Building web app..."
+	@echo "Building Leptos web app..."
 	@mkdir -p app/dist
-	cd app && trunk build --filehash false --release -M -d dist/
+	cd app && trunk build --filehash false --release --dist dist/
 	cd ..
+
+.PHONY: web/dist
+web/dist:
+	@echo "Building Dioxus web app..."
+	@mkdir -p app/dist
+	cd web && dx build --release
+	@echo "Copying Dioxus build output to app/dist..."
+	cp -r web/target/dx/web/release/web/public/* app/dist/
+	cd ..
+
+# Convenience targets for frontend builds
+.PHONY: frontend-leptos
+frontend-leptos:
+	@echo "Building Leptos frontend..."
+	$(MAKE) app/dist
+
+.PHONY: frontend-dioxus
+frontend-dioxus:
+	@echo "Building Dioxus frontend..."
+	$(MAKE) web/dist
+
+.PHONY: frontend
+frontend:
+	@if [ "$(FRONTEND)" = "dioxus" ]; then \
+		echo "Building Dioxus frontend..."; \
+		$(MAKE) web/dist; \
+	else \
+		echo "Building Leptos frontend..."; \
+		$(MAKE) app/dist; \
+	fi
 
 ${DATA_SCRIPTS_DIR}:
 	@echo "Creating data scripts directory..."
@@ -82,8 +139,15 @@ ${PROBING_CLI}: ${DATA_SCRIPTS_DIR}
 	cp ${PROBING_CLI} ${DATA_SCRIPTS_DIR}/probing
 
 .PHONY: ${PROBING_LIB}
-${PROBING_LIB}: ${DATA_SCRIPTS_DIR} app/dist
+${PROBING_LIB}: ${DATA_SCRIPTS_DIR}
 	@echo "Building probing library..."
+	@if [ "$(FRONTEND)" = "dioxus" ]; then \
+		echo "Building Dioxus frontend (pre-build)..."; \
+		$(MAKE) --no-print-directory web/dist; \
+	else \
+		echo "Building Leptos frontend (pre-build)..."; \
+		$(MAKE) --no-print-directory app/dist; \
+	fi
 	cargo ${CARGO_BUILD_CMD} ${CARGO_FLAGS}
 	cp ${PROBING_LIB} ${DATA_SCRIPTS_DIR}/libprobing.${LIB_EXT}
 
@@ -112,4 +176,5 @@ clean:
 	@echo "Cleaning up..."
 	rm -rf dist
 	rm -rf app/dist
+	rm -rf web/dist
 	cargo clean

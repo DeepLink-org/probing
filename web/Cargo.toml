@@ -1,0 +1,51 @@
+[package]
+name = "web"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+# Dioxus dependencies
+dioxus = { version = "0.6", features = ["web"] }
+dioxus-router = "0.6"
+dioxus-web = "0.6"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+log = "0.4"
+web-sys = "0.3"
+
+# Icons
+icondata = { version = "0.5.0", default-features = false, features = ["simple-icons"] }
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Local dependencies
+probing-proto = { path = "../probing/proto", default-features = false, features = [] }
+
+[profile.release]
+opt-level = "z"
+debug = false
+strip = true
+
+[profile.wasm-dev]
+inherits = "dev"
+opt-level = 1
+
+[profile.server-dev]
+inherits = "dev"
+
+[profile.android-dev]
+inherits = "dev"

@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles for the probing web interface */
+.page-layout {
+    min-height: 100vh;
+    background-color: #f9fafb;
+}
+
+.header-bar {
+    background-color: white;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.nav-button:hover {
+    background-color: #f3f4f6;
+}
+
+.panel {
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.table-container {
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .page-layout {
+        background-color: #111827;
+        color: #f9fafb;
+    }
+    
+    .header-bar {
+        background-color: #1f2937;
+        border-bottom-color: #374151;
+    }
+    
+    .panel {
+        background-color: #1f2937;
+        border-color: #374151;
+    }
+    
+    .table-container {
+        background-color: #1f2937;
+        border-color: #374151;
+    }
+}
