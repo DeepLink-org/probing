@@ -40,7 +40,7 @@ pub fn Activity(tid: Option<String>) -> Element {
                 } else if let Some(Ok(callframes)) = state.data.read().as_ref() {
                     div {
                         class: SPACE_Y_4,
-                        div { class: format!("{} {}", TEXT_SM, TEXT_GRAY_600), "Total call frames: {callframes.len()}" }
+                        div { class: SECTION_SUBTITLE, "Total call frames: {callframes.len()}" }
                         if callframes.is_empty() {
                             div { class: format!("{} {} {}", TEXT_CENTER, PY_8, TEXT_GRAY_500), "No call stack data available" }
                         } else {

@@ -55,7 +55,7 @@ pub fn Overview() -> Element {
                         title: "Threads Information",
                         div {
                             class: SPACE_Y_3,
-                            div { class: format!("{} {}", TEXT_SM, TEXT_GRAY_600), "Total threads: {process.threads.len()}" }
+                            div { class: SECTION_SUBTITLE, "Total threads: {process.threads.len()}" }
                             ThreadsCard { threads: process.threads.clone() }
                         }
                     }
