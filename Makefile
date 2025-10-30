@@ -82,9 +82,14 @@ help:
 # Build Targets
 # ==============================================================================
 .PHONY: wheel
-wheel: ${PROBING_CLI} ${PROBING_LIB}
+wheel: ${PROBING_CLI} ${PROBING_LIB} app/dist/index.html
 	@echo "Building wheel..."
 	python make_wheel.py
+
+# Ensure frontend assets exist before packaging
+app/dist/index.html:
+	@echo "Ensuring frontend assets... FRONTEND=$(FRONTEND)"
+	@$(MAKE) --no-print-directory frontend
 
 .PHONY: app/dist
 app/dist:
@@ -136,15 +141,15 @@ ${PROBING_CLI}: ${DATA_SCRIPTS_DIR}
 .PHONY: ${PROBING_LIB}
 ${PROBING_LIB}: ${DATA_SCRIPTS_DIR}
 	@echo "Building probing library..."
+	@if [ "$(FRONTEND)" = "dioxus" ]; then \
+		echo "Building Dioxus frontend (pre-build)..."; \
+		$(MAKE) --no-print-directory web/dist; \
+	else \
+		echo "Building Leptos frontend (pre-build)..."; \
+		$(MAKE) --no-print-directory app/dist; \
+	fi
 	cargo ${CARGO_BUILD_CMD} ${CARGO_FLAGS}
 	cp ${PROBING_LIB} ${DATA_SCRIPTS_DIR}/libprobing.${LIB_EXT}
-	@if [ "$(FRONTEND)" = "dioxus" ]; then \
-		echo "Building Dioxus frontend..."; \
-		$(MAKE) web/dist; \
-	else \
-		echo "Building Leptos frontend..."; \
-		$(MAKE) app/dist; \
-	fi
 
 # ==============================================================================
 # Testing & Utility Targets
