@@ -5,12 +5,15 @@ use crate::components::page::{PageContainer, PageHeader};
 use crate::components::common::{LoadingState, ErrorState};
 use crate::hooks::use_api_simple;
 use crate::api::ApiClient;
-use probing_proto::prelude::DataFrame;
+use probing_proto::prelude::{DataFrame, Ele};
 use crate::styles::{combinations::*, styles::*, conditional_class};
 
 #[component]
 pub fn Timeseries() -> Element {
     let tables_state = use_api_simple::<DataFrame>();
+    let preview_state = use_api_simple::<DataFrame>();
+    let mut preview_title = use_signal(|| String::new());
+    let mut preview_open = use_signal(|| false);
     
     use_effect(move || {
         let mut loading = tables_state.loading.clone();
@@ -31,19 +34,73 @@ pub fn Timeseries() -> Element {
             }
             
             Card {
-                title: "数据表列表",
+                title: "Tables",
                 content_class: Some("") ,
                 if tables_state.is_loading() {
-                    LoadingState { message: Some("加载数据中...".to_string()) }
+                    LoadingState { message: Some("Loading tables...".to_string()) }
                 } else if let Some(Ok(df)) = tables_state.data.read().as_ref() {
-                    DataFrameView { df: df.clone() }
+                    {
+                        let df_clone = df.clone();
+                        let mut loading = preview_state.loading.clone();
+                        let mut data = preview_state.data.clone();
+                        let handler = EventHandler::new(move |row_idx: usize| {
+                            // 取第二列 schema 与第三列 table
+                            let schema = match df_clone.cols.get(1).map(|c| c.get(row_idx)) {
+                                Some(Ele::Text(name)) => name.to_string(),
+                                _ => return,
+                            };
+                            let table = match df_clone.cols.get(2).map(|c| c.get(row_idx)) {
+                                Some(Ele::Text(name)) => name.to_string(),
+                                _ => return,
+                            };
+                            let fqtn = format!("{}.{}", schema, table);
+                            preview_title.set(format!("{} • latest 10 rows", fqtn));
+                            preview_open.set(true);
+                            spawn(async move {
+                                loading.set(true);
+                                let client = ApiClient::new();
+                                let resp = client.execute_preview_last10(&fqtn).await;
+                                data.set(Some(resp));
+                                loading.set(false);
+                            });
+                        });
+                        rsx!{ DataFrameView { df: df.clone(), on_row_click: Some(handler) } }
+                    }
                 } else if let Some(Err(err)) = tables_state.data.read().as_ref() {
                     ErrorState { error: format!("{:?}", err), title: None }
                 }
             }
 
+            // Preview Modal
+            if *preview_open.read() {
+                div { class: "fixed inset-0 z-50 flex items-center justify-center",
+                    // 背景遮罩
+                    div { class: "absolute inset-0 bg-black/50", onclick: move |_| preview_open.set(false) }
+                    // 内容容器
+                    div { class: "relative bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-5xl w-[90vw] max-h-[80vh] overflow-auto p-4",
+                        // 头部
+                        div { class: "flex items-center justify-between mb-3",
+                            h3 { class: "text-lg font-semibold text-gray-900 dark:text-gray-100", "{preview_title}" }
+                            button { class: "px-3 py-1 text-sm rounded bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600",
+                                onclick: move |_| preview_open.set(false),
+                                "Close"
+                            }
+                        }
+                        // 内容
+                        if preview_state.is_loading() {
+                            LoadingState { message: Some("Loading preview...".to_string()) }
+                        } else if let Some(Ok(df)) = preview_state.data.read().as_ref() {
+                            DataFrameView { df: df.clone() }
+                        } else if let Some(Err(err)) = preview_state.data.read().as_ref() {
+                            ErrorState { error: format!("{:?}", err), title: None }
+                        } else {
+                            span { class: "text-gray-500", "Preparing preview..." }
+                        }
+                    }
+                }
+            }
             Card {
-                title: "查询工具",
+                title: "Query",
                 SqlQueryPanel {}
             }
         }
@@ -79,7 +136,7 @@ fn SqlQueryPanel() -> Element {
             class: SPACE_Y_4,
             textarea {
                 class: TEXTAREA,
-                placeholder: "输入 SQL 查询，例如: SELECT * FROM table_name LIMIT 10",
+                placeholder: "Enter SQL, e.g. SELECT * FROM schema.table LIMIT 10",
                 value: "{sql}",
                 oninput: move |ev| sql.set(ev.value())
             }
@@ -87,11 +144,11 @@ fn SqlQueryPanel() -> Element {
             button {
                 class: format!("{} {}", BUTTON_PRIMARY, conditional_class(*is_executing.read(), BUTTON_DISABLED, "")),
                 onclick: execute_query,
-                if *is_executing.read() { "执行查询中..." } else { "执行查询" }
+                if *is_executing.read() { "Running..." } else { "Run Query" }
             }
             
             if query_state.is_loading() {
-                LoadingState { message: Some("执行查询中...".to_string()) }
+                LoadingState { message: Some("Running query...".to_string()) }
             } else if let Some(Ok(df)) = query_state.data.read().as_ref() {
                 DataFrameView { df: df.clone() }
             } else if let Some(Err(err)) = query_state.data.read().as_ref() {

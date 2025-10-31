@@ -3,7 +3,7 @@ use probing_proto::prelude::{DataFrame, Ele};
 use crate::components::table_view::TableView;
 
 #[component]
-pub fn DataFrameView(df: DataFrame) -> Element {
+pub fn DataFrameView(df: DataFrame, #[props(optional)] on_row_click: Option<EventHandler<usize>>) -> Element {
     let nrows = df.cols.iter().map(|x| x.len()).max().unwrap_or(0);
     
     // Build headers from column names
@@ -31,5 +31,5 @@ pub fn DataFrameView(df: DataFrame) -> Element {
         })
         .collect();
     
-    rsx! { TableView { headers: headers, data: data } }
+    rsx! { TableView { headers: headers, data: data, on_row_click } }
 }

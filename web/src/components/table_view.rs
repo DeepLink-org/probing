@@ -2,7 +2,11 @@ use dioxus::prelude::*;
 use crate::styles::combinations::*;
 
 #[component]
-pub fn TableView(headers: Vec<String>, data: Vec<Vec<String>>) -> Element {
+pub fn TableView(
+    headers: Vec<String>,
+    data: Vec<Vec<String>>,
+    #[props(optional)] on_row_click: Option<EventHandler<usize>>,
+) -> Element {
     rsx! {
         div {
             class: TABLE_CONTAINER,
@@ -21,6 +25,7 @@ pub fn TableView(headers: Vec<String>, data: Vec<Vec<String>>) -> Element {
                 tbody {
                     for (row_idx, row) in data.iter().enumerate() {
                         tr { class: if row_idx % 2 == 0 { TABLE_ROW_EVEN } else { TABLE_ROW_ODD },
+                            onclick: { let handler = on_row_click.clone(); move |_| { if let Some(cb) = &handler { cb.call(row_idx); } } },
                             for cell in row {
                                 td { class: TABLE_CELL, {cell.clone()} }
                             }

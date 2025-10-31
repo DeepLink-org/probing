@@ -3,10 +3,10 @@ use dioxus::prelude::*;
 #[derive(Props, Clone, PartialEq)]
 pub struct NavDrawerProps {
     pub selected_tab: Signal<String>,
-    pub pprof_enabled: Signal<bool>,
+    pub pprof_freq: Signal<i32>,
     pub torch_enabled: Signal<bool>,
     pub on_tab_change: EventHandler<String>,
-    pub on_pprof_toggle: EventHandler<bool>,
+    pub on_pprof_freq_change: EventHandler<i32>,
     pub on_torch_toggle: EventHandler<bool>,
 }
 
@@ -68,16 +68,34 @@ pub fn NavDrawer(props: NavDrawerProps) -> Element {
                         "Settings"
                     }
                     
-                    // Pprof Settings
+                    // Pprof sample frequency slider (discrete: 0,10,100,1000). 0 means OFF.
                     div {
-                        class: "flex items-center justify-between",
-                        span {
-                            class: "text-sm text-gray-600 dark:text-gray-400",
-                            "Pprof"
-                        }
-                        Switch {
-                            checked: *props.pprof_enabled.read(),
-                            onchange: move |checked| props.on_pprof_toggle.call(checked)
+                        class: "space-y-1",
+                        {
+                            // compute current index based on freq
+                            let freq = *props.pprof_freq.read();
+                            let current_idx = if freq <= 0 { 0 } else if freq <= 10 { 1 } else if freq <= 100 { 2 } else { 3 };
+                            let label = match current_idx { 0 => 0, 1 => 10, 2 => 100, _ => 1000 };
+                            rsx!{
+                                div { class: "flex items-center justify-between",
+                                    span { class: "text-sm text-gray-600 dark:text-gray-400", "Pprof Frequency" }
+                                    span { class: "text-sm text-gray-800 dark:text-gray-200 font-mono", "{label} Hz" }
+                                }
+                                input {
+                                    r#type: "range",
+                                    key: "pprof-slider-{current_idx}",
+                                    min: "0",
+                                    max: "3",
+                                    step: "1",
+                                    value: "{current_idx}",
+                                    oninput: move |ev| {
+                                        if let Ok(idx) = ev.value().parse::<i32>() {
+                                            let mapped = match idx { 0 => 0, 1 => 10, 2 => 100, _ => 1000 };
+                                            props.on_pprof_freq_change.call(mapped);
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                     

@@ -4,35 +4,50 @@ use crate::components::nav_drawer::NavDrawer;
 use crate::hooks::use_api_simple;
 use crate::api::ApiClient;
 
+/// 从配置中更新本地状态
+fn apply_config(config: &[(String, String)], mut pprof_freq: Signal<i32>, mut torch_enabled: Signal<bool>) {
+    // 先重置本地状态
+    pprof_freq.set(0);
+    torch_enabled.set(false);
+    
+    for (name, value) in config {
+        match name.as_str() {
+            "probing.pprof.sample_freq" => {
+                if let Ok(v) = value.parse::<i32>() {
+                    pprof_freq.set(v.max(0));
+                }
+            },
+            "probing.torch.profiling_mode" => {
+                if !value.is_empty() {
+                    torch_enabled.set(true);
+                }
+            },
+            _ => {}
+        }
+    }
+}
+
 #[component]
 pub fn Profiler() -> Element {
     let mut selected_tab = use_signal(|| "pprof".to_string());
-    let mut pprof_enabled = use_signal(|| false);
-    let mut torch_enabled = use_signal(|| false);
+    let mut pprof_freq = use_signal(|| 99_i32);
+    let torch_enabled = use_signal(|| false);
     
-    let config_state = use_api_simple::<Vec<Vec<String>>>();
+    let config_state = use_api_simple::<Vec<(String, String)>>();
     let flamegraph_state = use_api_simple::<String>();
     
     // 加载配置
     use_effect(move || {
         let mut loading = config_state.loading.clone();
         let mut data = config_state.data.clone();
-        let mut pprof_enabled = pprof_enabled.clone();
-        let mut torch_enabled = torch_enabled.clone();
+        let pprof_freq_clone = pprof_freq.clone();
+        let torch_enabled_clone = torch_enabled.clone();
         spawn(async move {
             loading.set(true);
             let client = ApiClient::new();
             match client.get_profiler_config().await {
                 Ok(config) => {
-                    for row in &config {
-                        if row.len() >= 2 {
-                            match row[0].as_str() {
-                                "probing.pprof.sample_freq" if !row[1].is_empty() => pprof_enabled.set(true),
-                                "probing.torch.sample_ratio" if !row[1].is_empty() => torch_enabled.set(true),
-                                _ => {}
-                            }
-                        }
-                    }
+                    apply_config(&config, pprof_freq_clone, torch_enabled_clone);
                     data.set(Some(Ok(config)));
                 }
                 Err(err) => data.set(Some(Err(err))),
@@ -41,13 +56,26 @@ pub fn Profiler() -> Element {
         });
     });
 
+    // 切换 Tab 时与服务端重新对账，保持同步
+    use_effect(move || {
+        let _tab = selected_tab.read().clone(); // depend on tab change
+        let pprof_freq_clone = pprof_freq.clone();
+        let torch_enabled_clone = torch_enabled.clone();
+        spawn(async move {
+            let client = ApiClient::new();
+            if let Ok(config) = client.get_profiler_config().await {
+                apply_config(&config, pprof_freq_clone, torch_enabled_clone);
+            }
+        });
+    });
+
     // 加载火焰图
     use_effect(move || {
         let tab = selected_tab.read().clone();
-        let pprof = *pprof_enabled.read();
+        let pprof_on = *pprof_freq.read() > 0;
         let torch = *torch_enabled.read();
         
-        let active_profiler = match (tab.as_str(), pprof, torch) {
+        let active_profiler = match (tab.as_str(), pprof_on, torch) {
             ("pprof", true, _) => "pprof",
             ("torch", _, true) => "torch",
             _ => return,
@@ -68,18 +96,51 @@ pub fn Profiler() -> Element {
             class: "flex h-screen bg-gray-50 dark:bg-gray-900",
             NavDrawer {
                 selected_tab: selected_tab,
-                pprof_enabled: pprof_enabled,
+                pprof_freq: pprof_freq,
                 torch_enabled: torch_enabled,
-                on_tab_change: move |tab| selected_tab.set(tab),
-                on_pprof_toggle: move |enabled| pprof_enabled.set(enabled),
-                on_torch_toggle: move |enabled| torch_enabled.set(enabled),
+                on_tab_change: move |tab| {
+                    // 立即切换 Tab 并主动对账一次，避免延迟
+                    selected_tab.set(tab);
+                    let mut pprof_freq_clone = pprof_freq.clone();
+                    let mut torch_enabled_clone = torch_enabled.clone();
+                    spawn(async move {
+                        let client = ApiClient::new();
+                        // reset -> fetch -> apply
+                        if let Ok(config) = client.get_profiler_config().await {
+                            apply_config(&config, pprof_freq_clone, torch_enabled_clone);
+                        }
+                    });
+                },
+                on_pprof_freq_change: move |new_freq| {
+                    // 本地更新+回写服务端
+                    pprof_freq.set(new_freq);
+                    spawn(async move {
+                        let client = ApiClient::new();
+                        let expr = if new_freq <= 0 { "set probing.pprof.sample_freq=;".to_string() } else { format!("set probing.pprof.sample_freq={};", new_freq) };
+                        let _ = client.execute_query(&expr).await;
+                    });
+                },
+                on_torch_toggle: move |enabled| {
+                    let mut torch_enabled_clone = torch_enabled.clone();
+                    spawn(async move {
+                        let client = ApiClient::new();
+                        // torch: 使用 profiling_mode 存在性表示开关；启用时设为 "ordered"，否则清空
+                        let expr = if enabled {
+                            "set probing.torch.profiling_mode=ordered;".to_string()
+                        } else {
+                            "set probing.torch.profiling_mode=;".to_string()
+                        };
+                        let _ = client.execute_query(&expr).await;
+                        torch_enabled_clone.set(enabled);
+                    });
+                },
             }
             
             div {
                 class: "flex-1 flex flex-col min-w-0",
                 div {
-                    class: "flex-1 w-full relative",
-                    if !*pprof_enabled.read() && !*torch_enabled.read() {
+                class: "flex-1 w-full relative",
+                if !(*pprof_freq.read() > 0) && !*torch_enabled.read() {
                         EmptyState {
                             message: "No profilers are currently enabled. Enable a profiler using the switches in the sidebar.".to_string()
                         }
