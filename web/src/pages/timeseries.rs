@@ -77,11 +77,11 @@ pub fn Timeseries() -> Element {
                     // 背景遮罩
                     div { class: "absolute inset-0 bg-black/50", onclick: move |_| preview_open.set(false) }
                     // 内容容器
-                    div { class: "relative bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-5xl w-[90vw] max-h-[80vh] overflow-auto p-4",
+                    div { class: "relative bg-white rounded-lg shadow-lg max-w-5xl w-[90vw] max-h-[80vh] overflow-auto p-4",
                         // 头部
                         div { class: "flex items-center justify-between mb-3",
-                            h3 { class: "text-lg font-semibold text-gray-900 dark:text-gray-100", "{preview_title}" }
-                            button { class: "px-3 py-1 text-sm rounded bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600",
+                            h3 { class: "text-lg font-semibold text-gray-900", "{preview_title}" }
+                            button { class: "px-3 py-1 text-sm rounded bg-gray-100 hover:bg-gray-200",
                                 onclick: move |_| preview_open.set(false),
                                 "Close"
                             }

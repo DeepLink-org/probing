@@ -6,9 +6,9 @@ pub fn CollapsibleCard(title: String, children: Element) -> Element {
     
     rsx! {
         div {
-            class: "border border-gray-200 dark:border-gray-700 rounded-lg mb-2",
+            class: "border border-gray-200 rounded-lg mb-2",
             div {
-                class: "px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors",
+                class: "px-4 py-3 bg-gray-50 border-b border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors",
                 onclick: move |_| {
                     let current = *is_open.read();
                     is_open.set(!current);
@@ -18,7 +18,7 @@ pub fn CollapsibleCard(title: String, children: Element) -> Element {
                     div {
                         class: "flex items-center space-x-2",
                         span {
-                            class: "text-sm font-medium text-gray-900 dark:text-white",
+                            class: "text-sm font-medium text-gray-900",
                             "{title}"
                         }
                     }
@@ -26,7 +26,7 @@ pub fn CollapsibleCard(title: String, children: Element) -> Element {
                         class: "transition-transform duration-200",
                         class: if *is_open.read() { "rotate-180" } else { "rotate-0" },
                         svg {
-                            class: "w-4 h-4 text-gray-500 dark:text-gray-400",
+                            class: "w-4 h-4 text-gray-500",
                             fill: "none",
                             stroke: "currentColor",
                             view_box: "0 0 24 24",
@@ -56,9 +56,9 @@ pub fn CollapsibleCardWithIcon(title: String, icon: Element, children: Element) 
     
     rsx! {
         div {
-            class: "border border-gray-200 dark:border-gray-700 rounded-lg mb-2",
+            class: "border border-gray-200 rounded-lg mb-2",
             div {
-                class: "px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors",
+                class: "px-4 py-3 bg-gray-50 border-b border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors",
                 onclick: move |_| {
                     let current = *is_open.read();
                     is_open.set(!current);
@@ -69,7 +69,7 @@ pub fn CollapsibleCardWithIcon(title: String, icon: Element, children: Element) 
                         class: "flex items-center space-x-2",
                         {icon}
                         span {
-                            class: "text-sm font-medium text-gray-900 dark:text-white",
+                            class: "text-sm font-medium text-gray-900",
                             "{title}"
                         }
                     }
@@ -77,7 +77,7 @@ pub fn CollapsibleCardWithIcon(title: String, icon: Element, children: Element) 
                         class: "transition-transform duration-200",
                         class: if *is_open.read() { "rotate-180" } else { "rotate-0" },
                         svg {
-                            class: "w-4 h-4 text-gray-500 dark:text-gray-400",
+                            class: "w-4 h-4 text-gray-500",
                             fill: "none",
                             stroke: "currentColor",
                             view_box: "0 0 24 24",

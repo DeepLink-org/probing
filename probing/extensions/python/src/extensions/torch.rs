@@ -45,7 +45,8 @@ impl TorchExtension {
                 let value: String = profiling.clone().into();
                 log::error!(
                     "Failed to configure torch profiling with spec '{}': {}",
-                    value, err
+                    value,
+                    err
                 );
                 Err(EngineError::InvalidOptionValue(
                     Self::OPTION_PROFILING.to_string(),

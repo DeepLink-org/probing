@@ -88,7 +88,7 @@ impl Settings {
         set_if_some!(self.server_port, "server.address", |p| format!(
             "0.0.0.0:{p}"
         ));
-    set_if_some!(self.torch_profiling, "torch.profiling");
+        set_if_some!(self.torch_profiling, "torch.profiling");
 
         set_if_some!(self.rdma_sample_rate, "rdma.sample_rate", |r| {
             format!("{r:.2}")

@@ -106,7 +106,8 @@ pub fn flamegraph() -> String {
             let mut opt = inferno::flamegraph::Options::default();
             opt.deterministic = true;
             match inferno::flamegraph::from_lines(&mut opt, line_refs, &mut graph) {
-                Ok(_) => String::from_utf8(graph).unwrap_or_else(|_| empty_svg("Invalid flamegraph output")),
+                Ok(_) => String::from_utf8(graph)
+                    .unwrap_or_else(|_| empty_svg("Invalid flamegraph output")),
                 Err(e) => {
                     error!("Failed to build torch flamegraph: {e}");
                     empty_svg("Unable to build torch flamegraph")

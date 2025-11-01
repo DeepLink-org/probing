@@ -27,7 +27,9 @@ log = "0.4"
 web-sys = "0.3"
 
 # Icons
-icondata = { version = "0.5.0", default-features = false, features = ["simple-icons"] }
+icondata = { version = "0.5.0", default-features = false, features = [
+    "ant-design-icons", "css-gg", "simple-icons"
+] }
 
 # Time handling
 chrono = { version = "0.4", features = ["serde"] }

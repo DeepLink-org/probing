@@ -6,6 +6,7 @@ pub mod common;
 pub mod dataframe_view;
 pub mod data;
 pub mod header;
+pub mod icon;
 pub mod layout;
 pub mod nav_drawer;
 pub mod page;

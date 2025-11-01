@@ -98,7 +98,7 @@ pub fn Profiler() -> Element {
 
     rsx! {
         div {
-            class: "flex h-screen bg-gray-50 dark:bg-gray-900",
+            class: "flex h-screen bg-gray-50",
             NavDrawer {
                 selected_tab: selected_tab,
                 pprof_freq: pprof_freq,
@@ -106,13 +106,13 @@ pub fn Profiler() -> Element {
                 on_tab_change: move |tab| {
                     // 立即切换 Tab 并主动对账一次，避免延迟
                     selected_tab.set(tab);
-                    let mut pprof_freq_clone = pprof_freq.clone();
-                    let mut torch_enabled_clone = torch_enabled.clone();
+                    let pprof_freq = pprof_freq.clone();
+                    let torch_enabled = torch_enabled.clone();
                     spawn(async move {
                         let client = ApiClient::new();
                         // reset -> fetch -> apply
                         if let Ok(config) = client.get_profiler_config().await {
-                            apply_config(&config, pprof_freq_clone, torch_enabled_clone);
+                            apply_config(&config, pprof_freq, torch_enabled);
                         }
                     });
                 },
@@ -178,8 +178,8 @@ fn EmptyState(message: String) -> Element {
             class: "absolute inset-0 flex items-center justify-center",
             div {
                 class: "text-center",
-                h2 { class: "text-2xl font-bold text-gray-900 dark:text-white mb-4", "No Profilers Enabled" }
-                p { class: "text-gray-600 dark:text-gray-400 mb-6", "{message}" }
+                h2 { class: "text-2xl font-bold text-gray-900 mb-4", "No Profilers Enabled" }
+                p { class: "text-gray-600 mb-6", "{message}" }
             }
         }
     }
