@@ -42,7 +42,7 @@ fn StatCard(label: &'static str, value: &'static str, color: &'static str) -> El
     rsx! {
         div {
             class: "flex justify-between items-center",
-            span { class: "text-gray-600 dark:text-gray-400", "{label}" }
+            span { class: "text-gray-600", "{label}" }
             span {
                 class: match color {
                     "blue" => "text-2xl font-bold text-blue-600",
@@ -67,7 +67,7 @@ fn UsageBar(label: &'static str, value: u32) -> Element {
                 span { "{value}%" }
             }
             div {
-                class: "w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2",
+                class: "w-full bg-gray-200 rounded-full h-2",
                 div {
                     class: "bg-blue-600 h-2 rounded-full",
                     style: "width: {value}%"

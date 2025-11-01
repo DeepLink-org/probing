@@ -9,6 +9,26 @@ from .torch.module_utils import module_name
 from .types import BaseTracer
 
 
+TRUE_VALUES = {"1", "true", "yes", "on", "enable", "enabled"}
+FALSE_VALUES = {"0", "false", "no", "off", "disable", "disabled"}
+
+
+# Detect and set the appropriate backend (CUDA or MPS)
+def _get_backend():
+    """Detect and return the appropriate PyTorch backend module."""
+    import torch
+    
+    if torch.cuda.is_available():
+        return torch.cuda
+    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+        return torch.mps
+    else:
+        return None
+
+
+backend = _get_backend()
+
+
 @table
 @dataclass
 class TorchTrace:
@@ -34,6 +54,231 @@ class Variables:
     value: Optional[str] = None
 
 
+@dataclass
+class TorchProbeConfig:
+    """Configuration container for TorchProbe runtime behaviour.
+
+    The environment variable ``PROBING_TORCH_PROFILING`` is parsed with the
+    following grammar::
+
+        probing-spec  ::=  toggle? ("," option)*
+        toggle        ::=  "on" | "off" | "true" | "false" | "1" | "0"
+        option        ::=  key "=" value | mode-rate
+        key           ::=  "enabled" | "mode" | "rate" | "tracepy" | "sync" |
+                            "exprs" | "vars" | "watch"
+        mode-rate     ::=  mode [":" rate]
+        mode          ::=  <any string without ',' or ':'>
+        rate          ::=  <float greater than zero>
+
+    Examples
+    --------
+    >>> TorchProbeConfig.parse("on").enabled
+    True
+    >>> TorchProbeConfig.parse("off").enabled
+    False
+    >>> cfg = TorchProbeConfig.parse("random:0.1,tracepy=on")
+    >>> (cfg.mode, cfg.rate, cfg.tracepy)
+    ('random', 0.1, True)
+    >>> TorchProbeConfig.parse("on,exprs=loss@step").exprs
+    'loss@step'
+    """
+
+    enabled: bool = False
+    mode: str = "ordered"
+    rate: float = 1.0
+    tracepy: bool = False
+    sync: bool = False
+    exprs: str = ""
+
+    @classmethod
+    def parse(cls, raw: Optional[str]) -> "TorchProbeConfig":
+        """Parse environment-provided specification into a config object."""
+
+        if raw is None:
+            return cls(enabled=False)
+
+        spec = raw.strip()
+        if not spec:
+            return cls(enabled=False)
+
+        tokens = [item.strip() for item in spec.split(",") if item.strip()]
+        if not tokens:
+            return cls(enabled=False)
+
+        cfg = cls(enabled=True)
+
+        first = tokens[0]
+        if "=" not in first:
+            lowered = first.lower()
+            if lowered in FALSE_VALUES:
+                return cls(enabled=False)
+            if lowered in TRUE_VALUES:
+                tokens = tokens[1:]
+            else:
+                if ":" in first:
+                    mode_token, rate_token = first.split(":", 1)
+                    if mode_token:
+                        cfg.mode = mode_token
+                    try:
+                        parsed = float(rate_token)
+                    except ValueError:
+                        pass
+                    else:
+                        if parsed > 0:
+                            cfg.rate = parsed
+                else:
+                    cfg.mode = first
+                tokens = tokens[1:]
+
+        for token in tokens:
+            if "=" not in token:
+                continue
+            key, value = token.split("=", 1)
+            key = key.strip().lower()
+            value = value.strip()
+
+            if key == "enabled":
+                lowered = value.lower()
+                if lowered in TRUE_VALUES:
+                    cfg.enabled = True
+                elif lowered in FALSE_VALUES:
+                    cfg.enabled = False
+            elif key == "mode":
+                cfg.mode = value
+            elif key == "rate":
+                try:
+                    parsed = float(value)
+                except ValueError:
+                    continue
+                if parsed <= 0:
+                    continue
+                cfg.rate = parsed
+            elif key == "tracepy":
+                cfg.tracepy = value.lower() in TRUE_VALUES
+            elif key == "sync":
+                cfg.sync = value.lower() in TRUE_VALUES
+            elif key in {"exprs", "vars", "watch"}:
+                cfg.exprs = value
+
+        return cfg
+
+
+_GLOBAL_CONFIG: Optional[TorchProbeConfig] = None
+_CONFIG_SPEC: Optional[str] = None
+
+
+def configure(spec: Optional[str] = None) -> TorchProbeConfig:
+    """Set a process-wide Torch profiling configuration.
+
+    Parameters
+    ----------
+    spec:
+        The configuration string conforming to :class:`TorchProbeConfig.parse`.
+        Passing ``None`` or an empty string disables profiling.
+
+    Returns
+    -------
+    TorchProbeConfig
+        The parsed configuration object kept as the active default.
+    """
+
+    global _GLOBAL_CONFIG, _CONFIG_SPEC
+
+    config = TorchProbeConfig.parse(spec)
+    _GLOBAL_CONFIG = config
+    _CONFIG_SPEC = spec
+    return config
+
+
+def resolve_config(spec: Optional[str] = None) -> TorchProbeConfig:
+    """Return the active profiling configuration.
+
+    If *spec* is provided it will be parsed and installed as the new
+    process-wide configuration via :func:`configure`. Otherwise the previously
+    configured value is returned; falling back to the
+    ``PROBING_TORCH_PROFILING`` environment variable when no override exists.
+    """
+
+    global _GLOBAL_CONFIG, _CONFIG_SPEC
+
+    if spec is not None:
+        return configure(spec)
+
+    if _GLOBAL_CONFIG is not None:
+        return _GLOBAL_CONFIG
+
+    import os
+
+    env_spec = os.getenv("PROBING_TORCH_PROFILING")
+    if env_spec is None or not env_spec.strip():
+        legacy_mode = os.getenv("PROBING_TORCH_PROFILING_MODE")
+        legacy_rate = os.getenv("PROBING_TORCH_SAMPLE_RATE")
+        legacy_tracepy = os.getenv("PROBING_TORCH_TRACEPY")
+        legacy_sync = os.getenv("PROBING_TORCH_SYNC")
+        legacy_exprs = os.getenv("PROBING_TORCH_WATCH_VARS")
+
+        if any(
+            value
+            for value in [
+                legacy_mode,
+                legacy_rate,
+                legacy_tracepy,
+                legacy_sync,
+                legacy_exprs,
+            ]
+        ):
+            parts = []
+            base_mode = legacy_mode.strip() if legacy_mode else ""
+            base_rate = legacy_rate.strip() if legacy_rate else ""
+
+            if base_rate:
+                try:
+                    rate_value = float(base_rate)
+                except ValueError:
+                    rate_value = None
+                else:
+                    if rate_value <= 0:
+                        rate_value = None
+                if base_mode and rate_value is not None:
+                    parts.append(f"{base_mode}:{rate_value}")
+                elif base_mode:
+                    parts.append(base_mode)
+                elif rate_value is not None:
+                    parts.append(f"ordered:{rate_value}")
+            elif base_mode:
+                parts.append(base_mode)
+
+            if not parts and (
+                legacy_tracepy
+                or legacy_sync
+                or legacy_exprs
+            ):
+                parts.append("on")
+
+            trace_flag = legacy_tracepy.strip().lower() if legacy_tracepy else ""
+            if trace_flag in TRUE_VALUES:
+                parts.append("tracepy=on")
+            sync_flag = legacy_sync.strip().lower() if legacy_sync else ""
+            if sync_flag in TRUE_VALUES:
+                parts.append("sync=on")
+            if legacy_exprs and legacy_exprs.strip():
+                parts.append(f"exprs={legacy_exprs.strip()}")
+
+            env_spec = ",".join(parts)
+
+    env_spec = env_spec.strip() if env_spec else env_spec
+    config = TorchProbeConfig.parse(env_spec)
+    _CONFIG_SPEC = env_spec
+    _GLOBAL_CONFIG = config
+    return config
+
+
+def current_spec() -> Optional[str]:
+    """Return the latest configuration string if one was supplied."""
+
+    return _CONFIG_SPEC
+
+
 class DelayedRecord:
     def __init__(self, record, events):
         self.record = record
@@ -53,12 +298,32 @@ def mem_stats() -> TorchTrace:
     import torch
 
     MB = 1024 * 1024
-    return TorchTrace(
-        allocated=torch.cuda.memory_allocated() / MB,
-        cached=torch.cuda.memory_reserved() / MB,
-        max_allocated=torch.cuda.max_memory_allocated() / MB,
-        max_cached=torch.cuda.max_memory_reserved() / MB,
-    )
+    
+    if backend is None:
+        # No GPU backend available
+        return TorchTrace(
+            allocated=0.0,
+            cached=0.0,
+            max_allocated=0.0,
+            max_cached=0.0,
+        )
+    
+    # Only CUDA supports memory statistics
+    if backend == torch.cuda:
+        return TorchTrace(
+            allocated=backend.memory_allocated() / MB,
+            cached=backend.memory_reserved() / MB,
+            max_allocated=backend.max_memory_allocated() / MB,
+            max_cached=backend.max_memory_reserved() / MB,
+        )
+    else:
+        # MPS and other backends don't have memory statistics yet
+        return TorchTrace(
+            allocated=0.0,
+            cached=0.0,
+            max_allocated=0.0,
+            max_cached=0.0,
+        )
 
 
 STAGEMAP = {
@@ -75,7 +340,7 @@ class Timer:
     def __init__(self, sync: bool = False, **kwargs):
         import torch
 
-        self.has_cuda = torch.cuda.is_available()
+        self.has_backend = backend is not None
         self.sync = sync
         self.events = {}  # GPU timers
         self.step_start = None
@@ -84,8 +349,8 @@ class Timer:
 
     def begin_timing(self, mod, stage) -> float:
         # Synchronize if needed for more accurate timing
-        if self.sync and self.has_cuda:
-            _cuda_sync()
+        if self.sync and self.has_backend:
+            backend.synchronize()
 
         if self.offset() == 0:
             self.step_start = time.time()
@@ -93,21 +358,25 @@ class Timer:
         else:
             time_offset = time.time() - self.step_start
 
-        if self.has_cuda:
+        if self.has_backend:
             key = (id(mod), STAGEMAP[stage])
-            self.events[key] = _cuda_event()
+            event = backend.Event(enable_timing=True)
+            event.record()
+            self.events[key] = event
         return time_offset
 
     def end_timing(self, mod, stage) -> tuple:
         # Synchronize if needed for more accurate timing
-        if self.sync and self.has_cuda:
-            _cuda_sync()
+        if self.sync and self.has_backend:
+            backend.synchronize()
 
         time_offset = time.time() - self.step_start
         key = (id(mod), STAGEMAP[stage])
 
         if key in self.events:
-            return time_offset, (self.events.pop(key), _cuda_event())
+            end_event = backend.Event(enable_timing=True)
+            end_event.record()
+            return time_offset, (self.events.pop(key), end_event)
         return time_offset, None
 
 
@@ -310,13 +579,26 @@ class VariableTracer:
 
 
 class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
-    def __init__(self, tracepy=False, sync=False, mode="ordered", rate=1.0, exprs=""):
+    def __init__(self, config: Optional[TorchProbeConfig] = None):
+        if config is None:
+            config = TorchProbeConfig(enabled=True)
+
+        self.config = config
+        self.enabled = config.enabled
         self.curr_step = 0
         self.pending = []
 
-        super().__init__(tracepy=tracepy, sync=sync, mode=mode, rate=rate, exprs=exprs)
+        super().__init__(
+            tracepy=config.tracepy,
+            sync=config.sync,
+            mode=config.mode,
+            rate=config.rate,
+            exprs=config.exprs,
+        )
 
     def log_module_stage(self, stage, mod, force=False) -> None:
+        if not self.enabled:
+            return
         # Skip if we shouldn't log this module
         if not force and not self.should_sample(mod):
             return
@@ -337,15 +619,17 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
 
     def post_step_hook(self, opt, args, kwargs):
         super().post_step_hook(opt, args, kwargs)
+        if not self.enabled:
+            return
         if not self.finalized:
             self.finalize_discovery()
         else:
             self.curr_step += 1
             self.next_mod()
 
-        # Ensure CUDA operations are complete before processing traces
-        if self.has_cuda and self.pending:
-            _cuda_sync()
+        # Ensure backend operations are complete before processing traces
+        if self.has_backend and self.pending:
+            backend.synchronize()
 
         # process pending records
         self.pending = [x for x in self.pending if x.save()]
@@ -355,20 +639,6 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
 
         # reset the step start time
         self.step_start = 0
-
-
-def _cuda_sync():
-    import torch
-
-    torch.cuda.synchronize()
-
-
-def _cuda_event():
-    import torch
-
-    event = torch.cuda.Event(enable_timing=True)
-    event.record()
-    return event
 
 
 def set_sampling_mode(mode):
