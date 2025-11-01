@@ -8,38 +8,38 @@ pub fn ValueList(variables: HashMap<String, Value>) -> Element {
         div {
             class: "overflow-x-auto",
             table {
-                class: "min-w-full divide-y divide-gray-200 dark:divide-gray-700",
+                class: "min-w-full divide-y divide-gray-200",
                 thead {
-                    class: "bg-gray-50 dark:bg-gray-800",
+                    class: "bg-gray-50",
                     tr {
                         th {
-                            class: "px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider",
+                            class: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider",
                             "#"
                         }
                         th {
-                            class: "px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider",
+                            class: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider",
                             "Name"
                         }
                         th {
-                            class: "px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider",
+                            class: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider",
                             "Value"
                         }
                     }
                 }
                 tbody {
-                    class: "bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700",
+                    class: "bg-white divide-y divide-gray-200",
                     for (name, value) in variables {
                         tr {
                             td {
-                                class: "px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900 dark:text-white",
+                                class: "px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900",
                                 "{value.id}"
                             }
                             td {
-                                class: "px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900 dark:text-white",
+                                class: "px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900",
                                 "{name}"
                             }
                             td {
-                                class: "px-6 py-4 text-sm text-gray-900 dark:text-white break-all",
+                                class: "px-6 py-4 text-sm text-gray-900 break-all",
                                 if let Some(val) = &value.value {
                                     "{val}"
                                 } else {

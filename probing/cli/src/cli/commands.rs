@@ -49,33 +49,15 @@ pub struct Settings {
     #[arg(long, env = "PROBING_PORT")]
     server_port: Option<u64>,
 
-    /// PyTorch profiling mode
+    /// PyTorch profiling specification string passed to TorchProbeConfig.
     ///
-    /// Supported values:
-    ///   - **ordered**: Profiling with ordered sampling
-    ///   - **random**: Profiling with random sampling
-    #[arg(long, env = "PROBING_TORCH_PROFILING_MODE")]
-    torch_profiling_mode: Option<String>,
-
-    /// PyTorch profiling sample rate (range: 0.0-1.0)
-    ///
-    /// Example:
+    /// Examples:
     /// ```bash
-    /// probing <endpoint> config --torch-sample-rate 0.01  # 1% sampling
+    /// probing <endpoint> config --torch-profiling on
+    /// probing <endpoint> config --torch-profiling "random:0.1,exprs=loss@step"
     /// ```
-    #[arg(long, env = "PROBING_TORCH_SAMPLE_RATE")]
-    torch_sample_rate: Option<f64>,
-
-    /// Variables to capture during PyTorch profiling
-    ///
-    /// Format: `<variable name>@<function name>` (comma separated)
-    ///
-    /// Example:
-    /// ```bash
-    /// probing <endpoint> config --torch-watch "x@forward,y@backward"
-    /// ```
-    #[arg(long, env = "PROBING_TORCH_WATCH_VARS")]
-    torch_watch_vars: Option<String>,
+    #[arg(long, env = "PROBING_TORCH_PROFILING", alias = "torch-profiling-mode")]
+    torch_profiling: Option<String>,
 
     #[arg(long, env = "PROBING_RDMA_SAMPLE_RATE")]
     rdma_sample_rate: Option<f64>,
@@ -106,9 +88,7 @@ impl Settings {
         set_if_some!(self.server_port, "server.address", |p| format!(
             "0.0.0.0:{p}"
         ));
-        set_if_some!(self.torch_profiling_mode, "torch.profiling_mode");
-        set_if_some!(self.torch_sample_rate, "torch.sample_rate");
-        set_if_some!(self.torch_watch_vars, "torch.watch_vars");
+        set_if_some!(self.torch_profiling, "torch.profiling");
 
         set_if_some!(self.rdma_sample_rate, "rdma.sample_rate", |r| {
             format!("{r:.2}")

@@ -13,15 +13,17 @@ use crate::styles::{combinations::*, styles::*};
 pub fn Activity(tid: Option<String>) -> Element {
     let tid_display = tid.clone();
     let state = use_api_simple::<Vec<CallFrame>>();
+    let mut mode = use_signal(|| String::from("mixed")); // py | cpp | mixed
     
     use_effect(move || {
         let tid = tid.clone();
         let mut loading = state.loading.clone();
         let mut data = state.data.clone();
+        let current_mode = mode.read().clone();
         spawn(async move {
             loading.set(true);
             let client = ApiClient::new();
-            data.set(Some(client.get_callstack(tid).await));
+            data.set(Some(client.get_callstack_with_mode(tid, &current_mode).await));
             loading.set(false);
         });
     });
@@ -35,6 +37,17 @@ pub fn Activity(tid: Option<String>) -> Element {
             
             Card {
                 title: "Call Stack Information",
+                header_right: Some(rsx! {
+                    div { class: "flex gap-2 items-center",
+                        span { class: "text-sm text-gray-600", "Mode:" }
+                        button { class: format!("px-3 py-1 rounded {}", if mode.read().as_str()=="py" { "bg-blue-600 text-white" } else { "bg-gray-100" }),
+                            onclick: move |_| mode.set(String::from("py")), "Py" }
+                        button { class: format!("px-3 py-1 rounded {}", if mode.read().as_str()=="cpp" { "bg-blue-600 text-white" } else { "bg-gray-100" }),
+                            onclick: move |_| mode.set(String::from("cpp")), "C++" }
+                        button { class: format!("px-3 py-1 rounded {}", if mode.read().as_str()=="mixed" { "bg-blue-600 text-white" } else { "bg-gray-100" }),
+                            onclick: move |_| mode.set(String::from("mixed")), "Mixed" }
+                    }
+                }),
                 if state.is_loading() {
                     LoadingState { message: Some("Loading call stack information...".to_string()) }
                 } else if let Some(Ok(callframes)) = state.data.read().as_ref() {
@@ -46,8 +59,16 @@ pub fn Activity(tid: Option<String>) -> Element {
                         } else {
                             div {
                                 class: SPACE_Y_2,
-                                for callframe in callframes {
-                                    CallStackView { callstack: callframe.clone() }
+                                {
+                                    let current_mode = mode.read().clone();
+                                    callframes.iter()
+                                        .filter(move |cf| match (current_mode.as_str(), cf) {
+                                            ("py", CallFrame::PyFrame { .. }) => true,
+                                            ("cpp", CallFrame::CFrame { .. }) => true,
+                                            ("mixed", _) => true,
+                                            _ => false,
+                                        })
+                                        .map(|cf| rsx! { CallStackView { callstack: cf.clone() } })
                                 }
                             }
                         }

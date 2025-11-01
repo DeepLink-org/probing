@@ -35,8 +35,8 @@ pub fn Python() -> Element {
 fn InfoRow(label: &'static str, value: &'static str) -> Element {
     rsx! {
         div {
-            class: "flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700 last:border-b-0",
-            span { class: "text-gray-600 dark:text-gray-400", "{label}" }
+            class: "flex justify-between items-center py-2 border-b border-gray-200 last:border-b-0",
+            span { class: "text-gray-600", "{label}" }
             span { class: "font-mono text-sm", "{value}" }
         }
     }

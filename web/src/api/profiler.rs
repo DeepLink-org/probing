@@ -1,34 +1,31 @@
 use super::ApiClient;
-use crate::utils::error::{AppError, Result};
+use crate::utils::error::Result;
 use probing_proto::prelude::*;
 
 /// 性能分析API
 impl ApiClient {
-    /// 获取profiler配置
-    pub async fn get_profiler_config(&self) -> Result<Vec<Vec<String>>> {
-        let request = Message::new(Query {
-            expr: "select name, value from information_schema.df_settings where name like 'probing.%';".to_string(),
-            ..Default::default()
-        });
-        
-        let response = self.post_request("/query", &request).await?;
-        
-        // Parse DataFrame structure
-        let json: serde_json::Value = Self::parse_json(&response)?;
-        let data: Vec<Vec<String>> = json["payload"]["DataFrame"]["data"]
-            .as_array()
-            .ok_or_else(|| AppError::Api("Invalid DataFrame structure".to_string()))?
-            .iter()
-            .map(|row| {
-                row.as_array()
-                    .unwrap()
-                    .iter()
-                    .map(|cell| cell.as_str().unwrap_or("").to_string())
-                    .collect()
-            })
-            .collect();
-        
-        Ok(data)
+    /// 获取profiler配置：返回 (name, value) 对的向量
+    pub async fn get_profiler_config(&self) -> Result<Vec<(String, String)>> {
+        let df = self.execute_query("select name, value from information_schema.df_settings where name like 'probing.%';").await?;
+        let mut result = Vec::new();
+        if !df.cols.is_empty() && df.cols.len() >= 2 {
+            let names = &df.cols[0];
+            let values = &df.cols[1];
+            let nrows = names.len().min(values.len());
+            for i in 0..nrows {
+                let name = match names.get(i) {
+                    Ele::Text(s) => s.to_string(),
+                    _ => continue,
+                };
+                let value = match values.get(i) {
+                    Ele::Text(s) => s.to_string(),
+                    Ele::Nil => String::new(),
+                    _ => continue,
+                };
+                result.push((name, value));
+            }
+        }
+        Ok(result)
     }
 
     /// 获取火焰图数据

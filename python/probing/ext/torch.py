@@ -1,3 +1,6 @@
+import logging
+
+
 hooks = {}
 
 
@@ -10,25 +13,38 @@ def is_true(value):
 def optimizer_step_post_hook(optimizer, *args, **kwargs):
     global hooks
     if optimizer not in hooks:
-        from probing.profiling.torch_probe import TorchProbe
+        from probing.profiling.torch_probe import (
+            TorchProbe,
+            current_spec,
+            resolve_config,
+        )
         from probing.profiling.torch import install_hooks
         from probing.profiling.torch.module_utils import get_toplevel_module
 
-        import os
+        config = resolve_config()
+        if not config.enabled:
+            logging.getLogger(__name__).info(
+                "Torch profiling disabled (PROBING_TORCH_PROFILING=%s)",
+                current_spec() or "",
+            )
+            hooks[optimizer] = None
+            return
 
-        mode = os.getenv("PROBING_TORCH_PROFILING_MODE", "ordered")
-        rate = float(os.getenv("PROBING_TORCH_SAMPLE_RATE", "0.05"))
-        tracepy = is_true(os.getenv("PROBING_TORCH_TRACEPY", "False"))
-        sync = is_true(os.getenv("PROBING_TORCH_SYNC", "False"))
-        exprs = os.getenv("PROBING_TORCH_WATCH_VARS", "")
-
-        tracer = TorchProbe(exprs=exprs)
+        tracer = TorchProbe(config=config)
+        logging.getLogger(__name__).info(
+            "Torch profiling enabled: mode=%s rate=%s tracepy=%s sync=%s exprs=%s",
+            config.mode,
+            config.rate,
+            config.tracepy,
+            config.sync,
+            config.exprs or "",
+        )
 
         models = get_toplevel_module()
         for model in models:
             install_hooks(model, tracer=tracer)
         install_hooks(opt=optimizer, tracer=tracer)
-        hooks[optimizer] = True
+        hooks[optimizer] = tracer
 
         from probing.profiling.torch import next_step
 

@@ -46,7 +46,7 @@ use crate::ENGINE;
 /// and updates its configuration. The change takes effect immediately.
 ///
 /// # Arguments
-/// * `key` - The configuration option key (e.g., "server.address", "torch.profiling_mode")
+/// * `key` - The configuration option key (e.g., "server.address", "torch.profiling")
 /// * `value` - The new value for the configuration option
 ///
 /// # Returns
@@ -111,8 +111,8 @@ pub async fn set(key: &str, value: &str) -> Result<(), EngineError> {
 /// // Get server address
 /// let addr = probing_core::config::get("server.address").await?;
 ///
-/// // Get current profiling mode
-/// let mode = probing_core::config::get("torch.profiling_mode").await?;
+/// // Get current profiling specification
+/// let mode = probing_core::config::get("torch.profiling").await?;
 /// # Ok(())
 /// # }
 /// ```

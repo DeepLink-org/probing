@@ -241,7 +241,7 @@ make test
 PROBING=1 python examples/test_probing.py
 
 # Advanced testing with variable tracking
-PROBING_TORCH_WATCH_VARS="loss@train,acc1@train" PROBE=1 python examples/imagenet.py
+PROBING_TORCH_PROFILING="on,exprs=loss@train,acc1@train" PROBE=1 python examples/imagenet.py
 ```
 
 ### Project Structure

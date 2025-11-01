@@ -1,13 +1,15 @@
 use dioxus::prelude::*;
 use dioxus_router::prelude::*;
+use icondata::Icon as IconData;
 
 use crate::app::Route;
+use crate::components::icon::Icon;
 
 #[component]
 pub fn Header() -> Element {
     rsx! {
         header {
-            class: "bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700",
+            class: "bg-white shadow-sm border-b border-gray-200",
             div {
                 class: "px-6 py-4",
                 div {
@@ -17,7 +19,7 @@ pub fn Header() -> Element {
                         class: "flex items-center space-x-4",
                                 Link {
                                     to: Route::OverviewPage {},
-                                    class: "text-xl font-bold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400",
+                                    class: "text-xl font-bold text-gray-900 hover:text-blue-600",
                                     "Probing Dashboard"
                                 }
                     }
@@ -27,32 +29,32 @@ pub fn Header() -> Element {
                         class: "hidden md:flex items-center space-x-1",
                                 NavTab {
                                     to: Route::OverviewPage {},
-                                    icon: "📊",
+                                    icon: &icondata::AiLineChartOutlined,
                                     label: "Overview"
                                 }
                                 NavTab {
                                     to: Route::ClusterPage {},
-                                    icon: "🖥️",
+                                    icon: &icondata::AiClusterOutlined,
                                     label: "Cluster"
                                 }
                                 NavTab {
                                     to: Route::ActivityPage {},
-                                    icon: "⚡",
+                                    icon: &icondata::AiThunderboltOutlined,
                                     label: "Activity"
                                 }
                                 NavTab {
                                     to: Route::ProfilerPage {},
-                                    icon: "🔍",
+                                    icon: &icondata::AiSearchOutlined,
                                     label: "Profiler"
                                 }
                                 NavTab {
                                     to: Route::TimeseriesPage {},
-                                    icon: "📈",
+                                    icon: &icondata::AiAreaChartOutlined,
                                     label: "TimeSeries"
                                 }
                                 NavTab {
                                     to: Route::PythonPage {},
-                                    icon: "🐍",
+                                    icon: &icondata::SiPython,
                                     label: "Inspect"
                                 }
                     }
@@ -62,13 +64,11 @@ pub fn Header() -> Element {
                         class: "flex items-center space-x-4",
                         // Mobile menu button
                         button {
-                            class: "md:hidden p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200",
-                            "☰"
-                        }
-                        // Theme toggle
-                        button {
-                            class: "p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200",
-                            "🌙"
+                            class: "md:hidden p-2 text-gray-500 hover:text-gray-700",
+                            Icon {
+                                icon: &icondata::AiMenuOutlined,
+                                class: "w-5 h-5"
+                            }
                         }
                     }
                 }
@@ -78,15 +78,12 @@ pub fn Header() -> Element {
 }
 
 #[component]
-pub fn NavTab(to: Route, icon: &'static str, label: &'static str) -> Element {
+pub fn NavTab(to: Route, icon: &'static IconData, label: &'static str) -> Element {
     rsx! {
         Link {
             to: to,
-            class: "flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white transition-colors",
-            span {
-                class: "text-base",
-                "{icon}"
-            }
+            class: "flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors",
+            Icon { icon, class: "w-4 h-4" }
             span {
                 class: "hidden lg:inline",
                 "{label}"

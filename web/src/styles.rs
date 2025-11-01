@@ -1,5 +1,3 @@
-use dioxus::prelude::*;
-
 /// 样式常量定义
 pub mod styles {
     // 布局样式
@@ -112,9 +110,9 @@ pub mod combinations {
     use super::styles::*;
     
     // 卡片样式
-    pub const CARD: &str = "bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700";
-    pub const CARD_HEADER: &str = "px-6 py-4 border-b border-gray-200 dark:border-gray-700";
-    pub const CARD_TITLE: &str = "text-lg font-semibold text-gray-900 dark:text-white";
+    pub const CARD: &str = "bg-white rounded-lg shadow-sm border border-gray-200";
+    pub const CARD_HEADER: &str = "px-6 py-4 border-b border-gray-200";
+    pub const CARD_TITLE: &str = "text-lg font-semibold text-gray-900";
     pub const CARD_CONTENT: &str = "p-6";
     
     // 按钮样式
@@ -122,14 +120,14 @@ pub mod combinations {
     pub const BUTTON_DISABLED: &str = "opacity-50 cursor-not-allowed";
     
     // 输入框样式
-    pub const INPUT: &str = "w-full font-mono text-sm p-3 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800";
-    pub const TEXTAREA: &str = "w-full min-h-[120px] font-mono text-sm p-3 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800";
+    pub const INPUT: &str = "w-full font-mono text-sm p-3 rounded border border-gray-300 bg-white";
+    pub const TEXTAREA: &str = "w-full min-h-[120px] font-mono text-sm p-3 rounded border border-gray-300 bg-white";
     
     // 布局样式
     pub const PAGE_CONTAINER: &str = "space-y-6";
     pub const PAGE_HEADER: &str = "mb-8";
-    pub const PAGE_TITLE: &str = "text-3xl font-bold text-gray-900 dark:text-white";
-    pub const PAGE_SUBTITLE: &str = "mt-2 text-gray-600 dark:text-gray-400";
+    pub const PAGE_TITLE: &str = "text-3xl font-bold text-gray-900";
+    pub const PAGE_SUBTITLE: &str = "mt-2 text-gray-600";
     pub const SECTION_CONTAINER: &str = "space-y-6";
     pub const SECTION_SUBTITLE: &str = "text-sm text-gray-600";
     
@@ -144,13 +142,13 @@ pub mod combinations {
     pub const EMPTY: &str = "text-center py-8 text-gray-500";
     
     // 表格样式
-    pub const TABLE_CONTAINER: &str = "w-full overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg";
+    pub const TABLE_CONTAINER: &str = "w-full overflow-x-auto border border-gray-200 rounded-lg";
     pub const TABLE: &str = "w-full border-collapse table-auto";
-    pub const TABLE_HEADER_ROW: &str = "bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700";
-    pub const TABLE_HEADER_CELL: &str = "px-4 py-2 text-left font-semibold text-gray-700 dark:text-gray-200 border-r border-gray-200 dark:border-gray-700";
+    pub const TABLE_HEADER_ROW: &str = "bg-gray-50 border-b border-gray-200";
+    pub const TABLE_HEADER_CELL: &str = "px-4 py-2 text-left font-semibold text-gray-700 border-r border-gray-200";
     pub const TABLE_ROW_EVEN: &str = "bg-white";
     pub const TABLE_ROW_ODD: &str = "bg-gray-50";
-    pub const TABLE_CELL: &str = "px-4 py-2 text-gray-700 dark:text-gray-200 border-r border-gray-200 dark:border-gray-700";
+    pub const TABLE_CELL: &str = "px-4 py-2 text-gray-700 border-r border-gray-200";
 }
 
 /// 条件样式组合器

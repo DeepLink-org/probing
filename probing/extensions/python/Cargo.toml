@@ -24,6 +24,7 @@ nix = { workspace = true }
 once_cell = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
+html-escape = "0.2"
 
 include_dir = "=0.7.4"
 backtrace = { version = "0.3", features = ["cpp_demangle", "std"] }
