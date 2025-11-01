@@ -1,7 +1,9 @@
 use std::{collections::BTreeMap, thread};
 
 use anyhow::Result;
+use html_escape::encode_text;
 use inferno;
+use log::{error, warn};
 
 use crate::extensions::python::PythonPlugin;
 
@@ -88,21 +90,39 @@ pub fn query_profiling() -> Result<Vec<String>> {
 
 pub fn flamegraph() -> String {
     let mut graph: Vec<u8> = vec![];
-    let lines = query_profiling();
-    if let Err(e) = lines {
-        println!("Error: {e}");
-        return String::default();
-    }
-    if let Ok(lines) = lines {
-        let lines = lines.iter().map(|x| x.as_str()).collect::<Vec<_>>();
-
-        let mut opt = inferno::flamegraph::Options::default();
-        opt.deterministic = true;
-        // opt.factor = 0.001;
-        match inferno::flamegraph::from_lines(&mut opt, lines, &mut graph) {
-            Ok(_) => return String::from_utf8(graph).unwrap(),
-            Err(e) => println!("Error: {e}"),
+    match query_profiling() {
+        Err(err) => {
+            error!("Failed to query torch profiling data: {err}");
+            return empty_svg("Torch profiling data unavailable");
         }
-    };
-    String::from_utf8(graph).unwrap()
+        Ok(lines) => {
+            if lines.is_empty() {
+                warn!("Torch profiling returned no samples; skipping flamegraph generation");
+                return empty_svg("No torch profiling samples collected");
+            }
+
+            let line_refs = lines.iter().map(|x| x.as_str()).collect::<Vec<_>>();
+            println!("Generating torch flamegraph with:\n {:?}", line_refs);
+            let mut opt = inferno::flamegraph::Options::default();
+            opt.deterministic = true;
+            match inferno::flamegraph::from_lines(&mut opt, line_refs, &mut graph) {
+                Ok(_) => String::from_utf8(graph).unwrap_or_else(|_| empty_svg("Invalid flamegraph output")),
+                Err(e) => {
+                    error!("Failed to build torch flamegraph: {e}");
+                    empty_svg("Unable to build torch flamegraph")
+                }
+            }
+        }
+    }
+}
+
+fn empty_svg(message: &str) -> String {
+    format!(
+        "<svg xmlns='http://www.w3.org/2000/svg' width='800' height='120'>\
+         <rect width='100%' height='100%' fill='#f5f5f5'/>\
+         <text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle'\
+           font-family='sans-serif' font-size='16' fill='#666'>{}</text>\
+         </svg>",
+        encode_text(message)
+    )
 }

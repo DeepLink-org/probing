@@ -17,10 +17,15 @@ fn apply_config(config: &[(String, String)], mut pprof_freq: Signal<i32>, mut to
                     pprof_freq.set(v.max(0));
                 }
             },
-            "probing.torch.profiling_mode" => {
-                if !value.is_empty() {
-                    torch_enabled.set(true);
-                }
+            "probing.torch.profiling" => {
+                let lowered = value.trim().to_lowercase();
+                let enabled = !lowered.is_empty()
+                    && lowered != "0"
+                    && lowered != "false"
+                    && lowered != "off"
+                    && lowered != "disable"
+                    && lowered != "disabled";
+                torch_enabled.set(enabled);
             },
             _ => {}
         }
@@ -124,11 +129,11 @@ pub fn Profiler() -> Element {
                     let mut torch_enabled_clone = torch_enabled.clone();
                     spawn(async move {
                         let client = ApiClient::new();
-                        // torch: 使用 profiling_mode 存在性表示开关；启用时设为 "ordered"，否则清空
+                        // torch: 使用 profiling 规格字符串表示开关；启用时设为 "on"，否则清空
                         let expr = if enabled {
-                            "set probing.torch.profiling_mode=ordered;".to_string()
+                            "set probing.torch.profiling=on;".to_string()
                         } else {
-                            "set probing.torch.profiling_mode=;".to_string()
+                            "set probing.torch.profiling=;".to_string()
                         };
                         let _ = client.execute_query(&expr).await;
                         torch_enabled_clone.set(enabled);
