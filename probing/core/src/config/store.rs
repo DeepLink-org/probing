@@ -356,9 +356,18 @@ mod tests {
         );
 
         // Test bool value
-        ConfigStore::set("test.bool", true);
-        assert_eq!(ConfigStore::get("test.bool"), Some(Ele::BOOL(true)));
-        assert_eq!(ConfigStore::get_str("test.bool"), Some("true".to_string()));
+        ConfigStore::set("test.bool.true", true);
+        assert_eq!(ConfigStore::get("test.bool.true"), Some(Ele::BOOL(true)));
+        assert_eq!(
+            ConfigStore::get_str("test.bool.true"),
+            Some("True".to_string())
+        );
+        ConfigStore::set("test.bool.false", false);
+        assert_eq!(ConfigStore::get("test.bool.false"), Some(Ele::BOOL(false)));
+        assert_eq!(
+            ConfigStore::get_str("test.bool.false"),
+            Some("False".to_string())
+        );
 
         // Test integer values
         ConfigStore::set("test.i32", 42i32);
