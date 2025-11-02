@@ -140,7 +140,7 @@ impl ConfigStore {
                 } else {
                     "False".to_string()
                 }
-            },
+            }
             Ele::I32(i) => i.to_string(),
             Ele::I64(i) => i.to_string(),
             Ele::F32(f) => f.to_string(),

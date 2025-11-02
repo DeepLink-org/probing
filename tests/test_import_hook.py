@@ -13,6 +13,11 @@ class TestImportHook(unittest.TestCase):
         import_hook.register.clear()
         import_hook.triggered.clear()
 
+        # Remove test modules from sys.modules before starting
+        for module_name in list(sys.modules.keys()):
+            if module_name.startswith("my_module"):
+                del sys.modules[module_name]
+
         # Create a temporary directory for test modules
         self.temp_dir = tempfile.mkdtemp()
         sys.path.insert(0, self.temp_dir)
