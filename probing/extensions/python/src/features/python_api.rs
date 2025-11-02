@@ -10,13 +10,33 @@ use probing_core::ENGINE;
 
 #[pyfunction]
 fn query_json(_py: Python, sql: String) -> PyResult<String> {
-    let result = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(4)
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(async { ENGINE.read().await.async_query(sql.as_str()).await })
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    // Check if we're already inside a tokio runtime
+    let result = match tokio::runtime::Handle::try_current() {
+        Ok(_handle) => {
+            // We're inside a runtime, spawn a new thread to avoid nested runtime error
+            std::thread::spawn(move || {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap()
+                    .block_on(async { ENGINE.read().await.async_query(sql.as_str()).await })
+            })
+            .join()
+            .map_err(|_| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Thread panicked"))?
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?
+        }
+        Err(_) => {
+            // Not in a runtime, create a new one
+            tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(4)
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(async { ENGINE.read().await.async_query(sql.as_str()).await })
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?
+        }
+    };
+    
     serde_json::to_string(&result)
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
 }

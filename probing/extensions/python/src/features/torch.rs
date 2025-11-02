@@ -14,7 +14,7 @@ struct Frame {
 }
 
 pub fn query_profiling() -> Result<Vec<String>> {
-    let data = thread::spawn(|| {
+    let data = thread::spawn(|| -> Result<probing_proto::types::DataFrame> {
         let engine = probing_core::create_engine()
             .with_plugin(PythonPlugin::create("python"))
             .build()?;
@@ -27,12 +27,32 @@ pub fn query_profiling() -> Result<Vec<String>> {
             order by (stage, module);
         "#;
 
-        tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(4)
-            .enable_all()
-            .build()
-            .unwrap()
-            .block_on(async { engine.async_query(query).await })
+        // Check if we're already inside a tokio runtime to avoid nested runtime panic
+        match tokio::runtime::Handle::try_current() {
+            Ok(_handle) => {
+                // Inside a runtime, spawn a new thread
+                std::thread::spawn(move || {
+                    tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .unwrap()
+                        .block_on(async { engine.async_query(query).await })
+                })
+                .join()
+                .map_err(|_| anyhow::anyhow!("Thread panicked"))?
+                .map_err(|e| anyhow::anyhow!(e))
+            }
+            Err(_) => {
+                // Not in a runtime, create a new one
+                tokio::runtime::Builder::new_multi_thread()
+                    .worker_threads(4)
+                    .enable_all()
+                    .build()
+                    .unwrap()
+                    .block_on(async { engine.async_query(query).await })
+                    .map_err(|e| anyhow::anyhow!(e))
+            }
+        }
     })
     .join()
     .map_err(|_| anyhow::anyhow!("error joining thread"))??;

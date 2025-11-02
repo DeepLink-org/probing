@@ -116,12 +116,20 @@ class CodeExecutor:
             from .debug_magic import DebugMagic
             from .stack_magic import StackMagic
             from .handle_magic import HandleMagic
+            from .trace_magic import TraceMagic
+            from .query_magic import QueryMagic
+            from .inspect_magic import InspectMagic
+            from .help_magic import HelpMagic
 
             shell = self.km.kernel.shell
             shell.register_magics(TorchMagic(shell=shell))
             shell.register_magics(DebugMagic(shell=shell))
             shell.register_magics(StackMagic(shell=shell))
             shell.register_magics(HandleMagic(shell=shell))
+            shell.register_magics(TraceMagic(shell=shell))
+            shell.register_magics(QueryMagic(shell=shell))
+            shell.register_magics(InspectMagic(shell=shell))
+            shell.register_magics(HelpMagic(shell=shell))
 
     def execute(self, code_or_request: Union[str, dict]) -> ExecutionResult:
         """Executes a string of code or a request dictionary in the kernel.
