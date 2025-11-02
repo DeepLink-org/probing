@@ -46,6 +46,8 @@ jobs:
           test -e ~/.cargo/bin/cargo-zigbuild || cargo install cargo-zigbuild
           test -e ~/.cargo/bin/rnr || cargo install rnr
           test -e ~/.cargo/bin/cargo-nextest || cargo install cargo-nextest
+          test -e ~/.cargo/bin/cargo-binstall || cargo install cargo-binstall
+          test -e ~/.cargo/bin/dx || cargo binstall dioxus-cli
           test -e ~/.cargo/bin/trunk || cargo install trunk --locked
       # - name: Save Cargo Cache
       #   id: cache-deps
