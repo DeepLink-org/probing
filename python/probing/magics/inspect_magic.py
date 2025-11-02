@@ -338,27 +338,7 @@ Examples:
         except Exception as e:
             print(f"✗ Failed to get CUDA memory info: {e}")
 
-    # Keep old commands for backward compatibility
-    @line_magic
-    def torch_modules(self, line: str):
-        """[Deprecated] Use %inspect ls modules instead."""
-        self.inspect(f"ls modules {line}")
-
-    @line_magic
-    def torch_tensors(self, line: str):
-        """[Deprecated] Use %inspect ls tensors instead."""
-        self.inspect(f"ls tensors {line}")
-
-    @line_magic
-    def torch_optimizers(self, line: str):
-        """[Deprecated] Use %inspect ls optimizers instead."""
-        self.inspect(f"ls optimizers {line}")
-
-    @line_magic
-    def memory_objects(self, line: str):
-        """[Deprecated] Use %inspect ls objects instead."""
-        self.inspect(f"ls objects {line}")
-
+    # Aliases for convenience
     @line_magic
     def gc_collect(self, line: str):
         """Force garbage collection. Alias for %inspect gc."""

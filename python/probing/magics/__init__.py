@@ -189,6 +189,7 @@ class CodeExecutor:
                     warnings.warn(f"Failed to register {magic_name}: {e}", ImportWarning)
                     print(f"✗ Failed to register {magic_name}: {e}")
             
+            
             if registered_count == 0:
                 print("Warning: No magic commands were registered. Make sure magic modules use @register_magic decorator.")
 
