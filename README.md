@@ -219,8 +219,8 @@ cd app && trunk build --release
 
 # Build and install wheel package
 make wheel
-# or build the wheel using Dioxus frontend assets
-# FRONTEND=dioxus make wheel
+# or build the wheel using Leptos frontend assets (Dioxus is default)
+# FRONTEND=leptos make wheel
 pip install dist/probing-*.whl --force-reinstall
 ```
 

@@ -2,6 +2,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
 use crate::extensions;
+use crate::features::config;
 use crate::features::vm_tracer::{
     _get_python_frames, _get_python_stacks, disable_tracer, enable_tracer, initialize_globals,
 };
@@ -10,13 +11,33 @@ use probing_core::ENGINE;
 
 #[pyfunction]
 fn query_json(_py: Python, sql: String) -> PyResult<String> {
-    let result = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(4)
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(async { ENGINE.read().await.async_query(sql.as_str()).await })
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    // Check if we're already inside a tokio runtime
+    let result = match tokio::runtime::Handle::try_current() {
+        Ok(_handle) => {
+            // We're inside a runtime, spawn a new thread to avoid nested runtime error
+            std::thread::spawn(move || {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap()
+                    .block_on(async { ENGINE.read().await.async_query(sql.as_str()).await })
+            })
+            .join()
+            .map_err(|_| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Thread panicked"))?
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?
+        }
+        Err(_) => {
+            // Not in a runtime, create a new one
+            tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(4)
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(async { ENGINE.read().await.async_query(sql.as_str()).await })
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?
+        }
+    };
+
     serde_json::to_string(&result)
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
 }
@@ -47,6 +68,10 @@ pub fn create_probing_module() -> PyResult<()> {
         m.add_function(wrap_pyfunction!(disable_tracer, py)?)?;
         m.add_function(wrap_pyfunction!(_get_python_stacks, py)?)?;
         m.add_function(wrap_pyfunction!(_get_python_frames, py)?)?;
+
+        // Register config module
+        config::register_config_module(&m)?;
+
         Ok(())
     })
 }

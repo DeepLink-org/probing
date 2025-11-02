@@ -55,7 +55,10 @@ class ProbingFinder(importlib.abc.MetaPathFinder):
 
     def __init__(self):
         # Store original finders to restore the import chain
-        self.original_meta_path = list(sys.meta_path)
+        # Don't store self in original_meta_path
+        self.original_meta_path = [
+            f for f in sys.meta_path if not isinstance(f, ProbingFinder)
+        ]
 
     def find_spec(self, fullname, path, target=None):
         # If not a module we're interested in, skip it
@@ -67,17 +70,14 @@ class ProbingFinder(importlib.abc.MetaPathFinder):
             return None
 
         sys._ProbingFinder_in_progress.add(fullname)  # type: ignore
+        # Save current meta_path to restore later
+        saved_meta_path = list(sys.meta_path)
         try:
             # Temporarily remove self to avoid recursion
-            sys.meta_path = [
-                f for f in self.original_meta_path if not isinstance(f, ProbingFinder)
-            ]
+            sys.meta_path = list(self.original_meta_path)
 
             # Use original finders to find the module
             spec = importlib.util.find_spec(fullname)
-
-            # Restore meta_path
-            sys.meta_path = list(self.original_meta_path)
 
             # If module is found, wrap its loader
             if spec is not None and spec.loader is not None:
@@ -87,8 +87,8 @@ class ProbingFinder(importlib.abc.MetaPathFinder):
             return spec
         finally:
             sys._ProbingFinder_in_progress.remove(fullname)  # type: ignore
-            # Always restore meta_path
-            sys.meta_path = list(self.original_meta_path)
+            # Always restore meta_path to what it was before
+            sys.meta_path = saved_meta_path
 
 
 def register_module_callback(module_name, callback):

@@ -14,7 +14,7 @@ struct Frame {
 }
 
 pub fn query_profiling() -> Result<Vec<String>> {
-    let data = thread::spawn(|| {
+    let data = thread::spawn(|| -> Result<probing_proto::types::DataFrame> {
         let engine = probing_core::create_engine()
             .with_plugin(PythonPlugin::create("python"))
             .build()?;
@@ -27,12 +27,32 @@ pub fn query_profiling() -> Result<Vec<String>> {
             order by (stage, module);
         "#;
 
-        tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(4)
-            .enable_all()
-            .build()
-            .unwrap()
-            .block_on(async { engine.async_query(query).await })
+        // Check if we're already inside a tokio runtime to avoid nested runtime panic
+        match tokio::runtime::Handle::try_current() {
+            Ok(_handle) => {
+                // Inside a runtime, spawn a new thread
+                std::thread::spawn(move || {
+                    tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .unwrap()
+                        .block_on(async { engine.async_query(query).await })
+                })
+                .join()
+                .map_err(|_| anyhow::anyhow!("Thread panicked"))?
+                .map_err(|e| anyhow::anyhow!(e))
+            }
+            Err(_) => {
+                // Not in a runtime, create a new one
+                tokio::runtime::Builder::new_multi_thread()
+                    .worker_threads(4)
+                    .enable_all()
+                    .build()
+                    .unwrap()
+                    .block_on(async { engine.async_query(query).await })
+                    .map_err(|e| anyhow::anyhow!(e))
+            }
+        }
     })
     .join()
     .map_err(|_| anyhow::anyhow!("error joining thread"))??;
@@ -81,7 +101,10 @@ pub fn query_profiling() -> Result<Vec<String>> {
 
             let duration = if *duration < 0. { 0. } else { *duration };
 
-            line.push_str(&format!(" {}", (duration * 100000.) as isize));
+            // Convert duration from seconds to nanoseconds for accurate time representation
+            // in the flame graph (inferno expects sample counts, we use nanoseconds as units)
+            let duration_ns = (duration * 1_000_000_000.0) as u64;
+            line.push_str(&format!(" {}", duration_ns));
 
             line
         })
@@ -102,9 +125,12 @@ pub fn flamegraph() -> String {
             }
 
             let line_refs = lines.iter().map(|x| x.as_str()).collect::<Vec<_>>();
-            println!("Generating torch flamegraph with:\n {:?}", line_refs);
             let mut opt = inferno::flamegraph::Options::default();
             opt.deterministic = true;
+            // Set title to indicate this is a torch profiling flamegraph with time units (nanoseconds)
+            opt.title = "Torch Profiling Flamegraph (time in nanoseconds)".to_string();
+            // Set count name to indicate the unit (nanoseconds instead of samples)
+            opt.count_name = "ns".to_string();
             match inferno::flamegraph::from_lines(&mut opt, line_refs, &mut graph) {
                 Ok(_) => String::from_utf8(graph)
                     .unwrap_or_else(|_| empty_svg("Invalid flamegraph output")),

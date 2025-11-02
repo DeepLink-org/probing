@@ -210,63 +210,8 @@ def resolve_config(spec: Optional[str] = None) -> TorchProbeConfig:
     import os
 
     env_spec = os.getenv("PROBING_TORCH_PROFILING")
-    if env_spec is None or not env_spec.strip():
-        legacy_mode = os.getenv("PROBING_TORCH_PROFILING_MODE")
-        legacy_rate = os.getenv("PROBING_TORCH_SAMPLE_RATE")
-        legacy_tracepy = os.getenv("PROBING_TORCH_TRACEPY")
-        legacy_sync = os.getenv("PROBING_TORCH_SYNC")
-        legacy_exprs = os.getenv("PROBING_TORCH_WATCH_VARS")
-
-        if any(
-            value
-            for value in [
-                legacy_mode,
-                legacy_rate,
-                legacy_tracepy,
-                legacy_sync,
-                legacy_exprs,
-            ]
-        ):
-            parts = []
-            base_mode = legacy_mode.strip() if legacy_mode else ""
-            base_rate = legacy_rate.strip() if legacy_rate else ""
-
-            if base_rate:
-                try:
-                    rate_value = float(base_rate)
-                except ValueError:
-                    rate_value = None
-                else:
-                    if rate_value <= 0:
-                        rate_value = None
-                if base_mode and rate_value is not None:
-                    parts.append(f"{base_mode}:{rate_value}")
-                elif base_mode:
-                    parts.append(base_mode)
-                elif rate_value is not None:
-                    parts.append(f"ordered:{rate_value}")
-            elif base_mode:
-                parts.append(base_mode)
-
-            if not parts and (
-                legacy_tracepy
-                or legacy_sync
-                or legacy_exprs
-            ):
-                parts.append("on")
-
-            trace_flag = legacy_tracepy.strip().lower() if legacy_tracepy else ""
-            if trace_flag in TRUE_VALUES:
-                parts.append("tracepy=on")
-            sync_flag = legacy_sync.strip().lower() if legacy_sync else ""
-            if sync_flag in TRUE_VALUES:
-                parts.append("sync=on")
-            if legacy_exprs and legacy_exprs.strip():
-                parts.append(f"exprs={legacy_exprs.strip()}")
-
-            env_spec = ",".join(parts)
-
-    env_spec = env_spec.strip() if env_spec else env_spec
+    if env_spec:
+        env_spec = env_spec.strip()
     config = TorchProbeConfig.parse(env_spec)
     _CONFIG_SPEC = env_spec
     _GLOBAL_CONFIG = config
