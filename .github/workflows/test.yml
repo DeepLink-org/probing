@@ -29,6 +29,15 @@ jobs:
           enable-cache: true
       - name: Install Zig toolchain
         uses: mlugg/setup-zig@v2
+      - name: Install cargo tools
+        run: |
+          pip install build wheel toml
+          test -e ~/.cargo/bin/cargo-zigbuild || cargo install cargo-zigbuild
+          test -e ~/.cargo/bin/rnr || cargo install rnr
+          test -e ~/.cargo/bin/cargo-nextest || cargo install cargo-nextest
+          test -e ~/.cargo/bin/cargo-binstall || cargo install cargo-binstall
+          test -e ~/.cargo/bin/dx || cargo binstall dioxus-cli
+          test -e ~/.cargo/bin/trunk || cargo install trunk --locked
       - name: Cache dependencies
         id: cache-deps
         uses: actions/cache@v4
@@ -40,15 +49,6 @@ jobs:
             ~/.cargo/git/db/
             ~/zig
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Install cargo tools
-        run: |
-          pip install build wheel toml
-          test -e ~/.cargo/bin/cargo-zigbuild || cargo install cargo-zigbuild
-          test -e ~/.cargo/bin/rnr || cargo install rnr
-          test -e ~/.cargo/bin/cargo-nextest || cargo install cargo-nextest
-          test -e ~/.cargo/bin/cargo-binstall || cargo install cargo-binstall
-          test -e ~/.cargo/bin/dx || cargo binstall dioxus-cli
-          test -e ~/.cargo/bin/trunk || cargo install trunk --locked
       # - name: Save Cargo Cache
       #   id: cache-deps
       #   uses: actions/cache/save@v4
