@@ -10,9 +10,9 @@ else
 	TARGET_DIR := debug
 endif
 
-# Frontend framework: leptos (default) or dioxus
+# Frontend framework: dioxus (default) or leptos
 ifndef FRONTEND
-	FRONTEND := leptos
+	FRONTEND := dioxus
 endif
 
 # OS-specific library extension
@@ -66,7 +66,7 @@ help:
 	@echo "  web/dist   Build the web app (Dioxus)."
 	@echo ""
 	@echo "Environment Variables:"
-	@echo "  FRONTEND   Frontend framework: leptos (default) or dioxus"
+	@echo "  FRONTEND   Frontend framework: dioxus (default) or leptos"
 	@echo "  DEBUG      Build mode: release (default) or debug"
 	@echo "  ZIG        Use zigbuild for cross-compilation"
 	@echo "  PYTHON     Python version (default: 3.12)"
@@ -75,8 +75,8 @@ help:
 	@echo "  make frontend-leptos       # Build Leptos frontend"
 	@echo "  make frontend-dioxus       # Build Dioxus frontend"
 	@echo "  make frontend              # Build frontend based on FRONTEND variable"
-	@echo "  FRONTEND=dioxus make all   # Use Dioxus frontend for all builds"
-	@echo "  FRONTEND=leptos make all   # Use Leptos frontend for all builds (default)"
+	@echo "  FRONTEND=dioxus make all   # Use Dioxus frontend for all builds (default)"
+	@echo "  FRONTEND=leptos make all   # Use Leptos frontend for all builds"
 
 # ==============================================================================
 # Build Targets

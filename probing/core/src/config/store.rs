@@ -134,7 +134,13 @@ impl ConfigStore {
     pub fn get_str(key: &str) -> Option<String> {
         ConfigStore::get(key).map(|ele| match ele {
             Ele::Text(s) => s,
-            Ele::BOOL(b) => b.to_string(),
+            Ele::BOOL(b) => {
+                if b {
+                    "True".to_string()
+                } else {
+                    "False".to_string()
+                }
+            },
             Ele::I32(i) => i.to_string(),
             Ele::I64(i) => i.to_string(),
             Ele::F32(f) => f.to_string(),
