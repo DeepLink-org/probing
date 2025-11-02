@@ -6,7 +6,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'python'))
 
 import pytest
-from probing.magics import CodeExecutor
+from probing.repl import CodeExecutor
 
 
 @pytest.fixture

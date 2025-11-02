@@ -118,7 +118,6 @@ def write_probing_wheel(out_dir):
     for name, path in {
         "probing": f"{target_dir_prefix}/probing",
         lib_name: f"{target_dir_prefix}/{lib_name}",
-        "probing-repl": "python/probing-repl",
     }.items():
         zip_info = ZipInfo(f"probing-{metadata['version']}.data/scripts/{name}")
         zip_info.external_attr = (stat.S_IFREG | 0o755) << 16

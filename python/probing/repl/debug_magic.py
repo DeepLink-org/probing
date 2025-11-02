@@ -6,7 +6,7 @@ watch variables, monitor function calls, and enable remote debugging.
 
 from IPython.core.magic import Magics, magics_class, line_magic, cell_magic
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
-from probing.magics import register_magic
+from probing.repl import register_magic
 import json
 import __main__
 from typing import Any, Dict

@@ -1,5 +1,5 @@
 from IPython.core.magic import Magics, magics_class, line_magic
-from probing.magics import register_magic
+from probing.repl import register_magic
 import traceback
 import sys
 import json

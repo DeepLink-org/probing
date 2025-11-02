@@ -11,7 +11,7 @@ python_dir = os.path.join(os.path.dirname(__file__), '../../python')
 if python_dir not in sys.path:
     sys.path.insert(0, python_dir)
 
-from probing.magics.query_magic import QueryMagic
+from probing.repl.query_magic import QueryMagic
 from traitlets.config.configurable import Configurable
 
 
@@ -28,7 +28,7 @@ def test_query_basic(magic):
     mock_df = pd.DataFrame({'a': [1, 2]})
     
     with patch('probing.core.engine.query', return_value=mock_df), \
-         patch('probing.magics.query_magic.display') as mock_display:
+         patch('probing.repl.query_magic.display') as mock_display:
         magic.query("SELECT * FROM table")
         mock_display.assert_called_once_with(mock_df)
 
@@ -38,7 +38,7 @@ def test_q_alias(magic):
     mock_df = pd.DataFrame({'x': [1]})
     
     with patch('probing.core.engine.query', return_value=mock_df), \
-         patch('probing.magics.query_magic.display') as mock_display:
+         patch('probing.repl.query_magic.display') as mock_display:
         magic.q("SELECT x FROM table")
         mock_display.assert_called_once_with(mock_df)
 
@@ -46,7 +46,7 @@ def test_q_alias(magic):
 def test_tables(magic):
     """Test %tables command."""
     with patch('probing.core.engine.query') as mock_query, \
-         patch('probing.magics.query_magic.display'):
+         patch('probing.repl.query_magic.display'):
         magic.tables("")
         mock_query.assert_called_once_with("SHOW TABLES")
 
@@ -54,7 +54,7 @@ def test_tables(magic):
 def test_describe(magic):
     """Test %describe command."""
     with patch('probing.core.engine.query') as mock_query, \
-         patch('probing.magics.query_magic.display'):
+         patch('probing.repl.query_magic.display'):
         magic.describe("my_table")
         mock_query.assert_called_once_with("DESCRIBE my_table")
 
@@ -62,7 +62,7 @@ def test_describe(magic):
 def test_peek_default_limit(magic):
     """Test %peek with default limit."""
     with patch('probing.core.engine.query') as mock_query, \
-         patch('probing.magics.query_magic.display'):
+         patch('probing.repl.query_magic.display'):
         magic.peek("my_table")
         mock_query.assert_called_once_with("SELECT * FROM my_table LIMIT 10")
 
@@ -70,7 +70,7 @@ def test_peek_default_limit(magic):
 def test_peek_custom_limit(magic):
     """Test %peek with custom limit."""
     with patch('probing.core.engine.query') as mock_query, \
-         patch('probing.magics.query_magic.display'):
+         patch('probing.repl.query_magic.display'):
         magic.peek("--limit 5 my_table")
         mock_query.assert_called_once_with("SELECT * FROM my_table LIMIT 5")
 

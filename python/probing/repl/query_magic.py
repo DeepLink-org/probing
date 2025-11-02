@@ -7,7 +7,7 @@ extensions in the probing system.
 from IPython.core.magic import Magics, magics_class, line_magic
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
 from IPython.display import display
-from probing.magics import register_magic
+from probing.repl import register_magic
 import pandas as pd
 
 
