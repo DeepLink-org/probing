@@ -1,5 +1,6 @@
 from typing import Any
 from IPython.core.magic import Magics, magics_class, line_magic
+from probing.magics import register_magic
 import urllib.parse
 import gc
 import json
@@ -12,6 +13,7 @@ class _obj_:
     def __repr__(self):
         return json.dumps(self._obj, indent=2)
 
+@register_magic("handle")
 @magics_class
 class HandleMagic(Magics):
 

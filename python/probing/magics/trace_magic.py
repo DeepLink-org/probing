@@ -6,9 +6,11 @@ watch variables, and monitor function calls.
 
 from IPython.core.magic import Magics, magics_class, line_magic, cell_magic
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
+from probing.magics import register_magic
 import json
 
 
+@register_magic("trace")
 @magics_class
 class TraceMagic(Magics):
     """Magic commands for tracing function execution."""

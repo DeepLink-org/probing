@@ -1,7 +1,9 @@
 from IPython.core.magic import Magics, magics_class, line_magic
+from probing.magics import register_magic
 import __main__
 from typing import Any, Dict
 
+@register_magic("debug")
 @magics_class
 class DebugMagic(Magics):
 

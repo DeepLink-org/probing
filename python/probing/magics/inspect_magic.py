@@ -6,9 +6,11 @@ memory usage, and runtime state.
 
 from IPython.core.magic import Magics, magics_class, line_magic
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
+from probing.magics import register_magic
 import json
 
 
+@register_magic("inspect")
 @magics_class
 class InspectMagic(Magics):
     """Magic commands for inspecting objects and runtime state."""

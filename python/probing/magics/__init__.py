@@ -10,9 +10,51 @@ which can be easily serialized to JSON.
 """
 
 # from jupyter_client.session import Session
-from typing import Union, List, Optional
+from typing import Union, List, Optional, Dict, Type
 from dataclasses import dataclass, field, asdict
 import json
+
+# Magic class registry
+_MAGIC_REGISTRY: Dict[str, Type] = {}
+
+
+def register_magic(name: Optional[str] = None):
+    """
+    Decorator to register a magic class.
+    
+    Usage:
+        @register_magic("custom")
+        @magics_class
+        class CustomMagic(Magics):
+            ...
+    
+    If name is not provided, it will be derived from the class name.
+    """
+    def decorator(cls: Type):
+        magic_name = name or cls.__name__
+        if magic_name in _MAGIC_REGISTRY:
+            import warnings
+            warnings.warn(
+                f"Magic class '{magic_name}' is already registered. "
+                f"Previous registration: {_MAGIC_REGISTRY[magic_name]}",
+                UserWarning
+            )
+        _MAGIC_REGISTRY[magic_name] = cls
+        return cls
+    return decorator
+
+
+def get_registered_magics() -> Dict[str, Type]:
+    """Get all registered magic classes."""
+    return _MAGIC_REGISTRY.copy()
+
+
+def unregister_magic(name: str) -> bool:
+    """Unregister a magic class by name. Returns True if successful."""
+    if name in _MAGIC_REGISTRY:
+        del _MAGIC_REGISTRY[name]
+        return True
+    return False
 
 
 @dataclass
@@ -112,24 +154,43 @@ class CodeExecutor:
         self.kc.start_channels()
 
         if self.km.has_kernel:
-            from .torch_magic import TorchMagic
-            from .debug_magic import DebugMagic
-            from .stack_magic import StackMagic
-            from .handle_magic import HandleMagic
-            from .trace_magic import TraceMagic
-            from .query_magic import QueryMagic
-            from .inspect_magic import InspectMagic
-            from .help_magic import HelpMagic
-
             shell = self.km.kernel.shell
-            shell.register_magics(TorchMagic(shell=shell))
-            shell.register_magics(DebugMagic(shell=shell))
-            shell.register_magics(StackMagic(shell=shell))
-            shell.register_magics(HandleMagic(shell=shell))
-            shell.register_magics(TraceMagic(shell=shell))
-            shell.register_magics(QueryMagic(shell=shell))
-            shell.register_magics(InspectMagic(shell=shell))
-            shell.register_magics(HelpMagic(shell=shell))
+            
+            # Auto-discover and register magic commands
+            # Import all magic modules to trigger their registration
+            import importlib
+            import pkgutil
+            
+            # Find all modules in the magics package
+            package = __import__(__name__, fromlist=[''])
+            for importer, modname, ispkg in pkgutil.iter_modules(package.__path__):
+                # Skip __init__ and non-magic modules
+                if modname.startswith('_') or not modname.endswith('_magic'):
+                    continue
+                
+                try:
+                    # Import the module to trigger @register_magic decorators
+                    full_modname = f"{__name__}.{modname}"
+                    importlib.import_module(full_modname)
+                except Exception as e:
+                    # Log but don't fail if a magic module can't be imported
+                    import warnings
+                    warnings.warn(f"Failed to import {modname}: {e}", ImportWarning)
+                    print(f"✗ Failed to import {modname}: {e}")
+            
+            # Register all magic classes from the registry
+            registered_count = 0
+            for magic_name, magic_class in _MAGIC_REGISTRY.items():
+                try:
+                    shell.register_magics(magic_class(shell=shell))
+                    registered_count += 1
+                except Exception as e:
+                    import warnings
+                    warnings.warn(f"Failed to register {magic_name}: {e}", ImportWarning)
+                    print(f"✗ Failed to register {magic_name}: {e}")
+            
+            if registered_count == 0:
+                print("Warning: No magic commands were registered. Make sure magic modules use @register_magic decorator.")
 
     def execute(self, code_or_request: Union[str, dict]) -> ExecutionResult:
         """Executes a string of code or a request dictionary in the kernel.
@@ -228,10 +289,21 @@ import code
 
 class DebugConsole(code.InteractiveConsole):
     def __init__(self):
-        self.code_executor = CodeExecutor()
+        try:
+            self.code_executor = CodeExecutor()
+        except Exception as e:
+            # If CodeExecutor initialization fails, log warning but continue
+            # This allows DebugConsole to be created even if IPython/magic modules fail
+            import warnings
+            warnings.warn(f"Failed to initialize CodeExecutor: {e}. DebugConsole will work in limited mode.", ImportWarning)
+            self.code_executor = None
         super().__init__()
 
     def runsource(self, source):
+        if self.code_executor is None:
+            # Fallback to parent class behavior if CodeExecutor is not available
+            return super().runsource(source)
+        
         try:
             code = self.compile(source, "<input>", "single")
         except (OverflowError, SyntaxError, ValueError):
@@ -263,6 +335,20 @@ class DebugConsole(code.InteractiveConsole):
         >>> '"traceback":' in result
         True
         """
+        if self.code_executor is None:
+            # Fallback: try to execute using parent class, but still return JSON format
+            try:
+                self.buffer.append(code)
+                source = "\n".join(self.buffer)
+                result = super().runsource(source)
+                if result is None:
+                    # Incomplete code
+                    return json.dumps({"status": "incomplete"})
+                # Code executed successfully
+                return json.dumps({"status": "ok", "output": str(result) if result else ""})
+            except Exception as e:
+                return json.dumps({"status": "error", "output": "", "traceback": [str(e)]})
+        
         try:
             self.buffer.append(code)
             source = "\n".join(self.buffer)

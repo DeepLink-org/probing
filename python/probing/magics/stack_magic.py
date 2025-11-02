@@ -1,4 +1,5 @@
 from IPython.core.magic import Magics, magics_class, line_magic
+from probing.magics import register_magic
 import traceback
 import sys
 import json
@@ -32,6 +33,7 @@ class _obj_:
     def __repr__(self):
         return json.dumps(self._obj, indent=2)
 
+@register_magic("stack")
 @magics_class
 class StackMagic(Magics):
 
