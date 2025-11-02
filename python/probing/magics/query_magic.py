@@ -7,9 +7,11 @@ extensions in the probing system.
 from IPython.core.magic import Magics, magics_class, line_magic
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
 from IPython.display import display
+from probing.magics import register_magic
 import pandas as pd
 
 
+@register_magic("query")
 @magics_class
 class QueryMagic(Magics):
     """Magic commands for querying data and managing extensions."""
