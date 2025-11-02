@@ -5,27 +5,21 @@ use crate::components::card::Card;
 use crate::components::callstack_view::CallStackView;
 use crate::components::page::{PageContainer, PageHeader};
 use crate::components::common::{LoadingState, ErrorState};
-use crate::hooks::use_api_simple;
+use crate::hooks::use_api;
 use crate::api::ApiClient;
-use crate::styles::{combinations::*, styles::*};
 
 #[component]
 pub fn Activity(tid: Option<String>) -> Element {
     let tid_display = tid.clone();
-    let state = use_api_simple::<Vec<CallFrame>>();
     let mut mode = use_signal(|| String::from("mixed")); // py | cpp | mixed
     
-    use_effect(move || {
-        let tid = tid.clone();
-        let mut loading = state.loading.clone();
-        let mut data = state.data.clone();
+    let state = use_api(move || {
+        let tid_clone = tid.clone();
         let current_mode = mode.read().clone();
-        spawn(async move {
-            loading.set(true);
-            let client = ApiClient::new();
-            data.set(Some(client.get_callstack_with_mode(tid, &current_mode).await));
-            loading.set(false);
-        });
+        let client = ApiClient::new();
+        async move {
+            client.get_callstack_with_mode(tid_clone, &current_mode).await
+        }
     });
 
     rsx! {
@@ -41,24 +35,30 @@ pub fn Activity(tid: Option<String>) -> Element {
                     div { class: "flex gap-2 items-center",
                         span { class: "text-sm text-gray-600", "Mode:" }
                         button { class: format!("px-3 py-1 rounded {}", if mode.read().as_str()=="py" { "bg-blue-600 text-white" } else { "bg-gray-100" }),
-                            onclick: move |_| mode.set(String::from("py")), "Py" }
+                            onclick: move |_| {
+                                *mode.write() = String::from("py");
+                            }, "Py" }
                         button { class: format!("px-3 py-1 rounded {}", if mode.read().as_str()=="cpp" { "bg-blue-600 text-white" } else { "bg-gray-100" }),
-                            onclick: move |_| mode.set(String::from("cpp")), "C++" }
+                            onclick: move |_| {
+                                *mode.write() = String::from("cpp");
+                            }, "C++" }
                         button { class: format!("px-3 py-1 rounded {}", if mode.read().as_str()=="mixed" { "bg-blue-600 text-white" } else { "bg-gray-100" }),
-                            onclick: move |_| mode.set(String::from("mixed")), "Mixed" }
+                            onclick: move |_| {
+                                *mode.write() = String::from("mixed");
+                            }, "Mixed" }
                     }
                 }),
                 if state.is_loading() {
                     LoadingState { message: Some("Loading call stack information...".to_string()) }
                 } else if let Some(Ok(callframes)) = state.data.read().as_ref() {
                     div {
-                        class: SPACE_Y_4,
-                        div { class: SECTION_SUBTITLE, "Total call frames: {callframes.len()}" }
+                        class: "space-y-4",
+                        div { class: "text-sm text-gray-600", "Total call frames: {callframes.len()}" }
                         if callframes.is_empty() {
-                            div { class: format!("{} {} {}", TEXT_CENTER, PY_8, TEXT_GRAY_500), "No call stack data available" }
+                            div { class: "text-center py-8 text-gray-500", "No call stack data available" }
                         } else {
                             div {
-                                class: SPACE_Y_2,
+                                class: "space-y-2",
                                 {
                                     let current_mode = mode.read().clone();
                                     callframes.iter()

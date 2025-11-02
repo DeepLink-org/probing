@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
-use dioxus_router::prelude::*;
+use dioxus_router::Link;
 use probing_proto::prelude::Process;
-use crate::components::table_view::TableView;
+use crate::components::table_view::TableView; // using inline Tailwind inside TableView
 use crate::app::Route;
 
 #[component]

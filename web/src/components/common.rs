@@ -1,11 +1,11 @@
 use dioxus::prelude::*;
-use crate::styles::combinations::*;
+// Inlined Tailwind classes instead of style constants.
 
 #[component]
 pub fn LoadingState(message: Option<String>) -> Element {
     rsx! {
         div {
-            class: LOADING,
+            class: "text-center py-8 text-gray-500",
             if let Some(msg) = message {
                 "{msg}"
             } else {
@@ -19,7 +19,7 @@ pub fn LoadingState(message: Option<String>) -> Element {
 pub fn ErrorState(error: String, title: Option<String>) -> Element {
     rsx! {
         div {
-            class: ERROR,
+            class: "text-red-500 p-4 bg-red-50 border border-red-200 rounded",
             if let Some(title) = title {
                 h3 { class: "font-semibold mb-2", "{title}" }
             }
@@ -32,7 +32,7 @@ pub fn ErrorState(error: String, title: Option<String>) -> Element {
 pub fn EmptyState(message: String) -> Element {
     rsx! {
         div {
-            class: EMPTY,
+            class: "text-center py-8 text-gray-500",
             "{message}"
         }
     }
@@ -42,7 +42,7 @@ pub fn EmptyState(message: String) -> Element {
 pub fn PageTitle(title: String) -> Element {
     rsx! {
         h1 {
-            class: PAGE_TITLE,
+            class: "text-3xl font-bold text-gray-900",
             "{title}"
         }
     }

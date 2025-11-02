@@ -1,5 +1,5 @@
 use dioxus::prelude::*;
-use dioxus_router::prelude::*;
+use dioxus_router::Link;
 use icondata::Icon as IconData;
 
 use crate::app::Route;

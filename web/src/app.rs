@@ -1,5 +1,5 @@
 use dioxus::prelude::*;
-use dioxus_router::prelude::*;
+use dioxus_router::{Routable, Router};
 
 use crate::components::layout::AppLayout;
 use crate::pages::{
@@ -8,6 +8,7 @@ use crate::pages::{
 };
 
 #[derive(Routable, Clone, PartialEq)]
+#[rustfmt::skip]
 pub enum Route {
     #[route("/")]
     OverviewPage {},
@@ -55,5 +56,7 @@ pub fn PythonPage() -> Element {
 
 #[component]
 pub fn App() -> Element {
-    rsx! { Router::<Route> {} }
+    rsx! {
+        Router::<Route> {}
+    }
 }

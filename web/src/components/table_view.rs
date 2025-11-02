@@ -1,5 +1,5 @@
 use dioxus::prelude::*;
-use crate::styles::combinations::*;
+// Tailwind classes inlined for table view.
 
 #[component]
 pub fn TableView(
@@ -9,25 +9,30 @@ pub fn TableView(
 ) -> Element {
     rsx! {
         div {
-            class: TABLE_CONTAINER,
+            class: "w-full overflow-x-auto border border-gray-200 rounded-lg",
 
             table {
-                class: TABLE,
+                class: "w-full border-collapse table-auto",
 
                 thead {
-                    tr { class: TABLE_HEADER_ROW,
+                    tr { class: "bg-gray-50 border-b border-gray-200",
                         for header in headers {
-                            th { class: TABLE_HEADER_CELL, {header} }
+                            th { class: "px-4 py-2 text-left font-semibold text-gray-700 border-r border-gray-200", {header} }
                         }
                     }
                 }
 
                 tbody {
                     for (row_idx, row) in data.iter().enumerate() {
-                        tr { class: if row_idx % 2 == 0 { TABLE_ROW_EVEN } else { TABLE_ROW_ODD },
-                            onclick: { let handler = on_row_click.clone(); move |_| { if let Some(cb) = &handler { cb.call(row_idx); } } },
+                        tr { 
+                            class: if row_idx % 2 == 0 { "bg-white" } else { "bg-gray-50" },
+                            onclick: move |_| {
+                                if let Some(cb) = on_row_click {
+                                    cb.call(row_idx);
+                                }
+                            },
                             for cell in row {
-                                td { class: TABLE_CELL, {cell.clone()} }
+                                td { class: "px-4 py-2 text-gray-700 border-r border-gray-200", {cell.clone()} }
                             }
                         }
                     }

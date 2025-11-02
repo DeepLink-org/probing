@@ -6,15 +6,14 @@ use crate::api::ApiClient;
 
 /// 从配置中更新本地状态
 fn apply_config(config: &[(String, String)], mut pprof_freq: Signal<i32>, mut torch_enabled: Signal<bool>) {
-    // 先重置本地状态
-    pprof_freq.set(0);
-    torch_enabled.set(false);
+    *pprof_freq.write() = 0;
+    *torch_enabled.write() = false;
     
     for (name, value) in config {
         match name.as_str() {
             "probing.pprof.sample_freq" => {
                 if let Ok(v) = value.parse::<i32>() {
-                    pprof_freq.set(v.max(0));
+                    *pprof_freq.write() = v.max(0);
                 }
             },
             "probing.torch.profiling" => {
@@ -25,7 +24,7 @@ fn apply_config(config: &[(String, String)], mut pprof_freq: Signal<i32>, mut to
                     && lowered != "off"
                     && lowered != "disable"
                     && lowered != "disabled";
-                torch_enabled.set(enabled);
+                *torch_enabled.write() = enabled;
             },
             _ => {}
         }
@@ -41,40 +40,35 @@ pub fn Profiler() -> Element {
     let config_state = use_api_simple::<Vec<(String, String)>>();
     let flamegraph_state = use_api_simple::<String>();
     
-    // 加载配置
     use_effect(move || {
-        let mut loading = config_state.loading.clone();
-        let mut data = config_state.data.clone();
-        let pprof_freq_clone = pprof_freq.clone();
-        let torch_enabled_clone = torch_enabled.clone();
+        let mut loading = config_state.loading;
+        let mut data = config_state.data;
         spawn(async move {
-            loading.set(true);
+            *loading.write() = true;
             let client = ApiClient::new();
-            match client.get_profiler_config().await {
-                Ok(config) => {
-                    apply_config(&config, pprof_freq_clone, torch_enabled_clone);
-                    data.set(Some(Ok(config)));
+            let result = client.get_profiler_config().await;
+            match result {
+                Ok(ref config) => {
+                    apply_config(config, pprof_freq, torch_enabled);
                 }
-                Err(err) => data.set(Some(Err(err))),
+                Err(_) => {}
             }
-            loading.set(false);
+            *data.write() = Some(result);
+            *loading.write() = false;
         });
     });
 
-    // 切换 Tab 时与服务端重新对账，保持同步
     use_effect(move || {
-        let _tab = selected_tab.read().clone(); // depend on tab change
-        let pprof_freq_clone = pprof_freq.clone();
-        let torch_enabled_clone = torch_enabled.clone();
+        let tab = selected_tab.read().clone();
+        drop(tab);
         spawn(async move {
             let client = ApiClient::new();
             if let Ok(config) = client.get_profiler_config().await {
-                apply_config(&config, pprof_freq_clone, torch_enabled_clone);
+                apply_config(&config, pprof_freq, torch_enabled);
             }
         });
     });
 
-    // 加载火焰图
     use_effect(move || {
         let tab = selected_tab.read().clone();
         let pprof_on = *pprof_freq.read() > 0;
@@ -86,13 +80,14 @@ pub fn Profiler() -> Element {
             _ => return,
         };
         
-        let mut loading = flamegraph_state.loading.clone();
-        let mut data = flamegraph_state.data.clone();
+        let mut loading = flamegraph_state.loading;
+        let mut data = flamegraph_state.data;
         spawn(async move {
-            loading.set(true);
+            *loading.write() = true;
             let client = ApiClient::new();
-            data.set(Some(client.get_flamegraph(active_profiler).await));
-            loading.set(false);
+            let result = client.get_flamegraph(active_profiler).await;
+            *data.write() = Some(result);
+            *loading.write() = false;
         });
     });
 
@@ -104,13 +99,9 @@ pub fn Profiler() -> Element {
                 pprof_freq: pprof_freq,
                 torch_enabled: torch_enabled,
                 on_tab_change: move |tab| {
-                    // 立即切换 Tab 并主动对账一次，避免延迟
-                    selected_tab.set(tab);
-                    let pprof_freq = pprof_freq.clone();
-                    let torch_enabled = torch_enabled.clone();
+                    *selected_tab.write() = tab;
                     spawn(async move {
                         let client = ApiClient::new();
-                        // reset -> fetch -> apply
                         if let Ok(config) = client.get_profiler_config().await {
                             apply_config(&config, pprof_freq, torch_enabled);
                         }
@@ -118,7 +109,7 @@ pub fn Profiler() -> Element {
                 },
                 on_pprof_freq_change: move |new_freq| {
                     // 本地更新+回写服务端
-                    pprof_freq.set(new_freq);
+                    *pprof_freq.write() = new_freq;
                     spawn(async move {
                         let client = ApiClient::new();
                         let expr = if new_freq <= 0 { "set probing.pprof.sample_freq=;".to_string() } else { format!("set probing.pprof.sample_freq={};", new_freq) };
@@ -126,17 +117,16 @@ pub fn Profiler() -> Element {
                     });
                 },
                 on_torch_toggle: move |enabled| {
-                    let mut torch_enabled_clone = torch_enabled.clone();
+                    let mut torch_enabled = torch_enabled;
                     spawn(async move {
                         let client = ApiClient::new();
-                        // torch: 使用 profiling 规格字符串表示开关；启用时设为 "on"，否则清空
                         let expr = if enabled {
                             "set probing.torch.profiling=on;".to_string()
                         } else {
                             "set probing.torch.profiling=;".to_string()
                         };
                         let _ = client.execute_query(&expr).await;
-                        torch_enabled_clone.set(enabled);
+                        *torch_enabled.write() = enabled;
                     });
                 },
             }

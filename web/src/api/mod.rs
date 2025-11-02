@@ -1,5 +1,4 @@
 use crate::utils::error::{AppError, Result};
-use serde::Serialize;
 
 /// 基础API客户端
 pub struct ApiClient;
@@ -28,23 +27,6 @@ impl ApiClient {
         let url = Self::build_url(path)?;
         let response = reqwest::get(&url).await?;
         
-        if !response.status().is_success() {
-            return Err(AppError::Api(format!("HTTP error: {}", response.status())));
-        }
-
-        response.text().await.map_err(|e| AppError::Api(e.to_string()))
-    }
-
-    /// 发送POST请求
-    async fn post_request<T: Serialize>(&self, path: &str, data: &T) -> Result<String> {
-        let url = Self::build_url(path)?;
-        let client = reqwest::Client::new();
-        let response = client
-            .post(&url)
-            .json(data)
-            .send()
-            .await?;
-
         if !response.status().is_success() {
             return Err(AppError::Api(format!("HTTP error: {}", response.status())));
         }
@@ -83,7 +65,11 @@ mod overview;
 mod profiler;
 mod timeseries;
 
+#[allow(unused_imports)]
 pub use activity::*;
+#[allow(unused_imports)]
 pub use overview::*;
+#[allow(unused_imports)]
 pub use profiler::*;
+#[allow(unused_imports)]
 pub use timeseries::*;

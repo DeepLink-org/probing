@@ -2,6 +2,7 @@ use dioxus::prelude::*;
 
 #[component]
 pub fn CollapsibleCard(title: String, children: Element) -> Element {
+    // Signal requires mut binding to call write()
     let mut is_open = use_signal(|| false);
     
     rsx! {
@@ -11,7 +12,7 @@ pub fn CollapsibleCard(title: String, children: Element) -> Element {
                 class: "px-4 py-3 bg-gray-50 border-b border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors",
                 onclick: move |_| {
                     let current = *is_open.read();
-                    is_open.set(!current);
+                    *is_open.write() = !current;
                 },
                 div {
                     class: "flex items-center justify-between",
@@ -61,7 +62,7 @@ pub fn CollapsibleCardWithIcon(title: String, icon: Element, children: Element) 
                 class: "px-4 py-3 bg-gray-50 border-b border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors",
                 onclick: move |_| {
                     let current = *is_open.read();
-                    is_open.set(!current);
+                    *is_open.write() = !current;
                 },
                 div {
                     class: "flex items-center justify-between",
