@@ -11,44 +11,20 @@ pub fn Python() -> Element {
                 subtitle: Some("Inspect and debug Python processes".to_string())
             }
             
-            div {
-                class: "grid grid-cols-1 lg:grid-cols-2 gap-6",
-                Card {
-                    title: "Python Process Info",
-                    InfoRow { label: "Python Version", value: "3.9.7" }
-                    InfoRow { label: "Script Path", value: "/app/main.py" }
-                    InfoRow { label: "Working Directory", value: "/app" }
-                }
-                
-                Card {
-                    title: "Python Modules",
-                    ModuleRow { name: "numpy", version: "1.21.0" }
-                    ModuleRow { name: "pandas", version: "1.3.0" }
-                    ModuleRow { name: "matplotlib", version: "3.4.0" }
+            Card {
+                title: "Coming Soon",
+                div {
+                    class: "text-center py-12",
+                    p {
+                        class: "text-gray-600 text-lg mb-4",
+                        "Python inspection features are coming soon."
+                    }
+                    p {
+                        class: "text-gray-500 text-sm",
+                        "This page will display Python process information, modules, and debugging tools."
+                    }
                 }
             }
-        }
-    }
-}
-
-#[component]
-fn InfoRow(label: &'static str, value: &'static str) -> Element {
-    rsx! {
-        div {
-            class: "flex justify-between items-center py-2 border-b border-gray-200 last:border-b-0",
-            span { class: "text-gray-600", "{label}" }
-            span { class: "font-mono text-sm", "{value}" }
-        }
-    }
-}
-
-#[component]
-fn ModuleRow(name: &'static str, version: &'static str) -> Element {
-    rsx! {
-        div {
-            class: "flex justify-between items-center py-1",
-            span { class: "text-sm", "{name}" }
-            span { class: "text-xs text-gray-500", "{version}" }
         }
     }
 }

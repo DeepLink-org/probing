@@ -10,9 +10,6 @@ pub enum AppError {
     
     #[error("API error: {0}")]
     Api(String),
-    
-    #[error("Unknown error: {0}")]
-    Unknown(String),
 }
 
 impl From<reqwest::Error> for AppError {

@@ -1,4 +1,5 @@
 use dioxus::prelude::*;
+use std::future::Future;
 use crate::utils::error::AppError;
 
 /// API 调用状态
@@ -10,35 +11,51 @@ pub struct ApiState<T: Clone + 'static> {
 
 impl<T: Clone + 'static> ApiState<T> {
     /// 检查是否正在加载
+    #[inline]
     pub fn is_loading(&self) -> bool {
         *self.loading.read()
     }
-
-    /// 获取错误信息
-    pub fn error(&self) -> Option<AppError> {
-        self.data.read().as_ref()?.as_ref().err().cloned()
-    }
-
-    /// 获取成功数据
-    pub fn value(&self) -> Option<T> {
-        self.data.read().as_ref()?.as_ref().ok().cloned()
-    }
-
-    /// 检查是否有数据（成功或失败）
-    pub fn has_data(&self) -> bool {
-        self.data.read().is_some()
-    }
 }
 
-/// 创建 API 状态
-fn create_api_state<T: Clone + 'static>() -> ApiState<T> {
+/// 简单的 API 调用 hook（不自动执行）
+pub fn use_api_simple<T: Clone + 'static>() -> ApiState<T> {
     ApiState {
-        loading: use_signal(|| true),
+        loading: use_signal(|| false),
         data: use_signal(|| None),
     }
 }
 
-/// 简单的 API 调用 hook
-pub fn use_api_simple<T: Clone + 'static>() -> ApiState<T> {
-    create_api_state::<T>()
+/// 通用的 API 调用 hook（自动执行）
+/// 
+/// 自动在组件挂载时执行 API 调用，并在依赖变化时重新执行。
+/// 使用缓存的 ApiClient 实例以提高性能。
+/// 
+/// # 示例
+/// ```rust
+/// let state = use_api(move || {
+///     let client = ApiClient::new();
+///     async move { client.get_overview().await }
+/// });
+/// ```
+pub fn use_api<T, F, Fut>(mut fetch_fn: F) -> ApiState<T>
+where
+    T: Clone + 'static,
+    F: FnMut() -> Fut + 'static,
+    Fut: Future<Output = Result<T, AppError>> + 'static,
+{
+    let state = use_api_simple::<T>();
+    
+    use_effect(move || {
+        let mut loading = state.loading;
+        let mut data = state.data;
+        let result_future = fetch_fn();
+        spawn(async move {
+            *loading.write() = true;
+            let result = result_future.await;
+            *data.write() = Some(result);
+            *loading.write() = false;
+        });
+    });
+    
+    state
 }

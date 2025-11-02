@@ -9,10 +9,4 @@ impl ApiClient {
         let response = self.get_request("/apis/overview").await?;
         Self::parse_json(&response)
     }
-
-    /// 获取集群信息
-    pub async fn get_cluster(&self) -> Result<Vec<String>> {
-        let response = self.get_request("/apis/cluster").await?;
-        Self::parse_json(&response)
-    }
 }
