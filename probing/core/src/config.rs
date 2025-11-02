@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use crate::core::{EngineError, EngineExtensionManager};
 use crate::ENGINE;
 
+pub mod store;
+
 /// Global configuration management interface that provides unified access
 /// to the engine extension manager from any process.
 ///

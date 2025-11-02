@@ -1,3 +1,4 @@
+pub mod config;
 pub mod pprof;
 pub mod python_api;
 pub mod spy;

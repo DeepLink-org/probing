@@ -2,6 +2,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
 use crate::extensions;
+use crate::features::config;
 use crate::features::vm_tracer::{
     _get_python_frames, _get_python_stacks, disable_tracer, enable_tracer, initialize_globals,
 };
@@ -36,7 +37,7 @@ fn query_json(_py: Python, sql: String) -> PyResult<String> {
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?
         }
     };
-    
+
     serde_json::to_string(&result)
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
 }
@@ -67,6 +68,10 @@ pub fn create_probing_module() -> PyResult<()> {
         m.add_function(wrap_pyfunction!(disable_tracer, py)?)?;
         m.add_function(wrap_pyfunction!(_get_python_stacks, py)?)?;
         m.add_function(wrap_pyfunction!(_get_python_frames, py)?)?;
+
+        // Register config module
+        config::register_config_module(&m)?;
+
         Ok(())
     })
 }
