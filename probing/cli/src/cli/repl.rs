@@ -58,7 +58,7 @@ pub async fn start_repl(ctrl: ProbeEndpoint) -> Result<()> {
 
                 // 发送代码到服务器
                 let msg = format!("{}\n", line);
-                if let Err(e) = ws.write.as_mut().send(WsMessage::Text(msg)).await {
+                if let Err(e) = ws.write.as_mut().send(WsMessage::Text(msg.into())).await {
                     eprintln!("\nSend error: {}", e);
                     break;
                 }
