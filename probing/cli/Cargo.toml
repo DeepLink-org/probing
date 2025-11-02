@@ -29,6 +29,9 @@ hyper-util = { version = "0.1", features = ["client", "http1", "tokio"] }
 libloading = "0.8.3"
 tabled = { version = "0.20.0", default-features = false, features = ["macros"] }
 libc = "0.2.176"
+tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+reedline = "0.32"
+futures-util = "0.3"
 
 [dependencies.clap]
 version = "4.5.38"

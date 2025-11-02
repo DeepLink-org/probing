@@ -4,6 +4,7 @@ use probing_proto::prelude::Query;
 
 pub mod commands;
 pub mod ctrl;
+pub mod repl;
 
 pub mod store;
 
@@ -164,6 +165,7 @@ impl Cli {
             }
             Commands::Eval { code } => ctrl.eval(code.clone()).await,
             Commands::Query { query } => ctrl::query(ctrl, Query::new(query.clone())).await,
+            Commands::Repl => repl::start_repl(ctrl).await,
             // These commands are handled in run() method and don't need a target
             Commands::Launch { .. }
             | Commands::List { .. }
