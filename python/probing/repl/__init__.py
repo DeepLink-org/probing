@@ -360,3 +360,5 @@ class DebugConsole(code.InteractiveConsole):
         except Exception as e:
             import traceback
             traceback.print_exc()
+
+debug_console = DebugConsole()

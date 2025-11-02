@@ -133,7 +133,7 @@ pub enum Commands {
     Backtrace { tid: Option<i32> },
 
     /// Get RDMA flow of the target process or thread
-    #[command(visible_aliases = ["rd", "rdma"])]
+    #[command(visible_aliases = ["rd"])]
     Rdma { hca_name: Option<String> },
 
     /// Evaluate Python code in the target process
@@ -149,6 +149,10 @@ pub enum Commands {
         #[arg()]
         query: String,
     },
+
+    /// Interactive Python REPL session
+    #[command(visible_aliases = ["r"])]
+    Repl,
 
     /// Launch new Python process
     #[command()]
