@@ -10,10 +10,7 @@ else
 	TARGET_DIR := debug
 endif
 
-# Frontend framework: dioxus (default) or leptos
-ifndef FRONTEND
-	FRONTEND := dioxus
-endif
+# Frontend framework: dioxus
 
 # OS-specific library extension
 ifeq ($(shell uname -s), Darwin)
@@ -57,76 +54,50 @@ help:
 	@echo "  wheel      Build the Python wheel."
 	@echo "  test       Run Rust tests."
 	@echo "  pytest     Run Python tests."
+	@echo "  coverage-rust   Run Rust coverage (cargo llvm-cov)."
+	@echo "  coverage-python Generate Python coverage (pytest-cov)."
+	@echo "  coverage        Run both Rust and Python coverage and aggregate report."
 	@echo "  bootstrap  Install Python versions for testing."
 	@echo "  clean      Remove build artifacts."
-	@echo "  frontend   Build frontend based on FRONTEND variable."
-	@echo "  frontend-leptos  Build Leptos frontend."
-	@echo "  frontend-dioxus  Build Dioxus frontend."
-	@echo "  app/dist   Build the web app (Leptos)."
+	@echo "  frontend   Build Dioxus frontend."
 	@echo "  web/dist   Build the web app (Dioxus)."
 	@echo ""
 	@echo "Environment Variables:"
-	@echo "  FRONTEND   Frontend framework: dioxus (default) or leptos"
 	@echo "  DEBUG      Build mode: release (default) or debug"
 	@echo "  ZIG        Use zigbuild for cross-compilation"
 	@echo "  PYTHON     Python version (default: 3.12)"
 	@echo ""
 	@echo "Examples:"
-	@echo "  make frontend-leptos       # Build Leptos frontend"
-	@echo "  make frontend-dioxus       # Build Dioxus frontend"
-	@echo "  make frontend              # Build frontend based on FRONTEND variable"
-	@echo "  FRONTEND=dioxus make all   # Use Dioxus frontend for all builds (default)"
-	@echo "  FRONTEND=leptos make all   # Use Leptos frontend for all builds"
+	@echo "  make frontend              # Build Dioxus frontend"
+	@echo "  make web/dist              # Build web app"
 
 # ==============================================================================
 # Build Targets
 # ==============================================================================
 .PHONY: wheel
-wheel: ${PROBING_CLI} ${PROBING_LIB} app/dist/index.html
+wheel: ${PROBING_CLI} ${PROBING_LIB} web/dist/index.html
 	@echo "Building wheel..."
 	python make_wheel.py
 
 # Ensure frontend assets exist before packaging
-app/dist/index.html:
-	@echo "Ensuring frontend assets... FRONTEND=$(FRONTEND)"
+web/dist/index.html:
+	@echo "Ensuring frontend assets..."
 	@$(MAKE) --no-print-directory frontend
-
-.PHONY: app/dist
-app/dist:
-	@echo "Building Leptos web app..."
-	@mkdir -p app/dist
-	cd app && trunk build --filehash false --release --dist dist/
-	cd ..
 
 .PHONY: web/dist
 web/dist:
 	@echo "Building Dioxus web app..."
-	@mkdir -p app/dist
+	@mkdir -p web/dist
 	cd web && dx build --release
-	@echo "Copying Dioxus build output to app/dist..."
-	cp -r web/target/dx/web/release/web/public/* app/dist/
+	@echo "Copying Dioxus build output to web/dist..."
+	cp -r web/target/dx/web/release/web/public/* web/dist/
 	cd ..
 
 # Convenience targets for frontend builds
-.PHONY: frontend-leptos
-frontend-leptos:
-	@echo "Building Leptos frontend..."
-	$(MAKE) app/dist
-
-.PHONY: frontend-dioxus
-frontend-dioxus:
-	@echo "Building Dioxus frontend..."
-	$(MAKE) web/dist
-
 .PHONY: frontend
 frontend:
-	@if [ "$(FRONTEND)" = "dioxus" ]; then \
-		echo "Building Dioxus frontend..."; \
-		$(MAKE) web/dist; \
-	else \
-		echo "Building Leptos frontend..."; \
-		$(MAKE) app/dist; \
-	fi
+	@echo "Building Dioxus frontend..."
+	$(MAKE) web/dist
 
 ${DATA_SCRIPTS_DIR}:
 	@echo "Creating data scripts directory..."
@@ -141,13 +112,8 @@ ${PROBING_CLI}: ${DATA_SCRIPTS_DIR}
 .PHONY: ${PROBING_LIB}
 ${PROBING_LIB}: ${DATA_SCRIPTS_DIR}
 	@echo "Building probing library..."
-	@if [ "$(FRONTEND)" = "dioxus" ]; then \
-		echo "Building Dioxus frontend (pre-build)..."; \
-		$(MAKE) --no-print-directory web/dist; \
-	else \
-		echo "Building Leptos frontend (pre-build)..."; \
-		$(MAKE) --no-print-directory app/dist; \
-	fi
+	@echo "Building Dioxus frontend (pre-build)..."
+	@$(MAKE) --no-print-directory web/dist
 	cargo ${CARGO_BUILD_CMD} ${CARGO_FLAGS}
 	cp ${PROBING_LIB} ${DATA_SCRIPTS_DIR}/libprobing.${LIB_EXT}
 
@@ -158,6 +124,23 @@ ${PROBING_LIB}: ${DATA_SCRIPTS_DIR}
 test:
 	@echo "Running Rust tests..."
 	cargo nextest run --workspace --no-default-features --nff
+
+.PHONY: coverage-rust
+coverage-rust:
+	@echo "Running Rust coverage (requires cargo-llvm-cov)..."
+	cargo llvm-cov nextest run --workspace --no-default-features --nff --lcov --output-path coverage/rust.lcov --ignore-filename-regex '(.*/tests?/|.*/benches?/|.*/examples?/)' || echo "Install with: cargo install cargo-llvm-cov"
+	cargo llvm-cov report nextest --workspace --no-default-features --nff --json --output-path coverage/rust-summary.json || true
+
+.PHONY: coverage-python
+coverage-python:
+	@echo "Running Python coverage..."
+	mkdir -p coverage
+	${PYTEST_RUN} --cov=python/probing --cov=tests --cov-report=term --cov-report=xml:coverage/python-coverage.xml --cov-report=html:coverage/python-html python/probing tests || echo "Install pytest-cov via: uv add pytest-cov"
+
+.PHONY: coverage
+coverage: coverage-rust coverage-python
+	@echo "Aggregating coverage summaries..."
+	python scripts/coverage/aggregate.py || echo "Aggregation script missing or failed"
 
 .PHONY: bootstrap
 bootstrap:
@@ -175,6 +158,5 @@ pytest:
 clean:
 	@echo "Cleaning up..."
 	rm -rf dist
-	rm -rf app/dist
 	rm -rf web/dist
 	cargo clean
