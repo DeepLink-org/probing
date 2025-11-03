@@ -6,7 +6,7 @@ use bytes::Bytes;
 use include_dir::include_dir;
 use include_dir::Dir;
 
-static ASSET: Dir = include_dir!("app/dist");
+static ASSET: Dir = include_dir!("web/dist");
 
 pub fn contains(path: &str) -> bool {
     if let Ok(assets_root) = env::var("PROBING_ASSETS_ROOT") {

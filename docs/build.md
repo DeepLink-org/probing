@@ -26,8 +26,8 @@ rustup default nightly
 # Add WebAssembly target for web UI
 rustup target add wasm32-unknown-unknown
 
-# Install trunk for building WebAssembly frontend
-cargo install trunk
+# Install Dioxus CLI for building WebAssembly frontend
+cargo install dioxus-cli
 
 # Install cross-compilation tools (for distribution builds)
 cargo install cargo-zigbuild
@@ -57,7 +57,7 @@ cd probing
 make
 
 # Build web UI (optional, included in make)
-cd app && trunk build --release && cd ..
+cd web && dx build --release && cd ..
 ```
 
 ### Production Build
@@ -133,7 +133,7 @@ make test
 make wheel
 
 # Build web UI only
-make app/dist
+make web/dist
 
 # Clean build artifacts
 make clean
@@ -166,7 +166,8 @@ probing/
 │   ├── python/          # Python integration
 │   └── cc/              # C++ integration
 ├── probing/server/       # HTTP API server
-├── app/                 # Web UI (Leptos + WebAssembly)
+├── web/                 # Web UI source and build output (Dioxus + WebAssembly)
+│   └── dist/            # Web UI build output
 ├── python/              # Python hooks and bindings
 ├── examples/            # Usage examples and demos
 └── docs/                # Documentation
@@ -187,9 +188,9 @@ rustup default nightly
 rustup target add wasm32-unknown-unknown
 ```
 
-**Trunk installation failed:**
+**Dioxus CLI installation failed:**
 ```bash
-cargo install trunk --force
+cargo install dioxus-cli --force
 ```
 
 **Cross-compilation errors:**

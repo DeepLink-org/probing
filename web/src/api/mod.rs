@@ -61,12 +61,15 @@ impl ApiClient {
 
 // 导出所有API模块
 mod activity;
+mod cluster;
 mod overview;
 mod profiler;
 mod timeseries;
 
 #[allow(unused_imports)]
 pub use activity::*;
+#[allow(unused_imports)]
+pub use cluster::*;
 #[allow(unused_imports)]
 pub use overview::*;
 #[allow(unused_imports)]

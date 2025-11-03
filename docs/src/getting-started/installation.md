@@ -37,7 +37,7 @@ cd probing
 
 # 2. Build and install the Python package
 make wheel
-pip install target/wheels/probing-*.whl
+pip install dist/probing-*.whl
 ```
 
 This will compile the Rust components and build the Python wheel for installation.
@@ -55,7 +55,7 @@ probing --version
 This should print the installed version of Probing, for example:
 
 ```
-probing 0.1.0
+probing 0.2.0
 ```
 
 You can also check if the `probing` command is available:
