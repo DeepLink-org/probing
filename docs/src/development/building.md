@@ -50,8 +50,8 @@ cargo install cargo-zigbuild
 
 **For web UI development:**
 ```bash
-# Install Trunk for WebAssembly builds
-cargo install trunk
+# Install Dioxus CLI for WebAssembly builds
+cargo install dioxus-cli
 ```
 
 ## Quick Build
@@ -130,11 +130,11 @@ pip install dist/probing-*.whl --force-reinstall
 
 **Build web interface:**
 ```bash
-cd app
-trunk build --release
+cd web
+dx build --release
 ```
 
-The web UI is built as WebAssembly and provides a graphical interface for Probing.
+The web UI is built as WebAssembly using Dioxus and provides a graphical interface for Probing. The build output is in `web/dist/` for packaging.
 
 ## Build Configurations
 
@@ -236,7 +236,7 @@ PROBE_TORCH_EXPRS="loss@train,acc1@train" PROBE=1 python examples/imagenet.py
 ./target/release/probing $ENDPOINT query "SELECT * FROM information_schema.df_settings"
 
 # Test web UI (if built)
-cd app && trunk serve
+cd web && dx serve
 ```
 
 ### Performance Testing
@@ -388,7 +388,8 @@ probing/
 │   ├── python/          # Python integration
 │   └── cc/              # C++ integration
 ├── probing/server/       # HTTP API server
-├── app/                 # Web UI (Leptos + WebAssembly)
+├── web/                 # Web UI source and build output (Dioxus + WebAssembly)
+│   └── dist/            # Web UI build output
 ├── python/              # Python hooks and bindings
 ├── examples/            # Usage examples and demos
 └── docs/                # Documentation
