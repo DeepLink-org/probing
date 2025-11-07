@@ -59,9 +59,9 @@ fn SpanView(span: SpanInfo, depth: usize) -> Element {
             class: "border-l-2 border-gray-200 pl-4",
             style: format!("margin-left: {}px", indent),
             div {
-                class: "flex items-center gap-2 py-2 hover:bg-gray-50 rounded px-2",
+                class: "flex items-center gap-2 py-2 hover:bg-gray-50 rounded px-2 flex-wrap",
                 button {
-                    class: "text-gray-400 hover:text-gray-600",
+                    class: "text-gray-400 hover:text-gray-600 flex-shrink-0",
                     onclick: move |_| {
                         let current = *expanded.read();
                         *expanded.write() = !current;
@@ -80,6 +80,15 @@ fn SpanView(span: SpanInfo, depth: usize) -> Element {
                     span {
                         class: "text-xs px-2 py-0.5 bg-blue-100 text-blue-800 rounded",
                         "{kind}"
+                    }
+                }
+                // Display location in header
+                if let Some(ref location) = span.location {
+                    if !location.is_empty() {
+                        span {
+                            class: "text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded font-mono",
+                            "{location}"
+                        }
                     }
                 }
                 span {
@@ -105,10 +114,59 @@ fn SpanView(span: SpanInfo, depth: usize) -> Element {
             if *expanded.read() {
                 div {
                     class: "ml-6 space-y-2",
+                    // Attributes - displayed first
+                    if let Some(ref attrs) = span.attributes {
+                        if !attrs.is_empty() {
+                            div {
+                                class: "text-xs text-gray-500 mb-1",
+                                "Attributes:"
+                            }
+                            // Try to parse and format JSON attributes
+                            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(attrs) {
+                                if let Some(obj) = parsed.as_object() {
+                                    div {
+                                        class: "bg-gray-50 p-2 rounded mt-1 space-y-1",
+                                        for (key, val) in obj.iter() {
+                                            div {
+                                                class: "flex items-start gap-2 text-xs",
+                                                span {
+                                                    class: "font-semibold text-gray-700 min-w-[100px]",
+                                                    "{key}:"
+                                                }
+                                                span {
+                                                    class: "text-gray-600 font-mono break-all",
+                                                    {
+                                                        match val {
+                                                            serde_json::Value::String(s) => s.clone(),
+                                                            serde_json::Value::Number(n) => n.to_string(),
+                                                            serde_json::Value::Bool(b) => b.to_string(),
+                                                            serde_json::Value::Null => "null".to_string(),
+                                                            _ => format!("{}", val),
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    div {
+                                        class: "text-xs font-mono bg-gray-50 p-2 rounded mt-1 break-all",
+                                        "{attrs}"
+                                    }
+                                }
+                            } else {
+                                div {
+                                    class: "text-xs font-mono bg-gray-50 p-2 rounded mt-1 break-all",
+                                    "{attrs}"
+                                }
+                            }
+                        }
+                    }
+                    
                     // Events
                     if !span.events.is_empty() {
                         div {
-                            class: "text-xs text-gray-500 mb-1",
+                            class: "text-xs text-gray-500 mb-1 mt-2",
                             "Events ({span.events.len()}):"
                         }
                         for event in span.events.iter() {
@@ -119,39 +177,11 @@ fn SpanView(span: SpanInfo, depth: usize) -> Element {
                     // Children spans
                     if !span.children.is_empty() {
                         div {
-                            class: "text-xs text-gray-500 mb-1",
+                            class: "text-xs text-gray-500 mb-1 mt-2",
                             "Child Spans ({span.children.len()}):"
                         }
                         for child in span.children.iter() {
                             SpanView { span: child.clone(), depth: depth + 1 }
-                        }
-                    }
-                    
-                    // Attributes
-                    if let Some(ref attrs) = span.attributes {
-                        if !attrs.is_empty() {
-                            div {
-                                class: "text-xs text-gray-500 mt-2",
-                                "Attributes:"
-                            }
-                            div {
-                                class: "text-xs font-mono bg-gray-50 p-2 rounded mt-1",
-                                "{attrs}"
-                            }
-                        }
-                    }
-                    
-                    // Code path
-                    if let Some(ref code_path) = span.code_path {
-                        if !code_path.is_empty() {
-                            div {
-                                class: "text-xs text-gray-500 mt-2",
-                                "Code Path:"
-                            }
-                            div {
-                                class: "text-xs font-mono bg-gray-50 p-2 rounded mt-1",
-                                "{code_path}"
-                            }
                         }
                     }
                 }

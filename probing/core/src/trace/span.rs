@@ -140,11 +140,11 @@ impl Span {
     pub fn new_root<N: Into<String>>(
         name: N,
         kind: Option<&str>,
-        code_path: Option<&str>,
+        location: Option<&str>,
     ) -> Self {
         let trace_id = NEXT_TRACE_ID.fetch_add(1, Ordering::Relaxed);
         let span_id = NEXT_SPAN_ID.fetch_add(1, Ordering::Relaxed);
-        let location = code_path.map(|cp_val| Location::UnknownLocation(cp_val.into()));
+        let location = location.map(|loc_val| Location::UnknownLocation(loc_val.into()));
         let thread_id = current_thread_id();
 
         Span {
@@ -167,10 +167,10 @@ impl Span {
         parent: &Span,
         name: N,
         kind: Option<&str>,
-        code_path: Option<&str>,
+        location: Option<&str>,
     ) -> Self {
         let span_id = NEXT_SPAN_ID.fetch_add(1, Ordering::Relaxed);
-        let location = code_path.map(|cp_val| Location::UnknownLocation(cp_val.into()));
+        let location = location.map(|loc_val| Location::UnknownLocation(loc_val.into()));
         let thread_id = current_thread_id(); // child bound to the current executing thread
 
         Span {

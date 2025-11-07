@@ -140,7 +140,7 @@ impl LocalSpanManager {
         &mut self,
         name: N,
         kind: Option<&str>,
-        code_path: Option<&str>,
+        location: Option<&str>,
         initial_attributes: Option<Vec<Attribute>>,
     ) -> (SpanId, TraceId) {
         let name = name.into();
@@ -173,7 +173,7 @@ impl LocalSpanManager {
                 (TraceId(new_trace_id_val), None)
             };
 
-        let location = code_path.map(|cp_val| Location::UnknownLocation(cp_val.into()));
+        let location = location.map(|loc_val| Location::UnknownLocation(loc_val.into()));
 
         let span = Span {
             trace_id: trace_id_to_use,
@@ -427,7 +427,7 @@ mod tests {
         );
         match &span.location {
             Some(Location::UnknownLocation(path)) => assert_eq!(path, "my_app::request_handler"),
-            _ => panic!("Expected UnknownLocation with the specified code_path"),
+            _ => panic!("Expected UnknownLocation with the specified location"),
         }
 
         // Verify TraceId incorporates the tracer's ID and the trace sequence number (0 for the first trace)
@@ -583,7 +583,7 @@ mod tests {
             Some(Location::UnknownLocation(path)) => {
                 assert_eq!(
                     path, module_path,
-                    "Span location should match the provided code_path"
+                    "Span location should match the provided location"
                 );
             }
             _ => panic!("Expected span.location to be Some(Location::UnknownLocation)"),

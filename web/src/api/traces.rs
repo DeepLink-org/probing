@@ -13,7 +13,7 @@ pub struct TraceEvent {
     pub timestamp: i64,
     pub thread_id: i64,
     pub kind: Option<String>,
-    pub code_path: Option<String>,
+    pub location: Option<String>,
     pub attributes: Option<String>,
     pub event_attributes: Option<String>,
 }
@@ -28,7 +28,7 @@ pub struct SpanInfo {
     pub end_timestamp: Option<i64>,
     pub thread_id: i64,
     pub kind: Option<String>,
-    pub code_path: Option<String>,
+    pub location: Option<String>,
     pub attributes: Option<String>,
     pub children: Vec<SpanInfo>,
     pub events: Vec<EventInfo>,
@@ -55,7 +55,7 @@ impl ApiClient {
                 timestamp,
                 COALESCE(thread_id, 0) as thread_id,
                 kind,
-                code_path,
+                location,
                 attributes,
                 event_attributes
             FROM python.trace_event
@@ -80,7 +80,7 @@ impl ApiClient {
         let timestamp_idx = df.names.iter().position(|c| c == "timestamp").unwrap_or(5);
         let thread_id_idx = df.names.iter().position(|c| c == "thread_id").unwrap_or(6);
         let kind_idx = df.names.iter().position(|c| c == "kind").unwrap_or(7);
-        let code_path_idx = df.names.iter().position(|c| c == "code_path").unwrap_or(8);
+        let location_idx = df.names.iter().position(|c| c == "location").unwrap_or(8);
         let attributes_idx = df.names.iter().position(|c| c == "attributes").unwrap_or(9);
         let event_attributes_idx = df.names.iter().position(|c| c == "event_attributes").unwrap_or(10);
         
@@ -135,7 +135,7 @@ impl ApiClient {
                 timestamp: get_i64(timestamp_idx),
                 thread_id: get_i64(thread_id_idx),
                 kind: get_opt_str(kind_idx),
-                code_path: get_opt_str(code_path_idx),
+                location: get_opt_str(location_idx),
                 attributes: get_opt_str(attributes_idx),
                 event_attributes: get_opt_str(event_attributes_idx),
             });
@@ -163,7 +163,7 @@ impl ApiClient {
                     end_timestamp: None,
                     thread_id: event.thread_id,
                     kind: event.kind.clone(),
-                    code_path: event.code_path.clone(),
+                    location: event.location.clone(),
                     attributes: event.attributes.clone(),
                     children: Vec::new(),
                     events: Vec::new(),

@@ -23,27 +23,27 @@ pub struct Span {
 impl Span {
     /// Creates a new root span (starts a new trace).
     #[new]
-    #[pyo3(signature = (name, *, kind=None, code_path=None))]
-    fn new(name: String, kind: Option<String>, code_path: Option<String>) -> Self {
+    #[pyo3(signature = (name, *, kind=None, location=None))]
+    fn new(name: String, kind: Option<String>, location: Option<String>) -> Self {
         let span = RawSpan::new_root(
             name,
             kind.as_deref(),
-            code_path.as_deref(),
+            location.as_deref(),
         );
         Span { inner: Arc::new(Mutex::new(span)) }
     }
 
     /// Creates a new child span from a parent span.
     #[staticmethod]
-    #[pyo3(signature = (parent, name, *, kind=None, code_path=None))]
-    fn new_child(parent: &Bound<'_, Span>, name: String, kind: Option<String>, code_path: Option<String>) -> Self {
+    #[pyo3(signature = (parent, name, *, kind=None, location=None))]
+    fn new_child(parent: &Bound<'_, Span>, name: String, kind: Option<String>, location: Option<String>) -> Self {
         let parent_borrowed = parent.borrow();
         let parent_span = parent_borrowed.inner.lock().unwrap();
         let span = RawSpan::new_child(
             &*parent_span,
             name,
             kind.as_deref(),
-            code_path.as_deref(),
+            location.as_deref(),
         );
         drop(parent_span);
         Span { inner: Arc::new(Mutex::new(span)) }
@@ -118,9 +118,9 @@ impl Span {
         self.inner.lock().unwrap().end.map(|t| t.0)
     }
 
-    /// Gets the code path from location if available.
+    /// Gets the location from location if available.
     #[getter]
-    fn code_path(&self) -> Option<String> {
+    fn location(&self) -> Option<String> {
         self.inner.lock().unwrap().loc.as_ref().and_then(|loc| {
             match loc {
                 probing_core::trace::Location::UnknownLocation(path) => Some(path.clone()),
@@ -346,8 +346,8 @@ fn current_span(py: Python) -> PyResult<Option<PyObject>> {
 /// Internal function to create a span - called by Python wrapper.
 /// This is a low-level function that directly creates a span.
 #[pyfunction]
-#[pyo3(signature = (name, *, kind=None, code_path=None))]
-fn _span_raw(py: Python, name: String, kind: Option<String>, code_path: Option<String>) -> PyResult<Span> {
+#[pyo3(signature = (name, *, kind=None, location=None))]
+fn _span_raw(py: Python, name: String, kind: Option<String>, location: Option<String>) -> PyResult<Span> {
     // Check if there's a current active span
     let parent = SPAN_STACK.with(|stack| {
         let stack = stack.borrow();
@@ -358,10 +358,10 @@ fn _span_raw(py: Python, name: String, kind: Option<String>, code_path: Option<S
         // Create a child span
         let parent_obj = parent.bind(py);
         let parent_span = parent_obj.downcast::<Span>()?;
-        Span::new_child(parent_span, name, kind, code_path)
+        Span::new_child(parent_span, name, kind, location)
     } else {
         // Create a root span
-        Span::new(name, kind, code_path)
+        Span::new(name, kind, location)
     };
 
     Ok(span)

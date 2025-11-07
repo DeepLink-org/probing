@@ -36,6 +36,7 @@ Implicit name decorator::
 """
 
 import functools
+import inspect
 from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
@@ -44,6 +45,35 @@ from probing._tracing import Span
 from probing._tracing import _span_raw as span_raw
 from probing._tracing import current_span
 from probing.core.table import table
+
+
+def _get_location() -> Optional[str]:
+    """Get the current call location from the stack.
+    
+    Returns
+    -------
+    Optional[str]
+        Location string in format "filename:function:lineno" or None if unavailable.
+    """
+    try:
+        # Get the frame that called span() (skip this function and span() itself)
+        stack = inspect.stack()
+        # Find the first frame that's not in this module
+        for frame_info in stack[2:]:  # Skip _get_location and span()
+            frame = frame_info.frame
+            filename = frame_info.filename
+            function = frame_info.function
+            lineno = frame_info.lineno
+            
+            # Skip frames from this module
+            if 'probing/tracing.py' in filename or 'probing\\tracing.py' in filename:
+                continue
+                
+            # Format: "filename:function:lineno"
+            return f"{filename}:{function}:{lineno}"
+    except Exception:
+        pass
+    return None
 
 
 @table
@@ -69,8 +99,8 @@ class TraceEvent:
         Parent span id, -1 if root.
     kind : str, default ""
         Optional span kind label.
-    code_path : str, default ""
-        Code location or path if provided.
+    location : str, default ""
+        Code location automatically captured from call stack.
     attributes : str, default ""
         JSON string of span attributes (only in span rows).
     event_attributes : str, default ""
@@ -87,7 +117,7 @@ class TraceEvent:
     # Optional fields
     parent_id: Optional[int] = -1
     kind: Optional[str] = ""
-    code_path: Optional[str] = ""
+    location: Optional[str] = ""
     attributes: Optional[str] = ""
     event_attributes: Optional[str] = ""
 
@@ -117,7 +147,12 @@ def span(*args, **kwargs):
     *args
         Either empty (implicit decorator), a single callable, or a single string name.
     **kwargs
-        Attributes to attach plus optional ``kind`` and ``code_path``.
+        Attributes to attach plus optional ``kind``.
+        
+    Note
+    ----
+    The ``location`` is automatically captured from the call stack using
+    Python's ``inspect`` module. It is not passed as a parameter.
 
     Returns
     -------
@@ -126,7 +161,8 @@ def span(*args, **kwargs):
     """
     # Extract special parameters
     kind = kwargs.pop("kind", None)
-    code_path = kwargs.pop("code_path", None)
+    # Location is automatically captured, not passed as parameter
+    location = _get_location()
 
     # Handle @span (without arguments) - no args and no kwargs
     if len(args) == 0 and not kwargs:
@@ -134,7 +170,9 @@ def span(*args, **kwargs):
         def decorator(func: Callable) -> Callable:
             @functools.wraps(func)
             def wrapper(*wargs, **wkwargs):
-                with span_raw(func.__name__, kind=kind, code_path=code_path) as s:
+                # Get location from the decorator's call site
+                loc = _get_location()
+                with span_raw(func.__name__, kind=kind, location=loc) as s:
                     return func(*wargs, **wkwargs)
 
             return wrapper
@@ -147,7 +185,9 @@ def span(*args, **kwargs):
 
         @functools.wraps(func)
         def wrapper(*wargs, **wkwargs):
-            with span_raw(func.__name__, kind=kind, code_path=code_path) as s:
+            # Get location from the decorator's call site
+            loc = _get_location()
+            with span_raw(func.__name__, kind=kind, location=loc) as s:
                 return func(*wargs, **wkwargs)
 
         return wrapper
@@ -162,12 +202,12 @@ def span(*args, **kwargs):
                 self,
                 name: str,
                 kind: Optional[str],
-                code_path: Optional[str],
+                location: Optional[str],
                 attrs: dict,
             ):
                 self.name = name
                 self.kind = kind
-                self.code_path = code_path
+                self.location = location
                 self.attrs = attrs
                 self._span = None
 
@@ -188,18 +228,19 @@ def span(*args, **kwargs):
                 @functools.wraps(func)
                 def wrapper(*wargs, **wkwargs):
                     # Create span with attributes set during creation
+                    # Get location from the decorator's call site
+                    loc = _get_location()
                     if self.attrs:
                         # Use span() function which handles attributes during creation
                         with span(
                             self.name,
                             kind=self.kind,
-                            code_path=self.code_path,
                             **self.attrs,
                         ) as s:
                             return func(*wargs, **wkwargs)
                     else:
                         with span_raw(
-                            self.name, kind=self.kind, code_path=self.code_path
+                            self.name, kind=self.kind, location=loc
                         ) as s:
                             return func(*wargs, **wkwargs)
 
@@ -215,14 +256,16 @@ def span(*args, **kwargs):
                 """
                 # Get current span for parent relationship
                 parent = current_span()
+                # Get location from the context manager's call site
+                loc = self.location or _get_location()
 
                 if parent:
                     self._span = Span.new_child(
-                        parent, self.name, kind=self.kind, code_path=self.code_path
+                        parent, self.name, kind=self.kind, location=loc
                     )
                 else:
                     self._span = Span(
-                        self.name, kind=self.kind, code_path=self.code_path
+                        self.name, kind=self.kind, location=loc
                     )
 
                 # Set initial attributes during creation (before __enter__)
@@ -258,7 +301,7 @@ def span(*args, **kwargs):
                     return result
                 return False
 
-        return SpanWrapper(name, kind, code_path, kwargs)
+        return SpanWrapper(name, kind, location, kwargs)
 
     # Default: use as context manager with first arg as name
     if len(args) > 0:
@@ -268,11 +311,13 @@ def span(*args, **kwargs):
 
         # Get current span for parent relationship
         parent = current_span()
+        # Get location from the call site
+        loc = location or _get_location()
 
         if parent:
-            span_obj = Span.new_child(parent, name, kind=kind, code_path=code_path)
+            span_obj = Span.new_child(parent, name, kind=kind, location=loc)
         else:
-            span_obj = Span(name, kind=kind, code_path=code_path)
+            span_obj = Span(name, kind=kind, location=loc)
 
         # Set initial attributes during creation
         if kwargs:
@@ -304,7 +349,7 @@ def _record_span_start(span: Span, attrs: dict):
     # Sanitize None values to backend-friendly sentinels (tables reject Python None)
     parent_id = span.parent_id if span.parent_id is not None else -1
     kind = span.kind if span.kind is not None else ""
-    code_path = span.code_path if span.code_path is not None else ""
+    location = span.location if hasattr(span, "location") and span.location is not None else ""
     attributes = attrs_json if attrs_json is not None else ""
     event = TraceEvent(
         record_type="span_start",
@@ -315,7 +360,7 @@ def _record_span_start(span: Span, attrs: dict):
         thread_id=getattr(span, "thread_id", 0),
         parent_id=parent_id,
         kind=kind,
-        code_path=code_path,
+        location=location,
         attributes=attributes,
         event_attributes="",  # not applicable
     )
@@ -338,7 +383,7 @@ def _record_span_end(span: Span):
         thread_id=getattr(span, "thread_id", 0),
         parent_id=-1,
         kind="",
-        code_path="",
+        location="",
         attributes="",
         event_attributes="",
     )
@@ -378,7 +423,7 @@ def _record_event(span: Span, event_name: str, event_attributes: Optional[list] 
     
     parent_id = span.parent_id if span.parent_id is not None else -1
     kind = span.kind if span.kind is not None else ""
-    code_path = span.code_path if span.code_path is not None else ""
+    location = span.location if hasattr(span, "location") and span.location is not None else ""
     attrs = ""  # span-level attributes not duplicated here
     event_attrs = event_attrs_json if event_attrs_json is not None else ""
     event = TraceEvent(
@@ -390,7 +435,7 @@ def _record_event(span: Span, event_name: str, event_attributes: Optional[list] 
         thread_id=getattr(span, "thread_id", 0),
         parent_id=parent_id,
         kind=kind,
-        code_path=code_path,
+        location=location,
         attributes=attrs,
         event_attributes=event_attrs,
     )
@@ -398,7 +443,7 @@ def _record_event(span: Span, event_name: str, event_attributes: Optional[list] 
 
 
 # Add convenience methods to Span class
-def _span_with(name: str, kind: Optional[str] = None, code_path: Optional[str] = None):
+def _span_with(name: str, kind: Optional[str] = None):
     """Convenience context manager form.
 
     Parameters
@@ -407,8 +452,6 @@ def _span_with(name: str, kind: Optional[str] = None, code_path: Optional[str] =
         Span name.
     kind : str, optional
         Span kind label.
-    code_path : str, optional
-        Source path info.
 
     Returns
     -------
@@ -416,13 +459,14 @@ def _span_with(name: str, kind: Optional[str] = None, code_path: Optional[str] =
         Newly created span (root or child).
     """
     parent = current_span()
+    location = _get_location()
     if parent:
-        return Span.new_child(parent, name, kind=kind, code_path=code_path)
+        return Span.new_child(parent, name, kind=kind, location=location)
     else:
-        return Span(name, kind=kind, code_path=code_path)
+        return Span(name, kind=kind, location=location)
 
 
-def _span_decorator(name: Optional[str] = None, kind: Optional[str] = None, code_path: Optional[str] = None):
+def _span_decorator(name: Optional[str] = None, kind: Optional[str] = None):
     """Return a decorator that wraps a function in a span.
 
     Parameters
@@ -431,8 +475,6 @@ def _span_decorator(name: Optional[str] = None, kind: Optional[str] = None, code
         Explicit span name, defaults to function name.
     kind : str, optional
         Kind label.
-    code_path : str, optional
-        Source path info.
 
     Returns
     -------
@@ -444,7 +486,8 @@ def _span_decorator(name: Optional[str] = None, kind: Optional[str] = None, code
         @functools.wraps(func)
         def wrapper(*wargs, **wkwargs):
             span_name = name or func.__name__
-            with span_raw(span_name, kind=kind, code_path=code_path) as s:
+            location = _get_location()
+            with span_raw(span_name, kind=kind, location=location) as s:
                 return func(*wargs, **wkwargs)
 
         return wrapper
