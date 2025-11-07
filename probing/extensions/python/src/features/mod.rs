@@ -4,4 +4,5 @@ pub mod python_api;
 pub mod spy;
 pub mod stack_tracer;
 pub mod torch;
+pub mod tracing;
 pub mod vm_tracer;

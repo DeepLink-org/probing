@@ -193,8 +193,8 @@ rustup default nightly
 # Add WebAssembly target for web UI
 rustup target add wasm32-unknown-unknown
 
-# Install trunk for building WebAssembly frontend
-cargo install trunk
+# Install Dioxus CLI for building WebAssembly frontend
+cargo install dioxus-cli
 
 # Install cross-compilation tools (optional, for distribution builds)
 cargo install cargo-zigbuild
@@ -215,12 +215,10 @@ make
 make ZIG=1
 
 # Build web UI separately (optional)
-cd app && trunk build --release
+cd web && dx build --release
 
 # Build and install wheel package
 make wheel
-# or build the wheel using Leptos frontend assets (Dioxus is default)
-# FRONTEND=leptos make wheel
 pip install dist/probing-*.whl --force-reinstall
 ```
 
@@ -250,7 +248,8 @@ PROBING_TORCH_PROFILING="on,exprs=loss@train,acc1@train" PROBE=1 python examples
 - `probing/core/` - Core profiling engine  
 - `probing/extensions/` - Language-specific extensions (Python, C++)
 - `probing/server/` - HTTP API server
-- `app/` - Web UI (WebAssembly + Leptos)
+- `web/` - Web UI source and build output (Dioxus + WebAssembly)
+  - `web/dist/` - Web UI build output directory
 - `python/` - Python hooks and integration
 - `examples/` - Usage examples and demos
 

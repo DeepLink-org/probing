@@ -9,7 +9,7 @@ use crate::hooks::use_api;
 use crate::api::ApiClient;
 
 #[component]
-pub fn Overview() -> Element {
+pub fn Dashboard() -> Element {
     let state = use_api(|| {
         let client = ApiClient::new();
         async move { client.get_overview().await }
@@ -18,8 +18,8 @@ pub fn Overview() -> Element {
     rsx! {
         PageContainer {
             PageHeader {
-                title: "System Overview".to_string(),
-                subtitle: None
+                title: "Dashboard".to_string(),
+                subtitle: Some("System overview and process information".to_string())
             }
             
             if state.is_loading() {

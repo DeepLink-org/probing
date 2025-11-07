@@ -38,7 +38,7 @@ pub fn ThreadsCard(threads: Vec<u64>) -> Element {
             } else {
                 for tid in threads {
                     Link {
-                        to: Route::ActivityPage {},
+                        to: Route::StackPage {},
                         button {
                             class: "px-3 py-1 text-sm bg-blue-100 text-blue-800 hover:bg-blue-200 rounded-md transition-colors",
                             "{tid}"

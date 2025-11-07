@@ -3274,6 +3274,7 @@ dependencies = [
  "chrono",
  "datafusion",
  "futures",
+ "libc",
  "log",
  "once_cell",
  "probing-macros",

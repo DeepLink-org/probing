@@ -1,6 +1,7 @@
-pub mod activity;
+pub mod analytics;
 pub mod cluster;
-pub mod overview;
-pub mod profiler;
+pub mod dashboard;
+pub mod profiling;
 pub mod python;
-pub mod timeseries;
+pub mod stack;
+pub mod traces;
