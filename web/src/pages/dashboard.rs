@@ -9,7 +9,7 @@ use crate::hooks::use_api;
 use crate::api::ApiClient;
 
 #[component]
-pub fn Overview() -> Element {
+pub fn Dashboard() -> Element {
     let state = use_api(|| {
         let client = ApiClient::new();
         async move { client.get_overview().await }

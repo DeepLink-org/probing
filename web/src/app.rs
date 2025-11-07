@@ -3,8 +3,8 @@ use dioxus_router::{Routable, Router};
 
 use crate::components::layout::AppLayout;
 use crate::pages::{
-    activity::Activity as Stack, cluster::Cluster, overview::Overview as Dashboard, profiler::Profiling,
-    python::Python, timeseries::Analytics, tracing::Traces,
+    analytics::Analytics, cluster::Cluster, dashboard::Dashboard, profiling::Profiling,
+    python::Python, stack::Stack, traces::Traces,
 };
 
 #[derive(Routable, Clone, PartialEq)]

@@ -9,7 +9,7 @@ use crate::hooks::use_api;
 use crate::api::ApiClient;
 
 #[component]
-pub fn Activity(tid: Option<String>) -> Element {
+pub fn Stack(tid: Option<String>) -> Element {
     let tid_display = tid.clone();
     let mut mode = use_signal(|| String::from("mixed")); // py | cpp | mixed
     
@@ -25,7 +25,7 @@ pub fn Activity(tid: Option<String>) -> Element {
     rsx! {
         PageContainer {
             PageHeader {
-                title: "Call Stack Analysis".to_string(),
+                title: "Stacks".to_string(),
                 subtitle: tid_display.as_ref().map(|t| format!("Call stack for thread: {t}"))
             }
             

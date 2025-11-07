@@ -18,7 +18,7 @@ pub fn Header() -> Element {
                     div {
                         class: "flex items-center space-x-4",
                                 Link {
-                                    to: Route::OverviewPage {},
+                                    to: Route::DashboardPage {},
                                     class: "text-xl font-bold text-gray-900 hover:text-blue-600",
                                     "Probing Dashboard"
                                 }
@@ -28,9 +28,9 @@ pub fn Header() -> Element {
                     nav {
                         class: "hidden md:flex items-center space-x-1",
                                 NavTab {
-                                    to: Route::OverviewPage {},
+                                    to: Route::DashboardPage {},
                                     icon: &icondata::AiLineChartOutlined,
-                                    label: "Overview"
+                                    label: "Dashboard"
                                 }
                                 NavTab {
                                     to: Route::ClusterPage {},
@@ -38,29 +38,29 @@ pub fn Header() -> Element {
                                     label: "Cluster"
                                 }
                                 NavTab {
-                                    to: Route::ActivityPage {},
+                                    to: Route::StackPage {},
                                     icon: &icondata::AiThunderboltOutlined,
-                                    label: "Activity"
+                                    label: "Stacks"
                                 }
                                 NavTab {
-                                    to: Route::ProfilerPage {},
+                                    to: Route::ProfilingPage {},
                                     icon: &icondata::AiSearchOutlined,
-                                    label: "Profiler"
+                                    label: "Profiling"
                                 }
                                 NavTab {
-                                    to: Route::TimeseriesPage {},
+                                    to: Route::AnalyticsPage {},
                                     icon: &icondata::AiAreaChartOutlined,
-                                    label: "TimeSeries"
+                                    label: "Analytics"
                                 }
                                 NavTab {
                                     to: Route::PythonPage {},
                                     icon: &icondata::SiPython,
-                                    label: "Inspect"
+                                    label: "Python"
                                 }
                                 NavTab {
-                                    to: Route::TracingPage {},
+                                    to: Route::TracesPage {},
                                     icon: &icondata::AiApiOutlined,
-                                    label: "Tracing"
+                                    label: "Traces"
                                 }
                     }
                     

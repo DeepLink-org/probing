@@ -60,22 +60,22 @@ impl ApiClient {
 }
 
 // 导出所有API模块
-mod activity;
+mod analytics;
 mod cluster;
-mod overview;
-mod profiler;
-mod timeseries;
-mod tracing;
+mod dashboard;
+mod profiling;
+mod stack;
+mod traces;
 
 #[allow(unused_imports)]
-pub use activity::*;
+pub use analytics::*;
 #[allow(unused_imports)]
 pub use cluster::*;
 #[allow(unused_imports)]
-pub use overview::*;
+pub use dashboard::*;
 #[allow(unused_imports)]
-pub use profiler::*;
+pub use profiling::*;
 #[allow(unused_imports)]
-pub use timeseries::*;
+pub use stack::*;
 #[allow(unused_imports)]
-pub use tracing::*;
+pub use traces::*;
