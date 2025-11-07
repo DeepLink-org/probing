@@ -1,6 +1,38 @@
-"""Python wrapper for tracing functionality.
+"""Tracing facade (Python side).
 
-This module provides Python-friendly wrappers around the Rust tracing implementation.
+Provides a thin, explicit wrapper around the Rust implementation for creating spans
+via a context manager or decorator, attaching immutable attributes at creation time,
+and recording span lifecycle plus custom events into a single table.
+
+Notes
+-----
+* Attributes are fixed at span creation (no mutation API exposed).
+* `TraceEvent` stores start/end/event rows; missing values use simple sentinels
+  (parent_id = -1, text fields = empty string) to avoid `None` persistence issues.
+* The public surface stays minimal: `span`, `Span.with_`, `Span.decorator`, `add_event`,
+  and the `TraceEvent` dataclass table.
+
+Examples
+--------
+Context manager::
+
+    from probing.tracing import span, add_event
+    with span("load_data", dataset="mnist") as s:
+        add_event("read")
+        # do work
+
+Decorator::
+
+    from probing.tracing import span
+    @span("predict")
+    def predict(x):
+        return model(x)
+
+Implicit name decorator::
+
+    @span
+    def compute():
+        return 42
 """
 
 import functools
@@ -17,9 +49,32 @@ from probing.core.table import table
 @table
 @dataclass
 class TraceEvent:
-    """Table for storing span start, span end, and event records.
+    """Row model for trace records.
 
-    Non-default (required) fields must precede fields with defaults for dataclass __init__.
+    Each saved instance is one of: span_start, span_end, event.
+
+    Parameters
+    ----------
+    record_type : str
+        One of ``'span_start'``, ``'span_end'`` or ``'event'``.
+    trace_id : int
+        Trace identifier (shared by related spans).
+    span_id : int
+        Unique span identifier.
+    name : str
+        Span or event name.
+    timestamp : int
+        Nanoseconds since epoch.
+    parent_id : int, default -1
+        Parent span id, -1 if root.
+    kind : str, default ""
+        Optional span kind label.
+    code_path : str, default ""
+        Code location or path if provided.
+    attributes : str, default ""
+        JSON string of span attributes (only in span rows).
+    event_attributes : str, default ""
+        JSON string of event attributes (only in event rows).
     """
     # Required fields
     record_type: str
@@ -37,44 +92,36 @@ class TraceEvent:
 
 
 def span(*args, **kwargs):
-    """Create a span context manager or decorator.
+    """Factory for span usage as context manager or decorator.
 
-    This function can be used in three ways:
+    Scenarios
+    ---------
+    1. Context manager::
 
-    1. As a context manager:
-       ```python
-       with span("operation_name") as s:
-           # do work
-           pass
-       ```
+        with span("work", user="alice") as s:
+            ...
 
-    2. As a context manager with attributes:
-       ```python
-       with span("operation_name", attr1=value1, attr2=value2) as s:
-           # access attributes via s.attr1, s.attr2
-           pass
-       ```
+    2. Decorator with explicit name::
 
-    3. As a decorator:
-       ```python
-       @span("operation_name")
-       def my_function():
-           pass
+        @span("inference")
+        def run(x): ...
 
-       @span
-       def my_function2():
-           pass
-       ```
+    3. Decorator with implicit function name::
 
-    Args:
-        *args: First argument is the span name (string), or a callable for @span decorator
-        **kwargs: Additional keyword arguments. Special keys:
-            - kind: Optional span kind
-            - code_path: Optional code path
-            - All other kwargs become span attributes
+        @span
+        def train(): ...
 
-    Returns:
-        Either a SpanWrapper (for context manager) or a decorator function
+    Parameters
+    ----------
+    *args
+        Either empty (implicit decorator), a single callable, or a single string name.
+    **kwargs
+        Attributes to attach plus optional ``kind`` and ``code_path``.
+
+    Returns
+    -------
+    object
+        A context manager / decorator hybrid or a pure decorator.
     """
     # Extract special parameters
     kind = kwargs.pop("kind", None)
@@ -124,7 +171,18 @@ def span(*args, **kwargs):
                 self._span = None
 
             def __call__(self, func: Callable) -> Callable:
-                """This is @span("name") - used as decorator"""
+                """Enable decorator form when a name was provided.
+
+                Parameters
+                ----------
+                func : Callable
+                    Function to wrap.
+
+                Returns
+                -------
+                Callable
+                    Wrapped function executing inside a span.
+                """
 
                 @functools.wraps(func)
                 def wrapper(*wargs, **wkwargs):
@@ -147,7 +205,13 @@ def span(*args, **kwargs):
                 return wrapper
 
             def __enter__(self):
-                """This is with span("name") - used as context manager"""
+                """Enter span context.
+
+                Returns
+                -------
+                Span
+                    The underlying span instance.
+                """
                 # Get current span for parent relationship
                 parent = current_span()
 
@@ -186,11 +250,11 @@ def span(*args, **kwargs):
                 return self._span
 
             def __exit__(self, *args):
-                """Exit context manager"""
+                """Exit span context: finalize then record minimal end info."""
                 if self._span:
-                    # Record span end to table before exiting
-                    _record_span_end(self._span)
-                    return self._span.__exit__(*args)
+                    result = self._span.__exit__(*args)  # finalize span first (sets end timestamp)
+                    _record_span_end(self._span)         # then record minimal end row
+                    return result
                 return False
 
         return SpanWrapper(name, kind, code_path, kwargs)
@@ -221,7 +285,15 @@ def span(*args, **kwargs):
 
 
 def _record_span_start(span: Span, attrs: dict):
-    """Record span start to TraceEvent table."""
+    """Persist span start.
+
+    Parameters
+    ----------
+    span : Span
+        Span object.
+    attrs : dict
+        Creation-time attributes.
+    """
     import json
 
     # Convert attributes to JSON string
@@ -249,45 +321,39 @@ def _record_span_start(span: Span, attrs: dict):
 
 
 def _record_span_end(span: Span):
-    """Record span end to TraceEvent table."""
-    import json
+    """Persist span end with minimal data (only end time + span id).
 
-    # Get end timestamp
-    end_timestamp = span.end_timestamp
-    if end_timestamp is None:
-        # If end is not set, use current time
-        import time
-        end_timestamp = int(time.time_ns())
-    
-    # Get attributes from span
-    attrs_json = None
-    if hasattr(span, 'get_attributes'):
-        attrs = span.get_attributes()
-        if attrs:
-            attrs_json = json.dumps(attrs)
-    
-    # Sanitize
-    parent_id = span.parent_id if span.parent_id is not None else -1
-    kind = span.kind if span.kind is not None else ""
-    code_path = span.code_path if span.code_path is not None else ""
-    attributes = attrs_json if attrs_json is not None else ""
+    Other fields are blanked to reduce duplication.
+    """
+    import time
+    end_ts = span.end_timestamp or int(time.time_ns())
     event = TraceEvent(
         record_type="span_end",
-        trace_id=span.trace_id,
+        trace_id=0,      # intentionally zeroed
         span_id=span.span_id,
-        name=span.name,
-        timestamp=end_timestamp,
-        parent_id=parent_id,
-        kind=kind,
-        code_path=code_path,
-        attributes=attributes,
+        name="",        # omit name
+        timestamp=end_ts,
+        parent_id=-1,
+        kind="",
+        code_path="",
+        attributes="",
         event_attributes="",
     )
     event.save()
 
 
 def _record_event(span: Span, event_name: str, event_attributes: Optional[list] = None):
-    """Record event to TraceEvent table."""
+    """Persist an event row.
+
+    Parameters
+    ----------
+    span : Span
+        Active span.
+    event_name : str
+        Event name.
+    event_attributes : list, optional
+        List of dicts or (key, value) tuples.
+    """
     import json
     import time
 
@@ -329,13 +395,21 @@ def _record_event(span: Span, event_name: str, event_attributes: Optional[list] 
 
 # Add convenience methods to Span class
 def _span_with(name: str, kind: Optional[str] = None, code_path: Optional[str] = None):
-    """Create a span using Span.with_() - convenience method.
+    """Convenience context manager form.
 
-    Example:
-        ```python
-        with Span.with_("my_operation") as s:
-            pass
-        ```
+    Parameters
+    ----------
+    name : str
+        Span name.
+    kind : str, optional
+        Span kind label.
+    code_path : str, optional
+        Source path info.
+
+    Returns
+    -------
+    Span
+        Newly created span (root or child).
     """
     parent = current_span()
     if parent:
@@ -344,19 +418,22 @@ def _span_with(name: str, kind: Optional[str] = None, code_path: Optional[str] =
         return Span(name, kind=kind, code_path=code_path)
 
 
-def _span_decorator(
-    name: Optional[str] = None,
-    kind: Optional[str] = None,
-    code_path: Optional[str] = None,
-):
-    """Create a decorator using Span.decorator() - convenience method.
+def _span_decorator(name: Optional[str] = None, kind: Optional[str] = None, code_path: Optional[str] = None):
+    """Return a decorator that wraps a function in a span.
 
-    Example:
-        ```python
-        @Span.decorator(name="my_function", kind="server_op")
-        def my_function():
-            pass
-        ```
+    Parameters
+    ----------
+    name : str, optional
+        Explicit span name, defaults to function name.
+    kind : str, optional
+        Kind label.
+    code_path : str, optional
+        Source path info.
+
+    Returns
+    -------
+    Callable
+        Decorator applying tracing span.
     """
 
     def decorator(func: Callable) -> Callable:
@@ -377,27 +454,25 @@ Span.decorator = staticmethod(_span_decorator)
 
 
 def add_event(name: str, *, attributes: Optional[list] = None):
-    """Add an event to the current active span.
+    """Add an event to the current span.
 
-    This is a convenience function that adds an event to the current span
-    without needing to explicitly get the span object.
+    Parameters
+    ----------
+    name : str
+        Event name.
+    attributes : list, optional
+        Each item is a dict or a (key, value) tuple.
 
-    Args:
-        name: The name of the event
-        attributes: Optional list of attribute dictionaries or tuples.
-                   Each attribute can be:
-                   - A dict: {"key": "value"}
-                   - A tuple: ("key", value)
+    Raises
+    ------
+    RuntimeError
+        If no span is active.
 
-    Raises:
-        RuntimeError: If there is no active span in the current context.
-
-    Example:
-        ```python
-        with span("operation") as s:
-            add_event("step1")
-            add_event("step2", attributes=[{"key": "value"}])
-        ```
+    Examples
+    --------
+    >>> with span("op"):
+    ...     add_event("phase")
+    ...     add_event("kv", attributes=[{"x": 1}, ("y", 2)])
     """
     current = current_span()
     if current is None:
