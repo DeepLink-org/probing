@@ -1,6 +1,6 @@
 mod span;
 
-pub use span::{Attribute, Ele, Event, Location, Span, SpanStatus, Timestamp, attr};
+pub use span::{attr, Attribute, Ele, Event, Location, Span, SpanStatus, Timestamp};
 
 // --- Custom Error Type ---
 

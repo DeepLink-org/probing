@@ -59,7 +59,7 @@ pub fn create_probing_module() -> PyResult<()> {
 
         let m = PyModule::import(py, "probing")?;
         let already_initialized = m.hasattr(pyo3::intern!(py, "_C"))?;
-        
+
         if !already_initialized {
             m.setattr(pyo3::intern!(py, "_C"), 42)?;
             m.add_class::<extensions::python::ExternalTable>()?;
@@ -79,7 +79,7 @@ pub fn create_probing_module() -> PyResult<()> {
             let _tracing_module = PyModule::new(py, "_tracing")?;
             tracing::register_tracing_module(py, &_tracing_module)?;
             m.add_submodule(&_tracing_module)?;
-            
+
             // Also add to sys.modules for direct import
             let sys = PyModule::import(py, "sys")?;
             let modules = sys.getattr("modules")?;

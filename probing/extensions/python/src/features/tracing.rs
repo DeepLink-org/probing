@@ -4,8 +4,8 @@ use pyo3::IntoPyObjectExt;
 use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
 
-use probing_core::trace::{Ele, Event as RawEvent, SpanStatus, Timestamp, attr};
 use probing_core::trace::Span as RawSpan;
+use probing_core::trace::{attr, Ele, Event as RawEvent, SpanStatus, Timestamp};
 
 // Thread-local storage for span context
 thread_local! {
@@ -25,28 +25,28 @@ impl Span {
     #[new]
     #[pyo3(signature = (name, *, kind=None, location=None))]
     fn new(name: String, kind: Option<String>, location: Option<String>) -> Self {
-        let span = RawSpan::new_root(
-            name,
-            kind.as_deref(),
-            location.as_deref(),
-        );
-        Span { inner: Arc::new(Mutex::new(span)) }
+        let span = RawSpan::new_root(name, kind.as_deref(), location.as_deref());
+        Span {
+            inner: Arc::new(Mutex::new(span)),
+        }
     }
 
     /// Creates a new child span from a parent span.
     #[staticmethod]
     #[pyo3(signature = (parent, name, *, kind=None, location=None))]
-    fn new_child(parent: &Bound<'_, Span>, name: String, kind: Option<String>, location: Option<String>) -> Self {
+    fn new_child(
+        parent: &Bound<'_, Span>,
+        name: String,
+        kind: Option<String>,
+        location: Option<String>,
+    ) -> Self {
         let parent_borrowed = parent.borrow();
         let parent_span = parent_borrowed.inner.lock().unwrap();
-        let span = RawSpan::new_child(
-            &*parent_span,
-            name,
-            kind.as_deref(),
-            location.as_deref(),
-        );
+        let span = RawSpan::new_child(&*parent_span, name, kind.as_deref(), location.as_deref());
         drop(parent_span);
-        Span { inner: Arc::new(Mutex::new(span)) }
+        Span {
+            inner: Arc::new(Mutex::new(span)),
+        }
     }
 
     /// Gets the trace ID.
@@ -103,7 +103,11 @@ impl Span {
     /// Gets the duration of the span if it has been ended.
     #[getter]
     fn duration(&self) -> Option<f64> {
-        self.inner.lock().unwrap().duration().map(|d| d.as_secs_f64())
+        self.inner
+            .lock()
+            .unwrap()
+            .duration()
+            .map(|d| d.as_secs_f64())
     }
 
     /// Gets the start timestamp (nanoseconds since epoch).
@@ -121,12 +125,15 @@ impl Span {
     /// Gets the location from location if available.
     #[getter]
     fn location(&self) -> Option<String> {
-        self.inner.lock().unwrap().loc.as_ref().and_then(|loc| {
-            match loc {
+        self.inner
+            .lock()
+            .unwrap()
+            .loc
+            .as_ref()
+            .and_then(|loc| match loc {
                 probing_core::trace::Location::UnknownLocation(path) => Some(path.clone()),
                 probing_core::trace::Location::KnownLocation(_) => None,
-            }
-        })
+            })
     }
 
     /// Internal method to set initial attributes during span creation.
@@ -134,11 +141,10 @@ impl Span {
     #[pyo3(name = "_set_initial_attrs")]
     fn set_initial_attrs(&mut self, attrs: &Bound<'_, PyAny>, py: Python) -> PyResult<()> {
         // Convert Python dict to PyDict
-        let attrs_dict = attrs.downcast::<PyDict>()
-            .map_err(|_| PyErr::new::<pyo3::exceptions::PyTypeError, _>(
-                "_set_initial_attrs expects a dict"
-            ))?;
-        
+        let attrs_dict = attrs.downcast::<PyDict>().map_err(|_| {
+            PyErr::new::<pyo3::exceptions::PyTypeError, _>("_set_initial_attrs expects a dict")
+        })?;
+
         let mut inner = self.inner.lock().unwrap();
         for (key, value) in attrs_dict.iter() {
             let key_str = key.extract::<String>()?;
@@ -273,7 +279,7 @@ impl Span {
 
         // Not found
         Err(PyErr::new::<pyo3::exceptions::PyAttributeError, _>(
-            format!("'Span' object has no attribute '{}'", name)
+            format!("'Span' object has no attribute '{}'", name),
         ))
     }
 
@@ -297,7 +303,7 @@ impl Span {
     ) -> PyResult<bool> {
         // End the span automatically
         slf.inner.lock().unwrap().end();
-        
+
         // Pop this span from the stack
         SPAN_STACK.with(|stack| {
             let mut stack = stack.borrow_mut();
@@ -321,8 +327,6 @@ impl Span {
             }
         )
     }
-
-
 }
 
 // /// Gets the current active span.
@@ -347,7 +351,12 @@ fn current_span(py: Python) -> PyResult<Option<PyObject>> {
 /// This is a low-level function that directly creates a span.
 #[pyfunction]
 #[pyo3(signature = (name, *, kind=None, location=None))]
-fn _span_raw(py: Python, name: String, kind: Option<String>, location: Option<String>) -> PyResult<Span> {
+fn _span_raw(
+    py: Python,
+    name: String,
+    kind: Option<String>,
+    location: Option<String>,
+) -> PyResult<Span> {
     // Check if there's a current active span
     let parent = SPAN_STACK.with(|stack| {
         let stack = stack.borrow();
@@ -367,11 +376,10 @@ fn _span_raw(py: Python, name: String, kind: Option<String>, location: Option<St
     Ok(span)
 }
 
-
 // Helper function to convert Python object to Ele
 fn python_to_ele(obj: PyObject, py: Python) -> PyResult<Ele> {
     let bound = obj.bind(py);
-    
+
     if bound.is_none() {
         Ok(Ele::Nil)
     } else if let Ok(b) = bound.extract::<bool>() {
@@ -476,7 +484,10 @@ impl Event {
 
     /// Returns a string representation of the event.
     fn __repr__(&self) -> String {
-        format!("Event(name={}, timestamp={})", self.inner.name, self.inner.timestamp.0)
+        format!(
+            "Event(name={}, timestamp={})",
+            self.inner.name, self.inner.timestamp.0
+        )
     }
 }
 
@@ -486,7 +497,7 @@ pub fn register_tracing_module(_py: Python, module: &Bound<'_, PyModule>) -> PyR
     module.add_class::<Event>()?;
     module.add_function(wrap_pyfunction!(_span_raw, module)?)?;
     module.add_function(wrap_pyfunction!(current_span, module)?)?;
-    
+
     // Note: The Python wrapper code in python/probing/tracing.py will import from probing._tracing
     // This module (_tracing) only exposes the raw Rust functions:
     // - Span: The Span class
@@ -494,6 +505,6 @@ pub fn register_tracing_module(_py: Python, module: &Bound<'_, PyModule>) -> PyR
     // - _span_raw: Internal function to create spans
     // - current_span: Function to get current active span
     // The Python wrapper (probing.tracing) will be loaded separately when imported
-    
+
     Ok(())
 }

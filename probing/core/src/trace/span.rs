@@ -24,8 +24,8 @@ fn current_thread_id() -> u64 {
     }
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     {
-        use std::hash::{Hash, Hasher};
         use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
         let tid = thread::current().id();
         let mut h = DefaultHasher::new();
         // ThreadId only implements Debug; convert to string and hash.
@@ -90,7 +90,7 @@ pub struct Event {
 
 // --- Span Status ---
 /// Represents the status of a span.
-/// 
+///
 /// The status is determined by whether the span has been ended:
 /// - `Active`: The span is still running (end_time is None)
 /// - `Completed`: The span has been ended (end_time is Some)
@@ -137,11 +137,7 @@ pub struct Span {
 
 impl Span {
     /// Creates a new root span (starts a new trace).
-    pub fn new_root<N: Into<String>>(
-        name: N,
-        kind: Option<&str>,
-        location: Option<&str>,
-    ) -> Self {
+    pub fn new_root<N: Into<String>>(name: N, kind: Option<&str>, location: Option<&str>) -> Self {
         let trace_id = NEXT_TRACE_ID.fetch_add(1, Ordering::Relaxed);
         let span_id = NEXT_SPAN_ID.fetch_add(1, Ordering::Relaxed);
         let location = location.map(|loc_val| Location::UnknownLocation(loc_val.into()));
@@ -298,7 +294,12 @@ mod tests {
     fn test_new_child_span() {
         let parent = Span::new_root("root_operation", None, None);
 
-        let child = Span::new_child(&parent, "database_query", Some("db_client"), Some("my_app::db_service::query"));
+        let child = Span::new_child(
+            &parent,
+            "database_query",
+            Some("db_client"),
+            Some("my_app::db_service::query"),
+        );
 
         assert_eq!(child.name, "database_query");
         assert_eq!(
@@ -311,10 +312,7 @@ mod tests {
             child.trace_id, parent.trace_id,
             "Child span must share the same trace_id as its parent"
         );
-        assert!(
-            child.attrs.is_empty(),
-            "Initial attributes should be empty"
-        );
+        assert!(child.attrs.is_empty(), "Initial attributes should be empty");
 
         // Note: Without a manager, we don't modify parent status.
         // The parent status remains unchanged.
@@ -346,10 +344,13 @@ mod tests {
         assert!(span.is_ended(), "Span should be ended");
         assert_eq!(span.status(), SpanStatus::Completed);
         // Verify error message was recorded as an attribute
-        assert!(span.attrs.iter().any(|attr| {
-            attr.0 == "error.message" && 
-            matches!(&attr.1, Ele::Text(msg) if msg == &error_message)
-        }), "Error message should be recorded as an attribute");
+        assert!(
+            span.attrs.iter().any(|attr| {
+                attr.0 == "error.message"
+                    && matches!(&attr.1, Ele::Text(msg) if msg == &error_message)
+            }),
+            "Error message should be recorded as an attribute"
+        );
     }
 
     #[test]
@@ -363,7 +364,8 @@ mod tests {
         span.add_attr("request.size_bytes", 1024i64).unwrap();
         span.add_attr("cache.hit_ratio", 0.75f32).unwrap();
         span.add_attr("processing.time_ms", 123.456f64).unwrap();
-        span.add_attr("custom.info", Ele::Text("important_detail".to_string())).unwrap();
+        span.add_attr("custom.info", Ele::Text("important_detail".to_string()))
+            .unwrap();
 
         // Add an event.
         span.add_event(
@@ -372,7 +374,8 @@ mod tests {
                 attr("cache.key", "user_123_data"),
                 attr("cache.hit", true),
             ]),
-        ).unwrap();
+        )
+        .unwrap();
 
         // Simulate some work
         std::thread::sleep(StdDuration::from_millis(5));
@@ -390,7 +393,10 @@ mod tests {
             "Event timestamp should be after span start"
         );
         assert_eq!(span.events[0].attributes.len(), 2);
-        assert_eq!(span.events[0].attributes[0], attr("cache.key", "user_123_data"));
+        assert_eq!(
+            span.events[0].attributes[0],
+            attr("cache.key", "user_123_data")
+        );
         assert_eq!(span.events[0].attributes[1], attr("cache.hit", true));
 
         assert_eq!(span.events[1].name, "validation_complete");
@@ -406,7 +412,9 @@ mod tests {
         let attributes_count_before = span.attrs.len();
         let events_len_before = span.events.len();
 
-        assert!(span.add_attr("attempt_after_close", "should_not_be_added").is_err());
+        assert!(span
+            .add_attr("attempt_after_close", "should_not_be_added")
+            .is_err());
         assert!(span.add_event("event_after_close", None).is_err());
 
         assert_eq!(
@@ -436,7 +444,10 @@ mod tests {
         // Third trace - should continue incrementing
         let span3 = Span::new_root("span3", None, None);
         let trace_id3 = span3.trace_id;
-        assert!(trace_id3 > trace_id2, "Trace ID should continue incrementing");
+        assert!(
+            trace_id3 > trace_id2,
+            "Trace ID should continue incrementing"
+        );
     }
 
     #[test]
@@ -449,5 +460,4 @@ mod tests {
         let span_id2 = span2.span_id;
         assert!(span_id2 > span_id1, "Span ID should increment");
     }
-
 }
