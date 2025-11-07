@@ -3,6 +3,7 @@ use pyo3::types::PyModule;
 
 use crate::extensions;
 use crate::features::config;
+use crate::features::tracing;
 use crate::features::vm_tracer::{
     _get_python_frames, _get_python_stacks, disable_tracer, enable_tracer, initialize_globals,
 };
@@ -57,20 +58,33 @@ pub fn create_probing_module() -> PyResult<()> {
         }
 
         let m = PyModule::import(py, "probing")?;
-        if m.hasattr(pyo3::intern!(py, "_C"))? {
-            return Ok(());
-        }
-        m.setattr(pyo3::intern!(py, "_C"), 42)?;
-        m.add_class::<extensions::python::ExternalTable>()?;
-        m.add_class::<TCPStore>()?;
-        m.add_function(wrap_pyfunction!(query_json, py)?)?;
-        m.add_function(wrap_pyfunction!(enable_tracer, py)?)?;
-        m.add_function(wrap_pyfunction!(disable_tracer, py)?)?;
-        m.add_function(wrap_pyfunction!(_get_python_stacks, py)?)?;
-        m.add_function(wrap_pyfunction!(_get_python_frames, py)?)?;
+        let already_initialized = m.hasattr(pyo3::intern!(py, "_C"))?;
+        
+        if !already_initialized {
+            m.setattr(pyo3::intern!(py, "_C"), 42)?;
+            m.add_class::<extensions::python::ExternalTable>()?;
+            m.add_class::<TCPStore>()?;
+            m.add_function(wrap_pyfunction!(query_json, py)?)?;
+            m.add_function(wrap_pyfunction!(enable_tracer, py)?)?;
+            m.add_function(wrap_pyfunction!(disable_tracer, py)?)?;
+            m.add_function(wrap_pyfunction!(_get_python_stacks, py)?)?;
+            m.add_function(wrap_pyfunction!(_get_python_frames, py)?)?;
 
-        // Register config module
-        config::register_config_module(&m)?;
+            // Register config module
+            config::register_config_module(&m)?;
+        }
+
+        // Always try to register _tracing module (internal Rust implementation)
+        if !m.hasattr(pyo3::intern!(py, "_tracing"))? {
+            let _tracing_module = PyModule::new(py, "_tracing")?;
+            tracing::register_tracing_module(py, &_tracing_module)?;
+            m.add_submodule(&_tracing_module)?;
+            
+            // Also add to sys.modules for direct import
+            let sys = PyModule::import(py, "sys")?;
+            let modules = sys.getattr("modules")?;
+            modules.set_item("probing._tracing", &_tracing_module)?;
+        }
 
         Ok(())
     })
