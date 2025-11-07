@@ -82,6 +82,7 @@ class TraceEvent:
     span_id: int
     name: str
     timestamp: int
+    thread_id: int = 0
 
     # Optional fields
     parent_id: Optional[int] = -1
@@ -311,6 +312,7 @@ def _record_span_start(span: Span, attrs: dict):
         span_id=span.span_id,
         name=span.name,
         timestamp=span.start_timestamp,
+        thread_id=getattr(span, "thread_id", 0),
         parent_id=parent_id,
         kind=kind,
         code_path=code_path,
@@ -333,6 +335,7 @@ def _record_span_end(span: Span):
         span_id=span.span_id,
         name="",        # omit name
         timestamp=end_ts,
+        thread_id=getattr(span, "thread_id", 0),
         parent_id=-1,
         kind="",
         code_path="",
@@ -384,6 +387,7 @@ def _record_event(span: Span, event_name: str, event_attributes: Optional[list] 
         span_id=span.span_id,
         name=event_name,
         timestamp=timestamp,
+        thread_id=getattr(span, "thread_id", 0),
         parent_id=parent_id,
         kind=kind,
         code_path=code_path,

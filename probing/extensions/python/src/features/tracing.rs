@@ -67,6 +67,12 @@ impl Span {
         self.inner.lock().unwrap().parent_id
     }
 
+    /// Gets the originating thread numeric id.
+    #[getter]
+    fn thread_id(&self) -> u64 {
+        self.inner.lock().unwrap().thread_id
+    }
+
     /// Gets the span name.
     #[getter]
     fn name(&self) -> String {
@@ -98,6 +104,29 @@ impl Span {
     #[getter]
     fn duration(&self) -> Option<f64> {
         self.inner.lock().unwrap().duration().map(|d| d.as_secs_f64())
+    }
+
+    /// Gets the start timestamp (nanoseconds since epoch).
+    #[getter]
+    fn start_timestamp(&self) -> u128 {
+        self.inner.lock().unwrap().start.0
+    }
+
+    /// Gets the end timestamp (nanoseconds since epoch) if the span has been ended.
+    #[getter]
+    fn end_timestamp(&self) -> Option<u128> {
+        self.inner.lock().unwrap().end.map(|t| t.0)
+    }
+
+    /// Gets the code path from location if available.
+    #[getter]
+    fn code_path(&self) -> Option<String> {
+        self.inner.lock().unwrap().loc.as_ref().and_then(|loc| {
+            match loc {
+                probing_core::trace::Location::UnknownLocation(path) => Some(path.clone()),
+                probing_core::trace::Location::KnownLocation(_) => None,
+            }
+        })
     }
 
     /// Internal method to set initial attributes during span creation.
@@ -212,6 +241,7 @@ impl Span {
                     return Ok(py.None());
                 }
             }
+            "thread_id" => return Ok(self.thread_id().into_bound_py_any(py)?.into()),
             "name" => return Ok(self.name().into_bound_py_any(py)?.into()),
             "kind" => {
                 if let Some(k) = self.kind() {

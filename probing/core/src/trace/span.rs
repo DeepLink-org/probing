@@ -7,6 +7,33 @@ pub use probing_proto::types::Ele;
 static NEXT_TRACE_ID: AtomicU64 = AtomicU64::new(1);
 static NEXT_SPAN_ID: AtomicU64 = AtomicU64::new(1);
 
+/// Obtain a numeric thread identifier using platform facilities where possible.
+///
+/// On macOS we use `pthread_self()` which is stable per thread lifetime.
+/// On Linux we use the `gettid` syscall for the OS thread id.
+/// On other platforms we hash the opaque `std::thread::ThreadId` debug output
+/// to yield a reproducible u64 within process lifetime.
+fn current_thread_id() -> u64 {
+    #[cfg(target_os = "macos")]
+    unsafe {
+        return libc::pthread_self() as u64;
+    }
+    #[cfg(target_os = "linux")]
+    unsafe {
+        return libc::syscall(libc::SYS_gettid) as u64;
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        use std::hash::{Hash, Hasher};
+        use std::collections::hash_map::DefaultHasher;
+        let tid = thread::current().id();
+        let mut h = DefaultHasher::new();
+        // ThreadId only implements Debug; convert to string and hash.
+        format!("{:?}", tid).hash(&mut h);
+        h.finish()
+    }
+}
+
 // --- Timestamp ---
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Timestamp(pub u128);
@@ -90,6 +117,7 @@ pub struct Span {
     pub trace_id: u64,
     pub span_id: u64,
     pub parent_id: Option<u64>,
+    pub thread_id: u64, // stable numeric id for the originating thread
 
     // === 基本信息 ===
     pub name: String,
@@ -117,11 +145,13 @@ impl Span {
         let trace_id = NEXT_TRACE_ID.fetch_add(1, Ordering::Relaxed);
         let span_id = NEXT_SPAN_ID.fetch_add(1, Ordering::Relaxed);
         let location = code_path.map(|cp_val| Location::UnknownLocation(cp_val.into()));
+        let thread_id = current_thread_id();
 
         Span {
             trace_id,
             span_id,
             parent_id: None,
+            thread_id,
             name: name.into(),
             start: Timestamp::now(),
             end: None,
@@ -141,11 +171,13 @@ impl Span {
     ) -> Self {
         let span_id = NEXT_SPAN_ID.fetch_add(1, Ordering::Relaxed);
         let location = code_path.map(|cp_val| Location::UnknownLocation(cp_val.into()));
+        let thread_id = current_thread_id(); // child bound to the current executing thread
 
         Span {
             trace_id: parent.trace_id,
             span_id,
             parent_id: Some(parent.span_id),
+            thread_id,
             name: name.into(),
             start: Timestamp::now(),
             end: None,
