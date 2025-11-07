@@ -63,7 +63,7 @@ class TraceEvent:
         Unique span identifier.
     name : str
         Span or event name.
-    timestamp : int
+    time : int
         Nanoseconds since epoch.
     parent_id : int, default -1
         Parent span id, -1 if root.
@@ -81,7 +81,7 @@ class TraceEvent:
     trace_id: int
     span_id: int
     name: str
-    timestamp: int
+    time: int
     thread_id: int = 0
 
     # Optional fields
@@ -311,7 +311,7 @@ def _record_span_start(span: Span, attrs: dict):
         trace_id=span.trace_id,
         span_id=span.span_id,
         name=span.name,
-        timestamp=span.start_timestamp,
+        time=span.start_timestamp,
         thread_id=getattr(span, "thread_id", 0),
         parent_id=parent_id,
         kind=kind,
@@ -334,7 +334,7 @@ def _record_span_end(span: Span):
         trace_id=0,      # intentionally zeroed
         span_id=span.span_id,
         name="",        # omit name
-        timestamp=end_ts,
+        time=end_ts,
         thread_id=getattr(span, "thread_id", 0),
         parent_id=-1,
         kind="",
@@ -386,7 +386,7 @@ def _record_event(span: Span, event_name: str, event_attributes: Optional[list] 
         trace_id=span.trace_id,
         span_id=span.span_id,
         name=event_name,
-        timestamp=timestamp,
+        time=timestamp,
         thread_id=getattr(span, "thread_id", 0),
         parent_id=parent_id,
         kind=kind,

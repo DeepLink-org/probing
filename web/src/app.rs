@@ -4,7 +4,7 @@ use dioxus_router::{Routable, Router};
 use crate::components::layout::AppLayout;
 use crate::pages::{
     activity::Activity, cluster::Cluster, overview::Overview, profiler::Profiler,
-    python::Python, timeseries::Timeseries,
+    python::Python, timeseries::Timeseries, tracing::Tracing,
 };
 
 #[derive(Routable, Clone, PartialEq)]
@@ -22,6 +22,8 @@ pub enum Route {
     TimeseriesPage {},
     #[route("/inspect")]
     PythonPage {},
+    #[route("/tracing")]
+    TracingPage {},
 }
 
 #[component]
@@ -52,6 +54,11 @@ pub fn TimeseriesPage() -> Element {
 #[component]
 pub fn PythonPage() -> Element {
     rsx! { AppLayout { Python {} } }
+}
+
+#[component]
+pub fn TracingPage() -> Element {
+    rsx! { AppLayout { Tracing {} } }
 }
 
 #[component]

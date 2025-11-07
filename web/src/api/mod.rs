@@ -65,6 +65,7 @@ mod cluster;
 mod overview;
 mod profiler;
 mod timeseries;
+mod tracing;
 
 #[allow(unused_imports)]
 pub use activity::*;
@@ -76,3 +77,5 @@ pub use overview::*;
 pub use profiler::*;
 #[allow(unused_imports)]
 pub use timeseries::*;
+#[allow(unused_imports)]
+pub use tracing::*;

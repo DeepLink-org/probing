@@ -57,6 +57,11 @@ pub fn Header() -> Element {
                                     icon: &icondata::SiPython,
                                     label: "Inspect"
                                 }
+                                NavTab {
+                                    to: Route::TracingPage {},
+                                    icon: &icondata::AiApiOutlined,
+                                    label: "Tracing"
+                                }
                     }
                     
                     // Right side controls

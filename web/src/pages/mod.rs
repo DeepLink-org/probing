@@ -4,3 +4,4 @@ pub mod overview;
 pub mod profiler;
 pub mod python;
 pub mod timeseries;
+pub mod tracing;

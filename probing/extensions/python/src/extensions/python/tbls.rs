@@ -237,7 +237,15 @@ impl CustomNamespace for PythonNamespace {
                 .iter()
                 .map(|x| x.dtype())
                 .collect::<Vec<_>>();
-            let mut fields = vec![Field::new("timestamp", DataType::Int64, true)];
+            let mut fields = Vec::new();
+            
+            // Check if table already has a timestamp column
+            let has_timestamp = names.iter().any(|n| n == "timestamp");
+            
+            // Only add timestamp if it doesn't already exist
+            if !has_timestamp {
+                fields.push(Field::new("timestamp", DataType::Int64, true));
+            }
 
             for (name, dtype) in names.iter().zip(dtypes.iter()) {
                 fields.push(Field::new(
