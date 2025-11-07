@@ -4,10 +4,36 @@ This module provides Python-friendly wrappers around the Rust tracing implementa
 """
 
 import functools
-from typing import Callable, Optional, Any
+from dataclasses import dataclass
+from typing import Any, Callable, Optional
 
 # Import from the internal Rust module
-from probing._tracing import Span, current_span, _span_raw as span_raw
+from probing._tracing import Span
+from probing._tracing import _span_raw as span_raw
+from probing._tracing import current_span
+from probing.core.table import table
+
+
+@table
+@dataclass
+class TraceEvent:
+    """Table for storing span start, span end, and event records.
+
+    Non-default (required) fields must precede fields with defaults for dataclass __init__.
+    """
+    # Required fields
+    record_type: str
+    trace_id: int
+    span_id: int
+    name: str
+    timestamp: int
+
+    # Optional fields
+    parent_id: Optional[int] = -1
+    kind: Optional[str] = ""
+    code_path: Optional[str] = ""
+    attributes: Optional[str] = ""
+    event_attributes: Optional[str] = ""
 
 
 def span(*args, **kwargs):
@@ -153,11 +179,17 @@ def span(*args, **kwargs):
                 entered = self._span.__enter__()
                 # __enter__ returns PyRef<Span> which should be automatically converted
                 # But to be safe, we return the span object directly
+                
+                # Record span start to table
+                _record_span_start(self._span, self.attrs)
+                
                 return self._span
 
             def __exit__(self, *args):
                 """Exit context manager"""
                 if self._span:
+                    # Record span end to table before exiting
+                    _record_span_end(self._span)
                     return self._span.__exit__(*args)
                 return False
 
@@ -186,6 +218,113 @@ def span(*args, **kwargs):
         return span_obj
 
     raise TypeError("span() requires at least one argument")
+
+
+def _record_span_start(span: Span, attrs: dict):
+    """Record span start to TraceEvent table."""
+    import json
+
+    # Convert attributes to JSON string
+    attrs_json = None
+    if attrs:
+        attrs_json = json.dumps(attrs)
+    # Sanitize None values to backend-friendly sentinels (tables reject Python None)
+    parent_id = span.parent_id if span.parent_id is not None else -1
+    kind = span.kind if span.kind is not None else ""
+    code_path = span.code_path if span.code_path is not None else ""
+    attributes = attrs_json if attrs_json is not None else ""
+    event = TraceEvent(
+        record_type="span_start",
+        trace_id=span.trace_id,
+        span_id=span.span_id,
+        name=span.name,
+        timestamp=span.start_timestamp,
+        parent_id=parent_id,
+        kind=kind,
+        code_path=code_path,
+        attributes=attributes,
+        event_attributes="",  # not applicable
+    )
+    event.save()
+
+
+def _record_span_end(span: Span):
+    """Record span end to TraceEvent table."""
+    import json
+
+    # Get end timestamp
+    end_timestamp = span.end_timestamp
+    if end_timestamp is None:
+        # If end is not set, use current time
+        import time
+        end_timestamp = int(time.time_ns())
+    
+    # Get attributes from span
+    attrs_json = None
+    if hasattr(span, 'get_attributes'):
+        attrs = span.get_attributes()
+        if attrs:
+            attrs_json = json.dumps(attrs)
+    
+    # Sanitize
+    parent_id = span.parent_id if span.parent_id is not None else -1
+    kind = span.kind if span.kind is not None else ""
+    code_path = span.code_path if span.code_path is not None else ""
+    attributes = attrs_json if attrs_json is not None else ""
+    event = TraceEvent(
+        record_type="span_end",
+        trace_id=span.trace_id,
+        span_id=span.span_id,
+        name=span.name,
+        timestamp=end_timestamp,
+        parent_id=parent_id,
+        kind=kind,
+        code_path=code_path,
+        attributes=attributes,
+        event_attributes="",
+    )
+    event.save()
+
+
+def _record_event(span: Span, event_name: str, event_attributes: Optional[list] = None):
+    """Record event to TraceEvent table."""
+    import json
+    import time
+
+    # Get current timestamp (nanoseconds since epoch)
+    timestamp = int(time.time_ns())
+    
+    # Convert event attributes to JSON string
+    event_attrs_json = None
+    if event_attributes:
+        # Convert list of dicts/tuples to a single dict
+        attrs_dict = {}
+        for attr_item in event_attributes:
+            if isinstance(attr_item, dict):
+                attrs_dict.update(attr_item)
+            elif isinstance(attr_item, (list, tuple)) and len(attr_item) == 2:
+                attrs_dict[attr_item[0]] = attr_item[1]
+        if attrs_dict:
+            event_attrs_json = json.dumps(attrs_dict)
+    
+    parent_id = span.parent_id if span.parent_id is not None else -1
+    kind = span.kind if span.kind is not None else ""
+    code_path = span.code_path if span.code_path is not None else ""
+    attrs = ""  # span-level attributes not duplicated here
+    event_attrs = event_attrs_json if event_attrs_json is not None else ""
+    event = TraceEvent(
+        record_type="event",
+        trace_id=span.trace_id,
+        span_id=span.span_id,
+        name=event_name,
+        timestamp=timestamp,
+        parent_id=parent_id,
+        kind=kind,
+        code_path=code_path,
+        attributes=attrs,
+        event_attributes=event_attrs,
+    )
+    event.save()
 
 
 # Add convenience methods to Span class
@@ -265,3 +404,6 @@ def add_event(name: str, *, attributes: Optional[list] = None):
         raise RuntimeError("No active span in current context. Cannot add event.")
 
     current.add_event(name, attributes=attributes)
+    
+    # Record event to table
+    _record_event(current, name, attributes)
