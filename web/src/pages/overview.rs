@@ -18,8 +18,8 @@ pub fn Overview() -> Element {
     rsx! {
         PageContainer {
             PageHeader {
-                title: "System Overview".to_string(),
-                subtitle: None
+                title: "Dashboard".to_string(),
+                subtitle: Some("System overview and process information".to_string())
             }
             
             if state.is_loading() {

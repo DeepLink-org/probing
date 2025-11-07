@@ -60,11 +60,12 @@ fn build_app(auth: bool) -> axum::Router {
         .route("/", axum::routing::get(index))
         .route("/overview", axum::routing::get(index))
         .route("/cluster", axum::routing::get(index))
-        .route("/activity", axum::routing::get(index))
-        .route("/inspect", axum::routing::get(index))
-        .route("/timeseries", axum::routing::get(index))
+        .route("/stacks", axum::routing::get(index))
+        .route("/profiling", axum::routing::get(index))
+        .route("/analytics", axum::routing::get(index))
+        .route("/python", axum::routing::get(index))
+        .route("/traces", axum::routing::get(index))
         .route("/index.html", axum::routing::get(index))
-        .route("/profiler", axum::routing::get(index))
         .route("/query", axum::routing::post(query))
         .route(
             "/config/{config_key}",

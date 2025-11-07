@@ -32,7 +32,7 @@ fn apply_config(config: &[(String, String)], mut pprof_freq: Signal<i32>, mut to
 }
 
 #[component]
-pub fn Profiler() -> Element {
+pub fn Profiling() -> Element {
     let mut selected_tab = use_signal(|| "pprof".to_string());
     let mut pprof_freq = use_signal(|| 99_i32);
     let torch_enabled = use_signal(|| false);

@@ -7,7 +7,7 @@ pub fn Python() -> Element {
     rsx! {
         PageContainer {
             PageHeader {
-                title: "Python Inspection".to_string(),
+                title: "Python".to_string(),
                 subtitle: Some("Inspect and debug Python processes".to_string())
             }
             

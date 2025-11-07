@@ -3,32 +3,32 @@ use dioxus_router::{Routable, Router};
 
 use crate::components::layout::AppLayout;
 use crate::pages::{
-    activity::Activity, cluster::Cluster, overview::Overview, profiler::Profiler,
-    python::Python, timeseries::Timeseries, tracing::Tracing,
+    activity::Activity as Stack, cluster::Cluster, overview::Overview as Dashboard, profiler::Profiling,
+    python::Python, timeseries::Analytics, tracing::Traces,
 };
 
 #[derive(Routable, Clone, PartialEq)]
 #[rustfmt::skip]
 pub enum Route {
     #[route("/")]
-    OverviewPage {},
+    DashboardPage {},
     #[route("/cluster")]
     ClusterPage {},
-    #[route("/activity")]
-    ActivityPage {},
-    #[route("/profiler")]
-    ProfilerPage {},
-    #[route("/timeseries")]
-    TimeseriesPage {},
-    #[route("/inspect")]
+    #[route("/stacks")]
+    StackPage {},
+    #[route("/profiling")]
+    ProfilingPage {},
+    #[route("/analytics")]
+    AnalyticsPage {},
+    #[route("/python")]
     PythonPage {},
-    #[route("/tracing")]
-    TracingPage {},
+    #[route("/traces")]
+    TracesPage {},
 }
 
 #[component]
-pub fn OverviewPage() -> Element {
-    rsx! { AppLayout { Overview {} } }
+pub fn DashboardPage() -> Element {
+    rsx! { AppLayout { Dashboard {} } }
 }
 
 #[component]
@@ -37,18 +37,18 @@ pub fn ClusterPage() -> Element {
 }
 
 #[component]
-pub fn ActivityPage() -> Element {
-    rsx! { AppLayout { Activity { tid: None } } }
+pub fn StackPage() -> Element {
+    rsx! { AppLayout { Stack { tid: None } } }
 }
 
 #[component]
-pub fn ProfilerPage() -> Element {
-    rsx! { AppLayout { Profiler {} } }
+pub fn ProfilingPage() -> Element {
+    rsx! { AppLayout { Profiling {} } }
 }
 
 #[component]
-pub fn TimeseriesPage() -> Element {
-    rsx! { AppLayout { Timeseries {} } }
+pub fn AnalyticsPage() -> Element {
+    rsx! { AppLayout { Analytics {} } }
 }
 
 #[component]
@@ -57,8 +57,8 @@ pub fn PythonPage() -> Element {
 }
 
 #[component]
-pub fn TracingPage() -> Element {
-    rsx! { AppLayout { Tracing {} } }
+pub fn TracesPage() -> Element {
+    rsx! { AppLayout { Traces {} } }
 }
 
 #[component]

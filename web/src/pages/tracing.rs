@@ -6,7 +6,7 @@ use crate::hooks::use_api;
 use crate::api::{ApiClient, SpanInfo, EventInfo};
 
 #[component]
-pub fn Tracing() -> Element {
+pub fn Traces() -> Element {
     let state = use_api(|| {
         let client = ApiClient::new();
         async move { client.get_span_tree().await }
@@ -15,12 +15,12 @@ pub fn Tracing() -> Element {
     rsx! {
         PageContainer {
             PageHeader {
-                title: "Tracing Analysis".to_string(),
+                title: "Traces".to_string(),
                 subtitle: Some("Analyze span timing and nested relationships".to_string())
             }
             
             Card {
-                title: "Span Timeline",
+                title: "Span Tree",
                 if state.is_loading() {
                     LoadingState { message: Some("Loading trace data...".to_string()) }
                 } else if let Some(Ok(spans)) = state.data.read().as_ref() {

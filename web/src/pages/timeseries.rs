@@ -8,7 +8,7 @@ use crate::api::ApiClient;
 use probing_proto::prelude::{DataFrame, Ele};
 
 #[component]
-pub fn Timeseries() -> Element {
+pub fn Analytics() -> Element {
     let tables_state = use_api(|| {
         let client = ApiClient::new();
         async move { client.execute_query("show tables").await }
@@ -20,8 +20,8 @@ pub fn Timeseries() -> Element {
     rsx! {
         PageContainer {
             PageHeader {
-                title: "Time Series Analysis".to_string(),
-                subtitle: Some("Analyze performance metrics over time".to_string())
+                title: "Analytics".to_string(),
+                subtitle: Some("Query and analyze performance data with SQL".to_string())
             }
             
             Card {

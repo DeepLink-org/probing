@@ -25,7 +25,7 @@ pub fn Activity(tid: Option<String>) -> Element {
     rsx! {
         PageContainer {
             PageHeader {
-                title: "Call Stacks".to_string(),
+                title: "Call Stack Analysis".to_string(),
                 subtitle: tid_display.as_ref().map(|t| format!("Call stack for thread: {t}"))
             }
             
