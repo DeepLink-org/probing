@@ -6,21 +6,12 @@ use probing_proto::prelude::{Ele, TimeSeries};
 use probing_proto::types::series::DiscardStrategy;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyType};
-use pyo3::{pyclass, pymethods, Bound, IntoPyObjectExt, PyObject, PyResult, Python};
+use pyo3::{pyclass, pymethods, Bound, PyObject, PyResult, Python};
 
-fn value_to_object(py: Python, v: &Ele) -> PyObject {
-    let ret = match v {
-        Ele::Nil => Option::<i32>::None.into_bound_py_any(py),
-        Ele::BOOL(v) => v.into_bound_py_any(py),
-        Ele::I64(v) => v.into_bound_py_any(py),
-        Ele::I32(v) => v.into_bound_py_any(py),
-        Ele::F64(v) => v.into_bound_py_any(py),
-        Ele::F32(v) => v.into_bound_py_any(py),
-        Ele::Text(v) => v.into_bound_py_any(py),
-        Ele::Url(_) => todo!(),
-        Ele::DataTime(_) => todo!(),
-    };
-    ret.map(|x| x.unbind()).unwrap_or(py.None())
+use crate::features::convert::{ele_to_python, python_to_ele};
+
+fn value_to_object(py: Python, v: &probing_proto::prelude::Ele) -> PyObject {
+    ele_to_python(py, v).unwrap_or_else(|_| py.None())
 }
 
 #[pyclass]
@@ -204,15 +195,8 @@ impl ExternalTable {
             values
                 .into_iter()
                 .map(|v| {
-                    if let Ok(v) = v.extract::<i64>(py) {
-                        Ele::I64(v)
-                    } else if let Ok(v) = v.extract::<f64>(py) {
-                        Ele::F64(v)
-                    } else if let Ok(v) = v.extract::<String>(py) {
-                        Ele::Text(v)
-                    } else {
-                        Ele::Nil
-                    }
+                    let bound = v.bind(py);
+                    python_to_ele(&bound).unwrap_or(Ele::Nil)
                 })
                 .collect()
         });
@@ -232,15 +216,8 @@ impl ExternalTable {
             values
                 .into_iter()
                 .map(|v| {
-                    if let Ok(v) = v.extract::<i64>(py) {
-                        Ele::I64(v)
-                    } else if let Ok(v) = v.extract::<f64>(py) {
-                        Ele::F64(v)
-                    } else if let Ok(v) = v.extract::<String>(py) {
-                        Ele::Text(v)
-                    } else {
-                        Ele::Nil
-                    }
+                    let bound = v.bind(py);
+                    python_to_ele(&bound).unwrap_or(Ele::Nil)
                 })
                 .collect()
         });
@@ -250,7 +227,7 @@ impl ExternalTable {
 
     #[pyo3(signature = (limit=None))]
     fn take(&self, limit: Option<usize>) -> PyResult<Vec<(PyObject, Vec<PyObject>)>> {
-        Ok(self
+        let result: Vec<(PyObject, Vec<PyObject>)> = self
             .0
             .lock()
             .unwrap()
@@ -266,7 +243,8 @@ impl ExternalTable {
                     (t, vals)
                 })
             })
-            .collect::<Vec<_>>())
+            .collect();
+        Ok(result)
     }
 }
 
@@ -376,91 +354,112 @@ probing.ExternalTable.drop("table2")
     #[test]
     fn test_see_py_table_in_engine() {
         setup_table3();
-        let engine = Engine::builder()
-            .with_default_namespace("probe")
-            .with_plugin(PythonPlugin::create("python"))
-            .with_plugin(FilesPlugin::create("file"))
-            .with_plugin(EnvPlugin::create("process", "envs"))
-            .build()
-            .unwrap();
-        let tables = tokio::runtime::Builder::new_multi_thread()
+        let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(4)
             .enable_all()
             .build()
-            .unwrap()
+            .unwrap();
+        let engine = rt
             .block_on(async {
-                engine
-                    .async_query(
-                        "select * from probe.information_schema.tables where table_name = 'table3' ",
-                    ).await
-                    .unwrap()
-            });
+                Engine::builder()
+                    .with_default_namespace("probe")
+                    .with_plugin(PythonPlugin::create("python"))
+                    .with_plugin(FilesPlugin::create("file"))
+                    .with_plugin(EnvPlugin::create("process", "envs"))
+                    .build()
+                    .await
+            })
+            .unwrap();
+        let tables = rt.block_on(async {
+            engine
+                .async_query(
+                    "select * from probe.information_schema.tables where table_name = 'table3' ",
+                )
+                .await
+                .unwrap()
+                .unwrap()
+        });
         assert_eq!(tables.len(), 1);
     }
 
     #[test]
     fn test_see_py_table_data_in_engine() {
         setup_table3();
-        let engine = Engine::builder()
-            .with_default_namespace("probe")
-            .with_plugin(PythonPlugin::create("python"))
-            .build()
-            .unwrap();
-        let tables = tokio::runtime::Builder::new_multi_thread()
+        let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(4)
             .enable_all()
             .build()
-            .unwrap()
+            .unwrap();
+        let engine = rt
             .block_on(async {
-                engine
-                    .async_query("select * from python.table3 ")
+                Engine::builder()
+                    .with_default_namespace("probe")
+                    .with_plugin(PythonPlugin::create("python"))
+                    .build()
                     .await
-                    .unwrap()
-            });
+            })
+            .unwrap();
+        let tables = rt.block_on(async {
+            engine
+                .async_query("select * from python.table3 ")
+                .await
+                .unwrap()
+                .unwrap()
+        });
         assert_eq!(tables.len(), 3);
     }
 
     #[test]
     fn test_calculate_in_sql_with_filter() {
         setup_table3();
-        let engine = Engine::builder()
-            .with_default_namespace("probe")
-            .with_plugin(PythonPlugin::create("python"))
-            .build()
-            .unwrap();
-        let tables = tokio::runtime::Builder::new_multi_thread()
+        let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(4)
             .enable_all()
             .build()
-            .unwrap()
+            .unwrap();
+        let engine = rt
             .block_on(async {
-                engine
-                    .async_query("select a + b as c from python.table3 where a > 1")
+                Engine::builder()
+                    .with_default_namespace("probe")
+                    .with_plugin(PythonPlugin::create("python"))
+                    .build()
                     .await
-                    .unwrap()
-            });
+            })
+            .unwrap();
+        let tables = rt.block_on(async {
+            engine
+                .async_query("select a + b as c from python.table3 where a > 1")
+                .await
+                .unwrap()
+                .unwrap()
+        });
         assert_eq!(tables.len(), 2);
     }
 
     #[test]
     fn test_aggregate_in_sql() {
         setup_table3();
-        let engine = Engine::builder()
-            .with_default_namespace("probe")
-            .with_plugin(PythonPlugin::create("python"))
-            .build()
-            .unwrap();
-        let tables = tokio::runtime::Builder::new_multi_thread()
+        let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(4)
             .enable_all()
             .build()
-            .unwrap()
+            .unwrap();
+        let engine = rt
             .block_on(async {
-                engine
-                    .async_query("select sum(a), sum(b) from python.table3")
+                Engine::builder()
+                    .with_default_namespace("probe")
+                    .with_plugin(PythonPlugin::create("python"))
+                    .build()
                     .await
-                    .unwrap()
-            });
+            })
+            .unwrap();
+        let tables = rt.block_on(async {
+            engine
+                .async_query("select sum(a), sum(b) from python.table3")
+                .await
+                .unwrap()
+                .unwrap()
+        });
         println!("{tables:?}");
         assert!(!tables.is_empty());
     }

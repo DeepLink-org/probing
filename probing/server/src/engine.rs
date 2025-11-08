@@ -66,7 +66,8 @@ pub async fn handle_query(request: Query) -> Result<QueryDataFormat> {
         log::debug!("Executing SELECT query: {expr}");
         // Use the fully async query method and await it
         match engine.async_query(&expr).await {
-            Ok(dataframe) => Ok(QueryDataFormat::DataFrame(dataframe)),
+            Ok(Some(dataframe)) => Ok(QueryDataFormat::DataFrame(dataframe)),
+            Ok(None) => Ok(QueryDataFormat::Nil),
             Err(e) => {
                 log::error!("Error executing SELECT query '{expr}': {e}");
                 // Convert DataFusionError/EngineError into anyhow::Error

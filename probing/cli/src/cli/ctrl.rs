@@ -129,7 +129,9 @@ pub async fn request(ctrl: ProbeEndpoint, url: &str, body: Option<String>) -> Re
 
             let (sender, connection) = conn::http1::handshake(io).await?;
             tokio::spawn(async move {
-                connection.await.unwrap();
+                if let Err(e) = connection.await {
+                    eprintln!("Connection error: {e}");
+                }
             });
             sender
         }
@@ -140,12 +142,9 @@ pub async fn request(ctrl: ProbeEndpoint, url: &str, body: Option<String>) -> Re
 
             let (sender, connection) = conn::http1::handshake(io).await?;
             tokio::spawn(async move {
-                connection
-                    .await
-                    .map_err(|err| {
-                        eprintln!("error: {err}");
-                    })
-                    .unwrap();
+                if let Err(err) = connection.await {
+                    eprintln!("Connection error: {err}");
+                }
             });
             sender
         }
@@ -156,13 +155,13 @@ pub async fn request(ctrl: ProbeEndpoint, url: &str, body: Option<String>) -> Re
             .method("POST")
             .uri(url)
             .body(Full::<Bytes>::from(body))
-            .unwrap()
+            .map_err(|e| anyhow::anyhow!("Failed to build POST request: {e}"))?
     } else {
         Request::builder()
             .method("GET")
             .uri(url)
             .body(Full::<Bytes>::default())
-            .unwrap()
+            .map_err(|e| anyhow::anyhow!("Failed to build GET request: {e}"))?
     };
 
     let res = sender.send_request(request).await?;

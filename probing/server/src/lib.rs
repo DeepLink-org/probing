@@ -1,9 +1,11 @@
 mod asset;
-mod auth;
+// Make auth module public for integration tests
+pub mod auth;
 mod engine;
 mod extensions;
 mod report;
-mod server;
+// Make server module public for integration tests in tests/ directory
+pub mod server;
 mod vars;
 
 pub use self::report::start_report_worker;

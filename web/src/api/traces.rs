@@ -43,9 +43,16 @@ pub struct EventInfo {
 
 /// Tracing API
 impl ApiClient {
-    /// 获取所有 trace events
-    pub async fn get_trace_events(&self) -> Result<Vec<TraceEvent>> {
-        let query = r#"
+    /// 获取 trace events，支持限制数量
+    pub async fn get_trace_events(&self, limit: Option<usize>) -> Result<Vec<TraceEvent>> {
+        let limit_clause = if let Some(limit) = limit {
+            format!("LIMIT {}", limit)
+        } else {
+            String::new()
+        };
+        
+        let query = format!(
+            r#"
             SELECT 
                 record_type,
                 trace_id,
@@ -59,10 +66,13 @@ impl ApiClient {
                 attributes,
                 event_attributes
             FROM python.trace_event
-            ORDER BY timestamp ASC
-        "#;
+            ORDER BY timestamp DESC
+            {}
+        "#,
+            limit_clause
+        );
         
-        let df = self.execute_query(query).await?;
+        let df = self.execute_query(&query).await?;
         
         // Convert DataFrame to Vec<TraceEvent>
         let mut events = Vec::new();
@@ -144,9 +154,9 @@ impl ApiClient {
         Ok(events)
     }
     
-    /// 构建 span 树结构
-    pub async fn get_span_tree(&self) -> Result<Vec<SpanInfo>> {
-        let events = self.get_trace_events().await?;
+    /// 构建 span 树结构，支持限制数量
+    pub async fn get_span_tree(&self, limit: Option<usize>) -> Result<Vec<SpanInfo>> {
+        let events = self.get_trace_events(limit).await?;
         
         // Build span map from span_start events
         let mut span_map: std::collections::HashMap<i64, SpanInfo> = std::collections::HashMap::new();

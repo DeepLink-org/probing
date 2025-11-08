@@ -6,6 +6,7 @@ pub mod config;
 pub mod error;
 pub mod extension_handler;
 pub mod file_api;
+
 pub mod middleware;
 pub mod profiling;
 pub mod system;
@@ -26,7 +27,7 @@ use probing_proto::prelude::Query;
 async fn get_config_value_handler(
     axum::extract::Path(config_key): axum::extract::Path<String>,
 ) -> impl IntoResponse {
-    match probing_core::config::get_str(&config_key) {
+    match probing_core::config::get_str(&config_key).await {
         Some(value) => (StatusCode::OK, value).into_response(),
         None => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -52,7 +53,7 @@ pub static SERVER_RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
             );
         })
         .build()
-        .unwrap()
+        .unwrap_or_else(|e| panic!("Failed to create server runtime: {e}"))
 });
 
 fn build_app(auth: bool) -> axum::Router {
@@ -145,12 +146,16 @@ pub async fn remote_server(addr: Option<String>) -> Result<()> {
     match listener.local_addr() {
         Ok(addr) => {
             {
-                let mut probing_address = crate::vars::PROBING_ADDRESS.write().unwrap();
+                let mut probing_address =
+                    crate::vars::PROBING_ADDRESS.write().unwrap_or_else(|e| {
+                        log::error!("Failed to acquire write lock on PROBING_ADDRESS: {e}");
+                        panic!("Lock poisoned: {e}")
+                    });
                 *probing_address = addr.to_string();
             }
             eprintln!("{}", Red.bold().paint("probing server is available on:"));
             eprintln!("\t{}", Green.bold().underline().paint(addr.to_string()));
-            probing_core::config::write("server.address", &addr.to_string())?;
+            probing_core::config::write("server.address", &addr.to_string()).await?;
         }
         Err(err) => {
             eprintln!(

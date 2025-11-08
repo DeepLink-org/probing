@@ -9,7 +9,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use datafusion::config::{ConfigExtension, ExtensionOptions};
 use once_cell::sync::Lazy;
-use std::sync::{Mutex, RwLock};
+use tokio::sync::{Mutex, RwLock};
 
 use super::error::EngineError;
 use super::Plugin;
@@ -19,7 +19,7 @@ use crate::config;
 ///
 /// This provides a global storage for all engine extensions, allowing
 /// EngineExtensionManager to operate on a shared set of extensions.
-/// Uses synchronous `RwLock` and `Mutex` to allow synchronous access from other threads.
+/// Uses asynchronous `RwLock` and `Mutex` for async access.
 pub static EXTENSIONS: Lazy<
     RwLock<BTreeMap<String, Arc<Mutex<dyn EngineExtension + Send + Sync>>>>,
 > = Lazy::new(|| RwLock::new(BTreeMap::new()));
@@ -319,12 +319,12 @@ pub struct EngineExtensionManager;
 
 impl EngineExtensionManager {
     /// Register an extension in the global extensions registry.
-    pub fn register(
+    pub async fn register(
         &mut self,
         name: String,
         extension: Arc<Mutex<dyn EngineExtension + Send + Sync>>,
     ) {
-        EXTENSIONS.write().unwrap().insert(name, extension);
+        EXTENSIONS.write().await.insert(name, extension);
     }
 
     /// Extract namespace from extension name by removing "extension" suffix and converting to lowercase
@@ -340,27 +340,25 @@ impl EngineExtensionManager {
     ///
     /// This is the core implementation that updates extension configuration.
     /// ConfigStore is not updated by this method.
-    pub fn set_option(&mut self, key: &str, value: &str) -> Result<(), EngineError> {
+    pub async fn set_option(&mut self, key: &str, value: &str) -> Result<(), EngineError> {
         let extensions_clone: Vec<_> = {
-            let extensions = EXTENSIONS.read().unwrap();
+            let extensions = EXTENSIONS.read().await;
             extensions.values().cloned().collect()
         }; // Lock is released here
 
         for extension in extensions_clone {
-            // Minimize lock scope: only lock when needed
-            let (namespace, local_key) = {
-                let ext = extension.lock().unwrap();
-                let namespace = Self::extract_namespace(&ext.name());
-                if !key.starts_with(&namespace) {
-                    continue;
-                }
-                let local_key = key.trim_start_matches(&namespace).to_string();
-                (namespace, local_key)
+            let namespace = {
+                let ext = extension.lock().await;
+                Self::extract_namespace(&ext.name())
             };
 
-            // Lock again only for the set operation, minimize lock scope
+            if !key.starts_with(&namespace) {
+                continue;
+            }
+
+            let local_key = key.trim_start_matches(&namespace).to_string();
             let result = {
-                let mut ext = extension.lock().unwrap();
+                let mut ext = extension.lock().await;
                 ext.set(&local_key, value)
             };
 
@@ -383,33 +381,37 @@ impl EngineExtensionManager {
     ///
     /// This is a convenience wrapper that calls `set_option`
     /// and then updates ConfigStore.
-    pub fn set_option_with_store_update(
+    pub async fn set_option_with_store_update(
         &mut self,
         key: &str,
         value: &str,
     ) -> Result<(), EngineError> {
-        self.set_option(key, value)?;
+        self.set_option(key, value).await?;
         // Update ConfigStore after successfully updating the extension
-        config::set(key, value);
+        config::set(key, value).await;
         Ok(())
     }
 
     pub async fn get_option(&self, key: &str) -> Result<String, EngineError> {
         let extensions_clone: Vec<_> = {
-            let extensions = EXTENSIONS.read().unwrap();
+            let extensions = EXTENSIONS.read().await;
             extensions.values().cloned().collect()
         }; // Lock is released here
 
         for extension in extensions_clone {
-            let ext = tokio::task::block_in_place(|| extension.lock().unwrap());
+            let ext = extension.lock().await;
             let namespace = Self::extract_namespace(&ext.name());
             if !key.starts_with(&namespace) {
                 continue;
             }
             let local_key = key.trim_start_matches(&namespace);
-            if let Ok(value) = ext.get(local_key) {
-                log::info!("setting read [{}]:{local_key}={value}", ext.name());
-                return Ok(value);
+            match ext.get(local_key) {
+                Ok(value) => {
+                    log::info!("setting read [{}]:{local_key}={value}", ext.name());
+                    return Ok(value);
+                }
+                Err(EngineError::UnsupportedOption(_)) => continue,
+                Err(e) => return Err(e),
             }
         }
         Err(EngineError::UnsupportedOption(key.to_string()))
@@ -418,12 +420,12 @@ impl EngineExtensionManager {
     pub async fn options(&self) -> Vec<EngineExtensionOption> {
         let mut all_options = Vec::new();
         let extensions_clone: Vec<_> = {
-            let extensions = EXTENSIONS.read().unwrap();
+            let extensions = EXTENSIONS.read().await;
             extensions.values().cloned().collect()
         }; // Lock is released here
 
         for extension_arc in extensions_clone {
-            let ext_guard = tokio::task::block_in_place(|| extension_arc.lock().unwrap());
+            let ext_guard = extension_arc.lock().await;
             all_options.extend(ext_guard.options());
         }
         all_options
@@ -436,49 +438,27 @@ impl EngineExtensionManager {
         body: &[u8],
     ) -> Result<Vec<u8>, EngineError> {
         let extensions_clone: Vec<_> = {
-            let extensions = EXTENSIONS.read().unwrap();
+            let extensions = EXTENSIONS.read().await;
             extensions.values().cloned().collect()
         }; // Lock is released here
 
         for extension in extensions_clone {
-            // Get the extension name and check if path matches
-            let (name, should_call) = tokio::task::block_in_place(|| {
-                let ext = extension.lock().unwrap();
-                let name = ext.name();
-                let expected_prefix = format!("/{name}/");
-                let should_call = path.starts_with(&expected_prefix);
-                (name, should_call)
-            });
+            let ext = extension.lock().await;
+            let name = ext.name();
+            let expected_prefix = format!("/{name}/");
 
-            if !should_call {
+            if !path.starts_with(&expected_prefix) {
                 continue;
             }
 
             log::debug!("checking extension [{name}]:{path}");
-            let local_path = path[format!("/{name}/").len()..].to_string();
+            let local_path = path[expected_prefix.len()..].to_string();
 
             // Call the extension's async call method
-            // We need to lock again, but we'll do it in a blocking task
-            let extension_clone = extension.clone();
-            let local_path_clone = local_path.clone();
-            let params_clone = params.clone();
-            let body_clone = body.to_vec();
-
-            // Use spawn_blocking to call the async method with sync lock
-            let result = tokio::task::spawn_blocking(move || {
-                let ext = extension_clone.lock().unwrap();
-                // We can't directly call async methods from sync context
-                // So we'll use futures::executor::block_on to run the async call
-                use futures::executor::block_on;
-                block_on(ext.call(&local_path_clone, &params_clone, &body_clone))
-            })
-            .await;
-
-            match result {
-                Ok(Ok(value)) => return Ok(value),
-                Ok(Err(EngineError::UnsupportedCall)) => continue,
-                Ok(Err(e)) => return Err(e),
-                Err(_) => continue,
+            match ext.call(&local_path, params, body).await {
+                Ok(value) => return Ok(value),
+                Err(EngineError::UnsupportedCall) => continue,
+                Err(e) => return Err(e),
             }
         }
         Err(EngineError::CallError(path.to_string()))
@@ -504,7 +484,8 @@ impl ExtensionOptions for EngineExtensionManager {
     }
 
     fn set(&mut self, key: &str, value: &str) -> datafusion::error::Result<()> {
-        self.set_option(key, value)
+        use futures::executor::block_on;
+        block_on(self.set_option(key, value))
             .map_err(|e| datafusion::error::DataFusionError::Execution(e.to_string()))
     }
 
@@ -531,15 +512,19 @@ mod tests {
     use crate::config;
 
     // Helper to ensure clean state before each test
-    fn setup_test() {
-        config::clear();
-        EXTENSIONS.write().unwrap().clear();
+    async fn setup_test() {
+        config::clear().await;
+        EXTENSIONS.write().await.clear();
     }
 
     // Helper to ensure clean state after each test
-    fn teardown_test() {
-        config::clear();
-        EXTENSIONS.write().unwrap().clear();
+    async fn teardown_test() {
+        config::clear().await;
+        // 确保在清空之前所有锁都已释放
+        let mut extensions = EXTENSIONS.write().await;
+        extensions.clear();
+        // 显式释放写锁
+        drop(extensions);
     }
 
     #[derive(Debug)]
@@ -592,81 +577,67 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_set_option_syncs_to_config_store() {
-        setup_test();
+        setup_test().await;
 
         let mut manager = EngineExtensionManager::default();
         let extension = Arc::new(Mutex::new(TestExtension::default()));
-        manager.register("test".to_string(), extension);
+        manager.register("test".to_string(), extension).await;
 
         // Set option through manager using set_option_with_store_update
-        // Use spawn_blocking to avoid blocking the async runtime
-        tokio::task::spawn_blocking(move || {
-            manager
-                .set_option_with_store_update("test.option", "new_value")
-                .unwrap()
-        })
-        .await
-        .unwrap();
+        manager
+            .set_option_with_store_update("test.option", "new_value")
+            .await
+            .unwrap();
 
         // Verify it's in ConfigStore
-        let value = config::get_str("test.option");
+        let value = config::get_str("test.option").await;
         assert_eq!(value, Some("new_value".to_string()));
 
         // Verify extension was updated
-        let ext_guard = tokio::task::spawn_blocking(|| {
-            let extensions = EXTENSIONS.read().unwrap();
-            let ext_guard = extensions.get("test").unwrap().lock().unwrap();
-            ext_guard.get("option").unwrap()
-        })
-        .await
-        .unwrap();
-        assert_eq!(ext_guard, "new_value");
+        {
+            let extensions = EXTENSIONS.read().await;
+            let ext_guard = extensions.get("test").unwrap().lock().await;
+            let value = ext_guard.get("option").unwrap();
+            assert_eq!(value, "new_value");
+        } // 确保锁在这里释放
 
-        teardown_test();
+        teardown_test().await;
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_set_option_updates_existing_value() {
-        setup_test();
+        setup_test().await;
 
         // Pre-populate ConfigStore
-        config::set("test.option", "old_value");
+        config::set("test.option", "old_value").await;
 
         let mut manager = EngineExtensionManager::default();
         let extension = Arc::new(Mutex::new(TestExtension::default()));
-        manager.register("test".to_string(), extension);
+        manager.register("test".to_string(), extension).await;
 
         // Set option through manager using set_option_with_store_update
-        // Use spawn_blocking to avoid blocking the async runtime
-        tokio::task::spawn_blocking(move || {
-            manager
-                .set_option_with_store_update("test.option", "new_value")
-                .unwrap()
-        })
-        .await
-        .unwrap();
+        manager
+            .set_option_with_store_update("test.option", "new_value")
+            .await
+            .unwrap();
 
         // Verify ConfigStore was updated
-        let value = config::get_str("test.option");
+        let value = config::get_str("test.option").await;
         assert_eq!(value, Some("new_value".to_string()));
 
-        teardown_test();
+        teardown_test().await;
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_set_option_unsupported_key() {
-        setup_test();
+        setup_test().await;
 
         let mut manager = EngineExtensionManager::default();
         let extension = Arc::new(Mutex::new(TestExtension::default()));
-        manager.register("test".to_string(), extension);
+        manager.register("test".to_string(), extension).await;
 
         // Try to set unsupported key
-        // Use spawn_blocking to avoid blocking the async runtime
-        let result =
-            tokio::task::spawn_blocking(move || manager.set_option("test.invalid", "value"))
-                .await
-                .unwrap();
+        let result = manager.set_option("test.invalid", "value").await;
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),
@@ -674,22 +645,22 @@ mod tests {
         ));
 
         // Verify ConfigStore was not updated
-        assert!(!config::contains_key("test.invalid"));
+        assert!(!config::contains_key("test.invalid").await);
 
-        teardown_test();
+        teardown_test().await;
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_get_option_from_config_store() {
-        setup_test();
+        setup_test().await;
 
         // Pre-populate ConfigStore
-        config::set("test.option", "stored_value");
+        config::set("test.option", "stored_value").await;
 
         // Verify ConfigStore has the value
-        let value = config::get_str("test.option");
+        let value = config::get_str("test.option").await;
         assert_eq!(value, Some("stored_value".to_string()));
 
-        teardown_test();
+        teardown_test().await;
     }
 }

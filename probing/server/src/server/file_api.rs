@@ -4,7 +4,8 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 /// Validate that the requested path is safe and within allowed directories
-fn validate_path(path: &str) -> Result<PathBuf, String> {
+/// Made public for integration tests
+pub fn validate_path(path: &str) -> Result<PathBuf, String> {
     // Reject empty paths
     if path.is_empty() {
         return Err("Path cannot be empty".to_string());
@@ -76,4 +77,48 @@ pub async fn read_file(
 
     log::info!("Successfully read file: {safe_path:?}");
     Ok(content)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_validate_path_empty() {
+        let result = validate_path("");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("empty"));
+    }
+
+    #[tokio::test]
+    async fn test_validate_path_null_byte() {
+        let result = validate_path("test\0file.txt");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("invalid characters"));
+    }
+
+    #[tokio::test]
+    async fn test_validate_path_nonexistent() {
+        let result = validate_path("/nonexistent/path/file.txt");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Invalid or non-existent"));
+    }
+
+    // 注意：冗长的测试（需要创建临时目录、文件等）已移到 tests/file_api_complex_tests.rs
+
+    #[tokio::test]
+    async fn test_read_file_missing_path_param() {
+        let params = HashMap::new();
+        let result = read_file(axum::extract::Query(params)).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_read_file_nonexistent() {
+        let mut params = HashMap::new();
+        params.insert("path".to_string(), "/nonexistent/file.txt".to_string());
+
+        let result = read_file(axum::extract::Query(params)).await;
+        assert!(result.is_err());
+    }
 }

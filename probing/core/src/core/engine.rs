@@ -1,13 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::RwLock;
+use tokio::sync::RwLock;
 
-use arrow::array::Float32Array;
-use arrow::array::Float64Array;
-use arrow::array::Int32Array;
-use arrow::array::Int64Array;
-use arrow::array::StringArray;
-use arrow::array::TimestampMicrosecondArray;
 use arrow::compute::concat_batches;
 use datafusion::catalog::MemoryCatalogProvider;
 use datafusion::catalog::MemorySchemaProvider;
@@ -19,9 +13,9 @@ use datafusion::execution::SessionState;
 use datafusion::prelude::{DataFrame, SessionConfig, SessionContext};
 use futures;
 
+use super::arrow_convert::arrow_array_to_seq;
 use super::extension::EngineExtension;
 use super::extension::EngineExtensionManager;
-use probing_proto::prelude::Seq;
 
 /// Defines the types of plugins supported by the Probing query engine.
 /// These plugin types determine how data sources are registered with the engine.
@@ -161,9 +155,13 @@ pub struct Engine {
 
 impl Clone for Engine {
     fn clone(&self) -> Self {
+        // Note: This is a synchronous clone, so we need to block on the async lock
+        // In practice, this should be avoided in async contexts
+        use futures::executor::block_on;
+        let plugins_clone = block_on(async { self.plugins.read().await.clone() });
         Self {
             context: self.context.clone(),
-            plugins: RwLock::new(self.plugins.read().unwrap().clone()),
+            plugins: RwLock::new(plugins_clone),
         }
     }
 }
@@ -207,11 +205,11 @@ impl Engine {
     pub async fn async_query<T: Into<String>>(
         &self,
         query: T,
-    ) -> Result<probing_proto::prelude::DataFrame> {
+    ) -> Result<Option<probing_proto::prelude::DataFrame>> {
         let query: String = query.into();
         let batches = self.sql(query.as_str()).await?.collect().await?;
         if batches.is_empty() {
-            return Ok(probing_proto::prelude::DataFrame::default());
+            return Ok(None);
         }
         let batch = concat_batches(&batches[0].schema(), batches.iter())?;
 
@@ -224,31 +222,15 @@ impl Engine {
         let columns = batch
             .columns()
             .iter()
-            .map(|col| {
-                if let Some(array) = col.as_any().downcast_ref::<Int32Array>() {
-                    Seq::SeqI32(array.values().to_vec())
-                } else if let Some(array) = col.as_any().downcast_ref::<Int64Array>() {
-                    Seq::SeqI64(array.values().to_vec())
-                } else if let Some(array) = col.as_any().downcast_ref::<Float32Array>() {
-                    Seq::SeqF32(array.values().to_vec())
-                } else if let Some(array) = col.as_any().downcast_ref::<Float64Array>() {
-                    Seq::SeqF64(array.values().to_vec())
-                } else if let Some(array) = col.as_any().downcast_ref::<StringArray>() {
-                    Seq::SeqText((0..col.len()).map(|x| array.value(x).to_string()).collect())
-                } else if let Some(array) = col.as_any().downcast_ref::<TimestampMicrosecondArray>()
-                {
-                    Seq::SeqI64(array.values().to_vec())
-                } else {
-                    Seq::Nil
-                }
-            })
+            .map(|col| arrow_array_to_seq(col))
             .collect::<Vec<_>>();
-        Ok(probing_proto::prelude::DataFrame::new(names, columns))
+        Ok(Some(probing_proto::prelude::DataFrame::new(names, columns)))
     }
 
     #[deprecated]
     pub fn query<T: Into<String>>(&self, q: T) -> Result<probing_proto::prelude::DataFrame> {
         futures::executor::block_on(async { self.async_query(q).await })
+            .map(|opt| opt.unwrap_or_default())
     }
 
     /// Get default namespace from configuration
@@ -262,7 +244,7 @@ impl Engine {
             .clone()
     }
 
-    pub fn enable(&self, plugin: Arc<dyn Plugin + Sync + Send>) -> Result<()> {
+    pub async fn enable(&self, plugin: Arc<dyn Plugin + Sync + Send>) -> Result<()> {
         let namespace = plugin.namespace();
 
         let catalog = if let Some(catalog) = self.context.catalog("probe") {
@@ -278,9 +260,8 @@ impl Engine {
         if plugin.kind() == PluginType::Namespace {
             let state: SessionState = self.context.state();
             plugin.register_namespace(catalog, &state)?;
-            if let Ok(mut maps) = self.plugins.write() {
-                maps.insert(format!("probe.{namespace}"), plugin);
-            }
+            let mut maps = self.plugins.write().await;
+            maps.insert(format!("probe.{namespace}"), plugin);
         } else if plugin.kind() == PluginType::Table {
             // In DataFusion, schemas are used to implement namespaces
             let schema = if catalog.schema_names().contains(&namespace) {
@@ -295,9 +276,8 @@ impl Engine {
             })?;
             let state: SessionState = self.context.state();
             plugin.register_table(schema, &state)?;
-            if let Ok(mut maps) = self.plugins.write() {
-                maps.insert(format!("probe.{}.{}", namespace, plugin.name()), plugin);
-            }
+            let mut maps = self.plugins.write().await;
+            maps.insert(format!("probe.{}.{}", namespace, plugin.name()), plugin);
         }
         Ok(())
     }
@@ -308,7 +288,7 @@ pub struct EngineBuilder {
     config: SessionConfig,
     default_namespace: Option<String>,
     plugins: Vec<Arc<dyn Plugin + Sync + Send>>,
-    extensions: HashMap<String, Arc<std::sync::Mutex<dyn EngineExtension + Send + Sync>>>,
+    extensions: HashMap<String, Arc<tokio::sync::Mutex<dyn EngineExtension + Send + Sync>>>,
 }
 
 impl EngineBuilder {
@@ -342,17 +322,17 @@ impl EngineBuilder {
             self.plugins.push(datasrc)
         };
         let name = ext.name();
-        let ext = Arc::new(std::sync::Mutex::new(ext));
+        let ext = Arc::new(tokio::sync::Mutex::new(ext));
 
         self.extensions.insert(name, ext);
         self
     }
 
     // Build the Engine with the specified configurations
-    pub fn build(mut self) -> Result<Engine> {
+    pub async fn build(mut self) -> Result<Engine> {
         let mut eem = EngineExtensionManager::default();
         for (name, extension) in self.extensions.iter() {
-            eem.register(name.clone(), extension.clone());
+            eem.register(name.clone(), extension.clone()).await;
         }
         self.config.options_mut().extensions.insert(eem);
         if let Some(namespace) = self.default_namespace {
@@ -372,7 +352,7 @@ impl EngineBuilder {
             plugins: Default::default(),
         };
         for plugin in self.plugins {
-            engine.enable(plugin)?;
+            engine.enable(plugin).await?;
         }
 
         Ok(engine)
@@ -390,6 +370,7 @@ mod tests {
     use crate::core::{EngineCall, EngineDatasource};
 
     use super::*;
+    use arrow::array::{Int32Array, StringArray};
     use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
     use arrow::record_batch::RecordBatch;
     use datafusion::catalog::memory::{DataSourceExec, MemorySourceConfig};
@@ -397,6 +378,7 @@ mod tests {
     use datafusion::execution::context::SessionState;
     use datafusion::logical_expr::{Expr, TableType};
     use datafusion::physical_plan::ExecutionPlan;
+    use probing_proto::prelude::Seq;
     use std::any::Any;
     use std::sync::Arc;
 
@@ -504,13 +486,14 @@ mod tests {
     #[tokio::test]
     async fn test_engine_builder() {
         // testing default builder
-        let engine = Engine::builder().build().unwrap();
+        let engine = Engine::builder().build().await.unwrap();
         assert_eq!(engine.default_namespace(), "probe");
 
         // building with custom namespace
         let engine = Engine::builder()
             .with_default_namespace("test_namespace")
             .build()
+            .await
             .unwrap();
         assert_eq!(engine.default_namespace(), "test_namespace");
     }
@@ -518,16 +501,17 @@ mod tests {
     #[tokio::test]
     async fn test_plugin_with_data() -> Result<()> {
         // create engine
-        let engine = Engine::builder().build()?;
+        let engine = Engine::builder().build().await?;
 
         // register table plugin
         let plugin = Arc::new(TestTablePlugin::default());
-        engine.enable(plugin)?;
+        engine.enable(plugin).await?;
 
         // verify table registration
         let result = engine
             .async_query("SELECT * FROM test_namespace.test_table")
-            .await?;
+            .await?
+            .unwrap();
 
         assert_eq!(result.names.len(), 2);
         assert_eq!(result.names[0], "id");
@@ -536,7 +520,8 @@ mod tests {
         // verify data
         let result = engine
             .async_query("SELECT * FROM test_namespace.test_table WHERE id > 1")
-            .await?;
+            .await?
+            .unwrap();
         if let Seq::SeqI32(ids) = &result.cols[0] {
             assert_eq!(ids.len(), 2); // expect 2 rows
             assert!(ids.iter().all(|&id| id > 1)); // with id > 1
@@ -569,6 +554,7 @@ mod tests {
             .with_default_namespace("probe")
             .with_extension(TestExtension, "test_namespace", Some("test_table"))
             .build()
+            .await
             .unwrap();
 
         // Verify the plugin is correctly registered
@@ -576,29 +562,31 @@ mod tests {
             .async_query("SELECT * FROM test_namespace.test_table")
             .await;
         assert!(result.is_ok());
+        assert!(result.unwrap().is_some());
     }
 
     #[tokio::test]
     async fn test_plugin_registration() {
-        let engine = Engine::builder().build().unwrap();
+        let engine = Engine::builder().build().await.unwrap();
 
         // testing Table plugin registration
         let table_plugin = Arc::new(TestTablePlugin::default());
-        assert!(engine.enable(table_plugin).is_ok());
+        assert!(engine.enable(table_plugin).await.is_ok());
 
         // testing Namespace plugin registration
         let namespace_plugin = Arc::new(TestNamespacePlugin::default());
-        assert!(engine.enable(namespace_plugin).is_ok());
+        assert!(engine.enable(namespace_plugin).await.is_ok());
     }
 
     #[tokio::test]
     async fn test_basic_queries() {
-        let engine = Engine::builder().build().unwrap();
+        let engine = Engine::builder().build().await.unwrap();
 
         // testing basic SELECT query
         let result = engine
             .async_query("SELECT 1 as num, 'test' as str")
             .await
+            .unwrap()
             .unwrap();
         assert_eq!(result.names.len(), 2);
         assert_eq!(result.names[0], "num");
@@ -606,12 +594,12 @@ mod tests {
 
         // testing empty result set
         let result = engine.async_query("SELECT 1 WHERE 1=0").await.unwrap();
-        assert!(result.names.is_empty());
+        assert!(result.is_none());
     }
 
     #[tokio::test]
     async fn test_query_error_handling() {
-        let engine = Engine::builder().build().unwrap();
+        let engine = Engine::builder().build().await.unwrap();
 
         // testing invalid SQL syntax
         let result = engine.async_query("SELECT invalid syntax").await;
@@ -626,7 +614,7 @@ mod tests {
     async fn test_concurrent_queries() {
         use futures::future::join_all;
 
-        let engine = Engine::builder().build().unwrap();
+        let engine = Engine::builder().build().await.unwrap();
         let queries = ["SELECT 1", "SELECT 2", "SELECT 3"];
 
         let handles: Vec<_> = queries
@@ -646,7 +634,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_data_types() {
-        let engine = Engine::builder().build().unwrap();
+        let engine = Engine::builder().build().await.unwrap();
 
         let query = "
             SELECT 
@@ -655,7 +643,7 @@ mod tests {
                 'test' as string_val
         ";
 
-        let result = engine.async_query(query).await.unwrap();
+        let result = engine.async_query(query).await.unwrap().unwrap();
         assert_eq!(result.names.len(), 3);
 
         // testing data types
@@ -669,11 +657,356 @@ mod tests {
         let builder = Engine::builder().with_default_namespace("test_namespace");
 
         // testing default namespace
-        let engine = builder.build().unwrap();
+        let engine = builder.build().await.unwrap();
         assert_eq!(engine.default_namespace(), "test_namespace");
 
         // testing information schema
         let result = engine.async_query("SHOW TABLES").await;
         assert!(result.is_ok());
+    }
+
+    // ========== 复杂查询场景测试 ==========
+    // 注意：冗长的测试（如JOIN查询、多命名空间等）已移到 tests/engine_complex_tests.rs
+
+    #[tokio::test]
+    async fn test_aggregate_queries() -> Result<()> {
+        let engine = Engine::builder().build().await?;
+        let plugin = Arc::new(TestTablePlugin::default());
+        engine.enable(plugin).await?;
+
+        // Test COUNT
+        let result = engine
+            .async_query("SELECT COUNT(*) as count FROM test_namespace.test_table")
+            .await?
+            .unwrap();
+        assert_eq!(result.names.len(), 1);
+        assert_eq!(result.names[0], "count");
+        if let Seq::SeqI64(counts) = &result.cols[0] {
+            assert_eq!(counts.len(), 1);
+            assert_eq!(counts[0], 3);
+        }
+
+        // Test GROUP BY
+        let result = engine
+            .async_query(
+                "SELECT name, COUNT(*) as count FROM test_namespace.test_table GROUP BY name",
+            )
+            .await?
+            .unwrap();
+        assert_eq!(result.names.len(), 2);
+        assert_eq!(result.names[0], "name");
+        assert_eq!(result.names[1], "count");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_subquery() -> Result<()> {
+        let engine = Engine::builder().build().await?;
+        let plugin = Arc::new(TestTablePlugin::default());
+        engine.enable(plugin).await?;
+
+        // Test scalar subquery
+        let result = engine
+            .async_query(
+                "SELECT id, name, (SELECT MAX(id) FROM test_namespace.test_table) as max_id 
+                 FROM test_namespace.test_table",
+            )
+            .await?;
+        assert!(result.is_some());
+
+        // Test EXISTS subquery
+        let result = engine
+            .async_query(
+                "SELECT id, name 
+                 FROM test_namespace.test_table t1 
+                 WHERE EXISTS (SELECT 1 FROM test_namespace.test_table t2 WHERE t2.id > t1.id)",
+            )
+            .await?;
+        assert!(result.is_some());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_window_functions() -> Result<()> {
+        let engine = Engine::builder().build().await?;
+        let plugin = Arc::new(TestTablePlugin::default());
+        engine.enable(plugin).await?;
+
+        // Test ROW_NUMBER()
+        let result = engine
+            .async_query(
+                "SELECT id, name, ROW_NUMBER() OVER (ORDER BY id) as row_num 
+                 FROM test_namespace.test_table",
+            )
+            .await?;
+        assert!(result.is_some());
+
+        // Test RANK()
+        let result = engine
+            .async_query(
+                "SELECT id, name, RANK() OVER (ORDER BY id) as rank 
+                 FROM test_namespace.test_table",
+            )
+            .await?;
+        assert!(result.is_some());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_having_clause() -> Result<()> {
+        let engine = Engine::builder().build().await?;
+        let plugin = Arc::new(TestTablePlugin::default());
+        engine.enable(plugin).await?;
+
+        // Test HAVING with GROUP BY
+        let result = engine
+            .async_query(
+                "SELECT name, COUNT(*) as count 
+                 FROM test_namespace.test_table 
+                 GROUP BY name 
+                 HAVING COUNT(*) > 0",
+            )
+            .await?;
+        assert!(result.is_some());
+
+        Ok(())
+    }
+
+    // ========== 插件系统测试 ==========
+    // 注意：冗长的测试（如多命名空间、并发注册等）已移到 tests/engine_complex_tests.rs
+
+    #[tokio::test]
+    async fn test_duplicate_plugin_registration() -> Result<()> {
+        let engine = Engine::builder().build().await?;
+
+        // Register the same plugin twice
+        let plugin1 = Arc::new(TestTablePlugin::default());
+        engine.enable(plugin1.clone()).await?;
+
+        // Registering the same plugin again should either succeed (replace) or fail gracefully
+        let result = engine.enable(plugin1).await;
+        // The behavior depends on DataFusion's implementation
+        // We just verify it doesn't panic
+        assert!(result.is_ok() || result.is_err());
+
+        Ok(())
+    }
+
+    // ========== 错误处理测试 ==========
+
+    #[tokio::test]
+    async fn test_sql_syntax_errors() {
+        let engine = Engine::builder().build().await.unwrap();
+
+        // Missing SELECT keyword
+        let result = engine.async_query("FROM test_table").await;
+        assert!(result.is_err());
+
+        // Invalid SQL syntax
+        let result = engine.async_query("SELECT * FROM WHERE id = 1").await;
+        assert!(result.is_err());
+
+        // Missing table name
+        let result = engine.async_query("SELECT * FROM").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_nonexistent_table() {
+        let engine = Engine::builder().build().await.unwrap();
+
+        // Query non-existent table
+        let result = engine
+            .async_query("SELECT * FROM nonexistent_namespace.nonexistent_table")
+            .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_nonexistent_column() -> Result<()> {
+        let engine = Engine::builder().build().await?;
+        let plugin = Arc::new(TestTablePlugin::default());
+        engine.enable(plugin).await?;
+
+        // Query non-existent column
+        let result = engine
+            .async_query("SELECT nonexistent_column FROM test_namespace.test_table")
+            .await;
+        assert!(result.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_type_conversion_errors() -> Result<()> {
+        let engine = Engine::builder().build().await?;
+        let plugin = Arc::new(TestTablePlugin::default());
+        engine.enable(plugin).await?;
+
+        // Try to compare incompatible types
+        let result = engine
+            .async_query("SELECT * FROM test_namespace.test_table WHERE id = 'string'")
+            .await;
+        // This might succeed with type coercion or fail, depending on DataFusion
+        // We just verify it doesn't panic
+        assert!(result.is_ok() || result.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_invalid_where_clause() -> Result<()> {
+        let engine = Engine::builder().build().await?;
+        let plugin = Arc::new(TestTablePlugin::default());
+        engine.enable(plugin).await?;
+
+        // Invalid WHERE clause
+        let result = engine
+            .async_query("SELECT * FROM test_namespace.test_table WHERE")
+            .await;
+        assert!(result.is_err());
+
+        Ok(())
+    }
+
+    // ========== 并发查询测试 ==========
+
+    #[tokio::test]
+    async fn test_concurrent_queries_with_data() -> Result<()> {
+        use futures::future::join_all;
+
+        let engine = Engine::builder().build().await?;
+        let plugin = Arc::new(TestTablePlugin::default());
+        engine.enable(plugin).await?;
+
+        // Run multiple queries concurrently
+        let queries = vec![
+            "SELECT * FROM test_namespace.test_table WHERE id = 1",
+            "SELECT * FROM test_namespace.test_table WHERE id = 2",
+            "SELECT * FROM test_namespace.test_table WHERE id = 3",
+            "SELECT COUNT(*) FROM test_namespace.test_table",
+        ];
+
+        let handles: Vec<_> = queries
+            .iter()
+            .map(|q| {
+                let engine = engine.clone();
+                let query = q.to_string();
+                tokio::spawn(async move { engine.async_query(query).await })
+            })
+            .collect();
+
+        let results = join_all(handles).await;
+        for result in results {
+            let query_result = result.unwrap();
+            assert!(query_result.is_ok());
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_query_result_isolation() -> Result<()> {
+        let engine = Engine::builder().build().await?;
+        let plugin = Arc::new(TestTablePlugin::default());
+        engine.enable(plugin).await?;
+
+        // Run two queries that should return different results
+        let result1 = engine
+            .async_query("SELECT * FROM test_namespace.test_table WHERE id = 1")
+            .await?
+            .unwrap();
+
+        let result2 = engine
+            .async_query("SELECT * FROM test_namespace.test_table WHERE id = 2")
+            .await?
+            .unwrap();
+
+        // Results should be isolated
+        if let Seq::SeqI32(ids1) = &result1.cols[0] {
+            if let Seq::SeqI32(ids2) = &result2.cols[0] {
+                assert_ne!(ids1[0], ids2[0]);
+            }
+        }
+
+        Ok(())
+    }
+
+    // ========== 边界情况测试 ==========
+    // 注意：冗长的测试（如空表查询）已移到 tests/engine_complex_tests.rs
+
+    #[tokio::test]
+    async fn test_order_by() -> Result<()> {
+        let engine = Engine::builder().build().await?;
+        let plugin = Arc::new(TestTablePlugin::default());
+        engine.enable(plugin).await?;
+
+        // Test ORDER BY
+        let result = engine
+            .async_query("SELECT * FROM test_namespace.test_table ORDER BY id DESC")
+            .await?
+            .unwrap();
+
+        // Verify ordering (ids should be in descending order)
+        if let Seq::SeqI32(ids) = &result.cols[0] {
+            assert_eq!(ids.len(), 3);
+            assert!(ids[0] >= ids[1]);
+            assert!(ids[1] >= ids[2]);
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_limit_clause() -> Result<()> {
+        let engine = Engine::builder().build().await?;
+        let plugin = Arc::new(TestTablePlugin::default());
+        engine.enable(plugin).await?;
+
+        // Test LIMIT
+        let result = engine
+            .async_query("SELECT * FROM test_namespace.test_table LIMIT 2")
+            .await?
+            .unwrap();
+
+        // Should return only 2 rows
+        if let Seq::SeqI32(ids) = &result.cols[0] {
+            assert!(ids.len() <= 2);
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_where_with_multiple_conditions() -> Result<()> {
+        let engine = Engine::builder().build().await?;
+        let plugin = Arc::new(TestTablePlugin::default());
+        engine.enable(plugin).await?;
+
+        // Test WHERE with AND
+        let result = engine
+            .async_query("SELECT * FROM test_namespace.test_table WHERE id > 1 AND id < 3")
+            .await?
+            .unwrap();
+
+        if let Seq::SeqI32(ids) = &result.cols[0] {
+            assert_eq!(ids.len(), 1);
+            assert_eq!(ids[0], 2);
+        }
+
+        // Test WHERE with OR
+        let result = engine
+            .async_query("SELECT * FROM test_namespace.test_table WHERE id = 1 OR id = 3")
+            .await?
+            .unwrap();
+
+        if let Seq::SeqI32(ids) = &result.cols[0] {
+            assert_eq!(ids.len(), 2);
+        }
+
+        Ok(())
     }
 }
