@@ -17,49 +17,19 @@ permissions:
 
 jobs:
   deploy:
-
+    name: Build and Publish
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Setup Build Environment
+      uses: ./.github/actions/setup-build-env
       with:
-        python-version: 3.12
-    - name: Install Rust toolchain
-      uses: actions-rust-lang/setup-rust-toolchain@v1
-      with:
-        toolchain: nightly
-        target: wasm32-unknown-unknown, x86_64-unknown-linux-gnu
-        components: rustfmt
-    # - name: Rustfmt Check
-    #   uses: actions-rust-lang/rustfmt@v1
-    - name: Install uv
-      uses: astral-sh/setup-uv@v6
-      with:
-        enable-cache: true
-    - name: Install Zig toolchain
-      uses: mlugg/setup-zig@v2
-    - name: Cache dependencies
-      id: cache-deps
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-          ~/zig
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-    - name: Install cargo tools
-      run: |
-        pip install build wheel toml
-        test -e ~/.cargo/bin/cargo-zigbuild || cargo install cargo-zigbuild
-        test -e ~/.cargo/bin/rnr || cargo install rnr
-        test -e ~/.cargo/bin/cargo-nextest || cargo install cargo-nextest
-        test -e ~/.cargo/bin/cargo-binstall || cargo install cargo-binstall
-        test -e ~/.cargo/bin/dx || cargo binstall dioxus-cli
-        test -e ~/.cargo/bin/trunk || cargo install trunk --locked    
+        python-version: '3.12'
+        install-cargo-tools: 'true'
+        install-python-deps: 'true'
+    - name: Cache Rust artifacts
+      uses: Swatinem/rust-cache@v2
     - name: Build package
       run: |
         make ZIG=1 wheel
