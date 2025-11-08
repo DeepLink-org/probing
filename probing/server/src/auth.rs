@@ -21,7 +21,8 @@ pub static AUTH_REALM: Lazy<String> =
     Lazy::new(|| env::var(AUTH_REALM_ENV).unwrap_or_else(|_| "Probe Server".to_string()));
 
 /// Get the auth token from the request
-pub(crate) fn get_token_from_request(headers: &HeaderMap) -> Option<String> {
+/// Made public for integration tests
+pub fn get_token_from_request(headers: &HeaderMap) -> Option<String> {
     // Try Bearer token first
     let bearer_token = headers
         .get("Authorization")
@@ -105,7 +106,9 @@ pub async fn auth_middleware(request: Request, next: Next) -> Result<Response, i
 }
 
 // Path prefixes that should bypass authentication
-pub(crate) fn is_public_path(path: &str) -> bool {
+/// Check if a path is public (doesn't require authentication)
+/// Made public for integration tests
+pub fn is_public_path(path: &str) -> bool {
     // Allow static assets without authentication
     path.starts_with("/static/")
         || path == "/"
@@ -133,7 +136,6 @@ pub async fn selective_auth_middleware(
 mod tests {
     use super::*;
     use axum::http::{HeaderMap, HeaderValue};
-    use base64::engine::general_purpose::STANDARD as BASE64;
 
 
     #[test]
@@ -170,64 +172,7 @@ mod tests {
         assert_eq!(token, Some("".to_string()));
     }
 
-    #[test]
-    fn test_get_token_from_request_basic_auth() {
-        let mut headers = HeaderMap::new();
-        // Basic auth: "admin:password123" -> base64("admin:password123")
-        let credentials = "admin:password123";
-        let encoded = BASE64.encode(credentials);
-        headers.insert(
-            "Authorization",
-            HeaderValue::from_str(&format!("Basic {}", encoded)).unwrap(),
-        );
-
-        let token = get_token_from_request(&headers);
-        assert_eq!(token, Some("password123".to_string()));
-    }
-
-    #[test]
-    fn test_get_token_from_request_basic_auth_wrong_username() {
-        let mut headers = HeaderMap::new();
-        // Basic auth with wrong username
-        let credentials = "wronguser:password123";
-        let encoded = BASE64.encode(credentials);
-        headers.insert(
-            "Authorization",
-            HeaderValue::from_str(&format!("Basic {}", encoded)).unwrap(),
-        );
-
-        let token = get_token_from_request(&headers);
-        assert_eq!(token, None);
-    }
-
-    #[test]
-    fn test_get_token_from_request_custom_header() {
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            "X-Probing-Token",
-            HeaderValue::from_static("custom_token_456"),
-        );
-
-        let token = get_token_from_request(&headers);
-        assert_eq!(token, Some("custom_token_456".to_string()));
-    }
-
-    #[test]
-    fn test_get_token_from_request_priority_bearer_first() {
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            "Authorization",
-            HeaderValue::from_static("Bearer bearer_token"),
-        );
-        headers.insert(
-            "X-Probing-Token",
-            HeaderValue::from_static("custom_token"),
-        );
-
-        // Bearer token should take priority
-        let token = get_token_from_request(&headers);
-        assert_eq!(token, Some("bearer_token".to_string()));
-    }
+    // 注意：冗长的测试（需要base64编码、多个header设置等）已移到 tests/auth_complex_tests.rs
 
     #[test]
     fn test_get_token_from_request_no_token() {
@@ -236,38 +181,7 @@ mod tests {
         assert_eq!(token, None);
     }
 
-    #[test]
-    fn test_is_public_path_static() {
-        assert!(is_public_path("/static/style.css"));
-        assert!(is_public_path("/static/js/app.js"));
-        assert!(is_public_path("/static/"));
-    }
-
-    #[test]
-    fn test_is_public_path_root() {
-        assert!(is_public_path("/"));
-    }
-
-    #[test]
-    fn test_is_public_path_index() {
-        assert!(is_public_path("/index.html"));
-    }
-
-    #[test]
-    fn test_is_public_path_favicon() {
-        assert!(is_public_path("/favicon.ico"));
-        assert!(is_public_path("/favicon.png"));
-        assert!(is_public_path("/favicon"));
-    }
-
-    #[test]
-    fn test_is_public_path_protected() {
-        assert!(!is_public_path("/query"));
-        assert!(!is_public_path("/apis/nodes"));
-        assert!(!is_public_path("/config"));
-        assert!(!is_public_path("/static"));
-        assert!(!is_public_path("/staticfile"));
-    }
+    // 注意：冗长的测试（多个断言、复杂路径判断等）已移到 tests/auth_complex_tests.rs
 
     // Note: Testing middleware functions (auth_middleware, selective_auth_middleware)
     // requires creating a Next instance which is complex in axum 0.8.
