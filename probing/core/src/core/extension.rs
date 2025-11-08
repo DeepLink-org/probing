@@ -12,6 +12,7 @@ use tokio::sync::Mutex;
 
 use super::error::EngineError;
 use super::Plugin;
+use crate::config::store::ConfigStore;
 
 #[derive(Clone, Debug, Default)]
 pub enum Maybe<T> {
@@ -321,6 +322,10 @@ impl EngineExtensionManager {
         format!("{namespace}.")
     }
 
+    /// Set an option (core implementation).
+    /// 
+    /// This is the core implementation that updates extension configuration.
+    /// ConfigStore is not updated by this method.
     pub async fn set_option(&mut self, key: &str, value: &str) -> Result<(), EngineError> {
         for extension in self.extensions.values() {
             let mut ext = extension.lock().await;
@@ -342,6 +347,21 @@ impl EngineExtensionManager {
             }
         }
         Err(EngineError::UnsupportedOption(key.to_string()))
+    }
+
+    /// Set an option and update ConfigStore.
+    /// 
+    /// This is a convenience wrapper that calls `set_option`
+    /// and then updates ConfigStore.
+    pub async fn set_option_with_store_update(
+        &mut self,
+        key: &str,
+        value: &str,
+    ) -> Result<(), EngineError> {
+        self.set_option(key, value).await?;
+        // Update ConfigStore after successfully updating the extension
+        ConfigStore::set(key, value);
+        Ok(())
     }
 
     pub async fn get_option(&self, key: &str) -> Result<String, EngineError> {
@@ -443,5 +463,148 @@ impl ExtensionOptions for EngineExtensionManager {
                 })
                 .collect()
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::store::ConfigStore;
+
+    // Helper to ensure clean state before each test
+    fn setup_test() {
+        ConfigStore::clear();
+    }
+
+    // Helper to ensure clean state after each test
+    fn teardown_test() {
+        ConfigStore::clear();
+    }
+
+    #[derive(Debug)]
+    struct TestExtension {
+        test_option: String,
+    }
+
+    impl Default for TestExtension {
+        fn default() -> Self {
+            Self {
+                test_option: "default".to_string(),
+            }
+        }
+    }
+
+    impl EngineCall for TestExtension {}
+    impl EngineDatasource for TestExtension {}
+
+    impl EngineExtension for TestExtension {
+        fn name(&self) -> String {
+            "test".to_string()
+        }
+
+        fn set(&mut self, key: &str, value: &str) -> Result<String, EngineError> {
+            match key {
+                "option" => {
+                    let old = self.test_option.clone();
+                    self.test_option = value.to_string();
+                    Ok(old)
+                }
+                _ => Err(EngineError::UnsupportedOption(key.to_string())),
+            }
+        }
+
+        fn get(&self, key: &str) -> Result<String, EngineError> {
+            match key {
+                "option" => Ok(self.test_option.clone()),
+                _ => Err(EngineError::UnsupportedOption(key.to_string())),
+            }
+        }
+
+        fn options(&self) -> Vec<EngineExtensionOption> {
+            vec![EngineExtensionOption {
+                key: "option".to_string(),
+                value: Some(self.test_option.clone()),
+                help: "Test option",
+            }]
+        }
+    }
+
+    #[tokio::test]
+    async fn test_set_option_syncs_to_config_store() {
+        setup_test();
+
+        let mut manager = EngineExtensionManager::default();
+        let extension = Arc::new(Mutex::new(TestExtension::default()));
+        manager.register("test".to_string(), extension);
+
+        // Set option through manager
+        manager.set_option("test.option", "new_value").await.unwrap();
+
+        // Verify it's in ConfigStore
+        let value = ConfigStore::get_str("test.option");
+        assert_eq!(value, Some("new_value".to_string()));
+
+        // Verify extension was updated
+        let ext_guard = manager.extensions.get("test").unwrap().lock().await;
+        assert_eq!(ext_guard.get("option").unwrap(), "new_value");
+
+        teardown_test();
+    }
+
+    #[tokio::test]
+    async fn test_set_option_updates_existing_value() {
+        setup_test();
+
+        // Pre-populate ConfigStore
+        ConfigStore::set("test.option", "old_value");
+
+        let mut manager = EngineExtensionManager::default();
+        let extension = Arc::new(Mutex::new(TestExtension::default()));
+        manager.register("test".to_string(), extension);
+
+        // Set option through manager
+        manager.set_option("test.option", "new_value").await.unwrap();
+
+        // Verify ConfigStore was updated
+        let value = ConfigStore::get_str("test.option");
+        assert_eq!(value, Some("new_value".to_string()));
+
+        teardown_test();
+    }
+
+    #[tokio::test]
+    async fn test_set_option_unsupported_key() {
+        setup_test();
+
+        let mut manager = EngineExtensionManager::default();
+        let extension = Arc::new(Mutex::new(TestExtension::default()));
+        manager.register("test".to_string(), extension);
+
+        // Try to set unsupported key
+        let result = manager.set_option("test.invalid", "value").await;
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            EngineError::UnsupportedOption(_)
+        ));
+
+        // Verify ConfigStore was not updated
+        assert!(!ConfigStore::contains_key("test.invalid"));
+
+        teardown_test();
+    }
+
+    #[tokio::test]
+    async fn test_get_option_from_config_store() {
+        setup_test();
+
+        // Pre-populate ConfigStore
+        ConfigStore::set("test.option", "stored_value");
+
+        // Verify ConfigStore has the value
+        let value = ConfigStore::get_str("test.option");
+        assert_eq!(value, Some("stored_value".to_string()));
+
+        teardown_test();
     }
 }

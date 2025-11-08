@@ -1,5 +1,5 @@
 import logging
-
+import probing
 
 hooks = {}
 
@@ -13,19 +13,19 @@ def is_true(value):
 def optimizer_step_post_hook(optimizer, *args, **kwargs):
     global hooks
     if optimizer not in hooks:
-        from probing.profiling.torch_probe import (
-            TorchProbe,
-            current_spec,
-            resolve_config,
-        )
+        from probing.profiling.torch_probe import TorchProbe, TorchProbeConfig
         from probing.profiling.torch import install_hooks
         from probing.profiling.torch.module_utils import get_toplevel_module
 
-        config = resolve_config()
+        # Get config directly from probing.config
+        # Rust sync_env_settings() converts PROBING_TORCH_PROFILING to probing.torch.profiling
+        spec = probing.config.get_str("probing.torch.profiling")
+
+        config = TorchProbeConfig.parse(spec)
         if not config.enabled:
             logging.getLogger(__name__).info(
-                "Torch profiling disabled (PROBING_TORCH_PROFILING=%s)",
-                current_spec() or "",
+                "Torch profiling disabled (torch.profiling=%s)",
+                spec or "",
             )
             hooks[optimizer] = None
             return
@@ -52,12 +52,13 @@ def optimizer_step_post_hook(optimizer, *args, **kwargs):
 
 
 def collective_hook():
+    """Initialize collective profiling if enabled."""
+    # Get config directly from probing.config
+    # Rust sync_env_settings() converts PROBING_* env vars to probing.* config keys
+    enable = probing.config.get_str("probing.torch.collective.enable")
+    trace_verbose = probing.config.get_str("probing.torch.collective.verbose")
 
-    import os
-    enble = os.getenv("PB_COLL_ENABLE_TRACE", "False") # set to True to enable collective profiling
-    trace_verbose = os.getenv("PB_COLL_TRACE_VERBOSE", "False")  # set to True to see the detailed trace output
-
-    if is_true(enble):
+    if is_true(enable):
         from probing.profiling.collective import trace_all_collectives
 
         trace_all_collectives(verbose=is_true(trace_verbose))
