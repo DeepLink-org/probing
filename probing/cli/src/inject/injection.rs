@@ -1,4 +1,4 @@
-use crate::inject::{LibcAddrs, Process};
+use crate::inject::{InjectionTrait, LibcAddrs, Process};
 use anyhow::Context;
 use anyhow::Result;
 use std::os::unix::ffi::OsStringExt;
@@ -307,6 +307,31 @@ impl<'a> Injection<'a> {
         log::debug!("Removed injection");
         self.removed = true;
         Ok(())
+    }
+}
+
+impl<'a> InjectionTrait for Injection<'a> {
+    fn inject(proc: &Process, tracer: &mut pete::Ptracer, tracee: pete::Tracee) -> Result<Self> {
+        // SAFETY: We need to convert &mut pete::Ptracer to &'a mut pete::Ptracer
+        // This is safe because the returned Injection<'a> will have the same lifetime
+        // as the tracer reference, and the injection will be removed before the tracer
+        // goes out of scope in perform_injection.
+        unsafe {
+            let tracer_ref = &mut *(tracer as *mut pete::Ptracer);
+            Self::inject(proc, tracer_ref, tracee)
+        }
+    }
+
+    fn execute(&mut self, filename: &std::path::Path) -> Result<()> {
+        self.execute(filename)
+    }
+
+    fn setenv(&mut self, name: Option<&str>, value: Option<&str>) -> Result<()> {
+        self.setenv(name, value)
+    }
+
+    fn remove(self) -> Result<()> {
+        self.remove()
     }
 }
 

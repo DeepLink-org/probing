@@ -328,13 +328,20 @@ impl Drop for Injection<'_> {
     }
 }
 
-impl InjectionTrait for Injection<'_> {
+impl<'a> InjectionTrait for Injection<'a> {
     fn inject(
         proc: &crate::inject::Process,
         tracer: &mut pete::Ptracer,
         tracee: pete::Tracee,
     ) -> Result<Self> {
-        Self::inject(proc, tracer, tracee)
+        // SAFETY: We need to convert &mut pete::Ptracer to &'a mut pete::Ptracer
+        // This is safe because the returned Injection<'a> will have the same lifetime
+        // as the tracer reference, and the injection will be removed before the tracer
+        // goes out of scope in perform_injection.
+        unsafe {
+            let tracer_ref = &mut *(tracer as *mut pete::Ptracer);
+            Self::inject(proc, tracer_ref, tracee)
+        }
     }
 
     fn execute(&mut self, filename: &std::path::Path) -> Result<()> {
