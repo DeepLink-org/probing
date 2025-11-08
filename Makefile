@@ -77,7 +77,11 @@ help:
 .PHONY: wheel
 wheel: ${PROBING_CLI} ${PROBING_LIB} web/dist/index.html
 	@echo "Building wheel..."
+ifdef TARGET
+	TARGET=$(TARGET) python make_wheel.py
+else
 	python make_wheel.py
+endif
 
 # Ensure frontend assets exist before packaging
 web/dist/index.html:

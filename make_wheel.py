@@ -70,6 +70,21 @@ def write_wheel(out_dir, *, name, version, tag, metadata, description, contents)
 
 def get_platform_tag():
     """Gets the appropriate platform tag for the wheel."""
+    # Check if TARGET env var is set (for cross-compilation)
+    target = os.environ.get("TARGET", "")
+    
+    if target:
+        # Extract architecture from target triple (e.g., x86_64-unknown-linux-gnu.2.17 -> x86_64)
+        arch = target.split("-")[0]
+        if "linux" in target:
+            if arch == "x86_64":
+                return "manylinux_2_17_x86_64.manylinux2014_x86_64"
+            elif arch == "aarch64":
+                return "manylinux_2_17_aarch64.manylinux2014_aarch64"
+            else:
+                raise RuntimeError(f"Unsupported Linux architecture: {arch}")
+    
+    # Fallback to platform detection for native builds
     if sys.platform == "darwin":
         import platform
 
@@ -80,7 +95,14 @@ def get_platform_tag():
             # For x86_64, you might want to target an older version as well
             return f"macosx_10_9_{platform.machine()}"
     elif sys.platform.startswith("linux"):
-        return "manylinux_2_12_x86_64.manylinux2010_x86_64"
+        import platform
+        arch = platform.machine()
+        if arch == "x86_64":
+            return "manylinux_2_17_x86_64.manylinux2014_x86_64"
+        elif arch == "aarch64":
+            return "manylinux_2_17_aarch64.manylinux2014_aarch64"
+        else:
+            raise RuntimeError(f"Unsupported Linux architecture: {arch}")
     # Add other platforms as needed
     raise RuntimeError(f"Unsupported platform: {sys.platform}")
 
@@ -108,8 +130,12 @@ def write_probing_wheel(out_dir):
     if not out_dir_path.exists():
         out_dir_path.mkdir(parents=True)
 
-    if "ZIG" in os.environ:
-        target_dir_prefix = f"target/x86_64-unknown-linux-gnu/{target_dir}"
+    # Determine target directory based on TARGET env var
+    target = os.environ.get("TARGET", "")
+    if target:
+        # Extract architecture from target triple
+        arch = target.split("-")[0]
+        target_dir_prefix = f"target/{arch}-unknown-linux-gnu/{target_dir}"
     else:
         target_dir_prefix = f"target/{target_dir}"
 
