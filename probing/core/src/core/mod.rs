@@ -1,3 +1,4 @@
+mod arrow_convert;
 pub mod cluster;
 pub mod cluster_model;
 mod engine;

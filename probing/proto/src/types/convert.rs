@@ -40,7 +40,11 @@ impl FromEle for String {
         match ele {
             Ele::Text(s) => Ok(s.clone()),
             Ele::Url(s) => Ok(s.clone()),
-            Ele::BOOL(b) => Ok(if *b { "True".to_string() } else { "False".to_string() }),
+            Ele::BOOL(b) => Ok(if *b {
+                "True".to_string()
+            } else {
+                "False".to_string()
+            }),
             Ele::I32(i) => Ok(i.to_string()),
             Ele::I64(i) => Ok(i.to_string()),
             Ele::F32(f) => Ok(f.to_string()),
@@ -182,7 +186,10 @@ mod tests {
 
     #[test]
     fn test_from_ele_string() {
-        assert_eq!(String::from_ele(&Ele::Text("hello".to_string())).unwrap(), "hello");
+        assert_eq!(
+            String::from_ele(&Ele::Text("hello".to_string())).unwrap(),
+            "hello"
+        );
         assert_eq!(String::from_ele(&Ele::BOOL(true)).unwrap(), "True");
         assert_eq!(String::from_ele(&Ele::I32(42)).unwrap(), "42");
         assert_eq!(String::from_ele(&Ele::Nil).unwrap(), "nil");
@@ -206,4 +213,3 @@ mod tests {
         assert_eq!(ele.to_string_lossy(), "42");
     }
 }
-

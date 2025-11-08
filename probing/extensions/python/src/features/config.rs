@@ -114,7 +114,6 @@ fn is_empty(_py: Python) -> bool {
     block_on_async(config::is_empty())
 }
 
-
 /// Register the config module to the probing Python module
 pub fn register_config_module(parent_module: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = parent_module.py();

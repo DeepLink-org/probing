@@ -3,9 +3,9 @@
 //! This module provides centralized conversion functions between Python objects
 //! and Ele types, replacing scattered conversion logic throughout the codebase.
 
+use probing_proto::prelude::Ele;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyFloat, PyInt, PyString};
-use probing_proto::prelude::Ele;
 
 /// Convert Ele to Python object
 ///
@@ -75,4 +75,3 @@ pub fn python_to_ele(value: &Bound<'_, PyAny>) -> PyResult<Ele> {
     let s = value.str()?.to_string();
     Ok(Ele::Text(s))
 }
-

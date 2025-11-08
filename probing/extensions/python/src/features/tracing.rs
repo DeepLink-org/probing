@@ -378,7 +378,6 @@ fn _span_raw(
     Ok(span)
 }
 
-
 /// Python binding for Event
 #[pyclass]
 pub struct Event {

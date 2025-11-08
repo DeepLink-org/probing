@@ -1,13 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::RwLock;
+use tokio::sync::RwLock;
 
-use arrow::array::Float32Array;
-use arrow::array::Float64Array;
-use arrow::array::Int32Array;
-use arrow::array::Int64Array;
-use arrow::array::StringArray;
-use arrow::array::TimestampMicrosecondArray;
 use arrow::compute::concat_batches;
 use datafusion::catalog::MemoryCatalogProvider;
 use datafusion::catalog::MemorySchemaProvider;
@@ -19,9 +13,9 @@ use datafusion::execution::SessionState;
 use datafusion::prelude::{DataFrame, SessionConfig, SessionContext};
 use futures;
 
+use super::arrow_convert::arrow_array_to_seq;
 use super::extension::EngineExtension;
 use super::extension::EngineExtensionManager;
-use probing_proto::prelude::Seq;
 
 /// Defines the types of plugins supported by the Probing query engine.
 /// These plugin types determine how data sources are registered with the engine.
@@ -161,9 +155,13 @@ pub struct Engine {
 
 impl Clone for Engine {
     fn clone(&self) -> Self {
+        // Note: This is a synchronous clone, so we need to block on the async lock
+        // In practice, this should be avoided in async contexts
+        use futures::executor::block_on;
+        let plugins_clone = block_on(async { self.plugins.read().await.clone() });
         Self {
             context: self.context.clone(),
-            plugins: RwLock::new(self.plugins.read().unwrap().clone()),
+            plugins: RwLock::new(plugins_clone),
         }
     }
 }
@@ -224,24 +222,7 @@ impl Engine {
         let columns = batch
             .columns()
             .iter()
-            .map(|col| {
-                if let Some(array) = col.as_any().downcast_ref::<Int32Array>() {
-                    Seq::SeqI32(array.values().to_vec())
-                } else if let Some(array) = col.as_any().downcast_ref::<Int64Array>() {
-                    Seq::SeqI64(array.values().to_vec())
-                } else if let Some(array) = col.as_any().downcast_ref::<Float32Array>() {
-                    Seq::SeqF32(array.values().to_vec())
-                } else if let Some(array) = col.as_any().downcast_ref::<Float64Array>() {
-                    Seq::SeqF64(array.values().to_vec())
-                } else if let Some(array) = col.as_any().downcast_ref::<StringArray>() {
-                    Seq::SeqText((0..col.len()).map(|x| array.value(x).to_string()).collect())
-                } else if let Some(array) = col.as_any().downcast_ref::<TimestampMicrosecondArray>()
-                {
-                    Seq::SeqI64(array.values().to_vec())
-                } else {
-                    Seq::Nil
-                }
-            })
+            .map(|col| arrow_array_to_seq(col))
             .collect::<Vec<_>>();
         Ok(Some(probing_proto::prelude::DataFrame::new(names, columns)))
     }
@@ -263,7 +244,7 @@ impl Engine {
             .clone()
     }
 
-    pub fn enable(&self, plugin: Arc<dyn Plugin + Sync + Send>) -> Result<()> {
+    pub async fn enable(&self, plugin: Arc<dyn Plugin + Sync + Send>) -> Result<()> {
         let namespace = plugin.namespace();
 
         let catalog = if let Some(catalog) = self.context.catalog("probe") {
@@ -279,9 +260,8 @@ impl Engine {
         if plugin.kind() == PluginType::Namespace {
             let state: SessionState = self.context.state();
             plugin.register_namespace(catalog, &state)?;
-            if let Ok(mut maps) = self.plugins.write() {
-                maps.insert(format!("probe.{namespace}"), plugin);
-            }
+            let mut maps = self.plugins.write().await;
+            maps.insert(format!("probe.{namespace}"), plugin);
         } else if plugin.kind() == PluginType::Table {
             // In DataFusion, schemas are used to implement namespaces
             let schema = if catalog.schema_names().contains(&namespace) {
@@ -296,9 +276,8 @@ impl Engine {
             })?;
             let state: SessionState = self.context.state();
             plugin.register_table(schema, &state)?;
-            if let Ok(mut maps) = self.plugins.write() {
-                maps.insert(format!("probe.{}.{}", namespace, plugin.name()), plugin);
-            }
+            let mut maps = self.plugins.write().await;
+            maps.insert(format!("probe.{}.{}", namespace, plugin.name()), plugin);
         }
         Ok(())
     }
@@ -373,7 +352,7 @@ impl EngineBuilder {
             plugins: Default::default(),
         };
         for plugin in self.plugins {
-            engine.enable(plugin)?;
+            engine.enable(plugin).await?;
         }
 
         Ok(engine)
@@ -391,6 +370,7 @@ mod tests {
     use crate::core::{EngineCall, EngineDatasource};
 
     use super::*;
+    use arrow::array::{Int32Array, StringArray};
     use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
     use arrow::record_batch::RecordBatch;
     use datafusion::catalog::memory::{DataSourceExec, MemorySourceConfig};
@@ -398,6 +378,7 @@ mod tests {
     use datafusion::execution::context::SessionState;
     use datafusion::logical_expr::{Expr, TableType};
     use datafusion::physical_plan::ExecutionPlan;
+    use probing_proto::prelude::Seq;
     use std::any::Any;
     use std::sync::Arc;
 
@@ -524,7 +505,7 @@ mod tests {
 
         // register table plugin
         let plugin = Arc::new(TestTablePlugin::default());
-        engine.enable(plugin)?;
+        engine.enable(plugin).await?;
 
         // verify table registration
         let result = engine
@@ -590,11 +571,11 @@ mod tests {
 
         // testing Table plugin registration
         let table_plugin = Arc::new(TestTablePlugin::default());
-        assert!(engine.enable(table_plugin).is_ok());
+        assert!(engine.enable(table_plugin).await.is_ok());
 
         // testing Namespace plugin registration
         let namespace_plugin = Arc::new(TestNamespacePlugin::default());
-        assert!(engine.enable(namespace_plugin).is_ok());
+        assert!(engine.enable(namespace_plugin).await.is_ok());
     }
 
     #[tokio::test]
