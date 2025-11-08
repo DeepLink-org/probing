@@ -59,6 +59,7 @@
 )]
 use anyhow::Context;
 use anyhow::Result;
+pub use injection_trait::InjectionTrait;
 pub use libc_addresses::LibcAddrs;
 pub use process::Process;
 

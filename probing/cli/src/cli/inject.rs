@@ -1,5 +1,4 @@
-use crate::inject::injection_trait::InjectionTrait;
-use crate::inject::{Injector, LibcAddrs, Process};
+use crate::inject::{InjectionTrait, Injector, LibcAddrs, Process};
 use anyhow::{anyhow, Context, Error, Result};
 use clap::Args;
 use probing_proto::prelude::Query;
