@@ -2,6 +2,7 @@ import random
 import time
 from dataclasses import dataclass
 from typing import Optional
+import probing
 
 from probing.core import table
 
@@ -17,10 +18,10 @@ FALSE_VALUES = {"0", "false", "no", "off", "disable", "disabled"}
 def _get_backend():
     """Detect and return the appropriate PyTorch backend module."""
     import torch
-    
+
     if torch.cuda.is_available():
         return torch.cuda
-    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
         return torch.mps
     else:
         return None
@@ -163,12 +164,16 @@ class TorchProbeConfig:
         return cfg
 
 
-_GLOBAL_CONFIG: Optional[TorchProbeConfig] = None
-_CONFIG_SPEC: Optional[str] = None
+# Configuration key in probing.config
+# Rust sync_env_settings() converts PROBING_TORCH_PROFILING to probing.torch.profiling
+_CONFIG_KEY = "probing.torch.profiling"
 
 
 def configure(spec: Optional[str] = None) -> TorchProbeConfig:
     """Set a process-wide Torch profiling configuration.
+
+    This function stores the configuration in probing.config for persistence
+    and sharing between Python and Rust.
 
     Parameters
     ----------
@@ -179,49 +184,26 @@ def configure(spec: Optional[str] = None) -> TorchProbeConfig:
     Returns
     -------
     TorchProbeConfig
-        The parsed configuration object kept as the active default.
-    """
+        The parsed configuration object.
 
-    global _GLOBAL_CONFIG, _CONFIG_SPEC
+    Examples
+    --------
+    >>> from probing.profiling.torch_probe import configure
+    >>> config = configure("on,mode=random,rate=0.5")
+    >>> config.enabled
+    True
+    >>> config.mode
+    'random'
+    """
+    # Store the configuration spec in probing.config
+    if spec is not None:
+        probing.config.set(_CONFIG_KEY, spec)
+    else:
+        # Clear the config if spec is None
+        probing.config.remove(_CONFIG_KEY)
 
     config = TorchProbeConfig.parse(spec)
-    _GLOBAL_CONFIG = config
-    _CONFIG_SPEC = spec
     return config
-
-
-def resolve_config(spec: Optional[str] = None) -> TorchProbeConfig:
-    """Return the active profiling configuration.
-
-    If *spec* is provided it will be parsed and installed as the new
-    process-wide configuration via :func:`configure`. Otherwise the previously
-    configured value is returned; falling back to the
-    ``PROBING_TORCH_PROFILING`` environment variable when no override exists.
-    """
-
-    global _GLOBAL_CONFIG, _CONFIG_SPEC
-
-    if spec is not None:
-        return configure(spec)
-
-    if _GLOBAL_CONFIG is not None:
-        return _GLOBAL_CONFIG
-
-    import os
-
-    env_spec = os.getenv("PROBING_TORCH_PROFILING")
-    if env_spec:
-        env_spec = env_spec.strip()
-    config = TorchProbeConfig.parse(env_spec)
-    _CONFIG_SPEC = env_spec
-    _GLOBAL_CONFIG = config
-    return config
-
-
-def current_spec() -> Optional[str]:
-    """Return the latest configuration string if one was supplied."""
-
-    return _CONFIG_SPEC
 
 
 class DelayedRecord:
@@ -243,7 +225,7 @@ def mem_stats() -> TorchTrace:
     import torch
 
     MB = 1024 * 1024
-    
+
     if backend is None:
         # No GPU backend available
         return TorchTrace(
@@ -252,7 +234,7 @@ def mem_stats() -> TorchTrace:
             max_allocated=0.0,
             max_cached=0.0,
         )
-    
+
     # Only CUDA supports memory statistics
     if backend == torch.cuda:
         return TorchTrace(

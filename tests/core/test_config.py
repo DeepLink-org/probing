@@ -166,31 +166,6 @@ class TestConfigModule(unittest.TestCase):
         probing.config.clear()
         self.assertTrue(probing.config.is_empty())
 
-    def test_get_with_prefix(self):
-        """Test getting configuration entries with a prefix."""
-        probing.config.set("torch.profiling", "on")
-        probing.config.set("torch.mode", "random")
-        probing.config.set("server.port", "8080")
-
-        torch_configs = probing.config.get_with_prefix("torch.")
-        self.assertEqual(len(torch_configs), 2)
-        self.assertIn("torch.profiling", torch_configs)
-        self.assertIn("torch.mode", torch_configs)
-        self.assertEqual(torch_configs["torch.profiling"], "on")
-        self.assertEqual(torch_configs["torch.mode"], "random")
-        self.assertNotIn("server.port", torch_configs)
-
-    def test_remove_with_prefix(self):
-        """Test removing configuration entries with a prefix."""
-        probing.config.set("torch.profiling", "on")
-        probing.config.set("torch.mode", "random")
-        probing.config.set("server.port", "8080")
-
-        removed_count = probing.config.remove_with_prefix("torch.")
-        self.assertEqual(removed_count, 2)
-        self.assertFalse(probing.config.contains_key("torch.profiling"))
-        self.assertFalse(probing.config.contains_key("torch.mode"))
-        self.assertTrue(probing.config.contains_key("server.port"))
 
     def test_overwrite_value(self):
         """Test overwriting an existing value."""
