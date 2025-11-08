@@ -2,7 +2,16 @@
 
 <div align="center">
   <img src="probing.svg" alt="Probing Logo" width="200"/>
+  
+  <p>
+    <a href="README.cn.md">中文</a> | 
+    <a href="README.md">English</a>
+  </p>
 </div>
+
+[![PyPI version](https://badge.fury.io/py/probing.svg)](https://badge.fury.io/py/probing)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
+[![Downloads](https://pepy.tech/badge/probing)](https://pepy.tech/project/probing)
 
 > Uncover the Hidden Truth of AI Performance
 
@@ -10,19 +19,37 @@ Probing is a production-grade performance profiler designed specifically for dis
 
 ### What probing delivers...
 
-- **Runtime Performance Visibility** - Expose execution bottlenecks in real-time without code modification
-- **Distributed System Observability** - Cross-node performance correlation and bottleneck identification  
-- **Production-Ready Monitoring** - Continuous profiling with <1% overhead for large-scale training jobs
+### 🔍 **For AI Researchers & Algorithm Engineers**
+- **Debug Training Instabilities** - Real-time insight into why training diverges or hangs
+- **Optimize Model Performance** - Identify bottlenecks in forward/backward passes
+- **Memory Leak Detection** - Track GPU/CPU memory usage across training steps
+- **Live Variable Inspection** - Check tensor values, gradients, and model states without stopping training
+
+### 🛠️ **For Framework & Library Developers**  
+- **Runtime Framework Analysis** - Understand how your framework performs in real-world usage
+- **Zero-Intrusion Profiling** - Profile framework internals without code modifications
+- **Production Debugging** - Debug issues reported by users in their actual environments
+- **Performance Benchmarking** - Collect real performance data for optimization decisions
+
+### ⚙️ **For System Engineers & MLOps**
+- **Production Monitoring** - Monitor AI services without service restarts
+- **Resource Optimization** - Analyze resource usage patterns across the cluster
+- **Custom Metrics Collection** - Gather any application-specific performance data
+- **Distributed Debugging** - Correlate performance issues across multiple nodes
+
+### 🚀 **Core Technical Capabilities**
+- **Dynamic Probe Injection** - Attach to running processes without code changes
+- **SQL-Powered Analytics** - Use standard SQL to query performance data
+- **Live Code Execution** - Run Python code directly in target processes
+- **Real-time Stack Analysis** - Capture execution context with variable values
 
 ### In contrast with traditional profilers, probing does not...
 
-- **Require Code Modification** - No need to add logging, insert timers, or modify training scripts
-- **Force "Break-Then-Fix" Debugging** - No waiting for issues to occur, then spending days reproducing them
-- **Force You to Decode Fixed Reports** - No more deciphering pre-formatted tables where every row and column needs interpretation; use SQL to create custom analysis reports
-
-[![PyPI version](https://badge.fury.io/py/probing.svg)](https://badge.fury.io/py/probing)
-[![License](https://img.shields.io/badge/License-GPL%203.0-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Downloads](https://pepy.tech/badge/probing)](https://pepy.tech/project/probing)
+- **Require Code Instrumentation** - No need to add logging statements, insert timers, or modify your training scripts
+- **Force "Break-Then-Fix" Workflow** - No waiting for issues to occur, then spending days trying to reproduce them
+- **Lock You Into Fixed Reports** - No more deciphering pre-formatted tables; use SQL to create custom analysis reports that match your specific needs
+- **Disrupt Your Workflow** - Attach to running processes without stopping your training jobs or services
+- **Force You to Learn New Tools** - Use familiar SQL syntax and Python code for all your analysis needs
 
 ## Getting Started
 
@@ -263,4 +290,4 @@ PROBING_TORCH_PROFILING="on,exprs=loss@train,acc1@train" PROBE=1 python examples
 
 ## License
 
-[GNU General Public License v3.0](LICENSE)
+[Apache License 2.0](LICENSE)
