@@ -5,7 +5,9 @@ use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
 
 use probing_core::trace::Span as RawSpan;
-use probing_core::trace::{attr, Ele, Event as RawEvent, SpanStatus, Timestamp};
+use probing_core::trace::{attr, Event as RawEvent, SpanStatus, Timestamp};
+
+use crate::features::convert::{ele_to_python, python_to_ele};
 
 // Thread-local storage for span context
 thread_local! {
@@ -148,7 +150,7 @@ impl Span {
         let mut inner = self.inner.lock().unwrap();
         for (key, value) in attrs_dict.iter() {
             let key_str = key.extract::<String>()?;
-            let ele = python_to_ele(value.into(), py)?;
+            let ele = python_to_ele(&value)?;
             inner.attrs.push(attr(key_str, ele));
         }
         Ok(())
@@ -169,14 +171,14 @@ impl Span {
                 if let Ok(dict) = attr_obj.bind(py).downcast::<PyDict>() {
                     for (k, v) in dict.iter() {
                         let key = k.extract::<String>()?;
-                        let ele = python_to_ele(v.into(), py)?;
+                        let ele = python_to_ele(&v)?;
                         converted.push(attr(key, ele));
                     }
                 } else if let Ok(list) = attr_obj.bind(py).downcast::<PyList>() {
                     if list.len() == 2 {
                         let key = list.get_item(0)?.extract::<String>()?;
                         let value = list.get_item(1)?;
-                        let ele = python_to_ele(value.into(), py)?;
+                        let ele = python_to_ele(&value)?;
                         converted.push(attr(key, ele));
                     }
                 }
@@ -209,7 +211,7 @@ impl Span {
         let dict = PyDict::new(py);
         let inner = self.inner.lock().unwrap();
         for attr in &inner.attrs {
-            let value = ele_to_python(&attr.1, py)?;
+            let value = ele_to_python(py, &attr.1)?;
             dict.set_item(&attr.0, value)?;
         }
         Ok(dict.into())
@@ -225,7 +227,7 @@ impl Span {
             event_dict.set_item("timestamp", event.timestamp.0 as u64)?;
             let attrs_dict = PyDict::new(py);
             for attr in &event.attributes {
-                let value = ele_to_python(&attr.1, py)?;
+                let value = ele_to_python(py, &attr.1)?;
                 attrs_dict.set_item(&attr.0, value)?;
             }
             event_dict.set_item("attributes", attrs_dict)?;
@@ -272,7 +274,7 @@ impl Span {
         let inner = self.inner.lock().unwrap();
         for attr in &inner.attrs {
             if attr.0 == name {
-                let value = ele_to_python(&attr.1, py)?;
+                let value = ele_to_python(py, &attr.1)?;
                 return Ok(value);
             }
         }
@@ -376,44 +378,6 @@ fn _span_raw(
     Ok(span)
 }
 
-// Helper function to convert Python object to Ele
-fn python_to_ele(obj: PyObject, py: Python) -> PyResult<Ele> {
-    let bound = obj.bind(py);
-
-    if bound.is_none() {
-        Ok(Ele::Nil)
-    } else if let Ok(b) = bound.extract::<bool>() {
-        Ok(Ele::BOOL(b))
-    } else if let Ok(i) = bound.extract::<i32>() {
-        Ok(Ele::I32(i))
-    } else if let Ok(i) = bound.extract::<i64>() {
-        Ok(Ele::I64(i))
-    } else if let Ok(f) = bound.extract::<f32>() {
-        Ok(Ele::F32(f))
-    } else if let Ok(f) = bound.extract::<f64>() {
-        Ok(Ele::F64(f))
-    } else if let Ok(s) = bound.extract::<String>() {
-        Ok(Ele::Text(s))
-    } else {
-        // Try to convert to string
-        Ok(Ele::Text(bound.to_string()))
-    }
-}
-
-// Helper function to convert Ele to Python object
-fn ele_to_python(ele: &Ele, py: Python) -> PyResult<PyObject> {
-    Ok(match ele {
-        Ele::Nil => Option::<i32>::None.into_bound_py_any(py).unwrap().into(),
-        Ele::BOOL(b) => (*b).into_bound_py_any(py).unwrap().into(),
-        Ele::I32(i) => (*i).into_bound_py_any(py).unwrap().into(),
-        Ele::I64(i) => (*i).into_bound_py_any(py).unwrap().into(),
-        Ele::F32(f) => (*f).into_bound_py_any(py).unwrap().into(),
-        Ele::F64(f) => (*f).into_bound_py_any(py).unwrap().into(),
-        Ele::Text(s) => s.clone().into_bound_py_any(py).unwrap().into(),
-        Ele::Url(s) => s.clone().into_bound_py_any(py).unwrap().into(),
-        Ele::DataTime(t) => (*t).into_bound_py_any(py).unwrap().into(),
-    })
-}
 
 /// Python binding for Event
 #[pyclass]
@@ -433,14 +397,14 @@ impl Event {
                 if let Ok(dict) = attr_obj.bind(py).downcast::<PyDict>() {
                     for (k, v) in dict.iter() {
                         let key = k.extract::<String>()?;
-                        let ele = python_to_ele(v.into(), py)?;
+                        let ele = python_to_ele(&v)?;
                         converted.push(attr(key, ele));
                     }
                 } else if let Ok(list) = attr_obj.bind(py).downcast::<PyList>() {
                     if list.len() == 2 {
                         let key = list.get_item(0)?.extract::<String>()?;
                         let value = list.get_item(1)?;
-                        let ele = python_to_ele(value.into(), py)?;
+                        let ele = python_to_ele(&value)?;
                         converted.push(attr(key, ele));
                     }
                 }
@@ -476,7 +440,7 @@ impl Event {
     fn get_attributes(&self, py: Python) -> PyResult<PyObject> {
         let dict = PyDict::new(py);
         for attr in &self.inner.attributes {
-            let value = ele_to_python(&attr.1, py)?;
+            let value = ele_to_python(py, &attr.1)?;
             dict.set_item(&attr.0, value)?;
         }
         Ok(dict.into())

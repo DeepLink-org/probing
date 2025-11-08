@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use once_cell::sync::Lazy;
-use probing_proto::prelude::Ele;
+use probing_proto::prelude::{Ele, EleExt};
 use tokio::sync::RwLock;
 
 use crate::core::{EngineError, EngineExtensionManager};
@@ -26,23 +26,7 @@ pub async fn set<T: Into<Ele>>(key: &str, value: T) {
 
 /// Get a configuration value as string.
 pub async fn get_str(key: &str) -> Option<String> {
-    get(key).await.map(|ele| match ele {
-        Ele::Text(s) => s,
-        Ele::BOOL(b) => {
-            if b {
-                "True".to_string()
-            } else {
-                "False".to_string()
-            }
-        }
-        Ele::I32(i) => i.to_string(),
-        Ele::I64(i) => i.to_string(),
-        Ele::F32(f) => f.to_string(),
-        Ele::F64(f) => f.to_string(),
-        Ele::DataTime(t) => t.to_string(),
-        Ele::Nil => "nil".to_string(),
-        Ele::Url(u) => u,
-    })
+    get(key).await.map(|ele| ele.to_string_lossy())
 }
 
 /// Remove a configuration value.

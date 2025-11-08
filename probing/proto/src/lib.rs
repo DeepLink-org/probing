@@ -19,6 +19,9 @@ pub mod prelude {
     pub use crate::types::Value;
     pub use crate::types::{DiscardStrategy, Series};
 
+    // --- Type Conversion ---
+    pub use crate::types::{EleExt, FromEle, ToEle};
+
     // --- Error Handling ---
     pub use crate::types::ProtoError;
 }

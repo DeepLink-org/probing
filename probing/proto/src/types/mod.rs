@@ -1,5 +1,6 @@
 pub mod basic;
 mod compress;
+pub mod convert;
 mod dataframe;
 mod error;
 pub mod series;
@@ -12,6 +13,7 @@ pub use basic::Value;
 pub use compress::CodeBook;
 pub use compress::Compressable;
 pub use compress::Decompressable;
+pub use convert::{EleExt, FromEle, ToEle};
 pub use dataframe::DataFrame;
 pub use error::ProtoError;
 pub use series::{DiscardStrategy, Series};
