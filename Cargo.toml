@@ -13,10 +13,10 @@ members = [
 ]
 
 [workspace.package]
-version = "0.2.0-alpha1"
+version = "0.2.0"
 authors = ["reiase <reiase@gmail.com>"]
 edition = "2021"
-license = "GPL-3.0"
+license = "Apache-2.0"
 description = "Performance and Stability Diagnostic Tool for AI Applications"
 
 [workspace.dependencies]
