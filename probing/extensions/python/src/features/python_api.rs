@@ -20,7 +20,9 @@ fn query_json(_py: Python, sql: String) -> PyResult<String> {
                 tokio::runtime::Builder::new_current_thread()
                     .enable_all()
                     .build()
-                    .unwrap()
+                    .unwrap_or_else(|e| {
+                        panic!("Failed to create current-thread runtime: {e}")
+                    })
                     .block_on(async { ENGINE.read().await.async_query(sql.as_str()).await })
             })
             .join()
@@ -33,7 +35,9 @@ fn query_json(_py: Python, sql: String) -> PyResult<String> {
                 .worker_threads(4)
                 .enable_all()
                 .build()
-                .unwrap()
+                .unwrap_or_else(|e| {
+                    panic!("Failed to create multi-thread runtime: {e}")
+                })
                 .block_on(async { ENGINE.read().await.async_query(sql.as_str()).await })
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
         }

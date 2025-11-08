@@ -26,7 +26,11 @@ async fn report_worker(report_addr: String, local_addr: String) {
         let report_addr = format!("http://{report_addr}/apis/nodes");
         let hostname = get_hostname().unwrap_or("localhost".to_string());
         let address = {
-            let probing_address = PROBING_ADDRESS.read().unwrap();
+            let probing_address = PROBING_ADDRESS.read()
+                .unwrap_or_else(|e| {
+                    log::error!("Failed to acquire read lock on PROBING_ADDRESS: {e}");
+                    panic!("Lock poisoned: {e}")
+                });
             if !probing_address.is_empty() {
                 probing_address.clone()
             } else {

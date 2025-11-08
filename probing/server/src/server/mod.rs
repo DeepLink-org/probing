@@ -52,7 +52,9 @@ pub static SERVER_RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
             );
         })
         .build()
-        .unwrap()
+        .unwrap_or_else(|e| {
+            panic!("Failed to create server runtime: {e}")
+        })
 });
 
 fn build_app(auth: bool) -> axum::Router {
@@ -145,7 +147,11 @@ pub async fn remote_server(addr: Option<String>) -> Result<()> {
     match listener.local_addr() {
         Ok(addr) => {
             {
-                let mut probing_address = crate::vars::PROBING_ADDRESS.write().unwrap();
+                let mut probing_address = crate::vars::PROBING_ADDRESS.write()
+                    .unwrap_or_else(|e| {
+                        log::error!("Failed to acquire write lock on PROBING_ADDRESS: {e}");
+                        panic!("Lock poisoned: {e}")
+                    });
                 *probing_address = addr.to_string();
             }
             eprintln!("{}", Red.bold().paint("probing server is available on:"));

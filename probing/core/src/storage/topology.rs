@@ -22,7 +22,10 @@ impl TopologyView {
     pub fn new(workers_per_node: HashMap<NodeId, Vec<WorkerId>>, estimated_total: usize) -> Self {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_else(|e| {
+                log::error!("System time error: {e}");
+                panic!("System time is before UNIX epoch: {e}")
+            })
             .as_secs();
 
         Self {
@@ -53,7 +56,10 @@ impl TopologyView {
             version,
             timestamp: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
-                .unwrap()
+                .unwrap_or_else(|e| {
+                    log::error!("System time error: {e}");
+                    panic!("System time is before UNIX epoch: {e}")
+                })
                 .as_secs(),
             workers_per_node,
             estimated_total_nodes: estimated_total,
@@ -75,7 +81,10 @@ impl TopologyView {
     pub fn is_fresh(&self, ttl_seconds: u64) -> bool {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_else(|e| {
+                log::error!("System time error: {e}");
+                panic!("System time is before UNIX epoch: {e}")
+            })
             .as_secs();
 
         now - self.timestamp <= ttl_seconds
@@ -125,7 +134,10 @@ impl TopologyView {
     pub fn refresh_timestamp(&mut self) {
         self.timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_else(|e| {
+                log::error!("System time error: {e}");
+                panic!("System time is before UNIX epoch: {e}")
+            })
             .as_secs();
     }
 

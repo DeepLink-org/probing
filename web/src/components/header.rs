@@ -1,5 +1,5 @@
 use dioxus::prelude::*;
-use dioxus_router::Link;
+use dioxus_router::{Link, use_route};
 use icondata::Icon as IconData;
 
 use crate::app::Route;
@@ -84,10 +84,19 @@ pub fn Header() -> Element {
 
 #[component]
 pub fn NavTab(to: Route, icon: &'static IconData, label: &'static str) -> Element {
+    let route = use_route::<Route>();
+    let is_active = route == to;
+    
+    let class_str = if is_active {
+        "flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-100 text-blue-700 hover:bg-blue-200"
+    } else {
+        "flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+    };
+    
     rsx! {
         Link {
             to: to,
-            class: "flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors",
+            class: class_str,
             Icon { icon, class: "w-4 h-4" }
             span {
                 class: "hidden lg:inline",

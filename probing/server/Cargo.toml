@@ -43,3 +43,6 @@ futures-util = "0.3"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 procfs = { version = "0.17.0", default-features = false, features = ["chrono"] }
+
+[dev-dependencies]
+tempfile = "3.8"
