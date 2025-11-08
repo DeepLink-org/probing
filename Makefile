@@ -24,8 +24,12 @@ ifndef ZIG
 	CARGO_BUILD_CMD := build
 	TARGET_DIR_PREFIX := target
 else
-	CARGO_BUILD_CMD := zigbuild --target x86_64-unknown-linux-gnu.2.17
-	TARGET_DIR_PREFIX := target/x86_64-unknown-linux-gnu
+	ifndef TARGET
+		TARGET := x86_64-unknown-linux-gnu.2.17
+	endif
+	CARGO_BUILD_CMD := zigbuild --target $(TARGET)
+	TARGET_ARCH := $(word 1,$(subst -, ,$(TARGET)))
+	TARGET_DIR_PREFIX := target/$(TARGET_ARCH)-unknown-linux-gnu
 endif
 
 # Python version
@@ -127,6 +131,15 @@ ${PROBING_LIB}: ${DATA_SCRIPTS_DIR}
 .PHONY: test
 test:
 	@echo "Running Rust tests..."
+	@# Set Python environment variables for pyenv if available
+	@if command -v pyenv >/dev/null 2>&1; then \
+		PYTHON_PATH=$$(pyenv which python3 2>/dev/null || echo ""); \
+		if [ -n "$$PYTHON_PATH" ]; then \
+			export PYTHON_SYS_EXECUTABLE=$$PYTHON_PATH; \
+			export PYO3_PYTHON=$$PYTHON_PATH; \
+			echo "Using pyenv Python: $$PYTHON_PATH"; \
+		fi; \
+	fi; \
 	cargo nextest run --workspace --no-default-features --nff
 
 .PHONY: coverage-rust
