@@ -4,13 +4,44 @@ use pyo3::types::PyModule;
 use probing_core::config;
 use probing_proto::prelude::Ele;
 
+/// Helper function to run async config operations from sync Python bindings
+fn block_on_async<F, T>(f: F) -> T
+where
+    F: std::future::Future<Output = T> + Send + 'static,
+    T: Send + 'static,
+{
+    match tokio::runtime::Handle::try_current() {
+        Ok(_handle) => {
+            // We're inside a runtime, spawn a new thread to avoid nested runtime error
+            std::thread::spawn(move || {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap()
+                    .block_on(f)
+            })
+            .join()
+            .unwrap()
+        }
+        Err(_) => {
+            // Not in a runtime, create a new one
+            tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(f)
+        }
+    }
+}
+
 /// Get a configuration value.
 ///
 /// Returns None if the key doesn't exist, otherwise returns the value
 /// converted to the appropriate Python type.
 #[pyfunction]
 fn get(py: Python, key: String) -> PyResult<Option<PyObject>> {
-    let ele = config::get(&key);
+    let key_clone = key.clone();
+    let ele = block_on_async(async move { config::get(&key_clone).await });
     match ele {
         Some(val) => Ok(Some(ele_to_python(py, val)?)),
         None => Ok(None),
@@ -23,7 +54,8 @@ fn get(py: Python, key: String) -> PyResult<Option<PyObject>> {
 #[pyfunction]
 fn set(_py: Python, key: String, value: &Bound<'_, PyAny>) -> PyResult<()> {
     let ele = python_to_ele(value)?;
-    config::set(&key, ele);
+    let key_clone = key.clone();
+    block_on_async(async move { config::set(&key_clone, ele).await });
     Ok(())
 }
 
@@ -33,19 +65,24 @@ fn set(_py: Python, key: String, value: &Bound<'_, PyAny>) -> PyResult<()> {
 /// converted to string.
 #[pyfunction]
 fn get_str(_py: Python, key: String) -> PyResult<Option<String>> {
-    Ok(config::get_str(&key))
+    let key_clone = key.clone();
+    Ok(block_on_async(
+        async move { config::get_str(&key_clone).await },
+    ))
 }
 
 /// Check if a configuration key exists.
 #[pyfunction]
 fn contains_key(_py: Python, key: String) -> bool {
-    config::contains_key(&key)
+    let key_clone = key.clone();
+    block_on_async(async move { config::contains_key(&key_clone).await })
 }
 
 /// Remove a configuration key and return its value.
 #[pyfunction]
 fn remove(py: Python, key: String) -> PyResult<Option<PyObject>> {
-    let ele = config::remove(&key);
+    let key_clone = key.clone();
+    let ele = block_on_async(async move { config::remove(&key_clone).await });
     match ele {
         Some(val) => Ok(Some(ele_to_python(py, val)?)),
         None => Ok(None),
@@ -55,25 +92,25 @@ fn remove(py: Python, key: String) -> PyResult<Option<PyObject>> {
 /// Get all configuration keys.
 #[pyfunction]
 fn keys(_py: Python) -> Vec<String> {
-    config::keys()
+    block_on_async(config::keys())
 }
 
 /// Clear all configuration.
 #[pyfunction]
 fn clear(_py: Python) {
-    config::clear();
+    block_on_async(config::clear());
 }
 
 /// Get the number of configuration entries.
 #[pyfunction]
 fn len(_py: Python) -> usize {
-    config::len()
+    block_on_async(config::len())
 }
 
 /// Check if the configuration store is empty.
 #[pyfunction]
 fn is_empty(_py: Python) -> bool {
-    config::is_empty()
+    block_on_async(config::is_empty())
 }
 
 /// Convert Ele to Python object

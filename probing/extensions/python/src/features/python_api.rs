@@ -25,7 +25,7 @@ fn query_json(_py: Python, sql: String) -> PyResult<String> {
             })
             .join()
             .map_err(|_| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Thread panicked"))?
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
         }
         Err(_) => {
             // Not in a runtime, create a new one
@@ -35,11 +35,12 @@ fn query_json(_py: Python, sql: String) -> PyResult<String> {
                 .build()
                 .unwrap()
                 .block_on(async { ENGINE.read().await.async_query(sql.as_str()).await })
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
         }
     };
 
-    serde_json::to_string(&result)
+    let final_result = result.unwrap_or_default();
+    serde_json::to_string(&final_result)
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
 }
 

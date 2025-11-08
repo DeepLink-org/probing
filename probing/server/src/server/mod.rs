@@ -26,7 +26,7 @@ use probing_proto::prelude::Query;
 async fn get_config_value_handler(
     axum::extract::Path(config_key): axum::extract::Path<String>,
 ) -> impl IntoResponse {
-    match probing_core::config::get_str(&config_key) {
+    match probing_core::config::get_str(&config_key).await {
         Some(value) => (StatusCode::OK, value).into_response(),
         None => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -150,7 +150,7 @@ pub async fn remote_server(addr: Option<String>) -> Result<()> {
             }
             eprintln!("{}", Red.bold().paint("probing server is available on:"));
             eprintln!("\t{}", Green.bold().underline().paint(addr.to_string()));
-            probing_core::config::write("server.address", &addr.to_string())?;
+            probing_core::config::write("server.address", &addr.to_string()).await?;
         }
         Err(err) => {
             eprintln!(

@@ -207,11 +207,11 @@ impl Engine {
     pub async fn async_query<T: Into<String>>(
         &self,
         query: T,
-    ) -> Result<probing_proto::prelude::DataFrame> {
+    ) -> Result<Option<probing_proto::prelude::DataFrame>> {
         let query: String = query.into();
         let batches = self.sql(query.as_str()).await?.collect().await?;
         if batches.is_empty() {
-            return Ok(probing_proto::prelude::DataFrame::default());
+            return Ok(None);
         }
         let batch = concat_batches(&batches[0].schema(), batches.iter())?;
 
@@ -243,12 +243,13 @@ impl Engine {
                 }
             })
             .collect::<Vec<_>>();
-        Ok(probing_proto::prelude::DataFrame::new(names, columns))
+        Ok(Some(probing_proto::prelude::DataFrame::new(names, columns)))
     }
 
     #[deprecated]
     pub fn query<T: Into<String>>(&self, q: T) -> Result<probing_proto::prelude::DataFrame> {
         futures::executor::block_on(async { self.async_query(q).await })
+            .map(|opt| opt.unwrap_or_default())
     }
 
     /// Get default namespace from configuration
@@ -308,7 +309,7 @@ pub struct EngineBuilder {
     config: SessionConfig,
     default_namespace: Option<String>,
     plugins: Vec<Arc<dyn Plugin + Sync + Send>>,
-    extensions: HashMap<String, Arc<std::sync::Mutex<dyn EngineExtension + Send + Sync>>>,
+    extensions: HashMap<String, Arc<tokio::sync::Mutex<dyn EngineExtension + Send + Sync>>>,
 }
 
 impl EngineBuilder {
@@ -342,17 +343,17 @@ impl EngineBuilder {
             self.plugins.push(datasrc)
         };
         let name = ext.name();
-        let ext = Arc::new(std::sync::Mutex::new(ext));
+        let ext = Arc::new(tokio::sync::Mutex::new(ext));
 
         self.extensions.insert(name, ext);
         self
     }
 
     // Build the Engine with the specified configurations
-    pub fn build(mut self) -> Result<Engine> {
+    pub async fn build(mut self) -> Result<Engine> {
         let mut eem = EngineExtensionManager::default();
         for (name, extension) in self.extensions.iter() {
-            eem.register(name.clone(), extension.clone());
+            eem.register(name.clone(), extension.clone()).await;
         }
         self.config.options_mut().extensions.insert(eem);
         if let Some(namespace) = self.default_namespace {
@@ -504,13 +505,14 @@ mod tests {
     #[tokio::test]
     async fn test_engine_builder() {
         // testing default builder
-        let engine = Engine::builder().build().unwrap();
+        let engine = Engine::builder().build().await.unwrap();
         assert_eq!(engine.default_namespace(), "probe");
 
         // building with custom namespace
         let engine = Engine::builder()
             .with_default_namespace("test_namespace")
             .build()
+            .await
             .unwrap();
         assert_eq!(engine.default_namespace(), "test_namespace");
     }
@@ -518,7 +520,7 @@ mod tests {
     #[tokio::test]
     async fn test_plugin_with_data() -> Result<()> {
         // create engine
-        let engine = Engine::builder().build()?;
+        let engine = Engine::builder().build().await?;
 
         // register table plugin
         let plugin = Arc::new(TestTablePlugin::default());
@@ -527,7 +529,8 @@ mod tests {
         // verify table registration
         let result = engine
             .async_query("SELECT * FROM test_namespace.test_table")
-            .await?;
+            .await?
+            .unwrap();
 
         assert_eq!(result.names.len(), 2);
         assert_eq!(result.names[0], "id");
@@ -536,7 +539,8 @@ mod tests {
         // verify data
         let result = engine
             .async_query("SELECT * FROM test_namespace.test_table WHERE id > 1")
-            .await?;
+            .await?
+            .unwrap();
         if let Seq::SeqI32(ids) = &result.cols[0] {
             assert_eq!(ids.len(), 2); // expect 2 rows
             assert!(ids.iter().all(|&id| id > 1)); // with id > 1
@@ -569,6 +573,7 @@ mod tests {
             .with_default_namespace("probe")
             .with_extension(TestExtension, "test_namespace", Some("test_table"))
             .build()
+            .await
             .unwrap();
 
         // Verify the plugin is correctly registered
@@ -576,11 +581,12 @@ mod tests {
             .async_query("SELECT * FROM test_namespace.test_table")
             .await;
         assert!(result.is_ok());
+        assert!(result.unwrap().is_some());
     }
 
     #[tokio::test]
     async fn test_plugin_registration() {
-        let engine = Engine::builder().build().unwrap();
+        let engine = Engine::builder().build().await.unwrap();
 
         // testing Table plugin registration
         let table_plugin = Arc::new(TestTablePlugin::default());
@@ -593,12 +599,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_basic_queries() {
-        let engine = Engine::builder().build().unwrap();
+        let engine = Engine::builder().build().await.unwrap();
 
         // testing basic SELECT query
         let result = engine
             .async_query("SELECT 1 as num, 'test' as str")
             .await
+            .unwrap()
             .unwrap();
         assert_eq!(result.names.len(), 2);
         assert_eq!(result.names[0], "num");
@@ -606,12 +613,12 @@ mod tests {
 
         // testing empty result set
         let result = engine.async_query("SELECT 1 WHERE 1=0").await.unwrap();
-        assert!(result.names.is_empty());
+        assert!(result.is_none());
     }
 
     #[tokio::test]
     async fn test_query_error_handling() {
-        let engine = Engine::builder().build().unwrap();
+        let engine = Engine::builder().build().await.unwrap();
 
         // testing invalid SQL syntax
         let result = engine.async_query("SELECT invalid syntax").await;
@@ -626,7 +633,7 @@ mod tests {
     async fn test_concurrent_queries() {
         use futures::future::join_all;
 
-        let engine = Engine::builder().build().unwrap();
+        let engine = Engine::builder().build().await.unwrap();
         let queries = ["SELECT 1", "SELECT 2", "SELECT 3"];
 
         let handles: Vec<_> = queries
@@ -646,7 +653,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_data_types() {
-        let engine = Engine::builder().build().unwrap();
+        let engine = Engine::builder().build().await.unwrap();
 
         let query = "
             SELECT 
@@ -655,7 +662,7 @@ mod tests {
                 'test' as string_val
         ";
 
-        let result = engine.async_query(query).await.unwrap();
+        let result = engine.async_query(query).await.unwrap().unwrap();
         assert_eq!(result.names.len(), 3);
 
         // testing data types
@@ -669,7 +676,7 @@ mod tests {
         let builder = Engine::builder().with_default_namespace("test_namespace");
 
         // testing default namespace
-        let engine = builder.build().unwrap();
+        let engine = builder.build().await.unwrap();
         assert_eq!(engine.default_namespace(), "test_namespace");
 
         // testing information schema

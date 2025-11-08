@@ -376,91 +376,112 @@ probing.ExternalTable.drop("table2")
     #[test]
     fn test_see_py_table_in_engine() {
         setup_table3();
-        let engine = Engine::builder()
-            .with_default_namespace("probe")
-            .with_plugin(PythonPlugin::create("python"))
-            .with_plugin(FilesPlugin::create("file"))
-            .with_plugin(EnvPlugin::create("process", "envs"))
-            .build()
-            .unwrap();
-        let tables = tokio::runtime::Builder::new_multi_thread()
+        let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(4)
             .enable_all()
             .build()
-            .unwrap()
+            .unwrap();
+        let engine = rt
             .block_on(async {
-                engine
-                    .async_query(
-                        "select * from probe.information_schema.tables where table_name = 'table3' ",
-                    ).await
-                    .unwrap()
-            });
+                Engine::builder()
+                    .with_default_namespace("probe")
+                    .with_plugin(PythonPlugin::create("python"))
+                    .with_plugin(FilesPlugin::create("file"))
+                    .with_plugin(EnvPlugin::create("process", "envs"))
+                    .build()
+                    .await
+            })
+            .unwrap();
+        let tables = rt.block_on(async {
+            engine
+                .async_query(
+                    "select * from probe.information_schema.tables where table_name = 'table3' ",
+                )
+                .await
+                .unwrap()
+                .unwrap()
+        });
         assert_eq!(tables.len(), 1);
     }
 
     #[test]
     fn test_see_py_table_data_in_engine() {
         setup_table3();
-        let engine = Engine::builder()
-            .with_default_namespace("probe")
-            .with_plugin(PythonPlugin::create("python"))
-            .build()
-            .unwrap();
-        let tables = tokio::runtime::Builder::new_multi_thread()
+        let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(4)
             .enable_all()
             .build()
-            .unwrap()
+            .unwrap();
+        let engine = rt
             .block_on(async {
-                engine
-                    .async_query("select * from python.table3 ")
+                Engine::builder()
+                    .with_default_namespace("probe")
+                    .with_plugin(PythonPlugin::create("python"))
+                    .build()
                     .await
-                    .unwrap()
-            });
+            })
+            .unwrap();
+        let tables = rt.block_on(async {
+            engine
+                .async_query("select * from python.table3 ")
+                .await
+                .unwrap()
+                .unwrap()
+        });
         assert_eq!(tables.len(), 3);
     }
 
     #[test]
     fn test_calculate_in_sql_with_filter() {
         setup_table3();
-        let engine = Engine::builder()
-            .with_default_namespace("probe")
-            .with_plugin(PythonPlugin::create("python"))
-            .build()
-            .unwrap();
-        let tables = tokio::runtime::Builder::new_multi_thread()
+        let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(4)
             .enable_all()
             .build()
-            .unwrap()
+            .unwrap();
+        let engine = rt
             .block_on(async {
-                engine
-                    .async_query("select a + b as c from python.table3 where a > 1")
+                Engine::builder()
+                    .with_default_namespace("probe")
+                    .with_plugin(PythonPlugin::create("python"))
+                    .build()
                     .await
-                    .unwrap()
-            });
+            })
+            .unwrap();
+        let tables = rt.block_on(async {
+            engine
+                .async_query("select a + b as c from python.table3 where a > 1")
+                .await
+                .unwrap()
+                .unwrap()
+        });
         assert_eq!(tables.len(), 2);
     }
 
     #[test]
     fn test_aggregate_in_sql() {
         setup_table3();
-        let engine = Engine::builder()
-            .with_default_namespace("probe")
-            .with_plugin(PythonPlugin::create("python"))
-            .build()
-            .unwrap();
-        let tables = tokio::runtime::Builder::new_multi_thread()
+        let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(4)
             .enable_all()
             .build()
-            .unwrap()
+            .unwrap();
+        let engine = rt
             .block_on(async {
-                engine
-                    .async_query("select sum(a), sum(b) from python.table3")
+                Engine::builder()
+                    .with_default_namespace("probe")
+                    .with_plugin(PythonPlugin::create("python"))
+                    .build()
                     .await
-                    .unwrap()
-            });
+            })
+            .unwrap();
+        let tables = rt.block_on(async {
+            engine
+                .async_query("select sum(a), sum(b) from python.table3")
+                .await
+                .unwrap()
+                .unwrap()
+        });
         println!("{tables:?}");
         assert!(!tables.is_empty());
     }

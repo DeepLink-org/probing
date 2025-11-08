@@ -81,7 +81,9 @@ fn unauthorized_response() -> Response {
 /// Authentication middleware
 pub async fn auth_middleware(request: Request, next: Next) -> Result<Response, impl IntoResponse> {
     // Get the configured token
-    let configured_token = config::get_str("server.auth_token").unwrap_or_default();
+    let configured_token = config::get_str("server.auth_token")
+        .await
+        .unwrap_or_default();
     log::debug!("Configured auth token: {configured_token:?}");
 
     if !configured_token.is_empty() {

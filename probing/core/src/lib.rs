@@ -17,7 +17,7 @@ use tokio::sync::RwLock;
 pub static ENGINE: Lazy<RwLock<Engine>> = Lazy::new(|| RwLock::new(Engine::default()));
 
 pub async fn initialize_engine(builder: EngineBuilder) -> Result<()> {
-    let engine = match builder.build() {
+    let engine = match builder.build().await {
         Ok(engine) => engine,
         Err(e) => {
             log::error!("Error creating engine: {e}");

@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
-use std::sync::RwLock;
 
 use once_cell::sync::Lazy;
 use probing_proto::prelude::Ele;
+use tokio::sync::RwLock;
 
 use crate::core::{EngineError, EngineExtensionManager};
 use crate::ENGINE;
@@ -12,21 +12,21 @@ pub static CONFIG_STORE: Lazy<RwLock<BTreeMap<String, Ele>>> =
     Lazy::new(|| RwLock::new(BTreeMap::new()));
 
 /// Get a configuration value.
-pub fn get(key: &str) -> Option<Ele> {
-    CONFIG_STORE.read().unwrap().get(key).cloned()
+pub async fn get(key: &str) -> Option<Ele> {
+    CONFIG_STORE.read().await.get(key).cloned()
 }
 
 /// Set a configuration value.
-pub fn set<T: Into<Ele>>(key: &str, value: T) {
+pub async fn set<T: Into<Ele>>(key: &str, value: T) {
     CONFIG_STORE
         .write()
-        .unwrap()
+        .await
         .insert(key.to_string(), value.into());
 }
 
 /// Get a configuration value as string.
-pub fn get_str(key: &str) -> Option<String> {
-    get(key).map(|ele| match ele {
+pub async fn get_str(key: &str) -> Option<String> {
+    get(key).await.map(|ele| match ele {
         Ele::Text(s) => s,
         Ele::BOOL(b) => {
             if b {
@@ -46,33 +46,33 @@ pub fn get_str(key: &str) -> Option<String> {
 }
 
 /// Remove a configuration value.
-pub fn remove(key: &str) -> Option<Ele> {
-    CONFIG_STORE.write().unwrap().remove(key)
+pub async fn remove(key: &str) -> Option<Ele> {
+    CONFIG_STORE.write().await.remove(key)
 }
 
 /// Check if a key exists.
-pub fn contains_key(key: &str) -> bool {
-    CONFIG_STORE.read().unwrap().contains_key(key)
+pub async fn contains_key(key: &str) -> bool {
+    CONFIG_STORE.read().await.contains_key(key)
 }
 
 /// Get all configuration keys.
-pub fn keys() -> Vec<String> {
-    CONFIG_STORE.read().unwrap().keys().cloned().collect()
+pub async fn keys() -> Vec<String> {
+    CONFIG_STORE.read().await.keys().cloned().collect()
 }
 
 /// Clear all configuration.
-pub fn clear() {
-    CONFIG_STORE.write().unwrap().clear();
+pub async fn clear() {
+    CONFIG_STORE.write().await.clear();
 }
 
 /// Get the number of configuration entries.
-pub fn len() -> usize {
-    CONFIG_STORE.read().unwrap().len()
+pub async fn len() -> usize {
+    CONFIG_STORE.read().await.len()
 }
 
 /// Check if the configuration store is empty.
-pub fn is_empty() -> bool {
-    CONFIG_STORE.read().unwrap().is_empty()
+pub async fn is_empty() -> bool {
+    CONFIG_STORE.read().await.is_empty()
 }
 
 /// Set a configuration option through the engine extension system.
@@ -87,10 +87,9 @@ pub fn is_empty() -> bool {
 /// probing_core::config::write("server.debug", "true")?;
 /// # Ok::<(), probing_core::core::EngineError>(())
 /// ```
-pub fn write(key: &str, value: &str) -> Result<(), EngineError> {
+pub async fn write(key: &str, value: &str) -> Result<(), EngineError> {
     if key.starts_with("probing") {
-        use futures::executor::block_on;
-        let engine_guard = block_on(ENGINE.write());
+        let engine_guard = ENGINE.write().await;
         let mut state = engine_guard.context.state();
 
         if let Some(eem) = state
@@ -105,15 +104,27 @@ pub fn write(key: &str, value: &str) -> Result<(), EngineError> {
                 key
             };
 
-            if let Err(e) = eem.set_option(extension_key, value) {
-                if !matches!(e, EngineError::UnsupportedOption(_)) {
+            // Attempt to set the option on an extension.
+            match eem.set_option(extension_key, value).await {
+                Ok(_) => {
+                    // If successful, also update the global config store.
+                    set(key, value).await;
+                    return Ok(());
+                }
+                Err(EngineError::UnsupportedOption(_)) => {
+                    // If unsupported by any extension, just write to the config store.
+                    // This allows for configs that don't belong to an extension.
+                }
+                Err(e) => {
+                    // For any other error, propagate it and do not write to the config store.
                     return Err(e);
                 }
             }
         }
     }
 
-    set(key, value);
+    // For non-"probing" keys or unsupported "probing" keys, write to the store.
+    set(key, value).await;
     Ok(())
 }
 
@@ -124,11 +135,11 @@ mod tests {
     use crate::{create_engine, initialize_engine};
 
     async fn setup_test() {
-        clear();
+        clear().await;
     }
 
     async fn teardown_test() {
-        clear();
+        clear().await;
     }
 
     #[derive(Debug)]
@@ -188,9 +199,9 @@ mod tests {
             .await
             .expect("Failed to initialize engine");
 
-        write("test.option", "new_value").unwrap();
+        write("test.option", "new_value").await.unwrap();
 
-        let value = get_str("test.option");
+        let value = get_str("test.option").await;
         assert_eq!(value, Some("new_value".to_string()));
 
         teardown_test().await;
@@ -205,8 +216,8 @@ mod tests {
             .await
             .expect("Failed to initialize engine");
 
-        let _result = write("probing.test.key", "test_value");
-        let _value = get_str("probing.test.key");
+        let _result = write("probing.test.key", "test_value").await;
+        let _value = get_str("probing.test.key").await;
 
         teardown_test().await;
     }
@@ -220,12 +231,12 @@ mod tests {
             .await
             .expect("Failed to initialize engine");
 
-        write("test.option", "stored_value").unwrap();
+        write("test.option", "stored_value").await.unwrap();
 
-        let store_value = get_str("test.option");
+        let store_value = get_str("test.option").await;
         assert_eq!(store_value, Some("stored_value".to_string()));
 
-        let value = get_str("test.option").unwrap();
+        let value = get_str("test.option").await.unwrap();
         assert_eq!(value, "stored_value");
 
         teardown_test().await;
@@ -240,12 +251,12 @@ mod tests {
             .await
             .expect("Failed to initialize engine");
 
-        write("test.option", "extension_value").unwrap();
+        write("test.option", "extension_value").await.unwrap();
 
-        let store_value = get_str("test.option");
+        let store_value = get_str("test.option").await;
         assert_eq!(store_value, Some("extension_value".to_string()));
 
-        let value = get_str("test.option").unwrap();
+        let value = get_str("test.option").await.unwrap();
         assert_eq!(value, "extension_value");
 
         teardown_test().await;
@@ -255,7 +266,7 @@ mod tests {
     async fn test_config_set_engine_not_initialized() {
         setup_test().await;
 
-        let _result = write("test.nonexistent", "value");
+        let _result = write("test.nonexistent", "value").await;
 
         teardown_test().await;
     }

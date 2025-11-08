@@ -15,9 +15,16 @@ struct Frame {
 
 pub fn query_profiling() -> Result<Vec<String>> {
     let data = thread::spawn(|| -> Result<probing_proto::types::DataFrame> {
-        let engine = probing_core::create_engine()
-            .with_plugin(PythonPlugin::create("python"))
-            .build()?;
+        let engine = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(async {
+                probing_core::create_engine()
+                    .with_plugin(PythonPlugin::create("python"))
+                    .build()
+                    .await
+            })?;
 
         let query = r#"
         select module, stage, median(duration)
@@ -40,7 +47,8 @@ pub fn query_profiling() -> Result<Vec<String>> {
                 })
                 .join()
                 .map_err(|_| anyhow::anyhow!("Thread panicked"))?
-                .map_err(|e| anyhow::anyhow!(e))
+                .map_err(|e| anyhow::anyhow!(e))?
+                .ok_or_else(|| anyhow::anyhow!("Query returned no data"))
             }
             Err(_) => {
                 // Not in a runtime, create a new one
@@ -49,8 +57,8 @@ pub fn query_profiling() -> Result<Vec<String>> {
                     .enable_all()
                     .build()
                     .unwrap()
-                    .block_on(async { engine.async_query(query).await })
-                    .map_err(|e| anyhow::anyhow!(e))
+                    .block_on(async { engine.async_query(query).await })?
+                    .ok_or_else(|| anyhow::anyhow!("Query returned no data"))
             }
         }
     })

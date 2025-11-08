@@ -58,7 +58,7 @@ mod tests {
 
     #[tokio::test]
     async fn build_engine() {
-        let engine = Engine::builder().build().unwrap();
+        let engine = Engine::builder().build().await.unwrap();
 
         let result = engine.async_query("show tables").await;
         assert!(result.is_ok(), "Should execute SHOW TABLES query");
@@ -69,6 +69,7 @@ mod tests {
         let engine = Engine::builder()
             .with_default_namespace("test")
             .build()
+            .await
             .unwrap();
 
         assert_eq!(engine.default_namespace(), "test".to_string());
@@ -76,7 +77,7 @@ mod tests {
 
     #[tokio::test]
     async fn execute_basic_queries() {
-        let engine = Engine::builder().build().unwrap();
+        let engine = Engine::builder().build().await.unwrap();
 
         // Test SHOW TABLES
         let show_tables = engine.async_query("show tables").await;
@@ -87,7 +88,7 @@ mod tests {
         assert!(select_query.is_ok(), "SELECT should return results");
 
         // Verify result schema
-        let df = select_query.unwrap();
+        let df = select_query.unwrap().unwrap();
         assert_eq!(df.names.len(), 1, "Should have one column");
         assert_eq!(df.names[0], "val", "Column name should match");
         assert!(!df.cols.is_empty(), "Should have data columns");
