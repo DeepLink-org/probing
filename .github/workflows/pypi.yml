@@ -16,15 +16,10 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    name: Build wheels
+  deploy:
+    name: Build and Publish
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        target:
-          - x86_64-unknown-linux-gnu.2.17
-          - aarch64-unknown-linux-gnu.2.17
-    
+
     steps:
     - uses: actions/checkout@v3
     - name: Setup Build Environment
@@ -33,28 +28,9 @@ jobs:
         python-version: '3.12'
         install-cargo-tools: 'true'
         install-python-deps: 'true'
-    - name: Build package for ${{ matrix.target }}
+    - name: Build package
       run: |
-        make ZIG=1 TARGET=${{ matrix.target }} wheel
-    - name: Upload wheel artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: wheel-${{ matrix.target }}
-        path: dist/*.whl
-        retention-days: 1
-
-  deploy:
-    name: Publish to PyPI
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Download all wheels
-      uses: actions/download-artifact@v4
-      with:
-        pattern: wheel-*
-        merge-multiple: true
-        path: dist/
+        make ZIG=1 wheel
     - name: Publish package
       uses: pypa/gh-action-pypi-publish@27b31702a0e7fc50959f5ad993c78deac1bdfc29
       with:

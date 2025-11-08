@@ -31,11 +31,6 @@ jobs:
     name: Build Package
     needs: prepare
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        target:
-          - x86_64-unknown-linux-gnu.2.17
-          - aarch64-unknown-linux-gnu.2.17
     steps:
       - uses: actions/checkout@v4
       - name: Setup Build Environment
@@ -45,20 +40,17 @@ jobs:
           install-cargo-tools: 'true'
           install-python-deps: 'true'
       - name: Code style checking
-        if: matrix.target == 'x86_64-unknown-linux-gnu.2.17'
         run: cargo fmt --all -- --check
-      - name: Build package for ${{ matrix.target }}
+      - name: Build package
         run: |
-          make ZIG=1 TARGET=${{ matrix.target }} wheel
+          make ZIG=1 wheel
       - name: Run Rust Test
-        if: matrix.target == 'x86_64-unknown-linux-gnu.2.17'
         run: make test
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: wheel-${{ matrix.target }}
+          name: wheel
           path: python
-          retention-days: 1
   test:
     name: Run Python Tests
     needs: [prepare, build]
@@ -81,10 +73,10 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Download wheel for x86_64
+      - name: Download wheel
         uses: actions/download-artifact@v4
         with:
-          name: wheel-x86_64-unknown-linux-gnu.2.17
+          name: wheel
           path: python
 
       - name: Run Python Test
