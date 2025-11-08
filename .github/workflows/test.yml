@@ -41,6 +41,8 @@ jobs:
           install-python-deps: 'true'
       - name: Code style checking
         run: cargo fmt --all -- --check
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
       - name: Build package
         run: |
           make ZIG=1 wheel

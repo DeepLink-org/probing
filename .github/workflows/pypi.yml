@@ -28,6 +28,8 @@ jobs:
         python-version: '3.12'
         install-cargo-tools: 'true'
         install-python-deps: 'true'
+    - name: Cache Rust artifacts
+      uses: Swatinem/rust-cache@v2
     - name: Build package
       run: |
         make ZIG=1 wheel
