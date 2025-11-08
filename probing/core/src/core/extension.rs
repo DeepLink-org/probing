@@ -20,8 +20,9 @@ use crate::config;
 /// This provides a global storage for all engine extensions, allowing
 /// EngineExtensionManager to operate on a shared set of extensions.
 /// Uses synchronous `RwLock` and `Mutex` to allow synchronous access from other threads.
-pub static EXTENSIONS: Lazy<RwLock<BTreeMap<String, Arc<Mutex<dyn EngineExtension + Send + Sync>>>>> =
-    Lazy::new(|| RwLock::new(BTreeMap::new()));
+pub static EXTENSIONS: Lazy<
+    RwLock<BTreeMap<String, Arc<Mutex<dyn EngineExtension + Send + Sync>>>>,
+> = Lazy::new(|| RwLock::new(BTreeMap::new()));
 
 #[derive(Clone, Debug, Default)]
 pub enum Maybe<T> {
@@ -336,7 +337,7 @@ impl EngineExtensionManager {
     }
 
     /// Set an option (core implementation).
-    /// 
+    ///
     /// This is the core implementation that updates extension configuration.
     /// ConfigStore is not updated by this method.
     pub fn set_option(&mut self, key: &str, value: &str) -> Result<(), EngineError> {
@@ -344,7 +345,7 @@ impl EngineExtensionManager {
             let extensions = EXTENSIONS.read().unwrap();
             extensions.values().cloned().collect()
         }; // Lock is released here
-        
+
         for extension in extensions_clone {
             // Minimize lock scope: only lock when needed
             let (namespace, local_key) = {
@@ -356,13 +357,13 @@ impl EngineExtensionManager {
                 let local_key = key.trim_start_matches(&namespace).to_string();
                 (namespace, local_key)
             };
-            
+
             // Lock again only for the set operation, minimize lock scope
             let result = {
                 let mut ext = extension.lock().unwrap();
                 ext.set(&local_key, value)
             };
-            
+
             match result {
                 Ok(old) => {
                     log::info!(
@@ -379,7 +380,7 @@ impl EngineExtensionManager {
     }
 
     /// Set an option and update ConfigStore.
-    /// 
+    ///
     /// This is a convenience wrapper that calls `set_option`
     /// and then updates ConfigStore.
     pub fn set_option_with_store_update(
@@ -398,7 +399,7 @@ impl EngineExtensionManager {
             let extensions = EXTENSIONS.read().unwrap();
             extensions.values().cloned().collect()
         }; // Lock is released here
-        
+
         for extension in extensions_clone {
             let ext = tokio::task::block_in_place(|| extension.lock().unwrap());
             let namespace = Self::extract_namespace(&ext.name());
@@ -420,7 +421,7 @@ impl EngineExtensionManager {
             let extensions = EXTENSIONS.read().unwrap();
             extensions.values().cloned().collect()
         }; // Lock is released here
-        
+
         for extension_arc in extensions_clone {
             let ext_guard = tokio::task::block_in_place(|| extension_arc.lock().unwrap());
             all_options.extend(ext_guard.options());
@@ -438,7 +439,7 @@ impl EngineExtensionManager {
             let extensions = EXTENSIONS.read().unwrap();
             extensions.values().cloned().collect()
         }; // Lock is released here
-        
+
         for extension in extensions_clone {
             // Get the extension name and check if path matches
             let (name, should_call) = tokio::task::block_in_place(|| {
@@ -448,21 +449,21 @@ impl EngineExtensionManager {
                 let should_call = path.starts_with(&expected_prefix);
                 (name, should_call)
             });
-            
+
             if !should_call {
                 continue;
             }
-            
+
             log::debug!("checking extension [{name}]:{path}");
             let local_path = path[format!("/{name}/").len()..].to_string();
-            
+
             // Call the extension's async call method
             // We need to lock again, but we'll do it in a blocking task
             let extension_clone = extension.clone();
             let local_path_clone = local_path.clone();
             let params_clone = params.clone();
             let body_clone = body.to_vec();
-            
+
             // Use spawn_blocking to call the async method with sync lock
             let result = tokio::task::spawn_blocking(move || {
                 let ext = extension_clone.lock().unwrap();
@@ -470,8 +471,9 @@ impl EngineExtensionManager {
                 // So we'll use futures::executor::block_on to run the async call
                 use futures::executor::block_on;
                 block_on(ext.call(&local_path_clone, &params_clone, &body_clone))
-            }).await;
-            
+            })
+            .await;
+
             match result {
                 Ok(Ok(value)) => return Ok(value),
                 Ok(Err(EngineError::UnsupportedCall)) => continue,
@@ -599,8 +601,12 @@ mod tests {
         // Set option through manager using set_option_with_store_update
         // Use spawn_blocking to avoid blocking the async runtime
         tokio::task::spawn_blocking(move || {
-            manager.set_option_with_store_update("test.option", "new_value").unwrap()
-        }).await.unwrap();
+            manager
+                .set_option_with_store_update("test.option", "new_value")
+                .unwrap()
+        })
+        .await
+        .unwrap();
 
         // Verify it's in ConfigStore
         let value = config::get_str("test.option");
@@ -611,7 +617,9 @@ mod tests {
             let extensions = EXTENSIONS.read().unwrap();
             let ext_guard = extensions.get("test").unwrap().lock().unwrap();
             ext_guard.get("option").unwrap()
-        }).await.unwrap();
+        })
+        .await
+        .unwrap();
         assert_eq!(ext_guard, "new_value");
 
         teardown_test();
@@ -631,8 +639,12 @@ mod tests {
         // Set option through manager using set_option_with_store_update
         // Use spawn_blocking to avoid blocking the async runtime
         tokio::task::spawn_blocking(move || {
-            manager.set_option_with_store_update("test.option", "new_value").unwrap()
-        }).await.unwrap();
+            manager
+                .set_option_with_store_update("test.option", "new_value")
+                .unwrap()
+        })
+        .await
+        .unwrap();
 
         // Verify ConfigStore was updated
         let value = config::get_str("test.option");
@@ -651,9 +663,10 @@ mod tests {
 
         // Try to set unsupported key
         // Use spawn_blocking to avoid blocking the async runtime
-        let result = tokio::task::spawn_blocking(move || {
-            manager.set_option("test.invalid", "value")
-        }).await.unwrap();
+        let result =
+            tokio::task::spawn_blocking(move || manager.set_option("test.invalid", "value"))
+                .await
+                .unwrap();
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),

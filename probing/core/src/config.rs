@@ -11,7 +11,6 @@ use crate::ENGINE;
 pub static CONFIG_STORE: Lazy<RwLock<BTreeMap<String, Ele>>> =
     Lazy::new(|| RwLock::new(BTreeMap::new()));
 
-
 /// Get a configuration value.
 pub fn get(key: &str) -> Option<Ele> {
     CONFIG_STORE.read().unwrap().get(key).cloned()
