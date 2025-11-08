@@ -688,7 +688,9 @@ mod tests {
 
         // Test GROUP BY
         let result = engine
-            .async_query("SELECT name, COUNT(*) as count FROM test_namespace.test_table GROUP BY name")
+            .async_query(
+                "SELECT name, COUNT(*) as count FROM test_namespace.test_table GROUP BY name",
+            )
             .await?
             .unwrap();
         assert_eq!(result.names.len(), 2);
@@ -708,7 +710,7 @@ mod tests {
         let result = engine
             .async_query(
                 "SELECT id, name, (SELECT MAX(id) FROM test_namespace.test_table) as max_id 
-                 FROM test_namespace.test_table"
+                 FROM test_namespace.test_table",
             )
             .await?;
         assert!(result.is_some());
@@ -718,7 +720,7 @@ mod tests {
             .async_query(
                 "SELECT id, name 
                  FROM test_namespace.test_table t1 
-                 WHERE EXISTS (SELECT 1 FROM test_namespace.test_table t2 WHERE t2.id > t1.id)"
+                 WHERE EXISTS (SELECT 1 FROM test_namespace.test_table t2 WHERE t2.id > t1.id)",
             )
             .await?;
         assert!(result.is_some());
@@ -736,7 +738,7 @@ mod tests {
         let result = engine
             .async_query(
                 "SELECT id, name, ROW_NUMBER() OVER (ORDER BY id) as row_num 
-                 FROM test_namespace.test_table"
+                 FROM test_namespace.test_table",
             )
             .await?;
         assert!(result.is_some());
@@ -745,7 +747,7 @@ mod tests {
         let result = engine
             .async_query(
                 "SELECT id, name, RANK() OVER (ORDER BY id) as rank 
-                 FROM test_namespace.test_table"
+                 FROM test_namespace.test_table",
             )
             .await?;
         assert!(result.is_some());
@@ -765,7 +767,7 @@ mod tests {
                 "SELECT name, COUNT(*) as count 
                  FROM test_namespace.test_table 
                  GROUP BY name 
-                 HAVING COUNT(*) > 0"
+                 HAVING COUNT(*) > 0",
             )
             .await?;
         assert!(result.is_some());
@@ -905,7 +907,6 @@ mod tests {
 
         Ok(())
     }
-
 
     #[tokio::test]
     async fn test_query_result_isolation() -> Result<()> {

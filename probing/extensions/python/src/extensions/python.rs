@@ -101,7 +101,8 @@ impl EngineCall for PythonExt {
         );
         if path == "callstack" {
             let frames = if params.contains_key("tid") {
-                let tid = params.get("tid")
+                let tid = params
+                    .get("tid")
                     .and_then(|s| s.parse::<i32>().ok())
                     .unwrap_or_else(|| {
                         log::warn!("Invalid tid parameter, using None");

@@ -54,32 +54,30 @@ impl GenericTablePlugin {
     }
 
     /// 创建一个单列测试表
-    pub fn single_column_table(name: &str, namespace: &str, column_name: &str, values: Vec<i32>) -> Self {
-        let schema = Arc::new(Schema::new(vec![
-            Field::new(column_name, DataType::Int32, false),
-        ]));
+    pub fn single_column_table(
+        name: &str,
+        namespace: &str,
+        column_name: &str,
+        values: Vec<i32>,
+    ) -> Self {
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            column_name,
+            DataType::Int32,
+            false,
+        )]));
 
-        let batch = RecordBatch::try_new(
-            schema.clone(),
-            vec![Arc::new(Int32Array::from(values))],
-        )
-        .unwrap();
+        let batch =
+            RecordBatch::try_new(schema.clone(), vec![Arc::new(Int32Array::from(values))]).unwrap();
 
         Self::new(name, namespace, schema, vec![batch])
     }
 
     /// 创建一个空表
     pub fn empty_table(name: &str, namespace: &str) -> Self {
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("id", DataType::Int32, false),
-        ]));
+        let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
 
         let empty_array: Int32Array = Int32Array::from(vec![] as Vec<i32>);
-        let batch = RecordBatch::try_new(
-            schema.clone(),
-            vec![Arc::new(empty_array)],
-        )
-        .unwrap();
+        let batch = RecordBatch::try_new(schema.clone(), vec![Arc::new(empty_array)]).unwrap();
 
         Self::new(name, namespace, schema, vec![batch])
     }
@@ -137,4 +135,3 @@ impl TableProvider for GenericTablePlugin {
         Ok(Arc::new(DataSourceExec::new(Arc::new(srccfg))))
     }
 }
-

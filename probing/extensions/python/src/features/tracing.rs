@@ -43,7 +43,9 @@ impl Span {
         location: Option<String>,
     ) -> Self {
         let parent_borrowed = parent.borrow();
-        let parent_span = parent_borrowed.inner.lock()
+        let parent_span = parent_borrowed
+            .inner
+            .lock()
             .expect("Failed to acquire lock on parent span (lock poisoned)");
         let span = RawSpan::new_child(&*parent_span, name, kind.as_deref(), location.as_deref());
         drop(parent_span);
@@ -55,50 +57,68 @@ impl Span {
     /// Gets the trace ID.
     #[getter]
     fn trace_id(&self) -> u64 {
-        self.inner.lock()
-            .expect("Failed to acquire lock on span (lock poisoned)").trace_id
+        self.inner
+            .lock()
+            .expect("Failed to acquire lock on span (lock poisoned)")
+            .trace_id
     }
 
     /// Gets the span ID.
     #[getter]
     fn span_id(&self) -> u64 {
-        self.inner.lock()
-            .expect("Failed to acquire lock on span (lock poisoned)").span_id
+        self.inner
+            .lock()
+            .expect("Failed to acquire lock on span (lock poisoned)")
+            .span_id
     }
 
     /// Gets the parent span ID.
     #[getter]
     fn parent_id(&self) -> Option<u64> {
-        self.inner.lock()
-            .expect("Failed to acquire lock on span (lock poisoned)").parent_id
+        self.inner
+            .lock()
+            .expect("Failed to acquire lock on span (lock poisoned)")
+            .parent_id
     }
 
     /// Gets the originating thread numeric id.
     #[getter]
     fn thread_id(&self) -> u64 {
-        self.inner.lock()
-            .expect("Failed to acquire lock on span (lock poisoned)").thread_id
+        self.inner
+            .lock()
+            .expect("Failed to acquire lock on span (lock poisoned)")
+            .thread_id
     }
 
     /// Gets the span name.
     #[getter]
     fn name(&self) -> String {
-        self.inner.lock()
-            .expect("Failed to acquire lock on span (lock poisoned)").name.clone()
+        self.inner
+            .lock()
+            .expect("Failed to acquire lock on span (lock poisoned)")
+            .name
+            .clone()
     }
 
     /// Gets the span kind.
     #[getter]
     fn kind(&self) -> Option<String> {
-        self.inner.lock()
-            .expect("Failed to acquire lock on span (lock poisoned)").kind.clone()
+        self.inner
+            .lock()
+            .expect("Failed to acquire lock on span (lock poisoned)")
+            .kind
+            .clone()
     }
 
     /// Gets the span status.
     #[getter]
     fn status(&self) -> String {
-        match self.inner.lock()
-            .expect("Failed to acquire lock on span (lock poisoned)").status() {
+        match self
+            .inner
+            .lock()
+            .expect("Failed to acquire lock on span (lock poisoned)")
+            .status()
+        {
             SpanStatus::Active => "Active".to_string(),
             SpanStatus::Completed => "Completed".to_string(),
         }
@@ -107,8 +127,10 @@ impl Span {
     /// Checks if the span has been ended.
     #[getter]
     fn is_ended(&self) -> bool {
-        self.inner.lock()
-            .expect("Failed to acquire lock on span (lock poisoned)").is_ended()
+        self.inner
+            .lock()
+            .expect("Failed to acquire lock on span (lock poisoned)")
+            .is_ended()
     }
 
     /// Gets the duration of the span if it has been ended.
@@ -124,15 +146,21 @@ impl Span {
     /// Gets the start timestamp (nanoseconds since epoch).
     #[getter]
     fn start_timestamp(&self) -> u128 {
-        self.inner.lock()
-            .expect("Failed to acquire lock on span (lock poisoned)").start.0
+        self.inner
+            .lock()
+            .expect("Failed to acquire lock on span (lock poisoned)")
+            .start
+            .0
     }
 
     /// Gets the end timestamp (nanoseconds since epoch) if the span has been ended.
     #[getter]
     fn end_timestamp(&self) -> Option<u128> {
-        self.inner.lock()
-            .expect("Failed to acquire lock on span (lock poisoned)").end.map(|t| t.0)
+        self.inner
+            .lock()
+            .expect("Failed to acquire lock on span (lock poisoned)")
+            .end
+            .map(|t| t.0)
     }
 
     /// Gets the location from location if available.
@@ -158,7 +186,9 @@ impl Span {
             PyErr::new::<pyo3::exceptions::PyTypeError, _>("_set_initial_attrs expects a dict")
         })?;
 
-        let mut inner = self.inner.lock()
+        let mut inner = self
+            .inner
+            .lock()
             .expect("Failed to acquire lock on span (lock poisoned)");
         for (key, value) in attrs_dict.iter() {
             let key_str = key.extract::<String>()?;
@@ -210,20 +240,26 @@ impl Span {
 
     /// Ends the span.
     fn end(&mut self) {
-        self.inner.lock()
-            .expect("Failed to acquire lock on span (lock poisoned)").end();
+        self.inner
+            .lock()
+            .expect("Failed to acquire lock on span (lock poisoned)")
+            .end();
     }
 
     /// Ends the span with an error message.
     fn end_error(&mut self, error_message: Option<String>) {
-        self.inner.lock()
-            .expect("Failed to acquire lock on span (lock poisoned)").end_error(error_message);
+        self.inner
+            .lock()
+            .expect("Failed to acquire lock on span (lock poisoned)")
+            .end_error(error_message);
     }
 
     /// Gets all attributes as a dictionary.
     fn get_attributes(&self, py: Python) -> PyResult<PyObject> {
         let dict = PyDict::new(py);
-        let inner = self.inner.lock()
+        let inner = self
+            .inner
+            .lock()
             .expect("Failed to acquire lock on span (lock poisoned)");
         for attr in &inner.attrs {
             let value = ele_to_python(py, &attr.1)?;
@@ -235,7 +271,9 @@ impl Span {
     /// Gets all events as a list.
     fn get_events(&self, py: Python) -> PyResult<PyObject> {
         let list = PyList::empty(py);
-        let inner = self.inner.lock()
+        let inner = self
+            .inner
+            .lock()
             .expect("Failed to acquire lock on span (lock poisoned)");
         for event in &inner.events {
             let event_dict = PyDict::new(py);
@@ -287,7 +325,9 @@ impl Span {
         }
 
         // Then check if it's in the attributes
-        let inner = self.inner.lock()
+        let inner = self
+            .inner
+            .lock()
             .expect("Failed to acquire lock on span (lock poisoned)");
         for attr in &inner.attrs {
             if attr.0 == name {
@@ -321,8 +361,10 @@ impl Span {
         _exc_tb: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<bool> {
         // End the span automatically
-        slf.inner.lock()
-            .expect("Failed to acquire lock on span (lock poisoned)").end();
+        slf.inner
+            .lock()
+            .expect("Failed to acquire lock on span (lock poisoned)")
+            .end();
 
         // Pop this span from the stack
         SPAN_STACK.with(|stack| {
@@ -335,7 +377,9 @@ impl Span {
 
     /// Returns a string representation of the span.
     fn __repr__(&self) -> String {
-        let inner = self.inner.lock()
+        let inner = self
+            .inner
+            .lock()
             .expect("Failed to acquire lock on span (lock poisoned)");
         format!(
             "Span(name={}, trace_id={}, span_id={}, status={})",

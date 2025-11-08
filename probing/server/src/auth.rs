@@ -66,11 +66,10 @@ fn unauthorized_response() -> Response {
     let realm = format!("Basic realm=\"{}\"", AUTH_REALM.as_str());
 
     // Create WWW-Authenticate header value, fallback to default if invalid
-    let www_auth = HeaderValue::from_str(&realm)
-        .unwrap_or_else(|e| {
-            log::error!("Failed to create WWW-Authenticate header value: {e}, using default");
-            HeaderValue::from_static("Basic realm=\"Probe Server\"")
-        });
+    let www_auth = HeaderValue::from_str(&realm).unwrap_or_else(|e| {
+        log::error!("Failed to create WWW-Authenticate header value: {e}, using default");
+        HeaderValue::from_static("Basic realm=\"Probe Server\"")
+    });
 
     (
         StatusCode::UNAUTHORIZED,
@@ -136,7 +135,6 @@ pub async fn selective_auth_middleware(
 mod tests {
     use super::*;
     use axum::http::{HeaderMap, HeaderValue};
-
 
     #[test]
     fn test_get_token_from_request_bearer() {

@@ -176,7 +176,7 @@ async fn test_join_queries() -> Result<()> {
         .async_query(
             "SELECT u.user_name, o.amount 
              FROM test.users u 
-             INNER JOIN test.orders o ON u.user_id = o.user_id"
+             INNER JOIN test.orders o ON u.user_id = o.user_id",
         )
         .await?;
     assert!(result.is_some());
@@ -191,7 +191,10 @@ async fn test_multiple_namespaces() -> Result<()> {
     let engine = Engine::builder().build().await?;
 
     // Register plugins in different namespaces using helper
-    let plugin1 = Arc::new(GenericTablePlugin::simple_table("test_table", "test_namespace"));
+    let plugin1 = Arc::new(GenericTablePlugin::simple_table(
+        "test_table",
+        "test_namespace",
+    ));
     engine.enable(plugin1).await?;
 
     let plugin2 = Arc::new(GenericTablePlugin::single_column_table(
@@ -260,16 +263,14 @@ async fn test_concurrent_plugin_registration() -> Result<()> {
 #[tokio::test]
 async fn test_empty_table_query() -> Result<()> {
     let engine = Engine::builder().build().await?;
-    
+
     // Use helper to create empty table
     let empty_plugin = Arc::new(GenericTablePlugin::empty_table("empty_table", "test"));
     engine.enable(empty_plugin).await?;
 
     // Query empty table
-    let result = engine
-        .async_query("SELECT * FROM test.empty_table")
-        .await?;
-    
+    let result = engine.async_query("SELECT * FROM test.empty_table").await?;
+
     // Empty table query might return None or empty result depending on DataFusion
     match result {
         None => {
@@ -286,4 +287,3 @@ async fn test_empty_table_query() -> Result<()> {
 
     Ok(())
 }
-

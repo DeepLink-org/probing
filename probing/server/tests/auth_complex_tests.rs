@@ -45,10 +45,7 @@ fn test_get_token_from_request_priority_bearer_first() {
         "Authorization",
         HeaderValue::from_static("Bearer bearer_token"),
     );
-    headers.insert(
-        "X-Probing-Token",
-        HeaderValue::from_static("custom_token"),
-    );
+    headers.insert("X-Probing-Token", HeaderValue::from_static("custom_token"));
 
     // Bearer token should take priority
     let token = get_token_from_request(&headers);
@@ -79,4 +76,3 @@ fn test_is_public_path_protected() {
     assert!(!is_public_path("/static"));
     assert!(!is_public_path("/staticfile"));
 }
-

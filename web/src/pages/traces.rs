@@ -2,14 +2,35 @@ use dioxus::prelude::*;
 use crate::components::card::Card;
 use crate::components::page::{PageContainer, PageHeader};
 use crate::components::common::{LoadingState, ErrorState};
-use crate::hooks::use_api;
+use crate::hooks::use_api_simple;
 use crate::api::{ApiClient, SpanInfo, EventInfo};
 
 #[component]
 pub fn Traces() -> Element {
-    let state = use_api(|| {
-        let client = ApiClient::new();
-        async move { client.get_span_tree().await }
+    let limit = use_signal(|| 400usize);
+    let state = use_api_simple::<Vec<SpanInfo>>();
+    
+    // 创建依赖项，当limit改变时重新计算
+    let limit_value = use_memo({
+        let limit = limit.clone();
+        move || *limit.read()
+    });
+    
+    // 当limit改变时重新获取数据
+    use_effect({
+        let limit_value = limit_value.clone();
+        let mut loading = state.loading;
+        let mut data = state.data;
+        move || {
+            let limit_val = *limit_value.read();
+            spawn(async move {
+                *loading.write() = true;
+                let client = ApiClient::new();
+                let result = client.get_span_tree(Some(limit_val)).await;
+                *data.write() = Some(result);
+                *loading.write() = false;
+            });
+        }
     });
 
     rsx! {
@@ -17,6 +38,46 @@ pub fn Traces() -> Element {
             PageHeader {
                 title: "Traces".to_string(),
                 subtitle: Some("Analyze span timing and nested relationships".to_string())
+            }
+            
+            // Limit control slider
+            Card {
+                title: "Data Limit",
+                div {
+                    class: "space-y-2",
+                    div {
+                        class: "flex items-center justify-between",
+                        span {
+                            class: "text-sm text-gray-600",
+                            "Number of Events"
+                        }
+                        span {
+                            class: "text-sm text-gray-800 font-mono",
+                            "{*limit.read()} events"
+                        }
+                    }
+                    input {
+                        r#type: "range",
+                        min: "100",
+                        max: "2000",
+                        step: "100",
+                        value: "{*limit.read()}",
+                        class: "w-full",
+                        oninput: {
+                            let mut limit = limit.clone();
+                            move |ev| {
+                                if let Ok(val) = ev.value().parse::<usize>() {
+                                    *limit.write() = val;
+                                }
+                            }
+                        }
+                    }
+                    div {
+                        class: "flex justify-between text-xs text-gray-500",
+                        span { "100" }
+                        span { "2000" }
+                    }
+                }
             }
             
             Card {

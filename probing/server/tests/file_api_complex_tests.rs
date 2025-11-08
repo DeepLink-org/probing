@@ -8,9 +8,9 @@ use tempfile::{NamedTempFile, TempDir};
 
 // Access server modules directly since tests can access private modules
 // Note: server module is private, but tests can access it
-use probing_server::server::file_api::{read_file, validate_path};
-use probing_server::server::error::ApiResult;
 use probing_server::server::config::get_max_file_size;
+use probing_server::server::error::ApiResult;
+use probing_server::server::file_api::{read_file, validate_path};
 
 // ========== 路径验证复杂测试 ==========
 
@@ -235,4 +235,3 @@ async fn test_read_file_within_size_limit() {
     // Restore original directory
     std::env::set_current_dir(&original_dir).unwrap();
 }
-
