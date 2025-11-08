@@ -48,10 +48,8 @@ jobs:
         if: matrix.target == 'x86_64-unknown-linux-gnu.2.17'
         run: cargo fmt --all -- --check
       - name: Build package for ${{ matrix.target }}
-        env:
-          TARGET: ${{ matrix.target }}
         run: |
-          make ZIG=1 wheel
+          TARGET=${{ matrix.target }} make ZIG=1 wheel
       - name: Run Rust Test
         if: matrix.target == 'x86_64-unknown-linux-gnu.2.17'
         run: make test
