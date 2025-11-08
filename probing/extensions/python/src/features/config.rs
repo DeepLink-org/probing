@@ -1,7 +1,7 @@
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
-use probing_core::config::store::ConfigStore;
+use probing_core::config;
 use probing_proto::prelude::Ele;
 
 /// Get a configuration value.
@@ -10,7 +10,7 @@ use probing_proto::prelude::Ele;
 /// converted to the appropriate Python type.
 #[pyfunction]
 fn get(py: Python, key: String) -> PyResult<Option<PyObject>> {
-    let ele = ConfigStore::get(&key);
+    let ele = config::get(&key);
     match ele {
         Some(val) => Ok(Some(ele_to_python(py, val)?)),
         None => Ok(None),
@@ -23,7 +23,7 @@ fn get(py: Python, key: String) -> PyResult<Option<PyObject>> {
 #[pyfunction]
 fn set(_py: Python, key: String, value: &Bound<'_, PyAny>) -> PyResult<()> {
     let ele = python_to_ele(value)?;
-    ConfigStore::set(&key, ele);
+    config::set(&key, ele);
     Ok(())
 }
 
@@ -33,19 +33,19 @@ fn set(_py: Python, key: String, value: &Bound<'_, PyAny>) -> PyResult<()> {
 /// converted to string.
 #[pyfunction]
 fn get_str(_py: Python, key: String) -> PyResult<Option<String>> {
-    Ok(ConfigStore::get_str(&key))
+    Ok(config::get_str(&key))
 }
 
 /// Check if a configuration key exists.
 #[pyfunction]
 fn contains_key(_py: Python, key: String) -> bool {
-    ConfigStore::contains_key(&key)
+    config::contains_key(&key)
 }
 
 /// Remove a configuration key and return its value.
 #[pyfunction]
 fn remove(py: Python, key: String) -> PyResult<Option<PyObject>> {
-    let ele = ConfigStore::remove(&key);
+    let ele = config::remove(&key);
     match ele {
         Some(val) => Ok(Some(ele_to_python(py, val)?)),
         None => Ok(None),
@@ -55,42 +55,25 @@ fn remove(py: Python, key: String) -> PyResult<Option<PyObject>> {
 /// Get all configuration keys.
 #[pyfunction]
 fn keys(_py: Python) -> Vec<String> {
-    ConfigStore::keys()
+    config::keys()
 }
 
 /// Clear all configuration.
 #[pyfunction]
 fn clear(_py: Python) {
-    ConfigStore::clear();
+    config::clear();
 }
 
 /// Get the number of configuration entries.
 #[pyfunction]
 fn len(_py: Python) -> usize {
-    ConfigStore::len()
+    config::len()
 }
 
 /// Check if the configuration store is empty.
 #[pyfunction]
 fn is_empty(_py: Python) -> bool {
-    ConfigStore::is_empty()
-}
-
-/// Get configuration entries with a prefix.
-#[pyfunction]
-fn get_with_prefix(py: Python, prefix: String) -> PyResult<PyObject> {
-    let configs = ConfigStore::get_with_prefix(&prefix);
-    let dict = pyo3::types::PyDict::new(py);
-    for (k, v) in configs {
-        dict.set_item(k, ele_to_python(py, v)?)?;
-    }
-    Ok(dict.into())
-}
-
-/// Remove configuration entries with a prefix.
-#[pyfunction]
-fn remove_with_prefix(_py: Python, prefix: String) -> usize {
-    ConfigStore::remove_with_prefix(&prefix)
+    config::is_empty()
 }
 
 /// Convert Ele to Python object
@@ -173,8 +156,6 @@ pub fn register_config_module(parent_module: &Bound<'_, PyModule>) -> PyResult<(
     config_module.add_function(wrap_pyfunction!(clear, py)?)?;
     config_module.add_function(wrap_pyfunction!(len, py)?)?;
     config_module.add_function(wrap_pyfunction!(is_empty, py)?)?;
-    config_module.add_function(wrap_pyfunction!(get_with_prefix, py)?)?;
-    config_module.add_function(wrap_pyfunction!(remove_with_prefix, py)?)?;
 
     parent_module.setattr("config", config_module)?;
 

@@ -308,7 +308,7 @@ pub struct EngineBuilder {
     config: SessionConfig,
     default_namespace: Option<String>,
     plugins: Vec<Arc<dyn Plugin + Sync + Send>>,
-    extensions: HashMap<String, Arc<tokio::sync::Mutex<dyn EngineExtension + Send + Sync>>>,
+    extensions: HashMap<String, Arc<std::sync::Mutex<dyn EngineExtension + Send + Sync>>>,
 }
 
 impl EngineBuilder {
@@ -342,7 +342,7 @@ impl EngineBuilder {
             self.plugins.push(datasrc)
         };
         let name = ext.name();
-        let ext = Arc::new(tokio::sync::Mutex::new(ext));
+        let ext = Arc::new(std::sync::Mutex::new(ext));
 
         self.extensions.insert(name, ext);
         self

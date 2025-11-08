@@ -26,11 +26,11 @@ use probing_proto::prelude::Query;
 async fn get_config_value_handler(
     axum::extract::Path(config_key): axum::extract::Path<String>,
 ) -> impl IntoResponse {
-    match probing_core::config::get(&config_key).await {
-        Ok(value) => (StatusCode::OK, value).into_response(),
-        Err(e) => (
+    match probing_core::config::get_str(&config_key) {
+        Some(value) => (StatusCode::OK, value).into_response(),
+        None => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Error retrieving config '{config_key}': {e}"),
+            format!("Error retrieving config '{config_key}' not found"),
         )
             .into_response(),
     }
@@ -150,7 +150,7 @@ pub async fn remote_server(addr: Option<String>) -> Result<()> {
             }
             eprintln!("{}", Red.bold().paint("probing server is available on:"));
             eprintln!("\t{}", Green.bold().underline().paint(addr.to_string()));
-            probing_core::config::set("server.address", &addr.to_string()).await?;
+            probing_core::config::write("server.address", &addr.to_string())?;
         }
         Err(err) => {
             eprintln!(
