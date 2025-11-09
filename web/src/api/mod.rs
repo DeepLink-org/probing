@@ -65,6 +65,7 @@ mod cluster;
 mod dashboard;
 mod profiling;
 mod stack;
+mod trace;
 mod traces;
 
 #[allow(unused_imports)]
@@ -77,5 +78,7 @@ pub use dashboard::*;
 pub use profiling::*;
 #[allow(unused_imports)]
 pub use stack::*;
+#[allow(unused_imports)]
+pub use trace::*;
 #[allow(unused_imports)]
 pub use traces::*;

@@ -166,7 +166,6 @@ class TestConfigModule(unittest.TestCase):
         probing.config.clear()
         self.assertTrue(probing.config.is_empty())
 
-
     def test_overwrite_value(self):
         """Test overwriting an existing value."""
         probing.config.set("test.key", "value1")
@@ -192,4 +191,3 @@ class TestConfigModule(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

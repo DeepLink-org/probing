@@ -21,26 +21,29 @@ _MAGIC_REGISTRY: Dict[str, Type] = {}
 def register_magic(name: Optional[str] = None):
     """
     Decorator to register a magic class.
-    
+
     Usage:
         @register_magic("custom")
         @magics_class
         class CustomMagic(Magics):
             ...
-    
+
     If name is not provided, it will be derived from the class name.
     """
+
     def decorator(cls: Type):
         magic_name = name or cls.__name__
         if magic_name in _MAGIC_REGISTRY:
             import warnings
+
             warnings.warn(
                 f"Magic class '{magic_name}' is already registered. "
                 f"Previous registration: {_MAGIC_REGISTRY[magic_name]}",
-                UserWarning
+                UserWarning,
             )
         _MAGIC_REGISTRY[magic_name] = cls
         return cls
+
     return decorator
 
 
@@ -155,19 +158,19 @@ class CodeExecutor:
 
         if self.km.has_kernel:
             shell = self.km.kernel.shell
-            
+
             # Auto-discover and register magic commands
             # Import all magic modules to trigger their registration
             import importlib
             import pkgutil
-            
+
             # Find all modules in the magics package
-            package = __import__(__name__, fromlist=[''])
+            package = __import__(__name__, fromlist=[""])
             for importer, modname, ispkg in pkgutil.iter_modules(package.__path__):
                 # Skip __init__ and non-magic modules
-                if modname.startswith('_') or not modname.endswith('_magic'):
+                if modname.startswith("_") or not modname.endswith("_magic"):
                     continue
-                
+
                 try:
                     # Import the module to trigger @register_magic decorators
                     full_modname = f"{__name__}.{modname}"
@@ -175,9 +178,10 @@ class CodeExecutor:
                 except Exception as e:
                     # Log but don't fail if a magic module can't be imported
                     import warnings
+
                     warnings.warn(f"Failed to import {modname}: {e}", ImportWarning)
                     print(f"✗ Failed to import {modname}: {e}")
-            
+
             # Register all magic classes from the registry
             registered_count = 0
             for magic_name, magic_class in _MAGIC_REGISTRY.items():
@@ -186,12 +190,16 @@ class CodeExecutor:
                     registered_count += 1
                 except Exception as e:
                     import warnings
-                    warnings.warn(f"Failed to register {magic_name}: {e}", ImportWarning)
+
+                    warnings.warn(
+                        f"Failed to register {magic_name}: {e}", ImportWarning
+                    )
                     print(f"✗ Failed to register {magic_name}: {e}")
-            
-            
+
             if registered_count == 0:
-                print("Warning: No magic commands were registered. Make sure magic modules use @register_magic decorator.")
+                print(
+                    "Warning: No magic commands were registered. Make sure magic modules use @register_magic decorator."
+                )
 
     def execute(self, code_or_request: Union[str, dict]) -> ExecutionResult:
         """Executes a string of code or a request dictionary in the kernel.
@@ -286,7 +294,9 @@ class CodeExecutor:
         self.km.shutdown_kernel()
         print("Kernel shut down.")
 
+
 import code
+
 
 class DebugConsole(code.InteractiveConsole):
     def __init__(self):
@@ -296,7 +306,11 @@ class DebugConsole(code.InteractiveConsole):
             # If CodeExecutor initialization fails, log warning but continue
             # This allows DebugConsole to be created even if IPython/magic modules fail
             import warnings
-            warnings.warn(f"Failed to initialize CodeExecutor: {e}. DebugConsole will work in limited mode.", ImportWarning)
+
+            warnings.warn(
+                f"Failed to initialize CodeExecutor: {e}. DebugConsole will work in limited mode.",
+                ImportWarning,
+            )
             self.code_executor = None
         super().__init__()
 
@@ -304,7 +318,7 @@ class DebugConsole(code.InteractiveConsole):
         if self.code_executor is None:
             # Fallback to parent class behavior if CodeExecutor is not available
             return super().runsource(source)
-        
+
         try:
             code = self.compile(source, "<input>", "single")
         except (OverflowError, SyntaxError, ValueError):
@@ -313,7 +327,7 @@ class DebugConsole(code.InteractiveConsole):
             self.resetbuffer()
             return retval
 
-        if code is None: #incomplete code
+        if code is None:  # incomplete code
             return None
 
         retval = self.code_executor.execute(source)
@@ -346,10 +360,14 @@ class DebugConsole(code.InteractiveConsole):
                     # Incomplete code
                     return json.dumps({"status": "incomplete"})
                 # Code executed successfully
-                return json.dumps({"status": "ok", "output": str(result) if result else ""})
+                return json.dumps(
+                    {"status": "ok", "output": str(result) if result else ""}
+                )
             except Exception as e:
-                return json.dumps({"status": "error", "output": "", "traceback": [str(e)]})
-        
+                return json.dumps(
+                    {"status": "error", "output": "", "traceback": [str(e)]}
+                )
+
         try:
             self.buffer.append(code)
             source = "\n".join(self.buffer)
@@ -359,6 +377,8 @@ class DebugConsole(code.InteractiveConsole):
             return json.dumps({})
         except Exception as e:
             import traceback
+
             traceback.print_exc()
+
 
 debug_console = DebugConsole()

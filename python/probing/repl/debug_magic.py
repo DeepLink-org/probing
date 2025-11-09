@@ -29,10 +29,10 @@ class DebugMagic(Magics):
         if not line or not line.strip():
             self._show_help()
             return
-        
+
         parts = line.strip().split()
         subcommand = parts[0].lower()
-        
+
         if subcommand == "remote":
             self._cmd_remote(" ".join(parts[1:]))
         elif subcommand == "status":
@@ -64,7 +64,7 @@ Trace Commands:
   %trace start <function> --watch <vars> --depth <n>    Start tracing a function
   %trace stop <function>                                 Stop tracing a function
   %trace show                                            Show currently traced functions
-  %trace list --prefix <prefix>                         List traceable functions
+  %trace list [<prefix>] [--limit <n>]                  List traceable functions
   %trace help                                            Show trace help message
 
 Cell Magic (separate):
@@ -82,13 +82,15 @@ Cell Magic (separate):
             try_install = try_install_str.lower() in ("true", "1", "t")
         except (ValueError, KeyError) as e:
             print(f"✗ Error parsing arguments: {e}")
-            print("Usage: %debug remote [host=127.0.0.1] [port=9999] [try_install=True]")
+            print(
+                "Usage: %debug remote [host=127.0.0.1] [port=9999] [try_install=True]"
+            )
             return
 
         if not self.detect_debugger() and try_install:
             print("debugpy is not installed. Attempting to install...")
             self.install_debugger()
-        
+
         if self.detect_debugger():
             self.enable_debugger(host, port)
         else:
@@ -100,7 +102,7 @@ Cell Magic (separate):
         status = self.status()
         installed = status.get("debugger_installed", False)
         address = status.get("debugger_address", None)
-        
+
         print("\n=== Debugger Status ===\n")
         print(f"debugpy installed: {'✓ Yes' if installed else '✗ No'}")
         if address:
@@ -114,7 +116,7 @@ Cell Magic (separate):
         args = {}
         if not args_str or not args_str.strip():
             return args
-        
+
         for item in args_str.split():
             if "=" not in item:
                 continue
@@ -123,7 +125,7 @@ Cell Magic (separate):
                 args[key.strip()] = value.strip()
             except ValueError:
                 continue
-        
+
         return args
 
     # Trace command - unified entry point
@@ -135,23 +137,23 @@ Cell Magic (separate):
             %trace start <function> [--watch <vars>] [--depth <n>]    # Start tracing a function
             %trace stop <function>                                     # Stop tracing a function
             %trace show                                                # Show currently traced functions
-            %trace list [--prefix <prefix>]                            # List traceable functions
+            %trace list [<prefix>] [--limit <n>]                      # List traceable functions
             %trace help                                                # Show help message
         """
         if not line or not line.strip():
             self._show_trace_help()
             return
-        
+
         parts = line.strip().split()
         subcommand = parts[0].lower()
-        
+
         if subcommand == "start":
             self._cmd_trace_start(" ".join(parts[1:]))
         elif subcommand == "stop":
             self._cmd_trace_stop(" ".join(parts[1:]))
         elif subcommand == "show":
             self._cmd_trace_show()
-        elif subcommand == "list":
+        elif subcommand in ["list", "ls"]:
             self._cmd_trace_list(" ".join(parts[1:]))
         elif subcommand in ["help", "--help", "-h"]:
             self._show_trace_help()
@@ -169,7 +171,8 @@ Usage:
   %trace start <function> [--watch <vars>] [--depth <n>]    Start tracing a function
   %trace stop <function>                                     Stop tracing a function
   %trace show                                                Show currently traced functions
-  %trace list [--prefix <prefix>]                            List traceable functions
+  %trace list [<prefix>] [--limit <n>]                      List traceable functions
+  %trace ls [<prefix>] [-n <n>]                             Alias for list
   %trace help                                                Show this help message
 
 Examples:
@@ -177,8 +180,10 @@ Examples:
   %trace start mymodule.myfunction
   %trace stop torch.nn.Linear.forward
   %trace show
-  %trace list --prefix torch.nn
-  %trace list -p torch.optim
+  %trace list torch.nn
+  %trace ls torch.optim --limit 20
+  %trace list probing.core.* -n 100
+  %trace ls probing.*.engine
 
 Cell Magic (separate):
   %%probe --watch <vars> --depth <n>                         Execute code with probing enabled
@@ -187,28 +192,28 @@ Cell Magic (separate):
 
     def _cmd_trace_start(self, args_str: str) -> None:
         """Handle trace start subcommand."""
-        from probing.trace import trace as trace_func
-        
+        from probing.inspect.trace import trace as trace_func
+
         # Parse arguments - handle both --watch format and key=value format
         parts = args_str.strip().split()
         if not parts:
             print("✗ Error: Function name is required")
             print("Usage: %trace start <function> [--watch <vars>] [--depth <n>]")
             return
-        
+
         function = parts[0]
         watch_vars = []
         depth = 1
-        
+
         # Parse --watch and --depth flags
         i = 1
         while i < len(parts):
-            if parts[i] in ['--watch', '-w']:
+            if parts[i] in ["--watch", "-w"]:
                 i += 1
-                while i < len(parts) and not parts[i].startswith('--'):
+                while i < len(parts) and not parts[i].startswith("--"):
                     watch_vars.append(parts[i])
                     i += 1
-            elif parts[i] in ['--depth', '-d']:
+            elif parts[i] in ["--depth", "-d"]:
                 i += 1
                 if i < len(parts):
                     try:
@@ -219,7 +224,7 @@ Cell Magic (separate):
                         return
             else:
                 i += 1
-        
+
         try:
             trace_func(function, watch=watch_vars, depth=depth)
             print(f"✓ Started tracing: {function}")
@@ -228,14 +233,14 @@ Cell Magic (separate):
 
     def _cmd_trace_stop(self, args_str: str) -> None:
         """Handle trace stop subcommand."""
-        from probing.trace import untrace as untrace_func
-        
+        from probing.inspect.trace import untrace as untrace_func
+
         function = args_str.strip()
         if not function:
             print("✗ Error: Function name is required")
             print("Usage: %trace stop <function>")
             return
-        
+
         try:
             untrace_func(function)
             print(f"✓ Stopped tracing: {function}")
@@ -244,15 +249,15 @@ Cell Magic (separate):
 
     def _cmd_trace_show(self) -> None:
         """Handle trace show subcommand."""
-        from probing.trace import show_trace
-        
+        from probing.inspect.trace import show_trace
+
         result = show_trace()
         traced = json.loads(result)
-        
+
         if not traced:
             print("No functions are currently being traced.")
             return
-        
+
         output = ["Currently traced functions:"]
         for i, func in enumerate(traced, 1):
             output.append(f"  {i}. {func}")
@@ -260,50 +265,67 @@ Cell Magic (separate):
 
     def _cmd_trace_list(self, args_str: str) -> None:
         """Handle trace list subcommand."""
-        from probing.trace import list_traceable as list_traceable_func
-        
-        # Parse --prefix flag
+        from probing.inspect.trace import list_traceable as list_traceable_func
+
+        # Parse arguments - support both --prefix flag and direct prefix (shell-like)
         parts = args_str.strip().split()
         prefix = None
-        
+        max_display = 50  # Default limit
+
         i = 0
         while i < len(parts):
-            if parts[i] in ['--prefix', '-p']:
+            if parts[i] in ["--prefix", "-p"]:
                 i += 1
                 if i < len(parts):
                     prefix = parts[i]
                     i += 1
+            elif parts[i] in ["--limit", "-n"]:
+                i += 1
+                if i < len(parts):
+                    try:
+                        max_display = int(parts[i])
+                    except ValueError:
+                        print(
+                            f"Error: Invalid limit value '{parts[i]}'. Using default ({max_display})."
+                        )
+                    i += 1
+            elif not parts[i].startswith("--") and not parts[i].startswith("-"):
+                # Treat as direct prefix (shell-like behavior)
+                if prefix is None:
+                    prefix = parts[i]
+                i += 1
             else:
                 i += 1
-        
+
         result = list_traceable_func(prefix=prefix)
         functions = json.loads(result)
-        
+
         if not functions:
-            prefix_msg = f" with prefix '{prefix}'" if prefix else ""
+            prefix_msg = f" matching '{prefix}'" if prefix else ""
             print(f"No traceable functions found{prefix_msg}.")
             return
-        
-        # Limit output to avoid overwhelming the terminal
-        max_display = 50
+
+        # Display results with limit
         output = [f"Found {len(functions)} traceable functions"]
         if prefix:
-            output[0] += f" with prefix '{prefix}'"
+            output[0] += f" matching '{prefix}'"
         output.append("")
-        
+
         for i, func in enumerate(functions[:max_display], 1):
             output.append(f"  {i}. {func}")
-        
+
         if len(functions) > max_display:
             output.append(f"\n  ... and {len(functions) - max_display} more")
-            output.append(f"\nTip: Use --prefix to narrow down results")
-        
+            output.append(
+                f"\nTip: Use --limit/-n to show more results, or wildcards (*, ?) to narrow down"
+            )
+
         print("\n".join(output))
 
     @cell_magic
     @magic_arguments()
-    @argument('--watch', '-w', nargs='+', default=[], help='Variables to watch')
-    @argument('--depth', '-d', type=int, default=1, help='Tracing depth')
+    @argument("--watch", "-w", nargs="+", default=[], help="Variables to watch")
+    @argument("--depth", "-d", type=int, default=1, help="Tracing depth")
     def probe(self, line: str, cell: str):
         """Execute code with probing enabled.
 
@@ -312,24 +334,24 @@ Cell Magic (separate):
             def my_function(x):
                 y = x * 2
                 return y
-            
+
             result = my_function(5)
         """
-        from probing.trace import probe as probe_decorator
-        
+        from probing.inspect.trace import probe as probe_decorator
+
         args = parse_argstring(self.probe, line)
-        
+
         # Execute the cell code in the user's namespace
         # with probing enabled for all functions
         exec_code = f"""
-from probing.trace import probe as _probe_decorator
+from probing.inspect.trace import probe as _probe_decorator
 
 # Wrap execution in probe context
 _probing_tracer = _probe_decorator(watch={args.watch!r}, depth={args.depth})
 with _probing_tracer:
 {chr(10).join('    ' + line for line in cell.split(chr(10)))}
 """
-        
+
         self.shell.run_cell(exec_code)
 
     # Remote debugging utility methods
@@ -351,6 +373,7 @@ with _probing_tracer:
         """Check if debugpy is installed."""
         try:
             import debugpy
+
             return True
         except ImportError:
             return False

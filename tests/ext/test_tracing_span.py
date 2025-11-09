@@ -100,6 +100,7 @@ def test_nested_decorator_and_context_manager():
         with span("inner") as inner:
             assert inner.name == "inner"
             return "ok"
+
     assert outer() == "ok"
 
 
@@ -130,7 +131,7 @@ def test_add_event_module_function():
     with span("test_add_event") as s:
         add_event("event1")
         add_event("event2", attributes=[{"key": "value"}])
-        
+
         events = s.get_events()
         assert len(events) == 2
         assert events[0]["name"] == "event1"
@@ -142,7 +143,6 @@ def test_add_event_no_active_span():
     """Test add_event raises error when no active span."""
     # Ensure no active span
     assert current_span() is None
-    
+
     with pytest.raises(RuntimeError, match="No active span"):
         add_event("should_fail")
-

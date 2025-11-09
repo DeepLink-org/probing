@@ -24,15 +24,15 @@ class QueryMagic(Magics):
             %query SELECT * FROM my_table LIMIT 10
             %query SHOW TABLES
             %query DESCRIBE my_table
-            
+
         Short form:
             %q SELECT * FROM my_table LIMIT 10
         """
         from probing.core.engine import query as query_func
-        
+
         if not line.strip():
             return "Error: Query cannot be empty"
-        
+
         try:
             result = query_func(line)
             if isinstance(result, pd.DataFrame):
@@ -43,7 +43,7 @@ class QueryMagic(Magics):
                 return result
         except Exception as e:
             return f"✗ Query failed: {e}"
-    
+
     @line_magic
     def q(self, line: str):
         """Short alias for %query command.
@@ -56,7 +56,7 @@ class QueryMagic(Magics):
 
     @line_magic
     @magic_arguments()
-    @argument('extension', type=str, help='Extension module to load')
+    @argument("extension", type=str, help="Extension module to load")
     def load_ext(self, line: str):
         """Load a probing extension.
 
@@ -65,9 +65,9 @@ class QueryMagic(Magics):
             %load_ext probing.ext.torch
         """
         from probing.core.engine import load_extension
-        
+
         args = parse_argstring(self.load_ext, line)
-        
+
         try:
             result = load_extension(args.extension)
             return f"✓ Extension loaded: {args.extension}"
@@ -82,7 +82,7 @@ class QueryMagic(Magics):
             %tables
         """
         from probing.core.engine import query as query_func
-        
+
         try:
             result = query_func("SHOW TABLES")
             if isinstance(result, pd.DataFrame):
@@ -96,7 +96,7 @@ class QueryMagic(Magics):
 
     @line_magic
     @magic_arguments()
-    @argument('table_name', type=str, help='Table name to describe')
+    @argument("table_name", type=str, help="Table name to describe")
     def describe(self, line: str):
         """Describe the schema of a table.
 
@@ -104,9 +104,9 @@ class QueryMagic(Magics):
             %describe my_table
         """
         from probing.core.engine import query as query_func
-        
+
         args = parse_argstring(self.describe, line)
-        
+
         try:
             result = query_func(f"DESCRIBE {args.table_name}")
             if isinstance(result, pd.DataFrame):
@@ -120,8 +120,8 @@ class QueryMagic(Magics):
 
     @line_magic
     @magic_arguments()
-    @argument('table_name', type=str, help='Table name')
-    @argument('--limit', '-n', type=int, default=10, help='Number of rows to show')
+    @argument("table_name", type=str, help="Table name")
+    @argument("--limit", "-n", type=int, default=10, help="Number of rows to show")
     def peek(self, line: str):
         """Quick peek at table data.
 
@@ -131,9 +131,9 @@ class QueryMagic(Magics):
             %peek my_table -n 50
         """
         from probing.core.engine import query as query_func
-        
+
         args = parse_argstring(self.peek, line)
-        
+
         try:
             result = query_func(f"SELECT * FROM {args.table_name} LIMIT {args.limit}")
             if isinstance(result, pd.DataFrame):
