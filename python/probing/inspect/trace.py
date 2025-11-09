@@ -75,32 +75,27 @@ class _TraceableCollector:
     @staticmethod
     def should_skip_prefix(prefix: str, blacklist: List[str]) -> bool:
         """Check if a prefix should be skipped based on blacklist and special rules.
-
+        
         Args:
             prefix: The prefix string to check
             blacklist: List of blacklisted prefixes
-
+            
         Returns:
             True if the prefix should be skipped, False otherwise
         """
         if prefix in blacklist:
             return True
-
-        # Special handling for torch module
-        if prefix.startswith("torch"):
-            allowed_prefixes = (
-                "torch.nn",
-                "torch.cuda",
-                "torch.distributed",
-                "torch.optim",
-            )
+        
+        # Special handling for torch module (but not torchvision, torchaudio, etc.)
+        if prefix == "torch" or prefix.startswith("torch."):
+            allowed_prefixes = ("torch.nn", "torch.cuda", "torch.distributed", "torch.optim")
             if not any(prefix.startswith(p) for p in allowed_prefixes):
                 return True
-
+        
         # Skip six module internals
         if prefix.startswith("six."):
             return True
-
+        
         return False
 
     @staticmethod

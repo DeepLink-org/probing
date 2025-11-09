@@ -149,57 +149,47 @@ class CodeExecutor:
 
     def __init__(self):
         from ipykernel.inprocess.manager import InProcessKernelManager
+        import sys
 
+        # Save original __main__ before IPython replaces it
+        original_main = sys.modules.get("__main__")
+        
         self.km = InProcessKernelManager()
         self.km.start_kernel()
-
         self.kc = self.km.client()
         self.kc.start_channels()
 
-        if self.km.has_kernel:
-            shell = self.km.kernel.shell
+        if not self.km.has_kernel:
+            return
+            
+        shell = self.km.kernel.shell
+        
+        # Copy original __main__ to kernel namespace
+        if original_main:
+            shell.user_ns.update(original_main.__dict__)
 
-            # Auto-discover and register magic commands
-            # Import all magic modules to trigger their registration
-            import importlib
-            import pkgutil
+        # Auto-discover and register magic commands
+        import importlib
+        import pkgutil
 
-            # Find all modules in the magics package
-            package = __import__(__name__, fromlist=[""])
-            for importer, modname, ispkg in pkgutil.iter_modules(package.__path__):
-                # Skip __init__ and non-magic modules
-                if modname.startswith("_") or not modname.endswith("_magic"):
-                    continue
+        package = __import__(__name__, fromlist=[""])
+        for importer, modname, ispkg in pkgutil.iter_modules(package.__path__):
+            if modname.startswith("_") or not modname.endswith("_magic"):
+                continue
 
-                try:
-                    # Import the module to trigger @register_magic decorators
-                    full_modname = f"{__name__}.{modname}"
-                    importlib.import_module(full_modname)
-                except Exception as e:
-                    # Log but don't fail if a magic module can't be imported
-                    import warnings
+            try:
+                importlib.import_module(f"{__name__}.{modname}")
+            except Exception as e:
+                import warnings
+                warnings.warn(f"Failed to import {modname}: {e}", ImportWarning)
 
-                    warnings.warn(f"Failed to import {modname}: {e}", ImportWarning)
-                    print(f"✗ Failed to import {modname}: {e}")
-
-            # Register all magic classes from the registry
-            registered_count = 0
-            for magic_name, magic_class in _MAGIC_REGISTRY.items():
-                try:
-                    shell.register_magics(magic_class(shell=shell))
-                    registered_count += 1
-                except Exception as e:
-                    import warnings
-
-                    warnings.warn(
-                        f"Failed to register {magic_name}: {e}", ImportWarning
-                    )
-                    print(f"✗ Failed to register {magic_name}: {e}")
-
-            if registered_count == 0:
-                print(
-                    "Warning: No magic commands were registered. Make sure magic modules use @register_magic decorator."
-                )
+        # Register all magic classes
+        for magic_name, magic_class in _MAGIC_REGISTRY.items():
+            try:
+                shell.register_magics(magic_class(shell=shell))
+            except Exception as e:
+                import warnings
+                warnings.warn(f"Failed to register {magic_name}: {e}", ImportWarning)
 
     def execute(self, code_or_request: Union[str, dict]) -> ExecutionResult:
         """Executes a string of code or a request dictionary in the kernel.
@@ -303,16 +293,31 @@ class DebugConsole(code.InteractiveConsole):
         try:
             self.code_executor = CodeExecutor()
         except Exception as e:
-            # If CodeExecutor initialization fails, log warning but continue
-            # This allows DebugConsole to be created even if IPython/magic modules fail
             import warnings
-
-            warnings.warn(
-                f"Failed to initialize CodeExecutor: {e}. DebugConsole will work in limited mode.",
-                ImportWarning,
-            )
+            warnings.warn(f"Failed to initialize CodeExecutor: {e}", ImportWarning)
             self.code_executor = None
         super().__init__()
+
+    def sync_main_namespace(self, namespace=None):
+        """Sync namespace to kernel. Use sync_main_namespace(globals()) to sync current script.
+        
+        Args:
+            namespace: Dict to sync. If None, uses sys.modules['__main__'].
+        """
+        if not self.code_executor:
+            return
+            
+        import sys
+        if namespace is None:
+            namespace = sys.modules.get("__main__", {})
+            if not namespace:
+                return
+            namespace = namespace.__dict__
+        
+        shell = self.code_executor.km.kernel.shell
+        for key, value in namespace.items():
+            if not key.startswith("_"):
+                shell.user_ns[key] = value
 
     def runsource(self, source):
         if self.code_executor is None:

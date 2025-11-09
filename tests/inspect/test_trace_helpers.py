@@ -108,6 +108,12 @@ class TestShouldSkipPrefix:
         assert not _TraceableCollector.should_skip_prefix("torch.optim.Adam", blacklist)
         assert _TraceableCollector.should_skip_prefix("torch.utils", blacklist)
         assert _TraceableCollector.should_skip_prefix("torch.autograd", blacklist)
+        # torchvision is a different package and should NOT be skipped
+        assert not _TraceableCollector.should_skip_prefix("torchvision", blacklist)
+        assert not _TraceableCollector.should_skip_prefix(
+            "torchvision.models", blacklist
+        )
+        assert not _TraceableCollector.should_skip_prefix("torchaudio", blacklist)
 
     def test_six_module_skipped(self):
         """Test that six.* modules are skipped."""
