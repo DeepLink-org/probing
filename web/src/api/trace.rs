@@ -18,6 +18,18 @@ pub struct TraceInfo {
     pub function: String,
 }
 
+/// 变量变化记录
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VariableRecord {
+    pub function_name: String,
+    pub filename: String,
+    pub lineno: i64,
+    pub variable_name: String,
+    pub value: String,
+    pub value_type: String,
+    pub timestamp: f64,
+}
+
 /// Trace API
 impl ApiClient {
     /// 获取可追踪的函数列表（返回函数名列表）
@@ -78,6 +90,34 @@ impl ApiClient {
         let response = self.get_request(&path).await?;
         let result: TraceResponse = Self::parse_json(&response)?;
         Ok(result)
+    }
+
+    /// 获取变量变化记录
+    pub async fn get_variable_records(
+        &self,
+        function: Option<&str>,
+        limit: Option<usize>,
+    ) -> Result<Vec<VariableRecord>> {
+        let base = "/apis/pythonext/trace/variables";
+        let mut params = Vec::new();
+        
+        if let Some(func) = function {
+            params.push(format!("function={}", func));
+        }
+        
+        if let Some(limit_val) = limit {
+            params.push(format!("limit={}", limit_val));
+        }
+        
+        let path = if params.is_empty() {
+            base.to_string()
+        } else {
+            format!("{}?{}", base, params.join("&"))
+        };
+        
+        let response = self.get_request(&path).await?;
+        let records: Vec<VariableRecord> = Self::parse_json(&response)?;
+        Ok(records)
     }
 }
 

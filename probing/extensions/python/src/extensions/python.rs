@@ -275,6 +275,82 @@ retval = json.dumps(result)
                 }
             });
         }
+        if path == "trace/variables" {
+            let function = params.get("function");
+            let limit = params.get("limit").and_then(|s| s.parse::<usize>().ok()).unwrap_or(100);
+            
+            return Python::with_gil(|py| {
+                use pyo3::types::PyDict;
+                use std::ffi::CString;
+                let global = PyDict::new(py);
+                let code = if let Some(func) = function {
+                    format!(r#"
+import json
+import probing
+
+try:
+    # Try with python namespace first, fallback to direct table name
+    queries = [
+        "SELECT function_name, filename, lineno, variable_name, value, value_type, timestamp FROM python.trace_variables WHERE function_name = '{}' ORDER BY timestamp DESC LIMIT {}",
+        "SELECT function_name, filename, lineno, variable_name, value, value_type, timestamp FROM trace_variables WHERE function_name = '{}' ORDER BY timestamp DESC LIMIT {}"
+    ]
+    df = None
+    for query in queries:
+        try:
+            df = probing.query(query)
+            break
+        except:
+            continue
+    if df is None:
+        retval = json.dumps({{"error": "Table trace_variables not found"}})
+    else:
+        result = df.to_dict('records')
+        retval = json.dumps(result)
+except Exception as e:
+    retval = json.dumps({{"error": str(e)}})
+"#, func, limit, func, limit)
+                } else {
+                    format!(r#"
+import json
+import probing
+
+try:
+    # Try with python namespace first, fallback to direct table name
+    queries = [
+        "SELECT function_name, filename, lineno, variable_name, value, value_type, timestamp FROM python.trace_variables ORDER BY timestamp DESC LIMIT {{}}".format({}),
+        "SELECT function_name, filename, lineno, variable_name, value, value_type, timestamp FROM trace_variables ORDER BY timestamp DESC LIMIT {{}}".format({})
+    ]
+    df = None
+    for query in queries:
+        try:
+            df = probing.query(query)
+            break
+        except:
+            continue
+    if df is None:
+        retval = json.dumps({{"error": "Table trace_variables not found"}})
+    else:
+        result = df.to_dict('records')
+        retval = json.dumps(result)
+except Exception as e:
+    retval = json.dumps({{"error": str(e)}})
+"#, limit, limit)
+                };
+                let code_cstr = CString::new(code).map_err(|e| {
+                    EngineError::PluginError(format!("Failed to create CString: {e}"))
+                })?;
+                py.run(code_cstr.as_c_str(), Some(&global), Some(&global))
+                    .map_err(|e| EngineError::PluginError(format!("Failed to get variables: {e}")))?;
+                match global.get_item("retval") {
+                    Ok(result) => {
+                        let result_str: String = result.extract()
+                            .map_err(|e| EngineError::PluginError(format!("Failed to extract result: {e}")))?;
+                        Ok(result_str.into_bytes())
+                    }
+                    Err(e) => Err(EngineError::PluginError(format!("Failed to get result: {e}"))),
+                }
+            });
+        }
         Ok("".as_bytes().to_vec())
     }
 }
