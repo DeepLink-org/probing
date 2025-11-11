@@ -136,12 +136,13 @@ impl ApiClient {
     }
 
     /// 获取变量变化记录（通过 SQL 查询）
+    /// SQL 查询必须按 VariableRecord 结构体的字段顺序返回：function_name, filename, lineno, variable_name, value, value_type, timestamp
     pub async fn get_variable_records(
         &self,
         function: Option<&str>,
         limit: Option<usize>,
     ) -> Result<Vec<VariableRecord>> {
-        // Build SQL query
+        // Build SQL query with fields in VariableRecord order
         let limit_clause = limit.map(|l| format!(" LIMIT {}", l)).unwrap_or_default();
         let where_clause = if let Some(func) = function {
             // Escape single quotes in function name
@@ -151,24 +152,35 @@ impl ApiClient {
             String::new()
         };
         
-        // Try with python namespace first, fallback to direct table name
+        // SQL query ensures field order matches VariableRecord struct
         let queries = vec![
             format!(
                 "SELECT function_name, filename, lineno, variable_name, value, value_type, timestamp FROM python.trace_variables{} ORDER BY timestamp DESC{}",
                 where_clause, limit_clause
             ),
             format!(
-                "SELECT function_name, filename, lineno, variable_name, value, value_type, timestamp FROM python.trace_variables{} ORDER BY timestamp DESC{}",
+                "SELECT function_name, filename, lineno, variable_name, value, value_type, timestamp FROM trace_variables{} ORDER BY timestamp DESC{}",
                 where_clause, limit_clause
             ),
         ];
         
         // Try each query until one succeeds
         let mut last_err: Option<crate::utils::error::AppError> = None;
-        for query in queries {
-            match self.execute_query(&query).await {
+        for query in queries.iter() {
+            match self.execute_query(query).await {
                 Ok(df) => {
-                    return Ok(Self::dataframe_to_variable_records(df));
+                    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        Self::dataframe_to_variable_records(df)
+                    })) {
+                        Ok(records) => {
+                            return Ok(records);
+                        }
+                        Err(e) => {
+                            web_sys::console::error_1(&format!("[trace] Panic during DataFrame parsing: {:?}", e).into());
+                            last_err = Some(crate::utils::error::AppError::Api(format!("Panic during DataFrame parsing: {:?}", e)));
+                            continue;
+                        }
+                    }
                 }
                 Err(e) => {
                     last_err = Some(e);
@@ -177,36 +189,32 @@ impl ApiClient {
             }
         }
         
-        // If all queries failed, return empty vector or error
+        // If all queries failed, return error
         Err(last_err.unwrap_or_else(|| {
             crate::utils::error::AppError::Api("Failed to query python.trace_variables table".to_string())
         }))
     }
     
     /// 将 DataFrame 转换为 Vec<VariableRecord>
+    /// 假设 SQL 查询返回的字段顺序与 VariableRecord 结构体一致：function_name, filename, lineno, variable_name, value, value_type, timestamp
     fn dataframe_to_variable_records(df: DataFrame) -> Vec<VariableRecord> {
         let mut records = Vec::new();
         
-        if df.names.is_empty() || df.cols.is_empty() {
+        // Expected 7 columns in order: function_name, filename, lineno, variable_name, value, value_type, timestamp
+        if df.cols.len() < 7 {
             return records;
         }
         
-        // Find column indices
-        let function_name_idx = df.names.iter().position(|c| c == "function_name").unwrap_or(0);
-        let filename_idx = df.names.iter().position(|c| c == "filename").unwrap_or(1);
-        let lineno_idx = df.names.iter().position(|c| c == "lineno").unwrap_or(2);
-        let variable_name_idx = df.names.iter().position(|c| c == "variable_name").unwrap_or(3);
-        let value_idx = df.names.iter().position(|c| c == "value").unwrap_or(4);
-        let value_type_idx = df.names.iter().position(|c| c == "value_type").unwrap_or(5);
-        let timestamp_idx = df.names.iter().position(|c| c == "timestamp").unwrap_or(6);
-        
         // Get number of rows
-        let nrows = df.cols.iter().map(|col| col.len()).max().unwrap_or(0);
+        let nrows = df.cols.iter()
+            .map(|col| col.len())
+            .min()
+            .unwrap_or(0);
         
-        // Extract data from each row
+        // Extract data from each row by index (SQL ensures correct order)
         for i in 0..nrows {
-            let get_str = |idx: usize| -> String {
-                match df.cols.get(idx).map(|col| col.get(i)) {
+            let get_str = |col_idx: usize| -> String {
+                match df.cols.get(col_idx).map(|col| col.get(i)) {
                     Some(Ele::Text(s)) => s.clone(),
                     Some(Ele::I32(x)) => x.to_string(),
                     Some(Ele::I64(x)) => x.to_string(),
@@ -216,8 +224,8 @@ impl ApiClient {
                 }
             };
             
-            let get_i64 = |idx: usize| -> i64 {
-                match df.cols.get(idx).map(|col| col.get(i)) {
+            let get_i64 = |col_idx: usize| -> i64 {
+                match df.cols.get(col_idx).map(|col| col.get(i)) {
                     Some(Ele::I32(x)) => x as i64,
                     Some(Ele::I64(x)) => x,
                     Some(Ele::F32(x)) => x as i64,
@@ -227,8 +235,8 @@ impl ApiClient {
                 }
             };
             
-            let get_f64 = |idx: usize| -> f64 {
-                match df.cols.get(idx).map(|col| col.get(i)) {
+            let get_f64 = |col_idx: usize| -> f64 {
+                match df.cols.get(col_idx).map(|col| col.get(i)) {
                     Some(Ele::F64(x)) => x,
                     Some(Ele::F32(x)) => x as f64,
                     Some(Ele::I64(x)) => x as f64,
@@ -238,25 +246,35 @@ impl ApiClient {
                 }
             };
             
-            let function_name = get_str(function_name_idx);
+            let function_name = get_str(0);
             if function_name.is_empty() {
                 continue;
             }
             
-            let variable_name = get_str(variable_name_idx);
+            let variable_name = get_str(3);
             if variable_name.is_empty() {
                 continue;
             }
             
-            records.push(VariableRecord {
-                function_name,
-                filename: get_str(filename_idx),
-                lineno: get_i64(lineno_idx),
-                variable_name,
-                value: get_str(value_idx),
-                value_type: get_str(value_type_idx),
-                timestamp: get_f64(timestamp_idx),
-            });
+            // Create record directly by index (SQL ensures correct order)
+            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                VariableRecord {
+                    function_name: function_name.clone(),
+                    filename: get_str(1),
+                    lineno: get_i64(2),
+                    variable_name: variable_name.clone(),
+                    value: get_str(4),
+                    value_type: get_str(5),
+                    timestamp: get_f64(6),
+                }
+            })) {
+                Ok(record) => {
+                    records.push(record);
+                }
+                Err(e) => {
+                    web_sys::console::error_1(&format!("[trace] Error creating record at row {}: {:?}", i, e).into());
+                }
+            }
         }
         
         records

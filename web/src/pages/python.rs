@@ -2,10 +2,31 @@
 use dioxus::prelude::*;
 use crate::components::page::{PageContainer, PageHeader};
 use crate::components::common::{LoadingState, ErrorState, EmptyState};
-use crate::hooks::use_api;
-use crate::api::{ApiClient, TraceableItem};
-use chrono::{DateTime, Utc};
-use std::time::{SystemTime, Duration};
+use crate::hooks::{use_api, use_api_simple};
+use crate::api::{ApiClient, TraceableItem, VariableRecord};
+
+/// Safely format timestamp to string
+/// Uses simple math to avoid SystemTime/DateTime issues in wasm
+fn format_timestamp_safe(timestamp: f64) -> String {
+    if timestamp.is_nan() || timestamp.is_infinite() {
+        return "Invalid".to_string();
+    }
+    
+    // For negative timestamps, just return the raw value
+    if timestamp < 0.0 {
+        return format!("{:.3}", timestamp);
+    }
+    
+    // Calculate hours, minutes, seconds, and milliseconds
+    let total_secs = timestamp.floor() as u64;
+    let hours = total_secs / 3600;
+    let minutes = (total_secs % 3600) / 60;
+    let seconds = total_secs % 60;
+    let millis = ((timestamp - total_secs as f64) * 1000.0).floor() as u64;
+    
+    // Format as HH:MM:SS.mmm
+    format!("{:02}:{:02}:{:02}.{:03}", hours, minutes, seconds, millis)
+}
 
 #[component]
 pub fn Python() -> Element {
@@ -64,8 +85,10 @@ fn TraceView() -> Element {
         }
     });
     
-    // Popover state for variable records
-    let mut popover_open = use_signal(|| Option::<String>::None);
+    // Variable records preview state
+    let records_state = use_api_simple::<Vec<VariableRecord>>();
+    let mut preview_function_name = use_signal(|| String::new());
+    let mut preview_open = use_signal(|| false);
     
     // Dialog state
     let mut dialog_open = use_signal(|| false);
@@ -89,81 +112,68 @@ fn TraceView() -> Element {
                     if traces.is_empty() {
                         EmptyState { message: "No active traces".to_string() }
                     } else {
-                        div {
-                            class: "space-y-4",
-                            {
-                                traces.iter().map(|func_name| {
-                                    let func_name_clone = func_name.clone();
-                                    let mut popover_state = popover_open;
-                                    let func_name_for_popover = func_name.clone();
-                                    
-                                    rsx! {
-                                        div {
-                                            class: "relative",
-                                            div {
-                                                class: "p-4 bg-gray-50 rounded-md border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors",
-                                                onclick: move |_| {
-                                                    // Toggle popover for this function
-                                                    let current = popover_state.read().clone();
-                                                    if current.as_ref().map(|s| s.as_str()) == Some(func_name_for_popover.as_str()) {
-                                                        *popover_state.write() = None;
-                                                    } else {
-                                                        *popover_state.write() = Some(func_name_for_popover.clone());
-                                                    }
-                                                },
-                                                div {
-                                                    class: "flex items-center justify-between",
-                                                    div {
-                                                        class: "font-medium text-gray-900",
-                                                        "{func_name}"
-                                                    }
-                                                    button {
-                                                        class: "px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700",
-                                                        onclick: move |e| {
-                                                            e.stop_propagation();
-                                                            let func = func_name_clone.clone();
-                                                            let mut refresh = refresh_key;
-                                                            
-                                                            spawn(async move {
-                                                                let client = ApiClient::new();
-                                                                match client.stop_trace(&func).await {
-                                                                    Ok(_resp) => {
-                                                                        *refresh.write() += 1;
-                                                                    }
-                                                                    Err(_e) => {
-                                                                        // Error handling could be added here
-                                                                    }
-                                                                }
-                                                            });
-                                                        },
-                                                        "Stop"
-                                                    }
-                                                }
-                                            }
+                        {
+                            let mut loading = records_state.loading;
+                            let mut data = records_state.data;
+                            let mut preview_fn = preview_function_name;
+                            let mut preview_op = preview_open;
+                            
+                            rsx! {
+                                div {
+                                    class: "space-y-4",
+                                    {
+                                        traces.iter().map(|func_name| {
+                                            let func_name_clone = func_name.clone();
+                                            let func_name_for_preview = func_name.clone();
                                             
-                                            // Variable Records Popover
-                                            {
-                                                if popover_state.read().as_ref().map(|s| s.as_str()) == Some(func_name.as_str()) {
-                                                    let func_name_for_records = func_name.clone();
-                                                    let mut popover_close = popover_state;
-                                                    
-                                                    rsx! {
-                                                        VariableRecordsPopover {
-                                                            function_name: func_name_for_records.clone(),
-                                                            on_close: move |_| {
-                                                                *popover_close.write() = None;
+                                            rsx! {
+                                                div {
+                                                    class: "p-4 bg-gray-50 rounded-md border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors",
+                                                    onclick: move |_| {
+                                                        *preview_fn.write() = func_name_for_preview.clone();
+                                                        *preview_op.write() = true;
+                                                        let func_name = func_name_for_preview.clone();
+                                                        spawn(async move {
+                                                            *loading.write() = true;
+                                                            let client = ApiClient::new();
+                                                            let resp = client.get_variable_records(Some(&func_name), Some(100)).await;
+                                                            *data.write() = Some(resp);
+                                                            *loading.write() = false;
+                                                        });
+                                                    },
+                                                    div {
+                                                        class: "flex items-center justify-between",
+                                                        div {
+                                                            class: "font-medium text-gray-900",
+                                                            "{func_name}"
+                                                        }
+                                                        button {
+                                                            class: "px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700",
+                                                            onclick: move |e| {
+                                                                e.stop_propagation();
+                                                                let func = func_name_clone.clone();
+                                                                let mut refresh = refresh_key;
+                                                                
+                                                                spawn(async move {
+                                                                    let client = ApiClient::new();
+                                                                    match client.stop_trace(&func).await {
+                                                                        Ok(_resp) => {
+                                                                            *refresh.write() += 1;
+                                                                        }
+                                                                        Err(_e) => {
+                                                                            // Error handling could be added here
+                                                                        }
+                                                                    }
+                                                                });
                                                             },
+                                                            "Stop"
                                                         }
                                                     }
-                                                } else {
-                                                    rsx! {
-                                                        div {}
-                                                    }
                                                 }
                                             }
-                                        }
+                                        })
                                     }
-                                })
+                                }
                             }
                         }
                     }
@@ -220,6 +230,123 @@ fn TraceView() -> Element {
                     ErrorState { error: format!("{:?}", err), title: None }
                 } else {
                     EmptyState { message: "No data available".to_string() }
+                }
+            }
+            
+            // Variable Records Preview Modal
+            if *preview_open.read() {
+                div {
+                    class: "fixed inset-0 z-50 flex items-center justify-center",
+                    // Background overlay
+                    div {
+                        class: "absolute inset-0 bg-black/50",
+                        onclick: move |_| {
+                            *preview_open.write() = false;
+                        }
+                    }
+                    // Content container
+                    div {
+                        class: "relative bg-white rounded-lg shadow-lg max-w-5xl w-[90vw] max-h-[80vh] overflow-auto p-4",
+                        // Header
+                        div {
+                            class: "flex items-center justify-between mb-3",
+                            h3 {
+                                class: "text-lg font-semibold text-gray-900",
+                                "Variable Records: {preview_function_name.read()}"
+                            }
+                            button {
+                                class: "px-3 py-1 text-sm rounded bg-gray-100 hover:bg-gray-200",
+                                onclick: move |_| {
+                                    *preview_open.write() = false;
+                                },
+                                "Close"
+                            }
+                        }
+                        // Content
+                        if records_state.is_loading() {
+                            LoadingState { message: Some("Loading records...".to_string()) }
+                        } else if let Some(Ok(records)) = records_state.data.read().as_ref() {
+                            div {
+                                class: "max-h-[60vh] overflow-y-auto",
+                                table {
+                                    class: "min-w-full divide-y divide-gray-200 text-xs",
+                                    thead {
+                                        class: "bg-gray-50 sticky top-0",
+                                        tr {
+                                            th {
+                                                class: "px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase",
+                                                "File"
+                                            }
+                                            th {
+                                                class: "px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase",
+                                                "Line"
+                                            }
+                                            th {
+                                                class: "px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase",
+                                                "Variable"
+                                            }
+                                            th {
+                                                class: "px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase",
+                                                "Value"
+                                            }
+                                            th {
+                                                class: "px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase",
+                                                "Type"
+                                            }
+                                            th {
+                                                class: "px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase",
+                                                "Time"
+                                            }
+                                        }
+                                    }
+                                    tbody {
+                                        class: "bg-white divide-y divide-gray-200",
+                                        {
+                                            records.iter().map(|record| {
+                                                rsx! {
+                                                    tr {
+                                                        class: "hover:bg-gray-50",
+                                                        td {
+                                                            class: "px-2 py-2 text-xs text-gray-500",
+                                                            "{record.filename}"
+                                                        }
+                                                        td {
+                                                            class: "px-2 py-2 text-xs text-gray-500",
+                                                            "{record.lineno}"
+                                                        }
+                                                        td {
+                                                            class: "px-2 py-2 text-xs font-medium text-blue-600",
+                                                            "{record.variable_name}"
+                                                        }
+                                                        td {
+                                                            class: "px-2 py-2 text-xs text-gray-900 max-w-xs truncate",
+                                                            title: "{record.value.clone()}",
+                                                            "{record.value}"
+                                                        }
+                                                        td {
+                                                            class: "px-2 py-2 text-xs text-gray-500",
+                                                            "{record.value_type}"
+                                                        }
+                                                        td {
+                                                            class: "px-2 py-2 text-xs text-gray-500",
+                                                            "{format_timestamp_safe(record.timestamp)}"
+                                                        }
+                                                    }
+                                                }
+                                            })
+                                        }
+                                    }
+                                }
+                            }
+                        } else if let Some(Err(err)) = records_state.data.read().as_ref() {
+                            ErrorState { error: format!("{:?}", err), title: None }
+                        } else {
+                            span {
+                                class: "text-gray-500",
+                                "Preparing records..."
+                            }
+                        }
+                    }
                 }
             }
             
@@ -600,146 +727,3 @@ fn TraceableFunctionItem(
     }
 }
 
-#[component]
-fn VariableRecordsPopover(
-    function_name: String,
-    on_close: EventHandler,
-) -> Element {
-    let func_name_for_api = function_name.clone();
-    let records_state = use_api(move || {
-        let client = ApiClient::new();
-        let func_name = func_name_for_api.clone();
-        async move {
-            client.get_variable_records(Some(&func_name), Some(100)).await
-        }
-    });
-    
-    rsx! {
-        div {
-            class: "absolute z-50 mt-2 w-full max-w-2xl bg-white border border-gray-300 rounded-lg shadow-lg",
-            div {
-                class: "p-4",
-                div {
-                    class: "flex items-center justify-between mb-3",
-                    h3 {
-                        class: "text-sm font-semibold text-gray-900",
-                        "Variable Records: {function_name}"
-                    }
-                    button {
-                        class: "text-gray-400 hover:text-gray-600",
-                        onclick: move |_| {
-                            on_close.call(());
-                        },
-                        "×"
-                    }
-                }
-                
-                if records_state.is_loading() {
-                    div {
-                        class: "p-4 text-sm text-gray-500",
-                        "Loading records..."
-                    }
-                } else if let Some(Ok(records)) = records_state.data.read().as_ref() {
-                    if records.is_empty() {
-                        div {
-                            class: "p-4 text-sm text-gray-500",
-                            "No variable records found for this function"
-                        }
-                    } else {
-                        div {
-                            class: "max-h-96 overflow-y-auto",
-                            table {
-                                class: "min-w-full divide-y divide-gray-200 text-xs",
-                                thead {
-                                    class: "bg-gray-50 sticky top-0",
-                                    tr {
-                                        th {
-                                            class: "px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase",
-                                            "File"
-                                        }
-                                        th {
-                                            class: "px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase",
-                                            "Line"
-                                        }
-                                        th {
-                                            class: "px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase",
-                                            "Variable"
-                                        }
-                                        th {
-                                            class: "px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase",
-                                            "Value"
-                                        }
-                                        th {
-                                            class: "px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase",
-                                            "Type"
-                                        }
-                                        th {
-                                            class: "px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase",
-                                            "Time"
-                                        }
-                                    }
-                                }
-                                tbody {
-                                    class: "bg-white divide-y divide-gray-200",
-                                    {
-                                        records.iter().map(|record| {
-                                            rsx! {
-                                                tr {
-                                                    class: "hover:bg-gray-50",
-                                                    td {
-                                                        class: "px-2 py-2 text-xs text-gray-500",
-                                                        "{record.filename}"
-                                                    }
-                                                    td {
-                                                        class: "px-2 py-2 text-xs text-gray-500",
-                                                        "{record.lineno}"
-                                                    }
-                                                    td {
-                                                        class: "px-2 py-2 text-xs font-medium text-blue-600",
-                                                        "{record.variable_name}"
-                                                    }
-                                                    td {
-                                                        class: "px-2 py-2 text-xs text-gray-900 max-w-xs truncate",
-                                                        title: "{record.value.clone()}",
-                                                        "{record.value}"
-                                                    }
-                                                    td {
-                                                        class: "px-2 py-2 text-xs text-gray-500",
-                                                        "{record.value_type}"
-                                                    }
-                                                    td {
-                                                        class: "px-2 py-2 text-xs text-gray-500",
-                                                        {
-                                                            let timestamp = record.timestamp;
-                                                            let secs = timestamp as i64;
-                                                            let nanos = ((timestamp - secs as f64) * 1_000_000_000.0) as u32;
-                                                            let datetime: DateTime<Utc> = (SystemTime::UNIX_EPOCH
-                                                                + Duration::from_secs(secs as u64)
-                                                                + Duration::from_nanos(nanos as u64))
-                                                                .into();
-                                                            format!("{}", datetime.format("%H:%M:%S%.3f"))
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        })
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else if let Some(Err(err)) = records_state.data.read().as_ref() {
-                    div {
-                        class: "p-4 text-sm text-red-500",
-                        "Error loading records: {err:?}"
-                    }
-                } else {
-                    div {
-                        class: "p-4 text-sm text-gray-500",
-                        "No data available"
-                    }
-                }
-            }
-        }
-    }
-}

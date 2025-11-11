@@ -47,8 +47,6 @@ class Variable:
         String representation of the variable value.
     value_type : str
         Type name of the variable value.
-    timestamp : float
-        Timestamp when the variable change was recorded.
     """
     function_name: str
     filename: str
@@ -56,7 +54,6 @@ class Variable:
     variable_name: str
     value: str
     value_type: str
-    timestamp: float
 
 
 class _TraceableCollector:
@@ -640,7 +637,6 @@ class ProbingTracer:
                         variable_name=k,
                         value=value_str,
                         value_type=value_type,
-                        timestamp=time.time()
                     ).save()
                 except Exception as e:
                     # Log error but don't disrupt the tracing process
