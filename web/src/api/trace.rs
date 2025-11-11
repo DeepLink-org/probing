@@ -136,13 +136,13 @@ impl ApiClient {
     }
 
     /// 获取变量变化记录（通过 SQL 查询）
-    /// SQL 查询必须按 VariableRecord 结构体的字段顺序返回：function_name, filename, lineno, variable_name, value, value_type, timestamp
+    /// 直接返回 DataFrame，使用 SQL AS 控制列名显示
     pub async fn get_variable_records(
         &self,
         function: Option<&str>,
         limit: Option<usize>,
-    ) -> Result<Vec<VariableRecord>> {
-        // Build SQL query with fields in VariableRecord order
+    ) -> Result<DataFrame> {
+        // Build SQL query with column renaming via AS (SQL controls column names)
         let limit_clause = limit.map(|l| format!(" LIMIT {}", l)).unwrap_or_default();
         let where_clause = if let Some(func) = function {
             // Escape single quotes in function name
@@ -152,14 +152,14 @@ impl ApiClient {
             String::new()
         };
         
-        // SQL query ensures field order matches VariableRecord struct
+        // SQL query uses AS to rename columns for display
         let queries = vec![
             format!(
-                "SELECT function_name, filename, lineno, variable_name, value, value_type, timestamp FROM python.trace_variables{} ORDER BY timestamp DESC{}",
+                "SELECT filename AS File, lineno AS Line, variable_name AS Variable, value AS Value, value_type AS Type, timestamp AS Time FROM python.trace_variables{} ORDER BY timestamp DESC{}",
                 where_clause, limit_clause
             ),
             format!(
-                "SELECT function_name, filename, lineno, variable_name, value, value_type, timestamp FROM trace_variables{} ORDER BY timestamp DESC{}",
+                "SELECT filename AS File, lineno AS Line, variable_name AS Variable, value AS Value, value_type AS Type, timestamp AS Time FROM trace_variables{} ORDER BY timestamp DESC{}",
                 where_clause, limit_clause
             ),
         ];
@@ -169,18 +169,7 @@ impl ApiClient {
         for query in queries.iter() {
             match self.execute_query(query).await {
                 Ok(df) => {
-                    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        Self::dataframe_to_variable_records(df)
-                    })) {
-                        Ok(records) => {
-                            return Ok(records);
-                        }
-                        Err(e) => {
-                            web_sys::console::error_1(&format!("[trace] Panic during DataFrame parsing: {:?}", e).into());
-                            last_err = Some(crate::utils::error::AppError::Api(format!("Panic during DataFrame parsing: {:?}", e)));
-                            continue;
-                        }
-                    }
+                    return Ok(df);
                 }
                 Err(e) => {
                     last_err = Some(e);
@@ -195,89 +184,5 @@ impl ApiClient {
         }))
     }
     
-    /// 将 DataFrame 转换为 Vec<VariableRecord>
-    /// 假设 SQL 查询返回的字段顺序与 VariableRecord 结构体一致：function_name, filename, lineno, variable_name, value, value_type, timestamp
-    fn dataframe_to_variable_records(df: DataFrame) -> Vec<VariableRecord> {
-        let mut records = Vec::new();
-        
-        // Expected 7 columns in order: function_name, filename, lineno, variable_name, value, value_type, timestamp
-        if df.cols.len() < 7 {
-            return records;
-        }
-        
-        // Get number of rows
-        let nrows = df.cols.iter()
-            .map(|col| col.len())
-            .min()
-            .unwrap_or(0);
-        
-        // Extract data from each row by index (SQL ensures correct order)
-        for i in 0..nrows {
-            let get_str = |col_idx: usize| -> String {
-                match df.cols.get(col_idx).map(|col| col.get(i)) {
-                    Some(Ele::Text(s)) => s.clone(),
-                    Some(Ele::I32(x)) => x.to_string(),
-                    Some(Ele::I64(x)) => x.to_string(),
-                    Some(Ele::F32(x)) => x.to_string(),
-                    Some(Ele::F64(x)) => x.to_string(),
-                    _ => String::new(),
-                }
-            };
-            
-            let get_i64 = |col_idx: usize| -> i64 {
-                match df.cols.get(col_idx).map(|col| col.get(i)) {
-                    Some(Ele::I32(x)) => x as i64,
-                    Some(Ele::I64(x)) => x,
-                    Some(Ele::F32(x)) => x as i64,
-                    Some(Ele::F64(x)) => x as i64,
-                    Some(Ele::Text(s)) => s.parse().unwrap_or(0),
-                    _ => 0,
-                }
-            };
-            
-            let get_f64 = |col_idx: usize| -> f64 {
-                match df.cols.get(col_idx).map(|col| col.get(i)) {
-                    Some(Ele::F64(x)) => x,
-                    Some(Ele::F32(x)) => x as f64,
-                    Some(Ele::I64(x)) => x as f64,
-                    Some(Ele::I32(x)) => x as f64,
-                    Some(Ele::Text(s)) => s.parse().unwrap_or(0.0),
-                    _ => 0.0,
-                }
-            };
-            
-            let function_name = get_str(0);
-            if function_name.is_empty() {
-                continue;
-            }
-            
-            let variable_name = get_str(3);
-            if variable_name.is_empty() {
-                continue;
-            }
-            
-            // Create record directly by index (SQL ensures correct order)
-            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                VariableRecord {
-                    function_name: function_name.clone(),
-                    filename: get_str(1),
-                    lineno: get_i64(2),
-                    variable_name: variable_name.clone(),
-                    value: get_str(4),
-                    value_type: get_str(5),
-                    timestamp: get_f64(6),
-                }
-            })) {
-                Ok(record) => {
-                    records.push(record);
-                }
-                Err(e) => {
-                    web_sys::console::error_1(&format!("[trace] Error creating record at row {}: {:?}", i, e).into());
-                }
-            }
-        }
-        
-        records
-    }
 }
 

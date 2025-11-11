@@ -2,6 +2,7 @@
 use dioxus::prelude::*;
 use crate::components::page::{PageContainer, PageHeader};
 use crate::components::common::{LoadingState, ErrorState, EmptyState};
+use crate::components::dataframe_view::DataFrameView;
 use crate::hooks::{use_api, use_api_simple};
 use crate::api::{ApiClient, TraceableItem, VariableRecord};
 
@@ -85,8 +86,8 @@ fn TraceView() -> Element {
         }
     });
     
-    // Variable records preview state
-    let records_state = use_api_simple::<Vec<VariableRecord>>();
+    // Variable records preview state (use DataFrame to preserve column names from SQL)
+    let records_state = use_api_simple::<probing_proto::prelude::DataFrame>();
     let mut preview_function_name = use_signal(|| String::new());
     let mut preview_open = use_signal(|| false);
     
@@ -265,78 +266,12 @@ fn TraceView() -> Element {
                         // Content
                         if records_state.is_loading() {
                             LoadingState { message: Some("Loading records...".to_string()) }
-                        } else if let Some(Ok(records)) = records_state.data.read().as_ref() {
-                            div {
-                                class: "max-h-[60vh] overflow-y-auto",
-                                table {
-                                    class: "min-w-full divide-y divide-gray-200 text-xs",
-                                    thead {
-                                        class: "bg-gray-50 sticky top-0",
-                                        tr {
-                                            th {
-                                                class: "px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase",
-                                                "File"
-                                            }
-                                            th {
-                                                class: "px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase",
-                                                "Line"
-                                            }
-                                            th {
-                                                class: "px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase",
-                                                "Variable"
-                                            }
-                                            th {
-                                                class: "px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase",
-                                                "Value"
-                                            }
-                                            th {
-                                                class: "px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase",
-                                                "Type"
-                                            }
-                                            th {
-                                                class: "px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase",
-                                                "Time"
-                                            }
-                                        }
-                                    }
-                                    tbody {
-                                        class: "bg-white divide-y divide-gray-200",
-                                        {
-                                            records.iter().map(|record| {
-                                                rsx! {
-                                                    tr {
-                                                        class: "hover:bg-gray-50",
-                                                        td {
-                                                            class: "px-2 py-2 text-xs text-gray-500",
-                                                            "{record.filename}"
-                                                        }
-                                                        td {
-                                                            class: "px-2 py-2 text-xs text-gray-500",
-                                                            "{record.lineno}"
-                                                        }
-                                                        td {
-                                                            class: "px-2 py-2 text-xs font-medium text-blue-600",
-                                                            "{record.variable_name}"
-                                                        }
-                                                        td {
-                                                            class: "px-2 py-2 text-xs text-gray-900 max-w-xs truncate",
-                                                            title: "{record.value.clone()}",
-                                                            "{record.value}"
-                                                        }
-                                                        td {
-                                                            class: "px-2 py-2 text-xs text-gray-500",
-                                                            "{record.value_type}"
-                                                        }
-                                                        td {
-                                                            class: "px-2 py-2 text-xs text-gray-500",
-                                                            "{format_timestamp_safe(record.timestamp)}"
-                                                        }
-                                                    }
-                                                }
-                                            })
-                                        }
-                                    }
-                                }
+                        } else if let Some(Ok(df)) = records_state.data.read().as_ref() {
+                            // Use DataFrameView component which uses SQL column names from df.names
+                            // SQL AS already renamed columns, so df.names contains the display names
+                            DataFrameView { 
+                                df: df.clone(), 
+                                on_row_click: None 
                             }
                         } else if let Some(Err(err)) = records_state.data.read().as_ref() {
                             ErrorState { error: format!("{:?}", err), title: None }
