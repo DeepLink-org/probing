@@ -158,7 +158,7 @@ impl CustomNamespace for TaskStatsSchema {
                     Field::new("cpu_utime", DataType::Int64, false),
                     Field::new("cpu_stime", DataType::Int64, false),
                 ]))),
-                data: Default::default(),
+                data: Self::data(expr),
             }),
             _ => Arc::new(probing_core::core::LazyTableSource {
                 name: expr.to_string(),
