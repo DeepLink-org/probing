@@ -143,14 +143,17 @@ impl EngineCall for PythonExt {
                 let global = PyDict::new(py);
                 let prefix = params.get("prefix").cloned();
                 let code = if let Some(prefix) = prefix {
-                    format!(r#"
+                    format!(
+                        r#"
 import json
 from probing.inspect.trace import list_traceable
 
 prefix = "{}"
 result = list_traceable(prefix=prefix)
 retval = result if result else "[]"
-"#, prefix)
+"#,
+                        prefix
+                    )
                 } else {
                     r#"
 import json
@@ -159,20 +162,26 @@ from probing.inspect.trace import list_traceable
 prefix = None
 result = list_traceable(prefix=prefix)
 retval = result if result else "[]"
-"#.to_string()
+"#
+                    .to_string()
                 };
                 let code_cstr = CString::new(code).map_err(|e| {
                     EngineError::PluginError(format!("Failed to create CString: {e}"))
                 })?;
                 py.run(code_cstr.as_c_str(), Some(&global), Some(&global))
-                    .map_err(|e| EngineError::PluginError(format!("Failed to list traceable: {e}")))?;
+                    .map_err(|e| {
+                        EngineError::PluginError(format!("Failed to list traceable: {e}"))
+                    })?;
                 match global.get_item("retval") {
                     Ok(result) => {
-                        let result_str: String = result.extract()
-                            .map_err(|e| EngineError::PluginError(format!("Failed to extract result: {e}")))?;
+                        let result_str: String = result.extract().map_err(|e| {
+                            EngineError::PluginError(format!("Failed to extract result: {e}"))
+                        })?;
                         Ok(result_str.into_bytes())
                     }
-                    Err(e) => Err(EngineError::PluginError(format!("Failed to get result: {e}"))),
+                    Err(e) => Err(EngineError::PluginError(format!(
+                        "Failed to get result: {e}"
+                    ))),
                 }
             });
         }
@@ -195,11 +204,14 @@ retval = result if result else "[]"
                     .map_err(|e| EngineError::PluginError(format!("Failed to show trace: {e}")))?;
                 match global.get_item("retval") {
                     Ok(result) => {
-                        let result_str: String = result.extract()
-                            .map_err(|e| EngineError::PluginError(format!("Failed to extract result: {e}")))?;
+                        let result_str: String = result.extract().map_err(|e| {
+                            EngineError::PluginError(format!("Failed to extract result: {e}"))
+                        })?;
                         Ok(result_str.into_bytes())
                     }
-                    Err(e) => Err(EngineError::PluginError(format!("Failed to get result: {e}"))),
+                    Err(e) => Err(EngineError::PluginError(format!(
+                        "Failed to get result: {e}"
+                    ))),
                 }
             });
         }
@@ -207,14 +219,25 @@ retval = result if result else "[]"
             let function = params.get("function").ok_or_else(|| {
                 EngineError::PluginError("Missing 'function' parameter".to_string())
             })?;
-            let watch = params.get("watch").map(|s| s.split(',').map(|x| x.trim().to_string()).collect::<Vec<_>>()).unwrap_or_default();
-            let depth = params.get("depth").and_then(|s| s.parse::<i32>().ok()).unwrap_or(1);
-            
+            let watch = params
+                .get("watch")
+                .map(|s| {
+                    s.split(',')
+                        .map(|x| x.trim().to_string())
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            let depth = params
+                .get("depth")
+                .and_then(|s| s.parse::<i32>().ok())
+                .unwrap_or(1);
+
             return Python::with_gil(|py| {
                 use pyo3::types::PyDict;
                 use std::ffi::CString;
                 let global = PyDict::new(py);
-                let code = format!(r#"
+                let code = format!(
+                    r#"
 import json
 from probing.inspect.trace import trace
 
@@ -224,7 +247,9 @@ try:
 except Exception as e:
     result = {{"success": False, "error": str(e)}}
 retval = json.dumps(result)
-"#, function, watch, depth, function);
+"#,
+                    function, watch, depth, function
+                );
                 let code_cstr = CString::new(code).map_err(|e| {
                     EngineError::PluginError(format!("Failed to create CString: {e}"))
                 })?;
@@ -232,11 +257,14 @@ retval = json.dumps(result)
                     .map_err(|e| EngineError::PluginError(format!("Failed to start trace: {e}")))?;
                 match global.get_item("retval") {
                     Ok(result) => {
-                        let result_str: String = result.extract()
-                            .map_err(|e| EngineError::PluginError(format!("Failed to extract result: {e}")))?;
+                        let result_str: String = result.extract().map_err(|e| {
+                            EngineError::PluginError(format!("Failed to extract result: {e}"))
+                        })?;
                         Ok(result_str.into_bytes())
                     }
-                    Err(e) => Err(EngineError::PluginError(format!("Failed to get result: {e}"))),
+                    Err(e) => Err(EngineError::PluginError(format!(
+                        "Failed to get result: {e}"
+                    ))),
                 }
             });
         }
@@ -244,12 +272,13 @@ retval = json.dumps(result)
             let function = params.get("function").ok_or_else(|| {
                 EngineError::PluginError("Missing 'function' parameter".to_string())
             })?;
-            
+
             return Python::with_gil(|py| {
                 use pyo3::types::PyDict;
                 use std::ffi::CString;
                 let global = PyDict::new(py);
-                let code = format!(r#"
+                let code = format!(
+                    r#"
 import json
 from probing.inspect.trace import untrace
 
@@ -259,7 +288,9 @@ try:
 except Exception as e:
     result = {{"success": False, "error": str(e)}}
 retval = json.dumps(result)
-"#, function, function);
+"#,
+                    function, function
+                );
                 let code_cstr = CString::new(code).map_err(|e| {
                     EngineError::PluginError(format!("Failed to create CString: {e}"))
                 })?;
@@ -267,24 +298,31 @@ retval = json.dumps(result)
                     .map_err(|e| EngineError::PluginError(format!("Failed to stop trace: {e}")))?;
                 match global.get_item("retval") {
                     Ok(result) => {
-                        let result_str: String = result.extract()
-                            .map_err(|e| EngineError::PluginError(format!("Failed to extract result: {e}")))?;
+                        let result_str: String = result.extract().map_err(|e| {
+                            EngineError::PluginError(format!("Failed to extract result: {e}"))
+                        })?;
                         Ok(result_str.into_bytes())
                     }
-                    Err(e) => Err(EngineError::PluginError(format!("Failed to get result: {e}"))),
+                    Err(e) => Err(EngineError::PluginError(format!(
+                        "Failed to get result: {e}"
+                    ))),
                 }
             });
         }
         if path == "trace/variables" {
             let function = params.get("function");
-            let limit = params.get("limit").and_then(|s| s.parse::<usize>().ok()).unwrap_or(100);
-            
+            let limit = params
+                .get("limit")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(100);
+
             return Python::with_gil(|py| {
                 use pyo3::types::PyDict;
                 use std::ffi::CString;
                 let global = PyDict::new(py);
                 let code = if let Some(func) = function {
-                    format!(r#"
+                    format!(
+                        r#"
 import json
 import probing
 
@@ -308,9 +346,12 @@ try:
         retval = json.dumps(result)
 except Exception as e:
     retval = json.dumps({{"error": str(e)}})
-"#, func, limit, func, limit)
+"#,
+                        func, limit, func, limit
+                    )
                 } else {
-                    format!(r#"
+                    format!(
+                        r#"
 import json
 import probing
 
@@ -334,20 +375,27 @@ try:
         retval = json.dumps(result)
 except Exception as e:
     retval = json.dumps({{"error": str(e)}})
-"#, limit, limit)
+"#,
+                        limit, limit
+                    )
                 };
                 let code_cstr = CString::new(code).map_err(|e| {
                     EngineError::PluginError(format!("Failed to create CString: {e}"))
                 })?;
                 py.run(code_cstr.as_c_str(), Some(&global), Some(&global))
-                    .map_err(|e| EngineError::PluginError(format!("Failed to get variables: {e}")))?;
+                    .map_err(|e| {
+                        EngineError::PluginError(format!("Failed to get variables: {e}"))
+                    })?;
                 match global.get_item("retval") {
                     Ok(result) => {
-                        let result_str: String = result.extract()
-                            .map_err(|e| EngineError::PluginError(format!("Failed to extract result: {e}")))?;
+                        let result_str: String = result.extract().map_err(|e| {
+                            EngineError::PluginError(format!("Failed to extract result: {e}"))
+                        })?;
                         Ok(result_str.into_bytes())
                     }
-                    Err(e) => Err(EngineError::PluginError(format!("Failed to get result: {e}"))),
+                    Err(e) => Err(EngineError::PluginError(format!(
+                        "Failed to get result: {e}"
+                    ))),
                 }
             });
         }
