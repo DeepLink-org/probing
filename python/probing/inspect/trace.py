@@ -242,8 +242,74 @@ class _TraceableCollector:
 
                         if filter_func(full_path):
                             if item_type == "F":
+                                # Get function variables (parameters and local variables)
+                                variables = []
+                                try:
+                                    if isinstance(v, FunctionType) and hasattr(v, "__code__"):
+                                        code = v.__code__
+                                        
+                                        # Use co_varnames to get all local variables (including parameters)
+                                        # co_varnames contains: parameters, *args, **kwargs, and local variables
+                                        # Use co_nlocals to get the count of all local names
+                                        try:
+                                            if hasattr(code, "co_varnames") and hasattr(code, "co_nlocals"):
+                                                varnames = getattr(code, "co_varnames", ())
+                                                nlocals = getattr(code, "co_nlocals", 0)
+                                                
+                                                if varnames and nlocals > 0:
+                                                    # Get all local variables (parameters + locals)
+                                                    # co_varnames[:co_nlocals] gives us all local names
+                                                    variables = list(varnames[:nlocals])
+                                                    
+                                                    # Also include co_names for referenced globals (optional)
+                                                    # This helps identify what external names the function uses
+                                                    if hasattr(code, "co_names"):
+                                                        names = getattr(code, "co_names", ())
+                                                        if names:
+                                                            # Filter out builtins and common functions
+                                                            filtered_names = [
+                                                                name for name in names 
+                                                                if not name.startswith("__") 
+                                                                and name not in ["print", "len", "str", "int", "float", "list", "dict", "tuple", "set", "range", "enumerate", "zip"]
+                                                            ]
+                                                            # Add to variables list (these are globals used in the function)
+                                                            variables.extend(filtered_names)
+                                                    
+                                                    # Remove duplicates and sort
+                                                    variables = sorted(list(set(variables)))
+                                                    
+                                        except (AttributeError, TypeError, IndexError):
+                                            pass
+                                        
+                                        # Fallback: try to get just parameters if co_nlocals approach failed
+                                        if not variables:
+                                            try:
+                                                if hasattr(code, "co_varnames") and hasattr(code, "co_argcount"):
+                                                    argcount = getattr(code, "co_argcount", 0)
+                                                    kwonlyargcount = getattr(code, "co_kwonlyargcount", 0)
+                                                    posonlyargcount = getattr(code, "co_posonlyargcount", 0)
+                                                    varnames = getattr(code, "co_varnames", ())
+                                                    if varnames:
+                                                        # Get parameters only
+                                                        param_count = argcount + posonlyargcount + kwonlyargcount
+                                                        if param_count > 0:
+                                                            variables = list(varnames[:param_count])
+                                            except (AttributeError, TypeError, IndexError):
+                                                pass
+                                        
+                                        # Final fallback: use inspect.signature
+                                        if not variables:
+                                            try:
+                                                if hasattr(v, "__name__") and not v.__name__.startswith("_"):
+                                                    sig = inspect.signature(v, follow_wrapped=False)
+                                                    variables = [param.name for param in sig.parameters.values()]
+                                            except (ValueError, TypeError, AttributeError, RuntimeError):
+                                                pass
+                                except (AttributeError, TypeError, RuntimeError, ValueError):
+                                    # Skip this function if any error occurs
+                                    pass
                                 traceable_items.append(
-                                    {"name": full_path, "type": item_type}
+                                    {"name": full_path, "type": item_type, "variables": variables}
                                 )
                             elif not isinstance(v, ModuleType):
                                 name = cls.get_object_name(v)
@@ -372,12 +438,21 @@ class _TraceableCollector:
                     item_type = (
                         "M" if func_path.startswith(module_path + ".") else item["type"]
                     )
-                    module_paths[module_path] = {"name": module_path, "type": item_type}
+                    # Preserve all fields from original item, especially 'variables'
+                    new_item = item.copy()
+                    new_item["name"] = module_path
+                    new_item["type"] = item_type
+                    # For modules, clear variables if it was a function
+                    if item_type == "M":
+                        new_item["variables"] = []
+                    module_paths[module_path] = new_item
             elif len(parts) == prefix_levels and func_path == prefix:
-                pass
+                # Exact match: include the item itself (important for getting variables of a specific function)
+                if func_path not in module_paths:
+                    module_paths[func_path] = item.copy()
             else:
                 if func_path not in module_paths:
-                    module_paths[func_path] = item
+                    module_paths[func_path] = item.copy()
 
         return sorted(module_paths.values(), key=lambda x: x["name"])
 
@@ -550,8 +625,16 @@ class ProbingTracer:
                 
                 # Save variable change to trace_variables table (for both watch and silent_watch)
                 try:
+                    # Get full qualified function name (module.function_name)
+                    module_name = frame.f_globals.get('__name__', '')
+                    func_name = frame.f_code.co_name
+                    if module_name:
+                        full_function_name = f"{module_name}.{func_name}"
+                    else:
+                        full_function_name = func_name
+                    
                     Variable(
-                        function_name=frame.f_code.co_name,
+                        function_name=full_function_name,
                         filename=filename,
                         lineno=frame.f_lineno,
                         variable_name=k,
@@ -624,6 +707,7 @@ def list_traceable(prefix=None, depth=2):
 
     Public API for discovering traceable functions and modules in the Python environment.
     Supports wildcard patterns (* and ?) for flexible filtering.
+    Always returns structured data with variables information.
 
     Args:
         prefix: Optional prefix to filter results. Supports wildcards:
@@ -633,12 +717,13 @@ def list_traceable(prefix=None, depth=2):
         depth: Maximum depth for recursive traversal (default: 2)
 
     Returns:
-        JSON string containing list of formatted traceable items in "[TYPE] name" format
-        where TYPE is F (Function), C (Class), M (Module), or V (Variable)
+        JSON string containing list of items. Each item is a dict with "name", "type", and "variables" keys.
+        - Functions (type='F') will have their variables (parameters and locals) in the "variables" list
+        - Other items (modules, classes, etc.) will have an empty "variables" list
 
     Examples:
         >>> list_traceable()  # Returns top-level modules
-        >>> list_traceable("torch.nn")  # Returns torch.nn.* items
+        >>> list_traceable("torch.nn")  # Returns torch.nn.* items with variables
         >>> list_traceable("torch.*.Linear")  # Returns all Linear classes in torch submodules
     """
     collector = _TraceableCollector()
@@ -646,9 +731,15 @@ def list_traceable(prefix=None, depth=2):
     traceable_items = collector.collect_traceable_items(depth, filter_func)
     traceable_items = collector.filter_by_prefix(traceable_items, prefix)
 
-    # Format items as "[TYPE] name"
-    formatted_items = [f"[{x['type']}] {x['name']}" for x in traceable_items]
-    return json.dumps(formatted_items, indent=2)
+    # Always return structured data with variables
+    result = []
+    for item in traceable_items:
+        result.append({
+            "name": item['name'],
+            "type": item['type'],
+            "variables": item.get('variables', [])
+        })
+    return json.dumps(result, indent=2)
 
 
 def getname(obj):

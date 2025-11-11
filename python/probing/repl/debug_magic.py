@@ -395,25 +395,45 @@ Cell Magic (separate):
             else:
                 i += 1
 
+        # Always returns variables by default
         result = list_traceable_func(prefix=prefix)
-        functions = json.loads(result)
+        items = json.loads(result)
 
-        if not functions:
+        if not items:
             prefix_msg = f" matching '{prefix}'" if prefix else ""
-            print(f"No traceable functions found{prefix_msg}.")
+            print(f"No traceable items found{prefix_msg}.")
             return
 
         # Display results with limit
-        output = [f"Found {len(functions)} traceable functions"]
+        output = [f"Found {len(items)} traceable items"]
         if prefix:
             output[0] += f" matching '{prefix}'"
         output.append("")
 
-        for i, func in enumerate(functions[:max_display], 1):
-            output.append(f"  {i}. {func}")
+        for i, item in enumerate(items[:max_display], 1):
+            if isinstance(item, dict):
+                # New format with variables
+                item_type = item.get('type', '?')
+                name = item.get('name', '?')
+                variables = item.get('variables', [])
+                
+                # Format: [TYPE] name
+                line = f"  {i}. [{item_type}] {name}"
+                
+                # Add variables if available
+                if variables:
+                    vars_str = ", ".join(variables[:5])  # Show first 5 variables
+                    if len(variables) > 5:
+                        vars_str += f" ... (+{len(variables) - 5} more)"
+                    line += f" (vars: {vars_str})"
+                
+                output.append(line)
+            else:
+                # Old format (string)
+                output.append(f"  {i}. {item}")
 
-        if len(functions) > max_display:
-            output.append(f"\n  ... and {len(functions) - max_display} more")
+        if len(items) > max_display:
+            output.append(f"\n  ... and {len(items) - max_display} more")
             output.append(
                 f"\nTip: Use --limit/-n to show more results, or wildcards (*, ?) to narrow down"
             )
