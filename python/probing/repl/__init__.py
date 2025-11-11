@@ -327,7 +327,8 @@ class DebugConsole(code.InteractiveConsole):
         try:
             code = self.compile(source, "<input>", "single")
         except (OverflowError, SyntaxError, ValueError):
-            print("Error in code:\n", source)
+            # Compilation failed - might be incomplete code or magic command
+            # Let IPython kernel handle it (it understands magic commands)
             retval = self.code_executor.execute(source)
             self.resetbuffer()
             return retval

@@ -134,11 +134,11 @@ Cell Magic (separate):
         """Unified trace command with subcommands.
 
         Usage:
-            %trace start <function> [--watch <vars>] [--depth <n>]    # Start tracing a function
-            %trace stop <function>                                     # Stop tracing a function
-            %trace show                                                # Show currently traced functions
-            %trace list [<prefix>] [--limit <n>]                      # List traceable functions
-            %trace help                                                # Show help message
+            %trace watch                                       # Show currently watched functions
+            %trace watch <function> [vars...] [--depth <n>]   # Watch a function
+            %trace unwatch <function>                          # Stop watching a function
+            %trace list [<prefix>] [--limit <n>]               # List traceable functions
+            %trace help                                         # Show help message
         """
         if not line or not line.strip():
             self._show_trace_help()
@@ -147,12 +147,12 @@ Cell Magic (separate):
         parts = line.strip().split()
         subcommand = parts[0].lower()
 
-        if subcommand == "start":
-            self._cmd_trace_start(" ".join(parts[1:]))
-        elif subcommand == "stop":
-            self._cmd_trace_stop(" ".join(parts[1:]))
-        elif subcommand == "show":
-            self._cmd_trace_show()
+        if subcommand == "watch":
+            self._cmd_trace_watch(" ".join(parts[1:]))
+        elif subcommand == "log":
+            self._cmd_trace_log(" ".join(parts[1:]))
+        elif subcommand == "unwatch":
+            self._cmd_trace_unwatch(" ".join(parts[1:]))
         elif subcommand in ["list", "ls"]:
             self._cmd_trace_list(" ".join(parts[1:]))
         elif subcommand in ["help", "--help", "-h"]:
@@ -168,52 +168,77 @@ Trace Magic Commands
 ====================
 
 Usage:
-  %trace start <function> [--watch <vars>] [--depth <n>]    Start tracing a function
-  %trace stop <function>                                     Stop tracing a function
-  %trace show                                                Show currently traced functions
-  %trace list [<prefix>] [--limit <n>]                      List traceable functions
-  %trace ls [<prefix>] [-n <n>]                             Alias for list
-  %trace help                                                Show this help message
+  %trace watch                                       Show currently watched functions
+  %trace watch <function> [var1 var2 ...] [--depth <n>]    Watch a function (prints to terminal)
+  %trace log <function> [var1 var2 ...] [--depth <n>]      Log a function (only saves to table)
+  %trace unwatch <function>                          Stop watching a function
+  %trace list [<prefix>] [--limit <n>]              List traceable functions
+  %trace ls [<prefix>] [-n <n>]                     Alias for list
+  %trace help                                        Show this help message
 
 Examples:
-  %trace start torch.nn.Linear.forward --watch input output --depth 2
-  %trace start mymodule.myfunction
-  %trace stop torch.nn.Linear.forward
-  %trace show
+  # Show what's being watched
+  %trace watch
+  
+  # Watch a function with specific variables (prints to terminal)
+  %trace watch __main__.train loss accuracy lr
+  %trace watch torch.nn.Linear.forward input output
+  
+  # Log a function (only saves to table, no terminal output)
+  %trace log __main__.train loss accuracy lr
+  %trace log mymodule.process data --depth 3
+  
+  # Watch a function with custom depth
+  %trace watch mymodule.process data --depth 3
+  
+  # Stop watching
+  %trace unwatch __main__.train
+  
+  # List traceable functions
   %trace list torch.nn
   %trace ls torch.optim --limit 20
-  %trace list probing.core.* -n 100
-  %trace ls probing.*.engine
 
 Cell Magic (separate):
-  %%probe --watch <vars> --depth <n>                         Execute code with probing enabled
+  %%probe --watch <vars> --depth <n>                 Execute code with probing enabled
         """
         print(help_text)
 
-    def _cmd_trace_start(self, args_str: str) -> None:
-        """Handle trace start subcommand."""
+    def _cmd_trace_watch(self, args_str: str) -> None:
+        """Handle trace watch subcommand - function trace or show mode."""
         from probing.inspect.trace import trace as trace_func
+        from probing.inspect.trace import show_trace
+        import json
 
-        # Parse arguments - handle both --watch format and key=value format
+        # Parse arguments
         parts = args_str.strip().split()
+        
+        # No arguments = show mode
         if not parts:
-            print("✗ Error: Function name is required")
-            print("Usage: %trace start <function> [--watch <vars>] [--depth <n>]")
+            result = show_trace()
+            traced = json.loads(result)
+            if not traced:
+                print("No functions are currently being watched.")
+                return
+            output = ["Currently watched functions:"]
+            for i, func in enumerate(traced, 1):
+                output.append(f"  {i}. {func}")
+            print("\n".join(output))
             return
-
-        function = parts[0]
+        
+        # Parse function name and arguments
+        function = None
         watch_vars = []
-        depth = 1
-
-        # Parse --watch and --depth flags
-        i = 1
+        depth = 2
+        
+        i = 0
+        # First arg that doesn't start with -- is the function name
+        if parts and not parts[0].startswith("-"):
+            function = parts[0]
+            i = 1
+        
+        # Parse remaining args: --depth or variable names
         while i < len(parts):
-            if parts[i] in ["--watch", "-w"]:
-                i += 1
-                while i < len(parts) and not parts[i].startswith("--"):
-                    watch_vars.append(parts[i])
-                    i += 1
-            elif parts[i] in ["--depth", "-d"]:
+            if parts[i] in ["--depth", "-d"]:
                 i += 1
                 if i < len(parts):
                     try:
@@ -222,30 +247,103 @@ Cell Magic (separate):
                     except ValueError:
                         print(f"✗ Error: Invalid depth value: {parts[i]}")
                         return
+            elif not parts[i].startswith("-"):
+                # It's a variable name to watch
+                watch_vars.append(parts[i])
+                i += 1
             else:
                 i += 1
 
-        try:
-            trace_func(function, watch=watch_vars, depth=depth)
-            print(f"✓ Started tracing: {function}")
-        except Exception as e:
-            print(f"✗ Failed to trace {function}: {e}")
+        # Execute trace command (watch_vars go to watch list, not silent_watch)
+        if function:
+            try:
+                trace_func(function, watch=watch_vars, silent_watch=[], depth=depth)
+                watch_info = f" (vars: {', '.join(watch_vars)})" if watch_vars else ""
+                print(f"✓ Started watching: {function}{watch_info}")
+            except Exception as e:
+                print(f"✗ Failed to watch {function}: {e}")
+        else:
+            print("✗ Error: Function name is required")
+            print("Usage: %trace watch <function> [var1 var2 ...] [--depth <n>]")
 
-    def _cmd_trace_stop(self, args_str: str) -> None:
-        """Handle trace stop subcommand."""
+    def _cmd_trace_log(self, args_str: str) -> None:
+        """Handle trace log subcommand - similar to watch but silent (only saves to table)."""
+        from probing.inspect.trace import trace as trace_func
+        from probing.inspect.trace import show_trace
+        import json
+
+        # Parse arguments
+        parts = args_str.strip().split()
+        
+        # No arguments = show mode (same as watch)
+        if not parts:
+            result = show_trace()
+            traced = json.loads(result)
+            if not traced:
+                print("No functions are currently being logged.")
+                return
+            output = ["Currently logged functions:"]
+            for i, func in enumerate(traced, 1):
+                output.append(f"  {i}. {func}")
+            print("\n".join(output))
+            return
+        
+        # Parse function name and arguments
+        function = None
+        watch_vars = []
+        depth = 2
+        
+        i = 0
+        # First arg that doesn't start with -- is the function name
+        if parts and not parts[0].startswith("-"):
+            function = parts[0]
+            i = 1
+        
+        # Parse remaining args: --depth or variable names
+        while i < len(parts):
+            if parts[i] in ["--depth", "-d"]:
+                i += 1
+                if i < len(parts):
+                    try:
+                        depth = int(parts[i])
+                        i += 1
+                    except ValueError:
+                        print(f"✗ Error: Invalid depth value: {parts[i]}")
+                        return
+            elif not parts[i].startswith("-"):
+                # It's a variable name to watch
+                watch_vars.append(parts[i])
+                i += 1
+            else:
+                i += 1
+
+        # Execute trace command (watch_vars go to silent_watch list, not watch)
+        if function:
+            try:
+                trace_func(function, watch=[], silent_watch=watch_vars, depth=depth)
+                watch_info = f" (vars: {', '.join(watch_vars)})" if watch_vars else ""
+                print(f"✓ Started logging: {function}{watch_info}")
+            except Exception as e:
+                print(f"✗ Failed to log {function}: {e}")
+        else:
+            print("✗ Error: Function name is required")
+            print("Usage: %trace log <function> [var1 var2 ...] [--depth <n>]")
+
+    def _cmd_trace_unwatch(self, args_str: str) -> None:
+        """Handle trace unwatch subcommand."""
         from probing.inspect.trace import untrace as untrace_func
 
         function = args_str.strip()
         if not function:
             print("✗ Error: Function name is required")
-            print("Usage: %trace stop <function>")
+            print("Usage: %trace unwatch <function>")
             return
 
         try:
             untrace_func(function)
-            print(f"✓ Stopped tracing: {function}")
+            print(f"✓ Stopped watching: {function}")
         except Exception as e:
-            print(f"✗ Failed to untrace {function}: {e}")
+            print(f"✗ Failed to unwatch {function}: {e}")
 
     def _cmd_trace_show(self) -> None:
         """Handle trace show subcommand."""
@@ -255,10 +353,10 @@ Cell Magic (separate):
         traced = json.loads(result)
 
         if not traced:
-            print("No functions are currently being traced.")
+            print("No functions are currently being watched.")
             return
 
-        output = ["Currently traced functions:"]
+        output = ["Currently watched functions:"]
         for i, func in enumerate(traced, 1):
             output.append(f"  {i}. {func}")
         print("\n".join(output))

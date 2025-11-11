@@ -6,14 +6,57 @@ import json
 import os
 import sys
 import threading
+import time
+import types
 import warnings
+from dataclasses import dataclass
 from types import FrameType, FunctionType, ModuleType
 from typing import Any, AnyStr, Callable, Dict, List, Set, Optional
+
+from probing.core.table import table
 
 thread_global = threading.local()
 internal_directories = os.path.dirname((lambda: 0).__code__.co_filename)
 
 traced_functions = {}
+# Global dictionary to store probe attributes for functions
+# Key: function code object id, Value: dict with __probe_func__, __probe_watch__, __probe_depth__
+_probe_attrs = {}
+# Global dictionary to store module references needed by wrapper functions
+_probe_modules = {'sys': sys}
+
+
+@table("trace_variables")
+@dataclass
+class Variable:
+    """Row model for variable change records.
+    
+    Each saved instance represents a variable change during function tracing.
+    
+    Parameters
+    ----------
+    function_name : str
+        Name of the function where the variable change occurred.
+    filename : str
+        Name of the file containing the function.
+    lineno : int
+        Line number where the variable change occurred.
+    variable_name : str
+        Name of the variable that changed.
+    value : str
+        String representation of the variable value.
+    value_type : str
+        Type name of the variable value.
+    timestamp : float
+        Timestamp when the variable change was recorded.
+    """
+    function_name: str
+    filename: str
+    lineno: int
+    variable_name: str
+    value: str
+    value_type: str
+    timestamp: float
 
 
 class _TraceableCollector:
@@ -339,36 +382,92 @@ class _TraceableCollector:
         return sorted(module_paths.values(), key=lambda x: x["name"])
 
 
-def probe(func=None, watch=[], depth=1):
-    if func is not None:
-
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            tracer = ProbingTracer(depth, watch)
-            with tracer:
-                return func(*args, **kwargs)
-
-        return wrapper
-    else:
-
-        def decorator(func):
-            @functools.wraps(func)
-            def wrapper(*args, **kwargs):
-                tracer = ProbingTracer(depth, watch)
-                with tracer:
-                    return func(*args, **kwargs)
-
-            return wrapper
-
-        return decorator
+def probe(func, watch=None, silent_watch=None, depth=1):
+    """Wrap a function with tracing capabilities.
+    
+    Args:
+        func: Function to wrap
+        watch: List of variable names to watch and print (default: [])
+        silent_watch: List of variable names to watch but only log to table (default: [])
+        depth: Tracing depth (default: 1)
+    
+    Returns:
+        Wrapped function that traces execution
+    """
+    if watch is None:
+        watch = []
+    if silent_watch is None:
+        silent_watch = []
+    
+    def wrapper(*args, **kwargs):
+        # Get code object id from current frame
+        _sys_module = __import__('sys')
+        current_frame = _sys_module._getframe(0)
+        code_id = id(current_frame.f_code)
+        
+        # Get _probe_attrs from trace module (not from current frame's globals)
+        _trace_module = _sys_module.modules.get('probing.inspect.trace')
+        if _trace_module is None:
+            for mod in _sys_module.modules.values():
+                if hasattr(mod, '_probe_attrs'):
+                    _trace_module = mod
+                    break
+        if _trace_module is None:
+            raise RuntimeError("Cannot find trace module with _probe_attrs")
+        
+        _probe_attrs_dict = getattr(_trace_module, '_probe_attrs', {})
+        attrs = _probe_attrs_dict.get(code_id, {})
+        _func = attrs.get('__probe_func__')
+        if _func is None:
+            raise RuntimeError(f"Probe attributes not found for code id {code_id}")
+        
+        ProbingTracer = getattr(_trace_module, 'ProbingTracer')
+        tracer = ProbingTracer(
+            attrs.get('__probe_depth__', 1), 
+            attrs.get('__probe_watch__', []),
+            attrs.get('__probe_silent_watch__', [])
+        )
+        with tracer:
+            return _func(*args, **kwargs)
+    
+    # Store attributes in global dict keyed by code object id
+    code_id = id(wrapper.__code__)
+    _probe_attrs[code_id] = {
+        '__probe_func__': func,
+        '__probe_watch__': watch if isinstance(watch, list) else list(watch) if watch else [],
+        '__probe_silent_watch__': silent_watch if isinstance(silent_watch, list) else list(silent_watch) if silent_watch else [],
+        '__probe_depth__': depth,
+    }
+    
+    wrapper.__globals__['_probe_attrs'] = _probe_attrs
+    wrapper.__globals__['_probe_modules'] = _probe_modules
+    
+    # Apply functools.wraps to copy metadata
+    wrapper = functools.wraps(func)(wrapper)
+    
+    # Re-store attributes after functools.wraps (may have created new function with new code)
+    code_id = id(wrapper.__code__)
+    _probe_attrs[code_id] = {
+        '__probe_func__': func,
+        '__probe_watch__': watch if isinstance(watch, list) else list(watch) if watch else [],
+        '__probe_silent_watch__': silent_watch if isinstance(silent_watch, list) else list(silent_watch) if silent_watch else [],
+        '__probe_depth__': depth,
+    }
+    wrapper.__globals__['_probe_attrs'] = _probe_attrs
+    wrapper.__globals__['_probe_modules'] = _probe_modules
+    
+    return wrapper
 
 
 class ProbingTracer:
-    def __init__(self, depth=1, watch=[]):
+    def __init__(self, depth=1, watch=[], silent_watch=[]):
         self.depth = depth
         self.count_calls = 0
         self.count_returns = 0
-        self.watch = watch
+        self.watch = watch  # Variables to watch and print
+        self.silent_watch = silent_watch  # Variables to watch but only log to table
+        # Combined list of all watched variables
+        self.all_watch = list(set(watch + silent_watch))
         self.watch_impl = {}
 
     def on_call(self):
@@ -408,18 +507,14 @@ class ProbingTracer:
                     self.on_return
                 )
                 return None
-            if not self.watch_impl and self.watch:
+            if not self.watch_impl and self.all_watch:
                 self.watch_impl = {
-                    k: id(frame.f_locals.get(k, None)) for k in self.watch
+                    k: id(frame.f_locals.get(k, None)) for k in self.all_watch
                 }
-                print(
-                    f"In {frame.f_code.co_name} from {frame.f_code.co_filename} line {frame.f_lineno}:"
-                )
-                print(f"  start watching variables: {[k for k in self.watch_impl]}")
             return self.trace
         if event == "return":
             self.on_return()
-            for k in self.watch:
+            for k in self.all_watch:
                 if k in frame.f_locals and isinstance(
                     frame.f_locals[k], FakeProbingTensor
                 ):
@@ -431,7 +526,7 @@ class ProbingTracer:
         if self._is_internal_frame(frame):
             return None
 
-        for k in self.watch:
+        for k in self.all_watch:
             if (
                 k in frame.f_locals
                 and isinstance(frame.f_locals[k], torch.Tensor)
@@ -443,7 +538,31 @@ class ProbingTracer:
                 )
         for k, v in self.watch_impl.items():
             if k in frame.f_locals and id(frame.f_locals[k]) != v:
-                print(f"probing: variable update {k} = {frame.f_locals[k]}")
+                new_value = frame.f_locals[k]
+                # Format: probing: [function:line] variable = value (type)
+                filename = frame.f_code.co_filename.split('/')[-1] if '/' in frame.f_code.co_filename else frame.f_code.co_filename
+                value_str = str(new_value)
+                value_type = type(new_value).__name__
+                
+                # Print only if variable is in watch list (not silent_watch)
+                if k in self.watch:
+                    print(f"probing: variable update {k} = {new_value}")
+                
+                # Save variable change to trace_variables table (for both watch and silent_watch)
+                try:
+                    Variable(
+                        function_name=frame.f_code.co_name,
+                        filename=filename,
+                        lineno=frame.f_lineno,
+                        variable_name=k,
+                        value=value_str,
+                        value_type=value_type,
+                        timestamp=time.time()
+                    ).save()
+                except Exception as e:
+                    # Log error but don't disrupt the tracing process
+                    print(f"Warning: Failed to save variable change to trace_variables table: {e}")
+                
                 self.watch_impl[k] = id(frame.f_locals[k])
         return self.trace
 
@@ -546,7 +665,7 @@ def getname(obj):
     return _TraceableCollector.get_object_name(obj)
 
 
-def trace(func_or_name, watch=[], depth=1, callback=None):
+def trace(func_or_name, watch=[], silent_watch=[], depth=1, callback=None):
     def get_func(name):
         names = name.split(".")
         parent = sys.modules.get(names[0], None)
@@ -554,7 +673,7 @@ def trace(func_or_name, watch=[], depth=1, callback=None):
         while parent is not None and len(names) > 0:
             if hasattr(parent, names[0]):
                 if len(names) == 1:
-                    return parent, getattr(parent, names[0]), names[0]
+                    return getattr(parent, names[0])
                 parent = getattr(parent, names[0])
                 names = names[1:]
             else:
@@ -565,12 +684,97 @@ def trace(func_or_name, watch=[], depth=1, callback=None):
             print(f"Function {func_or_name} is already being traced.")
             return
         try:
-            parent, func, name = get_func(func_or_name)
-            traced_functions[func_or_name] = func
-            func = probe(func, watch=watch, depth=depth)
-            parent.__setattr__(name, func)
-        except Exception:
-            print(f"Function {func_or_name} not found.")
+            func = get_func(func_or_name)
+            if not isinstance(func, FunctionType):
+                print(f"Error: {func_or_name} is not a function")
+                return
+            
+            # Store original attributes for restoration
+            original_attrs = {
+                '__code__': func.__code__,
+                '__defaults__': func.__defaults__,
+                '__kwdefaults__': func.__kwdefaults__.copy() if func.__kwdefaults__ else None,
+                '__closure__': func.__closure__,
+                '__code_id__': id(func.__code__),  # Store original code_id for cleanup
+            }
+            traced_functions[func_or_name] = original_attrs
+            
+            # Create a copy of the original function to avoid recursion
+            # When we replace func.__code__, the func object itself is modified
+            # So we need to store a copy that won't be affected
+            original_func = types.FunctionType(
+                func.__code__,
+                func.__globals__,
+                func.__name__,
+                func.__defaults__,
+                func.__closure__
+            )
+            original_func.__kwdefaults__ = func.__kwdefaults__.copy() if func.__kwdefaults__ else None
+            original_func.__annotations__ = getattr(func, '__annotations__', None)
+            original_func.__doc__ = func.__doc__
+            original_func.__module__ = getattr(func, '__module__', None)
+            
+            # Create wrapped function using probe with the original function copy
+            wrapped_func = probe(original_func, watch=watch, silent_watch=silent_watch, depth=depth)
+            
+            # Create a new function object using types.FunctionType to ensure proper validation
+            wrapper_globals = wrapped_func.__globals__.copy()
+            wrapper_globals['_probe_attrs'] = _probe_attrs
+            wrapper_globals['_probe_modules'] = _probe_modules
+            new_func = types.FunctionType(
+                wrapped_func.__code__,
+                wrapper_globals,
+                func.__name__,
+                wrapped_func.__defaults__,
+                wrapped_func.__closure__
+            )
+            
+            # Copy additional attributes
+            new_func.__kwdefaults__ = wrapped_func.__kwdefaults__
+            new_func.__annotations__ = getattr(func, '__annotations__', None)
+            new_func.__doc__ = func.__doc__
+            new_func.__module__ = getattr(func, '__module__', None)
+            
+            # Update _probe_attrs before replacing __code__ (new code object will have different id)
+            wrapped_code_id = id(wrapped_func.__code__)
+            new_code_id = id(new_func.__code__)
+            if wrapped_code_id in _probe_attrs:
+                _probe_attrs[new_code_id] = _probe_attrs[wrapped_code_id].copy()
+            
+            # Replace function attributes
+            try:
+                func.__code__ = new_func.__code__
+                func.__defaults__ = new_func.__defaults__
+                func.__kwdefaults__ = new_func.__kwdefaults__
+                func.__closure__ = new_func.__closure__
+            except (AttributeError, TypeError):
+                # If direct assignment fails (readonly attribute), use object.__setattr__
+                object.__setattr__(func, '__code__', new_func.__code__)
+                object.__setattr__(func, '__defaults__', new_func.__defaults__)
+                object.__setattr__(func, '__kwdefaults__', new_func.__kwdefaults__)
+                object.__setattr__(func, '__closure__', new_func.__closure__)
+            
+            # Ensure final code_id is in _probe_attrs
+            final_code_id = id(func.__code__)
+            if final_code_id not in _probe_attrs and new_code_id in _probe_attrs:
+                _probe_attrs[final_code_id] = _probe_attrs[new_code_id].copy()
+            
+            # Store all code_ids associated with this function for cleanup in untrace
+            # Collect all code_ids that might be in _probe_attrs
+            all_traced_code_ids = []
+            if wrapped_code_id in _probe_attrs:
+                all_traced_code_ids.append(wrapped_code_id)
+            if new_code_id in _probe_attrs:
+                all_traced_code_ids.append(new_code_id)
+            if final_code_id in _probe_attrs:
+                all_traced_code_ids.append(final_code_id)
+            # Also include the code_id from probe function (wrapper's code_id before functools.wraps)
+            # This is stored in probe function, we need to get it from wrapped_func
+            # Actually, wrapped_code_id should already be the one from probe
+            traced_functions[func_or_name]['__traced_code_ids__'] = list(set(all_traced_code_ids))
+            
+        except Exception as e:
+            print(f"Function {func_or_name} not found: {e}")
             return
     else:
         raise NotImplementedError("Only string names are supported for tracing.")
@@ -584,7 +788,7 @@ def untrace(func_or_name):
         while parent is not None and len(names) > 0:
             if hasattr(parent, names[0]):
                 if len(names) == 1:
-                    return parent, getattr(parent, names[0]), names[0]
+                    return getattr(parent, names[0])
                 parent = getattr(parent, names[0])
                 names = names[1:]
             else:
@@ -595,11 +799,38 @@ def untrace(func_or_name):
             print(f"Function {func_or_name} is not being traced.")
             return
         try:
-            parent, func, name = get_func(func_or_name)
-            func = traced_functions.pop(func_or_name)
-            parent.__setattr__(name, func)
-        except Exception:
-            print(f"Function {func_or_name} not found.")
+            func = get_func(func_or_name)
+            if not isinstance(func, FunctionType):
+                print(f"Error: {func_or_name} is not a function")
+                return
+            
+            # Get original attributes
+            original_attrs = traced_functions.pop(func_or_name)
+            
+            # Clean up _probe_attrs entries for all code_ids associated with this function
+            traced_code_ids = original_attrs.get('__traced_code_ids__', [])
+            current_code_id = id(func.__code__)
+            # Also check current code_id in case it's different
+            all_code_ids = set(traced_code_ids + [current_code_id])
+            for code_id in all_code_ids:
+                if code_id in _probe_attrs:
+                    del _probe_attrs[code_id]
+            
+            # Restore function's attributes
+            try:
+                func.__code__ = original_attrs['__code__']
+                func.__defaults__ = original_attrs['__defaults__']
+                func.__kwdefaults__ = original_attrs['__kwdefaults__']
+                func.__closure__ = original_attrs['__closure__']
+            except (AttributeError, TypeError):
+                # If direct assignment fails (readonly attribute), use object.__setattr__
+                object.__setattr__(func, '__code__', original_attrs['__code__'])
+                object.__setattr__(func, '__defaults__', original_attrs['__defaults__'])
+                object.__setattr__(func, '__kwdefaults__', original_attrs['__kwdefaults__'])
+                object.__setattr__(func, '__closure__', original_attrs['__closure__'])
+            
+        except Exception as e:
+            print(f"Function {func_or_name} not found: {e}")
             return
     else:
         raise NotImplementedError("Only string names are supported for tracing.")
