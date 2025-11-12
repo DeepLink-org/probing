@@ -135,6 +135,332 @@ impl EngineCall for PythonExt {
         if path == "flamegraph" {
             return Ok(crate::features::torch::flamegraph().into_bytes());
         }
+        // Chrome tracing JSON API endpoint
+        // This endpoint returns Chrome tracing format JSON that can be loaded by Perfetto UI
+        if path == "trace/chrome-tracing" {
+            let limit = params
+                .get("limit")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(1000);
+            
+            // Use the engine to query trace events and convert to Chrome tracing format
+            // This is similar to what the frontend does, but we do it server-side
+            return Python::with_gil(|py| {
+                use pyo3::types::PyDict;
+                use std::ffi::CString;
+                let global = PyDict::new(py);
+                let code = format!(
+                    r#"
+import json
+import probing.core.engine as engine
+
+limit = {}
+try:
+    # Query trace events from the database
+    # IMPORTANT: Order by timestamp ASC to process events in chronological order
+    # This ensures span_start events are processed before their corresponding span_end events
+    limit_clause = f" LIMIT {{limit}}" if limit > 0 else ""
+    query = f"""
+        SELECT 
+            record_type,
+            trace_id,
+            span_id,
+            COALESCE(parent_id, -1) as parent_id,
+            name,
+            time as timestamp,
+            COALESCE(thread_id, 0) as thread_id,
+            kind,
+            location,
+            attributes,
+            event_attributes
+        FROM python.trace_event
+        ORDER BY timestamp ASC
+        {{limit_clause}}
+    """
+    
+    df = engine.query(query)
+    
+    # Convert DataFrame to Chrome tracing format
+    trace_events = []
+    # Check if DataFrame is not None and not empty
+    # Use df is not None and not df.empty instead of if df (ambiguous truth value)
+    if df is not None and not df.empty:
+        # Convert DataFrame to list of dictionaries for iteration
+        df_list = df.to_dict('records') if hasattr(df, 'to_dict') else []
+        # Find minimum timestamp
+        timestamps = [row.get('timestamp', 0) for row in df_list if 'timestamp' in row]
+        min_timestamp = min(timestamps) if timestamps else 0
+        
+        # Track span starts by (span_id, thread_id) to handle multiple threads
+        # Also track trace_id for span_end events (which may have trace_id=0)
+        span_starts = {{}}
+        
+        # First pass: collect all span_start events to build a lookup table
+        # This helps match span_end events even if trace_id is 0 in span_end
+        span_start_lookup = {{}}
+        for row in df_list:
+            if row.get('record_type') == 'span_start':
+                span_id = row.get('span_id', 0)
+                thread_id = row.get('thread_id', 0)
+                trace_id = row.get('trace_id', 0)
+                name = row.get('name', 'unknown')
+                kind = row.get('kind', 'trace')
+                # Use (span_id, thread_id) as key to handle multiple threads
+                key = (span_id, thread_id)
+                span_start_lookup[key] = {{
+                    'trace_id': trace_id,
+                    'name': name,
+                    'kind': kind,
+                    'timestamp': row.get('timestamp', 0)
+                }}
+        
+        # Second pass: convert events to Chrome tracing format
+        for row in df_list:
+            record_type = row.get('record_type', '')
+            timestamp = row.get('timestamp', 0)
+            name = row.get('name', 'unknown')
+            trace_id = row.get('trace_id', 0)
+            span_id = row.get('span_id', 0)
+            thread_id = row.get('thread_id', 0)
+            kind = row.get('kind', 'trace')
+            
+            # Convert nanoseconds to microseconds
+            ts_micros = (timestamp - min_timestamp) // 1000
+            # Use trace_id from span_start if available, otherwise use current trace_id
+            pid = trace_id
+            tid = thread_id
+            
+            if record_type == 'span_start':
+                # Store span start information with trace_id for matching
+                key = (span_id, thread_id)
+                span_starts[key] = (ts_micros, name, kind, pid)
+                chrome_event = {{
+                    "name": name,
+                    "cat": kind if kind else "span",
+                    "ph": "B",
+                    "ts": ts_micros,
+                    "pid": pid,
+                    "tid": tid,
+                }}
+                if row.get('location'):
+                    chrome_event["args"] = {{"location": row.get('location')}}
+                trace_events.append(chrome_event)
+            elif record_type == 'span_end':
+                # Try to find matching span_start
+                key = (span_id, thread_id)
+                start_info = span_starts.get(key)
+                
+                if start_info:
+                    # Found matching span_start that was already processed
+                    start_ts, start_name, start_kind, start_pid = start_info
+                    # Use the pid from span_start to ensure matching
+                    chrome_event = {{
+                        "name": start_name,  # Must match span_start name
+                        "cat": start_kind if start_kind else "span",  # Must match span_start cat
+                        "ph": "E",
+                        "ts": ts_micros,
+                        "pid": start_pid,  # Use pid from span_start
+                        "tid": tid,  # Must match span_start tid
+                    }}
+                    # Note: Chrome tracing B/E events don't need dur, but we can add it for debugging
+                    dur = ts_micros - start_ts
+                    if dur > 0:
+                        chrome_event["dur"] = dur
+                    trace_events.append(chrome_event)
+                    # Remove from span_starts to avoid duplicate matches
+                    del span_starts[key]
+                else:
+                    # No matching span_start found in processed events, try lookup
+                    lookup_info = span_start_lookup.get(key)
+                    if lookup_info:
+                        # Use trace_id and other info from span_start
+                        start_pid = lookup_info['trace_id']
+                        start_ts = (lookup_info['timestamp'] - min_timestamp) // 1000
+                        start_name = lookup_info['name']
+                        start_kind = lookup_info['kind']
+                        chrome_event = {{
+                            "name": start_name,  # Must match span_start name
+                            "cat": start_kind if start_kind else "span",  # Must match span_start cat
+                            "ph": "E",
+                            "ts": ts_micros,
+                            "pid": start_pid,  # Use pid from span_start
+                            "tid": tid,  # Must match span_start tid
+                        }}
+                        dur = ts_micros - start_ts
+                        if dur > 0:
+                            chrome_event["dur"] = dur
+                        trace_events.append(chrome_event)
+                    else:
+                        # No matching span_start found at all
+                        # This might happen if span_start was filtered out by limit
+                        # Create a standalone end event with warning
+                        chrome_event = {{
+                            "name": name if name else "unknown_span",
+                            "cat": "span",
+                            "ph": "E",
+                            "ts": ts_micros,
+                            "pid": pid if pid > 0 else 1,  # Use current pid or default
+                            "tid": tid,
+                        }}
+                        trace_events.append(chrome_event)
+            elif record_type == 'event':
+                chrome_event = {{
+                    "name": name,
+                    "cat": "event",
+                    "ph": "i",
+                    "ts": ts_micros,
+                    "pid": pid,
+                    "tid": tid,
+                    "s": "t",
+                }}
+                if row.get('event_attributes'):
+                    try:
+                        chrome_event["args"] = json.loads(row.get('event_attributes'))
+                    except:
+                        pass
+                trace_events.append(chrome_event)
+    
+    chrome_trace = {{
+        "traceEvents": trace_events,
+        "displayTimeUnit": "ms"
+    }}
+    retval = json.dumps(chrome_trace, indent=2)
+except Exception as e:
+    import traceback
+    retval = json.dumps({{"error": str(e), "trace": traceback.format_exc(), "traceEvents": []}})
+"#,
+                    limit
+                );
+                let code_cstr = CString::new(code).map_err(|e| {
+                    EngineError::PluginError(format!("Failed to create CString: {e}"))
+                })?;
+                py.run(code_cstr.as_c_str(), Some(&global), Some(&global))
+                    .map_err(|e| {
+                        EngineError::PluginError(format!("Failed to get chrome tracing: {e}"))
+                    })?;
+                match global.get_item("retval") {
+                    Ok(result) => {
+                        let result_str: String = result.extract().map_err(|e| {
+                            EngineError::PluginError(format!("Failed to extract result: {e}"))
+                        })?;
+                        Ok(result_str.into_bytes())
+                    }
+                    Err(e) => Err(EngineError::PluginError(format!(
+                        "Failed to get chrome tracing result: {e}"
+                    ))),
+                }
+            });
+        }
+        // PyTorch profiler timeline API
+        if path == "pytorch/timeline" {
+            return Python::with_gil(|py| {
+                use pyo3::types::PyDict;
+                use std::ffi::CString;
+                let global = PyDict::new(py);
+                let code = r#"
+import json
+import __main__
+
+# Check if profiler exists
+if not hasattr(__main__, "__probing__"):
+    retval = json.dumps({"error": "No profiler instances found"})
+elif "profiler" not in __main__.__probing__:
+    retval = json.dumps({"error": "No profiler instances found"})
+else:
+    profilers = __main__.__probing__["profiler"]
+    if not profilers:
+        retval = json.dumps({"error": "No profiler instances found"})
+    else:
+        # Collect timeline data from all profilers
+        all_traces = []
+        for module_id, profiler in profilers.items():
+            if hasattr(profiler, "export_timeline"):
+                timeline = profiler.export_timeline()
+                if timeline:
+                    try:
+                        trace_data = json.loads(timeline)
+                        if isinstance(trace_data, dict) and "traceEvents" in trace_data:
+                            all_traces.extend(trace_data["traceEvents"])
+                        elif isinstance(trace_data, list):
+                            all_traces.extend(trace_data)
+                    except Exception as e:
+                        pass
+        
+        if not all_traces:
+            retval = json.dumps({"error": "No timeline data available"})
+        else:
+            # Merge all traces into a single timeline
+            merged_trace = {
+                "traceEvents": all_traces,
+                "displayTimeUnit": "ms"
+            }
+            retval = json.dumps(merged_trace, indent=2)
+"#;
+                let code_cstr = CString::new(code).map_err(|e| {
+                    EngineError::PluginError(format!("Failed to create CString: {e}"))
+                })?;
+                py.run(code_cstr.as_c_str(), Some(&global), Some(&global))
+                    .map_err(|e| {
+                        EngineError::PluginError(format!("Failed to get timeline: {e}"))
+                    })?;
+                match global.get_item("retval") {
+                    Ok(result) => {
+                        let result_str: String = result.extract().map_err(|e| {
+                            EngineError::PluginError(format!("Failed to extract result: {e}"))
+                        })?;
+                        Ok(result_str.into_bytes())
+                    }
+                    Err(e) => Err(EngineError::PluginError(format!(
+                        "Failed to get timeline result: {e}"
+                    ))),
+                }
+            });
+        }
+        // PyTorch profiler profile API - start profiling with specified steps
+        if path == "pytorch/profile" {
+            let steps = params
+                .get("steps")
+                .and_then(|s| s.parse::<i32>().ok())
+                .unwrap_or(1);
+            return Python::with_gil(|py| {
+                use pyo3::types::PyDict;
+                use std::ffi::CString;
+                let global = PyDict::new(py);
+                let code = format!(
+                    r#"
+import json
+import __main__
+from probing.repl.torch_magic import TorchMagic
+
+steps = {}
+try:
+    TorchMagic._profile(steps=steps, mid=None)
+    retval = json.dumps({{"success": True, "message": f"Profiler installed for {{steps}} step(s)"}})
+except Exception as e:
+    retval = json.dumps({{"success": False, "error": str(e)}})
+"#,
+                    steps
+                );
+                let code_cstr = CString::new(code).map_err(|e| {
+                    EngineError::PluginError(format!("Failed to create CString: {e}"))
+                })?;
+                py.run(code_cstr.as_c_str(), Some(&global), Some(&global))
+                    .map_err(|e| {
+                        EngineError::PluginError(format!("Failed to start profile: {e}"))
+                    })?;
+                match global.get_item("retval") {
+                    Ok(result) => {
+                        let result_str: String = result.extract().map_err(|e| {
+                            EngineError::PluginError(format!("Failed to extract result: {e}"))
+                        })?;
+                        Ok(result_str.into_bytes())
+                    }
+                    Err(e) => Err(EngineError::PluginError(format!(
+                        "Failed to get profile result: {e}"
+                    ))),
+                }
+            });
+        }
         // Trace API endpoints
         if path == "trace/list" {
             return Python::with_gil(|py| {

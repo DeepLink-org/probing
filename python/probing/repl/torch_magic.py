@@ -43,6 +43,7 @@ class TorchMagic(Magics):
         Usage:
             %pytorch profile [steps=1] [mid=None]    # Enable profiler
             %pytorch summary                         # Show profiler summary
+            %pytorch timeline                        # Export timeline in Chrome tracing format
             %pytorch models                          # List top-level modules
             %pytorch memory                          # Show GPU memory info
             %pytorch help                            # Show help message
@@ -62,6 +63,8 @@ class TorchMagic(Magics):
             self._cmd_profile(" ".join(parts[1:]))
         elif subcommand == "summary":
             self._cmd_summary()
+        elif subcommand == "timeline":
+            self._cmd_timeline()
         elif subcommand == "models":
             self._cmd_models()
         elif subcommand == "memory":
@@ -81,6 +84,7 @@ PyTorch Magic Commands
 Usage:
   %pytorch profile [steps=1] [mid=None]    Enable profiler on modules
   %pytorch summary                         Show profiler summary
+  %pytorch timeline                        Export timeline in Chrome tracing format
   %pytorch models                          List all top-level modules
   %pytorch memory                          Show GPU memory information
   %pytorch help                            Show this help message
@@ -88,6 +92,7 @@ Usage:
 Examples:
   %pytorch profile steps=5                 # Profile for 5 steps
   %pytorch profile mid=123456              # Profile specific module by ID
+  %pytorch timeline                        # Export timeline data
   %pytorch models                          # List all top-level modules
   %pytorch memory                          # Show CUDA memory info
         """
@@ -126,6 +131,46 @@ Examples:
         for module_id, profiler in profilers.items():
             print(f"\n--- Profiler for module ID {module_id} ---")
             profiler.summary()
+
+    def _cmd_timeline(self) -> None:
+        """Handle timeline subcommand - export Chrome tracing format."""
+        if self.PROFILER_KEY not in __main__.__probing__:
+            print("No profiler instances found. Use '%pytorch profile' first.")
+            return
+
+        profilers = __main__.__probing__[self.PROFILER_KEY]
+        if not profilers:
+            print("No profiler instances found. Use '%pytorch profile' first.")
+            return
+
+        # Collect timeline data from all profilers
+        all_traces = []
+        for module_id, profiler in profilers.items():
+            timeline = profiler.export_timeline()
+            if timeline:
+                try:
+                    import json
+                    trace_data = json.loads(timeline)
+                    if isinstance(trace_data, dict) and "traceEvents" in trace_data:
+                        all_traces.extend(trace_data["traceEvents"])
+                    elif isinstance(trace_data, list):
+                        all_traces.extend(trace_data)
+                except Exception as e:
+                    print(f"Warning: Failed to parse timeline from module {module_id}: {e}")
+        
+        if not all_traces:
+            print("No timeline data available. Make sure the profiler has been executed.")
+            return
+        
+        # Merge all traces into a single timeline
+        merged_trace = {
+            "traceEvents": all_traces,
+            "displayTimeUnit": "ms"
+        }
+        
+        # Print JSON to stdout (can be captured by API)
+        import json
+        print(json.dumps(merged_trace, indent=2))
 
     def _cmd_models(self) -> None:
         """Handle models subcommand."""
@@ -410,6 +455,31 @@ Examples:
                         )
                 except Exception as e:
                     print(f"Error generating summary: {e}")
+
+            def export_timeline(self) -> Optional[str]:
+                """Export profiler timeline in Chrome tracing format.
+                
+                Returns:
+                    JSON string of Chrome tracing format, or None if profiler is not ready.
+                """
+                if self._profiler is None:
+                    return None
+                
+                try:
+                    # Check if profiler has events
+                    if not self._profiler.events():
+                        return None
+                    
+                    # Export to Chrome tracing format
+                    import io
+                    import json
+                    f = io.StringIO()
+                    self._profiler.export_chrome_trace(f)
+                    trace_json = f.getvalue()
+                    return trace_json
+                except Exception as e:
+                    print(f"Error exporting timeline: {e}")
+                    return None
 
             def remove(self):
                 """Remove profiler hooks."""
