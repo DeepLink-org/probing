@@ -17,7 +17,7 @@ pub async fn handle_extension_call(req: axum::extract::Request) -> ApiResult<Res
     let (parts, body) = req.into_parts();
     let path = parts.uri.path();
     let method = parts.method.clone();
-    
+
     // Handle CORS preflight requests (OPTIONS)
     // Perfetto UI may send OPTIONS requests before the actual GET request
     // This is required for cross-origin requests from https://ui.perfetto.dev
@@ -45,7 +45,7 @@ pub async fn handle_extension_call(req: axum::extract::Request) -> ApiResult<Res
         );
         return Ok((StatusCode::OK, headers, "").into_response());
     }
-    
+
     let params_str = parts.uri.query().unwrap_or_default();
     let params: HashMap<String, String> =
         serde_urlencoded::from_str(params_str).unwrap_or_default();
@@ -73,7 +73,7 @@ pub async fn handle_extension_call(req: axum::extract::Request) -> ApiResult<Res
     };
 
     if let Some(eem) = eem {
-            match eem.call(path, &params, &body_bytes).await {
+        match eem.call(path, &params, &body_bytes).await {
             Ok(response) => {
                 // Determine content type based on path
                 let content_type = if path.contains("timeline") || path.contains("chrome-tracing") {
@@ -81,14 +81,14 @@ pub async fn handle_extension_call(req: axum::extract::Request) -> ApiResult<Res
                 } else {
                     "text/plain"
                 };
-                
+
                 // Create response with headers
                 let mut headers = HeaderMap::new();
                 headers.insert(
                     axum::http::header::CONTENT_TYPE,
                     HeaderValue::from_static(content_type),
                 );
-                
+
                 // Add CORS headers for trace data endpoints
                 // This allows Perfetto UI (https://ui.perfetto.dev) to fetch trace data
                 // Using "*" allows all origins, including https://ui.perfetto.dev
@@ -115,7 +115,7 @@ pub async fn handle_extension_call(req: axum::extract::Request) -> ApiResult<Res
                     //     HeaderValue::from_static("true"),
                     // );
                 }
-                
+
                 return Ok((StatusCode::OK, headers, response).into_response());
             }
             Err(e) => {

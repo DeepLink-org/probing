@@ -142,7 +142,7 @@ impl EngineCall for PythonExt {
                 .get("limit")
                 .and_then(|s| s.parse::<usize>().ok())
                 .unwrap_or(1000);
-            
+
             // Use the engine to query trace events and convert to Chrome tracing format
             // This is similar to what the frontend does, but we do it server-side
             return Python::with_gil(|py| {
