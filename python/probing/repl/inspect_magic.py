@@ -36,6 +36,9 @@ class InspectMagic(Magics):
     @argument(
         "--type", "-t", type=str, default=None, help="Filter by type (for objects)"
     )
+    @argument(
+        "--all", action="store_true", help="Show all modules including submodules (for modules target)"
+    )
     def inspect(self, line: str):
         """Inspect PyTorch modules, tensors, optimizers, and memory.
 
@@ -88,9 +91,11 @@ Options:
   -n, --limit N         Limit number of results
   -d, --device DEV      Filter by device (tensors only)
   -t, --type TYPE       Filter by type (objects only)
+  --all                 Show all modules including submodules (modules only, default: top-level only)
 
 Examples:
-  %inspect ls modules
+  %inspect ls modules                  # Show top-level modules only
+  %inspect ls modules --all            # Show all modules including submodules
   %inspect ls tensors -d cuda -n 10
   %inspect ls objects -t torch.Tensor
   %inspect gc
@@ -124,35 +129,43 @@ Examples:
             )
 
     def _list_modules(self, args):
-        """List PyTorch modules."""
+        """List PyTorch modules. Default shows only top-level modules."""
         try:
-            from probing.inspect import get_torch_modules
             import torch
+            import gc
 
-            module_items = get_torch_modules()
+            if args.all:
+                # Get all modules including submodules
+                from probing.inspect import get_torch_modules
+                module_items = get_torch_modules()
 
-            # Filter out non-module items and extract actual objects
-            modules = []
-            for item in module_items:
-                if isinstance(item, dict) and "value" in item:
-                    module = item["value"]
-                    # Skip if it's actually a dict or not a real module
-                    if isinstance(module, dict) or not isinstance(
-                        module, torch.nn.Module
-                    ):
-                        continue
-                    modules.append((module, item.get("id", id(module))))
-                elif isinstance(item, torch.nn.Module):
-                    modules.append((item, id(item)))
+                # Filter out non-module items and extract actual objects
+                modules = []
+                for item in module_items:
+                    if isinstance(item, dict) and "value" in item:
+                        module = item["value"]
+                        # Skip if it's actually a dict or not a real module
+                        if isinstance(module, dict) or not isinstance(
+                            module, torch.nn.Module
+                        ):
+                            continue
+                        modules.append((module, item.get("id", id(module))))
+                    elif isinstance(item, torch.nn.Module):
+                        modules.append((item, id(item)))
+            else:
+                # Default: Get only top-level modules (not children of other modules)
+                modules = self._get_top_level_modules()
 
             if args.limit:
                 modules = modules[: args.limit]
 
             if not modules:
-                print("No PyTorch modules found in memory.")
+                module_type = "" if args.all else "top-level "
+                print(f"No {module_type}PyTorch modules found in memory.")
                 return
 
-            output = [f"Found {len(modules)} PyTorch module(s):"]
+            module_type_label = "" if args.all else "top-level "
+            output = [f"Found {len(modules)} {module_type_label}PyTorch module(s):"]
             for i, (module, module_id) in enumerate(modules, 1):
                 module_type = type(module).__name__
                 # Count parameters
@@ -169,6 +182,44 @@ Examples:
             print("✗ PyTorch is not available")
         except Exception as e:
             print(f"✗ Failed to get torch modules: {e}")
+
+    def _get_top_level_modules(self):
+        """Get all top-level PyTorch modules (modules that are not children of other modules).
+
+        Returns:
+            List of tuples (module, module_id) for top-level torch.nn.Module instances.
+        """
+        import torch
+        import gc
+
+        try:
+            objs = gc.get_objects()
+            objs = [obj for obj in objs if isinstance(obj, torch.nn.Module)]
+            children = set()
+
+            def walk(obj):
+                """Recursively walk module children."""
+                try:
+                    if hasattr(obj, "children"):
+                        for child in obj.children():
+                            if child is not None:
+                                children.add(id(child))
+                                walk(child)
+                except (AttributeError, RuntimeError):
+                    # Skip modules with issues
+                    pass
+
+            for obj in objs:
+                try:
+                    walk(obj)
+                except Exception:
+                    continue
+
+            top_level = [obj for obj in objs if id(obj) not in children]
+            return [(module, id(module)) for module in top_level]
+        except Exception as e:
+            print(f"Warning: Error getting top-level modules: {e}")
+            return []
 
     def _list_tensors(self, args):
         """List PyTorch tensors."""

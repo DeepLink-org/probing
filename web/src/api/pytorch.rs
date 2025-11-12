@@ -29,9 +29,20 @@ impl ApiClient {
         // 检查是否是错误响应
         if let Ok(error_response) = serde_json::from_str::<serde_json::Value>(&response) {
             if let Some(error) = error_response.get("error") {
-                return Err(crate::utils::error::AppError::Api(
-                    error.as_str().unwrap_or("Unknown error").to_string()
-                ));
+                let error_msg = error.as_str().unwrap_or("Unknown error").to_string();
+                log::warn!("PyTorch timeline API returned error: {}", error_msg);
+                return Err(crate::utils::error::AppError::Api(error_msg));
+            }
+        }
+        
+        // 验证响应是否是有效的 Chrome tracing 格式
+        if let Ok(trace_data) = serde_json::from_str::<serde_json::Value>(&response) {
+            if let Some(trace_events) = trace_data.get("traceEvents") {
+                if trace_events.as_array().map(|arr| arr.is_empty()).unwrap_or(true) {
+                    return Err(crate::utils::error::AppError::Api(
+                        "Timeline data is empty. Make sure the profiler has been executed.".to_string()
+                    ));
+                }
             }
         }
         

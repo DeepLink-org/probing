@@ -186,8 +186,17 @@ pub fn ChromeTracing() -> Element {
                                     move |_| {
                                         spawn(async move {
                                             *state.loading.write() = true;
+                                            *state.data.write() = None; // Clear previous data
                                             let client = ApiClient::new();
                                             let result = client.get_pytorch_timeline().await;
+                                            match &result {
+                                                Ok(ref data) => {
+                                                    log::info!("PyTorch timeline loaded successfully, length: {}", data.len());
+                                                }
+                                                Err(ref err) => {
+                                                    log::error!("Failed to load PyTorch timeline: {:?}", err);
+                                                }
+                                            }
                                             *state.data.write() = Some(result);
                                             *state.loading.write() = false;
                                             *iframe_key.write() += 1;
@@ -235,20 +244,64 @@ pub fn ChromeTracing() -> Element {
                         "Loading trace data...".to_string()
                     })
                 }
-            } else if state.data.read().is_some() {
-                // 即使数据加载失败，也尝试显示 viewer（它会从 API 获取数据）
-                div {
-                    class: "bg-white rounded-lg shadow overflow-hidden",
-                    style: "height: calc(100vh - 300px); min-height: 600px;",
-                    iframe {
-                        key: "{*iframe_key.read()}",
-                        srcdoc: get_tracing_viewer_url(data_source.read().clone(), limit.read().clone()),
-                        style: "width: 100%; height: 100%; border: none;",
-                        title: "Chrome Tracing Viewer"
+            } else if let Some(Ok(ref trace_json)) = state.data.read().as_ref() {
+                // 使用已加载的数据直接显示
+                // 验证数据是否是有效的 JSON
+                if trace_json.trim().is_empty() {
+                    ErrorState { 
+                        error: "Timeline data is empty. Make sure the profiler has been executed.".to_string(), 
+                        title: Some("Empty Timeline Data".to_string())
+                    }
+                } else if let Err(e) = serde_json::from_str::<serde_json::Value>(trace_json) {
+                    ErrorState { 
+                        error: format!("Invalid JSON data: {:?}", e), 
+                        title: Some("Invalid Timeline Data".to_string())
+                    }
+                } else {
+                    div {
+                        class: "bg-white rounded-lg shadow overflow-hidden",
+                        style: "height: calc(100vh - 300px); min-height: 600px;",
+                        iframe {
+                            key: "{*iframe_key.read()}",
+                            srcdoc: get_tracing_viewer_html(trace_json),
+                            style: "width: 100%; height: 100%; border: none;",
+                            title: "Chrome Tracing Viewer"
+                        }
                     }
                 }
-            } else if let Some(Err(err)) = state.data.read().as_ref() {
-                ErrorState { error: format!("{:?}", err), title: None }
+            } else if let Some(Err(ref err)) = state.data.read().as_ref() {
+                // 显示错误信息
+                ErrorState { 
+                    error: format!("Failed to load timeline: {:?}", err), 
+                    title: Some("Load Timeline Error".to_string())
+                }
+            } else {
+                // 没有数据，显示提示信息
+                div {
+                    class: "bg-white rounded-lg shadow p-8 text-center",
+                    div {
+                        class: "text-gray-500",
+                        if *data_source.read() == "pytorch" {
+                            p {
+                                class: "mb-4 text-lg",
+                                "PyTorch Profiler Timeline"
+                            }
+                            p {
+                                class: "text-sm",
+                                "Click 'Start Profile' to begin profiling, then click 'Load Timeline' to view the results."
+                            }
+                        } else {
+                            p {
+                                class: "mb-4 text-lg",
+                                "Trace Events Timeline"
+                            }
+                            p {
+                                class: "text-sm",
+                                "Select the number of events and the timeline will load automatically."
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -572,16 +625,14 @@ fn get_tracing_viewer_html_with_url(json_url: &str) -> String {
     "#)
 }
 
-/// 生成包含 Chrome tracing viewer 的 HTML 页面（备用方案）
-/// 使用 Catapult trace viewer 的在线版本，通过 iframe 嵌入
+/// 生成包含 Chrome tracing viewer 的 HTML 页面
+/// 直接使用已加载的 trace JSON 数据，通过 postMessage API 传递给 Perfetto UI
 fn get_tracing_viewer_html(trace_json: &str) -> String {
-    // 转义 JSON 数据
+    // 转义 JSON 数据以便嵌入到 JavaScript 中
     let escaped_json = trace_json
         .replace('\\', "\\\\")
         .replace('`', "\\`")
-        .replace('$', "\\$")
-        .replace('\n', "\\n")
-        .replace('\r', "\\r");
+        .replace('$', "\\$");
     
     format!(r#"
 <!DOCTYPE html>
@@ -596,7 +647,7 @@ fn get_tracing_viewer_html(trace_json: &str) -> String {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             overflow: hidden;
         }}
-        #trace-viewer {{
+        #perfetto-iframe {{
             width: 100%;
             height: 100vh;
             border: none;
@@ -609,119 +660,182 @@ fn get_tracing_viewer_html(trace_json: &str) -> String {
             font-size: 18px;
             color: #666;
         }}
-        .error-container {{
-            padding: 20px;
-            text-align: center;
-        }}
     </style>
 </head>
 <body>
     <div id="loading" class="loading">Loading Chrome Tracing Viewer...</div>
-    <iframe id="trace-viewer" style="display: none;"></iframe>
+    <iframe id="perfetto-iframe" style="display: none;"></iframe>
     <script>
         (function() {{
             try {{
-                // 解析 trace 数据
+                // 解析已加载的 trace 数据
                 const traceData = JSON.parse(`{escaped_json}`);
                 
-                // 创建 blob URL 来存储 trace 数据
-                const blob = new Blob([JSON.stringify(traceData, null, 2)], {{ type: 'application/json' }});
-                const blobUrl = URL.createObjectURL(blob);
-                
-                // 使用 Catapult trace viewer 的在线版本
-                // 通过 data URL 方式加载 trace 数据
-                // 注意：由于跨域限制，我们使用 data URL 方式
-                const traceDataBase64 = btoa(JSON.stringify(traceData));
-                const dataUrl = 'data:application/json;base64,' + traceDataBase64;
-                
-                // 尝试使用 Perfetto UI (支持 Chrome tracing 格式)
-                // 如果 Perfetto 不支持，则使用 Catapult trace viewer
-                const perfettoUrl = 'https://ui.perfetto.dev/#!/?url=' + encodeURIComponent(dataUrl);
-                
-                const iframe = document.getElementById('trace-viewer');
+                const iframe = document.getElementById('perfetto-iframe');
                 const loading = document.getElementById('loading');
                 
-                // 首先尝试 Perfetto UI
+                // 使用 Perfetto UI 的 postMessage API 传递 trace 数据
+                const perfettoUrl = 'https://ui.perfetto.dev/#!/';
                 iframe.src = perfettoUrl;
                 
-                // 设置超时，如果 5 秒后还没加载完成，尝试其他方法
-                const timeout = setTimeout(function() {{
-                    if (loading.style.display !== 'none') {{
-                        // Perfetto 可能不支持，尝试使用 Catapult trace viewer
-                        loadCatapultViewer();
+                let loaded = false;
+                let errorShown = false;
+                
+                // 监听来自 Perfetto UI 的消息
+                const messageHandler = function(event) {{
+                    if (event.origin === 'https://ui.perfetto.dev') {{
+                        if (event.data) {{
+                            const dataStr = typeof event.data === 'string' ? event.data : JSON.stringify(event.data);
+                            if (dataStr.includes('error') || dataStr.includes('Failed')) {{
+                                console.error('Perfetto UI error:', event.data);
+                                if (!loaded && !errorShown) {{
+                                    errorShown = true;
+                                    showError('Perfetto UI reported an error. Please check the trace data format.');
+                                    window.removeEventListener('message', messageHandler);
+                                }}
+                            }} else if (dataStr.includes('loaded') || dataStr.includes('ready')) {{
+                                if (!loaded) {{
+                                    loaded = true;
+                                    loading.style.display = 'none';
+                                    iframe.style.display = 'block';
+                                    window.removeEventListener('message', messageHandler);
+                                }}
+                            }}
+                        }}
                     }}
-                }}, 5000);
+                }};
+                window.addEventListener('message', messageHandler);
                 
                 iframe.onload = function() {{
-                    clearTimeout(timeout);
-                    loading.style.display = 'none';
-                    iframe.style.display = 'block';
+                    // Perfetto UI 页面加载完成，等待 PING/PONG handshake
+                    let handshakeComplete = false;
+                    let retryCount = 0;
+                    const maxRetries = 10;
+                    
+                    // 监听来自 Perfetto UI 的 PONG 消息
+                    const handshakeHandler = function(event) {{
+                        if (event.origin === 'https://ui.perfetto.dev' || 
+                            (event.source === iframe.contentWindow && event.data === 'PONG')) {{
+                            if (event.data && event.data === 'PONG') {{
+                                handshakeComplete = true;
+                                window.removeEventListener('message', handshakeHandler);
+                                
+                                // Handshake 完成，发送 trace 数据
+                                try {{
+                                    // 将 trace 数据转换为 ArrayBuffer
+                                    const traceJson = JSON.stringify(traceData, null, 2);
+                                    const encoder = new TextEncoder();
+                                    const buffer = encoder.encode(traceJson).buffer;
+                                    
+                                    // 发送 trace 数据到 Perfetto UI
+                                    iframe.contentWindow.postMessage({{
+                                        perfetto: {{
+                                            buffer: buffer,
+                                            title: 'PyTorch Profiler Timeline',
+                                            fileName: 'pytorch_timeline.json',
+                                        }}
+                                    }}, 'https://ui.perfetto.dev');
+                                    
+                                    console.log('Trace data sent to Perfetto UI');
+                                    
+                                    // 等待一下，然后隐藏 loading
+                                    setTimeout(() => {{
+                                        if (!loaded && !errorShown) {{
+                                            loaded = true;
+                                            loading.style.display = 'none';
+                                            iframe.style.display = 'block';
+                                            window.removeEventListener('message', messageHandler);
+                                        }}
+                                    }}, 2000);
+                                }} catch (e) {{
+                                    console.error('Error sending trace data:', e);
+                                    if (!errorShown) {{
+                                        errorShown = true;
+                                        showError('Failed to send trace data to Perfetto UI: ' + e.message);
+                                        window.removeEventListener('message', messageHandler);
+                                    }}
+                                }}
+                            }}
+                        }}
+                    }};
+                    window.addEventListener('message', handshakeHandler);
+                    
+                    // 发送 PING 消息启动 handshake
+                    const sendPing = function() {{
+                        if (!handshakeComplete && retryCount < maxRetries) {{
+                            try {{
+                                if (iframe.contentWindow) {{
+                                    iframe.contentWindow.postMessage('PING', 'https://ui.perfetto.dev');
+                                    retryCount++;
+                                    if (retryCount < maxRetries) {{
+                                        setTimeout(sendPing, 500);
+                                    }} else {{
+                                        console.warn('PING/PONG handshake failed, trying data URL fallback');
+                                        // 回退到 data URL 方式
+                                        const traceJson = JSON.stringify(traceData, null, 2);
+                                        const base64Data = btoa(unescape(encodeURIComponent(traceJson)));
+                                        const dataUrl = 'data:application/json;base64,' + base64Data;
+                                        iframe.src = 'https://ui.perfetto.dev/#!/?url=' + encodeURIComponent(dataUrl);
+                                        window.removeEventListener('message', handshakeHandler);
+                                    }}
+                                }} else {{
+                                    if (retryCount < maxRetries) {{
+                                        retryCount++;
+                                        setTimeout(sendPing, 500);
+                                    }}
+                                }}
+                            }} catch (e) {{
+                                console.error('Error sending PING:', e);
+                                if (retryCount < maxRetries) {{
+                                    retryCount++;
+                                    setTimeout(sendPing, 500);
+                                }}
+                            }}
+                        }}
+                    }};
+                    
+                    // 等待 iframe 完全加载后发送 PING
+                    setTimeout(sendPing, 1500);
+                    
+                    // 超时处理
+                    setTimeout(() => {{
+                        if (!loaded && !errorShown) {{
+                            loaded = true;
+                            loading.style.display = 'none';
+                            iframe.style.display = 'block';
+                            window.removeEventListener('message', messageHandler);
+                            window.removeEventListener('message', handshakeHandler);
+                        }}
+                    }}, 10000);
                 }};
                 
                 iframe.onerror = function() {{
-                    clearTimeout(timeout);
-                    loadCatapultViewer();
+                    if (!loaded && !errorShown) {{
+                        errorShown = true;
+                        showError('Failed to load Perfetto UI');
+                    }}
                 }};
                 
-                function loadCatapultViewer() {{
-                    // 使用 Catapult trace viewer
-                    // 从 CDN 加载 trace viewer
-                    const script = document.createElement('script');
-                    script.src = 'https://cdn.jsdelivr.net/gh/catapult-project/catapult@main/tracing/bin/trace_viewer_embedder.js';
-                    script.onload = function() {{
-                        try {{
-                            const container = document.getElementById('loading');
-                            container.innerHTML = '';
-                            container.id = 'trace-container';
-                            container.style.display = 'block';
-                            
-                            // 使用 trace viewer embedder
-                            if (typeof tr && tr.b && tr.b.ui && tr.b.ui.b) {{
-                                const viewer = new tr.b.ui.b.TraceViewer(container);
-                                viewer.loadTrace(traceData);
-                                loading.style.display = 'none';
-                            }} else {{
-                                showFallback();
-                            }}
-                        }} catch (e) {{
-                            console.error('Error loading trace viewer:', e);
-                            showFallback();
-                        }}
-                    }};
-                    script.onerror = function() {{
-                        showFallback();
-                    }};
-                    document.head.appendChild(script);
-                }}
-                
-                function showFallback() {{
-                    const container = document.getElementById('loading');
-                    container.className = 'error-container';
-                    container.innerHTML = `
-                        <h2>Chrome Tracing Data</h2>
-                        <p>To view this trace in Chrome DevTools:</p>
-                        <ol style="text-align: left; display: inline-block;">
-                            <li>Open Chrome and navigate to <code>chrome://tracing</code></li>
-                            <li>Click "Load" and select the trace file</li>
-                            <li>Or download the JSON file below</li>
-                        </ol>
-                        <br>
-                        <button onclick="downloadTrace()" style="padding: 10px 20px; background: #4285f4; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 10px 0;">
-                            Download Trace JSON
-                        </button>
+                function showError(message) {{
+                    loading.innerHTML = `
+                        <div style="padding: 20px; text-align: center;">
+                            <h2>${{message}}</h2>
+                            <p>You can view this trace in Chrome DevTools:</p>
+                            <ol style="text-align: left; display: inline-block;">
+                                <li>Open Chrome and navigate to <code>chrome://tracing</code></li>
+                                <li>Click "Load" and select the trace file</li>
+                            </ol>
+                            <br>
+                            <button onclick="window.location.reload()" style="padding: 10px 20px; background: #4285f4; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 10px 0;">
+                                Retry
+                            </button>
+                        </div>
                     `;
-                    
-                    window.downloadTrace = function() {{
-                        const a = document.createElement('a');
-                        a.href = blobUrl;
-                        a.download = 'trace.json';
-                        a.click();
-                    }};
                 }}
             }} catch (e) {{
                 document.getElementById('loading').innerHTML = `
-                    <div class="error-container" style="color: red;">
-                        <h2>Error loading trace data</h2>
+                    <div style="padding: 20px; color: red; text-align: center;">
+                        <h2>Error loading trace viewer</h2>
                         <p>${{e.message}}</p>
                     </div>
                 `;

@@ -352,6 +352,7 @@ except Exception as e:
             });
         }
         // PyTorch profiler timeline API
+        // Use the same method as REPL (_cmd_timeline) to ensure consistency
         if path == "pytorch/timeline" {
             return Python::with_gil(|py| {
                 use pyo3::types::PyDict;
@@ -359,42 +360,48 @@ except Exception as e:
                 let global = PyDict::new(py);
                 let code = r#"
 import json
+import sys
+import io
 import __main__
+import traceback
+from probing.repl.torch_magic import TorchMagic
 
-# Check if profiler exists
-if not hasattr(__main__, "__probing__"):
-    retval = json.dumps({"error": "No profiler instances found"})
-elif "profiler" not in __main__.__probing__:
-    retval = json.dumps({"error": "No profiler instances found"})
-else:
-    profilers = __main__.__probing__["profiler"]
-    if not profilers:
-        retval = json.dumps({"error": "No profiler instances found"})
-    else:
-        # Collect timeline data from all profilers
-        all_traces = []
-        for module_id, profiler in profilers.items():
-            if hasattr(profiler, "export_timeline"):
-                timeline = profiler.export_timeline()
-                if timeline:
-                    try:
-                        trace_data = json.loads(timeline)
-                        if isinstance(trace_data, dict) and "traceEvents" in trace_data:
-                            all_traces.extend(trace_data["traceEvents"])
-                        elif isinstance(trace_data, list):
-                            all_traces.extend(trace_data)
-                    except Exception as e:
-                        pass
+try:
+    # Use the same approach as REPL - call _cmd_timeline() method
+    # This ensures we use the exact same code path that works in REPL
+    shell = None  # TorchMagic doesn't actually need shell for _cmd_timeline
+    torch_magic = TorchMagic(shell)
+    
+    # Capture stdout to get the timeline JSON output
+    old_stdout = sys.stdout
+    sys.stdout = captured_output = io.StringIO()
+    
+    try:
+        # Call the timeline method (same as REPL)
+        torch_magic._cmd_timeline()
         
-        if not all_traces:
-            retval = json.dumps({"error": "No timeline data available"})
+        # Get the captured output
+        timeline_output = captured_output.getvalue()
+        sys.stdout = old_stdout
+        
+        if not timeline_output or timeline_output.strip() == "":
+            retval = json.dumps({"error": "No timeline data available. Make sure the profiler has been executed."})
         else:
-            # Merge all traces into a single timeline
-            merged_trace = {
-                "traceEvents": all_traces,
-                "displayTimeUnit": "ms"
-            }
-            retval = json.dumps(merged_trace, indent=2)
+            # The output should be JSON, parse it to verify
+            try:
+                timeline_data = json.loads(timeline_output.strip())
+                # Return the timeline data directly
+                retval = json.dumps(timeline_data, indent=2)
+            except json.JSONDecodeError as e:
+                # If parsing fails, return error with the raw output for debugging
+                retval = json.dumps({"error": f"Failed to parse timeline output: {str(e)}", "raw_output": timeline_output[:500]})
+    except Exception as e:
+        sys.stdout = old_stdout
+        import traceback
+        retval = json.dumps({"error": f"Failed to get timeline: {str(e)}", "traceback": traceback.format_exc()})
+except Exception as e:
+    import traceback
+    retval = json.dumps({"error": f"Failed to initialize TorchMagic: {str(e)}", "traceback": traceback.format_exc()})
 "#;
                 let code_cstr = CString::new(code).map_err(|e| {
                     EngineError::PluginError(format!("Failed to create CString: {e}"))
@@ -416,7 +423,7 @@ else:
                 }
             });
         }
-        // PyTorch profiler profile API - start profiling with specified steps
+        // PyTorch profiler profile API - start global profiler with specified steps
         if path == "pytorch/profile" {
             let steps = params
                 .get("steps")
@@ -434,10 +441,14 @@ from probing.repl.torch_magic import TorchMagic
 
 steps = {}
 try:
-    TorchMagic._profile(steps=steps, mid=None)
-    retval = json.dumps({{"success": True, "message": f"Profiler installed for {{steps}} step(s)"}})
+    # Use global profiler - call _start_global_profiler via _cmd_profile
+    shell = None
+    torch_magic = TorchMagic(shell)
+    torch_magic._start_global_profiler(steps)
+    retval = json.dumps({{"success": True, "message": f"Global profiler started for {{steps}} step(s)"}})
 except Exception as e:
-    retval = json.dumps({{"success": False, "error": str(e)}})
+    import traceback
+    retval = json.dumps({{"success": False, "error": str(e), "traceback": traceback.format_exc()}})
 "#,
                     steps
                 );
