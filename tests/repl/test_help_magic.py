@@ -18,9 +18,9 @@ def executor():
     ex.shutdown()
 
 
-def test_lsmagics_shows_probing_commands(executor):
-    """Test that %lsmagics displays probing magic commands."""
-    result = executor.execute("%lsmagics")
+def test_cmds_shows_probing_commands(executor):
+    """Test that %cmds displays probing magic commands."""
+    result = executor.execute("%cmds")
     output = result.output
 
     # Check header
@@ -33,9 +33,9 @@ def test_lsmagics_shows_probing_commands(executor):
     assert "%query" in output or "%trace" in output or "%inspect" in output
 
 
-def test_lsmagics_shows_all_magics(executor):
-    """Test that %lsmagics --all displays all magic commands."""
-    result = executor.execute("%lsmagics --all")
+def test_cmds_shows_all_magics(executor):
+    """Test that %cmds --all displays all magic commands."""
+    result = executor.execute("%cmds --all")
     output = result.output
 
     # Check header
@@ -49,9 +49,9 @@ def test_lsmagics_shows_all_magics(executor):
     assert "Query" in output or "Trace" in output
 
 
-def test_lsmagics_shows_tips(executor):
-    """Test that %lsmagics includes usage tips."""
-    result = executor.execute("%lsmagics")
+def test_cmds_shows_tips(executor):
+    """Test that %cmds includes usage tips."""
+    result = executor.execute("%cmds")
     output = result.output
 
     # Check tips section
