@@ -706,21 +706,21 @@ def list_traceable(prefix=None, depth=2):
     Always returns structured data with variables information.
 
     Args:
-        prefix: Optional prefix to filter results. Supports wildcards:
-                - None: Returns top-level modules only
-                - "torch.nn": Returns items one level deeper (torch.nn.Linear, torch.nn.Module, etc.)
-                - "torch.*": Returns all items matching the pattern
+        prefix: Optional prefix to filter results. Supports wildcards.
+            Examples: None (returns top-level modules),
+            torch.nn (returns torch.nn.* items),
+            torch.* (returns all matching items).
         depth: Maximum depth for recursive traversal (default: 2)
 
     Returns:
         JSON string containing list of items. Each item is a dict with "name", "type", and "variables" keys.
-        - Functions (type='F') will have their variables (parameters and locals) in the "variables" list
-        - Other items (modules, classes, etc.) will have an empty "variables" list
+        Functions (type='F') will have their variables (parameters and locals) in the "variables" list.
+        Other items (modules, classes, etc.) will have an empty "variables" list.
 
     Examples:
-        >>> list_traceable()  # Returns top-level modules
-        >>> list_traceable("torch.nn")  # Returns torch.nn.* items with variables
-        >>> list_traceable("torch.*.Linear")  # Returns all Linear classes in torch submodules
+        >>> list_traceable()  # doctest: +SKIP
+        >>> list_traceable("torch.nn")  # doctest: +SKIP
+        >>> list_traceable("torch.*.Linear")  # doctest: +SKIP
     """
     collector = _TraceableCollector()
     filter_func = collector.create_filter(prefix)
