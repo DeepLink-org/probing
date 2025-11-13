@@ -4,30 +4,8 @@ use crate::components::page::{PageContainer, PageTitle};
 use crate::components::common::{LoadingState, ErrorState, EmptyState};
 use crate::components::dataframe_view::DataFrameView;
 use crate::hooks::{use_api, use_api_simple};
-use crate::api::{ApiClient, TraceableItem, VariableRecord};
+use crate::api::{ApiClient, TraceableItem};
 
-/// Safely format timestamp to string
-/// Uses simple math to avoid SystemTime/DateTime issues in wasm
-fn format_timestamp_safe(timestamp: f64) -> String {
-    if timestamp.is_nan() || timestamp.is_infinite() {
-        return "Invalid".to_string();
-    }
-    
-    // For negative timestamps, just return the raw value
-    if timestamp < 0.0 {
-        return format!("{:.3}", timestamp);
-    }
-    
-    // Calculate hours, minutes, seconds, and milliseconds
-    let total_secs = timestamp.floor() as u64;
-    let hours = total_secs / 3600;
-    let minutes = (total_secs % 3600) / 60;
-    let seconds = total_secs % 60;
-    let millis = ((timestamp - total_secs as f64) * 1000.0).floor() as u64;
-    
-    // Format as HH:MM:SS.mmm
-    format!("{:02}:{:02}:{:02}.{:03}", hours, minutes, seconds, millis)
-}
 
 #[component]
 pub fn Python() -> Element {
@@ -40,7 +18,6 @@ pub fn Python() -> Element {
                 subtitle: Some("Inspect and debug Python processes".to_string()),
                 icon: Some(&icondata::SiPython),
             }
-            // Tab navigation
             div {
                 class: "mb-6 border-b border-gray-200",
                 div {
@@ -57,7 +34,6 @@ pub fn Python() -> Element {
                 }
             }
             
-            // Tab content
             if *selected_tab.read() == "trace" {
                 TraceView {}
             }
@@ -67,10 +43,9 @@ pub fn Python() -> Element {
 
 #[component]
 fn TraceView() -> Element {
-    let mut selected_function_filter = use_signal(|| Option::<String>::None);
+    let _selected_function_filter = use_signal(|| Option::<String>::None);
     let mut refresh_key = use_signal(|| 0);
     
-    // Load traceable functions (always includes variables)
     let functions_state = use_api(move || {
         let client = ApiClient::new();
         async move {
@@ -78,7 +53,6 @@ fn TraceView() -> Element {
         }
     });
     
-    // Load current trace info
     let trace_info_state = use_api(move || {
         let client = ApiClient::new();
         async move {
@@ -86,12 +60,10 @@ fn TraceView() -> Element {
         }
     });
     
-    // Variable records preview state (use DataFrame to preserve column names from SQL)
     let records_state = use_api_simple::<probing_proto::prelude::DataFrame>();
     let mut preview_function_name = use_signal(|| String::new());
     let mut preview_open = use_signal(|| false);
     
-    // Dialog state
     let mut dialog_open = use_signal(|| false);
     let mut dialog_function_name = use_signal(|| String::new());
     let mut dialog_watch_vars = use_signal(|| String::new());
@@ -100,92 +72,14 @@ fn TraceView() -> Element {
     rsx! {
         div {
             class: "space-y-6",
-            // Active Traces Card (moved to top)
-            div {
-                class: "bg-white shadow-md rounded-lg p-6",
-                h2 {
-                    class: "text-xl font-semibold mb-4",
-                    "Active Traces"
-                }
-                if trace_info_state.is_loading() {
-                    LoadingState { message: Some("Loading trace information...".to_string()) }
-                } else if let Some(Ok(traces)) = trace_info_state.data.read().as_ref() {
-                    if traces.is_empty() {
-                        EmptyState { message: "No active traces".to_string() }
-                    } else {
-                        {
-                            let mut loading = records_state.loading;
-                            let mut data = records_state.data;
-                            let mut preview_fn = preview_function_name;
-                            let mut preview_op = preview_open;
-                            
-                            rsx! {
-                                div {
-                                    class: "space-y-4",
-                                    {
-                                        traces.iter().map(|func_name| {
-                                            let func_name_clone = func_name.clone();
-                                            let func_name_for_preview = func_name.clone();
-                                            
-                                            rsx! {
-                                                div {
-                                                    class: "p-4 bg-gray-50 rounded-md border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors",
-                                                    onclick: move |_| {
-                                                        *preview_fn.write() = func_name_for_preview.clone();
-                                                        *preview_op.write() = true;
-                                                        let func_name = func_name_for_preview.clone();
-                                                        spawn(async move {
-                                                            *loading.write() = true;
-                                                            let client = ApiClient::new();
-                                                            let resp = client.get_variable_records(Some(&func_name), Some(100)).await;
-                                                            *data.write() = Some(resp);
-                                                            *loading.write() = false;
-                                                        });
-                                                    },
-                                                    div {
-                                                        class: "flex items-center justify-between",
-                                                        div {
-                                                            class: "font-medium text-gray-900",
-                                                            "{func_name}"
-                                                        }
-                                                        button {
-                                                            class: "px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 shadow-sm",
-                                                            onclick: move |e| {
-                                                                e.stop_propagation();
-                                                                let func = func_name_clone.clone();
-                                                                let mut refresh = refresh_key;
-                                                                
-                                                                spawn(async move {
-                                                                    let client = ApiClient::new();
-                                                                    match client.stop_trace(&func).await {
-                                                                        Ok(_resp) => {
-                                                                            *refresh.write() += 1;
-                                                                        }
-                                                                        Err(_e) => {
-                                                                            // Error handling could be added here
-                                                                        }
-                                                                    }
-                                                                });
-                                                            },
-                                                            "Stop"
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        })
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else if let Some(Err(err)) = trace_info_state.data.read().as_ref() {
-                    ErrorState { error: format!("{:?}", err), title: None }
-                } else {
-                    EmptyState { message: "No data available".to_string() }
-                }
+            ActiveTracesCard {
+                trace_info_state: trace_info_state.clone(),
+                records_state: records_state.clone(),
+                preview_function_name: preview_function_name.clone(),
+                preview_open: preview_open.clone(),
+                refresh_key: refresh_key.clone(),
             }
             
-            // Traceable Functions Card
             div {
                 class: "bg-white shadow-md rounded-lg p-6",
                 h2 {
@@ -199,22 +93,15 @@ fn TraceView() -> Element {
                         EmptyState { message: "No traceable functions found".to_string() }
                     } else {
                         {
-                            let mut dialog_fn = dialog_function_name;
-                            let mut dialog_vars = dialog_watch_vars;
-                            let mut dialog_dp = dialog_depth;
-                            let mut dialog_op = dialog_open;
-                            
                             let mut click_signal = use_signal(|| (String::new(), Vec::new()));
                             
-                            // Watch for changes in click_signal
                             use_effect(move || {
                                 let (func_name, vars) = click_signal.read().clone();
                                 if !func_name.is_empty() {
-                                    *dialog_fn.write() = func_name.clone();
-                                    *dialog_vars.write() = vars.join(", ");
-                                    *dialog_dp.write() = 1;
-                                    *dialog_op.write() = true;
-                                    // Reset signal
+                                    *dialog_function_name.write() = func_name.clone();
+                                    *dialog_watch_vars.write() = vars.join(", ");
+                                    *dialog_depth.write() = 1;
+                                    *dialog_open.write() = true;
                                     *click_signal.write() = (String::new(), Vec::new());
                                 }
                             });
@@ -234,181 +121,21 @@ fn TraceView() -> Element {
                 }
             }
             
-            // Variable Records Preview Modal
             if *preview_open.read() {
-                div {
-                    class: "fixed inset-0 z-50 flex items-center justify-center",
-                    // Background overlay
-                    div {
-                        class: "absolute inset-0 bg-black/50",
-                        onclick: move |_| {
-                            *preview_open.write() = false;
-                        }
-                    }
-                    // Content container
-                    div {
-                        class: "relative bg-white rounded-lg shadow-lg max-w-5xl w-[90vw] max-h-[80vh] overflow-auto p-4",
-                        // Header
-                        div {
-                            class: "flex items-center justify-between mb-3",
-                            h3 {
-                                class: "text-lg font-semibold text-gray-900",
-                                "Variable Records: {preview_function_name.read()}"
-                            }
-                            button {
-                                class: "px-3 py-1 text-sm rounded bg-gray-100 hover:bg-gray-200",
-                                onclick: move |_| {
-                                    *preview_open.write() = false;
-                                },
-                                "Close"
-                            }
-                        }
-                        // Content
-                        if records_state.is_loading() {
-                            LoadingState { message: Some("Loading records...".to_string()) }
-                        } else if let Some(Ok(df)) = records_state.data.read().as_ref() {
-                            // Use DataFrameView component which uses SQL column names from df.names
-                            // SQL AS already renamed columns, so df.names contains the display names
-                            DataFrameView { 
-                                df: df.clone(), 
-                                on_row_click: None 
-                            }
-                        } else if let Some(Err(err)) = records_state.data.read().as_ref() {
-                            ErrorState { error: format!("{:?}", err), title: None }
-                        } else {
-                            span {
-                                class: "text-gray-500",
-                                "Preparing records..."
-                            }
-                        }
-                    }
+                VariableRecordsModal {
+                    preview_open: preview_open.clone(),
+                    preview_function_name: preview_function_name.clone(),
+                    records_state: records_state.clone(),
                 }
             }
             
-            // Start Trace Confirmation Dialog
             if *dialog_open.read() {
-                div {
-                    class: "fixed inset-0 z-50 flex items-center justify-center",
-                    // Background overlay
-                    div {
-                        class: "absolute inset-0 bg-black/50",
-                        onclick: move |_| {
-                            *dialog_open.write() = false;
-                        }
-                    }
-                    // Dialog content
-                    div {
-                        class: "relative bg-white rounded-lg shadow-lg max-w-md w-[90vw] p-6",
-                        onclick: move |e| {
-                            e.stop_propagation();
-                        },
-                        h3 {
-                            class: "text-lg font-semibold text-gray-900 mb-4",
-                            "Start Tracing"
-                        }
-                        
-                        div {
-                            class: "space-y-4",
-                            // Function name (read-only)
-                            div {
-                                class: "space-y-2",
-                                label {
-                                    class: "block text-sm font-medium text-gray-700",
-                                    "Function Name"
-                                }
-                                input {
-                                    class: "w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50",
-                                    r#type: "text",
-                                    readonly: true,
-                                    value: "{dialog_function_name.read()}",
-                                }
-                            }
-                            
-                            // Watch Variables (pre-filled with clicked variable, can add more)
-                            div {
-                                class: "space-y-2",
-                                label {
-                                    class: "block text-sm font-medium text-gray-700",
-                                    "Watch Variables (comma-separated)"
-                                }
-                                input {
-                                    class: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-                                    r#type: "text",
-                                    placeholder: "e.g., x, y, z",
-                                    value: "{dialog_watch_vars.read()}",
-                                    oninput: move |e| *dialog_watch_vars.write() = e.value(),
-                                }
-                                div {
-                                    class: "text-xs text-gray-500 mt-1",
-                                    "Tip: You can add more variables separated by commas"
-                                }
-                            }
-                            
-                            // Depth
-                            div {
-                                class: "space-y-2",
-                                label {
-                                    class: "block text-sm font-medium text-gray-700",
-                                    "Depth"
-                                }
-                                input {
-                                    class: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-                                    r#type: "number",
-                                    min: "1",
-                                    value: "{dialog_depth.read()}",
-                                    oninput: move |e| {
-                                        if let Ok(v) = e.value().parse::<i32>() {
-                                            *dialog_depth.write() = v.max(1);
-                                        }
-                                    },
-                                }
-                            }
-                            
-                            // Buttons
-                            div {
-                                class: "flex gap-3 justify-end pt-4",
-                                button {
-                                    class: "px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500",
-                                    onclick: move |_| {
-                                        *dialog_open.write() = false;
-                                    },
-                                    "Cancel"
-                                }
-                                button {
-                                    class: "px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm transition-colors",
-                                    onclick: move |_| {
-                                        let func = dialog_function_name.read().clone();
-                                        let watch = dialog_watch_vars.read().clone();
-                                        let depth_val = *dialog_depth.read();
-                                        let mut refresh = refresh_key;
-                                        let mut dialog_op = dialog_open;
-                                        
-                                        spawn(async move {
-                                            let client = ApiClient::new();
-                                            let watch_list: Vec<String> = if watch.is_empty() {
-                                                vec![]
-                                            } else {
-                                                watch.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
-                                            };
-                                            
-                                            match client.start_trace(&func, Some(watch_list), Some(depth_val)).await {
-                                                Ok(resp) => {
-                                                    if resp.success {
-                                                        *refresh.write() += 1;
-                                                        *dialog_op.write() = false;
-                                                    }
-                                                }
-                                                Err(_) => {
-                                                    // Error handling could be added here
-                                                }
-                                            }
-                                        });
-                                    },
-                                    "Start Trace"
-                                }
-                            }
-                        }
-                    }
+                StartTraceDialog {
+                    dialog_open: dialog_open.clone(),
+                    dialog_function_name: dialog_function_name.clone(),
+                    dialog_watch_vars: dialog_watch_vars.clone(),
+                    dialog_depth: dialog_depth.clone(),
+                    refresh_key: refresh_key.clone(),
                 }
             }
         }
@@ -453,18 +180,17 @@ fn TraceableFunctionItem(
     function_vars: Vec<String>,
 ) -> Element {
     let mut expanded = use_signal(|| false);
-    // Default to expanded if variables exist
     let mut variables_expanded = use_signal(|| !variables.is_empty());
     let variables_list = use_signal(|| variables.clone());
     let children_state = use_signal(|| Option::<Vec<TraceableItem>>::None);
     let mut loading = use_signal(|| false);
     
     let name_for_display = name.clone();
-    let name_for_click = name.clone();
+    let _name_for_click = name.clone();
     let name_for_expand_module = name.clone();
-    let name_for_expand_vars = name.clone();
+    let _name_for_expand_vars = name.clone();
     let item_type_clone = item_type.clone();
-    let variables_clone = variables_list.read().clone();
+    let _variables_clone = variables_list.read().clone();
     
     rsx! {
         div {
@@ -473,7 +199,6 @@ fn TraceableFunctionItem(
                 class: "flex items-center justify-between p-3 hover:bg-gray-50",
                 div {
                     class: "flex items-center gap-2 flex-1",
-                    // Expand/collapse button for modules
                     if is_module {
                         button {
                             class: "text-gray-500 hover:text-gray-700",
@@ -481,7 +206,6 @@ fn TraceableFunctionItem(
                                 let expanded_val = *expanded.read();
                                 *expanded.write() = !expanded_val;
                                 
-                                // Load children if expanding
                                 if !expanded_val {
                                     let name_for_load = name_for_expand_module.clone();
                                     let mut children = children_state;
@@ -514,40 +238,26 @@ fn TraceableFunctionItem(
                         }
                     }
                     
-                    // Type badge
                     {
                         let item_type_clone = item_type_clone.clone();
-                        if item_type_clone == "F" {
-                            rsx! {
-                                span {
-                                    class: "text-xs px-1.5 py-0.5 rounded font-mono bg-indigo-100 text-indigo-700",
-                                    "[F]"
-                                }
-                            }
-                        } else if item_type_clone == "M" {
-                            rsx! {
-                                span {
-                                    class: "text-xs px-1.5 py-0.5 rounded font-mono bg-green-100 text-green-700",
-                                    "[M]"
-                                }
-                            }
-                        } else {
-                            rsx! {
-                                span {
-                                    class: "text-xs px-1.5 py-0.5 rounded font-mono bg-gray-100 text-gray-700",
-                                    "[{item_type_clone}]"
-                                }
+                        let (badge_class, badge_text) = match item_type_clone.as_str() {
+                            "F" => ("bg-indigo-100 text-indigo-700", "[F]".to_string()),
+                            "M" => ("bg-green-100 text-green-700", "[M]".to_string()),
+                            _ => ("bg-gray-100 text-gray-700", format!("[{}]", item_type_clone)),
+                        };
+                        rsx! {
+                            span {
+                                class: format!("text-xs px-1.5 py-0.5 rounded font-mono {}", badge_class),
+                                "{badge_text}"
                             }
                         }
                     }
                     
-                    // Function/module name
                     div {
                         class: "font-medium text-gray-900",
                         "{name_for_display}"
                     }
                     
-                    // Expand/collapse button for variables (for functions)
                     if item_type_clone == "F" {
                         button {
                             class: "ml-auto text-xs text-gray-500 hover:text-gray-700",
@@ -566,7 +276,6 @@ fn TraceableFunctionItem(
                 }
             }
             
-            // Variables list (for functions) - always show if variables exist and expanded
             if item_type_clone == "F" && *variables_expanded.read() {
                 {
                     let vars = variables_list.read();
@@ -590,7 +299,6 @@ fn TraceableFunctionItem(
                                                 span {
                                                     class: "text-xs px-2 py-1 bg-indigo-50 text-indigo-700 rounded border border-indigo-200 cursor-pointer hover:bg-indigo-100 transition-colors",
                                                     onclick: move |_| {
-                                                        // Click variable to open dialog with this function and variable
                                                         *click_signal.write() = (func_name.clone(), vec![var_clone.clone()]);
                                                     },
                                                     "{var_clone}"
@@ -615,7 +323,6 @@ fn TraceableFunctionItem(
                 }
             }
             
-            // Children list (for modules)
             if is_module && *expanded.read() {
                 if *loading.read() {
                     div {
@@ -662,3 +369,284 @@ fn TraceableFunctionItem(
     }
 }
 
+#[component]
+fn ActiveTracesCard(
+    #[props] trace_info_state: crate::hooks::ApiState<Vec<String>>,
+    #[props] records_state: crate::hooks::ApiState<probing_proto::prelude::DataFrame>,
+    #[props] preview_function_name: Signal<String>,
+    #[props] preview_open: Signal<bool>,
+    #[props] refresh_key: Signal<i32>,
+) -> Element {
+    rsx! {
+        div {
+            class: "bg-white shadow-md rounded-lg p-6",
+            h2 {
+                class: "text-xl font-semibold mb-4",
+                "Active Traces"
+            }
+            if trace_info_state.is_loading() {
+                LoadingState { message: Some("Loading trace information...".to_string()) }
+            } else if let Some(Ok(traces)) = trace_info_state.data.read().as_ref() {
+                if traces.is_empty() {
+                    EmptyState { message: "No active traces".to_string() }
+                } else {
+                    div {
+                        class: "space-y-4",
+                        {
+                            traces.iter().map(|func_name| {
+                                rsx! {
+                                    ActiveTraceItem {
+                                        func_name: func_name.clone(),
+                                        records_state: records_state.clone(),
+                                        preview_function_name: preview_function_name.clone(),
+                                        preview_open: preview_open.clone(),
+                                        refresh_key: refresh_key.clone(),
+                                    }
+                                }
+                            })
+                        }
+                    }
+                }
+            } else if let Some(Err(err)) = trace_info_state.data.read().as_ref() {
+                ErrorState { error: format!("{:?}", err), title: None }
+            } else {
+                EmptyState { message: "No data available".to_string() }
+            }
+        }
+    }
+}
+
+#[component]
+fn ActiveTraceItem(
+    #[props] func_name: String,
+    #[props] records_state: crate::hooks::ApiState<probing_proto::prelude::DataFrame>,
+    #[props] preview_function_name: Signal<String>,
+    #[props] preview_open: Signal<bool>,
+    #[props] refresh_key: Signal<i32>,
+) -> Element {
+    let func_name_clone = func_name.clone();
+    let func_name_for_preview = func_name.clone();
+    
+    rsx! {
+        div {
+            class: "p-4 bg-gray-50 rounded-md border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors",
+            onclick: move |_| {
+                *preview_function_name.write() = func_name_for_preview.clone();
+                *preview_open.write() = true;
+                let func_name = func_name_for_preview.clone();
+                let mut loading = records_state.loading;
+                let mut data = records_state.data;
+                spawn(async move {
+                    *loading.write() = true;
+                    let client = ApiClient::new();
+                    let resp = client.get_variable_records(Some(&func_name), Some(100)).await;
+                    *data.write() = Some(resp);
+                    *loading.write() = false;
+                });
+            },
+            div {
+                class: "flex items-center justify-between",
+                div {
+                    class: "font-medium text-gray-900",
+                    "{func_name}"
+                }
+                button {
+                    class: "px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 shadow-sm",
+                    onclick: move |e| {
+                        e.stop_propagation();
+                        let func = func_name_clone.clone();
+                        let mut refresh = refresh_key;
+                        spawn(async move {
+                            let client = ApiClient::new();
+                                    match client.stop_trace(&func).await {
+                                        Ok(_resp) => {
+                                            *refresh.write() += 1;
+                                        }
+                                        Err(_e) => {}
+                                    }
+                        });
+                    },
+                    "Stop"
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn VariableRecordsModal(
+    #[props] preview_open: Signal<bool>,
+    #[props] preview_function_name: Signal<String>,
+    #[props] records_state: crate::hooks::ApiState<probing_proto::prelude::DataFrame>,
+) -> Element {
+    rsx! {
+        div {
+            class: "fixed inset-0 z-50 flex items-center justify-center",
+            div {
+                class: "absolute inset-0 bg-black/50",
+                onclick: move |_| {
+                    *preview_open.write() = false;
+                }
+            }
+            div {
+                class: "relative bg-white rounded-lg shadow-lg max-w-5xl w-[90vw] max-h-[80vh] overflow-auto p-4",
+                div {
+                    class: "flex items-center justify-between mb-3",
+                    h3 {
+                        class: "text-lg font-semibold text-gray-900",
+                        "Variable Records: {preview_function_name.read()}"
+                    }
+                    button {
+                        class: "px-3 py-1 text-sm rounded bg-gray-100 hover:bg-gray-200",
+                        onclick: move |_| {
+                            *preview_open.write() = false;
+                        },
+                        "Close"
+                    }
+                }
+                if records_state.is_loading() {
+                    LoadingState { message: Some("Loading records...".to_string()) }
+                } else if let Some(Ok(df)) = records_state.data.read().as_ref() {
+                    DataFrameView { 
+                        df: df.clone(), 
+                        on_row_click: None 
+                    }
+                } else if let Some(Err(err)) = records_state.data.read().as_ref() {
+                    ErrorState { error: format!("{:?}", err), title: None }
+                } else {
+                    span {
+                        class: "text-gray-500",
+                        "Preparing records..."
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn StartTraceDialog(
+    #[props] dialog_open: Signal<bool>,
+    #[props] dialog_function_name: Signal<String>,
+    #[props] dialog_watch_vars: Signal<String>,
+    #[props] dialog_depth: Signal<i32>,
+    #[props] refresh_key: Signal<i32>,
+) -> Element {
+    rsx! {
+        div {
+            class: "fixed inset-0 z-50 flex items-center justify-center",
+            div {
+                class: "absolute inset-0 bg-black/50",
+                onclick: move |_| {
+                    *dialog_open.write() = false;
+                }
+            }
+            div {
+                class: "relative bg-white rounded-lg shadow-lg max-w-md w-[90vw] p-6",
+                onclick: move |e| {
+                    e.stop_propagation();
+                },
+                h3 {
+                    class: "text-lg font-semibold text-gray-900 mb-4",
+                    "Start Tracing"
+                }
+                
+                div {
+                    class: "space-y-4",
+                    div {
+                        class: "space-y-2",
+                        label {
+                            class: "block text-sm font-medium text-gray-700",
+                            "Function Name"
+                        }
+                        input {
+                            class: "w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50",
+                            r#type: "text",
+                            readonly: true,
+                            value: "{dialog_function_name.read()}",
+                        }
+                    }
+                    
+                    div {
+                        class: "space-y-2",
+                        label {
+                            class: "block text-sm font-medium text-gray-700",
+                            "Watch Variables (comma-separated)"
+                        }
+                        input {
+                            class: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
+                            r#type: "text",
+                            placeholder: "e.g., x, y, z",
+                            value: "{dialog_watch_vars.read()}",
+                            oninput: move |e| *dialog_watch_vars.write() = e.value(),
+                        }
+                        div {
+                            class: "text-xs text-gray-500 mt-1",
+                            "Tip: You can add more variables separated by commas"
+                        }
+                    }
+                    
+                    div {
+                        class: "space-y-2",
+                        label {
+                            class: "block text-sm font-medium text-gray-700",
+                            "Depth"
+                        }
+                        input {
+                            class: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
+                            r#type: "number",
+                            min: "1",
+                            value: "{dialog_depth.read()}",
+                            oninput: move |e| {
+                                if let Ok(v) = e.value().parse::<i32>() {
+                                    *dialog_depth.write() = v.max(1);
+                                }
+                            },
+                        }
+                    }
+                    
+                    div {
+                        class: "flex gap-3 justify-end pt-4",
+                        button {
+                            class: "px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500",
+                            onclick: move |_| {
+                                *dialog_open.write() = false;
+                            },
+                            "Cancel"
+                        }
+                        button {
+                            class: "px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm transition-colors",
+                            onclick: move |_| {
+                                let func = dialog_function_name.read().clone();
+                                let watch = dialog_watch_vars.read().clone();
+                                let depth_val = *dialog_depth.read();
+                                let mut refresh = refresh_key;
+                                let mut dialog_op = dialog_open;
+                                
+                                spawn(async move {
+                                    let client = ApiClient::new();
+                                    let watch_list: Vec<String> = if watch.is_empty() {
+                                        vec![]
+                                    } else {
+                                        watch.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
+                                    };
+                                    
+                                    match client.start_trace(&func, Some(watch_list), Some(depth_val)).await {
+                                        Ok(resp) => {
+                                                    if resp.success {
+                                                        *refresh.write() += 1;
+                                                        *dialog_op.write() = false;
+                                                    }
+                                                }
+                                                Err(_) => {}
+                                            }
+                                });
+                            },
+                            "Start Trace"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

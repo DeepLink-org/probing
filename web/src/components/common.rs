@@ -1,5 +1,4 @@
 use dioxus::prelude::*;
-// Inlined Tailwind classes instead of style constants.
 
 #[component]
 pub fn LoadingState(message: Option<String>) -> Element {

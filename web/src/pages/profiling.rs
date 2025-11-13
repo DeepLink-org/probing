@@ -1,12 +1,11 @@
 use dioxus::prelude::*;
-use crate::components::common::{LoadingState, ErrorState};
+use crate::components::common::{LoadingState, ErrorState, EmptyState};
 use crate::components::page::{PageContainer, PageTitle};
 use crate::hooks::use_api_simple;
 use crate::api::{ApiClient, ProfileResponse};
 use crate::app::{PROFILING_VIEW, PROFILING_PPROF_FREQ, PROFILING_TORCH_ENABLED, 
     PROFILING_CHROME_DATA_SOURCE, PROFILING_CHROME_LIMIT};
 
-/// 从配置中更新全局状态
 fn apply_config(config: &[(String, String)]) {
     *PROFILING_PPROF_FREQ.write() = 0;
     *PROFILING_TORCH_ENABLED.write() = false;
@@ -20,12 +19,8 @@ fn apply_config(config: &[(String, String)]) {
             },
             "probing.torch.profiling" => {
                 let lowered = value.trim().to_lowercase();
-                let enabled = !lowered.is_empty()
-                    && lowered != "0"
-                    && lowered != "false"
-                    && lowered != "off"
-                    && lowered != "disable"
-                    && lowered != "disabled";
+                let disabled_values = ["", "0", "false", "off", "disable", "disabled"];
+                let enabled = !disabled_values.contains(&lowered.as_str());
                 *PROFILING_TORCH_ENABLED.write() = enabled;
             },
             _ => {}
@@ -35,7 +30,6 @@ fn apply_config(config: &[(String, String)]) {
 
 #[component]
 pub fn Profiling() -> Element {
-    // 使用全局状态
     let chrome_iframe_key = use_signal(|| 0);
     
     let config_state = use_api_simple::<Vec<(String, String)>>();
@@ -43,7 +37,6 @@ pub fn Profiling() -> Element {
     let chrome_tracing_state = use_api_simple::<String>();
     let pytorch_profile_state = use_api_simple::<ProfileResponse>();
     
-    // 加载配置
     use_effect(move || {
         let mut loading = config_state.loading;
         let mut data = config_state.data;
@@ -62,7 +55,6 @@ pub fn Profiling() -> Element {
         });
     });
 
-    // 当视图切换时，重新加载配置
     use_effect(move || {
         let view = PROFILING_VIEW.read().clone();
         drop(view);
@@ -74,20 +66,14 @@ pub fn Profiling() -> Element {
         });
     });
 
-    // 加载 flamegraph（pprof 或 torch）
     use_effect(move || {
         let view = PROFILING_VIEW.read().clone();
         let pprof_on = *PROFILING_PPROF_FREQ.read() > 0;
         let torch = *PROFILING_TORCH_ENABLED.read();
         
-        // 只在选择 pprof 或 torch 视图时加载
-        if view != "pprof" && view != "torch" {
-            return;
-        }
-        
-        let active_profiler = match (view.as_str(), pprof_on, torch) {
-            ("pprof", true, _) => "pprof",
-            ("torch", _, true) => "torch",
+        let active_profiler = match view.as_str() {
+            "pprof" if pprof_on => "pprof",
+            "torch" if torch => "torch",
             _ => return,
         };
         
@@ -102,13 +88,11 @@ pub fn Profiling() -> Element {
         });
     });
 
-    // 加载 Chrome Tracing 数据
     use_effect(move || {
         let view = PROFILING_VIEW.read().clone();
         let source = PROFILING_CHROME_DATA_SOURCE.read().clone();
         let limit_val = *PROFILING_CHROME_LIMIT.read();
         
-        // 只在选择 chrome-tracing 视图时加载
         if view != "chrome-tracing" {
             return;
         }
@@ -130,7 +114,6 @@ pub fn Profiling() -> Element {
 
     rsx! {
         PageContainer {
-            // 动态页面标题 - 根据当前视图显示
             {
                 let current_view = PROFILING_VIEW.read();
                 let (title, subtitle, icon) = match current_view.as_str() {
@@ -164,149 +147,52 @@ pub fn Profiling() -> Element {
                 }
             }
             
-            // Profiling 内容区域 - 使用 Card 样式统一布局
             div {
                 class: "bg-white rounded-lg shadow-sm border border-gray-200 relative",
                 style: "min-height: calc(100vh - 12rem);",
-                // pprof 或 torch flamegraph
-                if *PROFILING_VIEW.read() == "pprof" || *PROFILING_VIEW.read() == "torch" {
-                    if !(*PROFILING_PPROF_FREQ.read() > 0) && !*PROFILING_TORCH_ENABLED.read() {
-                        EmptyState {
-                            message: format!("No profilers are currently enabled. Enable {} using the controls in the sidebar.", 
-                                if *PROFILING_VIEW.read() == "pprof" { "pprof" } else { "torch" })
-                        }
-                    } else if flamegraph_state.is_loading() {
-                        LoadingState { message: Some("Loading flamegraph...".to_string()) }
-                    } else if let Some(Ok(flamegraph)) = flamegraph_state.data.read().as_ref() {
-                        div {
-                            class: "absolute inset-0 w-full h-full",
-                            div {
-                                class: "w-full h-full",
-                                dangerous_inner_html: "{flamegraph}"
+                {
+                    let current_view = PROFILING_VIEW.read().clone();
+                    if current_view == "pprof" || current_view == "torch" {
+                        rsx! {
+                            FlamegraphView {
+                                flamegraph_state: flamegraph_state.clone(),
                             }
                         }
-                    } else if let Some(Err(err)) = flamegraph_state.data.read().as_ref() {
-                        ErrorState {
-                            error: format!("Failed to load flamegraph: {:?}", err),
-                            title: Some("Error Loading Flamegraph".to_string())
-                        }
-                    }
-                }
-                
-                // Chrome Tracing 视图
-                if *PROFILING_VIEW.read() == "chrome-tracing" {
-                    if chrome_tracing_state.is_loading() {
-                        LoadingState { 
-                            message: Some(if *PROFILING_CHROME_DATA_SOURCE.read() == "pytorch" {
-                                "Loading PyTorch timeline data...".to_string()
-                            } else {
-                                "Loading trace data...".to_string()
-                            })
-                        }
-                    } else if let Some(Ok(ref trace_json)) = chrome_tracing_state.data.read().as_ref() {
-                        if trace_json.trim().is_empty() {
-                            ErrorState { 
-                                error: "Timeline data is empty. Make sure the profiler has been executed.".to_string(), 
-                                title: Some("Empty Timeline Data".to_string())
+                    } else if current_view == "chrome-tracing" {
+                        rsx! {
+                            ChromeTracingView {
+                                chrome_tracing_state: chrome_tracing_state.clone(),
+                                chrome_iframe_key: chrome_iframe_key.clone(),
                             }
-                        } else if let Err(e) = serde_json::from_str::<serde_json::Value>(trace_json) {
-                            ErrorState { 
-                                error: format!("Invalid JSON data: {:?}", e), 
-                                title: Some("Invalid Timeline Data".to_string())
-                            }
-                        } else {
-                            div {
-                                class: "absolute inset-0 overflow-hidden",
-                                style: "min-height: 600px;",
-                                iframe {
-                                    key: "{*chrome_iframe_key.read()}",
-                                    srcdoc: get_tracing_viewer_html(trace_json),
-                                    style: "width: 100%; height: 100%; border: none;",
-                                    title: "Chrome Tracing Viewer"
-                                }
-                            }
-                        }
-                    } else if let Some(Err(ref err)) = chrome_tracing_state.data.read().as_ref() {
-                        ErrorState { 
-                            error: format!("Failed to load timeline: {:?}", err), 
-                            title: Some("Load Timeline Error".to_string())
                         }
                     } else {
-                        div {
-                            class: "absolute inset-0 flex items-center justify-center p-8",
-                            div {
-                                class: "text-center text-gray-500",
-                                if *PROFILING_CHROME_DATA_SOURCE.read() == "pytorch" {
-                                    p {
-                                        class: "mb-4 text-lg",
-                                        "PyTorch Profiler Timeline"
-                                    }
-                                    p {
-                                        class: "text-sm",
-                                        "Click 'Start Profile' to begin profiling, then click 'Load Timeline' to view the results."
-                                    }
-                                } else {
-                                    p {
-                                        class: "mb-4 text-lg",
-                                        "Trace Events Timeline"
-                                    }
-                                    p {
-                                        class: "text-sm",
-                                        "Select the number of events and the timeline will load automatically."
-                                    }
-                                }
-                            }
-                        }
+                        rsx! { div {} }
                     }
                 }
             }
             
-            // PyTorch Profile 状态显示
-            if *PROFILING_VIEW.read() == "chrome-tracing" && *PROFILING_CHROME_DATA_SOURCE.read() == "pytorch" {
-                if let Some(Ok(ref profile_result)) = pytorch_profile_state.data.read().as_ref() {
-                    if profile_result.success {
-                        div {
-                            class: "p-3 bg-green-50 border border-green-200 rounded text-sm text-green-800",
-                            if let Some(ref msg) = profile_result.message {
-                                "{msg}"
-                            } else {
-                                "Profile started successfully"
-                            }
+            {
+                let is_chrome_tracing = *PROFILING_VIEW.read() == "chrome-tracing";
+                let is_pytorch_source = *PROFILING_CHROME_DATA_SOURCE.read() == "pytorch";
+                if is_chrome_tracing && is_pytorch_source {
+                    if let Some(Ok(ref profile_result)) = pytorch_profile_state.data.read().as_ref() {
+                        rsx! {
+                            PyTorchProfileStatus { profile_result: profile_result.clone() }
                         }
                     } else {
-                        div {
-                            class: "p-3 bg-red-50 border border-red-200 rounded text-sm text-red-800",
-                            if let Some(ref err) = profile_result.error {
-                                "{err}"
-                            } else {
-                                "Failed to start profile"
-                            }
-                        }
+                        rsx! { div {} }
                     }
+                } else {
+                    rsx! { div {} }
                 }
             }
         }
     }
 }
 
-#[component]
-fn EmptyState(message: String) -> Element {
-    rsx! {
-        div {
-            class: "absolute inset-0 flex items-center justify-center",
-            div {
-                class: "text-center",
-                h2 { class: "text-2xl font-bold text-gray-900 mb-4", "No Profilers Enabled" }
-                p { class: "text-gray-600 mb-6", "{message}" }
-            }
-        }
-    }
-}
 
 /// 生成包含 Chrome tracing viewer 的 HTML 页面
-/// 直接使用已加载的 trace JSON 数据，通过 postMessage API 传递给 Perfetto UI
 fn get_tracing_viewer_html(trace_json: &str) -> String {
-    // 转义 JSON 数据以便嵌入到 JavaScript 中
     let escaped_json = trace_json
         .replace('\\', "\\\\")
         .replace('`', "\\`")
@@ -346,20 +232,17 @@ fn get_tracing_viewer_html(trace_json: &str) -> String {
     <script>
         (function() {{
             try {{
-                // 解析已加载的 trace 数据
                 const traceData = JSON.parse(`{escaped_json}`);
                 
                 const iframe = document.getElementById('perfetto-iframe');
                 const loading = document.getElementById('loading');
                 
-                // 使用 Perfetto UI 的 postMessage API 传递 trace 数据
                 const perfettoUrl = 'https://ui.perfetto.dev/#!/';
                 iframe.src = perfettoUrl;
                 
                 let loaded = false;
                 let errorShown = false;
                 
-                // 监听来自 Perfetto UI 的消息
                 const messageHandler = function(event) {{
                     if (event.origin === 'https://ui.perfetto.dev') {{
                         if (event.data) {{
@@ -385,12 +268,10 @@ fn get_tracing_viewer_html(trace_json: &str) -> String {
                 window.addEventListener('message', messageHandler);
                 
                 iframe.onload = function() {{
-                    // Perfetto UI 页面加载完成，等待 PING/PONG handshake
                     let handshakeComplete = false;
                     let retryCount = 0;
                     const maxRetries = 10;
                     
-                    // 监听来自 Perfetto UI 的 PONG 消息
                     const handshakeHandler = function(event) {{
                         if (event.origin === 'https://ui.perfetto.dev' || 
                             (event.source === iframe.contentWindow && event.data === 'PONG')) {{
@@ -398,14 +279,11 @@ fn get_tracing_viewer_html(trace_json: &str) -> String {
                                 handshakeComplete = true;
                                 window.removeEventListener('message', handshakeHandler);
                                 
-                                // Handshake 完成，发送 trace 数据
                                 try {{
-                                    // 将 trace 数据转换为 ArrayBuffer
                                     const traceJson = JSON.stringify(traceData, null, 2);
                                     const encoder = new TextEncoder();
                                     const buffer = encoder.encode(traceJson).buffer;
                                     
-                                    // 发送 trace 数据到 Perfetto UI
                                     iframe.contentWindow.postMessage({{
                                         perfetto: {{
                                             buffer: buffer,
@@ -416,7 +294,6 @@ fn get_tracing_viewer_html(trace_json: &str) -> String {
                                     
                                     console.log('Trace data sent to Perfetto UI');
                                     
-                                    // 等待一下，然后隐藏 loading
                                     setTimeout(() => {{
                                         if (!loaded && !errorShown) {{
                                             loaded = true;
@@ -449,7 +326,6 @@ fn get_tracing_viewer_html(trace_json: &str) -> String {
                                         setTimeout(sendPing, 500);
                                     }} else {{
                                         console.warn('PING/PONG handshake failed, trying data URL fallback');
-                                        // 回退到 data URL 方式
                                         const traceJson = JSON.stringify(traceData, null, 2);
                                         const base64Data = btoa(unescape(encodeURIComponent(traceJson)));
                                         const dataUrl = 'data:application/json;base64,' + base64Data;
@@ -472,10 +348,8 @@ fn get_tracing_viewer_html(trace_json: &str) -> String {
                         }}
                     }};
                     
-                    // 等待 iframe 完全加载后发送 PING
                     setTimeout(sendPing, 1500);
                     
-                    // 超时处理
                     setTimeout(() => {{
                         if (!loaded && !errorShown) {{
                             loaded = true;
@@ -521,6 +395,170 @@ fn get_tracing_viewer_html(trace_json: &str) -> String {
         }})();
     </script>
 </body>
-</html>
+    </html>
     "#)
+}
+
+#[component]
+fn FlamegraphView(
+    #[props] flamegraph_state: crate::hooks::ApiState<String>
+) -> Element {
+    let pprof_enabled = *PROFILING_PPROF_FREQ.read() > 0;
+    let torch_enabled = *PROFILING_TORCH_ENABLED.read();
+    let current_view = PROFILING_VIEW.read().clone();
+    let profiler_name = if current_view == "pprof" { "pprof" } else { "torch" };
+    
+    if !pprof_enabled && !torch_enabled {
+        let message = format!(
+            "No profilers are currently enabled. Enable {} using the controls in the sidebar.", 
+            profiler_name
+        );
+        return rsx! {
+            div {
+                class: "absolute inset-0 flex items-center justify-center",
+                div {
+                    class: "text-center",
+                    h2 { class: "text-2xl font-bold text-gray-900 mb-4", "No Profilers Enabled" }
+                    EmptyState { message }
+                }
+            }
+        };
+    }
+    
+    if flamegraph_state.is_loading() {
+        return rsx! {
+            LoadingState { message: Some("Loading flamegraph...".to_string()) }
+        };
+    }
+    
+    if let Some(Ok(flamegraph)) = flamegraph_state.data.read().as_ref() {
+        return rsx! {
+            div {
+                class: "absolute inset-0 w-full h-full",
+                div {
+                    class: "w-full h-full",
+                    dangerous_inner_html: "{flamegraph}"
+                }
+            }
+        };
+    }
+    
+    if let Some(Err(err)) = flamegraph_state.data.read().as_ref() {
+        return rsx! {
+            ErrorState {
+                error: format!("Failed to load flamegraph: {:?}", err),
+                title: Some("Error Loading Flamegraph".to_string())
+            }
+        };
+    }
+    
+    rsx! { div {} }
+}
+
+#[component]
+fn ChromeTracingView(
+    #[props] chrome_tracing_state: crate::hooks::ApiState<String>,
+    #[props] chrome_iframe_key: Signal<i32>,
+) -> Element {
+    let data_source = PROFILING_CHROME_DATA_SOURCE.read().clone();
+    let is_pytorch = data_source == "pytorch";
+    
+    if chrome_tracing_state.is_loading() {
+        let message = if is_pytorch {
+            "Loading PyTorch timeline data..."
+        } else {
+            "Loading trace data..."
+        };
+        return rsx! {
+            LoadingState { message: Some(message.to_string()) }
+        };
+    }
+    
+    if let Some(Ok(ref trace_json)) = chrome_tracing_state.data.read().as_ref() {
+        if trace_json.trim().is_empty() {
+            return rsx! {
+                ErrorState { 
+                    error: "Timeline data is empty. Make sure the profiler has been executed.".to_string(), 
+                    title: Some("Empty Timeline Data".to_string())
+                }
+            };
+        }
+        
+        if let Err(e) = serde_json::from_str::<serde_json::Value>(trace_json) {
+            return rsx! {
+                ErrorState { 
+                    error: format!("Invalid JSON data: {:?}", e), 
+                    title: Some("Invalid Timeline Data".to_string())
+                }
+            };
+        }
+        
+        return rsx! {
+            div {
+                class: "absolute inset-0 overflow-hidden",
+                style: "min-height: 600px;",
+                iframe {
+                    key: "{*chrome_iframe_key.read()}",
+                    srcdoc: get_tracing_viewer_html(trace_json),
+                    style: "width: 100%; height: 100%; border: none;",
+                    title: "Chrome Tracing Viewer"
+                }
+            }
+        };
+    }
+    
+    if let Some(Err(ref err)) = chrome_tracing_state.data.read().as_ref() {
+        return rsx! {
+            ErrorState { 
+                error: format!("Failed to load timeline: {:?}", err), 
+                title: Some("Load Timeline Error".to_string())
+            }
+        };
+    }
+    
+    let (title, description) = if is_pytorch {
+        ("PyTorch Profiler Timeline", 
+         "Click 'Start Profile' to begin profiling, then click 'Load Timeline' to view the results.")
+    } else {
+        ("Trace Events Timeline",
+         "Select the number of events and the timeline will load automatically.")
+    };
+    
+    rsx! {
+        div {
+            class: "absolute inset-0 flex items-center justify-center p-8",
+            div {
+                class: "text-center text-gray-500",
+                p {
+                    class: "mb-4 text-lg",
+                    "{title}"
+                }
+                p {
+                    class: "text-sm",
+                    "{description}"
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn PyTorchProfileStatus(#[props] profile_result: ProfileResponse) -> Element {
+    if profile_result.success {
+        let message = profile_result.message.as_deref().unwrap_or("Profile started successfully");
+        rsx! {
+            div {
+                class: "p-3 bg-green-50 border border-green-200 rounded text-sm text-green-800",
+                "{message}"
+            }
+        }
+    } else {
+        let error = profile_result.error.as_deref().unwrap_or("Failed to start profile");
+        rsx! {
+            div {
+                class: "p-3 bg-red-50 border border-red-200 rounded text-sm text-red-800",
+                "{error}"
+            }
+        }
+    }
 }

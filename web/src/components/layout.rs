@@ -15,13 +15,11 @@ pub fn AppLayout(children: Element) -> Element {
             if !*sidebar_hidden {
                 Sidebar {}
             } else {
-                // 显示侧边栏按钮（当侧边栏隐藏时）
                 button {
                     class: "fixed top-4 left-4 z-50 w-10 h-10 bg-white border border-gray-300 rounded-lg shadow-sm flex items-center justify-center hover:bg-gray-50",
                     title: "Show Sidebar",
                     onclick: move |_| {
                         *SIDEBAR_HIDDEN.write() = false;
-                        // 保存到 localStorage
                         if let Some(window) = web_sys::window() {
                             let storage = window.local_storage().ok().flatten();
                             if let Some(storage) = storage {

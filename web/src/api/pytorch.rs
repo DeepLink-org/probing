@@ -2,7 +2,7 @@ use super::ApiClient;
 use crate::utils::error::Result;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ProfileResponse {
     pub success: bool,
     #[serde(default)]

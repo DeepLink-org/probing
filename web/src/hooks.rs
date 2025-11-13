@@ -17,6 +17,14 @@ impl<T: Clone + 'static> ApiState<T> {
     }
 }
 
+impl<T: Clone + 'static + PartialEq> PartialEq for ApiState<T> {
+    fn eq(&self, other: &Self) -> bool {
+        // 比较 Signal 的内部值
+        *self.loading.read() == *other.loading.read() &&
+        self.data.read().as_ref() == other.data.read().as_ref()
+    }
+}
+
 /// 简单的 API 调用 hook（不自动执行）
 pub fn use_api_simple<T: Clone + 'static>() -> ApiState<T> {
     ApiState {
