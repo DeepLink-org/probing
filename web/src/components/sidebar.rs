@@ -60,29 +60,27 @@ pub fn Sidebar() -> Element {
             class: "relative flex h-screen",
             style: format!("width: {}px;", *sidebar_width),
             aside {
-                class: "bg-gradient-to-b from-indigo-900 via-indigo-800 to-indigo-900 border-r border-indigo-700/50 h-screen flex flex-col flex-shrink-0 shadow-lg",
+                class: "bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 border-r border-slate-700/30 h-screen flex flex-col flex-shrink-0 shadow-xl",
                 style: format!("width: {}px;", *sidebar_width),
                 // Logo and Brand
                 div {
-                    class: "px-6 py-4 border-b border-indigo-700/50",
+                    class: "px-6 py-4 border-b border-slate-700/30",
                 Link {
                     to: Route::DashboardPage {},
                     class: "flex items-center space-x-3",
-                    div {
-                        class: "w-8 h-8 bg-gradient-to-br from-indigo-400 to-indigo-500 rounded-lg flex items-center justify-center shadow-lg",
-                        span {
-                            class: "text-white font-bold text-lg",
-                            "P"
-                        }
+                    img {
+                        src: "/assets/logo.svg",
+                        alt: "Probing Logo",
+                        class: "w-8 h-8 flex-shrink-0",
                     }
                     div {
                         class: "flex flex-col",
                         span {
-                            class: "text-lg font-bold text-white",
+                            class: "text-lg font-bold text-slate-100",
                             "Probing"
                         }
                         span {
-                            class: "text-xs text-indigo-200",
+                            class: "text-xs text-slate-400",
                             "Performance Profiler"
                         }
                     }
@@ -98,7 +96,7 @@ pub fn Sidebar() -> Element {
                     div {
                         class: "mb-4",
                         div {
-                            class: "px-3 py-2 text-xs font-semibold text-indigo-300 uppercase tracking-wider",
+                            class: "px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider",
                             "Overview"
                         }
                         SidebarNavItem {
@@ -113,7 +111,7 @@ pub fn Sidebar() -> Element {
                     div {
                         class: "mb-4",
                         div {
-                            class: "px-3 py-2 text-xs font-semibold text-indigo-300 uppercase tracking-wider",
+                            class: "px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider",
                             "Analysis"
                         }
                         SidebarNavItem {
@@ -143,7 +141,7 @@ pub fn Sidebar() -> Element {
                     div {
                         class: "mb-4",
                         div {
-                            class: "px-3 py-2 text-xs font-semibold text-indigo-300 uppercase tracking-wider",
+                            class: "px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider",
                             "System"
                         }
                         SidebarNavItem {
@@ -164,11 +162,11 @@ pub fn Sidebar() -> Element {
             
             // Footer
             div {
-                class: "px-6 py-4 border-t border-indigo-700/50",
+                class: "px-6 py-4 border-t border-slate-700/30",
                 a {
                     href: "https://github.com/reiase/probing",
                     target: "_blank",
-                    class: "flex items-center space-x-2 text-sm text-indigo-200 hover:text-white transition-colors",
+                    class: "flex items-center space-x-2 text-sm text-slate-400 hover:text-blue-400 transition-colors",
                     Icon { icon: &icondata::AiGithubOutlined, class: "w-4 h-4" }
                     span { "GitHub" }
                 }
@@ -177,7 +175,7 @@ pub fn Sidebar() -> Element {
             
             // 隐藏/显示按钮
             button {
-                class: "absolute top-4 -right-3 w-6 h-6 bg-indigo-700 border border-indigo-600 rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-600 z-30 transition-colors",
+                class: "absolute top-4 -right-3 w-6 h-6 bg-slate-800 border border-slate-700 rounded-full shadow-lg flex items-center justify-center hover:bg-slate-700 z-30 transition-colors",
                 title: "Hide Sidebar",
                 onclick: move |_| {
                     *SIDEBAR_HIDDEN.write() = true;
@@ -185,14 +183,14 @@ pub fn Sidebar() -> Element {
                 },
                 Icon {
                     icon: &icondata::AiMenuFoldOutlined,
-                    class: "w-4 h-4 text-indigo-100"
+                    class: "w-4 h-4 text-slate-300"
                 }
             }
             
             // 拖拽调整宽度手柄
             div {
-                class: "absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-indigo-400 transition-colors group z-20",
-                class: if *is_resizing.read() { "bg-indigo-500" } else { "bg-transparent" },
+                class: "absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-600/50 transition-colors group z-20",
+                class: if *is_resizing.read() { "bg-blue-600" } else { "bg-transparent" },
                 onmousedown: move |ev| {
                     *is_resizing.write() = true;
                     *drag_start_x.write() = ev.element_coordinates().x as f64;
@@ -236,9 +234,9 @@ pub fn Sidebar() -> Element {
 fn SidebarNavItem(to: Route, icon: &'static IconData, label: &'static str, is_active: bool) -> Element {
     // 统一颜色系统：深色背景下的激活和未激活状态
     let class_str = if is_active {
-        "flex items-center space-x-3 px-3 py-2 text-sm font-medium rounded-md bg-indigo-600/50 text-white border-l-2 border-indigo-400 shadow-sm"
+        "flex items-center space-x-3 px-3 py-2 text-sm font-medium rounded-md bg-blue-600/30 text-blue-100 border-l-2 border-blue-500 shadow-sm"
     } else {
-        "flex items-center space-x-3 px-3 py-2 text-sm font-medium rounded-md text-indigo-100 hover:bg-indigo-700/50 hover:text-white transition-colors"
+        "flex items-center space-x-3 px-3 py-2 text-sm font-medium rounded-md text-slate-300 hover:bg-slate-800/50 hover:text-blue-100 transition-colors"
     };
     
     rsx! {
@@ -263,9 +261,9 @@ fn ProfilingSidebarItem(show_dropdown: Signal<bool>) -> Element {
             button {
                 class: "w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors",
                 class: if is_active {
-                    "bg-indigo-600/50 text-white border-l-2 border-indigo-400 shadow-sm"
+                    "bg-blue-600/30 text-blue-100 border-l-2 border-blue-500 shadow-sm"
                 } else {
-                    "text-indigo-100 hover:bg-indigo-700/50 hover:text-white transition-colors"
+                    "text-slate-300 hover:bg-slate-800/50 hover:text-blue-100 transition-colors"
                 },
                 onclick: {
                     let mut show_dropdown = show_dropdown.clone();
@@ -325,9 +323,9 @@ fn ProfilingSubItem(view: String, label: String, icon: &'static IconData) -> Ele
             class: "w-full flex items-center space-x-2 px-3 py-2 text-sm rounded-md transition-colors",
             // 统一颜色系统：深色背景下的选中和未选中状态
             class: if is_selected {
-                "bg-indigo-600/50 text-white font-medium border-l-2 border-indigo-400 shadow-sm"
+                "bg-blue-600/30 text-blue-100 font-medium border-l-2 border-blue-500 shadow-sm"
             } else {
-                "text-indigo-200 hover:bg-indigo-700/50 hover:text-white transition-colors"
+                "text-slate-300 hover:bg-slate-800/50 hover:text-blue-100 transition-colors"
             },
             onclick: {
                 let view_clone = view.clone();
@@ -346,7 +344,7 @@ fn ProfilingSubItem(view: String, label: String, icon: &'static IconData) -> Ele
             span { "{label}" }
             if is_selected {
                 // 使用统一的选中指示器
-                span { class: "ml-auto text-indigo-300 font-semibold", "✓" }
+                span { class: "ml-auto text-blue-400 font-semibold", "✓" }
             }
         }
     }
@@ -372,13 +370,13 @@ fn ProfilingControlsPanel() -> Element {
                             div {
                                 class: "space-y-2",
                                 div {
-                                    class: "text-xs font-semibold text-indigo-200",
+                                    class: "text-xs font-semibold text-slate-300",
                                     "Pprof Frequency"
                                 }
                                 div {
                                     class: "space-y-1",
                                     div {
-                                        class: "flex items-center justify-between text-xs text-indigo-300",
+                                        class: "flex items-center justify-between text-xs text-slate-400",
                                         span { "{label} Hz" }
                                     }
                                     input {
@@ -415,15 +413,15 @@ fn ProfilingControlsPanel() -> Element {
                     div {
                         class: "space-y-2",
                         div {
-                            class: "text-xs font-semibold text-indigo-200",
+                            class: "text-xs font-semibold text-slate-300",
                             "Torch Profiling"
                         }
                         button {
                             class: "relative inline-flex h-6 w-11 items-center rounded-full transition-colors w-full",
                             class: if *PROFILING_TORCH_ENABLED.read() {
-                                "bg-indigo-500"
+                                "bg-blue-600"
                             } else {
-                                "bg-indigo-800/50"
+                                "bg-slate-700"
                             },
                             onclick: move |_| {
                                 let enabled = !*PROFILING_TORCH_ENABLED.read();
@@ -447,7 +445,7 @@ fn ProfilingControlsPanel() -> Element {
                                 }
                             }
                             span {
-                                class: "ml-2 text-xs text-indigo-100",
+                                class: "ml-2 text-xs text-slate-300",
                                 if *PROFILING_TORCH_ENABLED.read() {
                                     "Enabled"
                                 } else {
@@ -463,7 +461,7 @@ fn ProfilingControlsPanel() -> Element {
                     div {
                         class: "space-y-3",
                         div {
-                            class: "text-xs font-semibold text-indigo-200",
+                            class: "text-xs font-semibold text-slate-300",
                             "Data Source"
                         }
                         div {
@@ -471,9 +469,9 @@ fn ProfilingControlsPanel() -> Element {
                             button {
                                 class: "flex-1 px-2 py-1 text-xs font-medium rounded",
                                 class: if *PROFILING_CHROME_DATA_SOURCE.read() == "trace" {
-                                    "bg-indigo-500 text-white shadow-sm"
+                                    "bg-blue-600 text-white shadow-sm"
                                 } else {
-                                    "bg-indigo-800/50 text-indigo-200 hover:bg-indigo-700/50"
+                                    "bg-slate-700 text-slate-300 hover:bg-slate-600"
                                 },
                                 onclick: move |_| *PROFILING_CHROME_DATA_SOURCE.write() = "trace".to_string(),
                                 "Trace"
@@ -481,9 +479,9 @@ fn ProfilingControlsPanel() -> Element {
                             button {
                                 class: "flex-1 px-2 py-1 text-xs font-medium rounded",
                                 class: if *PROFILING_CHROME_DATA_SOURCE.read() == "pytorch" {
-                                    "bg-indigo-500 text-white shadow-sm"
+                                    "bg-blue-600 text-white shadow-sm"
                                 } else {
-                                    "bg-indigo-800/50 text-indigo-200 hover:bg-indigo-700/50"
+                                    "bg-slate-700 text-slate-300 hover:bg-slate-600"
                                 },
                                 onclick: move |_| *PROFILING_CHROME_DATA_SOURCE.write() = "pytorch".to_string(),
                                 "PyTorch"
@@ -495,13 +493,13 @@ fn ProfilingControlsPanel() -> Element {
                             div {
                                 class: "space-y-1",
                                 div {
-                                    class: "text-xs font-semibold text-indigo-200",
+                                    class: "text-xs font-semibold text-slate-300",
                                     "Event Limit"
                                 }
                                 div {
                                     class: "flex items-center gap-2",
                                     span {
-                                        class: "text-xs text-indigo-300",
+                                        class: "text-xs text-slate-400",
                                         "{*PROFILING_CHROME_LIMIT.read()}"
                                     }
                                     input {
@@ -526,7 +524,7 @@ fn ProfilingControlsPanel() -> Element {
                             div {
                                 class: "space-y-2",
                                 div {
-                                    class: "text-xs font-semibold text-indigo-200",
+                                    class: "text-xs font-semibold text-slate-300",
                                     "Steps"
                                 }
                                 input {
@@ -534,7 +532,7 @@ fn ProfilingControlsPanel() -> Element {
                                     min: "1",
                                     max: "100",
                                     value: "{*PROFILING_PYTORCH_STEPS.read()}",
-                                    class: "w-full px-2 py-1 border border-indigo-600/50 bg-indigo-900/50 text-indigo-100 rounded text-xs focus:border-indigo-500 focus:outline-none",
+                                    class: "w-full px-2 py-1 border border-slate-600 bg-slate-800 text-slate-200 rounded text-xs focus:border-blue-500 focus:outline-none",
                                     oninput: move |ev| {
                                         if let Ok(val) = ev.value().parse::<i32>() {
                                             *PROFILING_PYTORCH_STEPS.write() = val.max(1).min(100);
