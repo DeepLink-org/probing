@@ -24,7 +24,7 @@ thiserror = "1.0"
 
 # Logging
 log = "0.4"
-web-sys = "0.3"
+web-sys = { version = "0.3", features = ["Window", "Storage", "HtmlElement"] }
 
 # Icons
 icondata = { version = "0.5.0", default-features = false, features = [

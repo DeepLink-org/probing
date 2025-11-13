@@ -68,6 +68,20 @@ pub fn ChromeTracingPage() -> Element {
     rsx! { AppLayout { ChromeTracing {} } }
 }
 
+// 全局状态：Profiling 视图类型
+pub static PROFILING_VIEW: GlobalSignal<String> = Signal::global(|| "pprof".to_string());
+
+// Profiling 控制状态
+pub static PROFILING_PPROF_FREQ: GlobalSignal<i32> = Signal::global(|| 99);
+pub static PROFILING_TORCH_ENABLED: GlobalSignal<bool> = Signal::global(|| false);
+pub static PROFILING_CHROME_DATA_SOURCE: GlobalSignal<String> = Signal::global(|| "trace".to_string());
+pub static PROFILING_CHROME_LIMIT: GlobalSignal<usize> = Signal::global(|| 1000);
+pub static PROFILING_PYTORCH_STEPS: GlobalSignal<i32> = Signal::global(|| 5);
+
+// 侧边栏状态
+pub static SIDEBAR_WIDTH: GlobalSignal<f64> = Signal::global(|| 256.0); // 默认 256px (w-64)
+pub static SIDEBAR_HIDDEN: GlobalSignal<bool> = Signal::global(|| false);
+
 #[component]
 pub fn App() -> Element {
     rsx! {

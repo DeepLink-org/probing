@@ -1,6 +1,6 @@
 
 use dioxus::prelude::*;
-use crate::components::page::{PageContainer, PageHeader};
+use crate::components::page::{PageContainer, PageTitle};
 use crate::components::common::{LoadingState, ErrorState, EmptyState};
 use crate::components::dataframe_view::DataFrameView;
 use crate::hooks::{use_api, use_api_simple};
@@ -35,11 +35,11 @@ pub fn Python() -> Element {
     
     rsx! {
         PageContainer {
-            PageHeader {
+            PageTitle {
                 title: "Python".to_string(),
-                subtitle: Some("Inspect and debug Python processes".to_string())
+                subtitle: Some("Inspect and debug Python processes".to_string()),
+                icon: Some(&icondata::SiPython),
             }
-            
             // Tab navigation
             div {
                 class: "mb-6 border-b border-gray-200",
@@ -47,7 +47,7 @@ pub fn Python() -> Element {
                     class: "flex space-x-8",
                     button {
                         class: if *selected_tab.read() == "trace" {
-                            "py-4 px-1 border-b-2 border-blue-500 font-medium text-sm text-blue-600"
+                            "py-4 px-1 border-b-2 border-indigo-500 font-medium text-sm text-indigo-600"
                         } else {
                             "py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300"
                         },
@@ -149,7 +149,7 @@ fn TraceView() -> Element {
                                                             "{func_name}"
                                                         }
                                                         button {
-                                                            class: "px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700",
+                                                            class: "px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 shadow-sm",
                                                             onclick: move |e| {
                                                                 e.stop_propagation();
                                                                 let func = func_name_clone.clone();
@@ -375,7 +375,7 @@ fn TraceView() -> Element {
                                     "Cancel"
                                 }
                                 button {
-                                    class: "px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500",
+                                    class: "px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm transition-colors",
                                     onclick: move |_| {
                                         let func = dialog_function_name.read().clone();
                                         let watch = dialog_watch_vars.read().clone();
@@ -520,7 +520,7 @@ fn TraceableFunctionItem(
                         if item_type_clone == "F" {
                             rsx! {
                                 span {
-                                    class: "text-xs px-1.5 py-0.5 rounded font-mono bg-blue-100 text-blue-700",
+                                    class: "text-xs px-1.5 py-0.5 rounded font-mono bg-indigo-100 text-indigo-700",
                                     "[F]"
                                 }
                             }
@@ -588,7 +588,7 @@ fn TraceableFunctionItem(
                                             
                                             rsx! {
                                                 span {
-                                                    class: "text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded border border-blue-200 cursor-pointer hover:bg-blue-100 transition-colors",
+                                                    class: "text-xs px-2 py-1 bg-indigo-50 text-indigo-700 rounded border border-indigo-200 cursor-pointer hover:bg-indigo-100 transition-colors",
                                                     onclick: move |_| {
                                                         // Click variable to open dialog with this function and variable
                                                         *click_signal.write() = (func_name.clone(), vec![var_clone.clone()]);
