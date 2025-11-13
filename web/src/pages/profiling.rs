@@ -4,7 +4,7 @@ use crate::components::page::{PageContainer, PageTitle};
 use crate::hooks::use_api_simple;
 use crate::api::{ApiClient, ProfileResponse};
 use crate::app::{PROFILING_VIEW, PROFILING_PPROF_FREQ, PROFILING_TORCH_ENABLED, 
-    PROFILING_CHROME_DATA_SOURCE, PROFILING_CHROME_LIMIT, PROFILING_PYTORCH_STEPS};
+    PROFILING_CHROME_DATA_SOURCE, PROFILING_CHROME_LIMIT};
 
 /// 从配置中更新全局状态
 fn apply_config(config: &[(String, String)]) {

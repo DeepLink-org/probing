@@ -37,13 +37,3 @@ pub fn EmptyState(message: String) -> Element {
         }
     }
 }
-
-#[component]
-pub fn PageTitle(title: String) -> Element {
-    rsx! {
-        h1 {
-            class: "text-3xl font-bold text-gray-900",
-            "{title}"
-        }
-    }
-}

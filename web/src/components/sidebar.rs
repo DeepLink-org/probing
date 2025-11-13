@@ -7,8 +7,8 @@ use crate::app::{Route, PROFILING_VIEW, PROFILING_PPROF_FREQ, PROFILING_TORCH_EN
     PROFILING_CHROME_DATA_SOURCE, PROFILING_CHROME_LIMIT, PROFILING_PYTORCH_STEPS,
     SIDEBAR_WIDTH, SIDEBAR_HIDDEN};
 use crate::components::icon::Icon;
+use crate::components::colors::colors;
 use crate::api::ApiClient;
-use crate::hooks::use_api_simple;
 
 #[component]
 pub fn Sidebar() -> Element {
@@ -55,17 +55,31 @@ pub fn Sidebar() -> Element {
     let sidebar_width = SIDEBAR_WIDTH.read();
     let sidebar_hidden = SIDEBAR_HIDDEN.read();
     
+    // 预计算颜色类名
+    let aside_class = format!("bg-gradient-to-b from-{} via-{} to-{} border-r border-{} h-screen flex flex-col flex-shrink-0 shadow-xl",
+        colors::SIDEBAR_BG, colors::SIDEBAR_BG_VIA, colors::SIDEBAR_BG, colors::SIDEBAR_BORDER);
+    let logo_border_class = format!("px-6 py-4 border-b border-{}", colors::SIDEBAR_BORDER);
+    let brand_title_class = format!("text-lg font-bold text-{}", colors::SIDEBAR_TEXT_PRIMARY);
+    let brand_subtitle_class = format!("text-xs text-{}", colors::SIDEBAR_TEXT_MUTED);
+    let section_title_class = format!("px-3 py-2 text-xs font-semibold text-{} uppercase tracking-wider", colors::SIDEBAR_TEXT_MUTED);
+    let footer_class = format!("px-6 py-4 border-t border-{}", colors::SIDEBAR_BORDER);
+    let footer_link_class = format!("flex items-center space-x-2 text-sm text-{} hover:text-{} transition-colors",
+        colors::SIDEBAR_TEXT_MUTED, colors::PRIMARY_TEXT_DARK);
+    let hide_button_class = format!("absolute top-4 -right-3 w-6 h-6 bg-{} border border-{} rounded-full shadow-lg flex items-center justify-center hover:bg-{} z-30 transition-colors",
+        colors::SIDEBAR_ACTIVE_BG, "slate-700", "slate-600");
+    let hide_icon_class = format!("w-4 h-4 text-{}", colors::SIDEBAR_TEXT_SECONDARY);
+    
     rsx! {
         div {
             class: "relative flex h-screen",
             style: format!("width: {}px;", *sidebar_width),
             aside {
-                class: "bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 border-r border-slate-700/30 h-screen flex flex-col flex-shrink-0 shadow-xl",
+                class: "{aside_class}",
                 style: format!("width: {}px;", *sidebar_width),
                 // Logo and Brand
                 div {
-                    class: "px-6 py-4 border-b border-slate-700/30",
-                Link {
+                    class: "{logo_border_class}",
+                    Link {
                     to: Route::DashboardPage {},
                     class: "flex items-center space-x-3",
                     img {
@@ -76,11 +90,11 @@ pub fn Sidebar() -> Element {
                     div {
                         class: "flex flex-col",
                         span {
-                            class: "text-lg font-bold text-slate-100",
+                            class: "{brand_title_class}",
                             "Probing"
                         }
                         span {
-                            class: "text-xs text-slate-400",
+                            class: "{brand_subtitle_class}",
                             "Performance Profiler"
                         }
                     }
@@ -96,7 +110,7 @@ pub fn Sidebar() -> Element {
                     div {
                         class: "mb-4",
                         div {
-                            class: "px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider",
+                            class: "{section_title_class}",
                             "Overview"
                         }
                         SidebarNavItem {
@@ -111,7 +125,7 @@ pub fn Sidebar() -> Element {
                     div {
                         class: "mb-4",
                         div {
-                            class: "px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider",
+                            class: "{section_title_class}",
                             "Analysis"
                         }
                         SidebarNavItem {
@@ -141,7 +155,7 @@ pub fn Sidebar() -> Element {
                     div {
                         class: "mb-4",
                         div {
-                            class: "px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider",
+                            class: "{section_title_class}",
                             "System"
                         }
                         SidebarNavItem {
@@ -162,11 +176,11 @@ pub fn Sidebar() -> Element {
             
             // Footer
             div {
-                class: "px-6 py-4 border-t border-slate-700/30",
+                class: "{footer_class}",
                 a {
                     href: "https://github.com/reiase/probing",
                     target: "_blank",
-                    class: "flex items-center space-x-2 text-sm text-slate-400 hover:text-blue-400 transition-colors",
+                    class: "{footer_link_class}",
                     Icon { icon: &icondata::AiGithubOutlined, class: "w-4 h-4" }
                     span { "GitHub" }
                 }
@@ -175,7 +189,7 @@ pub fn Sidebar() -> Element {
             
             // 隐藏/显示按钮
             button {
-                class: "absolute top-4 -right-3 w-6 h-6 bg-slate-800 border border-slate-700 rounded-full shadow-lg flex items-center justify-center hover:bg-slate-700 z-30 transition-colors",
+                class: "{hide_button_class}",
                 title: "Hide Sidebar",
                 onclick: move |_| {
                     *SIDEBAR_HIDDEN.write() = true;
@@ -188,42 +202,52 @@ pub fn Sidebar() -> Element {
             }
             
             // 拖拽调整宽度手柄
-            div {
-                class: "absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-600/50 transition-colors group z-20",
-                class: if *is_resizing.read() { "bg-blue-600" } else { "bg-transparent" },
-                onmousedown: move |ev| {
-                    *is_resizing.write() = true;
-                    *drag_start_x.write() = ev.element_coordinates().x as f64;
-                    *drag_start_width.write() = *SIDEBAR_WIDTH.read();
-                    ev.prevent_default();
-                },
-                onmousemove: move |ev| {
-                    if *is_resizing.read() {
-                        let current_x = ev.element_coordinates().x as f64;
-                        let delta_x = current_x - *drag_start_x.read();
-                        let new_width = (*drag_start_width.read() + delta_x).max(200.0).min(600.0);
-                        *SIDEBAR_WIDTH.write() = new_width;
-                    }
-                },
-                onmouseup: move |_| {
-                    if *is_resizing.read() {
-                        *is_resizing.write() = false;
-                        // 保存到 localStorage
-                        if let Some(window) = window() {
-                            let storage = window.local_storage().ok().flatten();
-                            if let Some(storage) = storage {
-                                let _ = storage.set_item("sidebar_width", &SIDEBAR_WIDTH.read().to_string());
+            {
+                let hover_class = format!("hover:bg-{}/50", colors::PRIMARY);
+                let active_class = if *is_resizing.read() {
+                    format!("bg-{}", colors::PRIMARY)
+                } else {
+                    "bg-transparent".to_string()
+                };
+                let drag_handle_class = format!("absolute top-0 right-0 w-1 h-full cursor-col-resize {} transition-colors group z-20 {}", hover_class, active_class);
+                rsx! {
+                    div {
+                        class: "{drag_handle_class}",
+                        onmousedown: move |ev| {
+                            *is_resizing.write() = true;
+                            *drag_start_x.write() = ev.element_coordinates().x as f64;
+                            *drag_start_width.write() = *SIDEBAR_WIDTH.read();
+                            ev.prevent_default();
+                        },
+                        onmousemove: move |ev| {
+                            if *is_resizing.read() {
+                                let current_x = ev.element_coordinates().x as f64;
+                                let delta_x = current_x - *drag_start_x.read();
+                                let new_width = (*drag_start_width.read() + delta_x).max(200.0).min(600.0);
+                                *SIDEBAR_WIDTH.write() = new_width;
                             }
+                        },
+                        onmouseup: move |_| {
+                            if *is_resizing.read() {
+                                *is_resizing.write() = false;
+                                // 保存到 localStorage
+                                if let Some(window) = window() {
+                                    let storage = window.local_storage().ok().flatten();
+                                    if let Some(storage) = storage {
+                                        let _ = storage.set_item("sidebar_width", &SIDEBAR_WIDTH.read().to_string());
+                                    }
+                                }
+                            }
+                        },
+                        onmouseleave: move |_| {
+                            if *is_resizing.read() {
+                                *is_resizing.write() = false;
+                            }
+                        },
+                        div {
+                            class: "absolute top-1/2 right-0 transform translate-x-1/2 -translate-y-1/2 w-1 h-8 bg-gray-300 rounded-full opacity-0 group-hover:opacity-100 transition-opacity",
                         }
                     }
-                },
-                onmouseleave: move |_| {
-                    if *is_resizing.read() {
-                        *is_resizing.write() = false;
-                    }
-                },
-                div {
-                    class: "absolute top-1/2 right-0 transform translate-x-1/2 -translate-y-1/2 w-1 h-8 bg-gray-300 rounded-full opacity-0 group-hover:opacity-100 transition-opacity",
                 }
             }
         }
@@ -234,15 +258,17 @@ pub fn Sidebar() -> Element {
 fn SidebarNavItem(to: Route, icon: &'static IconData, label: &'static str, is_active: bool) -> Element {
     // 统一颜色系统：深色背景下的激活和未激活状态
     let class_str = if is_active {
-        "flex items-center space-x-3 px-3 py-2 text-sm font-medium rounded-md bg-blue-600/30 text-blue-100 border-l-2 border-blue-500 shadow-sm"
+        format!("flex items-center space-x-3 px-3 py-2 text-sm font-medium rounded-md bg-{} text-{} border-l-2 border-{} shadow-sm",
+            colors::PRIMARY_BG, colors::PRIMARY_TEXT, colors::PRIMARY_BORDER)
     } else {
-        "flex items-center space-x-3 px-3 py-2 text-sm font-medium rounded-md text-slate-300 hover:bg-slate-800/50 hover:text-blue-100 transition-colors"
+        format!("flex items-center space-x-3 px-3 py-2 text-sm font-medium rounded-md text-{} hover:bg-{} hover:text-{} transition-colors",
+            colors::SIDEBAR_TEXT_SECONDARY, colors::SIDEBAR_HOVER_BG, colors::PRIMARY_TEXT)
     };
     
     rsx! {
         Link {
             to: to,
-            class: class_str,
+            class: "{class_str}",
             Icon { icon, class: "w-5 h-5" }
             span { "{label}" }
         }
@@ -258,25 +284,31 @@ fn ProfilingSidebarItem(show_dropdown: Signal<bool>) -> Element {
     rsx! {
         div {
             // 主菜单项 - 只负责展开/收起
-            button {
-                class: "w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors",
-                class: if is_active {
-                    "bg-blue-600/30 text-blue-100 border-l-2 border-blue-500 shadow-sm"
+            {
+                let button_class = if is_active {
+                    format!("w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors bg-{} text-{} border-l-2 border-{} shadow-sm",
+                        colors::PRIMARY_BG, colors::PRIMARY_TEXT, colors::PRIMARY_BORDER)
                 } else {
-                    "text-slate-300 hover:bg-slate-800/50 hover:text-blue-100 transition-colors"
-                },
-                onclick: {
-                    let mut show_dropdown = show_dropdown.clone();
-                    move |_| {
-                        // 简单的折叠/展开逻辑
-                        let current = *show_dropdown.read();
-                        *show_dropdown.write() = !current;
+                    format!("w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors text-{} hover:bg-{} hover:text-{}",
+                        colors::SIDEBAR_TEXT_SECONDARY, colors::SIDEBAR_HOVER_BG, colors::PRIMARY_TEXT)
+                };
+                rsx! {
+                    button {
+                        class: "{button_class}",
+                        onclick: {
+                            let mut show_dropdown = show_dropdown.clone();
+                            move |_| {
+                                // 简单的折叠/展开逻辑
+                                let current = *show_dropdown.read();
+                                *show_dropdown.write() = !current;
+                            }
+                        },
+                        div {
+                            class: "flex items-center space-x-3",
+                            Icon { icon: &icondata::AiSearchOutlined, class: "w-5 h-5" }
+                            span { "Profiling" }
+                        }
                     }
-                },
-                div {
-                    class: "flex items-center space-x-3",
-                    Icon { icon: &icondata::AiSearchOutlined, class: "w-5 h-5" }
-                    span { "Profiling" }
                 }
             }
             
@@ -318,15 +350,18 @@ fn ProfilingSubItem(view: String, label: String, icon: &'static IconData) -> Ele
     let is_selected = *current_view == view;
     let is_on_profiling_page = route == Route::ProfilingPage {};
     
+    // 统一颜色系统：深色背景下的选中和未选中状态
+    let button_class = if is_selected {
+        format!("w-full flex items-center space-x-2 px-3 py-2 text-sm rounded-md transition-colors bg-{} text-{} font-medium border-l-2 border-{} shadow-sm",
+            colors::PRIMARY_BG, colors::PRIMARY_TEXT, colors::PRIMARY_BORDER)
+    } else {
+        format!("w-full flex items-center space-x-2 px-3 py-2 text-sm rounded-md transition-colors text-{} hover:bg-{} hover:text-{}",
+            colors::SIDEBAR_TEXT_SECONDARY, colors::SIDEBAR_HOVER_BG, colors::PRIMARY_TEXT)
+    };
+    
     rsx! {
         button {
-            class: "w-full flex items-center space-x-2 px-3 py-2 text-sm rounded-md transition-colors",
-            // 统一颜色系统：深色背景下的选中和未选中状态
-            class: if is_selected {
-                "bg-blue-600/30 text-blue-100 font-medium border-l-2 border-blue-500 shadow-sm"
-            } else {
-                "text-slate-300 hover:bg-slate-800/50 hover:text-blue-100 transition-colors"
-            },
+            class: "{button_class}",
             onclick: {
                 let view_clone = view.clone();
                 let navigator = navigator.clone();
@@ -344,7 +379,12 @@ fn ProfilingSubItem(view: String, label: String, icon: &'static IconData) -> Ele
             span { "{label}" }
             if is_selected {
                 // 使用统一的选中指示器
-                span { class: "ml-auto text-blue-400 font-semibold", "✓" }
+                {
+                    let checkmark_class = format!("ml-auto text-{} font-semibold", colors::PRIMARY_TEXT_DARK);
+                    rsx! {
+                        span { class: "{checkmark_class}", "✓" }
+                    }
+                }
             }
         }
     }
@@ -354,10 +394,20 @@ fn ProfilingSubItem(view: String, label: String, icon: &'static IconData) -> Ele
 #[component]
 fn ProfilingControlsPanel() -> Element {
     let current_view = PROFILING_VIEW.read();
+    let panel_border_class = format!("mt-4 pt-4 border-t border-{}", colors::SIDEBAR_BORDER);
+    let control_title_class = format!("text-xs font-semibold text-{}", colors::SIDEBAR_TEXT_SECONDARY);
+    let control_value_class = format!("text-xs text-{}", colors::SIDEBAR_TEXT_MUTED);
+    let toggle_enabled_class = format!("relative inline-flex h-6 w-11 items-center rounded-full transition-colors w-full bg-{}", colors::PRIMARY);
+    let toggle_disabled_class = format!("relative inline-flex h-6 w-11 items-center rounded-full transition-colors w-full bg-{}", colors::SIDEBAR_ACTIVE_BG);
+    let toggle_label_class = format!("ml-2 text-xs text-{}", colors::SIDEBAR_TEXT_SECONDARY);
+    let button_active_class = format!("flex-1 px-2 py-1 text-xs font-medium rounded bg-{} text-white shadow-sm", colors::PRIMARY);
+    let button_inactive_class = format!("flex-1 px-2 py-1 text-xs font-medium rounded bg-{} text-{} hover:bg-{}", colors::SIDEBAR_ACTIVE_BG, colors::SIDEBAR_TEXT_SECONDARY, "slate-600");
+    let input_class = format!("w-full px-2 py-1 border border-{} bg-{} text-{} rounded text-xs focus:border-{} focus:outline-none",
+        colors::SIDEBAR_INPUT_BORDER, colors::SIDEBAR_INPUT_BG, colors::SIDEBAR_TEXT_SECONDARY, colors::PRIMARY_BORDER);
     
     rsx! {
         div {
-            class: "mt-4 pt-4 border-t border-gray-200",
+            class: "{panel_border_class}",
             div {
                 class: "px-3 space-y-4",
                 // pprof 控制
@@ -370,13 +420,13 @@ fn ProfilingControlsPanel() -> Element {
                             div {
                                 class: "space-y-2",
                                 div {
-                                    class: "text-xs font-semibold text-slate-300",
+                                    class: "{control_title_class}",
                                     "Pprof Frequency"
                                 }
                                 div {
                                     class: "space-y-1",
                                     div {
-                                        class: "flex items-center justify-between text-xs text-slate-400",
+                                        class: "{control_value_class} flex items-center justify-between",
                                         span { "{label} Hz" }
                                     }
                                     input {
@@ -413,43 +463,47 @@ fn ProfilingControlsPanel() -> Element {
                     div {
                         class: "space-y-2",
                         div {
-                            class: "text-xs font-semibold text-slate-300",
+                            class: "{control_title_class}",
                             "Torch Profiling"
                         }
-                        button {
-                            class: "relative inline-flex h-6 w-11 items-center rounded-full transition-colors w-full",
-                            class: if *PROFILING_TORCH_ENABLED.read() {
-                                "bg-blue-600"
+                        {
+                            let toggle_class = if *PROFILING_TORCH_ENABLED.read() {
+                                toggle_enabled_class.clone()
                             } else {
-                                "bg-slate-700"
-                            },
-                            onclick: move |_| {
-                                let enabled = !*PROFILING_TORCH_ENABLED.read();
-                                spawn(async move {
-                                    let client = ApiClient::new();
-                                    let expr = if enabled {
-                                        "set probing.torch.profiling=on;".to_string()
-                                    } else {
-                                        "set probing.torch.profiling=;".to_string()
-                                    };
-                                    let _ = client.execute_query(&expr).await;
-                                    *PROFILING_TORCH_ENABLED.write() = enabled;
-                                });
-                            },
-                            span {
-                                class: "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
-                                class: if *PROFILING_TORCH_ENABLED.read() {
-                                    "translate-x-6"
-                                } else {
-                                    "translate-x-1"
-                                }
-                            }
-                            span {
-                                class: "ml-2 text-xs text-slate-300",
-                                if *PROFILING_TORCH_ENABLED.read() {
-                                    "Enabled"
-                                } else {
-                                    "Disabled"
+                                toggle_disabled_class.clone()
+                            };
+                            rsx! {
+                                button {
+                                    class: "{toggle_class}",
+                                    onclick: move |_| {
+                                        let enabled = !*PROFILING_TORCH_ENABLED.read();
+                                        spawn(async move {
+                                            let client = ApiClient::new();
+                                            let expr = if enabled {
+                                                "set probing.torch.profiling=on;".to_string()
+                                            } else {
+                                                "set probing.torch.profiling=;".to_string()
+                                            };
+                                            let _ = client.execute_query(&expr).await;
+                                            *PROFILING_TORCH_ENABLED.write() = enabled;
+                                        });
+                                    },
+                                    span {
+                                        class: "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                                        class: if *PROFILING_TORCH_ENABLED.read() {
+                                            "translate-x-6"
+                                        } else {
+                                            "translate-x-1"
+                                        }
+                                    }
+                                    span {
+                                        class: "{toggle_label_class}",
+                                        if *PROFILING_TORCH_ENABLED.read() {
+                                            "Enabled"
+                                        } else {
+                                            "Disabled"
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -461,30 +515,38 @@ fn ProfilingControlsPanel() -> Element {
                     div {
                         class: "space-y-3",
                         div {
-                            class: "text-xs font-semibold text-slate-300",
+                            class: "{control_title_class}",
                             "Data Source"
                         }
                         div {
                             class: "flex gap-1",
-                            button {
-                                class: "flex-1 px-2 py-1 text-xs font-medium rounded",
-                                class: if *PROFILING_CHROME_DATA_SOURCE.read() == "trace" {
-                                    "bg-blue-600 text-white shadow-sm"
+                            {
+                                let trace_btn_class = if *PROFILING_CHROME_DATA_SOURCE.read() == "trace" {
+                                    button_active_class.clone()
                                 } else {
-                                    "bg-slate-700 text-slate-300 hover:bg-slate-600"
-                                },
-                                onclick: move |_| *PROFILING_CHROME_DATA_SOURCE.write() = "trace".to_string(),
-                                "Trace"
+                                    button_inactive_class.clone()
+                                };
+                                rsx! {
+                                    button {
+                                        class: "{trace_btn_class}",
+                                        onclick: move |_| *PROFILING_CHROME_DATA_SOURCE.write() = "trace".to_string(),
+                                        "Trace"
+                                    }
+                                }
                             }
-                            button {
-                                class: "flex-1 px-2 py-1 text-xs font-medium rounded",
-                                class: if *PROFILING_CHROME_DATA_SOURCE.read() == "pytorch" {
-                                    "bg-blue-600 text-white shadow-sm"
+                            {
+                                let pytorch_btn_class = if *PROFILING_CHROME_DATA_SOURCE.read() == "pytorch" {
+                                    button_active_class.clone()
                                 } else {
-                                    "bg-slate-700 text-slate-300 hover:bg-slate-600"
-                                },
-                                onclick: move |_| *PROFILING_CHROME_DATA_SOURCE.write() = "pytorch".to_string(),
-                                "PyTorch"
+                                    button_inactive_class.clone()
+                                };
+                                rsx! {
+                                    button {
+                                        class: "{pytorch_btn_class}",
+                                        onclick: move |_| *PROFILING_CHROME_DATA_SOURCE.write() = "pytorch".to_string(),
+                                        "PyTorch"
+                                    }
+                                }
                             }
                         }
                         
@@ -493,13 +555,13 @@ fn ProfilingControlsPanel() -> Element {
                             div {
                                 class: "space-y-1",
                                 div {
-                                    class: "text-xs font-semibold text-slate-300",
+                                    class: "{control_title_class}",
                                     "Event Limit"
                                 }
                                 div {
                                     class: "flex items-center gap-2",
                                     span {
-                                        class: "text-xs text-slate-400",
+                                        class: "{control_value_class}",
                                         "{*PROFILING_CHROME_LIMIT.read()}"
                                     }
                                     input {
@@ -524,7 +586,7 @@ fn ProfilingControlsPanel() -> Element {
                             div {
                                 class: "space-y-2",
                                 div {
-                                    class: "text-xs font-semibold text-slate-300",
+                                    class: "{control_title_class}",
                                     "Steps"
                                 }
                                 input {
@@ -532,7 +594,7 @@ fn ProfilingControlsPanel() -> Element {
                                     min: "1",
                                     max: "100",
                                     value: "{*PROFILING_PYTORCH_STEPS.read()}",
-                                    class: "w-full px-2 py-1 border border-slate-600 bg-slate-800 text-slate-200 rounded text-xs focus:border-blue-500 focus:outline-none",
+                                    class: "{input_class}",
                                     oninput: move |ev| {
                                         if let Ok(val) = ev.value().parse::<i32>() {
                                             *PROFILING_PYTORCH_STEPS.write() = val.max(1).min(100);

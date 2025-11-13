@@ -6,7 +6,7 @@ use crate::app::{SIDEBAR_WIDTH, SIDEBAR_HIDDEN};
 
 #[component]
 pub fn AppLayout(children: Element) -> Element {
-    let sidebar_width = SIDEBAR_WIDTH.read();
+    let _sidebar_width = SIDEBAR_WIDTH.read();
     let sidebar_hidden = SIDEBAR_HIDDEN.read();
     
     rsx! {
