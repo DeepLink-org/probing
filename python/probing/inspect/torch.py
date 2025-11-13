@@ -35,10 +35,12 @@ def refresh_cache():
     global _last_full_refresh_time
     _last_full_refresh_time = time.time()
 
+
 def _ensure_cache_updated():
     now = time.time()
     if now - _last_full_refresh_time > FULL_REFRESH_INTERVAL_SECONDS:
         refresh_cache()
+
 
 def _build_active_list_and_clean_cache(cache_dict):
     """
@@ -51,16 +53,19 @@ def _build_active_list_and_clean_cache(cache_dict):
     for k, v_ref in list(cache_dict.items()):
         obj = v_ref()  # Dereference the weakref
         if obj is not None:
-            active_items.append({
-                "id": k,
-                "type": type(obj).__name__,
-                "value": obj,
-            })
+            active_items.append(
+                {
+                    "id": k,
+                    "type": type(obj).__name__,
+                    "value": obj,
+                }
+            )
         else:
             # Object has been garbage collected, remove from cache
             del cache_dict[k]
             found_dead_ref = True
     return active_items, found_dead_ref
+
 
 def get_torch_modules():
     _ensure_cache_updated()  # Time-based refresh check
@@ -72,14 +77,16 @@ def get_torch_modules():
         refresh_cache()  # Force a full refresh
         # Rebuild the list from the now-refreshed cache
         active_items, _ = _build_active_list_and_clean_cache(module_cache)
-    
+
     return active_items
-    
+
+
 def get_torch_tensors():
     _ensure_cache_updated()  # Time-based refresh check
 
     active_items, _ = _build_active_list_and_clean_cache(tensor_cache)
     return active_items
+
 
 def get_torch_optimizers():
     _ensure_cache_updated()  # Time-based refresh check
@@ -91,5 +98,5 @@ def get_torch_optimizers():
         refresh_cache()  # Force a full refresh
         # Rebuild the list from the now-refreshed cache
         active_items, _ = _build_active_list_and_clean_cache(optim_cache)
-        
+
     return active_items

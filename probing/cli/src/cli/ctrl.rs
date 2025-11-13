@@ -1,4 +1,6 @@
 use anyhow::Result;
+use serde_json::Value;
+use std::io::Write;
 
 use http_body_util::{BodyExt, Full};
 use hyper_util::rt::TokioIo;
@@ -87,8 +89,46 @@ impl ProbeEndpoint {
 
     pub async fn eval(&self, code: String) -> Result<()> {
         let reply = request(self.clone(), "/apis/pythonext/eval", Some(code)).await?;
+        let reply_str = String::from_utf8(reply)?;
 
-        println!("{}", String::from_utf8(reply)?);
+        // Parse JSON response and handle output similar to repl
+        match serde_json::from_str::<serde_json::Value>(&reply_str) {
+            Ok(json) => {
+                // Display output
+                if let Some(output) = json.get("output").and_then(|v| v.as_str()) {
+                    if !output.is_empty() {
+                        print!("{}", output);
+                        // If output doesn't end with newline, add one
+                        if !output.ends_with('\n') {
+                            print!("\n");
+                        }
+                    }
+                }
+
+                // Display error traceback
+                if let Some(traceback) = json.get("traceback").and_then(|v| v.as_array()) {
+                    if !traceback.is_empty() {
+                        for line in traceback {
+                            if let Some(line_str) = line.as_str() {
+                                eprintln!("{}", line_str);
+                            }
+                        }
+                    }
+                }
+
+                // Flush output
+                std::io::stdout().flush().unwrap();
+                std::io::stderr().flush().unwrap();
+            }
+            Err(_) => {
+                // If not JSON, display raw response
+                print!("{}", reply_str);
+                if !reply_str.ends_with('\n') {
+                    print!("\n");
+                }
+                std::io::stdout().flush().unwrap();
+            }
+        }
 
         Ok(())
     }
