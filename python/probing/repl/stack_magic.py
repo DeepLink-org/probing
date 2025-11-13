@@ -4,6 +4,7 @@ import traceback
 import sys
 import json
 
+
 def _get_obj_type(obj):
     try:
         m = type(obj).__module__
@@ -11,6 +12,7 @@ def _get_obj_type(obj):
         return f"{m}.{n}"
     except Exception:
         return str(type(obj))
+
 
 def _get_obj_repr(obj, value=False):
     typ = _get_obj_type(obj)
@@ -26,12 +28,14 @@ def _get_obj_repr(obj, value=False):
         ret["value"] = str(obj)[:150]
     return ret
 
+
 class _obj_:
     def __init__(self, obj):
         self._obj = obj
 
     def __repr__(self):
         return json.dumps(self._obj, indent=2)
+
 
 @register_magic("stack")
 @magics_class

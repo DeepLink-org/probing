@@ -3,8 +3,8 @@ use dioxus_router::{Routable, Router};
 
 use crate::components::layout::AppLayout;
 use crate::pages::{
-    analytics::Analytics, cluster::Cluster, dashboard::Dashboard, profiling::Profiling,
-    python::Python, stack::Stack, traces::Traces,
+    analytics::Analytics, chrome_tracing::ChromeTracing, cluster::Cluster, dashboard::Dashboard, 
+    profiling::Profiling, python::Python, stack::Stack, traces::Traces,
 };
 
 #[derive(Routable, Clone, PartialEq)]
@@ -24,6 +24,8 @@ pub enum Route {
     PythonPage {},
     #[route("/traces")]
     TracesPage {},
+    #[route("/chrome-tracing")]
+    ChromeTracingPage {},
 }
 
 #[component]
@@ -59,6 +61,11 @@ pub fn PythonPage() -> Element {
 #[component]
 pub fn TracesPage() -> Element {
     rsx! { AppLayout { Traces {} } }
+}
+
+#[component]
+pub fn ChromeTracingPage() -> Element {
+    rsx! { AppLayout { ChromeTracing {} } }
 }
 
 #[component]

@@ -1,4 +1,5 @@
 use dioxus::prelude::*;
+use dioxus_router::Link;
 use crate::components::icon::Icon;
 
 #[derive(Props, Clone, PartialEq)]
@@ -28,7 +29,7 @@ pub fn NavDrawer(props: NavDrawerProps) -> Element {
                     class: "space-y-2 mb-6",
                     NavItem {
                         icon: rsx! { Icon { icon: &icondata::CgPerformance } },
-                        label: "Pprof Profiling",
+                        label: "pprof flamegraph",
                         value: "pprof",
                         is_selected: *props.selected_tab.read() == "pprof",
                         onclick: move |_| props.on_tab_change.call("pprof".to_string())
@@ -36,10 +37,21 @@ pub fn NavDrawer(props: NavDrawerProps) -> Element {
                     
                     NavItem {
                         icon: rsx! { Icon { icon: &icondata::SiPytorch } },
-                        label: "Torch Profiling",
+                        label: "torch flamegraph",
                         value: "torch",
                         is_selected: *props.selected_tab.read() == "torch",
                         onclick: move |_| props.on_tab_change.call("torch".to_string())
+                    }
+                }
+                
+                // Chrome Tracing Link
+                div {
+                    class: "mt-4 pt-4 border-t border-gray-200",
+                    Link {
+                        to: crate::app::Route::ChromeTracingPage {},
+                        class: "w-full flex items-center space-x-3 px-3 py-2 text-sm font-medium rounded-md transition-colors text-gray-600 hover:bg-gray-100 hover:text-gray-900",
+                        Icon { icon: &icondata::AiThunderboltOutlined, class: "w-5 h-5" }
+                        span { "Chrome Tracing" }
                     }
                 }
                 

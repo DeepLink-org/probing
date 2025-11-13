@@ -277,5 +277,122 @@ impl ApiClient {
         
         Ok(result)
     }
+    
+    /// 获取 Chrome tracing 格式的 JSON 数据
+    /// 返回格式符合 Chrome DevTools tracing viewer 的要求
+    pub async fn get_chrome_tracing_json(&self, limit: Option<usize>) -> Result<String> {
+        let events = self.get_trace_events(limit).await?;
+        
+        // 找到最小时间戳作为基准
+        let min_timestamp = events.iter()
+            .map(|e| e.timestamp)
+            .min()
+            .unwrap_or(0);
+        
+        // 转换为 Chrome tracing 格式
+        let mut trace_events: Vec<serde_json::Value> = Vec::new();
+        
+        // 使用 HashMap 跟踪 span 的开始时间
+        let mut span_starts: std::collections::HashMap<i64, (i64, String, i64)> = std::collections::HashMap::new();
+        
+        for event in &events {
+            // 将纳秒转换为微秒（Chrome tracing 使用微秒）
+            let ts_micros = (event.timestamp - min_timestamp) / 1000;
+            let pid = event.trace_id as u32;
+            let tid = event.thread_id as u32;
+            
+            match event.record_type.as_str() {
+                "span_start" => {
+                    // 记录 span 开始
+                    span_starts.insert(event.span_id, (ts_micros, event.name.clone(), event.thread_id));
+                    
+                    // 创建 'B' (Begin) 事件
+                    let mut chrome_event = serde_json::json!({
+                        "name": event.name,
+                        "cat": event.kind.as_ref().unwrap_or(&"span".to_string()),
+                        "ph": "B",
+                        "ts": ts_micros,
+                        "pid": pid,
+                        "tid": tid,
+                    });
+                    
+                    // 添加可选参数
+                    let mut args = serde_json::Map::new();
+                    if let Some(ref location) = event.location {
+                        if !location.is_empty() {
+                            args.insert("location".to_string(), serde_json::Value::String(location.clone()));
+                        }
+                    }
+                    if let Some(ref attrs) = event.attributes {
+                        if !attrs.is_empty() {
+                            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(attrs) {
+                                args.insert("attributes".to_string(), parsed);
+                            }
+                        }
+                    }
+                    if !args.is_empty() {
+                        chrome_event["args"] = serde_json::Value::Object(args);
+                    }
+                    
+                    trace_events.push(chrome_event);
+                }
+                "span_end" => {
+                    // 创建 'E' (End) 事件
+                    let (start_ts, name, _) = span_starts.get(&event.span_id)
+                        .map(|(ts, n, _)| (*ts, n.clone(), 0))
+                        .unwrap_or((ts_micros, "unknown".to_string(), 0));
+                    
+                    let mut chrome_event = serde_json::json!({
+                        "name": name,
+                        "cat": "span",
+                        "ph": "E",
+                        "ts": ts_micros,
+                        "pid": pid,
+                        "tid": tid,
+                    });
+                    
+                    // 计算持续时间（微秒）
+                    let dur = ts_micros - start_ts;
+                    if dur > 0 {
+                        chrome_event["dur"] = serde_json::Value::Number(dur.into());
+                    }
+                    
+                    trace_events.push(chrome_event);
+                }
+                "event" => {
+                    // 创建 'i' (Instant) 事件
+                    let mut chrome_event = serde_json::json!({
+                        "name": event.name,
+                        "cat": "event",
+                        "ph": "i",
+                        "ts": ts_micros,
+                        "pid": pid,
+                        "tid": tid,
+                        "s": "t", // scope: thread
+                    });
+                    
+                    // 添加事件属性
+                    if let Some(ref attrs) = event.event_attributes {
+                        if !attrs.is_empty() {
+                            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(attrs) {
+                                chrome_event["args"] = parsed;
+                            }
+                        }
+                    }
+                    
+                    trace_events.push(chrome_event);
+                }
+                _ => {}
+            }
+        }
+        
+        // 构建完整的 Chrome tracing 格式 JSON
+        let chrome_trace = serde_json::json!({
+            "traceEvents": trace_events,
+            "displayTimeUnit": "ms",
+        });
+        
+        Ok(serde_json::to_string_pretty(&chrome_trace)?)
+    }
 }
 

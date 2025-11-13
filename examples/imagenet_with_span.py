@@ -151,7 +151,7 @@ def main_worker(gpu, ngpus_per_node, args):
         dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
                                 world_size=args.world_size, rank=args.rank)
     # create model
-    with span("model.init", kind="setup", code_path="examples.imagenet:model"):
+    with span("model.init", kind="setup"):
         if args.pretrained:
             print("=> using pre-trained model '{}'".format(args.arch))
             model = models.__dict__[args.arch](pretrained=True)
@@ -238,7 +238,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
 
     # Data loading code
-    with span("data.load", kind="io", code_path="examples.imagenet:dataset"):
+    with span("data.load", kind="io"):
         if args.dummy:
             print("=> Dummy data is used!")
             train_dataset = datasets.FakeData(2048, (3, 224, 224), 1000, transforms.ToTensor())
@@ -289,14 +289,14 @@ def main_worker(gpu, ngpus_per_node, args):
         return
 
     for epoch in range(args.start_epoch, args.epochs):
-        with span("epoch", kind="train", code_path="examples.imagenet:epoch"):
+        with span("epoch", kind="train"):
             add_event("epoch.start", attributes=[{"epoch": epoch}])
             if args.distributed:
                 train_sampler.set_epoch(epoch)
 
-            with span("train", kind="loop", code_path="examples.imagenet:train"):
+            with span("train", kind="loop"):
                 train(train_loader, model, criterion, optimizer, epoch, device, args)
-            with span("validate", kind="loop", code_path="examples.imagenet:validate"):
+            with span("validate", kind="loop"):
                 acc1 = validate(val_loader, model, criterion, args)
             scheduler.step()
             add_event("epoch.metrics", attributes=[{"acc1": float(acc1)}])
@@ -304,7 +304,7 @@ def main_worker(gpu, ngpus_per_node, args):
             is_best = acc1 > best_acc1
             best_acc1 = max(acc1, best_acc1)
             if not args.multiprocessing_distributed or (args.multiprocessing_distributed and args.rank % ngpus_per_node == 0):
-                with span("checkpoint.save", kind="io", code_path="examples.imagenet:checkpoint"):
+                with span("checkpoint.save", kind="io"):
                     save_checkpoint({
                         'epoch': epoch + 1,
                         'arch': args.arch,
@@ -314,6 +314,13 @@ def main_worker(gpu, ngpus_per_node, args):
                         'scheduler' : scheduler.state_dict()
                     }, is_best)
             add_event("epoch.end", attributes=[{"best_acc1": float(best_acc1)}])
+
+
+def compute_loss(criterion, output, target):
+    """Compute loss - extracted as separate function for tracing."""
+    print("Computing loss...")
+    loss = criterion(output, target)
+    return loss
 
 
 def train(train_loader, model, criterion, optimizer, epoch, device, args):
@@ -333,7 +340,7 @@ def train(train_loader, model, criterion, optimizer, epoch, device, args):
     end = time.time()
     for i, (images, target) in enumerate(train_loader):
         time.sleep(1)
-        with span("batch", kind="train.step", code_path="examples.imagenet:batch"):
+        with span("batch", kind="train.step"):
             # measure data loading time
             data_time.update(time.time() - end)
             images = images.to(device, non_blocking=True)
@@ -341,7 +348,7 @@ def train(train_loader, model, criterion, optimizer, epoch, device, args):
             with span("forward", kind="nn.forward"):
                 output = model(images)
             with span("loss", kind="compute"):
-                loss = criterion(output, target)
+                loss = compute_loss(criterion, output, target)
             acc1, acc5 = accuracy(output, target, topk=(1, 5))
             losses.update(loss.item(), images.size(0))
             top1.update(acc1[0], images.size(0))
@@ -375,7 +382,7 @@ def validate(val_loader, model, criterion, args):
 
                 # compute output
                 output = model(images)
-                loss = criterion(output, target)
+                loss = compute_loss(criterion, output, target)
 
                 # measure accuracy and record loss
                 acc1, acc5 = accuracy(output, target, topk=(1, 5))

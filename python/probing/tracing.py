@@ -49,7 +49,7 @@ from probing.core.table import table
 
 def _get_location() -> Optional[str]:
     """Get the current call location from the stack.
-    
+
     Returns
     -------
     Optional[str]
@@ -64,11 +64,11 @@ def _get_location() -> Optional[str]:
             filename = frame_info.filename
             function = frame_info.function
             lineno = frame_info.lineno
-            
+
             # Skip frames from this module
-            if 'probing/tracing.py' in filename or 'probing\\tracing.py' in filename:
+            if "probing/tracing.py" in filename or "probing\\tracing.py" in filename:
                 continue
-                
+
             # Format: "filename:function:lineno"
             return f"{filename}:{function}:{lineno}"
     except Exception:
@@ -106,6 +106,7 @@ class TraceEvent:
     event_attributes : str, default ""
         JSON string of event attributes (only in event rows).
     """
+
     # Required fields
     record_type: str
     trace_id: int
@@ -148,7 +149,7 @@ def span(*args, **kwargs):
         Either empty (implicit decorator), a single callable, or a single string name.
     **kwargs
         Attributes to attach plus optional ``kind``.
-        
+
     Note
     ----
     The ``location`` is automatically captured from the call stack using
@@ -239,9 +240,7 @@ def span(*args, **kwargs):
                         ) as s:
                             return func(*wargs, **wkwargs)
                     else:
-                        with span_raw(
-                            self.name, kind=self.kind, location=loc
-                        ) as s:
+                        with span_raw(self.name, kind=self.kind, location=loc) as s:
                             return func(*wargs, **wkwargs)
 
                 return wrapper
@@ -264,9 +263,7 @@ def span(*args, **kwargs):
                         parent, self.name, kind=self.kind, location=loc
                     )
                 else:
-                    self._span = Span(
-                        self.name, kind=self.kind, location=loc
-                    )
+                    self._span = Span(self.name, kind=self.kind, location=loc)
 
                 # Set initial attributes during creation (before __enter__)
                 if self.attrs:
@@ -287,17 +284,19 @@ def span(*args, **kwargs):
                 entered = self._span.__enter__()
                 # __enter__ returns PyRef<Span> which should be automatically converted
                 # But to be safe, we return the span object directly
-                
+
                 # Record span start to table
                 _record_span_start(self._span, self.attrs)
-                
+
                 return self._span
 
             def __exit__(self, *args):
                 """Exit span context: finalize then record minimal end info."""
                 if self._span:
-                    result = self._span.__exit__(*args)  # finalize span first (sets end timestamp)
-                    _record_span_end(self._span)         # then record minimal end row
+                    result = self._span.__exit__(
+                        *args
+                    )  # finalize span first (sets end timestamp)
+                    _record_span_end(self._span)  # then record minimal end row
                     return result
                 return False
 
@@ -349,7 +348,9 @@ def _record_span_start(span: Span, attrs: dict):
     # Sanitize None values to backend-friendly sentinels (tables reject Python None)
     parent_id = span.parent_id if span.parent_id is not None else -1
     kind = span.kind if span.kind is not None else ""
-    location = span.location if hasattr(span, "location") and span.location is not None else ""
+    location = (
+        span.location if hasattr(span, "location") and span.location is not None else ""
+    )
     attributes = attrs_json if attrs_json is not None else ""
     event = TraceEvent(
         record_type="span_start",
@@ -373,12 +374,13 @@ def _record_span_end(span: Span):
     Other fields are blanked to reduce duplication.
     """
     import time
+
     end_ts = span.end_timestamp or int(time.time_ns())
     event = TraceEvent(
         record_type="span_end",
-        trace_id=0,      # intentionally zeroed
+        trace_id=0,  # intentionally zeroed
         span_id=span.span_id,
-        name="",        # omit name
+        name="",  # omit name
         time=end_ts,
         thread_id=getattr(span, "thread_id", 0),
         parent_id=-1,
@@ -407,7 +409,7 @@ def _record_event(span: Span, event_name: str, event_attributes: Optional[list] 
 
     # Get current timestamp (nanoseconds since epoch)
     timestamp = int(time.time_ns())
-    
+
     # Convert event attributes to JSON string
     event_attrs_json = None
     if event_attributes:
@@ -420,10 +422,12 @@ def _record_event(span: Span, event_name: str, event_attributes: Optional[list] 
                 attrs_dict[attr_item[0]] = attr_item[1]
         if attrs_dict:
             event_attrs_json = json.dumps(attrs_dict)
-    
+
     parent_id = span.parent_id if span.parent_id is not None else -1
     kind = span.kind if span.kind is not None else ""
-    location = span.location if hasattr(span, "location") and span.location is not None else ""
+    location = (
+        span.location if hasattr(span, "location") and span.location is not None else ""
+    )
     attrs = ""  # span-level attributes not duplicated here
     event_attrs = event_attrs_json if event_attrs_json is not None else ""
     event = TraceEvent(
@@ -526,6 +530,6 @@ def add_event(name: str, *, attributes: Optional[list] = None):
         raise RuntimeError("No active span in current context. Cannot add event.")
 
     current.add_event(name, attributes=attributes)
-    
+
     # Record event to table
     _record_event(current, name, attributes)

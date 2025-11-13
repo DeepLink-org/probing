@@ -13,12 +13,13 @@ def test_query():
     assert df.columns.tolist() == ["a", "b"]
     assert df["a"].tolist() == [1]
     assert df["b"].tolist() == [2]
-    
+
+
 def test_load_extension():
     import sys
     from probing import load_extension
-    
+
     statement = "probing.ext.example"
     load_extension(statement)
-    
+
     assert "probing.ext.example" in sys.modules

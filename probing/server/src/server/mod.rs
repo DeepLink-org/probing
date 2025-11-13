@@ -66,6 +66,7 @@ fn build_app(auth: bool) -> axum::Router {
         .route("/analytics", axum::routing::get(index))
         .route("/python", axum::routing::get(index))
         .route("/traces", axum::routing::get(index))
+        .route("/chrome-tracing", axum::routing::get(index))
         .route("/index.html", axum::routing::get(index))
         .route("/query", axum::routing::post(query))
         .route(
