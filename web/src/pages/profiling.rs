@@ -4,7 +4,7 @@ use crate::components::page::{PageContainer, PageTitle};
 use crate::hooks::use_api_simple;
 use crate::api::{ApiClient, ProfileResponse};
 use crate::app::{PROFILING_VIEW, PROFILING_PPROF_FREQ, PROFILING_TORCH_ENABLED, 
-    PROFILING_CHROME_DATA_SOURCE, PROFILING_CHROME_LIMIT};
+    PROFILING_CHROME_LIMIT, PROFILING_PYTORCH_TIMELINE_RELOAD};
 
 fn apply_config(config: &[(String, String)]) {
     *PROFILING_PPROF_FREQ.write() = 0;
@@ -88,28 +88,48 @@ pub fn Profiling() -> Element {
         });
     });
 
+    // 处理 trace timeline 的自动加载
     use_effect(move || {
         let view = PROFILING_VIEW.read().clone();
-        let source = PROFILING_CHROME_DATA_SOURCE.read().clone();
         let limit_val = *PROFILING_CHROME_LIMIT.read();
         
-        if view != "chrome-tracing" {
+        if view != "trace-timeline" {
             return;
         }
         
-        if source == "trace" {
-            let mut loading = chrome_tracing_state.loading;
-            let mut data = chrome_tracing_state.data;
-            let mut iframe_key = chrome_iframe_key.clone();
-            spawn(async move {
-                *loading.write() = true;
-                let client = ApiClient::new();
-                let result = client.get_chrome_tracing_json(Some(limit_val)).await;
-                *data.write() = Some(result);
-                *loading.write() = false;
-                *iframe_key.write() += 1;
-            });
+        let mut loading = chrome_tracing_state.loading;
+        let mut data = chrome_tracing_state.data;
+        let mut iframe_key = chrome_iframe_key.clone();
+        spawn(async move {
+            *loading.write() = true;
+            let client = ApiClient::new();
+            let result = client.get_chrome_tracing_json(Some(limit_val)).await;
+            *data.write() = Some(result);
+            *loading.write() = false;
+            *iframe_key.write() += 1;
+        });
+    });
+    
+    // 处理 pytorch timeline 的加载（通过侧边栏按钮触发）
+    use_effect(move || {
+        let view = PROFILING_VIEW.read().clone();
+        let reload_key = *PROFILING_PYTORCH_TIMELINE_RELOAD.read();
+        
+        if view != "pytorch-timeline" || reload_key == 0 {
+            return;
         }
+        
+        let mut loading = chrome_tracing_state.loading;
+        let mut data = chrome_tracing_state.data;
+        let mut iframe_key = chrome_iframe_key.clone();
+        spawn(async move {
+            *loading.write() = true;
+            let client = ApiClient::new();
+            let result = client.get_pytorch_timeline().await;
+            *data.write() = Some(result);
+            *loading.write() = false;
+            *iframe_key.write() += 1;
+        });
     });
 
     rsx! {
@@ -127,10 +147,15 @@ pub fn Profiling() -> Element {
                         Some("PyTorch profiling visualization".to_string()),
                         Some(&icondata::SiPytorch),
                     ),
-                    "chrome-tracing" => (
-                        "Timeline".to_string(),
+                    "trace-timeline" => (
+                        "Trace Timeline".to_string(),
                         Some("Chrome Tracing timeline view".to_string()),
                         Some(&icondata::AiThunderboltOutlined),
+                    ),
+                    "pytorch-timeline" => (
+                        "PyTorch Timeline".to_string(),
+                        Some("PyTorch profiler timeline view".to_string()),
+                        Some(&icondata::SiPytorch),
                     ),
                     _ => (
                         "Profiling".to_string(),
@@ -158,7 +183,7 @@ pub fn Profiling() -> Element {
                                 flamegraph_state: flamegraph_state.clone(),
                             }
                         }
-                    } else if current_view == "chrome-tracing" {
+                    } else if current_view == "trace-timeline" || current_view == "pytorch-timeline" {
                         rsx! {
                             ChromeTracingView {
                                 chrome_tracing_state: chrome_tracing_state.clone(),
@@ -171,21 +196,6 @@ pub fn Profiling() -> Element {
                 }
             }
             
-            {
-                let is_chrome_tracing = *PROFILING_VIEW.read() == "chrome-tracing";
-                let is_pytorch_source = *PROFILING_CHROME_DATA_SOURCE.read() == "pytorch";
-                if is_chrome_tracing && is_pytorch_source {
-                    if let Some(Ok(ref profile_result)) = pytorch_profile_state.data.read().as_ref() {
-                        rsx! {
-                            PyTorchProfileStatus { profile_result: profile_result.clone() }
-                        }
-                    } else {
-                        rsx! { div {} }
-                    }
-                } else {
-                    rsx! { div {} }
-                }
-            }
         }
     }
 }
@@ -460,8 +470,8 @@ fn ChromeTracingView(
     #[props] chrome_tracing_state: crate::hooks::ApiState<String>,
     #[props] chrome_iframe_key: Signal<i32>,
 ) -> Element {
-    let data_source = PROFILING_CHROME_DATA_SOURCE.read().clone();
-    let is_pytorch = data_source == "pytorch";
+    let current_view = PROFILING_VIEW.read().clone();
+    let is_pytorch = current_view == "pytorch-timeline";
     
     if chrome_tracing_state.is_loading() {
         let message = if is_pytorch {
