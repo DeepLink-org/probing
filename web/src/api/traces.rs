@@ -281,7 +281,11 @@ impl ApiClient {
     /// 获取 Chrome tracing 格式的 JSON 数据
     /// 返回格式符合 Chrome DevTools tracing viewer 的要求
     pub async fn get_chrome_tracing_json(&self, limit: Option<usize>) -> Result<String> {
-        let events = self.get_trace_events(limit).await?;
+        let mut events = self.get_trace_events(limit).await?;
+        
+        // 按时间戳升序排序，确保 span_start 在 span_end 之前被处理
+        // 这样当处理 span_end 时，对应的 span_start 已经在 span_starts 中了
+        events.sort_by_key(|e| e.timestamp);
         
         // 找到最小时间戳作为基准
         let min_timestamp = events.iter()
@@ -292,19 +296,62 @@ impl ApiClient {
         // 转换为 Chrome tracing 格式
         let mut trace_events: Vec<serde_json::Value> = Vec::new();
         
-        // 使用 HashMap 跟踪 span 的开始时间
-        let mut span_starts: std::collections::HashMap<i64, (i64, String, i64)> = std::collections::HashMap::new();
+        // 使用 (span_id, thread_id) 作为 key 来跟踪 span 的开始时间，支持多线程场景
+        // 值包含: (开始时间戳(微秒), span名称, kind, trace_id)
+        let mut span_starts: std::collections::HashMap<(i64, i64), (i64, String, Option<String>, i64)> = std::collections::HashMap::new();
         
+        // 第一遍：收集所有 span_start 事件，构建查找表
+        // 这有助于匹配 span_end 事件，即使 span_end 中的 trace_id 为 0
+        let mut span_start_lookup: std::collections::HashMap<(i64, i64), (i64, String, Option<String>, i64)> = std::collections::HashMap::new();
+        // 构建 span_id 到 parent_id 的映射，用于查找顶层 span
+        let mut span_to_parent: std::collections::HashMap<i64, Option<i64>> = std::collections::HashMap::new();
+        // 找到第一个（最早出现的）顶层 span 的 trace_id，作为统一的 pid
+        let mut unified_pid: Option<i64> = None;
+        
+        for event in &events {
+            if event.record_type == "span_start" {
+                let key = (event.span_id, event.thread_id);
+                span_start_lookup.insert(key, (
+                    event.timestamp,
+                    event.name.clone(),
+                    event.kind.clone(),
+                    event.trace_id,
+                ));
+                
+                // 记录 parent_id 映射
+                span_to_parent.insert(event.span_id, event.parent_id);
+                
+                // 如果是顶层 span（没有 parent_id 或 parent_id = -1），且还没有设置 unified_pid
+                // 使用第一个顶层 span 的 trace_id 作为统一的 pid
+                if unified_pid.is_none() && (event.parent_id.is_none() || event.parent_id == Some(-1)) {
+                    unified_pid = Some(event.trace_id);
+                }
+            }
+        }
+        
+        // 如果没有找到顶层 span，使用第一个 span_start 的 trace_id
+        let unified_pid = unified_pid.unwrap_or_else(|| {
+            events.iter()
+                .find(|e| e.record_type == "span_start")
+                .map(|e| e.trace_id)
+                .unwrap_or(1)
+        });
+        
+        // 第二遍：转换事件为 Chrome tracing 格式
         for event in &events {
             // 将纳秒转换为微秒（Chrome tracing 使用微秒）
             let ts_micros = (event.timestamp - min_timestamp) / 1000;
-            let pid = event.trace_id as u32;
+            // 所有顶层 span 使用统一的 pid，子 span 也使用统一的 pid（因为它们属于同一个逻辑 trace）
+            // 这样可以确保所有相关的 span 都在同一个 process 中显示
+            let pid = unified_pid as u32;
             let tid = event.thread_id as u32;
             
             match event.record_type.as_str() {
                 "span_start" => {
-                    // 记录 span 开始
-                    span_starts.insert(event.span_id, (ts_micros, event.name.clone(), event.thread_id));
+                    // 使用 (span_id, thread_id) 作为 key
+                    let key = (event.span_id, event.thread_id);
+                    // 存储时使用统一的 pid
+                    span_starts.insert(key, (ts_micros, event.name.clone(), event.kind.clone(), unified_pid));
                     
                     // 创建 'B' (Begin) 事件
                     let mut chrome_event = serde_json::json!({
@@ -337,27 +384,63 @@ impl ApiClient {
                     trace_events.push(chrome_event);
                 }
                 "span_end" => {
-                    // 创建 'E' (End) 事件
-                    let (start_ts, name, _) = span_starts.get(&event.span_id)
-                        .map(|(ts, n, _)| (*ts, n.clone(), 0))
-                        .unwrap_or((ts_micros, "unknown".to_string(), 0));
+                    // 使用 (span_id, thread_id) 作为 key 来查找对应的 span_start
+                    let key = (event.span_id, event.thread_id);
                     
-                    let mut chrome_event = serde_json::json!({
-                        "name": name,
-                        "cat": "span",
-                        "ph": "E",
-                        "ts": ts_micros,
-                        "pid": pid,
-                        "tid": tid,
-                    });
-                    
-                    // 计算持续时间（微秒）
-                    let dur = ts_micros - start_ts;
-                    if dur > 0 {
-                        chrome_event["dur"] = serde_json::Value::Number(dur.into());
+                    // 首先尝试从已处理的事件中查找
+                    if let Some((start_ts, start_name, start_kind, start_pid)) = span_starts.get(&key) {
+                        // 找到匹配的 span_start，创建 'E' (End) 事件
+                        let mut chrome_event = serde_json::json!({
+                            "name": start_name,
+                            "cat": start_kind.as_ref().unwrap_or(&"span".to_string()),
+                            "ph": "E",
+                            "ts": ts_micros,
+                            "pid": *start_pid as u32,
+                            "tid": tid,
+                        });
+                        
+                        // 计算持续时间（微秒）
+                        let dur = ts_micros - start_ts;
+                        if dur > 0 {
+                            chrome_event["dur"] = serde_json::Value::Number(dur.into());
+                        }
+                        
+                        trace_events.push(chrome_event);
+                        // 从 span_starts 中移除，避免重复匹配
+                        span_starts.remove(&key);
+                    } else if let Some((start_timestamp, start_name, start_kind, _)) = span_start_lookup.get(&key) {
+                        // 从查找表中找到 span_start 信息
+                        let start_ts_micros = (start_timestamp - min_timestamp) / 1000;
+                        // 使用统一的 pid，确保所有 span 都在同一个 process 中
+                        let mut chrome_event = serde_json::json!({
+                            "name": start_name,
+                            "cat": start_kind.as_ref().unwrap_or(&"span".to_string()),
+                            "ph": "E",
+                            "ts": ts_micros,
+                            "pid": unified_pid as u32,
+                            "tid": tid,
+                        });
+                        
+                        // 计算持续时间（微秒）
+                        let dur = ts_micros - start_ts_micros;
+                        if dur > 0 {
+                            chrome_event["dur"] = serde_json::Value::Number(dur.into());
+                        }
+                        
+                        trace_events.push(chrome_event);
+                    } else {
+                        // 没有找到匹配的 span_start（可能被 limit 过滤掉了）
+                        // 使用统一的 pid，确保所有 span 都在同一个 process 中
+                        let mut chrome_event = serde_json::json!({
+                            "name": if event.name.is_empty() { "unknown_span" } else { &event.name },
+                            "cat": "span",
+                            "ph": "E",
+                            "ts": ts_micros,
+                            "pid": unified_pid as u32,
+                            "tid": tid,
+                        });
+                        trace_events.push(chrome_event);
                     }
-                    
-                    trace_events.push(chrome_event);
                 }
                 "event" => {
                     // 创建 'i' (Instant) 事件

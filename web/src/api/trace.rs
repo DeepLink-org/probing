@@ -1,7 +1,7 @@
 use super::ApiClient;
 use crate::utils::error::Result;
 use serde::{Deserialize, Serialize};
-use probing_proto::prelude::{DataFrame, Ele};
+use probing_proto::prelude::DataFrame;
 
 /// Trace API 响应结构
 #[derive(Debug, Clone, Serialize, Deserialize)]

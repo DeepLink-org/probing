@@ -1,5 +1,4 @@
 use dioxus::prelude::*;
-// Inlined Tailwind classes instead of style constants.
 
 #[component]
 pub fn LoadingState(message: Option<String>) -> Element {
@@ -34,16 +33,6 @@ pub fn EmptyState(message: String) -> Element {
         div {
             class: "text-center py-8 text-gray-500",
             "{message}"
-        }
-    }
-}
-
-#[component]
-pub fn PageTitle(title: String) -> Element {
-    rsx! {
-        h1 {
-            class: "text-3xl font-bold text-gray-900",
-            "{title}"
         }
     }
 }
