@@ -5,10 +5,11 @@ use web_sys::window;
 
 use crate::app::{Route, PROFILING_VIEW, PROFILING_PPROF_FREQ, PROFILING_TORCH_ENABLED, 
     PROFILING_CHROME_DATA_SOURCE, PROFILING_CHROME_LIMIT, PROFILING_PYTORCH_STEPS,
-    SIDEBAR_WIDTH, SIDEBAR_HIDDEN};
+    PROFILING_PYTORCH_TIMELINE_RELOAD, SIDEBAR_WIDTH, SIDEBAR_HIDDEN};
 use crate::components::icon::Icon;
 use crate::components::colors::colors;
-use crate::api::ApiClient;
+use crate::api::{ApiClient, ProfileResponse};
+use crate::hooks::use_api_simple;
 
 #[component]
 pub fn Sidebar() -> Element {
@@ -307,9 +308,14 @@ fn ProfilingSidebarItem(show_dropdown: Signal<bool>) -> Element {
                         icon: &icondata::SiPytorch,
                     }
                     ProfilingSubItem {
-                        view: "chrome-tracing".to_string(),
-                        label: "Timeline".to_string(),
+                        view: "trace-timeline".to_string(),
+                        label: "Trace Timeline".to_string(),
                         icon: &icondata::AiThunderboltOutlined,
+                    }
+                    ProfilingSubItem {
+                        view: "pytorch-timeline".to_string(),
+                        label: "PyTorch Timeline".to_string(),
+                        icon: &icondata::SiPytorch,
                     }
                     
                     if is_active {
@@ -402,13 +408,18 @@ fn ProfilingControlsPanel() -> Element {
                                 toggle_label_class: toggle_label_class.clone(),
                             }
                         }
-                    } else if view == "chrome-tracing" {
+                    } else if view == "trace-timeline" {
                         rsx! {
-                            ChromeTracingControls {
+                            TraceTimelineControls {
                                 control_title_class: control_title_class.clone(),
                                 control_value_class: control_value_class.clone(),
-                                button_active_class: button_active_class.clone(),
-                                button_inactive_class: button_inactive_class.clone(),
+                                input_class: input_class.clone(),
+                            }
+                        }
+                    } else if view == "pytorch-timeline" {
+                        rsx! {
+                            PyTorchTimelineControls {
+                                control_title_class: control_title_class.clone(),
                                 input_class: input_class.clone(),
                             }
                         }
@@ -535,94 +546,144 @@ fn TorchControls(
 }
 
 #[component]
-fn ChromeTracingControls(
+fn TraceTimelineControls(
     control_title_class: String,
     control_value_class: String,
-    button_active_class: String,
-    button_inactive_class: String,
     input_class: String,
 ) -> Element {
-    let data_source = PROFILING_CHROME_DATA_SOURCE.read().clone();
-    
-    let get_button_class = |is_active: bool| {
-        if is_active {
-            button_active_class.clone()
-        } else {
-            button_inactive_class.clone()
+    rsx! {
+        div {
+            class: "space-y-3",
+            div {
+                class: "space-y-1",
+                div {
+                    class: "{control_title_class}",
+                    "Event Limit"
+                }
+                div {
+                    class: "flex items-center gap-2",
+                    span {
+                        class: "{control_value_class}",
+                        "{*PROFILING_CHROME_LIMIT.read()}"
+                    }
+                    input {
+                        r#type: "range",
+                        min: "100",
+                        max: "5000",
+                        step: "100",
+                        value: "{*PROFILING_CHROME_LIMIT.read()}",
+                        class: "flex-1",
+                        oninput: move |ev| {
+                            if let Ok(val) = ev.value().parse::<usize>() {
+                                *PROFILING_CHROME_LIMIT.write() = val;
+                            }
+                        }
+                    }
+                }
+            }
         }
-    };
-    
-    let trace_btn_class = get_button_class(data_source == "trace");
-    let pytorch_btn_class = get_button_class(data_source == "pytorch");
+    }
+}
+
+#[component]
+fn PyTorchTimelineControls(
+    control_title_class: String,
+    input_class: String,
+) -> Element {
+    let pytorch_profile_state = use_api_simple::<ProfileResponse>();
+    let pytorch_timeline_state = use_api_simple::<String>();
     
     rsx! {
         div {
             class: "space-y-3",
             div {
-                class: "{control_title_class}",
-                "Data Source"
+                class: "space-y-2",
+                div {
+                    class: "{control_title_class}",
+                    "Steps"
+                }
+                input {
+                    r#type: "number",
+                    min: "1",
+                    max: "100",
+                    value: "{*PROFILING_PYTORCH_STEPS.read()}",
+                    class: "{input_class}",
+                    oninput: move |ev| {
+                        if let Ok(val) = ev.value().parse::<i32>() {
+                            *PROFILING_PYTORCH_STEPS.write() = val.max(1).min(100);
+                        }
+                    }
+                }
             }
             div {
-                class: "flex gap-1",
+                class: "space-y-2",
                 button {
-                    class: "{trace_btn_class}",
-                    onclick: move |_| *PROFILING_CHROME_DATA_SOURCE.write() = "trace".to_string(),
-                    "Trace"
-                }
-                button {
-                    class: "{pytorch_btn_class}",
-                    onclick: move |_| *PROFILING_CHROME_DATA_SOURCE.write() = "pytorch".to_string(),
-                    "PyTorch"
-                }
-            }
-            
-            if data_source == "trace" {
-                div {
-                    class: "space-y-1",
-                    div {
-                        class: "{control_title_class}",
-                        "Event Limit"
-                    }
-                    div {
-                        class: "flex items-center gap-2",
-                        span {
-                            class: "{control_value_class}",
-                            "{*PROFILING_CHROME_LIMIT.read()}"
+                    class: "w-full px-3 py-2 text-xs font-medium rounded bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed",
+                    disabled: pytorch_profile_state.is_loading(),
+                    onclick: {
+                        let mut profile_state = pytorch_profile_state.clone();
+                        move |_| {
+                            spawn(async move {
+                                *profile_state.loading.write() = true;
+                                let client = ApiClient::new();
+                                let steps = *PROFILING_PYTORCH_STEPS.read();
+                                let result = client.start_pytorch_profile(steps).await;
+                                *profile_state.data.write() = Some(result);
+                                *profile_state.loading.write() = false;
+                            });
                         }
-                        input {
-                            r#type: "range",
-                            min: "100",
-                            max: "5000",
-                            step: "100",
-                            value: "{*PROFILING_CHROME_LIMIT.read()}",
-                            class: "flex-1",
-                            oninput: move |ev| {
-                                if let Ok(val) = ev.value().parse::<usize>() {
-                                    *PROFILING_CHROME_LIMIT.write() = val;
+                    },
+                    if pytorch_profile_state.is_loading() {
+                        "Starting..."
+                    } else {
+                        "Start Profile"
+                    }
+                }
+                button {
+                    class: "w-full px-3 py-2 text-xs font-medium rounded bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed",
+                    disabled: pytorch_timeline_state.is_loading(),
+                    onclick: {
+                        let mut timeline_state = pytorch_timeline_state.clone();
+                        move |_| {
+                            spawn(async move {
+                                *timeline_state.loading.write() = true;
+                                *timeline_state.data.write() = None;
+                                let client = ApiClient::new();
+                                let result = client.get_pytorch_timeline().await;
+                                let is_ok = result.is_ok();
+                                *timeline_state.data.write() = Some(result);
+                                *timeline_state.loading.write() = false;
+                                // 触发重新加载 timeline
+                                if is_ok {
+                                    *PROFILING_PYTORCH_TIMELINE_RELOAD.write() += 1;
                                 }
-                            }
+                            });
                         }
+                    },
+                    if pytorch_timeline_state.is_loading() {
+                        "Loading..."
+                    } else {
+                        "Load Timeline"
                     }
                 }
             }
-            
-            if data_source == "pytorch" {
-                div {
-                    class: "space-y-2",
+            if let Some(Ok(ref profile_result)) = pytorch_profile_state.data.read().as_ref() {
+                if profile_result.success {
                     div {
-                        class: "{control_title_class}",
-                        "Steps"
+                        class: "p-1.5 bg-green-50 border border-green-200 rounded text-xs text-green-800",
+                        if let Some(ref msg) = profile_result.message {
+                            "{msg}"
+                        } else {
+                            "Profile started"
+                        }
                     }
-                    input {
-                        r#type: "number",
-                        min: "1",
-                        max: "100",
-                        value: "{*PROFILING_PYTORCH_STEPS.read()}",
-                        class: "{input_class}",
-                        oninput: move |ev| {
-                            if let Ok(val) = ev.value().parse::<i32>() {
-                                *PROFILING_PYTORCH_STEPS.write() = val.max(1).min(100);
-                            }
+                } else {
+                    div {
+                        class: "p-1.5 bg-red-50 border border-red-200 rounded text-xs text-red-800",
+                        if let Some(ref err) = profile_result.error {
+                            "{err}"
+                        } else {
+                            "Failed to start"
                         }
                     }
                 }
