@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 use crate::components::card::Card;
-use crate::components::page::{PageContainer, PageHeader};
+use crate::components::page::{PageContainer, PageTitle};
 use crate::components::common::{LoadingState, ErrorState};
 use crate::hooks::use_api_simple;
 use crate::api::{ApiClient, SpanInfo, EventInfo};
@@ -35,11 +35,11 @@ pub fn Traces() -> Element {
 
     rsx! {
         PageContainer {
-            PageHeader {
+            PageTitle {
                 title: "Traces".to_string(),
-                subtitle: Some("Analyze span timing and nested relationships".to_string())
+                subtitle: Some("Analyze span timing and nested relationships".to_string()),
+                icon: Some(&icondata::AiApiOutlined),
             }
-            
             // Limit control slider
             Card {
                 title: "Data Limit",
@@ -139,7 +139,7 @@ fn SpanView(span: SpanInfo, depth: usize) -> Element {
                 }
                 if let Some(ref kind) = span.kind {
                     span {
-                        class: "text-xs px-2 py-0.5 bg-blue-100 text-blue-800 rounded",
+                        class: "text-xs px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded",
                         "{kind}"
                     }
                 }

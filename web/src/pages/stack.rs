@@ -3,7 +3,7 @@ use probing_proto::prelude::CallFrame;
 
 use crate::components::card::Card;
 use crate::components::callstack_view::CallStackView;
-use crate::components::page::{PageContainer, PageHeader};
+use crate::components::page::{PageContainer, PageTitle};
 use crate::components::common::{LoadingState, ErrorState};
 use crate::hooks::use_api;
 use crate::api::ApiClient;
@@ -24,25 +24,25 @@ pub fn Stack(tid: Option<String>) -> Element {
 
     rsx! {
         PageContainer {
-            PageHeader {
+            PageTitle {
                 title: "Stacks".to_string(),
-                subtitle: tid_display.as_ref().map(|t| format!("Call stack for thread: {t}"))
+                subtitle: tid_display.as_ref().map(|t| format!("Call stack for thread: {t}")),
+                icon: Some(&icondata::AiThunderboltOutlined),
             }
-            
             Card {
                 title: "Call Stack Information",
                 header_right: Some(rsx! {
                     div { class: "flex gap-2 items-center",
                         span { class: "text-sm text-gray-600", "Mode:" }
-                        button { class: format!("px-3 py-1 rounded {}", if mode.read().as_str()=="py" { "bg-blue-600 text-white" } else { "bg-gray-100" }),
+                        button { class: format!("px-3 py-1 rounded transition-colors {}", if mode.read().as_str()=="py" { "bg-indigo-600 text-white shadow-sm" } else { "bg-gray-100 hover:bg-gray-200" }),
                             onclick: move |_| {
                                 *mode.write() = String::from("py");
                             }, "Py" }
-                        button { class: format!("px-3 py-1 rounded {}", if mode.read().as_str()=="cpp" { "bg-blue-600 text-white" } else { "bg-gray-100" }),
+                        button { class: format!("px-3 py-1 rounded transition-colors {}", if mode.read().as_str()=="cpp" { "bg-indigo-600 text-white shadow-sm" } else { "bg-gray-100 hover:bg-gray-200" }),
                             onclick: move |_| {
                                 *mode.write() = String::from("cpp");
                             }, "C++" }
-                        button { class: format!("px-3 py-1 rounded {}", if mode.read().as_str()=="mixed" { "bg-blue-600 text-white" } else { "bg-gray-100" }),
+                        button { class: format!("px-3 py-1 rounded transition-colors {}", if mode.read().as_str()=="mixed" { "bg-indigo-600 text-white shadow-sm" } else { "bg-gray-100 hover:bg-gray-200" }),
                             onclick: move |_| {
                                 *mode.write() = String::from("mixed");
                             }, "Mixed" }

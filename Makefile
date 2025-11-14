@@ -99,6 +99,9 @@ web/dist:
 	cd web && dx build --release
 	@echo "Copying Dioxus build output to web/dist..."
 	cp -r web/target/dx/web/release/web/public/* web/dist/
+	@echo "Copying static assets..."
+	@mkdir -p web/dist/assets
+	@cp -f web/assets/*.svg web/dist/assets/ 2>/dev/null || true
 	cd ..
 
 # Convenience targets for frontend builds

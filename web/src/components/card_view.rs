@@ -1,25 +1,6 @@
 use dioxus::prelude::*;
 use dioxus_router::Link;
-use probing_proto::prelude::Process;
-use crate::components::table_view::TableView; // using inline Tailwind inside TableView
 use crate::app::Route;
-
-#[component]
-pub fn ProcessCard(process: Process) -> Element {
-    let data = vec![
-        vec!["Process ID(pid)".to_string(), process.pid.to_string()],
-        vec!["Executable Path(exe)".to_string(), process.exe.to_string()],
-        vec!["Command Line(cmd)".to_string(), process.cmd.to_string()],
-        vec!["Current Working Directory(cwd)".to_string(), process.cwd.to_string()],
-    ];
-
-    rsx! {
-        TableView {
-            headers: vec!["name".to_string(), "value".to_string()],
-            data: data
-        }
-    }
-}
 
 #[component]
 pub fn ThreadsCard(threads: Vec<u64>) -> Element {

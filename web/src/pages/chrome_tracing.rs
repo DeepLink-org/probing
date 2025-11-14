@@ -1,5 +1,5 @@
 use dioxus::prelude::*;
-use crate::components::page::{PageContainer, PageHeader};
+use crate::components::page::{PageContainer, PageTitle};
 use crate::components::common::{LoadingState, ErrorState};
 use crate::hooks::use_api_simple;
 use crate::api::{ApiClient, ProfileResponse};
@@ -51,9 +51,10 @@ pub fn ChromeTracing() -> Element {
 
     rsx! {
         PageContainer {
-            PageHeader {
+            PageTitle {
                 title: "Chrome Tracing".to_string(),
-                subtitle: Some("View timeline in Chrome DevTools tracing format".to_string())
+                subtitle: Some("View timeline in Chrome DevTools tracing format".to_string()),
+                icon: Some(&icondata::AiThunderboltOutlined),
             }
             
             // Data source selector

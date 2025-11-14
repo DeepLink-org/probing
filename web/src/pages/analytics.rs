@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 use crate::components::card::Card;
 use crate::components::dataframe_view::DataFrameView;
-use crate::components::page::{PageContainer, PageHeader};
+use crate::components::page::{PageContainer, PageTitle};
 use crate::components::common::{LoadingState, ErrorState};
 use crate::hooks::{use_api, use_api_simple};
 use crate::api::ApiClient;
@@ -19,11 +19,11 @@ pub fn Analytics() -> Element {
 
     rsx! {
         PageContainer {
-            PageHeader {
+            PageTitle {
                 title: "Analytics".to_string(),
-                subtitle: Some("Query and analyze performance data with SQL".to_string())
+                subtitle: Some("Query and analyze performance data with SQL".to_string()),
+                icon: Some(&icondata::AiAreaChartOutlined),
             }
-            
             Card {
                 title: "Tables",
                 content_class: Some("") ,
@@ -142,7 +142,7 @@ fn SqlQueryPanel() -> Element {
             }
             
             button {
-                class: format!("px-6 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition-colors {}", if *is_executing.read() { "opacity-50 cursor-not-allowed" } else { "" }),
+                class: format!("px-6 py-2 bg-indigo-600 text-white rounded-md font-medium hover:bg-indigo-700 transition-colors shadow-sm {}", if *is_executing.read() { "opacity-50 cursor-not-allowed" } else { "" }),
                 disabled: *is_executing.read(),
                 onclick: execute_query,
                 if *is_executing.read() { "Running..." } else { "Run Query" }
