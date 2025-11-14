@@ -24,7 +24,7 @@ use commands::Commands;
 use once_cell::sync::Lazy;
 
 fn get_build_info() -> String {
-    let mut info = "0.2.0".to_string();
+    let mut info = "0.2.1".to_string();
 
     if let Some(timestamp) = option_env!("VERGEN_BUILD_TIMESTAMP") {
         info.push_str(&format!("\nBuild Timestamp: {timestamp}"));
