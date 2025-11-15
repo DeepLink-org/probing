@@ -19,7 +19,7 @@ use pyo3::types::PyFloat;
 use pyo3::types::PyInt;
 use pyo3::types::PyList;
 use pyo3::types::PyString;
-use pyo3::Bound;
+use pyo3::{Bound, IntoPyObject};
 use pyo3::PyAny;
 use pyo3::Python;
 
@@ -98,21 +98,49 @@ impl PythonNamespace {
 
     fn data_from_python(expr: &str) -> Result<Vec<RecordBatch>> {
         Python::with_gil(|py| {
-            let parts: Vec<&str> = expr.split('.').collect();
+            let import_path = expr
+                .split(|c| c == '(' || c == '[')
+                .next()
+                .unwrap_or(expr);
+
+            let parts: Vec<&str> = import_path
+                .split('.')
+                .filter(|segment| !segment.is_empty())
+                .collect();
+
             if parts.is_empty() {
                 return Err(anyhow::anyhow!("Invalid Python expression: {}", expr));
             }
 
-            // Import the package
+            // Import the top-level package first.
+            let pkg_name = parts[0];
             let pkg = py
-                .import(parts[0])
-                .map_err(|e| anyhow::anyhow!("Failed to import {}: {:?}", parts[0], e))?;
+                .import(pkg_name)
+                .map_err(|e| anyhow::anyhow!("Failed to import {}: {:?}", pkg_name, e))?;
 
             // Set up locals dict with the imported package
             let locals = PyDict::new(py);
             locals
-                .set_item(parts[0], pkg)
+                .set_item(pkg_name, pkg)
                 .map_err(|e| anyhow::anyhow!("Failed to set up Python locals: {:?}", e))?;
+
+            // Ensure intermediate submodules are imported so attribute access works.
+            for depth in 2..=parts.len() {
+                let candidate = parts[..depth].join(".");
+                match py.import(&candidate) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        if depth < parts.len() {
+                            return Err(anyhow::anyhow!(
+                                "Failed to import {}: {:?}",
+                                candidate,
+                                err
+                            ));
+                        }
+                        break;
+                    }
+                }
+            }
 
             // Evaluate the expression
             let expr = CString::new(expr)
