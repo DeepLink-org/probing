@@ -11,11 +11,17 @@ def test_should_enable_probing_function_direct():
     """Test should_enable_probing function directly."""
     # This test requires the function to be accessible
     # We'll test via subprocess to ensure clean environment
-    test_code = """
+    
+    # Get the absolute path to the python directory
+    test_file_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(os.path.dirname(test_file_dir))
+    python_dir = os.path.join(project_root, 'python')
+    
+    test_code = f"""
 import os
 import sys
-# Add python directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'python'))
+# Add python directory to path using absolute path
+sys.path.insert(0, r'{python_dir}')
 from probing import should_enable_probing
 
 # Clean environment variables first
@@ -26,22 +32,22 @@ if 'PROBING_ORIGINAL' in os.environ:
 
 # Test with PROBING not set
 result1 = should_enable_probing()
-print(f'PROBING not set: {result1}')
+print(f'PROBING not set: {{result1}}')
 
 # Test with PROBING=0
 os.environ['PROBING'] = '0'
 result2 = should_enable_probing()
-print(f'PROBING=0: {result2}')
+print(f'PROBING=0: {{result2}}')
 
 # Test with PROBING=1
 os.environ['PROBING'] = '1'
 result3 = should_enable_probing()
-print(f'PROBING=1: {result3}')
+print(f'PROBING=1: {{result3}}')
 
 # Test with PROBING=followed
 os.environ['PROBING'] = 'followed'
 result4 = should_enable_probing()
-print(f'PROBING=followed: {result4}')
+print(f'PROBING=followed: {{result4}}')
 """
     
     with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
@@ -55,8 +61,7 @@ print(f'PROBING=followed: {result4}')
             del env["PROBING"]
         if "PROBING_ORIGINAL" in env:
             del env["PROBING_ORIGINAL"]
-        # Set PYTHONPATH to include python directory
-        python_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(script_path))), 'python')
+        # Set PYTHONPATH to include python directory as backup
         if 'PYTHONPATH' in env:
             env['PYTHONPATH'] = f"{python_dir}:{env['PYTHONPATH']}"
         else:
@@ -265,20 +270,34 @@ def test_should_enable_probing_with_init_prefix_no_setting():
 def test_get_current_script_name():
     """Test get_current_script_name function."""
     # Test in a subprocess to get actual script name
+    
+    # Get the absolute path to the python directory
+    test_file_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(os.path.dirname(test_file_dir))
+    python_dir = os.path.join(project_root, 'python')
+    
     with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
         script_name = os.path.basename(f.name)
         f.write("import sys\n")
         f.write("import os\n")
-        # Add python directory to path
-        f.write("sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'python'))\n")
+        # Add python directory to path using absolute path
+        f.write(f"sys.path.insert(0, r'{python_dir}')\n")
         f.write("from probing import get_current_script_name\n")
         f.write(f"name = get_current_script_name()\n")
         f.write(f"print(name)\n")
         script_path = f.name
     
     try:
+        env = os.environ.copy()
+        # Set PYTHONPATH as backup
+        if 'PYTHONPATH' in env:
+            env['PYTHONPATH'] = f"{python_dir}:{env['PYTHONPATH']}"
+        else:
+            env['PYTHONPATH'] = python_dir
+        
         result = subprocess.run(
             [sys.executable, script_path],
+            env=env,
             capture_output=True,
             text=True
         )
