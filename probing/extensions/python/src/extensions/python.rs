@@ -564,6 +564,10 @@ retval = result if result else "[]"
                         .collect::<Vec<_>>()
                 })
                 .unwrap_or_default();
+            let print_to_terminal = params
+                .get("print_to_terminal")
+                .map(|s| s == "true")
+                .unwrap_or(false);
             let depth = params
                 .get("depth")
                 .and_then(|s| s.parse::<i32>().ok())
@@ -573,19 +577,27 @@ retval = result if result else "[]"
                 use pyo3::types::PyDict;
                 use std::ffi::CString;
                 let global = PyDict::new(py);
+                
+                // Determine whether to use watch or silent_watch based on print_to_terminal
+                let (watch_list, silent_watch_list) = if print_to_terminal {
+                    (watch.clone(), vec![])
+                } else {
+                    (vec![], watch.clone())
+                };
+                
                 let code = format!(
                     r#"
 import json
 from probing.inspect.trace import trace
 
 try:
-    trace("{}", watch={:?}, depth={})
+    trace("{}", watch={:?}, silent_watch={:?}, depth={})
     result = {{"success": True, "message": "Started tracing {}"}}
 except Exception as e:
     result = {{"success": False, "error": str(e)}}
 retval = json.dumps(result)
 "#,
-                    function, watch, depth, function
+                    function, watch_list, silent_watch_list, depth, function
                 );
                 let code_cstr = CString::new(code).map_err(|e| {
                     EngineError::PluginError(format!("Failed to create CString: {e}"))

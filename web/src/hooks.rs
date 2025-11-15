@@ -2,7 +2,7 @@ use dioxus::prelude::*;
 use std::future::Future;
 use crate::utils::error::AppError;
 
-/// API 调用状态
+/// API call state
 #[derive(Clone)]
 pub struct ApiState<T: Clone + 'static> {
     pub loading: Signal<bool>,
@@ -10,7 +10,7 @@ pub struct ApiState<T: Clone + 'static> {
 }
 
 impl<T: Clone + 'static> ApiState<T> {
-    /// 检查是否正在加载
+    /// Check if currently loading
     #[inline]
     pub fn is_loading(&self) -> bool {
         *self.loading.read()
@@ -19,13 +19,13 @@ impl<T: Clone + 'static> ApiState<T> {
 
 impl<T: Clone + 'static + PartialEq> PartialEq for ApiState<T> {
     fn eq(&self, other: &Self) -> bool {
-        // 比较 Signal 的内部值
+        // Compare internal values of Signal
         *self.loading.read() == *other.loading.read() &&
         self.data.read().as_ref() == other.data.read().as_ref()
     }
 }
 
-/// 简单的 API 调用 hook（不自动执行）
+/// Simple API call hook (does not auto-execute)
 pub fn use_api_simple<T: Clone + 'static>() -> ApiState<T> {
     ApiState {
         loading: use_signal(|| false),
@@ -33,12 +33,12 @@ pub fn use_api_simple<T: Clone + 'static>() -> ApiState<T> {
     }
 }
 
-/// 通用的 API 调用 hook（自动执行）
+/// Generic API call hook (auto-executes)
 /// 
-/// 自动在组件挂载时执行 API 调用，并在依赖变化时重新执行。
-/// 使用缓存的 ApiClient 实例以提高性能。
+/// Automatically executes API call when component mounts, and re-executes when dependencies change.
+/// Uses cached ApiClient instance for better performance.
 /// 
-/// # 示例
+/// # Examples
 /// ```rust
 /// let state = use_api(move || {
 ///     let client = ApiClient::new();

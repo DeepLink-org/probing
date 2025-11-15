@@ -653,7 +653,7 @@ fn PyTorchTimelineControls(
                                 let is_ok = result.is_ok();
                                 *timeline_state.data.write() = Some(result);
                                 *timeline_state.loading.write() = false;
-                                // 触发重新加载 timeline
+                                // Trigger timeline reload
                                 if is_ok {
                                     *PROFILING_PYTORCH_TIMELINE_RELOAD.write() += 1;
                                 }

@@ -1,3 +1,3 @@
-/// 样式模块
+/// Styles module
 pub mod styles {}
 pub mod combinations {}

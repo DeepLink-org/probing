@@ -1,5 +1,5 @@
-// 测试辅助工具模块
-// 提供创建测试插件的通用功能，减少重复代码
+// Test helper utilities module
+// Provides common functionality for creating test plugins, reducing code duplication
 
 use arrow::array::{Int32Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
@@ -14,7 +14,7 @@ use probing_core::core::{Plugin, PluginType};
 use std::any::Any;
 use std::sync::Arc;
 
-/// 通用的测试表插件实现
+/// Generic test table plugin implementation
 #[derive(Debug, Clone)]
 pub struct GenericTablePlugin {
     pub name: String,
@@ -24,7 +24,7 @@ pub struct GenericTablePlugin {
 }
 
 impl GenericTablePlugin {
-    /// 创建一个简单的测试表插件
+    /// Create a simple test table plugin
     pub fn new(name: &str, namespace: &str, schema: SchemaRef, batches: Vec<RecordBatch>) -> Self {
         Self {
             name: name.to_string(),
@@ -34,7 +34,7 @@ impl GenericTablePlugin {
         }
     }
 
-    /// 创建一个包含id和name列的简单测试表
+    /// Create a simple test table with id and name columns
     pub fn simple_table(name: &str, namespace: &str) -> Self {
         let schema = Arc::new(Schema::new(vec![
             Field::new("id", DataType::Int32, false),
@@ -53,7 +53,7 @@ impl GenericTablePlugin {
         Self::new(name, namespace, schema, vec![batch])
     }
 
-    /// 创建一个单列测试表
+    /// Create a single-column test table
     pub fn single_column_table(
         name: &str,
         namespace: &str,
@@ -72,7 +72,7 @@ impl GenericTablePlugin {
         Self::new(name, namespace, schema, vec![batch])
     }
 
-    /// 创建一个空表
+    /// Create an empty table
     pub fn empty_table(name: &str, namespace: &str) -> Self {
         let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
 

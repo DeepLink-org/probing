@@ -67,7 +67,7 @@ fn TraceView() -> Element {
     let mut dialog_open = use_signal(|| false);
     let mut dialog_function_name = use_signal(|| String::new());
     let mut dialog_watch_vars = use_signal(|| String::new());
-    let mut dialog_depth = use_signal(|| 1);
+    let mut dialog_print_to_terminal = use_signal(|| false);
     
     rsx! {
         div {
@@ -100,7 +100,7 @@ fn TraceView() -> Element {
                                 if !func_name.is_empty() {
                                     *dialog_function_name.write() = func_name.clone();
                                     *dialog_watch_vars.write() = vars.join(", ");
-                                    *dialog_depth.write() = 1;
+                                    *dialog_print_to_terminal.write() = false;
                                     *dialog_open.write() = true;
                                     *click_signal.write() = (String::new(), Vec::new());
                                 }
@@ -134,7 +134,7 @@ fn TraceView() -> Element {
                     dialog_open: dialog_open.clone(),
                     dialog_function_name: dialog_function_name.clone(),
                     dialog_watch_vars: dialog_watch_vars.clone(),
-                    dialog_depth: dialog_depth.clone(),
+                    dialog_print_to_terminal: dialog_print_to_terminal.clone(),
                     refresh_key: refresh_key.clone(),
                 }
             }
@@ -529,7 +529,7 @@ fn StartTraceDialog(
     #[props] dialog_open: Signal<bool>,
     #[props] dialog_function_name: Signal<String>,
     #[props] dialog_watch_vars: Signal<String>,
-    #[props] dialog_depth: Signal<i32>,
+    #[props] dialog_print_to_terminal: Signal<bool>,
     #[props] refresh_key: Signal<i32>,
 ) -> Element {
     rsx! {
@@ -588,20 +588,28 @@ fn StartTraceDialog(
                     
                     div {
                         class: "space-y-2",
-                        label {
-                            class: "block text-sm font-medium text-gray-700",
-                            "Depth"
+                        div {
+                            class: "flex items-center gap-2",
+                            input {
+                                class: "w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500",
+                                r#type: "checkbox",
+                                checked: *dialog_print_to_terminal.read(),
+                                onchange: move |e| {
+                                    *dialog_print_to_terminal.write() = e.checked();
+                                },
+                            }
+                            label {
+                                class: "text-sm font-medium text-gray-700 cursor-pointer",
+                                onclick: move |_| {
+                                    let current = *dialog_print_to_terminal.read();
+                                    *dialog_print_to_terminal.write() = !current;
+                                },
+                                "Print to Terminal"
+                            }
                         }
-                        input {
-                            class: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-                            r#type: "number",
-                            min: "1",
-                            value: "{dialog_depth.read()}",
-                            oninput: move |e| {
-                                if let Ok(v) = e.value().parse::<i32>() {
-                                    *dialog_depth.write() = v.max(1);
-                                }
-                            },
+                        div {
+                            class: "text-xs text-gray-500 mt-1",
+                            "If checked, variable changes will be printed to terminal; otherwise only logged to database"
                         }
                     }
                     
@@ -619,7 +627,7 @@ fn StartTraceDialog(
                             onclick: move |_| {
                                 let func = dialog_function_name.read().clone();
                                 let watch = dialog_watch_vars.read().clone();
-                                let depth_val = *dialog_depth.read();
+                                let print_to_terminal = *dialog_print_to_terminal.read();
                                 let mut refresh = refresh_key;
                                 let mut dialog_op = dialog_open;
                                 
@@ -631,7 +639,7 @@ fn StartTraceDialog(
                                         watch.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
                                     };
                                     
-                                    match client.start_trace(&func, Some(watch_list), Some(depth_val)).await {
+                                    match client.start_trace(&func, Some(watch_list), print_to_terminal).await {
                                         Ok(resp) => {
                                                     if resp.success {
                                                         *refresh.write() += 1;

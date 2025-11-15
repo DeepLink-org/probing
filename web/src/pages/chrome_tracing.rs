@@ -13,19 +13,19 @@ pub fn ChromeTracing() -> Element {
     let profile_state = use_api_simple::<ProfileResponse>();
     let mut iframe_key = use_signal(|| 0);
     
-    // 创建依赖项，当limit改变时重新计算
+    // Create dependency, recalculate when limit changes
     let limit_value = use_memo({
         let limit = limit.clone();
         move || *limit.read()
     });
     
-    // 创建数据源依赖项
+    // Create data source dependency
     let data_source_value = use_memo({
         let data_source = data_source.clone();
         move || data_source.read().clone()
     });
     
-    // 当数据源或limit改变时重新获取数据（仅对 trace 数据源）
+    // Refetch data when data source or limit changes (only for trace data source)
     use_effect({
         let data_source_value = data_source_value.clone();
         let limit_value = limit_value.clone();
@@ -42,7 +42,7 @@ pub fn ChromeTracing() -> Element {
                     let result = client.get_chrome_tracing_json(Some(limit_val)).await;
                     *data.write() = Some(result);
                     *loading.write() = false;
-                    // 更新 iframe key 以强制重新加载
+                    // Update iframe key to force reload
                     *iframe_key.write() += 1;
                 });
             }
@@ -246,8 +246,8 @@ pub fn ChromeTracing() -> Element {
                     })
                 }
             } else if let Some(Ok(ref trace_json)) = state.data.read().as_ref() {
-                // 使用已加载的数据直接显示
-                // 验证数据是否是有效的 JSON
+                // Use loaded data directly for display
+                // Validate that data is valid JSON
                 if trace_json.trim().is_empty() {
                     ErrorState { 
                         error: "Timeline data is empty. Make sure the profiler has been executed.".to_string(), 
@@ -271,13 +271,13 @@ pub fn ChromeTracing() -> Element {
                     }
                 }
             } else if let Some(Err(ref err)) = state.data.read().as_ref() {
-                // 显示错误信息
+                // Display error message
                 ErrorState { 
                     error: format!("Failed to load timeline: {:?}", err), 
                     title: Some("Load Timeline Error".to_string())
                 }
             } else {
-                // 没有数据，显示提示信息
+                // No data, display hint message
                 div {
                     class: "bg-white rounded-lg shadow p-8 text-center",
                     div {
@@ -308,33 +308,33 @@ pub fn ChromeTracing() -> Element {
     }
 }
 
-/// 生成 tracing viewer 的 URL，通过 URL 参数指定要加载的 JSON 数据
-/// 创建一个 HTML 页面，通过 URL 参数获取 JSON URL，然后加载到 Perfetto UI
+/// Generate tracing viewer URL, specify JSON data to load via URL parameters
+/// Create an HTML page that gets JSON URL from URL parameters, then loads it into Perfetto UI
 fn get_tracing_viewer_url(data_source: String, limit: usize) -> String {
-    // 构建 API URL 来获取 JSON 数据
+    // Build API URL to fetch JSON data
     let api_path = if data_source == "pytorch" {
         "/apis/pythonext/pytorch/timeline".to_string()
     } else {
         format!("/apis/pythonext/trace/chrome-tracing?limit={}", limit)
     };
     
-    // 获取当前页面的 origin
+    // Get current page origin
     let origin = web_sys::window()
         .and_then(|w| w.location().origin().ok())
         .unwrap_or_else(|| "http://localhost:8080".to_string());
     
     let json_url = format!("{}{}", origin, api_path);
     
-    // 创建一个 HTML 页面，通过 URL 参数传递 JSON URL
-    // 这样 iframe 可以自动加载远程 JSON 数据
+    // Create an HTML page that passes JSON URL via URL parameters
+    // This allows iframe to automatically load remote JSON data
     get_tracing_viewer_html_with_url(&json_url)
 }
 
-/// 生成包含 Chrome tracing viewer 的 HTML 页面
-/// 通过 URL 参数获取 JSON 数据的 URL，然后自动加载到 Perfetto UI
-/// 先获取 JSON 数据，然后通过 blob URL 传递给 Perfetto UI 以避免 CORS 问题
+/// Generate HTML page containing Chrome tracing viewer
+/// Get JSON data URL from URL parameters, then automatically load into Perfetto UI
+/// First fetch JSON data, then pass to Perfetto UI via blob URL to avoid CORS issues
 fn get_tracing_viewer_html_with_url(json_url: &str) -> String {
-    // 转义 URL 以便嵌入到 JavaScript 中
+    // Escape URL for embedding in JavaScript
     let escaped_url = json_url
         .replace('\\', "\\\\")
         .replace('`', "\\`")
@@ -374,15 +374,15 @@ fn get_tracing_viewer_html_with_url(json_url: &str) -> String {
     <script>
         (function() {{
             try {{
-                // 从 URL 参数获取 JSON 数据的 URL，或者使用默认值
+                // Get JSON data URL from URL parameters, or use default value
                 const urlParams = new URLSearchParams(window.location.search);
                 const jsonUrl = urlParams.get('url') || `{escaped_url}`;
                 
                 const iframe = document.getElementById('perfetto-iframe');
                 const loading = document.getElementById('loading');
                 
-                // 先获取 JSON 数据，然后使用 Catapult trace viewer 直接显示
-                // 这样可以避免 iframe 跨域问题
+                // First fetch JSON data, then use Catapult trace viewer to display directly
+                // This avoids iframe cross-origin issues
                 loading.textContent = 'Loading trace data...';
                 
                 // Fetch with CORS support
@@ -402,7 +402,7 @@ fn get_tracing_viewer_html_with_url(json_url: &str) -> String {
                         return response.text();
                     }})
                     .then(jsonText => {{
-                        // 验证并解析 JSON 格式
+                        // Validate and parse JSON format
                         let traceData;
                         try {{
                             traceData = JSON.parse(jsonText);
@@ -410,8 +410,8 @@ fn get_tracing_viewer_html_with_url(json_url: &str) -> String {
                             throw new Error('Invalid JSON data: ' + e.message);
                         }}
                         
-                        // 直接使用 Perfetto UI，通过 blob URL 传递数据
-                        // Perfetto UI 是 Google 官方的新 tracing 工具，更可靠
+                        // Use Perfetto UI directly, pass data via blob URL
+                        // Perfetto UI is Google's official new tracing tool, more reliable
                         loadPerfettoUI(traceData, jsonUrl);
                     }})
                     .catch(error => {{
@@ -423,17 +423,17 @@ fn get_tracing_viewer_html_with_url(json_url: &str) -> String {
                     loading.textContent = 'Loading Perfetto UI...';
                     iframe.style.display = 'block';
                     
-                    // 使用 Perfetto UI 的 postMessage API 传递 trace 数据
-                    // 这样可以避免 CSP 限制，并且更加可靠
+                    // Use Perfetto UI's postMessage API to pass trace data
+                    // This avoids CSP restrictions and is more reliable
                     const perfettoUrl = 'https://ui.perfetto.dev/#!/';
                     iframe.src = perfettoUrl;
                     
                     let loaded = false;
                     let errorShown = false;
                     
-                    // 监听来自 Perfetto UI 的消息
+                    // Listen for messages from Perfetto UI
                     const messageHandler = function(event) {{
-                        // 检查是否是来自 Perfetto UI 的消息
+                        // Check if message is from Perfetto UI
                         if (event.origin === 'https://ui.perfetto.dev') {{
                             if (event.data) {{
                                 const dataStr = typeof event.data === 'string' ? event.data : JSON.stringify(event.data);
@@ -445,7 +445,7 @@ fn get_tracing_viewer_html_with_url(json_url: &str) -> String {
                                         window.removeEventListener('message', messageHandler);
                                     }}
                                 }} else if (dataStr.includes('loaded') || dataStr.includes('ready')) {{
-                                    // Trace 加载成功
+                                    // Trace loaded successfully
                                     if (!loaded) {{
                                         loaded = true;
                                         loading.style.display = 'none';
@@ -459,35 +459,35 @@ fn get_tracing_viewer_html_with_url(json_url: &str) -> String {
                     window.addEventListener('message', messageHandler);
                     
                     iframe.onload = function() {{
-                        // Perfetto UI 页面加载完成，等待 PING/PONG handshake
-                        // 然后通过 postMessage 发送 trace 数据
+                        // Perfetto UI page loaded, wait for PING/PONG handshake
+                        // Then send trace data via postMessage
                         let handshakeComplete = false;
                         let retryCount = 0;
                         const maxRetries = 10;
                         
-                        // 监听来自 Perfetto UI 的 PONG 消息
-                        // 注意：在 iframe 场景中，我们需要监听来自 iframe 的消息
+                        // Listen for PONG message from Perfetto UI
+                        // Note: In iframe scenario, we need to listen for messages from iframe
                         const handshakeHandler = function(event) {{
-                            // 检查消息是否来自 Perfetto UI iframe
+                            // Check if message is from Perfetto UI iframe
                             if (event.origin === 'https://ui.perfetto.dev' || 
                                 (event.source === iframe.contentWindow && event.data === 'PONG')) {{
                                 if (event.data && event.data === 'PONG') {{
                                     handshakeComplete = true;
                                     window.removeEventListener('message', handshakeHandler);
                                     
-                                    // Handshake 完成，发送 trace 数据
+                                    // Handshake complete, send trace data
                                     try {{
-                                        // 将 trace 数据转换为 JSON 字符串，然后转换为 ArrayBuffer
+                                        // Convert trace data to JSON string, then to ArrayBuffer
                                         const traceJson = JSON.stringify(traceData, null, 2);
                                         const encoder = new TextEncoder();
                                         const buffer = encoder.encode(traceJson).buffer;
                                         
-                                        // 构建文件名（从 URL 提取或使用默认值）
+                                        // Build filename (extract from URL or use default)
                                         const urlParts = jsonUrl.split('/');
                                         const fileName = urlParts[urlParts.length - 1].split('?')[0] || 'trace.json';
                                         
-                                        // 发送 trace 数据到 Perfetto UI
-                                        // 使用 iframe.contentWindow.postMessage 发送消息
+                                        // Send trace data to Perfetto UI
+                                        // Use iframe.contentWindow.postMessage to send message
                                         iframe.contentWindow.postMessage({{
                                             perfetto: {{
                                                 buffer: buffer,
@@ -499,7 +499,7 @@ fn get_tracing_viewer_html_with_url(json_url: &str) -> String {
                                         
                                         console.log('Trace data sent to Perfetto UI');
                                         
-                                        // 等待一下，然后隐藏 loading
+                                        // Wait a bit, then hide loading
                                         setTimeout(() => {{
                                             if (!loaded && !errorShown) {{
                                                 loaded = true;
@@ -521,20 +521,20 @@ fn get_tracing_viewer_html_with_url(json_url: &str) -> String {
                         }};
                         window.addEventListener('message', handshakeHandler);
                         
-                        // 发送 PING 消息启动 handshake
-                        // 注意：window.open 的消息通道不是缓冲的，所以我们需要等待 UI 准备好
-                        // 在 iframe 场景中，我们也需要等待 iframe 加载完成
+                        // Send PING message to start handshake
+                        // Note: window.open's message channel is not buffered, so we need to wait for UI to be ready
+                        // In iframe scenario, we also need to wait for iframe to load
                         const sendPing = function() {{
                             if (!handshakeComplete && retryCount < maxRetries) {{
                                 try {{
-                                    // 确保 iframe 的 contentWindow 可用
+                                    // Ensure iframe's contentWindow is available
                                     if (iframe.contentWindow) {{
                                         iframe.contentWindow.postMessage('PING', 'https://ui.perfetto.dev');
                                         retryCount++;
                                         if (retryCount < maxRetries) {{
                                             setTimeout(sendPing, 500);
                                         }} else {{
-                                            // 如果 handshake 失败，尝试使用 URL 方式作为回退
+                                            // If handshake fails, try URL method as fallback
                                             console.warn('PING/PONG handshake failed after ' + maxRetries + ' attempts, trying URL fallback');
                                             const traceJson = JSON.stringify(traceData, null, 2);
                                             const base64Data = btoa(unescape(encodeURIComponent(traceJson)));
@@ -543,7 +543,7 @@ fn get_tracing_viewer_html_with_url(json_url: &str) -> String {
                                             window.removeEventListener('message', handshakeHandler);
                                         }}
                                     }} else {{
-                                        // iframe 还没有加载完成，稍后重试
+                                        // iframe not loaded yet, retry later
                                         if (retryCount < maxRetries) {{
                                             retryCount++;
                                             setTimeout(sendPing, 500);
@@ -559,14 +559,14 @@ fn get_tracing_viewer_html_with_url(json_url: &str) -> String {
                             }}
                         }};
                         
-                        // 等待 iframe 完全加载后发送 PING
-                        // 给 Perfetto UI 一些时间注册消息监听器
+                        // Wait for iframe to fully load before sending PING
+                        // Give Perfetto UI some time to register message listeners
                         setTimeout(sendPing, 1500);
                         
-                        // 超时处理
+                        // Timeout handling
                         setTimeout(() => {{
                             if (!loaded && !errorShown) {{
-                                // 如果 10 秒后还没有加载完成，假设加载成功
+                                // If not loaded after 10 seconds, assume load succeeded
                                 loaded = true;
                                 loading.style.display = 'none';
                                 iframe.style.display = 'block';
@@ -584,7 +584,7 @@ fn get_tracing_viewer_html_with_url(json_url: &str) -> String {
                         }}
                     }};
                     
-                    // 设置超时，如果 30 秒后还没加载完成，显示错误
+                    // Set timeout, if not loaded after 30 seconds, show error
                     setTimeout(function() {{
                         if (!loaded && !errorShown) {{
                             errorShown = true;
@@ -626,10 +626,10 @@ fn get_tracing_viewer_html_with_url(json_url: &str) -> String {
     "#)
 }
 
-/// 生成包含 Chrome tracing viewer 的 HTML 页面
-/// 直接使用已加载的 trace JSON 数据，通过 postMessage API 传递给 Perfetto UI
+/// Generate HTML page containing Chrome tracing viewer
+/// Directly use loaded trace JSON data, pass to Perfetto UI via postMessage API
 fn get_tracing_viewer_html(trace_json: &str) -> String {
-    // 转义 JSON 数据以便嵌入到 JavaScript 中
+    // Escape JSON data for embedding in JavaScript
     let escaped_json = trace_json
         .replace('\\', "\\\\")
         .replace('`', "\\`")
@@ -669,20 +669,20 @@ fn get_tracing_viewer_html(trace_json: &str) -> String {
     <script>
         (function() {{
             try {{
-                // 解析已加载的 trace 数据
+                // Parse loaded trace data
                 const traceData = JSON.parse(`{escaped_json}`);
                 
                 const iframe = document.getElementById('perfetto-iframe');
                 const loading = document.getElementById('loading');
                 
-                // 使用 Perfetto UI 的 postMessage API 传递 trace 数据
+                // Use Perfetto UI's postMessage API to pass trace data
                 const perfettoUrl = 'https://ui.perfetto.dev/#!/';
                 iframe.src = perfettoUrl;
                 
                 let loaded = false;
                 let errorShown = false;
                 
-                // 监听来自 Perfetto UI 的消息
+                // Listen for messages from Perfetto UI
                 const messageHandler = function(event) {{
                     if (event.origin === 'https://ui.perfetto.dev') {{
                         if (event.data) {{
@@ -708,12 +708,12 @@ fn get_tracing_viewer_html(trace_json: &str) -> String {
                 window.addEventListener('message', messageHandler);
                 
                 iframe.onload = function() {{
-                    // Perfetto UI 页面加载完成，等待 PING/PONG handshake
+                    // Perfetto UI page loaded, wait for PING/PONG handshake
                     let handshakeComplete = false;
                     let retryCount = 0;
                     const maxRetries = 10;
                     
-                    // 监听来自 Perfetto UI 的 PONG 消息
+                    // Listen for PONG message from Perfetto UI
                     const handshakeHandler = function(event) {{
                         if (event.origin === 'https://ui.perfetto.dev' || 
                             (event.source === iframe.contentWindow && event.data === 'PONG')) {{
@@ -721,14 +721,14 @@ fn get_tracing_viewer_html(trace_json: &str) -> String {
                                 handshakeComplete = true;
                                 window.removeEventListener('message', handshakeHandler);
                                 
-                                // Handshake 完成，发送 trace 数据
+                                // Handshake complete, send trace data
                                 try {{
-                                    // 将 trace 数据转换为 ArrayBuffer
+                                    // Convert trace data to ArrayBuffer
                                     const traceJson = JSON.stringify(traceData, null, 2);
                                     const encoder = new TextEncoder();
                                     const buffer = encoder.encode(traceJson).buffer;
                                     
-                                    // 发送 trace 数据到 Perfetto UI
+                                    // Send trace data to Perfetto UI
                                     iframe.contentWindow.postMessage({{
                                         perfetto: {{
                                             buffer: buffer,
@@ -739,7 +739,7 @@ fn get_tracing_viewer_html(trace_json: &str) -> String {
                                     
                                     console.log('Trace data sent to Perfetto UI');
                                     
-                                    // 等待一下，然后隐藏 loading
+                                    // Wait a bit, then hide loading
                                     setTimeout(() => {{
                                         if (!loaded && !errorShown) {{
                                             loaded = true;
@@ -761,7 +761,7 @@ fn get_tracing_viewer_html(trace_json: &str) -> String {
                     }};
                     window.addEventListener('message', handshakeHandler);
                     
-                    // 发送 PING 消息启动 handshake
+                    // Send PING message to start handshake
                     const sendPing = function() {{
                         if (!handshakeComplete && retryCount < maxRetries) {{
                             try {{
@@ -772,7 +772,7 @@ fn get_tracing_viewer_html(trace_json: &str) -> String {
                                         setTimeout(sendPing, 500);
                                     }} else {{
                                         console.warn('PING/PONG handshake failed, trying data URL fallback');
-                                        // 回退到 data URL 方式
+                                        // Fallback to data URL method
                                         const traceJson = JSON.stringify(traceData, null, 2);
                                         const base64Data = btoa(unescape(encodeURIComponent(traceJson)));
                                         const dataUrl = 'data:application/json;base64,' + base64Data;
@@ -795,10 +795,10 @@ fn get_tracing_viewer_html(trace_json: &str) -> String {
                         }}
                     }};
                     
-                    // 等待 iframe 完全加载后发送 PING
+                    // Wait for iframe to fully load before sending PING
                     setTimeout(sendPing, 1500);
                     
-                    // 超时处理
+                    // Timeout handling
                     setTimeout(() => {{
                         if (!loaded && !errorShown) {{
                             loaded = true;

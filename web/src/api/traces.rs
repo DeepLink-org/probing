@@ -43,7 +43,7 @@ pub struct EventInfo {
 
 /// Tracing API
 impl ApiClient {
-    /// 获取 trace events，支持限制数量
+    /// Get trace events, supports limiting count
     pub async fn get_trace_events(&self, limit: Option<usize>) -> Result<Vec<TraceEvent>> {
         let limit_clause = if let Some(limit) = limit {
             format!("LIMIT {}", limit)
@@ -154,7 +154,7 @@ impl ApiClient {
         Ok(events)
     }
     
-    /// 构建 span 树结构，支持限制数量
+    /// Build span tree structure, supports limiting count
     pub async fn get_span_tree(&self, limit: Option<usize>) -> Result<Vec<SpanInfo>> {
         let events = self.get_trace_events(limit).await?;
         
@@ -278,34 +278,34 @@ impl ApiClient {
         Ok(result)
     }
     
-    /// 获取 Chrome tracing 格式的 JSON 数据
-    /// 返回格式符合 Chrome DevTools tracing viewer 的要求
+    /// Get JSON data in Chrome tracing format
+    /// Returns format compatible with Chrome DevTools tracing viewer
     pub async fn get_chrome_tracing_json(&self, limit: Option<usize>) -> Result<String> {
         let mut events = self.get_trace_events(limit).await?;
         
-        // 按时间戳升序排序，确保 span_start 在 span_end 之前被处理
-        // 这样当处理 span_end 时，对应的 span_start 已经在 span_starts 中了
+        // Sort by timestamp ascending, ensure span_start is processed before span_end
+        // This way when processing span_end, the corresponding span_start is already in span_starts
         events.sort_by_key(|e| e.timestamp);
         
-        // 找到最小时间戳作为基准
+        // Find minimum timestamp as baseline
         let min_timestamp = events.iter()
             .map(|e| e.timestamp)
             .min()
             .unwrap_or(0);
         
-        // 转换为 Chrome tracing 格式
+        // Convert to Chrome tracing format
         let mut trace_events: Vec<serde_json::Value> = Vec::new();
         
-        // 使用 (span_id, thread_id) 作为 key 来跟踪 span 的开始时间，支持多线程场景
-        // 值包含: (开始时间戳(微秒), span名称, kind, trace_id)
+        // Use (span_id, thread_id) as key to track span start time, supports multi-threaded scenarios
+        // Value contains: (start timestamp in microseconds, span name, kind, trace_id)
         let mut span_starts: std::collections::HashMap<(i64, i64), (i64, String, Option<String>, i64)> = std::collections::HashMap::new();
         
-        // 第一遍：收集所有 span_start 事件，构建查找表
-        // 这有助于匹配 span_end 事件，即使 span_end 中的 trace_id 为 0
+        // First pass: collect all span_start events, build lookup table
+        // This helps match span_end events, even if trace_id in span_end is 0
         let mut span_start_lookup: std::collections::HashMap<(i64, i64), (i64, String, Option<String>, i64)> = std::collections::HashMap::new();
-        // 构建 span_id 到 parent_id 的映射，用于查找顶层 span
+        // Build span_id to parent_id mapping, used to find top-level spans
         let mut span_to_parent: std::collections::HashMap<i64, Option<i64>> = std::collections::HashMap::new();
-        // 找到第一个（最早出现的）顶层 span 的 trace_id，作为统一的 pid
+        // Find first (earliest) top-level span's trace_id, use as unified pid
         let mut unified_pid: Option<i64> = None;
         
         for event in &events {
@@ -318,18 +318,18 @@ impl ApiClient {
                     event.trace_id,
                 ));
                 
-                // 记录 parent_id 映射
+                // Record parent_id mapping
                 span_to_parent.insert(event.span_id, event.parent_id);
                 
-                // 如果是顶层 span（没有 parent_id 或 parent_id = -1），且还没有设置 unified_pid
-                // 使用第一个顶层 span 的 trace_id 作为统一的 pid
+                // If it's a top-level span (no parent_id or parent_id = -1), and unified_pid not set yet
+                // Use first top-level span's trace_id as unified pid
                 if unified_pid.is_none() && (event.parent_id.is_none() || event.parent_id == Some(-1)) {
                     unified_pid = Some(event.trace_id);
                 }
             }
         }
         
-        // 如果没有找到顶层 span，使用第一个 span_start 的 trace_id
+        // If no top-level span found, use first span_start's trace_id
         let unified_pid = unified_pid.unwrap_or_else(|| {
             events.iter()
                 .find(|e| e.record_type == "span_start")
@@ -337,23 +337,23 @@ impl ApiClient {
                 .unwrap_or(1)
         });
         
-        // 第二遍：转换事件为 Chrome tracing 格式
+        // Second pass: convert events to Chrome tracing format
         for event in &events {
-            // 将纳秒转换为微秒（Chrome tracing 使用微秒）
+            // Convert nanoseconds to microseconds (Chrome tracing uses microseconds)
             let ts_micros = (event.timestamp - min_timestamp) / 1000;
-            // 所有顶层 span 使用统一的 pid，子 span 也使用统一的 pid（因为它们属于同一个逻辑 trace）
-            // 这样可以确保所有相关的 span 都在同一个 process 中显示
+            // All top-level spans use unified pid, child spans also use unified pid (they belong to same logical trace)
+            // This ensures all related spans are displayed in the same process
             let pid = unified_pid as u32;
             let tid = event.thread_id as u32;
             
             match event.record_type.as_str() {
                 "span_start" => {
-                    // 使用 (span_id, thread_id) 作为 key
+                    // Use (span_id, thread_id) as key
                     let key = (event.span_id, event.thread_id);
-                    // 存储时使用统一的 pid
+                    // Store using unified pid
                     span_starts.insert(key, (ts_micros, event.name.clone(), event.kind.clone(), unified_pid));
                     
-                    // 创建 'B' (Begin) 事件
+                    // Create 'B' (Begin) event
                     let mut chrome_event = serde_json::json!({
                         "name": event.name,
                         "cat": event.kind.as_ref().unwrap_or(&"span".to_string()),
@@ -363,7 +363,7 @@ impl ApiClient {
                         "tid": tid,
                     });
                     
-                    // 添加可选参数
+                    // Add optional parameters
                     let mut args = serde_json::Map::new();
                     if let Some(ref location) = event.location {
                         if !location.is_empty() {
@@ -384,12 +384,12 @@ impl ApiClient {
                     trace_events.push(chrome_event);
                 }
                 "span_end" => {
-                    // 使用 (span_id, thread_id) 作为 key 来查找对应的 span_start
+                    // Use (span_id, thread_id) as key to find corresponding span_start
                     let key = (event.span_id, event.thread_id);
                     
-                    // 首先尝试从已处理的事件中查找
+                    // First try to find from already processed events
                     if let Some((start_ts, start_name, start_kind, start_pid)) = span_starts.get(&key) {
-                        // 找到匹配的 span_start，创建 'E' (End) 事件
+                        // Found matching span_start, create 'E' (End) event
                         let mut chrome_event = serde_json::json!({
                             "name": start_name,
                             "cat": start_kind.as_ref().unwrap_or(&"span".to_string()),
@@ -399,19 +399,19 @@ impl ApiClient {
                             "tid": tid,
                         });
                         
-                        // 计算持续时间（微秒）
+                        // Calculate duration (in microseconds)
                         let dur = ts_micros - start_ts;
                         if dur > 0 {
                             chrome_event["dur"] = serde_json::Value::Number(dur.into());
                         }
                         
                         trace_events.push(chrome_event);
-                        // 从 span_starts 中移除，避免重复匹配
+                        // Remove from span_starts to avoid duplicate matching
                         span_starts.remove(&key);
                     } else if let Some((start_timestamp, start_name, start_kind, _)) = span_start_lookup.get(&key) {
-                        // 从查找表中找到 span_start 信息
+                        // Find span_start information from lookup table
                         let start_ts_micros = (start_timestamp - min_timestamp) / 1000;
-                        // 使用统一的 pid，确保所有 span 都在同一个 process 中
+                        // Use unified pid to ensure all spans are in the same process
                         let mut chrome_event = serde_json::json!({
                             "name": start_name,
                             "cat": start_kind.as_ref().unwrap_or(&"span".to_string()),
@@ -421,7 +421,7 @@ impl ApiClient {
                             "tid": tid,
                         });
                         
-                        // 计算持续时间（微秒）
+                        // Calculate duration (in microseconds)
                         let dur = ts_micros - start_ts_micros;
                         if dur > 0 {
                             chrome_event["dur"] = serde_json::Value::Number(dur.into());
@@ -429,8 +429,8 @@ impl ApiClient {
                         
                         trace_events.push(chrome_event);
                     } else {
-                        // 没有找到匹配的 span_start（可能被 limit 过滤掉了）
-                        // 使用统一的 pid，确保所有 span 都在同一个 process 中
+                        // No matching span_start found (may have been filtered by limit)
+                        // Use unified pid to ensure all spans are in the same process
                         let mut chrome_event = serde_json::json!({
                             "name": if event.name.is_empty() { "unknown_span" } else { &event.name },
                             "cat": "span",
@@ -443,7 +443,7 @@ impl ApiClient {
                     }
                 }
                 "event" => {
-                    // 创建 'i' (Instant) 事件
+                    // Create 'i' (Instant) event
                     let mut chrome_event = serde_json::json!({
                         "name": event.name,
                         "cat": "event",
@@ -454,7 +454,7 @@ impl ApiClient {
                         "s": "t", // scope: thread
                     });
                     
-                    // 添加事件属性
+                    // Add event attributes
                     if let Some(ref attrs) = event.event_attributes {
                         if !attrs.is_empty() {
                             if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(attrs) {
@@ -469,7 +469,7 @@ impl ApiClient {
             }
         }
         
-        // 构建完整的 Chrome tracing 格式 JSON
+        // Build complete Chrome tracing format JSON
         let chrome_trace = serde_json::json!({
             "traceEvents": trace_events,
             "displayTimeUnit": "ms",
