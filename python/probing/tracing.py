@@ -16,21 +16,22 @@ Examples
 --------
 Context manager::
 
-    from probing.tracing import span, add_event
-    with span("load_data", dataset="mnist") as s:
-        add_event("read")
+    import probing
+    with probing.span("load_data", dataset="mnist") as s:
+        probing.event("read")
         # do work
 
 Decorator::
 
-    from probing.tracing import span
-    @span("predict")
+    import probing
+    @probing.span("predict")
     def predict(x):
         return model(x)
 
 Implicit name decorator::
 
-    @span
+    import probing
+    @probing.span
     def compute():
         return 42
 """
@@ -533,3 +534,7 @@ def add_event(name: str, *, attributes: Optional[list] = None):
 
     # Record event to table
     _record_event(current, name, attributes)
+
+
+# Alias for add_event to match the top-level export
+event = add_event

@@ -31,6 +31,11 @@ probe_value = os.environ.get("PROBING", "0")
 current_script = get_current_script_name()
 script_init = None
 
+# Save original PROBING value to PROBING_ORIGINAL before any modifications
+# This allows probing/__init__.py to check the original value even if PROBING is deleted
+if "PROBING" in os.environ:
+    os.environ["PROBING_ORIGINAL"] = os.environ["PROBING"]
+
 if probe_value.startswith("init:"):
     parts = probe_value.split("+", 1)
     script_init = parts[0][5:]
@@ -44,6 +49,7 @@ def execute_init_script():
 def init_probing():
     try:
         # Remove the variable by default - we'll set it back if needed
+        # PROBING_ORIGINAL is preserved for probing/__init__.py to check
         if "PROBING" in os.environ:
             del os.environ["PROBING"]
 

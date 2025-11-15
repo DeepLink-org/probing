@@ -3203,7 +3203,7 @@ dependencies = [
 
 [[package]]
 name = "probing"
-version = "0.2.0-alpha1"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -3221,7 +3221,7 @@ dependencies = [
 
 [[package]]
 name = "probing-cc"
-version = "0.2.0-alpha1"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3237,7 +3237,7 @@ dependencies = [
 
 [[package]]
 name = "probing-cli"
-version = "0.2.0-alpha1"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "clap 4.5.38",
@@ -3265,7 +3265,7 @@ dependencies = [
 
 [[package]]
 name = "probing-core"
-version = "0.2.0-alpha1"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -3290,7 +3290,7 @@ dependencies = [
 
 [[package]]
 name = "probing-macros"
-version = "0.2.0-alpha1"
+version = "0.2.1"
 dependencies = [
  "probing-core",
  "quote",
@@ -3299,7 +3299,7 @@ dependencies = [
 
 [[package]]
 name = "probing-proto"
-version = "0.2.0-alpha1"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -3315,7 +3315,7 @@ dependencies = [
 
 [[package]]
 name = "probing-python"
-version = "0.2.0-alpha1"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3344,7 +3344,7 @@ dependencies = [
 
 [[package]]
 name = "probing-server"
-version = "0.2.0-alpha1"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -3364,13 +3364,14 @@ dependencies = [
  "procfs",
  "serde_json",
  "serde_urlencoded",
+ "tempfile",
  "tokio",
  "ureq",
 ]
 
 [[package]]
 name = "probing-store"
-version = "0.2.0-alpha1"
+version = "0.2.1"
 dependencies = [
  "thiserror 2.0.12",
  "tokio",

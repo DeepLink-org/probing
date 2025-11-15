@@ -1,10 +1,10 @@
 import time
 import pytest
-from probing.tracing import span, Span, current_span, add_event
+import probing
 
 
 def test_context_manager_basic():
-    with span("root") as s:
+    with probing.span("root") as s:
         assert s.name == "root"
         assert s.status == "Active"
         assert not s.is_ended
@@ -13,11 +13,11 @@ def test_context_manager_basic():
 
 
 def test_decorator_named_and_plain():
-    @span("decor_named")
+    @probing.span("decor_named")
     def f1():
         return 1
 
-    @span  # implicit name from function
+    @probing.span  # implicit name from function
     def f2():
         return 2
 
@@ -26,23 +26,24 @@ def test_decorator_named_and_plain():
 
 
 def test_nested_parent_child_ids():
-    with span("parent") as parent:
+    with probing.span("parent") as parent:
         assert parent.parent_id is None
-        with span("child") as child:
+        with probing.span("child") as child:
             assert child.parent_id == parent.span_id
             assert child.trace_id == parent.trace_id
-            with span("grandchild") as grandchild:
+            with probing.span("grandchild") as grandchild:
                 assert grandchild.parent_id == child.span_id
                 assert grandchild.trace_id == parent.trace_id
 
 
 def test_current_span_stack_behavior():
+    from probing.tracing import current_span
     assert current_span() is None
-    with span("a") as a:
+    with probing.span("a") as a:
         top = current_span()
         assert top is not None
         assert top.span_id == a.span_id
-        with span("b") as b:
+        with probing.span("b") as b:
             top2 = current_span()
             assert top2.span_id == b.span_id
         # after inner exits
@@ -52,7 +53,7 @@ def test_current_span_stack_behavior():
 
 
 def test_property_immutability():
-    with span("immutable", kind="op") as s:
+    with probing.span("immutable", kind="op") as s:
         original_id = s.span_id
         with pytest.raises(AttributeError):
             s.name = "changed"  # should not allow reassignment
@@ -67,7 +68,7 @@ def test_property_immutability():
 
 
 def test_events_recording():
-    with span("events") as s:
+    with probing.span("events") as s:
         s.add_event("e1")
         s.add_event("e2", attributes=[{"k": "v"}])
         events = s.get_events()
@@ -78,7 +79,7 @@ def test_events_recording():
 
 
 def test_status_and_duration():
-    with span("timed") as s:
+    with probing.span("timed") as s:
         time.sleep(0.05)
     assert s.status == "Completed"
     assert s.is_ended
@@ -87,7 +88,7 @@ def test_status_and_duration():
 
 
 def test_repr_contains_core_fields():
-    with span("repr_test") as s:
+    with probing.span("repr_test") as s:
         r = repr(s)
         assert "Span" in r
         assert "repr_test" in r
@@ -95,9 +96,9 @@ def test_repr_contains_core_fields():
 
 
 def test_nested_decorator_and_context_manager():
-    @span("outer")
+    @probing.span("outer")
     def outer():
-        with span("inner") as inner:
+        with probing.span("inner") as inner:
             assert inner.name == "inner"
             return "ok"
 
@@ -105,6 +106,7 @@ def test_nested_decorator_and_context_manager():
 
 
 def test_manual_construction_and_child():
+    from probing.tracing import Span
     parent = Span("manual_parent")
     child = Span.new_child(parent, "manual_child")
     assert child.parent_id == parent.span_id
@@ -114,23 +116,23 @@ def test_manual_construction_and_child():
 
 
 def test_access_nonexistent_attribute_raises():
-    with span("attr") as s:
+    with probing.span("attr") as s:
         with pytest.raises(AttributeError):
             _ = s.not_exist_field
 
 
 # Ensure add_attr isn't exposed (immutability guarantee)
 def test_no_add_attr_method():
-    with span("no_add") as s:
+    with probing.span("no_add") as s:
         assert not hasattr(s, "add_attr")
     assert not hasattr(s, "add_attr")
 
 
 def test_add_event_module_function():
     """Test add_event module-level function."""
-    with span("test_add_event") as s:
-        add_event("event1")
-        add_event("event2", attributes=[{"key": "value"}])
+    with probing.span("test_add_event") as s:
+        probing.event("event1")
+        probing.event("event2", attributes=[{"key": "value"}])
 
         events = s.get_events()
         assert len(events) == 2
@@ -141,8 +143,9 @@ def test_add_event_module_function():
 
 def test_add_event_no_active_span():
     """Test add_event raises error when no active span."""
+    from probing.tracing import current_span
     # Ensure no active span
     assert current_span() is None
 
     with pytest.raises(RuntimeError, match="No active span"):
-        add_event("should_fail")
+        probing.event("should_fail")

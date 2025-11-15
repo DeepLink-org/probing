@@ -15,7 +15,7 @@ def test_probing_python_call():
 def test_probing_python_dict():
     import probing
 
-    df = probing.query("select * from python.`probing.inspect.get_dict()`")
+    df = probing.query("select * from python.`probing.testing.get_dict()`")
     assert (df.columns == ["int", "float", "str"]).all()
     assert len(df) == 1
 
@@ -23,7 +23,7 @@ def test_probing_python_dict():
 def test_probing_python_list():
     import probing
 
-    df = probing.query("select * from python.`probing.inspect.get_list()`")
+    df = probing.query("select * from python.`probing.testing.get_list()`")
     assert (df.columns == ["value"]).all()
     assert len(df) == 3
 
@@ -31,7 +31,7 @@ def test_probing_python_list():
 def test_probing_python_dict_list():
     import probing
 
-    df = probing.query("select * from python.`probing.inspect.get_dict_list()`")
+    df = probing.query("select * from python.`probing.testing.get_dict_list()`")
     assert (df.columns == ["int", "float", "str"]).all()
     assert len(df) == 2
     assert df["int"][0] == "1"

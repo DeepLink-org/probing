@@ -4,14 +4,13 @@ import sys
 from types import ModuleType
 import pytest
 
-from probing.inspect.trace import _TraceableCollector
-
 
 class TestCreateFilter:
     """Test _TraceableCollector.create_filter method."""
 
     def test_no_prefix_matches_all(self):
         """Test that None prefix matches everything."""
+        from probing.inspect.trace import _TraceableCollector
         filter_func = _TraceableCollector.create_filter(None)
         assert filter_func("anything")
         assert filter_func("test.module.func")
@@ -19,6 +18,7 @@ class TestCreateFilter:
 
     def test_simple_prefix_matching(self):
         """Test simple prefix matching without wildcards."""
+        from probing.inspect.trace import _TraceableCollector
         filter_func = _TraceableCollector.create_filter("torch.nn")
         assert filter_func("torch.nn.Linear")
         assert filter_func("torch.nn.Module")
@@ -27,6 +27,7 @@ class TestCreateFilter:
 
     def test_wildcard_star_matching(self):
         """Test wildcard * pattern matching."""
+        from probing.inspect.trace import _TraceableCollector
         filter_func = _TraceableCollector.create_filter("torch.*.Linear")
         assert filter_func("torch.nn.Linear")
         assert filter_func("torch.cuda.Linear")
@@ -35,6 +36,7 @@ class TestCreateFilter:
 
     def test_wildcard_question_matching(self):
         """Test wildcard ? pattern matching."""
+        from probing.inspect.trace import _TraceableCollector
         filter_func = _TraceableCollector.create_filter("test?")
         assert filter_func("test1")
         assert filter_func("testa")
@@ -47,6 +49,7 @@ class TestGetObjectName:
 
     def test_function_with_name(self):
         """Test getting name from a function."""
+        from probing.inspect.trace import _TraceableCollector
 
         def test_func():
             pass
@@ -55,6 +58,7 @@ class TestGetObjectName:
 
     def test_class_with_name(self):
         """Test getting name from a class."""
+        from probing.inspect.trace import _TraceableCollector
 
         class TestClass:
             pass
@@ -63,15 +67,18 @@ class TestGetObjectName:
 
     def test_module_with_name(self):
         """Test getting name from a module."""
+        from probing.inspect.trace import _TraceableCollector
         assert _TraceableCollector.get_object_name(sys) == "sys"
 
     def test_object_without_name(self):
         """Test object without __name__ attribute."""
+        from probing.inspect.trace import _TraceableCollector
         obj = object()
         assert _TraceableCollector.get_object_name(obj) is None
 
     def test_object_with_non_string_name(self):
         """Test object with non-string __name__."""
+        from probing.inspect.trace import _TraceableCollector
 
         class BadName:
             __name__ = 123
@@ -87,6 +94,7 @@ class TestShouldSkipPrefix:
 
     def test_blacklisted_prefix(self):
         """Test that blacklisted prefixes are skipped."""
+        from probing.inspect.trace import _TraceableCollector
         blacklist = ["numpy", "typing"]
         assert _TraceableCollector.should_skip_prefix("numpy", blacklist)
         assert _TraceableCollector.should_skip_prefix("typing", blacklist)
@@ -97,6 +105,7 @@ class TestShouldSkipPrefix:
 
     def test_torch_allowed_prefixes(self):
         """Test torch special handling."""
+        from probing.inspect.trace import _TraceableCollector
         blacklist = []
         assert not _TraceableCollector.should_skip_prefix("torch.nn.Linear", blacklist)
         assert not _TraceableCollector.should_skip_prefix(
@@ -117,6 +126,7 @@ class TestShouldSkipPrefix:
 
     def test_six_module_skipped(self):
         """Test that six.* modules are skipped."""
+        from probing.inspect.trace import _TraceableCollector
         blacklist = []
         assert _TraceableCollector.should_skip_prefix("six.moves", blacklist)
         assert _TraceableCollector.should_skip_prefix("six.anything", blacklist)
@@ -128,6 +138,7 @@ class TestDetermineItemType:
 
     def test_function_type(self):
         """Test function classification."""
+        from probing.inspect.trace import _TraceableCollector
 
         def test_func():
             pass
@@ -136,6 +147,7 @@ class TestDetermineItemType:
 
     def test_class_type(self):
         """Test class classification."""
+        from probing.inspect.trace import _TraceableCollector
 
         class TestClass:
             pass
@@ -144,10 +156,12 @@ class TestDetermineItemType:
 
     def test_module_type(self):
         """Test module classification."""
+        from probing.inspect.trace import _TraceableCollector
         assert _TraceableCollector.determine_item_type(sys) == "M"
 
     def test_variable_type(self):
         """Test variable classification."""
+        from probing.inspect.trace import _TraceableCollector
         var = "test"
         assert _TraceableCollector.determine_item_type(var) == "V"
         assert _TraceableCollector.determine_item_type(123) == "V"
@@ -159,6 +173,7 @@ class TestShouldIncludeModule:
 
     def test_whitelisted_module(self):
         """Test that whitelisted modules are included."""
+        from probing.inspect.trace import _TraceableCollector
         whitelist = ["__main__", "test_module"]
         mock_module = ModuleType("test_module")
         assert _TraceableCollector.should_include_module(
@@ -167,6 +182,7 @@ class TestShouldIncludeModule:
 
     def test_probing_module(self):
         """Test that probing modules are included."""
+        from probing.inspect.trace import _TraceableCollector
         whitelist = []
         mock_module = ModuleType("probing.core")
         assert _TraceableCollector.should_include_module(
@@ -178,6 +194,7 @@ class TestShouldIncludeModule:
 
     def test_module_without_spec(self):
         """Test that modules without __spec__ are excluded."""
+        from probing.inspect.trace import _TraceableCollector
         whitelist = []
         mock_module = ModuleType("test")
         # Remove __spec__ if it exists
@@ -189,6 +206,7 @@ class TestShouldIncludeModule:
 
     def test_dunder_module_excluded(self):
         """Test that __name__ modules are excluded."""
+        from probing.inspect.trace import _TraceableCollector
         whitelist = []
         mock_module = ModuleType("__test__")
         assert not _TraceableCollector.should_include_module(
@@ -201,6 +219,7 @@ class TestFilterByPrefix:
 
     def test_no_prefix_returns_top_level(self):
         """Test that no prefix returns only top-level modules."""
+        from probing.inspect.trace import _TraceableCollector
         items = [
             {"name": "module1.func1", "type": "F"},
             {"name": "module1.func2", "type": "F"},
@@ -214,6 +233,7 @@ class TestFilterByPrefix:
 
     def test_wildcard_prefix_returns_all_matches(self):
         """Test that wildcard prefix returns all matching items."""
+        from probing.inspect.trace import _TraceableCollector
         items = [
             {"name": "torch.nn.Linear", "type": "F"},
             {"name": "torch.nn.Module", "type": "C"},
@@ -229,6 +249,7 @@ class TestFilterByPrefix:
 
     def test_exact_prefix_returns_one_level_deeper(self):
         """Test that exact prefix returns items one level deeper."""
+        from probing.inspect.trace import _TraceableCollector
         items = [
             {"name": "torch.nn.Linear", "type": "F"},
             {"name": "torch.nn.Module", "type": "C"},
@@ -245,6 +266,7 @@ class TestFilterByPrefix:
 
     def test_sorted_results(self):
         """Test that results are sorted by name."""
+        from probing.inspect.trace import _TraceableCollector
         items = [
             {"name": "zebra", "type": "F"},
             {"name": "alpha", "type": "F"},
