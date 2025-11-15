@@ -88,6 +88,13 @@ jobs:
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
       
+      - name: Build web frontend
+        run: |
+          # Ensure wasm32 target is available (should already be installed by setup-build-env)
+          rustup target add wasm32-unknown-unknown || true
+          # Build web frontend (dioxus-cli should already be installed by setup-build-env)
+          make web/dist
+      
       - name: Install llvm-tools-preview component
         run: |
           rustup component add llvm-tools-preview --toolchain nightly
