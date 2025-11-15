@@ -13,7 +13,7 @@ pub struct ProfileResponse {
 
 /// PyTorch Profiler API
 impl ApiClient {
-    /// 启动 PyTorch profiler，指定要 profile 的 step 数量
+    /// Start PyTorch profiler, specify the number of steps to profile
     pub async fn start_pytorch_profile(&self, steps: i32) -> Result<ProfileResponse> {
         let path = format!("/apis/pythonext/pytorch/profile?steps={}", steps);
         let response = self.get_request(&path).await?;
@@ -21,12 +21,12 @@ impl ApiClient {
         Ok(result)
     }
 
-    /// 获取 PyTorch profiler 的 timeline 数据（Chrome tracing 格式）
+    /// Get PyTorch profiler timeline data (Chrome tracing format)
     pub async fn get_pytorch_timeline(&self) -> Result<String> {
         let path = "/apis/pythonext/pytorch/timeline";
         let response = self.get_request(path).await?;
         
-        // 检查是否是错误响应
+        // Check if response is an error
         if let Ok(error_response) = serde_json::from_str::<serde_json::Value>(&response) {
             if let Some(error) = error_response.get("error") {
                 let error_msg = error.as_str().unwrap_or("Unknown error").to_string();
@@ -35,7 +35,7 @@ impl ApiClient {
             }
         }
         
-        // 验证响应是否是有效的 Chrome tracing 格式
+        // Validate if response is valid Chrome tracing format
         if let Ok(trace_data) = serde_json::from_str::<serde_json::Value>(&response) {
             if let Some(trace_events) = trace_data.get("traceEvents") {
                 if trace_events.as_array().map(|arr| arr.is_empty()).unwrap_or(true) {

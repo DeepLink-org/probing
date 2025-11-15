@@ -2,9 +2,9 @@ use super::ApiClient;
 use crate::utils::error::Result;
 use probing_proto::prelude::*;
 
-/// 活动分析API
+/// Activity analysis API
 impl ApiClient {
-    /// 带模式的调用堆栈获取：mode = py | cpp | mixed
+    /// Get call stack with mode: mode = py | cpp | mixed
     pub async fn get_callstack_with_mode(&self, tid: Option<String>, mode: &str) -> Result<Vec<CallFrame>> {
         let mode = match mode {
             "py" | "cpp" | "mixed" => mode,

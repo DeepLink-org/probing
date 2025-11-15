@@ -88,7 +88,7 @@ pub fn Profiling() -> Element {
         });
     });
 
-    // 处理 trace timeline 的自动加载
+    // Handle automatic loading of trace timeline
     use_effect(move || {
         let view = PROFILING_VIEW.read().clone();
         let limit_val = *PROFILING_CHROME_LIMIT.read();
@@ -110,7 +110,7 @@ pub fn Profiling() -> Element {
         });
     });
     
-    // 处理 pytorch timeline 的加载（通过侧边栏按钮触发）
+    // Handle pytorch timeline loading (triggered by sidebar button)
     use_effect(move || {
         let view = PROFILING_VIEW.read().clone();
         let reload_key = *PROFILING_PYTORCH_TIMELINE_RELOAD.read();
@@ -201,7 +201,7 @@ pub fn Profiling() -> Element {
 }
 
 
-/// 生成包含 Chrome tracing viewer 的 HTML 页面
+/// Generate HTML page containing Chrome tracing viewer
 fn get_tracing_viewer_html(trace_json: &str) -> String {
     let escaped_json = trace_json
         .replace('\\', "\\\\")
@@ -325,7 +325,7 @@ fn get_tracing_viewer_html(trace_json: &str) -> String {
                     }};
                     window.addEventListener('message', handshakeHandler);
                     
-                    // 发送 PING 消息启动 handshake
+                    // Send PING message to start handshake
                     const sendPing = function() {{
                         if (!handshakeComplete && retryCount < maxRetries) {{
                             try {{

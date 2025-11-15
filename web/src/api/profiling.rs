@@ -2,9 +2,9 @@ use super::ApiClient;
 use crate::utils::error::Result;
 use probing_proto::prelude::*;
 
-/// 性能分析API
+/// Performance analysis API
 impl ApiClient {
-    /// 获取profiler配置：返回 (name, value) 对的向量
+    /// Get profiler configuration: returns vector of (name, value) pairs
     pub async fn get_profiler_config(&self) -> Result<Vec<(String, String)>> {
         let df = self.execute_query("select name, value from information_schema.df_settings where name like 'probing.%';").await?;
         let mut result = Vec::new();
@@ -28,7 +28,7 @@ impl ApiClient {
         Ok(result)
     }
 
-    /// 获取火焰图数据
+    /// Get flamegraph data
     pub async fn get_flamegraph(&self, profiler_type: &str) -> Result<String> {
         self.get_request(&format!("/apis/flamegraph/{}", profiler_type)).await
     }

@@ -10,13 +10,13 @@ pub fn Traces() -> Element {
     let limit = use_signal(|| 400usize);
     let state = use_api_simple::<Vec<SpanInfo>>();
     
-    // 创建依赖项，当limit改变时重新计算
+    // Create dependency, recalculate when limit changes
     let limit_value = use_memo({
         let limit = limit.clone();
         move || *limit.read()
     });
     
-    // 当limit改变时重新获取数据
+    // Refetch data when limit changes
     use_effect({
         let limit_value = limit_value.clone();
         let mut loading = state.loading;

@@ -1,10 +1,10 @@
-// 统一颜色系统定义
-// 使用 Tailwind CSS 类名，确保整个应用的颜色一致性
+// Unified color system definition
+// Use Tailwind CSS class names to ensure color consistency across the application
 // 
-// 设计原则：
-// - 侧边栏：深色 slate 背景 + blue 强调色（专业、沉稳）
-// - 主内容区：浅色 gray/indigo 背景（清晰、易读）
-// - 强调色：blue（与侧边栏一致，保持视觉统一）
+// Design principles:
+// - Sidebar: Dark slate background + blue accent color (professional, stable)
+// - Main content area: Light gray/indigo background (clear, readable)
+// - Accent color: blue (consistent with sidebar, maintains visual unity)
 
 pub mod colors {
     pub const PRIMARY: &str = "blue-600";

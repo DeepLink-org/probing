@@ -1,6 +1,6 @@
 use crate::utils::error::{AppError, Result};
 
-/// 基础API客户端
+/// Base API client
 pub struct ApiClient;
 
 impl ApiClient {
@@ -8,7 +8,7 @@ impl ApiClient {
         Self
     }
 
-    /// 获取当前页面的origin
+    /// Get current page origin
     fn get_origin() -> Result<String> {
         web_sys::window()
             .ok_or_else(|| AppError::Api("No window object".to_string()))?
@@ -17,12 +17,12 @@ impl ApiClient {
             .map_err(|_| AppError::Api("Failed to get origin".to_string()))
     }
 
-    /// 构建API URL
+    /// Build API URL
     fn build_url(path: &str) -> Result<String> {
         Ok(format!("{}{}", Self::get_origin()?, path))
     }
 
-    /// 发送GET请求
+    /// Send GET request
     async fn get_request(&self, path: &str) -> Result<String> {
         let url = Self::build_url(path)?;
         let response = reqwest::get(&url).await?;
@@ -34,7 +34,7 @@ impl ApiClient {
         response.text().await.map_err(|e| AppError::Api(e.to_string()))
     }
 
-    /// 发送POST请求（自定义Content-Type）
+    /// Send POST request (custom Content-Type)
     async fn post_request_with_body(&self, path: &str, body: String) -> Result<String> {
         let url = Self::build_url(path)?;
         let client = reqwest::Client::new();
@@ -52,14 +52,14 @@ impl ApiClient {
         response.text().await.map_err(|e| AppError::Api(e.to_string()))
     }
 
-    /// 解析JSON响应
+    /// Parse JSON response
     fn parse_json<T: serde::de::DeserializeOwned>(response: &str) -> Result<T> {
         serde_json::from_str(response)
             .map_err(|e| AppError::Api(format!("JSON parse error: {}", e)))
     }
 }
 
-// 导出所有API模块
+// Export all API modules
 mod analytics;
 mod cluster;
 mod dashboard;

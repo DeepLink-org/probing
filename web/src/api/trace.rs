@@ -3,7 +3,7 @@ use crate::utils::error::Result;
 use serde::{Deserialize, Serialize};
 use probing_proto::prelude::DataFrame;
 
-/// Trace API 响应结构
+/// Trace API response structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TraceResponse {
     pub success: bool,
@@ -13,13 +13,13 @@ pub struct TraceResponse {
     pub error: Option<String>,
 }
 
-/// Trace 状态信息（简化版，因为 show_trace 只返回函数名列表）
+/// Trace status information (simplified version, as show_trace only returns function name list)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TraceInfo {
     pub function: String,
 }
 
-/// 变量变化记录
+/// Variable change record
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VariableRecord {
     pub function_name: String,
@@ -31,7 +31,7 @@ pub struct VariableRecord {
     pub timestamp: f64,
 }
 
-/// 可追踪项（函数或模块）
+/// Traceable item (function or module)
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TraceableItem {
     pub name: String,
@@ -43,14 +43,14 @@ pub struct TraceableItem {
 
 /// Trace API
 impl ApiClient {
-    /// 获取可追踪的函数列表（返回函数名列表，兼容旧格式）
+    /// Get list of traceable functions (returns function name list, compatible with old format)
     pub async fn get_traceable_functions(&self, prefix: Option<&str>) -> Result<Vec<String>> {
         let items = self.get_traceable_items(prefix).await?;
         // Convert to old format for backward compatibility
         Ok(items.iter().map(|item| format!("[{}] {}", item.item_type, item.name)).collect())
     }
 
-    /// 获取可追踪的项列表（始终包含变量信息）
+    /// Get list of traceable items (always includes variable information)
     pub async fn get_traceable_items(&self, prefix: Option<&str>) -> Result<Vec<TraceableItem>> {
         let base = "/apis/pythonext/trace/list";
         let path = if let Some(prefix) = prefix {
@@ -88,7 +88,7 @@ impl ApiClient {
         }).collect())
     }
 
-    /// 获取当前 trace 状态（返回已追踪的函数名列表）
+    /// Get current trace status (returns list of traced function names)
     pub async fn get_trace_info(&self) -> Result<Vec<String>> {
         let path = "/apis/pythonext/trace/show";
         let response = self.get_request(path).await?;
@@ -96,12 +96,12 @@ impl ApiClient {
         Ok(info)
     }
 
-    /// 开始追踪函数
+    /// Start tracing a function
     pub async fn start_trace(
         &self,
         function: &str,
         watch: Option<Vec<String>>,
-        depth: Option<i32>,
+        print_to_terminal: bool,
     ) -> Result<TraceResponse> {
         let base = "/apis/pythonext/trace/start";
         let mut params = vec![format!("function={}", function)];
@@ -112,8 +112,8 @@ impl ApiClient {
             }
         }
         
-        if let Some(depth) = depth {
-            params.push(format!("depth={}", depth));
+        if print_to_terminal {
+            params.push("print_to_terminal=true".to_string());
         }
         
         let path = if params.len() > 1 {
@@ -127,7 +127,7 @@ impl ApiClient {
         Ok(result)
     }
 
-    /// 停止追踪函数
+    /// Stop tracing a function
     pub async fn stop_trace(&self, function: &str) -> Result<TraceResponse> {
         let path = format!("/apis/pythonext/trace/stop?function={}", function);
         let response = self.get_request(&path).await?;
@@ -135,8 +135,8 @@ impl ApiClient {
         Ok(result)
     }
 
-    /// 获取变量变化记录（通过 SQL 查询）
-    /// 直接返回 DataFrame，使用 SQL AS 控制列名显示
+    /// Get variable change records (via SQL query)
+    /// Returns DataFrame directly, uses SQL AS to control column name display
     pub async fn get_variable_records(
         &self,
         function: Option<&str>,

@@ -121,10 +121,10 @@ class CollectiveTracer:
             if hasattr(dist, func_name):
                 self.hooked_functions[func_name] = getattr(dist, func_name)
             else:
-                print(f"!!! torch.distributed 中未找到函数 {func_name}，已跳过")
+                print(f"!!! Function {func_name} not found in torch.distributed, skipped")
 
         if not self.hooked_functions:
-            print("!!! WARNING !!! 没有找到任何要追踪的函数")
+            print("!!! WARNING !!! No functions found to trace")
 
         self.call_counts = {fn: 0 for fn in self.hooked_functions}
         self.my_rank = 0  # partly rank in group

@@ -2,9 +2,9 @@ use super::ApiClient;
 use crate::utils::error::{AppError, Result};
 use probing_proto::prelude::*;
 
-/// 时间序列分析API
+/// Time series analysis API
 impl ApiClient {
-    /// 执行SQL查询
+    /// Execute SQL query
     pub async fn execute_query(&self, query: &str) -> Result<DataFrame> {
         let request = Message::new(Query {
             expr: query.to_string(),
@@ -25,7 +25,7 @@ impl ApiClient {
         }
     }
 
-    /// 预览查询（带回退）：优先按第一列降序获取最近10条，失败则退化为 limit 10
+    /// Preview query (with fallback): prioritize getting latest 10 rows by first column descending, fallback to limit 10 on failure
     pub async fn execute_preview_last10(&self, table: &str) -> Result<DataFrame> {
         let try_sqls = [
             format!("select * from {} order by 1 desc limit 10", table),

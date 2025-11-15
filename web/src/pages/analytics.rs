@@ -36,7 +36,7 @@ pub fn Analytics() -> Element {
                         let handler = EventHandler::new(move |row_idx: usize| {
                             let df_ref = tables_state.data.read();
                             let Some(Ok(df)) = df_ref.as_ref() else { return };
-                            // 取第二列 schema 与第三列 table
+                            // Get second column (schema) and third column (table)
                             let schema = match df.cols.get(1).map(|c| c.get(row_idx)) {
                                 Some(Ele::Text(name)) => name.to_string(),
                                 _ => return,
@@ -66,13 +66,13 @@ pub fn Analytics() -> Element {
             // Preview Modal
             if *preview_open.read() {
                 div { class: "fixed inset-0 z-50 flex items-center justify-center",
-                    // 背景遮罩
+                    // Background overlay
                     div { class: "absolute inset-0 bg-black/50", onclick: move |_| {
                         *preview_open.write() = false;
                     } }
-                    // 内容容器
+                    // Content container
                     div { class: "relative bg-white rounded-lg shadow-lg max-w-5xl w-[90vw] max-h-[80vh] overflow-auto p-4",
-                        // 头部
+                        // Header
                         div { class: "flex items-center justify-between mb-3",
                             h3 { class: "text-lg font-semibold text-gray-900", "{preview_title}" }
                             button { class: "px-3 py-1 text-sm rounded bg-gray-100 hover:bg-gray-200",
@@ -82,7 +82,7 @@ pub fn Analytics() -> Element {
                                 "Close"
                             }
                         }
-                        // 内容
+                        // Content
                         if preview_state.is_loading() {
                             LoadingState { message: Some("Loading preview...".to_string()) }
                         } else if let Some(Ok(df)) = preview_state.data.read().as_ref() {

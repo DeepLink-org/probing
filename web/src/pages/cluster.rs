@@ -64,7 +64,7 @@ pub fn Cluster() -> Element {
 
 #[component]
 fn ClusterTable(nodes: Vec<Node>) -> Element {
-    // 预处理节点数据，包括格式化时间戳和URL
+    // Preprocess node data, including formatting timestamps and URLs
     let processed_nodes: Vec<_> = nodes
         .iter()
         .map(|node| {
