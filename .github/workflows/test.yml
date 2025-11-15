@@ -28,7 +28,7 @@ jobs:
       #     key: ${{ steps.cache-restore.outputs.cache-primary-key || format('{0}-cargo-{1}', runner.os, github.run_id) }} # Fallback key
 
   build:
-    name: Build Package
+    name: Build Package and Run Python Tests
     needs: prepare
     runs-on: ubuntu-latest
     steps:
@@ -43,18 +43,83 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
+      
+      - name: Install Python coverage dependencies
+        run: |
+          pip install pytest pytest-cov coverage
+      
       - name: Build package
         run: |
           make ZIG=1 wheel
-      - name: Run Rust Test
-        run: make test
+      
+      - name: Run Python tests and collect coverage
+        run: |
+          PROBING=1 PYTHONPATH=python/ uv run --python 3.12 -w pytest -w websockets -w pandas -w torch -w ipykernel -- \
+            python -m pytest --cov=python/probing --cov=tests --cov-report=xml:coverage.xml \
+            python/probing tests
+        env:
+          PROBING: "1"
+      
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: wheel
           path: python
+      
+      - name: Upload Python coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-coverage
+          path: coverage.xml
+          retention-days: 30
+
+  rust-test:
+    name: Run Rust Tests
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-build-env
+        with:
+          python-version: '3.12'
+          install-cargo-tools: 'true'
+          install-python-deps: 'false'
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+      
+      - name: Build web frontend
+        run: |
+          # Ensure wasm32 target is available (should already be installed by setup-build-env)
+          rustup target add wasm32-unknown-unknown || true
+          # Build web frontend (dioxus-cli should already be installed by setup-build-env)
+          make web/dist
+      
+      - name: Install llvm-tools-preview component
+        run: |
+          rustup component add llvm-tools-preview --toolchain nightly
+      
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+      
+      - name: Run Rust tests and collect coverage
+        shell: bash
+        run: |
+          source <(cargo llvm-cov show-env --export-prefix)
+          export CARGO_TARGET_DIR=$CARGO_LLVM_COV_TARGET_DIR
+          export CARGO_INCREMENTAL=1
+          cargo llvm-cov clean --workspace
+          cargo nextest run --workspace --no-default-features --nff
+          cargo llvm-cov --no-run --lcov --output-path coverage.lcov
+      
+      - name: Upload Rust coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-coverage
+          path: coverage.lcov
+          retention-days: 30
   test:
-    name: Run Python Tests
+    name: Run Python Tests (Multi-version)
     needs: [prepare, build]
     runs-on: ubuntu-latest
     strategy:
@@ -86,3 +151,48 @@ jobs:
         env:
           PROBING: "1"
         run: make pytest
+
+  codecov:
+    name: Upload Coverage to Codecov
+    needs: [build, rust-test]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download Rust coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: rust-coverage
+          path: .
+      
+      - name: Download Python coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: python-coverage
+          path: .
+      
+      - name: Check coverage files exist
+        run: |
+          if [ -f coverage.lcov ]; then
+            echo "✓ coverage.lcov exists ($(wc -l < coverage.lcov) lines)"
+          else
+            echo "✗ coverage.lcov not found"
+            exit 1
+          fi
+          if [ -f coverage.xml ]; then
+            echo "✓ coverage.xml exists ($(wc -l < coverage.xml) lines)"
+          else
+            echo "✗ coverage.xml not found"
+            exit 1
+          fi
+      
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.lcov,coverage.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+          verbose: true

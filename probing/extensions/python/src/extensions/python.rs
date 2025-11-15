@@ -577,14 +577,14 @@ retval = result if result else "[]"
                 use pyo3::types::PyDict;
                 use std::ffi::CString;
                 let global = PyDict::new(py);
-                
+
                 // Determine whether to use watch or silent_watch based on print_to_terminal
                 let (watch_list, silent_watch_list) = if print_to_terminal {
                     (watch.clone(), vec![])
                 } else {
                     (vec![], watch.clone())
                 };
-                
+
                 let code = format!(
                     r#"
 import json
