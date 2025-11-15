@@ -19,9 +19,9 @@ use pyo3::types::PyFloat;
 use pyo3::types::PyInt;
 use pyo3::types::PyList;
 use pyo3::types::PyString;
-use pyo3::{Bound, IntoPyObject};
 use pyo3::PyAny;
 use pyo3::Python;
+use pyo3::{Bound, IntoPyObject};
 
 #[derive(Default, Debug)]
 pub struct PythonNamespace {}
@@ -98,10 +98,7 @@ impl PythonNamespace {
 
     fn data_from_python(expr: &str) -> Result<Vec<RecordBatch>> {
         Python::with_gil(|py| {
-            let import_path = expr
-                .split(|c| c == '(' || c == '[')
-                .next()
-                .unwrap_or(expr);
+            let import_path = expr.split(|c| c == '(' || c == '[').next().unwrap_or(expr);
 
             let parts: Vec<&str> = import_path
                 .split('.')
