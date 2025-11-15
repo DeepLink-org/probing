@@ -28,7 +28,7 @@ jobs:
       #     key: ${{ steps.cache-restore.outputs.cache-primary-key || format('{0}-cargo-{1}', runner.os, github.run_id) }} # Fallback key
 
   build:
-    name: Build Package
+    name: Build Package and Run Python Tests
     needs: prepare
     runs-on: ubuntu-latest
     steps:
@@ -44,13 +44,6 @@ jobs:
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
       
-      - name: Install llvm-tools-preview component
-        run: |
-          rustup component add llvm-tools-preview --toolchain nightly
-      
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
-      
       - name: Install Python coverage dependencies
         run: |
           pip install pytest pytest-cov coverage
@@ -58,16 +51,6 @@ jobs:
       - name: Build package
         run: |
           make ZIG=1 wheel
-      
-      - name: Run Rust tests and collect coverage
-        shell: bash
-        run: |
-          source <(cargo llvm-cov show-env --export-prefix)
-          export CARGO_TARGET_DIR=$CARGO_LLVM_COV_TARGET_DIR
-          export CARGO_INCREMENTAL=1
-          cargo llvm-cov clean --workspace
-          cargo nextest run --workspace --no-default-features --nff
-          cargo llvm-cov --no-run --lcov --output-path coverage.lcov
       
       - name: Run Python tests and collect coverage
         run: |
@@ -83,16 +66,53 @@ jobs:
           name: wheel
           path: python
       
-      - name: Upload coverage reports as artifact
+      - name: Upload Python coverage report
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-reports
-          path: |
-            coverage.lcov
-            coverage.xml
+          name: python-coverage
+          path: coverage.xml
+          retention-days: 30
+
+  rust-test:
+    name: Run Rust Tests
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-build-env
+        with:
+          python-version: '3.12'
+          install-cargo-tools: 'true'
+          install-python-deps: 'false'
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+      
+      - name: Install llvm-tools-preview component
+        run: |
+          rustup component add llvm-tools-preview --toolchain nightly
+      
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+      
+      - name: Run Rust tests and collect coverage
+        shell: bash
+        run: |
+          source <(cargo llvm-cov show-env --export-prefix)
+          export CARGO_TARGET_DIR=$CARGO_LLVM_COV_TARGET_DIR
+          export CARGO_INCREMENTAL=1
+          cargo llvm-cov clean --workspace
+          cargo nextest run --workspace --no-default-features --nff
+          cargo llvm-cov --no-run --lcov --output-path coverage.lcov
+      
+      - name: Upload Rust coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-coverage
+          path: coverage.lcov
           retention-days: 30
   test:
-    name: Run Python Tests
+    name: Run Python Tests (Multi-version)
     needs: [prepare, build]
     runs-on: ubuntu-latest
     strategy:
@@ -127,7 +147,7 @@ jobs:
 
   codecov:
     name: Upload Coverage to Codecov
-    needs: build
+    needs: [build, rust-test]
     runs-on: ubuntu-latest
     if: always()
     
@@ -135,10 +155,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Download coverage reports
+      - name: Download Rust coverage report
         uses: actions/download-artifact@v4
         with:
-          name: coverage-reports
+          name: rust-coverage
+          path: .
+      
+      - name: Download Python coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: python-coverage
           path: .
       
       - name: Check coverage files exist
