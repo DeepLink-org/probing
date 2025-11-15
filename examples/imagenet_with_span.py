@@ -22,15 +22,7 @@ from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import Subset
 
 # Simple tracing spans for instrumentation (no multiprocessing augmentation)
-try:
-    from probing.tracing import span, add_event
-except Exception:  # pragma: no cover - allow script to run even if extension missing
-    class _DummySpan:
-        def __init__(self, *a, **k): pass
-        def __enter__(self): return self
-        def __exit__(self, *exc): return False
-    def span(name, **kwargs): return _DummySpan()
-    def add_event(name, **kwargs): pass
+import probing
 
 model_names = sorted(name for name in models.__dict__
     if name.islower() and not name.startswith("__")
@@ -151,7 +143,7 @@ def main_worker(gpu, ngpus_per_node, args):
         dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
                                 world_size=args.world_size, rank=args.rank)
     # create model
-    with span("model.init", kind="setup"):
+    with probing.span("model.init", kind="setup"):
         if args.pretrained:
             print("=> using pre-trained model '{}'".format(args.arch))
             model = models.__dict__[args.arch](pretrained=True)
@@ -238,12 +230,12 @@ def main_worker(gpu, ngpus_per_node, args):
 
 
     # Data loading code
-    with span("data.load", kind="io"):
+    with probing.span("data.load", kind="io"):
         if args.dummy:
             print("=> Dummy data is used!")
             train_dataset = datasets.FakeData(2048, (3, 224, 224), 1000, transforms.ToTensor())
             val_dataset = datasets.FakeData(256, (3, 224, 224), 1000, transforms.ToTensor())
-            add_event("dataset.fake")
+            probing.event("dataset.fake")
         else:
             traindir = os.path.join(args.data, 'train')
             valdir = os.path.join(args.data, 'val')
@@ -267,7 +259,7 @@ def main_worker(gpu, ngpus_per_node, args):
                     transforms.ToTensor(),
                     normalize,
                 ]))
-            add_event("dataset.real", attributes=[{"train_size": len(train_dataset)}, {"val_size": len(val_dataset)}])
+            probing.event("dataset.real", attributes=[{"train_size": len(train_dataset)}, {"val_size": len(val_dataset)}])
 
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
@@ -289,22 +281,22 @@ def main_worker(gpu, ngpus_per_node, args):
         return
 
     for epoch in range(args.start_epoch, args.epochs):
-        with span("epoch", kind="train"):
-            add_event("epoch.start", attributes=[{"epoch": epoch}])
+        with probing.span("epoch", kind="train"):
+            probing.event("epoch.start", attributes=[{"epoch": epoch}])
             if args.distributed:
                 train_sampler.set_epoch(epoch)
 
-            with span("train", kind="loop"):
+            with probing.span("train", kind="loop"):
                 train(train_loader, model, criterion, optimizer, epoch, device, args)
-            with span("validate", kind="loop"):
+            with probing.span("validate", kind="loop"):
                 acc1 = validate(val_loader, model, criterion, args)
             scheduler.step()
-            add_event("epoch.metrics", attributes=[{"acc1": float(acc1)}])
+            probing.event("epoch.metrics", attributes=[{"acc1": float(acc1)}])
             # remember best acc@1 and save checkpoint
             is_best = acc1 > best_acc1
             best_acc1 = max(acc1, best_acc1)
             if not args.multiprocessing_distributed or (args.multiprocessing_distributed and args.rank % ngpus_per_node == 0):
-                with span("checkpoint.save", kind="io"):
+                with probing.span("checkpoint.save", kind="io"):
                     save_checkpoint({
                         'epoch': epoch + 1,
                         'arch': args.arch,
@@ -313,7 +305,7 @@ def main_worker(gpu, ngpus_per_node, args):
                         'optimizer' : optimizer.state_dict(),
                         'scheduler' : scheduler.state_dict()
                     }, is_best)
-            add_event("epoch.end", attributes=[{"best_acc1": float(best_acc1)}])
+            probing.event("epoch.end", attributes=[{"best_acc1": float(best_acc1)}])
 
 
 def compute_loss(criterion, output, target):
@@ -340,28 +332,28 @@ def train(train_loader, model, criterion, optimizer, epoch, device, args):
     end = time.time()
     for i, (images, target) in enumerate(train_loader):
         time.sleep(1)
-        with span("batch", kind="train.step"):
+        with probing.span("batch", kind="train.step"):
             # measure data loading time
             data_time.update(time.time() - end)
             images = images.to(device, non_blocking=True)
             target = target.to(device, non_blocking=True)
-            with span("forward", kind="nn.forward"):
+            with probing.span("forward", kind="nn.forward"):
                 output = model(images)
-            with span("loss", kind="compute"):
+            with probing.span("loss", kind="compute"):
                 loss = compute_loss(criterion, output, target)
             acc1, acc5 = accuracy(output, target, topk=(1, 5))
             losses.update(loss.item(), images.size(0))
             top1.update(acc1[0], images.size(0))
             top5.update(acc5[0], images.size(0))
-            with span("backward", kind="nn.backward"):
+            with probing.span("backward", kind="nn.backward"):
                 optimizer.zero_grad()
                 loss.backward()
-            with span("step", kind="optim.step"):
+            with probing.span("step", kind="optim.step"):
                 optimizer.step()
             batch_time.update(time.time() - end)
             end = time.time()
             if i % args.print_freq == 0:
-                add_event("batch.stats", attributes=[{"i": i}, {"loss": float(loss.item())}, {"acc1": float(acc1[0])}])
+                probing.event("batch.stats", attributes=[{"i": i}, {"loss": float(loss.item())}, {"acc1": float(acc1[0])}])
                 progress.display(i + 1)
 
 

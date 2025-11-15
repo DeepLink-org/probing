@@ -41,7 +41,7 @@ PROBING_CLI := ${TARGET_DIR_PREFIX}/${TARGET_DIR}/probing
 PROBING_LIB := ${TARGET_DIR_PREFIX}/${TARGET_DIR}/libprobing.${LIB_EXT}
 
 # Pytest runner command
-PYTEST_RUN := PYTHONPATH=python/ uv run --python ${PYTHON} -w pytest -w websockets -w pandas -w torch -w ipykernel -- python -m pytest --doctest-modules
+PYTEST_RUN := PROBING=1 PYTHONPATH=python/ uv run --python ${PYTHON} -w pytest -w websockets -w pandas -w torch -w ipykernel -- python -m pytest --doctest-modules
 
 # ==============================================================================
 # Standard Targets

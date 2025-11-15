@@ -83,4 +83,6 @@ jobs:
           path: python
 
       - name: Run Python Test
+        env:
+          PROBING: "1"
         run: make pytest
