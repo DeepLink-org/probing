@@ -43,16 +43,61 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
+      
+      - name: Install llvm-tools-preview component
+        run: |
+          rustup component add llvm-tools-preview --toolchain nightly
+      
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+      
+      - name: Install Python coverage dependencies
+        run: |
+          pip install pytest pytest-cov coverage
+      
       - name: Build package
         run: |
           make ZIG=1 wheel
-      - name: Run Rust Test
-        run: make test
+      
+      - name: Run Rust tests and collect coverage
+        shell: bash
+        run: |
+          source <(cargo llvm-cov show-env --export-prefix)
+          export CARGO_TARGET_DIR=$CARGO_LLVM_COV_TARGET_DIR
+          export CARGO_INCREMENTAL=1
+          cargo llvm-cov clean --workspace
+          cargo nextest run --workspace --no-default-features --nff
+          cargo llvm-cov --no-run --lcov --output-path coverage.lcov
+      
+      - name: Run Python tests and collect coverage
+        run: |
+          PROBING=1 PYTHONPATH=python/ uv run --python 3.12 -w pytest -w websockets -w pandas -w torch -w ipykernel -- \
+            python -m pytest --cov=python/probing --cov=tests --cov-report=xml:coverage.xml \
+            python/probing tests
+        env:
+          PROBING: "1"
+      
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.lcov,coverage.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+      
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: wheel
           path: python
+      
+      - name: Upload coverage reports as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: |
+            coverage.lcov
+            coverage.xml
+          retention-days: 30
   test:
     name: Run Python Tests
     needs: [prepare, build]
