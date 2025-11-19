@@ -12,6 +12,7 @@
 [![PyPI version](https://badge.fury.io/py/probing.svg)](https://badge.fury.io/py/probing)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Downloads](https://pepy.tech/badge/probing)](https://pepy.tech/project/probing)
+[![codecov](https://codecov.io/gh/DeepLink-org/probing/graph/badge.svg?token=IRH3F0OI56)](https://codecov.io/gh/DeepLink-org/probing)
 
 > Uncover the Hidden Truth of AI Performance
 
