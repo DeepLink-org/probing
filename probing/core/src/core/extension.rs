@@ -446,21 +446,15 @@ impl EngineExtensionManager {
             let ext = extension.lock().await;
             let name = ext.name();
             let expected_prefix = format!("/{name}/");
-            
+
             // Also check without leading slash for flexibility
             let expected_prefix_no_slash = format!("{name}/");
-            
+
             // Special handling: support both "python" and "pythonext" for PythonExt
             let alternative_prefixes = if name == "pythonext" {
-                vec![
-                    format!("/python/"),
-                    format!("python/"),
-                ]
+                vec![format!("/python/"), format!("python/")]
             } else if name == "python" {
-                vec![
-                    format!("/pythonext/"),
-                    format!("pythonext/"),
-                ]
+                vec![format!("/pythonext/"), format!("pythonext/")]
             } else {
                 vec![]
             };
@@ -495,11 +489,18 @@ impl EngineExtensionManager {
             match ext.call(&local_path, params, body).await {
                 Ok(value) => return Ok(value),
                 Err(EngineError::UnsupportedCall) => {
-                    log::debug!("Extension [{name}] returned UnsupportedCall for path: {}", local_path);
+                    log::debug!(
+                        "Extension [{name}] returned UnsupportedCall for path: {}",
+                        local_path
+                    );
                     continue;
                 }
                 Err(e) => {
-                    log::error!("Extension [{name}] call failed for path '{}': {}", local_path, e);
+                    log::error!(
+                        "Extension [{name}] call failed for path '{}': {}",
+                        local_path,
+                        e
+                    );
                     return Err(e);
                 }
             }

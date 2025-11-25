@@ -2,22 +2,27 @@ import importlib.abc
 import importlib.util
 import sys
 
+
 # Lazy imports to avoid import errors if modules are not available
 def _get_torch_init():
     """Lazy import of torch init function."""
     try:
         from probing.ext.torch import init as torch_init
+
         return torch_init
     except ImportError:
         return lambda: None
+
 
 def _get_ray_init():
     """Lazy import of ray init function."""
     try:
         from probing.ext.ray import init as ray_init
+
         return ray_init
     except ImportError:
         return lambda: None
+
 
 # Mapping from module names to callback functions
 # Callbacks are called when the module is imported

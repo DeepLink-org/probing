@@ -1,5 +1,6 @@
 from typing import Any, Iterable, List, Optional, Union
 
+
 def _get_ray():
     """Lazy import ray module.
 
@@ -13,6 +14,7 @@ def _get_ray():
         raise ImportError(
             "Ray is not installed. Please install it with: pip install ray"
         ) from exc
+
 
 def _get_attr(obj, key, default=None):
     """Get attribute from mapping or object, trying multiple keys.

@@ -99,10 +99,10 @@ impl EngineCall for PythonExt {
             params,
             body.len()
         );
-        
+
         // Normalize path - remove leading slashes and handle different path formats
         let normalized_path = path.trim_start_matches('/');
-        
+
         if path == "callstack" || normalized_path == "callstack" {
             let frames = if params.contains_key("tid") {
                 let tid = params
@@ -140,34 +140,30 @@ impl EngineCall for PythonExt {
             return Ok(crate::features::torch::flamegraph().into_bytes());
         }
         // Ray timeline API endpoints
-        let is_ray_timeline = normalized_path == "ray/timeline" 
+        let is_ray_timeline = normalized_path == "ray/timeline"
             || normalized_path == "python/ray/timeline"
             || normalized_path == "pythonext/ray/timeline"
             || normalized_path.ends_with("/ray/timeline")
             || path.ends_with("/ray/timeline");
-        
-        let is_ray_timeline_chrome = normalized_path == "ray/timeline/chrome" 
+
+        let is_ray_timeline_chrome = normalized_path == "ray/timeline/chrome"
             || normalized_path == "python/ray/timeline/chrome"
             || normalized_path == "pythonext/ray/timeline/chrome"
             || normalized_path.ends_with("/ray/timeline/chrome")
             || path.ends_with("/ray/timeline/chrome");
-        
+
         if is_ray_timeline_chrome {
             // Return Chrome tracing format
             let task_filter = params.get("task_filter").cloned();
             let actor_filter = params.get("actor_filter").cloned();
-            let start_time = params
-                .get("start_time")
-                .and_then(|s| s.parse::<i64>().ok());
-            let end_time = params
-                .get("end_time")
-                .and_then(|s| s.parse::<i64>().ok());
+            let start_time = params.get("start_time").and_then(|s| s.parse::<i64>().ok());
+            let end_time = params.get("end_time").and_then(|s| s.parse::<i64>().ok());
 
             return Python::with_gil(|py| {
                 use pyo3::types::PyDict;
                 use std::ffi::CString;
                 let global = PyDict::new(py);
-                
+
                 let task_filter_str = task_filter
                     .as_ref()
                     .map(|s| format!("'{}'", s.replace('\'', "\\'")))
@@ -212,10 +208,12 @@ except Exception as e:
                 let code_cstr = CString::new(code).map_err(|e| {
                     EngineError::PluginError(format!("Failed to create CString: {e}"))
                 })?;
-                
+
                 py.run(code_cstr.as_c_str(), Some(&global), Some(&global))
-                    .map_err(|e| EngineError::PluginError(format!("Python execution error: {e}")))?;
-                
+                    .map_err(|e| {
+                        EngineError::PluginError(format!("Python execution error: {e}"))
+                    })?;
+
                 match global.get_item("result") {
                     Ok(result) => {
                         let result_str: String = result.extract().map_err(|e| {
@@ -223,26 +221,24 @@ except Exception as e:
                         })?;
                         Ok(result_str.into_bytes())
                     }
-                    Err(e) => Err(EngineError::PluginError(format!("Failed to get result: {e}"))),
+                    Err(e) => Err(EngineError::PluginError(format!(
+                        "Failed to get result: {e}"
+                    ))),
                 }
             });
         }
-        
+
         if is_ray_timeline {
             let task_filter = params.get("task_filter").cloned();
             let actor_filter = params.get("actor_filter").cloned();
-            let start_time = params
-                .get("start_time")
-                .and_then(|s| s.parse::<i64>().ok());
-            let end_time = params
-                .get("end_time")
-                .and_then(|s| s.parse::<i64>().ok());
+            let start_time = params.get("start_time").and_then(|s| s.parse::<i64>().ok());
+            let end_time = params.get("end_time").and_then(|s| s.parse::<i64>().ok());
 
             return Python::with_gil(|py| {
                 use pyo3::types::PyDict;
                 use std::ffi::CString;
                 let global = PyDict::new(py);
-                
+
                 // Build Python code to call get_ray_timeline
                 let task_filter_str = task_filter
                     .as_ref()
@@ -290,7 +286,7 @@ except Exception as e:
                     log::error!("Ray timeline API error: {}", err_msg);
                     EngineError::PluginError(err_msg)
                 })?;
-                
+
                 py.run(code_cstr.as_c_str(), Some(&global), Some(&global))
                     .map_err(|e| {
                         let err_msg = format!("Failed to execute Python code: {e}");
@@ -299,7 +295,7 @@ except Exception as e:
                         let py_err_details = format!("Python execution error: {e}");
                         EngineError::PluginError(py_err_details)
                     })?;
-                
+
                 match global.get_item("result") {
                     Ok(result) => {
                         let result_str: String = result.extract().map_err(|e| {
@@ -307,32 +303,40 @@ except Exception as e:
                             log::error!("Ray timeline API error: {}", err_msg);
                             EngineError::PluginError(err_msg)
                         })?;
-                        
+
                         // Check if result contains an error (from Python exception handling)
                         if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&result_str) {
                             if let Some(error_obj) = parsed.get("error") {
                                 let error_msg = error_obj.as_str().unwrap_or("Unknown error");
-                                let traceback = parsed.get("traceback")
+                                let traceback = parsed
+                                    .get("traceback")
                                     .and_then(|v| v.as_str())
                                     .unwrap_or("");
-                                
+
                                 // Log full error with traceback
                                 if !traceback.is_empty() {
-                                    log::error!("Ray timeline API Python error:\n{}\nTraceback:\n{}", error_msg, traceback);
+                                    log::error!(
+                                        "Ray timeline API Python error:\n{}\nTraceback:\n{}",
+                                        error_msg,
+                                        traceback
+                                    );
                                 } else {
                                     log::error!("Ray timeline API Python error: {}", error_msg);
                                 }
-                                
+
                                 // Return detailed error message
                                 let err_msg = if !traceback.is_empty() {
-                                    format!("Python execution error: {}\nTraceback:\n{}", error_msg, traceback)
+                                    format!(
+                                        "Python execution error: {}\nTraceback:\n{}",
+                                        error_msg, traceback
+                                    )
                                 } else {
                                     format!("Python execution error: {}", error_msg)
                                 };
                                 return Err(EngineError::PluginError(err_msg));
                             }
                         }
-                        
+
                         Ok(result_str.into_bytes())
                     }
                     Err(e) => {
