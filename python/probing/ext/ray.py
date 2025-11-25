@@ -25,12 +25,14 @@ def _get_ray():
     try:
         import ray
         return ray
-    except ImportError:
-        raise ImportError("Ray is not installed. Please install it with: pip install ray")
+    except ImportError as exc:  # pragma: no cover - environment dependent
+        raise ImportError(
+            "Ray is not installed. Please install it with: pip install ray"
+        ) from exc
 
 
 def _get_attr(obj, key, default=None):
-    """Get attribute from dict or object."""
+    """Get attribute from mapping or object, with a default."""
     if isinstance(obj, dict):
         return obj.get(key, default)
     return getattr(obj, key, default)
@@ -58,8 +60,7 @@ class ProbingSpanProcessor:
             from opentelemetry.trace import SpanKind
             
             span_name = span.name
-            span_kind = None
-            
+
             kind_map = {
                 SpanKind.SERVER: "server",
                 SpanKind.CLIENT: "client",
@@ -130,7 +131,7 @@ def _wrap_task_execution_in_worker():
                     if hasattr(task, "actor_id") and task.actor_id:
                         actor_name = getattr(task, "actor_class_name", "Actor")
                         method_name = getattr(task, "function_name", "method")
-                        span_name = f"ray.actor.{actor_name}.{method_name}"
+                        span_name = f"{actor_name}.{method_name}"
                         attributes["ray.actor"] = actor_name
                         attributes["ray.method"] = method_name
                     else:
@@ -139,7 +140,7 @@ def _wrap_task_execution_in_worker():
                             getattr(task, "name", None) or
                             "unknown"
                         )
-                        span_name = f"ray.task.{func_name}"
+                        span_name = func_name
                         attributes["ray.function"] = func_name
             except Exception:
                 pass
@@ -301,10 +302,10 @@ def _convert_task_to_timeline_entry(task, index=0, total=1, worker_to_pid=None):
     
     # Determine entry name and type
     if is_actor_task:
-        entry_name = f"ray.actor.{func_name}"
+        entry_name = func_name
         entry_type = "actor"
     else:
-        entry_name = f"ray.task.{func_name}"
+        entry_name = func_name
         entry_type = "task"
     
     return {
@@ -417,111 +418,62 @@ def get_ray_timeline(
         
         from ray.util.state import list_tasks, list_actors
         
-        timeline = []
-        
-        # Build worker_id to process_id and worker_info mapping
-        # First pass: collect all unique worker_ids and their info
-        worker_info_map = {}  # worker_id -> {"node_id": ..., "worker_pid": ...}
-        
-        # Get tasks (includes both normal tasks and actor tasks)
+        timeline: list[dict] = []
+
+        # Build worker_id -> process_id mapping in a first pass
+        worker_ids: set[str] = set()
+
+        task_filters = {"func_or_class_name": task_filter} if task_filter else {}
+        actor_filters = {"class_name": actor_filter} if actor_filter else {}
+
         try:
-            task_filters = {}
-            if task_filter:
-                task_filters["func_or_class_name"] = task_filter
-            
-            tasks = list_tasks(filters=task_filters if task_filters else None, detail=True)
-            tasks_list = list(tasks)  # Convert to list to get count
-            
-            # Collect worker_ids and their info from tasks
-            for task in tasks_list:
-                worker_id = _get_attr(task, "worker_id", "")
-                if worker_id:
-                    if worker_id not in worker_info_map:
-                        worker_info_map[worker_id] = {
-                            "node_id": _get_attr(task, "node_id", ""),
-                            "worker_pid": _get_attr(task, "worker_pid"),
-                        }
-                    else:
-                        # Update node_id if not set
-                        if not worker_info_map[worker_id]["node_id"]:
-                            worker_info_map[worker_id]["node_id"] = _get_attr(task, "node_id", "")
-                        # Update worker_pid if not set
-                        if not worker_info_map[worker_id]["worker_pid"]:
-                            worker_info_map[worker_id]["worker_pid"] = _get_attr(task, "worker_pid")
+            tasks_iter = list_tasks(filters=task_filters or None, detail=True)
+            tasks_list = list(tasks_iter)
         except Exception:
-            pass
-        
-        # Get actors and collect their worker_ids and info
+            tasks_list = []
+
         try:
-            actor_filters = {}
-            if actor_filter:
-                actor_filters["class_name"] = actor_filter
-            
-            actors = list_actors(filters=actor_filters if actor_filters else None, detail=True)
-            for actor in actors:
-                worker_id = _get_attr(actor, "worker_id", "")
-                if worker_id:
-                    if worker_id not in worker_info_map:
-                        worker_info_map[worker_id] = {
-                            "node_id": _get_attr(actor, "node_id", ""),
-                            "worker_pid": None,
-                        }
-                    else:
-                        # Update node_id if not set
-                        if not worker_info_map[worker_id]["node_id"]:
-                            worker_info_map[worker_id]["node_id"] = _get_attr(actor, "node_id", "")
+            actors_iter = list_actors(filters=actor_filters or None, detail=True)
+            actors_list = list(actors_iter)
         except Exception:
-            pass
-        
-        # Create worker_id to process_id mapping
-        # Use sequential pids starting from 1 for better visualization
-        worker_to_pid = {}
-        worker_to_info = {}  # Store worker info for process naming
-        for idx, worker_id in enumerate(sorted(worker_info_map.keys()), start=1):
-            worker_to_pid[worker_id] = idx
-            worker_to_info[worker_id] = worker_info_map[worker_id]
+            actors_list = []
+
+        for task in tasks_list:
+            worker_id = _get_attr(task, "worker_id", "")
+            if worker_id:
+                worker_ids.add(worker_id)
+
+        for actor in actors_list:
+            worker_id = _get_attr(actor, "worker_id", "")
+            if worker_id:
+                worker_ids.add(worker_id)
+
+        worker_to_pid = {
+            worker_id: idx for idx, worker_id in enumerate(sorted(worker_ids), start=1)
+        }
         
         # Second pass: convert tasks with worker_to_pid mapping
-        try:
-            task_filters = {}
-            if task_filter:
-                task_filters["func_or_class_name"] = task_filter
-            
-            tasks = list_tasks(filters=task_filters if task_filters else None, detail=True)
-            tasks_list = list(tasks)
-            total_tasks = len(tasks_list)
-            
-            for index, task in enumerate(tasks_list):
-                entry = _convert_task_to_timeline_entry(task, index, total_tasks, worker_to_pid)
-                
-                # Apply time filters
-                if start_time and entry["start_time"] and entry["start_time"] < start_time:
-                    continue
-                if end_time and entry["end_time"] and entry["end_time"] and entry["end_time"] > end_time:
-                    continue
-                timeline.append(entry)
-        except Exception as e:
-            import warnings
-            warnings.warn(f"Failed to get Ray tasks: {e}")
+        total_tasks = len(tasks_list)
+
+        for index, task in enumerate(tasks_list):
+            entry = _convert_task_to_timeline_entry(task, index, total_tasks, worker_to_pid)
+
+            # Apply time filters
+            if start_time and entry["start_time"] and entry["start_time"] < start_time:
+                continue
+            if end_time and entry["end_time"] and entry["end_time"] > end_time:
+                continue
+            timeline.append(entry)
         
         # Convert actors with worker_to_pid mapping
-        try:
-            actor_filters = {}
-            if actor_filter:
-                actor_filters["class_name"] = actor_filter
-            
-            actors = list_actors(filters=actor_filters if actor_filters else None, detail=True)
-            for actor in actors:
-                entry = _convert_actor_to_timeline_entry(actor, worker_to_pid)
-                # Apply time filters
-                if start_time and entry["start_time"] and entry["start_time"] < start_time:
-                    continue
-                if end_time and entry["end_time"] and entry["end_time"] > end_time:
-                    continue
-                timeline.append(entry)
-        except Exception as e:
-            import warnings
-            warnings.warn(f"Failed to get Ray actors: {e}")
+        for actor in actors_list:
+            entry = _convert_actor_to_timeline_entry(actor, worker_to_pid)
+            # Apply time filters
+            if start_time and entry["start_time"] and entry["start_time"] < start_time:
+                continue
+            if end_time and entry["end_time"] and entry["end_time"] > end_time:
+                continue
+            timeline.append(entry)
         
         timeline.sort(key=lambda x: x["start_time"])
         return timeline
