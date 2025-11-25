@@ -5,7 +5,7 @@ use web_sys::window;
 
 use crate::app::{Route, PROFILING_VIEW, PROFILING_PPROF_FREQ, PROFILING_TORCH_ENABLED, 
     PROFILING_CHROME_DATA_SOURCE, PROFILING_CHROME_LIMIT, PROFILING_PYTORCH_STEPS,
-    PROFILING_PYTORCH_TIMELINE_RELOAD, SIDEBAR_WIDTH, SIDEBAR_HIDDEN};
+    PROFILING_PYTORCH_TIMELINE_RELOAD, PROFILING_RAY_TIMELINE_RELOAD, SIDEBAR_WIDTH, SIDEBAR_HIDDEN};
 use crate::components::icon::Icon;
 use crate::components::colors::colors;
 use crate::api::{ApiClient, ProfileResponse};
@@ -317,6 +317,11 @@ fn ProfilingSidebarItem(show_dropdown: Signal<bool>) -> Element {
                         label: "PyTorch Timeline".to_string(),
                         icon: &icondata::SiPytorch,
                     }
+                    ProfilingSubItem {
+                        view: "ray-timeline".to_string(),
+                        label: "Ray Timeline".to_string(),
+                        icon: &icondata::AiClockCircleOutlined,
+                    }
                     
                     if is_active {
                         ProfilingControlsPanel {}
@@ -419,6 +424,13 @@ fn ProfilingControlsPanel() -> Element {
                     } else if view == "pytorch-timeline" {
                         rsx! {
                             PyTorchTimelineControls {
+                                control_title_class: control_title_class.clone(),
+                                input_class: input_class.clone(),
+                            }
+                        }
+                    } else if view == "ray-timeline" {
+                        rsx! {
+                            RayTimelineControls {
                                 control_title_class: control_title_class.clone(),
                                 input_class: input_class.clone(),
                             }
@@ -579,6 +591,32 @@ fn TraceTimelineControls(
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn RayTimelineControls(
+    control_title_class: String,
+    input_class: String,
+) -> Element {
+    rsx! {
+        div {
+            class: "space-y-3",
+            div {
+                class: "space-y-2",
+                div {
+                    class: "{control_title_class}",
+                    "Ray Timeline Controls"
+                }
+                button {
+                    class: "w-full px-3 py-2 text-xs font-medium rounded bg-blue-600 text-white hover:bg-blue-700",
+                    onclick: move |_| {
+                        *PROFILING_RAY_TIMELINE_RELOAD.write() += 1;
+                    },
+                    "Reload Ray Timeline"
                 }
             }
         }

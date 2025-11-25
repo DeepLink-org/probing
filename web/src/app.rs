@@ -78,6 +78,7 @@ pub static PROFILING_CHROME_DATA_SOURCE: GlobalSignal<String> = Signal::global(|
 pub static PROFILING_CHROME_LIMIT: GlobalSignal<usize> = Signal::global(|| 1000);
 pub static PROFILING_PYTORCH_STEPS: GlobalSignal<i32> = Signal::global(|| 5);
 pub static PROFILING_PYTORCH_TIMELINE_RELOAD: GlobalSignal<i32> = Signal::global(|| 0);
+pub static PROFILING_RAY_TIMELINE_RELOAD: GlobalSignal<i32> = Signal::global(|| 0);
 
 // Sidebar state
 pub static SIDEBAR_WIDTH: GlobalSignal<f64> = Signal::global(|| 256.0); // Default 256px (w-64)

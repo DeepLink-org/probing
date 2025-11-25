@@ -66,7 +66,7 @@ class _TraceableCollector:
 
     # Class-level constants
     WHITELIST = ["__main__"]
-    BLACKLIST = ["numpy", "typing", "typing.io", "typing_extensions"]
+    BLACKLIST = ["numpy", "typing", "typing.io", "typing_extensions", "ray"]
 
     @staticmethod
     def create_filter(prefix: Optional[str]) -> Callable[[str], bool]:
@@ -235,6 +235,13 @@ class _TraceableCollector:
                             continue
 
                         full_path = f"{prefix}.{k}" if prefix else k
+                        
+                        # Skip Ray-related attributes that might require connection
+                        if "ray" in prefix.lower() or "ray" in k.lower():
+                            # Skip Ray client/worker attributes that require connection
+                            if k in ["client", "worker", "_client", "_worker"]:
+                                continue
+                        
                         item_type = cls.determine_item_type(v)
 
                         if filter_func(full_path):
@@ -326,11 +333,21 @@ class _TraceableCollector:
                                     {"name": full_path, "type": item_type}
                                 )
 
-                    except (AttributeError, TypeError, RuntimeError, ValueError):
+                    except (AttributeError, TypeError, RuntimeError, ValueError, Exception) as e:
+                        # Skip Ray connection errors and other exceptions
+                        if "ray" in prefix.lower() or "ray" in str(e).lower():
+                            continue
+                        # For other errors, also continue to avoid breaking the traversal
                         continue
-            except (AttributeError, TypeError, RuntimeError):
+            except (AttributeError, TypeError, RuntimeError, Exception) as e:
+                # Skip Ray connection errors and other exceptions
+                if "ray" in prefix.lower() or "ray" in str(e).lower():
+                    return
                 pass
-        except (AttributeError, TypeError, RuntimeError, ValueError):
+        except (AttributeError, TypeError, RuntimeError, ValueError, Exception) as e:
+            # Skip Ray connection errors and other exceptions
+            if "ray" in prefix.lower() or "ray" in str(e).lower():
+                return
             pass
 
     @classmethod
@@ -372,6 +389,10 @@ class _TraceableCollector:
 
                 if module_name == "__main__":
                     continue
+                
+                # Skip Ray module to avoid connection errors
+                if module_name.startswith("ray") and module_name != "ray":
+                    continue
 
                 if cls.should_include_module(module_name, module, cls.WHITELIST):
                     cls.traverse_object(
@@ -384,7 +405,10 @@ class _TraceableCollector:
                         traceable_items,
                         travel_history,
                     )
-            except (AttributeError, TypeError, RuntimeError, ValueError):
+            except (AttributeError, TypeError, RuntimeError, ValueError, Exception) as e:
+                # Skip Ray connection errors and other exceptions
+                if "ray" in module_name.lower() or "ray" in str(e).lower() or "not connected" in str(e).lower():
+                    continue
                 continue
 
         return traceable_items
