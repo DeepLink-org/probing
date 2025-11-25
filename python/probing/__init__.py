@@ -128,10 +128,18 @@ if handle is None:
     import sys
     import functools
     import types
+    import pathlib
     
     # Define an empty module to indicate dummy mode
     # Use ModuleType to create a proper module object
     probing_module = types.ModuleType("probing")
+    
+    # Set __path__ to make it a package so submodules can be imported
+    # This is critical for importing probing.ext.ray, etc.
+    current_file = pathlib.Path(__file__).resolve()
+    probing_module.__path__ = [str(current_file.parent)]
+    probing_module.__file__ = str(current_file)
+    
     sys.modules["probing"] = probing_module
     
     # Re-add necessary attributes and functions to the empty module
