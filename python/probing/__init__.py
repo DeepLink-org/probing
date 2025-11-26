@@ -8,7 +8,7 @@ __all__ = [
     "should_enable_probing",
 ]
 
-VERSION = "0.2.1"
+VERSION = "0.2.2"
 
 
 def get_current_script_name():
