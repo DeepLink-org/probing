@@ -65,6 +65,8 @@ help:
 	@echo "  clean      Remove build artifacts."
 	@echo "  frontend   Build Dioxus frontend."
 	@echo "  web/dist   Build the web app (Dioxus)."
+	@echo "  docs       Build Sphinx documentation."
+	@echo "  docs-serve Start live preview server for documentation."
 	@echo ""
 	@echo "Environment Variables:"
 	@echo "  DEBUG      Build mode: release (default) or debug"
@@ -174,9 +176,19 @@ pytest:
 	@echo "Running pytest for tests directory..."
 	${PYTEST_RUN} tests
 
+.PHONY: docs docs-serve
+docs:
+	@echo "Building Sphinx documentation..."
+	@cd docs && $(MAKE) html
+
+docs-serve:
+	@echo "Starting documentation live preview server..."
+	@cd docs && $(MAKE) serve
+
 .PHONY: clean
 clean:
 	@echo "Cleaning up..."
 	rm -rf dist
 	rm -rf web/dist
+	rm -rf docs/_build
 	cargo clean
