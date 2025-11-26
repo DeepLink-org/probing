@@ -87,23 +87,26 @@ probing -t <pid> backtrace
 ## Basic Usage
 
 ```bash
-# Inject performance monitoring
+# Inject performance monitoring (Linux only)
 probing -t <pid> inject
 
 # Real-time stack trace analysis
 probing -t <pid> backtrace
 
-# Memory usage profiling
-probing -t <pid> memory
+# Query performance data with SQL
+probing -t <pid> query "SELECT * FROM python.torch_trace LIMIT 10"
 
-# Generate flame graphs
-probing -t <pid> flamegraph
+# Evaluate Python code in target process
+probing -t <pid> eval "import torch; print(torch.cuda.is_available())"
 
 # Interactive Python REPL (connect to running process)
 probing -t <pid> repl
 
 # RDMA Flow Analysis
 probing -t <pid> rdma
+
+# List all processes with injected probes
+probing list
 ```
 
 ## Advanced Features
