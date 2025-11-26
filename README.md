@@ -107,9 +107,6 @@ probing -t <pid> rdma
 
 # List all processes with injected probes
 probing list
-
-# Configure probing settings
-probing -t <pid> config --torch-profiling on
 ```
 
 ## Advanced Features
@@ -197,25 +194,17 @@ probing -t <pid> query "
 ### Configuration Options
 ```bash
 # Environment variable configuration
-export PROBING=1                    # Enable probing (0=disabled, 1=current process, 2=nested)
-export PROBING_LOGLEVEL=info        # Set log level (debug, info, warn, error)
-export PROBING_PORT=8080            # Set server port
-export PROBING_TORCH_PROFILING=on   # Enable PyTorch profiling
-export PROBING_RDMA_SAMPLE_RATE=0.1 # Set RDMA sampling rate
-export PROBING_RDMA_HCA_NAME=mlx5_0 # Set RDMA HCA name
+export PROBING_SAMPLE_RATE=0.1      # Set sampling rate
+export PROBING_RETENTION_DAYS=7     # Data retention period
 
 # View current configuration
 probing -t <pid> config
 
-# Dynamic configuration updates via config command
-probing -t <pid> config --probing 1
-probing -t <pid> config --torch-profiling "on,exprs=loss@step"
-probing -t <pid> config --rdma-sample-rate 0.1
-probing -t <pid> config --rdma-hca-name mlx5_cx6_0
-
-# Or set configuration directly
-probing -t <pid> config "server.address=0.0.0.0:8080"
-probing -t <pid> config "torch.profiling=on"
+# Dynamic configuration updates
+probing -t <pid> config probing.sample_rate=0.05
+probing -t <pid> config probing.max_memory=1GB
+probing -t <pid> config "probing.rdma.hca.name='mlx5_cx6_0'"
+probing -t <pid> config "probing.rdma.sample.rate='5'"
 ```
 
 ## Development
