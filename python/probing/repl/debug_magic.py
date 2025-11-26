@@ -211,7 +211,7 @@ Cell Magic (separate):
 
         # Parse arguments
         parts = args_str.strip().split()
-        
+
         # No arguments = show mode
         if not parts:
             result = show_trace()
@@ -224,18 +224,18 @@ Cell Magic (separate):
                 output.append(f"  {i}. {func}")
             print("\n".join(output))
             return
-        
+
         # Parse function name and arguments
         function = None
         watch_vars = []
         depth = 2
-        
+
         i = 0
         # First arg that doesn't start with -- is the function name
         if parts and not parts[0].startswith("-"):
             function = parts[0]
             i = 1
-        
+
         # Parse remaining args: --depth or variable names
         while i < len(parts):
             if parts[i] in ["--depth", "-d"]:
@@ -274,7 +274,7 @@ Cell Magic (separate):
 
         # Parse arguments
         parts = args_str.strip().split()
-        
+
         # No arguments = show mode (same as watch)
         if not parts:
             result = show_trace()
@@ -287,18 +287,18 @@ Cell Magic (separate):
                 output.append(f"  {i}. {func}")
             print("\n".join(output))
             return
-        
+
         # Parse function name and arguments
         function = None
         watch_vars = []
         depth = 2
-        
+
         i = 0
         # First arg that doesn't start with -- is the function name
         if parts and not parts[0].startswith("-"):
             function = parts[0]
             i = 1
-        
+
         # Parse remaining args: --depth or variable names
         while i < len(parts):
             if parts[i] in ["--depth", "-d"]:
@@ -413,20 +413,20 @@ Cell Magic (separate):
         for i, item in enumerate(items[:max_display], 1):
             if isinstance(item, dict):
                 # New format with variables
-                item_type = item.get('type', '?')
-                name = item.get('name', '?')
-                variables = item.get('variables', [])
-                
+                item_type = item.get("type", "?")
+                name = item.get("name", "?")
+                variables = item.get("variables", [])
+
                 # Format: [TYPE] name
                 line = f"  {i}. [{item_type}] {name}"
-                
+
                 # Add variables if available
                 if variables:
                     vars_str = ", ".join(variables[:5])  # Show first 5 variables
                     if len(variables) > 5:
                         vars_str += f" ... (+{len(variables) - 5} more)"
                     line += f" (vars: {vars_str})"
-                
+
                 output.append(line)
             else:
                 # Old format (string)

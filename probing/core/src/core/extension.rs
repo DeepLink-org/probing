@@ -447,21 +447,66 @@ impl EngineExtensionManager {
             let name = ext.name();
             let expected_prefix = format!("/{name}/");
 
-            if !path.starts_with(&expected_prefix) {
+            // Also check without leading slash for flexibility
+            let expected_prefix_no_slash = format!("{name}/");
+
+            // Special handling: support both "python" and "pythonext" for PythonExt
+            let alternative_prefixes = if name == "pythonext" {
+                vec![format!("/python/"), format!("python/")]
+            } else if name == "python" {
+                vec![format!("/pythonext/"), format!("pythonext/")]
+            } else {
+                vec![]
+            };
+
+            // Check if path matches any format
+            let (matched, local_path) = if path.starts_with(&expected_prefix) {
+                (true, path[expected_prefix.len()..].to_string())
+            } else if path.starts_with(&expected_prefix_no_slash) {
+                (true, path[expected_prefix_no_slash.len()..].to_string())
+            } else {
+                // Try alternative prefixes
+                let mut found = false;
+                let mut found_path = String::new();
+                for alt_prefix in &alternative_prefixes {
+                    if path.starts_with(alt_prefix) {
+                        found = true;
+                        found_path = path[alt_prefix.len()..].to_string();
+                        break;
+                    }
+                }
+                (found, found_path)
+            };
+
+            if !matched {
                 continue;
             }
 
             log::debug!("checking extension [{name}]:{path}");
-            let local_path = path[expected_prefix.len()..].to_string();
+            log::debug!("Extension [{name}] matched, local_path: {}", local_path);
 
             // Call the extension's async call method
             match ext.call(&local_path, params, body).await {
                 Ok(value) => return Ok(value),
-                Err(EngineError::UnsupportedCall) => continue,
-                Err(e) => return Err(e),
+                Err(EngineError::UnsupportedCall) => {
+                    log::debug!(
+                        "Extension [{name}] returned UnsupportedCall for path: {}",
+                        local_path
+                    );
+                    continue;
+                }
+                Err(e) => {
+                    log::error!(
+                        "Extension [{name}] call failed for path '{}': {}",
+                        local_path,
+                        e
+                    );
+                    return Err(e);
+                }
             }
         }
-        Err(EngineError::CallError(path.to_string()))
+        log::error!("No extension matched path: {}", path);
+        Err(EngineError::CallError(format!("API call error: {}", path)))
     }
 }
 

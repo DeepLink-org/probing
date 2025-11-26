@@ -121,7 +121,9 @@ class CollectiveTracer:
             if hasattr(dist, func_name):
                 self.hooked_functions[func_name] = getattr(dist, func_name)
             else:
-                print(f"!!! Function {func_name} not found in torch.distributed, skipped")
+                print(
+                    f"!!! Function {func_name} not found in torch.distributed, skipped"
+                )
 
         if not self.hooked_functions:
             print("!!! WARNING !!! No functions found to trace")

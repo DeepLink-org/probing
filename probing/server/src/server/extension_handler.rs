@@ -119,8 +119,9 @@ pub async fn handle_extension_call(req: axum::extract::Request) -> ApiResult<Res
                 return Ok((StatusCode::OK, headers, response).into_response());
             }
             Err(e) => {
-                log::warn!("Extension call failed for path '{path}': {e}");
-                return Err(anyhow::anyhow!("Extension call failed: {}", e).into());
+                log::error!("Extension call failed for path '{path}': {e}");
+                // Return detailed error message to client
+                return Err(anyhow::anyhow!("Extension call failed for '{}': {}", path, e).into());
             }
         }
     }
