@@ -153,7 +153,7 @@ class CodeExecutor:
 
         # Save original __main__ before IPython replaces it
         original_main = sys.modules.get("__main__")
-        
+
         self.km = InProcessKernelManager()
         self.km.start_kernel()
         self.kc = self.km.client()
@@ -161,9 +161,9 @@ class CodeExecutor:
 
         if not self.km.has_kernel:
             return
-            
+
         shell = self.km.kernel.shell
-        
+
         # Copy original __main__ to kernel namespace
         if original_main:
             shell.user_ns.update(original_main.__dict__)
@@ -181,6 +181,7 @@ class CodeExecutor:
                 importlib.import_module(f"{__name__}.{modname}")
             except Exception as e:
                 import warnings
+
                 warnings.warn(f"Failed to import {modname}: {e}", ImportWarning)
 
         # Register all magic classes
@@ -189,6 +190,7 @@ class CodeExecutor:
                 shell.register_magics(magic_class(shell=shell))
             except Exception as e:
                 import warnings
+
                 warnings.warn(f"Failed to register {magic_name}: {e}", ImportWarning)
 
     def execute(self, code_or_request: Union[str, dict]) -> ExecutionResult:
@@ -294,26 +296,28 @@ class DebugConsole(code.InteractiveConsole):
             self.code_executor = CodeExecutor()
         except Exception as e:
             import warnings
+
             warnings.warn(f"Failed to initialize CodeExecutor: {e}", ImportWarning)
             self.code_executor = None
         super().__init__()
 
     def sync_main_namespace(self, namespace=None):
         """Sync namespace to kernel. Use sync_main_namespace(globals()) to sync current script.
-        
+
         Args:
             namespace: Dict to sync. If None, uses sys.modules['__main__'].
         """
         if not self.code_executor:
             return
-            
+
         import sys
+
         if namespace is None:
             namespace = sys.modules.get("__main__", {})
             if not namespace:
                 return
             namespace = namespace.__dict__
-        
+
         shell = self.code_executor.km.kernel.shell
         for key, value in namespace.items():
             if not key.startswith("_"):

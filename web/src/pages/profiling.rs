@@ -4,7 +4,8 @@ use crate::components::page::{PageContainer, PageTitle};
 use crate::hooks::use_api_simple;
 use crate::api::{ApiClient, ProfileResponse};
 use crate::app::{PROFILING_VIEW, PROFILING_PPROF_FREQ, PROFILING_TORCH_ENABLED, 
-    PROFILING_CHROME_LIMIT, PROFILING_PYTORCH_TIMELINE_RELOAD};
+    PROFILING_CHROME_LIMIT, PROFILING_PYTORCH_TIMELINE_RELOAD, PROFILING_RAY_TIMELINE_RELOAD};
+use crate::pages::chrome_tracing::get_tracing_viewer_html;
 
 fn apply_config(config: &[(String, String)]) {
     *PROFILING_PPROF_FREQ.write() = 0;
@@ -36,6 +37,7 @@ pub fn Profiling() -> Element {
     let flamegraph_state = use_api_simple::<String>();
     let chrome_tracing_state = use_api_simple::<String>();
     let pytorch_profile_state = use_api_simple::<ProfileResponse>();
+    let ray_timeline_state = use_api_simple::<String>(); // Changed to String for Chrome format JSON
     
     use_effect(move || {
         let mut loading = config_state.loading;
@@ -131,6 +133,28 @@ pub fn Profiling() -> Element {
             *iframe_key.write() += 1;
         });
     });
+    
+    // Handle Ray timeline loading (Chrome format for Perfetto)
+    use_effect(move || {
+        let view = PROFILING_VIEW.read().clone();
+        let reload_key = *PROFILING_RAY_TIMELINE_RELOAD.read();
+        
+        if view != "ray-timeline" || reload_key == 0 {
+            return;
+        }
+        
+        let mut loading = ray_timeline_state.loading;
+        let mut data = ray_timeline_state.data;
+        let mut iframe_key = chrome_iframe_key.clone();
+        spawn(async move {
+            *loading.write() = true;
+            let client = ApiClient::new();
+            let result = client.get_ray_timeline_chrome_format(None, None, None, None).await;
+            *data.write() = Some(result);
+            *loading.write() = false;
+            *iframe_key.write() += 1; // Force iframe reload
+        });
+    });
 
     rsx! {
         PageContainer {
@@ -156,6 +180,11 @@ pub fn Profiling() -> Element {
                         "PyTorch Timeline".to_string(),
                         Some("PyTorch profiler timeline view".to_string()),
                         Some(&icondata::SiPytorch),
+                    ),
+                    "ray-timeline" => (
+                        "Ray Timeline".to_string(),
+                        Some("Ray task and actor execution timeline".to_string()),
+                        Some(&icondata::AiClockCircleOutlined),
                     ),
                     _ => (
                         "Profiling".to_string(),
@@ -190,6 +219,13 @@ pub fn Profiling() -> Element {
                                 chrome_iframe_key: chrome_iframe_key.clone(),
                             }
                         }
+                    } else if current_view == "ray-timeline" {
+                        rsx! {
+                            RayTimelineView {
+                                ray_timeline_state: ray_timeline_state.clone(),
+                                chrome_iframe_key: chrome_iframe_key.clone(),
+                            }
+                        }
                     } else {
                         rsx! { div {} }
                     }
@@ -198,215 +234,6 @@ pub fn Profiling() -> Element {
             
         }
     }
-}
-
-
-/// Generate HTML page containing Chrome tracing viewer
-fn get_tracing_viewer_html(trace_json: &str) -> String {
-    let escaped_json = trace_json
-        .replace('\\', "\\\\")
-        .replace('`', "\\`")
-        .replace('$', "\\$");
-    
-    format!(r#"
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>Chrome Tracing Viewer</title>
-    <style>
-        body {{
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            overflow: hidden;
-        }}
-        #perfetto-iframe {{
-            width: 100%;
-            height: 100vh;
-            border: none;
-        }}
-        .loading {{
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            font-size: 18px;
-            color: #666;
-        }}
-    </style>
-</head>
-<body>
-    <div id="loading" class="loading">Loading Chrome Tracing Viewer...</div>
-    <iframe id="perfetto-iframe" style="display: none;"></iframe>
-    <script>
-        (function() {{
-            try {{
-                const traceData = JSON.parse(`{escaped_json}`);
-                
-                const iframe = document.getElementById('perfetto-iframe');
-                const loading = document.getElementById('loading');
-                
-                const perfettoUrl = 'https://ui.perfetto.dev/#!/';
-                iframe.src = perfettoUrl;
-                
-                let loaded = false;
-                let errorShown = false;
-                
-                const messageHandler = function(event) {{
-                    if (event.origin === 'https://ui.perfetto.dev') {{
-                        if (event.data) {{
-                            const dataStr = typeof event.data === 'string' ? event.data : JSON.stringify(event.data);
-                            if (dataStr.includes('error') || dataStr.includes('Failed')) {{
-                                console.error('Perfetto UI error:', event.data);
-                                if (!loaded && !errorShown) {{
-                                    errorShown = true;
-                                    showError('Perfetto UI reported an error. Please check the trace data format.');
-                                    window.removeEventListener('message', messageHandler);
-                                }}
-                            }} else if (dataStr.includes('loaded') || dataStr.includes('ready')) {{
-                                if (!loaded) {{
-                                    loaded = true;
-                                    loading.style.display = 'none';
-                                    iframe.style.display = 'block';
-                                    window.removeEventListener('message', messageHandler);
-                                }}
-                            }}
-                        }}
-                    }}
-                }};
-                window.addEventListener('message', messageHandler);
-                
-                iframe.onload = function() {{
-                    let handshakeComplete = false;
-                    let retryCount = 0;
-                    const maxRetries = 10;
-                    
-                    const handshakeHandler = function(event) {{
-                        if (event.origin === 'https://ui.perfetto.dev' || 
-                            (event.source === iframe.contentWindow && event.data === 'PONG')) {{
-                            if (event.data && event.data === 'PONG') {{
-                                handshakeComplete = true;
-                                window.removeEventListener('message', handshakeHandler);
-                                
-                                try {{
-                                    const traceJson = JSON.stringify(traceData, null, 2);
-                                    const encoder = new TextEncoder();
-                                    const buffer = encoder.encode(traceJson).buffer;
-                                    
-                                    iframe.contentWindow.postMessage({{
-                                        perfetto: {{
-                                            buffer: buffer,
-                                            title: 'Chrome Tracing Timeline',
-                                            fileName: 'trace.json',
-                                        }}
-                                    }}, 'https://ui.perfetto.dev');
-                                    
-                                    console.log('Trace data sent to Perfetto UI');
-                                    
-                                    setTimeout(() => {{
-                                        if (!loaded && !errorShown) {{
-                                            loaded = true;
-                                            loading.style.display = 'none';
-                                            iframe.style.display = 'block';
-                                            window.removeEventListener('message', messageHandler);
-                                        }}
-                                    }}, 2000);
-                                }} catch (e) {{
-                                    console.error('Error sending trace data:', e);
-                                    if (!errorShown) {{
-                                        errorShown = true;
-                                        showError('Failed to send trace data to Perfetto UI: ' + e.message);
-                                        window.removeEventListener('message', messageHandler);
-                                    }}
-                                }}
-                            }}
-                        }}
-                    }};
-                    window.addEventListener('message', handshakeHandler);
-                    
-                    // Send PING message to start handshake
-                    const sendPing = function() {{
-                        if (!handshakeComplete && retryCount < maxRetries) {{
-                            try {{
-                                if (iframe.contentWindow) {{
-                                    iframe.contentWindow.postMessage('PING', 'https://ui.perfetto.dev');
-                                    retryCount++;
-                                    if (retryCount < maxRetries) {{
-                                        setTimeout(sendPing, 500);
-                                    }} else {{
-                                        console.warn('PING/PONG handshake failed, trying data URL fallback');
-                                        const traceJson = JSON.stringify(traceData, null, 2);
-                                        const base64Data = btoa(unescape(encodeURIComponent(traceJson)));
-                                        const dataUrl = 'data:application/json;base64,' + base64Data;
-                                        iframe.src = 'https://ui.perfetto.dev/#!/?url=' + encodeURIComponent(dataUrl);
-                                        window.removeEventListener('message', handshakeHandler);
-                                    }}
-                                }} else {{
-                                    if (retryCount < maxRetries) {{
-                                        retryCount++;
-                                        setTimeout(sendPing, 500);
-                                    }}
-                                }}
-                            }} catch (e) {{
-                                console.error('Error sending PING:', e);
-                                if (retryCount < maxRetries) {{
-                                    retryCount++;
-                                    setTimeout(sendPing, 500);
-                                }}
-                            }}
-                        }}
-                    }};
-                    
-                    setTimeout(sendPing, 1500);
-                    
-                    setTimeout(() => {{
-                        if (!loaded && !errorShown) {{
-                            loaded = true;
-                            loading.style.display = 'none';
-                            iframe.style.display = 'block';
-                            window.removeEventListener('message', messageHandler);
-                            window.removeEventListener('message', handshakeHandler);
-                        }}
-                    }}, 10000);
-                }};
-                
-                iframe.onerror = function() {{
-                    if (!loaded && !errorShown) {{
-                        errorShown = true;
-                        showError('Failed to load Perfetto UI');
-                    }}
-                }};
-                
-                function showError(message) {{
-                    loading.innerHTML = `
-                        <div style="padding: 20px; text-align: center;">
-                            <h2>${{message}}</h2>
-                            <p>You can view this trace in Chrome DevTools:</p>
-                            <ol style="text-align: left; display: inline-block;">
-                                <li>Open Chrome and navigate to <code>chrome://tracing</code></li>
-                                <li>Click "Load" and select the trace file</li>
-                            </ol>
-                            <br>
-                            <button onclick="window.location.reload()" style="padding: 10px 20px; background: #4285f4; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 10px 0;">
-                                Retry
-                            </button>
-                        </div>
-                    `;
-                }}
-            }} catch (e) {{
-                document.getElementById('loading').innerHTML = `
-                    <div style="padding: 20px; color: red; text-align: center;">
-                        <h2>Error loading trace viewer</h2>
-                        <p>${{e.message}}</p>
-                    </div>
-                `;
-            }}
-        }})();
-    </script>
-</body>
-    </html>
-    "#)
 }
 
 #[component]
@@ -553,7 +380,81 @@ fn ChromeTracingView(
 }
 
 #[component]
-fn PyTorchProfileStatus(#[props] profile_result: ProfileResponse) -> Element {
+fn RayTimelineView(
+    #[props] ray_timeline_state: crate::hooks::ApiState<String>,
+    #[props] chrome_iframe_key: Signal<i32>,
+) -> Element {
+    if ray_timeline_state.is_loading() {
+        return rsx! {
+            LoadingState { message: Some("Loading Ray timeline data...".to_string()) }
+        };
+    }
+    
+    if let Some(Ok(ref trace_json)) = ray_timeline_state.data.read().as_ref() {
+        if trace_json.trim().is_empty() {
+            return rsx! {
+                ErrorState { 
+                    error: "No Ray timeline data available. Start Ray tasks with probing tracing enabled.".to_string(), 
+                    title: Some("Empty Timeline Data".to_string())
+                }
+            };
+        }
+        
+        // Validate JSON
+        if let Err(e) = serde_json::from_str::<serde_json::Value>(trace_json) {
+            return rsx! {
+                ErrorState { 
+                    error: format!("Invalid JSON data: {:?}", e), 
+                    title: Some("Invalid Timeline Data".to_string())
+                }
+            };
+        }
+        
+        // Use Perfetto UI to display (same as Chrome tracing)
+        return rsx! {
+            div {
+                class: "bg-white rounded-lg shadow overflow-hidden",
+                style: "height: calc(100vh - 300px); min-height: 600px;",
+                iframe {
+                    key: "{*chrome_iframe_key.read()}",
+                    srcdoc: get_tracing_viewer_html(trace_json),
+                    style: "width: 100%; height: 100%; border: none;",
+                    title: "Ray Timeline Viewer (Perfetto)"
+                }
+            }
+        };
+    }
+    
+    if let Some(Err(err)) = ray_timeline_state.data.read().as_ref() {
+        return rsx! {
+            ErrorState {
+                error: format!("Failed to load Ray timeline: {:?}", err),
+                title: Some("Load Timeline Error".to_string())
+            }
+        };
+    }
+    
+    rsx! { 
+        div {
+            class: "bg-white rounded-lg shadow p-8 text-center",
+            div {
+                class: "text-gray-500",
+                p {
+                    class: "mb-4 text-lg",
+                    "Ray Timeline"
+                }
+                p {
+                    class: "text-sm",
+                    "Click 'Reload Ray Timeline' to load the timeline data."
+                }
+            }
+        }
+    }
+}
+
+
+#[component]
+fn PyTorchProfileStatus(profile_result: ProfileResponse) -> Element {
     if profile_result.success {
         let message = profile_result.message.as_deref().unwrap_or("Profile started successfully");
         rsx! {

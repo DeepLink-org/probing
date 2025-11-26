@@ -23,16 +23,16 @@ traced_functions = {}
 # Key: function code object id, Value: dict with __probe_func__, __probe_watch__, __probe_depth__
 _probe_attrs = {}
 # Global dictionary to store module references needed by wrapper functions
-_probe_modules = {'sys': sys}
+_probe_modules = {"sys": sys}
 
 
 @table("trace_variables")
 @dataclass
 class Variable:
     """Row model for variable change records.
-    
+
     Each saved instance represents a variable change during function tracing.
-    
+
     Parameters
     ----------
     function_name : str
@@ -48,6 +48,7 @@ class Variable:
     value_type : str
         Type name of the variable value.
     """
+
     function_name: str
     filename: str
     lineno: int
@@ -66,7 +67,7 @@ class _TraceableCollector:
 
     # Class-level constants
     WHITELIST = ["__main__"]
-    BLACKLIST = ["numpy", "typing", "typing.io", "typing_extensions"]
+    BLACKLIST = ["numpy", "typing", "typing.io", "typing_extensions", "ray"]
 
     @staticmethod
     def create_filter(prefix: Optional[str]) -> Callable[[str], bool]:
@@ -115,27 +116,32 @@ class _TraceableCollector:
     @staticmethod
     def should_skip_prefix(prefix: str, blacklist: List[str]) -> bool:
         """Check if a prefix should be skipped based on blacklist and special rules.
-        
+
         Args:
             prefix: The prefix string to check
             blacklist: List of blacklisted prefixes
-            
+
         Returns:
             True if the prefix should be skipped, False otherwise
         """
         if prefix in blacklist:
             return True
-        
+
         # Special handling for torch module (but not torchvision, torchaudio, etc.)
         if prefix == "torch" or prefix.startswith("torch."):
-            allowed_prefixes = ("torch.nn", "torch.cuda", "torch.distributed", "torch.optim")
+            allowed_prefixes = (
+                "torch.nn",
+                "torch.cuda",
+                "torch.distributed",
+                "torch.optim",
+            )
             if not any(prefix.startswith(p) for p in allowed_prefixes):
                 return True
-        
+
         # Skip six module internals
         if prefix.startswith("six."):
             return True
-        
+
         return False
 
     @staticmethod
@@ -235,6 +241,13 @@ class _TraceableCollector:
                             continue
 
                         full_path = f"{prefix}.{k}" if prefix else k
+
+                        # Skip Ray-related attributes that might require connection
+                        if "ray" in prefix.lower() or "ray" in k.lower():
+                            # Skip Ray client/worker attributes that require connection
+                            if k in ["client", "worker", "_client", "_worker"]:
+                                continue
+
                         item_type = cls.determine_item_type(v)
 
                         if filter_func(full_path):
@@ -242,71 +255,141 @@ class _TraceableCollector:
                                 # Get function variables (parameters and local variables)
                                 variables = []
                                 try:
-                                    if isinstance(v, FunctionType) and hasattr(v, "__code__"):
+                                    if isinstance(v, FunctionType) and hasattr(
+                                        v, "__code__"
+                                    ):
                                         code = v.__code__
-                                        
+
                                         # Use co_varnames to get all local variables (including parameters)
                                         # co_varnames contains: parameters, *args, **kwargs, and local variables
                                         # Use co_nlocals to get the count of all local names
                                         try:
-                                            if hasattr(code, "co_varnames") and hasattr(code, "co_nlocals"):
-                                                varnames = getattr(code, "co_varnames", ())
+                                            if hasattr(code, "co_varnames") and hasattr(
+                                                code, "co_nlocals"
+                                            ):
+                                                varnames = getattr(
+                                                    code, "co_varnames", ()
+                                                )
                                                 nlocals = getattr(code, "co_nlocals", 0)
-                                                
+
                                                 if varnames and nlocals > 0:
                                                     # Get all local variables (parameters + locals)
                                                     # co_varnames[:co_nlocals] gives us all local names
                                                     variables = list(varnames[:nlocals])
-                                                    
+
                                                     # Also include co_names for referenced globals (optional)
                                                     # This helps identify what external names the function uses
                                                     if hasattr(code, "co_names"):
-                                                        names = getattr(code, "co_names", ())
+                                                        names = getattr(
+                                                            code, "co_names", ()
+                                                        )
                                                         if names:
                                                             # Filter out builtins and common functions
                                                             filtered_names = [
-                                                                name for name in names 
-                                                                if not name.startswith("__") 
-                                                                and name not in ["print", "len", "str", "int", "float", "list", "dict", "tuple", "set", "range", "enumerate", "zip"]
+                                                                name
+                                                                for name in names
+                                                                if not name.startswith(
+                                                                    "__"
+                                                                )
+                                                                and name
+                                                                not in [
+                                                                    "print",
+                                                                    "len",
+                                                                    "str",
+                                                                    "int",
+                                                                    "float",
+                                                                    "list",
+                                                                    "dict",
+                                                                    "tuple",
+                                                                    "set",
+                                                                    "range",
+                                                                    "enumerate",
+                                                                    "zip",
+                                                                ]
                                                             ]
                                                             # Add to variables list (these are globals used in the function)
-                                                            variables.extend(filtered_names)
-                                                    
+                                                            variables.extend(
+                                                                filtered_names
+                                                            )
+
                                                     # Remove duplicates and sort
-                                                    variables = sorted(list(set(variables)))
-                                                    
+                                                    variables = sorted(
+                                                        list(set(variables))
+                                                    )
+
                                         except (AttributeError, TypeError, IndexError):
                                             pass
-                                        
+
                                         # Fallback: try to get just parameters if co_nlocals approach failed
                                         if not variables:
                                             try:
-                                                if hasattr(code, "co_varnames") and hasattr(code, "co_argcount"):
-                                                    argcount = getattr(code, "co_argcount", 0)
-                                                    kwonlyargcount = getattr(code, "co_kwonlyargcount", 0)
-                                                    posonlyargcount = getattr(code, "co_posonlyargcount", 0)
-                                                    varnames = getattr(code, "co_varnames", ())
+                                                if hasattr(
+                                                    code, "co_varnames"
+                                                ) and hasattr(code, "co_argcount"):
+                                                    argcount = getattr(
+                                                        code, "co_argcount", 0
+                                                    )
+                                                    kwonlyargcount = getattr(
+                                                        code, "co_kwonlyargcount", 0
+                                                    )
+                                                    posonlyargcount = getattr(
+                                                        code, "co_posonlyargcount", 0
+                                                    )
+                                                    varnames = getattr(
+                                                        code, "co_varnames", ()
+                                                    )
                                                     if varnames:
                                                         # Get parameters only
-                                                        param_count = argcount + posonlyargcount + kwonlyargcount
+                                                        param_count = (
+                                                            argcount
+                                                            + posonlyargcount
+                                                            + kwonlyargcount
+                                                        )
                                                         if param_count > 0:
-                                                            variables = list(varnames[:param_count])
-                                            except (AttributeError, TypeError, IndexError):
+                                                            variables = list(
+                                                                varnames[:param_count]
+                                                            )
+                                            except (
+                                                AttributeError,
+                                                TypeError,
+                                                IndexError,
+                                            ):
                                                 pass
-                                        
+
                                         # Final fallback: use inspect.signature
                                         if not variables:
                                             try:
-                                                if hasattr(v, "__name__") and not v.__name__.startswith("_"):
-                                                    sig = inspect.signature(v, follow_wrapped=False)
-                                                    variables = [param.name for param in sig.parameters.values()]
-                                            except (ValueError, TypeError, AttributeError, RuntimeError):
+                                                if hasattr(
+                                                    v, "__name__"
+                                                ) and not v.__name__.startswith("_"):
+                                                    sig = inspect.signature(
+                                                        v, follow_wrapped=False
+                                                    )
+                                                    variables = [
+                                                        param.name
+                                                        for param in sig.parameters.values()
+                                                    ]
+                                            except (
+                                                ValueError,
+                                                TypeError,
+                                                AttributeError,
+                                                RuntimeError,
+                                            ):
                                                 pass
-                                except (AttributeError, TypeError, RuntimeError, ValueError):
+                                except (
+                                    AttributeError,
+                                    TypeError,
+                                    RuntimeError,
+                                    ValueError,
+                                ):
                                     # Skip this function if any error occurs
                                     pass
                                 traceable_items.append(
-                                    {"name": full_path, "type": item_type, "variables": variables}
+                                    {
+                                        "name": full_path,
+                                        "type": item_type,
+                                        "variables": variables,
+                                    }
                                 )
                             elif not isinstance(v, ModuleType):
                                 name = cls.get_object_name(v)
@@ -326,11 +409,27 @@ class _TraceableCollector:
                                     {"name": full_path, "type": item_type}
                                 )
 
-                    except (AttributeError, TypeError, RuntimeError, ValueError):
+                    except (
+                        AttributeError,
+                        TypeError,
+                        RuntimeError,
+                        ValueError,
+                        Exception,
+                    ) as e:
+                        # Skip Ray connection errors and other exceptions
+                        if "ray" in prefix.lower() or "ray" in str(e).lower():
+                            continue
+                        # For other errors, also continue to avoid breaking the traversal
                         continue
-            except (AttributeError, TypeError, RuntimeError):
+            except (AttributeError, TypeError, RuntimeError, Exception) as e:
+                # Skip Ray connection errors and other exceptions
+                if "ray" in prefix.lower() or "ray" in str(e).lower():
+                    return
                 pass
-        except (AttributeError, TypeError, RuntimeError, ValueError):
+        except (AttributeError, TypeError, RuntimeError, ValueError, Exception) as e:
+            # Skip Ray connection errors and other exceptions
+            if "ray" in prefix.lower() or "ray" in str(e).lower():
+                return
             pass
 
     @classmethod
@@ -373,6 +472,10 @@ class _TraceableCollector:
                 if module_name == "__main__":
                     continue
 
+                # Skip Ray module to avoid connection errors
+                if module_name.startswith("ray") and module_name != "ray":
+                    continue
+
                 if cls.should_include_module(module_name, module, cls.WHITELIST):
                     cls.traverse_object(
                         module,
@@ -384,7 +487,20 @@ class _TraceableCollector:
                         traceable_items,
                         travel_history,
                     )
-            except (AttributeError, TypeError, RuntimeError, ValueError):
+            except (
+                AttributeError,
+                TypeError,
+                RuntimeError,
+                ValueError,
+                Exception,
+            ) as e:
+                # Skip Ray connection errors and other exceptions
+                if (
+                    "ray" in module_name.lower()
+                    or "ray" in str(e).lower()
+                    or "not connected" in str(e).lower()
+                ):
+                    continue
                 continue
 
         return traceable_items
@@ -456,13 +572,13 @@ class _TraceableCollector:
 
 def probe(func, watch=None, silent_watch=None, depth=1):
     """Wrap a function with tracing capabilities.
-    
+
     Args:
         func: Function to wrap
         watch: List of variable names to watch and print (default: [])
         silent_watch: List of variable names to watch but only log to table (default: [])
         depth: Tracing depth (default: 1)
-    
+
     Returns:
         Wrapped function that traces execution
     """
@@ -470,64 +586,76 @@ def probe(func, watch=None, silent_watch=None, depth=1):
         watch = []
     if silent_watch is None:
         silent_watch = []
-    
+
     def wrapper(*args, **kwargs):
         # Get code object id from current frame
-        _sys_module = __import__('sys')
+        _sys_module = __import__("sys")
         current_frame = _sys_module._getframe(0)
         code_id = id(current_frame.f_code)
-        
+
         # Get _probe_attrs from trace module (not from current frame's globals)
-        _trace_module = _sys_module.modules.get('probing.inspect.trace')
+        _trace_module = _sys_module.modules.get("probing.inspect.trace")
         if _trace_module is None:
             for mod in _sys_module.modules.values():
-                if hasattr(mod, '_probe_attrs'):
+                if hasattr(mod, "_probe_attrs"):
                     _trace_module = mod
                     break
         if _trace_module is None:
             raise RuntimeError("Cannot find trace module with _probe_attrs")
-        
-        _probe_attrs_dict = getattr(_trace_module, '_probe_attrs', {})
+
+        _probe_attrs_dict = getattr(_trace_module, "_probe_attrs", {})
         attrs = _probe_attrs_dict.get(code_id, {})
-        _func = attrs.get('__probe_func__')
+        _func = attrs.get("__probe_func__")
         if _func is None:
             raise RuntimeError(f"Probe attributes not found for code id {code_id}")
-        
-        ProbingTracer = getattr(_trace_module, 'ProbingTracer')
+
+        ProbingTracer = getattr(_trace_module, "ProbingTracer")
         tracer = ProbingTracer(
-            attrs.get('__probe_depth__', 1), 
-            attrs.get('__probe_watch__', []),
-            attrs.get('__probe_silent_watch__', [])
+            attrs.get("__probe_depth__", 1),
+            attrs.get("__probe_watch__", []),
+            attrs.get("__probe_silent_watch__", []),
         )
         with tracer:
             return _func(*args, **kwargs)
-    
+
     # Store attributes in global dict keyed by code object id
     code_id = id(wrapper.__code__)
     _probe_attrs[code_id] = {
-        '__probe_func__': func,
-        '__probe_watch__': watch if isinstance(watch, list) else list(watch) if watch else [],
-        '__probe_silent_watch__': silent_watch if isinstance(silent_watch, list) else list(silent_watch) if silent_watch else [],
-        '__probe_depth__': depth,
+        "__probe_func__": func,
+        "__probe_watch__": (
+            watch if isinstance(watch, list) else list(watch) if watch else []
+        ),
+        "__probe_silent_watch__": (
+            silent_watch
+            if isinstance(silent_watch, list)
+            else list(silent_watch) if silent_watch else []
+        ),
+        "__probe_depth__": depth,
     }
-    
-    wrapper.__globals__['_probe_attrs'] = _probe_attrs
-    wrapper.__globals__['_probe_modules'] = _probe_modules
-    
+
+    wrapper.__globals__["_probe_attrs"] = _probe_attrs
+    wrapper.__globals__["_probe_modules"] = _probe_modules
+
     # Apply functools.wraps to copy metadata
     wrapper = functools.wraps(func)(wrapper)
-    
+
     # Re-store attributes after functools.wraps (may have created new function with new code)
     code_id = id(wrapper.__code__)
     _probe_attrs[code_id] = {
-        '__probe_func__': func,
-        '__probe_watch__': watch if isinstance(watch, list) else list(watch) if watch else [],
-        '__probe_silent_watch__': silent_watch if isinstance(silent_watch, list) else list(silent_watch) if silent_watch else [],
-        '__probe_depth__': depth,
+        "__probe_func__": func,
+        "__probe_watch__": (
+            watch if isinstance(watch, list) else list(watch) if watch else []
+        ),
+        "__probe_silent_watch__": (
+            silent_watch
+            if isinstance(silent_watch, list)
+            else list(silent_watch) if silent_watch else []
+        ),
+        "__probe_depth__": depth,
     }
-    wrapper.__globals__['_probe_attrs'] = _probe_attrs
-    wrapper.__globals__['_probe_modules'] = _probe_modules
-    
+    wrapper.__globals__["_probe_attrs"] = _probe_attrs
+    wrapper.__globals__["_probe_modules"] = _probe_modules
+
     return wrapper
 
 
@@ -612,24 +740,28 @@ class ProbingTracer:
             if k in frame.f_locals and id(frame.f_locals[k]) != v:
                 new_value = frame.f_locals[k]
                 # Format: probing: [function:line] variable = value (type)
-                filename = frame.f_code.co_filename.split('/')[-1] if '/' in frame.f_code.co_filename else frame.f_code.co_filename
+                filename = (
+                    frame.f_code.co_filename.split("/")[-1]
+                    if "/" in frame.f_code.co_filename
+                    else frame.f_code.co_filename
+                )
                 value_str = str(new_value)
                 value_type = type(new_value).__name__
-                
+
                 # Print only if variable is in watch list (not silent_watch)
                 if k in self.watch:
                     print(f"probing: variable update {k} = {new_value}")
-                
+
                 # Save variable change to trace_variables table (for both watch and silent_watch)
                 try:
                     # Get full qualified function name (module.function_name)
-                    module_name = frame.f_globals.get('__name__', '')
+                    module_name = frame.f_globals.get("__name__", "")
                     func_name = frame.f_code.co_name
                     if module_name:
                         full_function_name = f"{module_name}.{func_name}"
                     else:
                         full_function_name = func_name
-                    
+
                     Variable(
                         function_name=full_function_name,
                         filename=filename,
@@ -640,8 +772,10 @@ class ProbingTracer:
                     ).save()
                 except Exception as e:
                     # Log error but don't disrupt the tracing process
-                    print(f"Warning: Failed to save variable change to trace_variables table: {e}")
-                
+                    print(
+                        f"Warning: Failed to save variable change to trace_variables table: {e}"
+                    )
+
                 self.watch_impl[k] = id(frame.f_locals[k])
         return self.trace
 
@@ -730,11 +864,13 @@ def list_traceable(prefix=None, depth=2):
     # Always return structured data with variables
     result = []
     for item in traceable_items:
-        result.append({
-            "name": item['name'],
-            "type": item['type'],
-            "variables": item.get('variables', [])
-        })
+        result.append(
+            {
+                "name": item["name"],
+                "type": item["type"],
+                "variables": item.get("variables", []),
+            }
+        )
     return json.dumps(result, indent=2)
 
 
@@ -775,17 +911,19 @@ def trace(func_or_name, watch=[], silent_watch=[], depth=1, callback=None):
             if not isinstance(func, FunctionType):
                 print(f"Error: {func_or_name} is not a function")
                 return
-            
+
             # Store original attributes for restoration
             original_attrs = {
-                '__code__': func.__code__,
-                '__defaults__': func.__defaults__,
-                '__kwdefaults__': func.__kwdefaults__.copy() if func.__kwdefaults__ else None,
-                '__closure__': func.__closure__,
-                '__code_id__': id(func.__code__),  # Store original code_id for cleanup
+                "__code__": func.__code__,
+                "__defaults__": func.__defaults__,
+                "__kwdefaults__": (
+                    func.__kwdefaults__.copy() if func.__kwdefaults__ else None
+                ),
+                "__closure__": func.__closure__,
+                "__code_id__": id(func.__code__),  # Store original code_id for cleanup
             }
             traced_functions[func_or_name] = original_attrs
-            
+
             # Create a copy of the original function to avoid recursion
             # When we replace func.__code__, the func object itself is modified
             # So we need to store a copy that won't be affected
@@ -794,40 +932,44 @@ def trace(func_or_name, watch=[], silent_watch=[], depth=1, callback=None):
                 func.__globals__,
                 func.__name__,
                 func.__defaults__,
-                func.__closure__
+                func.__closure__,
             )
-            original_func.__kwdefaults__ = func.__kwdefaults__.copy() if func.__kwdefaults__ else None
-            original_func.__annotations__ = getattr(func, '__annotations__', None)
+            original_func.__kwdefaults__ = (
+                func.__kwdefaults__.copy() if func.__kwdefaults__ else None
+            )
+            original_func.__annotations__ = getattr(func, "__annotations__", None)
             original_func.__doc__ = func.__doc__
-            original_func.__module__ = getattr(func, '__module__', None)
-            
+            original_func.__module__ = getattr(func, "__module__", None)
+
             # Create wrapped function using probe with the original function copy
-            wrapped_func = probe(original_func, watch=watch, silent_watch=silent_watch, depth=depth)
-            
+            wrapped_func = probe(
+                original_func, watch=watch, silent_watch=silent_watch, depth=depth
+            )
+
             # Create a new function object using types.FunctionType to ensure proper validation
             wrapper_globals = wrapped_func.__globals__.copy()
-            wrapper_globals['_probe_attrs'] = _probe_attrs
-            wrapper_globals['_probe_modules'] = _probe_modules
+            wrapper_globals["_probe_attrs"] = _probe_attrs
+            wrapper_globals["_probe_modules"] = _probe_modules
             new_func = types.FunctionType(
                 wrapped_func.__code__,
                 wrapper_globals,
                 func.__name__,
                 wrapped_func.__defaults__,
-                wrapped_func.__closure__
+                wrapped_func.__closure__,
             )
-            
+
             # Copy additional attributes
             new_func.__kwdefaults__ = wrapped_func.__kwdefaults__
-            new_func.__annotations__ = getattr(func, '__annotations__', None)
+            new_func.__annotations__ = getattr(func, "__annotations__", None)
             new_func.__doc__ = func.__doc__
-            new_func.__module__ = getattr(func, '__module__', None)
-            
+            new_func.__module__ = getattr(func, "__module__", None)
+
             # Update _probe_attrs before replacing __code__ (new code object will have different id)
             wrapped_code_id = id(wrapped_func.__code__)
             new_code_id = id(new_func.__code__)
             if wrapped_code_id in _probe_attrs:
                 _probe_attrs[new_code_id] = _probe_attrs[wrapped_code_id].copy()
-            
+
             # Replace function attributes
             try:
                 func.__code__ = new_func.__code__
@@ -836,16 +978,16 @@ def trace(func_or_name, watch=[], silent_watch=[], depth=1, callback=None):
                 func.__closure__ = new_func.__closure__
             except (AttributeError, TypeError):
                 # If direct assignment fails (readonly attribute), use object.__setattr__
-                object.__setattr__(func, '__code__', new_func.__code__)
-                object.__setattr__(func, '__defaults__', new_func.__defaults__)
-                object.__setattr__(func, '__kwdefaults__', new_func.__kwdefaults__)
-                object.__setattr__(func, '__closure__', new_func.__closure__)
-            
+                object.__setattr__(func, "__code__", new_func.__code__)
+                object.__setattr__(func, "__defaults__", new_func.__defaults__)
+                object.__setattr__(func, "__kwdefaults__", new_func.__kwdefaults__)
+                object.__setattr__(func, "__closure__", new_func.__closure__)
+
             # Ensure final code_id is in _probe_attrs
             final_code_id = id(func.__code__)
             if final_code_id not in _probe_attrs and new_code_id in _probe_attrs:
                 _probe_attrs[final_code_id] = _probe_attrs[new_code_id].copy()
-            
+
             # Store all code_ids associated with this function for cleanup in untrace
             # Collect all code_ids that might be in _probe_attrs
             all_traced_code_ids = []
@@ -858,8 +1000,10 @@ def trace(func_or_name, watch=[], silent_watch=[], depth=1, callback=None):
             # Also include the code_id from probe function (wrapper's code_id before functools.wraps)
             # This is stored in probe function, we need to get it from wrapped_func
             # Actually, wrapped_code_id should already be the one from probe
-            traced_functions[func_or_name]['__traced_code_ids__'] = list(set(all_traced_code_ids))
-            
+            traced_functions[func_or_name]["__traced_code_ids__"] = list(
+                set(all_traced_code_ids)
+            )
+
         except Exception as e:
             print(f"Function {func_or_name} not found: {e}")
             return
@@ -890,32 +1034,34 @@ def untrace(func_or_name):
             if not isinstance(func, FunctionType):
                 print(f"Error: {func_or_name} is not a function")
                 return
-            
+
             # Get original attributes
             original_attrs = traced_functions.pop(func_or_name)
-            
+
             # Clean up _probe_attrs entries for all code_ids associated with this function
-            traced_code_ids = original_attrs.get('__traced_code_ids__', [])
+            traced_code_ids = original_attrs.get("__traced_code_ids__", [])
             current_code_id = id(func.__code__)
             # Also check current code_id in case it's different
             all_code_ids = set(traced_code_ids + [current_code_id])
             for code_id in all_code_ids:
                 if code_id in _probe_attrs:
                     del _probe_attrs[code_id]
-            
+
             # Restore function's attributes
             try:
-                func.__code__ = original_attrs['__code__']
-                func.__defaults__ = original_attrs['__defaults__']
-                func.__kwdefaults__ = original_attrs['__kwdefaults__']
-                func.__closure__ = original_attrs['__closure__']
+                func.__code__ = original_attrs["__code__"]
+                func.__defaults__ = original_attrs["__defaults__"]
+                func.__kwdefaults__ = original_attrs["__kwdefaults__"]
+                func.__closure__ = original_attrs["__closure__"]
             except (AttributeError, TypeError):
                 # If direct assignment fails (readonly attribute), use object.__setattr__
-                object.__setattr__(func, '__code__', original_attrs['__code__'])
-                object.__setattr__(func, '__defaults__', original_attrs['__defaults__'])
-                object.__setattr__(func, '__kwdefaults__', original_attrs['__kwdefaults__'])
-                object.__setattr__(func, '__closure__', original_attrs['__closure__'])
-            
+                object.__setattr__(func, "__code__", original_attrs["__code__"])
+                object.__setattr__(func, "__defaults__", original_attrs["__defaults__"])
+                object.__setattr__(
+                    func, "__kwdefaults__", original_attrs["__kwdefaults__"]
+                )
+                object.__setattr__(func, "__closure__", original_attrs["__closure__"])
+
         except Exception as e:
             print(f"Function {func_or_name} not found: {e}")
             return

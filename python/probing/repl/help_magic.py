@@ -56,38 +56,40 @@ class HelpMagic(Magics):
                 doc = func.__doc__ or "No description"
                 description = "No description"
                 subcommands = []
-                
+
                 # Parse docstring to extract description and subcommands
                 in_usage = False
                 for doc_line in doc.strip().split("\n"):
                     doc_line = doc_line.strip()
-                    
+
                     # Detect Usage section
                     if doc_line.startswith("Usage:"):
                         in_usage = True
                         continue
-                    
+
                     # Extract subcommands from Usage section
                     if in_usage:
                         # Stop at Examples or other sections
-                        if doc_line.startswith("Examples:") or doc_line.startswith("Subcommands:"):
+                        if doc_line.startswith("Examples:") or doc_line.startswith(
+                            "Subcommands:"
+                        ):
                             in_usage = False
                             continue
-                        
+
                         # Skip empty lines (but continue in usage mode if we have subcommands)
                         if not doc_line:
                             if subcommands:
                                 in_usage = False  # End of usage section
                             continue
-                        
+
                         # Skip comment-only lines
                         if doc_line.startswith("#"):
                             continue
-                        
+
                         # Check if this line contains the command name
                         cmd_patterns = [f"%{name}", f"%%{name}", name]
                         subcmd_line = None
-                        
+
                         for pattern in cmd_patterns:
                             if pattern in doc_line:
                                 # Extract everything after the command name
@@ -96,17 +98,35 @@ class HelpMagic(Magics):
                                     subcmd_line = parts[1].strip()
                                     # Remove inline comments (everything after #)
                                     if "#" in subcmd_line:
-                                        subcmd_line = subcmd_line.split("#", 1)[0].strip()
+                                        subcmd_line = subcmd_line.split("#", 1)[
+                                            0
+                                        ].strip()
                                     break
-                        
+
                         # If no command pattern found, but line looks like a subcommand (starts with common subcommands)
-                        if not subcmd_line and doc_line and not doc_line.startswith("  "):
+                        if (
+                            not subcmd_line
+                            and doc_line
+                            and not doc_line.startswith("  ")
+                        ):
                             # Might be a subcommand line without the main command prefix
                             # Check if it looks like a subcommand (has common patterns)
-                            if any(word in doc_line.lower() for word in ["watch", "list", "profile", "summary", "timeline", "ls", "gc", "cuda"]):
+                            if any(
+                                word in doc_line.lower()
+                                for word in [
+                                    "watch",
+                                    "list",
+                                    "profile",
+                                    "summary",
+                                    "timeline",
+                                    "ls",
+                                    "gc",
+                                    "cuda",
+                                ]
+                            ):
                                 # Remove comments
                                 subcmd_line = doc_line.split("#", 1)[0].strip()
-                        
+
                         if subcmd_line:
                             subcommands.append(subcmd_line)
                     else:
@@ -120,7 +140,9 @@ class HelpMagic(Magics):
                         ):
                             description = doc_line
 
-                magic_groups[class_name]["line"].append((name, description, subcommands))
+                magic_groups[class_name]["line"].append(
+                    (name, description, subcommands)
+                )
             except (AttributeError, KeyError):
                 # Skip magics that can't be introspected
                 pass
@@ -147,38 +169,40 @@ class HelpMagic(Magics):
                 doc = func.__doc__ or "No description"
                 description = "No description"
                 subcommands = []
-                
+
                 # Parse docstring to extract description and subcommands
                 in_usage = False
                 for doc_line in doc.strip().split("\n"):
                     doc_line = doc_line.strip()
-                    
+
                     # Detect Usage section
                     if doc_line.startswith("Usage:"):
                         in_usage = True
                         continue
-                    
+
                     # Extract subcommands from Usage section
                     if in_usage:
                         # Stop at Examples or other sections
-                        if doc_line.startswith("Examples:") or doc_line.startswith("Subcommands:"):
+                        if doc_line.startswith("Examples:") or doc_line.startswith(
+                            "Subcommands:"
+                        ):
                             in_usage = False
                             continue
-                        
+
                         # Skip empty lines
                         if not doc_line:
                             if subcommands:
                                 in_usage = False
                             continue
-                        
+
                         # Skip comment-only lines
                         if doc_line.startswith("#"):
                             continue
-                        
+
                         # Check if this line contains the command name
                         cmd_patterns = [f"%%{name}", f"%{name}", name]
                         subcmd_line = None
-                        
+
                         for pattern in cmd_patterns:
                             if pattern in doc_line:
                                 parts = doc_line.split(pattern, 1)
@@ -186,9 +210,11 @@ class HelpMagic(Magics):
                                     subcmd_line = parts[1].strip()
                                     # Remove inline comments
                                     if "#" in subcmd_line:
-                                        subcmd_line = subcmd_line.split("#", 1)[0].strip()
+                                        subcmd_line = subcmd_line.split("#", 1)[
+                                            0
+                                        ].strip()
                                     break
-                        
+
                         if subcmd_line:
                             subcommands.append(subcmd_line)
                     else:
@@ -202,7 +228,9 @@ class HelpMagic(Magics):
                         ):
                             description = doc_line
 
-                magic_groups[class_name]["cell"].append((name, description, subcommands))
+                magic_groups[class_name]["cell"].append(
+                    (name, description, subcommands)
+                )
             except (AttributeError, KeyError):
                 # Skip magics that can't be introspected
                 pass
@@ -227,11 +255,11 @@ class HelpMagic(Magics):
                     # Backward compatibility
                     name, desc = item[:2]
                     subcommands = []
-                
+
                 # Truncate long descriptions
                 desc_short = desc[:50] + "..." if len(desc) > 50 else desc
                 output.append(f"  %{name:<25} {desc_short}")
-                
+
                 # Show subcommands if available
                 if subcommands:
                     for subcmd in subcommands[:5]:  # Limit to 5 subcommands
@@ -245,7 +273,9 @@ class HelpMagic(Magics):
                             subcmd_clean = subcmd_clean[:57] + "..."
                         output.append(f"    └─ %{name} {subcmd_clean}")
                     if len(subcommands) > 5:
-                        output.append(f"    └─ ... and {len(subcommands) - 5} more (use %{name}? for full help)")
+                        output.append(
+                            f"    └─ ... and {len(subcommands) - 5} more (use %{name}? for full help)"
+                        )
 
             # Show cell magics
             for item in sorted(group["cell"]):
@@ -254,10 +284,10 @@ class HelpMagic(Magics):
                 else:
                     name, desc = item[:2]
                     subcommands = []
-                
+
                 desc_short = desc[:50] + "..." if len(desc) > 50 else desc
                 output.append(f"  %%{name:<24} {desc_short}")
-                
+
                 # Show subcommands if available
                 if subcommands:
                     for subcmd in subcommands[:5]:
@@ -268,7 +298,9 @@ class HelpMagic(Magics):
                             subcmd_clean = subcmd_clean[:57] + "..."
                         output.append(f"    └─ %%{name} {subcmd_clean}")
                     if len(subcommands) > 5:
-                        output.append(f"    └─ ... and {len(subcommands) - 5} more (use %%{name}? for full help)")
+                        output.append(
+                            f"    └─ ... and {len(subcommands) - 5} more (use %%{name}? for full help)"
+                        )
 
             output.append("")
 

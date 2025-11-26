@@ -628,7 +628,7 @@ fn get_tracing_viewer_html_with_url(json_url: &str) -> String {
 
 /// Generate HTML page containing Chrome tracing viewer
 /// Directly use loaded trace JSON data, pass to Perfetto UI via postMessage API
-fn get_tracing_viewer_html(trace_json: &str) -> String {
+pub fn get_tracing_viewer_html(trace_json: &str) -> String {
     // Escape JSON data for embedding in JavaScript
     let escaped_json = trace_json
         .replace('\\', "\\\\")

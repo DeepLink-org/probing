@@ -37,7 +37,9 @@ class InspectMagic(Magics):
         "--type", "-t", type=str, default=None, help="Filter by type (for objects)"
     )
     @argument(
-        "--all", action="store_true", help="Show all modules including submodules (for modules target)"
+        "--all",
+        action="store_true",
+        help="Show all modules including submodules (for modules target)",
     )
     def inspect(self, line: str):
         """Inspect PyTorch modules, tensors, optimizers, and memory.
@@ -137,6 +139,7 @@ Examples:
             if args.all:
                 # Get all modules including submodules
                 from probing.inspect import get_torch_modules
+
                 module_items = get_torch_modules()
 
                 # Filter out non-module items and extract actual objects
