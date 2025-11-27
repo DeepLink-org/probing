@@ -321,6 +321,9 @@ def _infer_param_types(func: Callable) -> Dict[str, str]:
             param_types[param_name] = "optional_int" if has_default else "int"
         elif param_type == bool:
             param_types[param_name] = "bool"
+        elif param_type == list:
+            # Plain list type (without generic), treat as string_list
+            param_types[param_name] = "string_list"
         elif has_default:
             # Has default value but unknown type, treat as optional string
             param_types[param_name] = "optional_string"

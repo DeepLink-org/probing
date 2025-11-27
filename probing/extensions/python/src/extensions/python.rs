@@ -416,3 +416,61 @@ fn call_python_handler(
         Ok(result_str.into_bytes())
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_py_ext_list_display() {
+        let mut list = PyExtList::default();
+        assert_eq!(list.to_string(), "");
+
+        // Add extensions
+        Python::with_gil(|py| {
+            let ext1 = py.None();
+            let ext2 = py.None();
+            list.0.insert("ext1".to_string(), ext1);
+            list.0.insert("ext2".to_string(), ext2);
+        });
+
+        let display = list.to_string();
+        assert!(display.contains("ext1") || display.contains("ext2"));
+    }
+
+    #[test]
+    fn test_is_no_handler_found_error() {
+        // Test with "No handler found" error
+        let error_json = r#"{"error": "No handler found for path: test/path"}"#;
+        assert!(is_no_handler_found_error(error_json.as_bytes()));
+
+        // Test with other error
+        let other_error = r#"{"error": "Some other error"}"#;
+        assert!(!is_no_handler_found_error(other_error.as_bytes()));
+
+        // Test with success response
+        let success = r#"{"result": "ok"}"#;
+        assert!(!is_no_handler_found_error(success.as_bytes()));
+
+        // Test with invalid JSON
+        let invalid = b"not json";
+        assert!(!is_no_handler_found_error(invalid));
+
+        // Test with invalid UTF-8
+        let invalid_utf8 = &[0xFF, 0xFE, 0xFD];
+        assert!(!is_no_handler_found_error(invalid_utf8));
+
+        // Test with error field but not a string
+        let error_not_string = r#"{"error": 123}"#;
+        assert!(!is_no_handler_found_error(error_not_string.as_bytes()));
+    }
+
+    #[test]
+    fn test_str_to_py() {
+        Python::with_gil(|py| {
+            let py_obj = str_to_py(py, "test_string");
+            let extracted: String = py_obj.extract(py).unwrap();
+            assert_eq!(extracted, "test_string");
+        });
+    }
+}
