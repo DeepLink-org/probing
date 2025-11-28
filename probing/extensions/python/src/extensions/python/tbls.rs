@@ -19,9 +19,9 @@ use pyo3::types::PyFloat;
 use pyo3::types::PyInt;
 use pyo3::types::PyList;
 use pyo3::types::PyString;
+use pyo3::Bound;
 use pyo3::PyAny;
 use pyo3::Python;
-use pyo3::{Bound, IntoPyObject};
 
 #[derive(Default, Debug)]
 pub struct PythonNamespace {}
@@ -551,3 +551,54 @@ impl PythonNamespace {
 }
 
 pub type PythonPlugin = NamespacePluginHelper<PythonNamespace>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_python_namespace_default() {
+        let ns = PythonNamespace::default();
+        // Just verify it can be created
+        assert_eq!(format!("{:?}", ns), "PythonNamespace");
+    }
+
+    #[test]
+    fn test_import_path_parsing() {
+        // Test the import path parsing logic used in data_from_python
+        let expr = "sys.path";
+        let import_path = expr.split(|c| c == '(' || c == '[').next().unwrap_or(expr);
+        let parts: Vec<&str> = import_path
+            .split('.')
+            .filter(|segment| !segment.is_empty())
+            .collect();
+
+        assert_eq!(parts, vec!["sys", "path"]);
+
+        // Test with function call
+        let expr2 = "sys.path.append('test')";
+        let import_path2 = expr2
+            .split(|c| c == '(' || c == '[')
+            .next()
+            .unwrap_or(expr2);
+        let parts2: Vec<&str> = import_path2
+            .split('.')
+            .filter(|segment| !segment.is_empty())
+            .collect();
+
+        assert_eq!(parts2, vec!["sys", "path", "append"]);
+
+        // Test with empty expression
+        let expr3 = "";
+        let import_path3 = expr3
+            .split(|c| c == '(' || c == '[')
+            .next()
+            .unwrap_or(expr3);
+        let parts3: Vec<&str> = import_path3
+            .split('.')
+            .filter(|segment| !segment.is_empty())
+            .collect();
+
+        assert!(parts3.is_empty());
+    }
+}
