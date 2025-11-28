@@ -11,7 +11,8 @@ use probing_core::core::EngineExtension;
 use probing_core::core::EngineExtensionOption;
 use probing_core::core::Maybe;
 use probing_proto::prelude::CallFrame;
-use pyo3::types::PyAnyMethods;
+use pyo3::prelude::*;
+use pyo3::types::{PyAnyMethods, PyString};
 use pyo3::Python;
 
 pub use exttbls::ExternalTable;
@@ -103,862 +104,24 @@ impl EngineCall for PythonExt {
         // Normalize path - remove leading slashes and handle different path formats
         let normalized_path = path.trim_start_matches('/');
 
-        if path == "callstack" || normalized_path == "callstack" {
-            let frames = if params.contains_key("tid") {
-                let tid = params
-                    .get("tid")
-                    .and_then(|s| s.parse::<i32>().ok())
-                    .unwrap_or_else(|| {
-                        log::warn!("Invalid tid parameter, using None");
-                        0
-                    });
-                self.tracer.trace(Some(tid))
-            } else {
-                self.tracer.trace(None)
+        // Try Python extension handlers first - router will handle routing automatically
+        if let Ok(result_bytes) = call_python_handler(&normalized_path, params) {
+            // Check if this is a "No handler found" error from Python router
+            if !is_no_handler_found_error(&result_bytes) {
+                return Ok(result_bytes);
             }
-            .map_err(|e| {
-                log::error!("Failed to get call stack: {e}");
-                EngineError::PluginError(format!("Failed to get call stack: {e}"))
-            })?;
-            return serde_json::to_vec(&frames).map_err(|e| {
-                log::error!("Failed to serialize call stack: {e}");
-                EngineError::PluginError(format!("Failed to serialize call stack: {e}"))
-            });
+            // If it's a "No handler found" error, fall through to check other handlers
         }
-        if path == "eval" {
-            let code = String::from_utf8(body.to_vec()).map_err(|e| {
-                log::error!("Failed to convert body to UTF-8 string: {e}");
-                EngineError::PluginError(format!("Failed to convert body to UTF-8 string: {e}"))
-            })?;
 
-            log::debug!("Python eval code: {code}");
-
-            let mut repl = PythonRepl::default();
-            return Ok(repl.process(code.as_str()).unwrap_or_default().into_bytes());
+        // Handle non-Python extension endpoints
+        if normalized_path == "callstack" {
+            return self.handle_callstack(params);
         }
-        if path == "flamegraph" {
+        if normalized_path == "eval" {
+            return self.handle_eval(body);
+        }
+        if normalized_path == "flamegraph" {
             return Ok(crate::features::torch::flamegraph().into_bytes());
-        }
-        // Ray timeline API endpoints
-        let is_ray_timeline = normalized_path == "ray/timeline"
-            || normalized_path == "python/ray/timeline"
-            || normalized_path == "pythonext/ray/timeline"
-            || normalized_path.ends_with("/ray/timeline")
-            || path.ends_with("/ray/timeline");
-
-        let is_ray_timeline_chrome = normalized_path == "ray/timeline/chrome"
-            || normalized_path == "python/ray/timeline/chrome"
-            || normalized_path == "pythonext/ray/timeline/chrome"
-            || normalized_path.ends_with("/ray/timeline/chrome")
-            || path.ends_with("/ray/timeline/chrome");
-
-        if is_ray_timeline_chrome {
-            // Return Chrome tracing format
-            let task_filter = params.get("task_filter").cloned();
-            let actor_filter = params.get("actor_filter").cloned();
-            let start_time = params.get("start_time").and_then(|s| s.parse::<i64>().ok());
-            let end_time = params.get("end_time").and_then(|s| s.parse::<i64>().ok());
-
-            return Python::with_gil(|py| {
-                use pyo3::types::PyDict;
-                use std::ffi::CString;
-                let global = PyDict::new(py);
-
-                let task_filter_str = task_filter
-                    .as_ref()
-                    .map(|s| format!("'{}'", s.replace('\'', "\\'")))
-                    .unwrap_or_else(|| "None".to_string());
-                let actor_filter_str = actor_filter
-                    .as_ref()
-                    .map(|s| format!("'{}'", s.replace('\'', "\\'")))
-                    .unwrap_or_else(|| "None".to_string());
-                let start_time_str = start_time
-                    .map(|t| t.to_string())
-                    .unwrap_or_else(|| "None".to_string());
-                let end_time_str = end_time
-                    .map(|t| t.to_string())
-                    .unwrap_or_else(|| "None".to_string());
-
-                let code = format!(
-                    r#"
-import json
-import traceback
-try:
-    from probing.ext.ray import get_ray_timeline_chrome_format
-    
-    chrome_trace = get_ray_timeline_chrome_format(
-        task_filter={task_filter},
-        actor_filter={actor_filter},
-        start_time={start_time},
-        end_time={end_time}
-    )
-    
-    result = chrome_trace
-except Exception as e:
-    error_msg = str(e)
-    error_trace = traceback.format_exc()
-    result = json.dumps({{"error": error_msg, "traceback": error_trace}})
-"#,
-                    task_filter = task_filter_str,
-                    actor_filter = actor_filter_str,
-                    start_time = start_time_str,
-                    end_time = end_time_str
-                );
-
-                let code_cstr = CString::new(code).map_err(|e| {
-                    EngineError::PluginError(format!("Failed to create CString: {e}"))
-                })?;
-
-                py.run(code_cstr.as_c_str(), Some(&global), Some(&global))
-                    .map_err(|e| {
-                        EngineError::PluginError(format!("Python execution error: {e}"))
-                    })?;
-
-                match global.get_item("result") {
-                    Ok(result) => {
-                        let result_str: String = result.extract().map_err(|e| {
-                            EngineError::PluginError(format!("Failed to extract result: {e}"))
-                        })?;
-                        Ok(result_str.into_bytes())
-                    }
-                    Err(e) => Err(EngineError::PluginError(format!(
-                        "Failed to get result: {e}"
-                    ))),
-                }
-            });
-        }
-
-        if is_ray_timeline {
-            let task_filter = params.get("task_filter").cloned();
-            let actor_filter = params.get("actor_filter").cloned();
-            let start_time = params.get("start_time").and_then(|s| s.parse::<i64>().ok());
-            let end_time = params.get("end_time").and_then(|s| s.parse::<i64>().ok());
-
-            return Python::with_gil(|py| {
-                use pyo3::types::PyDict;
-                use std::ffi::CString;
-                let global = PyDict::new(py);
-
-                // Build Python code to call get_ray_timeline
-                let task_filter_str = task_filter
-                    .as_ref()
-                    .map(|s| format!("'{}'", s.replace('\'', "\\'")))
-                    .unwrap_or_else(|| "None".to_string());
-                let actor_filter_str = actor_filter
-                    .as_ref()
-                    .map(|s| format!("'{}'", s.replace('\'', "\\'")))
-                    .unwrap_or_else(|| "None".to_string());
-                let start_time_str = start_time
-                    .map(|t| t.to_string())
-                    .unwrap_or_else(|| "None".to_string());
-                let end_time_str = end_time
-                    .map(|t| t.to_string())
-                    .unwrap_or_else(|| "None".to_string());
-
-                let code = format!(
-                    r#"
-import json
-import traceback
-try:
-    from probing.ext.ray import get_ray_timeline
-    
-    timeline = get_ray_timeline(
-        task_filter={task_filter},
-        actor_filter={actor_filter},
-        start_time={start_time},
-        end_time={end_time}
-    )
-    
-    result = json.dumps(timeline)
-except Exception as e:
-    error_msg = str(e)
-    error_trace = traceback.format_exc()
-    result = json.dumps({{"error": error_msg, "traceback": error_trace}})
-"#,
-                    task_filter = task_filter_str,
-                    actor_filter = actor_filter_str,
-                    start_time = start_time_str,
-                    end_time = end_time_str
-                );
-
-                let code_cstr = CString::new(code).map_err(|e| {
-                    let err_msg = format!("Failed to create CString: {e}");
-                    log::error!("Ray timeline API error: {}", err_msg);
-                    EngineError::PluginError(err_msg)
-                })?;
-
-                py.run(code_cstr.as_c_str(), Some(&global), Some(&global))
-                    .map_err(|e| {
-                        let err_msg = format!("Failed to execute Python code: {e}");
-                        log::error!("Ray timeline API error: {}", err_msg);
-                        // Try to extract Python error details if available
-                        let py_err_details = format!("Python execution error: {e}");
-                        EngineError::PluginError(py_err_details)
-                    })?;
-
-                match global.get_item("result") {
-                    Ok(result) => {
-                        let result_str: String = result.extract().map_err(|e| {
-                            let err_msg = format!("Failed to extract result: {e}");
-                            log::error!("Ray timeline API error: {}", err_msg);
-                            EngineError::PluginError(err_msg)
-                        })?;
-
-                        // Check if result contains an error (from Python exception handling)
-                        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&result_str) {
-                            if let Some(error_obj) = parsed.get("error") {
-                                let error_msg = error_obj.as_str().unwrap_or("Unknown error");
-                                let traceback = parsed
-                                    .get("traceback")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("");
-
-                                // Log full error with traceback
-                                if !traceback.is_empty() {
-                                    log::error!(
-                                        "Ray timeline API Python error:\n{}\nTraceback:\n{}",
-                                        error_msg,
-                                        traceback
-                                    );
-                                } else {
-                                    log::error!("Ray timeline API Python error: {}", error_msg);
-                                }
-
-                                // Return detailed error message
-                                let err_msg = if !traceback.is_empty() {
-                                    format!(
-                                        "Python execution error: {}\nTraceback:\n{}",
-                                        error_msg, traceback
-                                    )
-                                } else {
-                                    format!("Python execution error: {}", error_msg)
-                                };
-                                return Err(EngineError::PluginError(err_msg));
-                            }
-                        }
-
-                        Ok(result_str.into_bytes())
-                    }
-                    Err(e) => {
-                        let err_msg = format!("Failed to get result from Python: {e}");
-                        log::error!("Ray timeline API error: {}", err_msg);
-                        Err(EngineError::PluginError(err_msg))
-                    }
-                }
-            });
-        }
-        // Chrome tracing JSON API endpoint
-        // This endpoint returns Chrome tracing format JSON that can be loaded by Perfetto UI
-        if path == "trace/chrome-tracing" {
-            let limit = params
-                .get("limit")
-                .and_then(|s| s.parse::<usize>().ok())
-                .unwrap_or(1000);
-
-            // Use the engine to query trace events and convert to Chrome tracing format
-            // This is similar to what the frontend does, but we do it server-side
-            return Python::with_gil(|py| {
-                use pyo3::types::PyDict;
-                use std::ffi::CString;
-                let global = PyDict::new(py);
-                let code = format!(
-                    r#"
-import json
-import probing.core.engine as engine
-
-limit = {}
-try:
-    # Query trace events from the database
-    # IMPORTANT: Order by timestamp ASC to process events in chronological order
-    # This ensures span_start events are processed before their corresponding span_end events
-    limit_clause = f" LIMIT {{limit}}" if limit > 0 else ""
-    query = f"""
-        SELECT 
-            record_type,
-            trace_id,
-            span_id,
-            COALESCE(parent_id, -1) as parent_id,
-            name,
-            time as timestamp,
-            COALESCE(thread_id, 0) as thread_id,
-            kind,
-            location,
-            attributes,
-            event_attributes
-        FROM python.trace_event
-        ORDER BY timestamp ASC
-        {{limit_clause}}
-    """
-    
-    df = engine.query(query)
-    
-    # Convert DataFrame to Chrome tracing format
-    trace_events = []
-    # Check if DataFrame is not None and not empty
-    # Use df is not None and not df.empty instead of if df (ambiguous truth value)
-    if df is not None and not df.empty:
-        # Convert DataFrame to list of dictionaries for iteration
-        df_list = df.to_dict('records') if hasattr(df, 'to_dict') else []
-        # Find minimum timestamp
-        timestamps = [row.get('timestamp', 0) for row in df_list if 'timestamp' in row]
-        min_timestamp = min(timestamps) if timestamps else 0
-        
-        # Track span starts by (span_id, thread_id) to handle multiple threads
-        # Also track trace_id for span_end events (which may have trace_id=0)
-        span_starts = {{}}
-        
-        # First pass: collect all span_start events to build a lookup table
-        # This helps match span_end events even if trace_id is 0 in span_end
-        span_start_lookup = {{}}
-        for row in df_list:
-            if row.get('record_type') == 'span_start':
-                span_id = row.get('span_id', 0)
-                thread_id = row.get('thread_id', 0)
-                trace_id = row.get('trace_id', 0)
-                name = row.get('name', 'unknown')
-                kind = row.get('kind', 'trace')
-                # Use (span_id, thread_id) as key to handle multiple threads
-                key = (span_id, thread_id)
-                span_start_lookup[key] = {{
-                    'trace_id': trace_id,
-                    'name': name,
-                    'kind': kind,
-                    'timestamp': row.get('timestamp', 0)
-                }}
-        
-        # Second pass: convert events to Chrome tracing format
-        for row in df_list:
-            record_type = row.get('record_type', '')
-            timestamp = row.get('timestamp', 0)
-            name = row.get('name', 'unknown')
-            trace_id = row.get('trace_id', 0)
-            span_id = row.get('span_id', 0)
-            thread_id = row.get('thread_id', 0)
-            kind = row.get('kind', 'trace')
-            
-            # Convert nanoseconds to microseconds
-            ts_micros = (timestamp - min_timestamp) // 1000
-            # Use trace_id from span_start if available, otherwise use current trace_id
-            pid = trace_id
-            tid = thread_id
-            
-            if record_type == 'span_start':
-                # Store span start information with trace_id for matching
-                key = (span_id, thread_id)
-                span_starts[key] = (ts_micros, name, kind, pid)
-                chrome_event = {{
-                    "name": name,
-                    "cat": kind if kind else "span",
-                    "ph": "B",
-                    "ts": ts_micros,
-                    "pid": pid,
-                    "tid": tid,
-                }}
-                if row.get('location'):
-                    chrome_event["args"] = {{"location": row.get('location')}}
-                trace_events.append(chrome_event)
-            elif record_type == 'span_end':
-                # Try to find matching span_start
-                key = (span_id, thread_id)
-                start_info = span_starts.get(key)
-                
-                if start_info:
-                    # Found matching span_start that was already processed
-                    start_ts, start_name, start_kind, start_pid = start_info
-                    # Use the pid from span_start to ensure matching
-                    chrome_event = {{
-                        "name": start_name,  # Must match span_start name
-                        "cat": start_kind if start_kind else "span",  # Must match span_start cat
-                        "ph": "E",
-                        "ts": ts_micros,
-                        "pid": start_pid,  # Use pid from span_start
-                        "tid": tid,  # Must match span_start tid
-                    }}
-                    # Note: Chrome tracing B/E events don't need dur, but we can add it for debugging
-                    dur = ts_micros - start_ts
-                    if dur > 0:
-                        chrome_event["dur"] = dur
-                    trace_events.append(chrome_event)
-                    # Remove from span_starts to avoid duplicate matches
-                    del span_starts[key]
-                else:
-                    # No matching span_start found in processed events, try lookup
-                    lookup_info = span_start_lookup.get(key)
-                    if lookup_info:
-                        # Use trace_id and other info from span_start
-                        start_pid = lookup_info['trace_id']
-                        start_ts = (lookup_info['timestamp'] - min_timestamp) // 1000
-                        start_name = lookup_info['name']
-                        start_kind = lookup_info['kind']
-                        chrome_event = {{
-                            "name": start_name,  # Must match span_start name
-                            "cat": start_kind if start_kind else "span",  # Must match span_start cat
-                            "ph": "E",
-                            "ts": ts_micros,
-                            "pid": start_pid,  # Use pid from span_start
-                            "tid": tid,  # Must match span_start tid
-                        }}
-                        dur = ts_micros - start_ts
-                        if dur > 0:
-                            chrome_event["dur"] = dur
-                        trace_events.append(chrome_event)
-                    else:
-                        # No matching span_start found at all
-                        # This might happen if span_start was filtered out by limit
-                        # Create a standalone end event with warning
-                        chrome_event = {{
-                            "name": name if name else "unknown_span",
-                            "cat": "span",
-                            "ph": "E",
-                            "ts": ts_micros,
-                            "pid": pid if pid > 0 else 1,  # Use current pid or default
-                            "tid": tid,
-                        }}
-                        trace_events.append(chrome_event)
-            elif record_type == 'event':
-                chrome_event = {{
-                    "name": name,
-                    "cat": "event",
-                    "ph": "i",
-                    "ts": ts_micros,
-                    "pid": pid,
-                    "tid": tid,
-                    "s": "t",
-                }}
-                if row.get('event_attributes'):
-                    try:
-                        chrome_event["args"] = json.loads(row.get('event_attributes'))
-                    except:
-                        pass
-                trace_events.append(chrome_event)
-    
-    chrome_trace = {{
-        "traceEvents": trace_events,
-        "displayTimeUnit": "ms"
-    }}
-    retval = json.dumps(chrome_trace, indent=2)
-except Exception as e:
-    import traceback
-    retval = json.dumps({{"error": str(e), "trace": traceback.format_exc(), "traceEvents": []}})
-"#,
-                    limit
-                );
-                let code_cstr = CString::new(code).map_err(|e| {
-                    EngineError::PluginError(format!("Failed to create CString: {e}"))
-                })?;
-                py.run(code_cstr.as_c_str(), Some(&global), Some(&global))
-                    .map_err(|e| {
-                        EngineError::PluginError(format!("Failed to get chrome tracing: {e}"))
-                    })?;
-                match global.get_item("retval") {
-                    Ok(result) => {
-                        let result_str: String = result.extract().map_err(|e| {
-                            EngineError::PluginError(format!("Failed to extract result: {e}"))
-                        })?;
-                        Ok(result_str.into_bytes())
-                    }
-                    Err(e) => Err(EngineError::PluginError(format!(
-                        "Failed to get chrome tracing result: {e}"
-                    ))),
-                }
-            });
-        }
-        // PyTorch profiler timeline API
-        // Use the same method as REPL (_cmd_timeline) to ensure consistency
-        if path == "pytorch/timeline" {
-            return Python::with_gil(|py| {
-                use pyo3::types::PyDict;
-                use std::ffi::CString;
-                let global = PyDict::new(py);
-                let code = r#"
-import json
-import sys
-import io
-import __main__
-import traceback
-from probing.repl.torch_magic import TorchMagic
-
-try:
-    # Use the same approach as REPL - call _cmd_timeline() method
-    # This ensures we use the exact same code path that works in REPL
-    shell = None  # TorchMagic doesn't actually need shell for _cmd_timeline
-    torch_magic = TorchMagic(shell)
-    
-    # Capture stdout to get the timeline JSON output
-    old_stdout = sys.stdout
-    sys.stdout = captured_output = io.StringIO()
-    
-    try:
-        # Call the timeline method (same as REPL)
-        torch_magic._cmd_timeline()
-        
-        # Get the captured output
-        timeline_output = captured_output.getvalue()
-        sys.stdout = old_stdout
-        
-        if not timeline_output or timeline_output.strip() == "":
-            retval = json.dumps({"error": "No timeline data available. Make sure the profiler has been executed."})
-        else:
-            # The output should be JSON, parse it to verify
-            try:
-                timeline_data = json.loads(timeline_output.strip())
-                # Return the timeline data directly
-                retval = json.dumps(timeline_data, indent=2)
-            except json.JSONDecodeError as e:
-                # If parsing fails, return error with the raw output for debugging
-                retval = json.dumps({"error": f"Failed to parse timeline output: {str(e)}", "raw_output": timeline_output[:500]})
-    except Exception as e:
-        sys.stdout = old_stdout
-        import traceback
-        retval = json.dumps({"error": f"Failed to get timeline: {str(e)}", "traceback": traceback.format_exc()})
-except Exception as e:
-    import traceback
-    retval = json.dumps({"error": f"Failed to initialize TorchMagic: {str(e)}", "traceback": traceback.format_exc()})
-"#;
-                let code_cstr = CString::new(code).map_err(|e| {
-                    EngineError::PluginError(format!("Failed to create CString: {e}"))
-                })?;
-                py.run(code_cstr.as_c_str(), Some(&global), Some(&global))
-                    .map_err(|e| {
-                        EngineError::PluginError(format!("Failed to get timeline: {e}"))
-                    })?;
-                match global.get_item("retval") {
-                    Ok(result) => {
-                        let result_str: String = result.extract().map_err(|e| {
-                            EngineError::PluginError(format!("Failed to extract result: {e}"))
-                        })?;
-                        Ok(result_str.into_bytes())
-                    }
-                    Err(e) => Err(EngineError::PluginError(format!(
-                        "Failed to get timeline result: {e}"
-                    ))),
-                }
-            });
-        }
-        // PyTorch profiler profile API - start global profiler with specified steps
-        if path == "pytorch/profile" {
-            let steps = params
-                .get("steps")
-                .and_then(|s| s.parse::<i32>().ok())
-                .unwrap_or(1);
-            return Python::with_gil(|py| {
-                use pyo3::types::PyDict;
-                use std::ffi::CString;
-                let global = PyDict::new(py);
-                let code = format!(
-                    r#"
-import json
-import __main__
-from probing.repl.torch_magic import TorchMagic
-
-steps = {}
-try:
-    # Use global profiler - call _start_global_profiler via _cmd_profile
-    shell = None
-    torch_magic = TorchMagic(shell)
-    torch_magic._start_global_profiler(steps)
-    retval = json.dumps({{"success": True, "message": f"Global profiler started for {{steps}} step(s)"}})
-except Exception as e:
-    import traceback
-    retval = json.dumps({{"success": False, "error": str(e), "traceback": traceback.format_exc()}})
-"#,
-                    steps
-                );
-                let code_cstr = CString::new(code).map_err(|e| {
-                    EngineError::PluginError(format!("Failed to create CString: {e}"))
-                })?;
-                py.run(code_cstr.as_c_str(), Some(&global), Some(&global))
-                    .map_err(|e| {
-                        EngineError::PluginError(format!("Failed to start profile: {e}"))
-                    })?;
-                match global.get_item("retval") {
-                    Ok(result) => {
-                        let result_str: String = result.extract().map_err(|e| {
-                            EngineError::PluginError(format!("Failed to extract result: {e}"))
-                        })?;
-                        Ok(result_str.into_bytes())
-                    }
-                    Err(e) => Err(EngineError::PluginError(format!(
-                        "Failed to get profile result: {e}"
-                    ))),
-                }
-            });
-        }
-        // Trace API endpoints
-        if path == "trace/list" {
-            return Python::with_gil(|py| {
-                use pyo3::types::PyDict;
-                use std::ffi::CString;
-                let global = PyDict::new(py);
-                let prefix = params.get("prefix").cloned();
-                let code = if let Some(prefix) = prefix {
-                    format!(
-                        r#"
-import json
-from probing.inspect.trace import list_traceable
-
-prefix = "{}"
-result = list_traceable(prefix=prefix)
-retval = result if result else "[]"
-"#,
-                        prefix
-                    )
-                } else {
-                    r#"
-import json
-from probing.inspect.trace import list_traceable
-
-prefix = None
-result = list_traceable(prefix=prefix)
-retval = result if result else "[]"
-"#
-                    .to_string()
-                };
-                let code_cstr = CString::new(code).map_err(|e| {
-                    EngineError::PluginError(format!("Failed to create CString: {e}"))
-                })?;
-                py.run(code_cstr.as_c_str(), Some(&global), Some(&global))
-                    .map_err(|e| {
-                        EngineError::PluginError(format!("Failed to list traceable: {e}"))
-                    })?;
-                match global.get_item("retval") {
-                    Ok(result) => {
-                        let result_str: String = result.extract().map_err(|e| {
-                            EngineError::PluginError(format!("Failed to extract result: {e}"))
-                        })?;
-                        Ok(result_str.into_bytes())
-                    }
-                    Err(e) => Err(EngineError::PluginError(format!(
-                        "Failed to get result: {e}"
-                    ))),
-                }
-            });
-        }
-        if path == "trace/show" {
-            return Python::with_gil(|py| {
-                use pyo3::types::PyDict;
-                use std::ffi::CString;
-                let global = PyDict::new(py);
-                let code = r#"
-import json
-from probing.inspect.trace import show_trace
-
-result = show_trace()
-retval = result if result else "[]"
-"#;
-                let code_cstr = CString::new(code).map_err(|e| {
-                    EngineError::PluginError(format!("Failed to create CString: {e}"))
-                })?;
-                py.run(code_cstr.as_c_str(), Some(&global), Some(&global))
-                    .map_err(|e| EngineError::PluginError(format!("Failed to show trace: {e}")))?;
-                match global.get_item("retval") {
-                    Ok(result) => {
-                        let result_str: String = result.extract().map_err(|e| {
-                            EngineError::PluginError(format!("Failed to extract result: {e}"))
-                        })?;
-                        Ok(result_str.into_bytes())
-                    }
-                    Err(e) => Err(EngineError::PluginError(format!(
-                        "Failed to get result: {e}"
-                    ))),
-                }
-            });
-        }
-        if path == "trace/start" {
-            let function = params.get("function").ok_or_else(|| {
-                EngineError::PluginError("Missing 'function' parameter".to_string())
-            })?;
-            let watch = params
-                .get("watch")
-                .map(|s| {
-                    s.split(',')
-                        .map(|x| x.trim().to_string())
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
-            let print_to_terminal = params
-                .get("print_to_terminal")
-                .map(|s| s == "true")
-                .unwrap_or(false);
-            let depth = params
-                .get("depth")
-                .and_then(|s| s.parse::<i32>().ok())
-                .unwrap_or(1);
-
-            return Python::with_gil(|py| {
-                use pyo3::types::PyDict;
-                use std::ffi::CString;
-                let global = PyDict::new(py);
-
-                // Determine whether to use watch or silent_watch based on print_to_terminal
-                let (watch_list, silent_watch_list) = if print_to_terminal {
-                    (watch.clone(), vec![])
-                } else {
-                    (vec![], watch.clone())
-                };
-
-                let code = format!(
-                    r#"
-import json
-from probing.inspect.trace import trace
-
-try:
-    trace("{}", watch={:?}, silent_watch={:?}, depth={})
-    result = {{"success": True, "message": "Started tracing {}"}}
-except Exception as e:
-    result = {{"success": False, "error": str(e)}}
-retval = json.dumps(result)
-"#,
-                    function, watch_list, silent_watch_list, depth, function
-                );
-                let code_cstr = CString::new(code).map_err(|e| {
-                    EngineError::PluginError(format!("Failed to create CString: {e}"))
-                })?;
-                py.run(code_cstr.as_c_str(), Some(&global), Some(&global))
-                    .map_err(|e| EngineError::PluginError(format!("Failed to start trace: {e}")))?;
-                match global.get_item("retval") {
-                    Ok(result) => {
-                        let result_str: String = result.extract().map_err(|e| {
-                            EngineError::PluginError(format!("Failed to extract result: {e}"))
-                        })?;
-                        Ok(result_str.into_bytes())
-                    }
-                    Err(e) => Err(EngineError::PluginError(format!(
-                        "Failed to get result: {e}"
-                    ))),
-                }
-            });
-        }
-        if path == "trace/stop" {
-            let function = params.get("function").ok_or_else(|| {
-                EngineError::PluginError("Missing 'function' parameter".to_string())
-            })?;
-
-            return Python::with_gil(|py| {
-                use pyo3::types::PyDict;
-                use std::ffi::CString;
-                let global = PyDict::new(py);
-                let code = format!(
-                    r#"
-import json
-from probing.inspect.trace import untrace
-
-try:
-    untrace("{}")
-    result = {{"success": True, "message": "Stopped tracing {}"}}
-except Exception as e:
-    result = {{"success": False, "error": str(e)}}
-retval = json.dumps(result)
-"#,
-                    function, function
-                );
-                let code_cstr = CString::new(code).map_err(|e| {
-                    EngineError::PluginError(format!("Failed to create CString: {e}"))
-                })?;
-                py.run(code_cstr.as_c_str(), Some(&global), Some(&global))
-                    .map_err(|e| EngineError::PluginError(format!("Failed to stop trace: {e}")))?;
-                match global.get_item("retval") {
-                    Ok(result) => {
-                        let result_str: String = result.extract().map_err(|e| {
-                            EngineError::PluginError(format!("Failed to extract result: {e}"))
-                        })?;
-                        Ok(result_str.into_bytes())
-                    }
-                    Err(e) => Err(EngineError::PluginError(format!(
-                        "Failed to get result: {e}"
-                    ))),
-                }
-            });
-        }
-        if path == "trace/variables" {
-            let function = params.get("function");
-            let limit = params
-                .get("limit")
-                .and_then(|s| s.parse::<usize>().ok())
-                .unwrap_or(100);
-
-            return Python::with_gil(|py| {
-                use pyo3::types::PyDict;
-                use std::ffi::CString;
-                let global = PyDict::new(py);
-                let code = if let Some(func) = function {
-                    format!(
-                        r#"
-import json
-import probing
-
-try:
-    # Try with python namespace first, fallback to direct table name
-    queries = [
-        "SELECT function_name, filename, lineno, variable_name, value, value_type, timestamp FROM python.trace_variables WHERE function_name = '{}' ORDER BY timestamp DESC LIMIT {}",
-        "SELECT function_name, filename, lineno, variable_name, value, value_type, timestamp FROM trace_variables WHERE function_name = '{}' ORDER BY timestamp DESC LIMIT {}"
-    ]
-    df = None
-    for query in queries:
-        try:
-            df = probing.query(query)
-            break
-        except:
-            continue
-    if df is None:
-        retval = json.dumps({{"error": "Table trace_variables not found"}})
-    else:
-        result = df.to_dict('records')
-        retval = json.dumps(result)
-except Exception as e:
-    retval = json.dumps({{"error": str(e)}})
-"#,
-                        func, limit, func, limit
-                    )
-                } else {
-                    format!(
-                        r#"
-import json
-import probing
-
-try:
-    # Try with python namespace first, fallback to direct table name
-    queries = [
-        "SELECT function_name, filename, lineno, variable_name, value, value_type, timestamp FROM python.trace_variables ORDER BY timestamp DESC LIMIT {{}}".format({}),
-        "SELECT function_name, filename, lineno, variable_name, value, value_type, timestamp FROM trace_variables ORDER BY timestamp DESC LIMIT {{}}".format({})
-    ]
-    df = None
-    for query in queries:
-        try:
-            df = probing.query(query)
-            break
-        except:
-            continue
-    if df is None:
-        retval = json.dumps({{"error": "Table trace_variables not found"}})
-    else:
-        result = df.to_dict('records')
-        retval = json.dumps(result)
-except Exception as e:
-    retval = json.dumps({{"error": str(e)}})
-"#,
-                        limit, limit
-                    )
-                };
-                let code_cstr = CString::new(code).map_err(|e| {
-                    EngineError::PluginError(format!("Failed to create CString: {e}"))
-                })?;
-                py.run(code_cstr.as_c_str(), Some(&global), Some(&global))
-                    .map_err(|e| {
-                        EngineError::PluginError(format!("Failed to get variables: {e}"))
-                    })?;
-                match global.get_item("retval") {
-                    Ok(result) => {
-                        let result_str: String = result.extract().map_err(|e| {
-                            EngineError::PluginError(format!("Failed to extract result: {e}"))
-                        })?;
-                        Ok(result_str.into_bytes())
-                    }
-                    Err(e) => Err(EngineError::PluginError(format!(
-                        "Failed to get result: {e}"
-                    ))),
-                }
-            });
         }
         Ok("".as_bytes().to_vec())
     }
@@ -976,6 +139,47 @@ impl EngineDatasource for PythonExt {
 }
 
 impl PythonExt {
+    /// Handle callstack request
+    fn handle_callstack(&self, params: &HashMap<String, String>) -> Result<Vec<u8>, EngineError> {
+        let tid = if params.contains_key("tid") {
+            params
+                .get("tid")
+                .and_then(|s| s.parse::<i32>().ok())
+                .unwrap_or_else(|| {
+                    log::warn!("Invalid tid parameter, using None");
+                    0
+                })
+        } else {
+            0
+        };
+
+        let frames = self
+            .tracer
+            .trace(if tid != 0 { Some(tid) } else { None })
+            .map_err(|e| {
+                log::error!("Failed to get call stack: {e}");
+                EngineError::PluginError(format!("Failed to get call stack: {e}"))
+            })?;
+
+        serde_json::to_vec(&frames).map_err(|e| {
+            log::error!("Failed to serialize call stack: {e}");
+            EngineError::PluginError(format!("Failed to serialize call stack: {e}"))
+        })
+    }
+
+    /// Handle eval request
+    fn handle_eval(&self, body: &[u8]) -> Result<Vec<u8>, EngineError> {
+        let code = String::from_utf8(body.to_vec()).map_err(|e| {
+            log::error!("Failed to convert body to UTF-8 string: {e}");
+            EngineError::PluginError(format!("Failed to convert body to UTF-8 string: {e}"))
+        })?;
+
+        log::debug!("Python eval code: {code}");
+
+        let mut repl = PythonRepl::default();
+        Ok(repl.process(code.as_str()).unwrap_or_default().into_bytes())
+    }
+
     /// Set up a Python crash handler
     fn set_crash_handler(&mut self, crash_handler: Maybe<String>) -> Result<(), EngineError> {
         match self.crash_handler {
@@ -1147,4 +351,126 @@ pub fn execute_python_code(code: &str) -> Result<pyo3::Py<pyo3::PyAny>, String> 
 
 fn backtrace(tid: Option<i32>) -> Result<Vec<CallFrame>> {
     SignalTracer.trace(tid)
+}
+
+/// Check if the result bytes contain a "No handler found" error from Python router
+fn is_no_handler_found_error(result_bytes: &[u8]) -> bool {
+    let Ok(result_str) = String::from_utf8(result_bytes.to_vec()) else {
+        return false;
+    };
+
+    let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&result_str) else {
+        return false;
+    };
+
+    let Some(error) = parsed.get("error") else {
+        return false;
+    };
+
+    let Some(error_str) = error.as_str() else {
+        return false;
+    };
+
+    error_str.contains("No handler found")
+}
+
+/// Helper to convert String to PyObject
+fn str_to_py(py: Python, s: &str) -> PyObject {
+    PyString::new(py, s).to_owned().unbind().into()
+}
+
+/// Call Python handler through the router system
+fn call_python_handler(
+    path: &str,
+    params: &HashMap<String, String>,
+) -> Result<Vec<u8>, EngineError> {
+    Python::with_gil(|py| {
+        // Import the router module directly
+        let router_module = py.import("probing.handlers.router").map_err(|e| {
+            EngineError::PluginError(format!("Failed to import router module: {e}"))
+        })?;
+
+        let handle_func = router_module.getattr("handle_request").map_err(|e| {
+            EngineError::PluginError(format!("Failed to get handle_request function: {e}"))
+        })?;
+
+        // Convert params HashMap to Python dict
+        let params_dict = pyo3::types::PyDict::new(py);
+        for (key, value) in params {
+            params_dict
+                .set_item(key.as_str(), str_to_py(py, value))
+                .map_err(|e| {
+                    EngineError::PluginError(format!("Failed to set param '{key}': {e}"))
+                })?;
+        }
+
+        // Call the router's handle_request function directly
+        let result = handle_func
+            .call1((str_to_py(py, path), params_dict))
+            .map_err(|e| EngineError::PluginError(format!("Failed to call handle_request: {e}")))?;
+
+        let result_str: String = result
+            .extract()
+            .map_err(|e| EngineError::PluginError(format!("Failed to extract result: {e}")))?;
+
+        Ok(result_str.into_bytes())
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_py_ext_list_display() {
+        let mut list = PyExtList::default();
+        assert_eq!(list.to_string(), "");
+
+        // Add extensions
+        Python::with_gil(|py| {
+            let ext1 = py.None();
+            let ext2 = py.None();
+            list.0.insert("ext1".to_string(), ext1);
+            list.0.insert("ext2".to_string(), ext2);
+        });
+
+        let display = list.to_string();
+        assert!(display.contains("ext1") || display.contains("ext2"));
+    }
+
+    #[test]
+    fn test_is_no_handler_found_error() {
+        // Test with "No handler found" error
+        let error_json = r#"{"error": "No handler found for path: test/path"}"#;
+        assert!(is_no_handler_found_error(error_json.as_bytes()));
+
+        // Test with other error
+        let other_error = r#"{"error": "Some other error"}"#;
+        assert!(!is_no_handler_found_error(other_error.as_bytes()));
+
+        // Test with success response
+        let success = r#"{"result": "ok"}"#;
+        assert!(!is_no_handler_found_error(success.as_bytes()));
+
+        // Test with invalid JSON
+        let invalid = b"not json";
+        assert!(!is_no_handler_found_error(invalid));
+
+        // Test with invalid UTF-8
+        let invalid_utf8 = &[0xFF, 0xFE, 0xFD];
+        assert!(!is_no_handler_found_error(invalid_utf8));
+
+        // Test with error field but not a string
+        let error_not_string = r#"{"error": 123}"#;
+        assert!(!is_no_handler_found_error(error_not_string.as_bytes()));
+    }
+
+    #[test]
+    fn test_str_to_py() {
+        Python::with_gil(|py| {
+            let py_obj = str_to_py(py, "test_string");
+            let extracted: String = py_obj.extract(py).unwrap();
+            assert_eq!(extracted, "test_string");
+        });
+    }
 }

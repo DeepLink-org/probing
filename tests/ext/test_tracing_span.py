@@ -38,6 +38,7 @@ def test_nested_parent_child_ids():
 
 def test_current_span_stack_behavior():
     from probing.tracing import current_span
+
     assert current_span() is None
     with probing.span("a") as a:
         top = current_span()
@@ -107,6 +108,7 @@ def test_nested_decorator_and_context_manager():
 
 def test_manual_construction_and_child():
     from probing.tracing import Span
+
     parent = Span("manual_parent")
     child = Span.new_child(parent, "manual_child")
     assert child.parent_id == parent.span_id
@@ -144,6 +146,7 @@ def test_add_event_module_function():
 def test_add_event_no_active_span():
     """Test add_event raises error when no active span."""
     from probing.tracing import current_span
+
     # Ensure no active span
     assert current_span() is None
 
