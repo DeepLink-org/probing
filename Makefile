@@ -3,11 +3,11 @@
 # ==============================================================================
 # Build mode: release (default) or debug
 ifndef DEBUG
-	CARGO_FLAGS := -r
-	TARGET_DIR := release
+	MATURIN_FLAGS := --release
+	CARGO_FLAGS := --release
 else
+	MATURIN_FLAGS :=
 	CARGO_FLAGS :=
-	TARGET_DIR := debug
 endif
 
 # Frontend framework: dioxus
@@ -19,26 +19,15 @@ else
 	LIB_EXT := so
 endif
 
-# Cargo build command: normal (default) or zigbuild
-ifndef ZIG
-	CARGO_BUILD_CMD := build
-	TARGET_DIR_PREFIX := target
-else
-	ifndef TARGET
-		TARGET := x86_64-unknown-linux-gnu.2.17
+# Cross-compilation support
+ifdef ZIG
+	ifdef TARGET
+		MATURIN_FLAGS += --zig --target $(TARGET)
 	endif
-	CARGO_BUILD_CMD := zigbuild --target $(TARGET)
-	TARGET_ARCH := $(word 1,$(subst -, ,$(TARGET)))
-	TARGET_DIR_PREFIX := target/$(TARGET_ARCH)-unknown-linux-gnu
 endif
 
 # Python version
 PYTHON ?= 3.12
-
-# Paths
-DATA_SCRIPTS_DIR := python/probing
-PROBING_CLI := ${TARGET_DIR_PREFIX}/${TARGET_DIR}/probing
-PROBING_LIB := ${TARGET_DIR_PREFIX}/${TARGET_DIR}/libprobing.${LIB_EXT}
 
 # Pytest runner command
 PYTEST_RUN := PROBING=1 PYTHONPATH=python/ uv run --python ${PYTHON} -w pytest -w websockets -w pandas -w torch -w ipykernel -- python -m pytest --doctest-modules
@@ -54,40 +43,40 @@ help:
 	@echo "Usage: make [target]"
 	@echo ""
 	@echo "Targets:"
-	@echo "  all        Build the wheel (default)."
-	@echo "  wheel      Build the Python wheel."
-	@echo "  test       Run Rust tests."
-	@echo "  pytest     Run Python tests."
+	@echo "  all             Build the wheel (default)."
+	@echo "  wheel           Build the Python wheel using maturin."
+	@echo "  develop         Install the package in editable mode."
+	@echo "  test            Run Rust tests."
+	@echo "  pytest          Run Python tests."
 	@echo "  coverage-rust   Run Rust coverage (cargo llvm-cov)."
 	@echo "  coverage-python Generate Python coverage (pytest-cov)."
 	@echo "  coverage        Run both Rust and Python coverage and aggregate report."
-	@echo "  bootstrap  Install Python versions for testing."
-	@echo "  clean      Remove build artifacts."
-	@echo "  frontend   Build Dioxus frontend."
-	@echo "  web/dist   Build the web app (Dioxus)."
-	@echo "  docs       Build Sphinx documentation."
-	@echo "  docs-serve Start live preview server for documentation."
+	@echo "  bootstrap       Install Python versions for testing."
+	@echo "  clean           Remove build artifacts."
+	@echo "  frontend        Build Dioxus frontend."
+	@echo "  web/dist        Build the web app (Dioxus)."
+	@echo "  docs            Build Sphinx documentation."
+	@echo "  docs-serve      Start live preview server for documentation."
 	@echo ""
 	@echo "Environment Variables:"
 	@echo "  DEBUG      Build mode: release (default) or debug"
 	@echo "  ZIG        Use zigbuild for cross-compilation"
+	@echo "  TARGET     Target architecture for cross-compilation"
 	@echo "  PYTHON     Python version (default: 3.12)"
 	@echo ""
-	@echo "Examples:"
-	@echo "  make frontend              # Build Dioxus frontend"
-	@echo "  make web/dist              # Build web app"
 
 # ==============================================================================
 # Build Targets
 # ==============================================================================
 .PHONY: wheel
-wheel: ${PROBING_CLI} ${PROBING_LIB} web/dist/index.html
-	@echo "Building wheel..."
-ifdef TARGET
-	TARGET=$(TARGET) python make_wheel.py
-else
-	python make_wheel.py
-endif
+wheel: web/dist/index.html
+	@echo "Building wheel with maturin..."
+	maturin build $(MATURIN_FLAGS)
+
+.PHONY: develop
+develop:
+	@echo "Installing in editable mode..."
+	maturin develop $(MATURIN_FLAGS)
 
 # Ensure frontend assets exist before packaging
 web/dist/index.html:
@@ -111,24 +100,6 @@ web/dist:
 frontend:
 	@echo "Building Dioxus frontend..."
 	$(MAKE) web/dist
-
-${DATA_SCRIPTS_DIR}:
-	@echo "Creating data scripts directory..."
-	@mkdir -p ${DATA_SCRIPTS_DIR}
-
-.PHONY: ${PROBING_CLI}
-${PROBING_CLI}: ${DATA_SCRIPTS_DIR}
-	@echo "Building probing CLI..."
-	cargo ${CARGO_BUILD_CMD} ${CARGO_FLAGS} --package probing-cli
-	cp ${PROBING_CLI} ${DATA_SCRIPTS_DIR}/probing
-
-.PHONY: ${PROBING_LIB}
-${PROBING_LIB}: ${DATA_SCRIPTS_DIR}
-	@echo "Building probing library..."
-	@echo "Building Dioxus frontend (pre-build)..."
-	@$(MAKE) --no-print-directory web/dist
-	cargo ${CARGO_BUILD_CMD} ${CARGO_FLAGS}
-	cp ${PROBING_LIB} ${DATA_SCRIPTS_DIR}/libprobing.${LIB_EXT}
 
 # ==============================================================================
 # Testing & Utility Targets

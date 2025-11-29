@@ -12,6 +12,11 @@ __all__ = [
     "cli_main",
     "ExternalTable",
     "TCPStore",
+    "config",
+    "enable_tracer",
+    "disable_tracer",
+    "_get_python_stacks",
+    "_get_python_frames",
     "VERSION",
     "get_current_script_name",
     "should_enable_probing",
@@ -108,6 +113,12 @@ if _library_loaded:
     # These are registered as attributes in _core, not submodules
     config = _core.config
     _tracing = _core._tracing
+    
+    # Export functions from _core
+    enable_tracer = _core.enable_tracer
+    disable_tracer = _core.disable_tracer
+    _get_python_stacks = _core._get_python_stacks
+    _get_python_frames = _core._get_python_frames
     
     # Now import other modules that may depend on ExternalTable
     import probing.hooks.import_hook
