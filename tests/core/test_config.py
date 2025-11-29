@@ -13,11 +13,19 @@ except ImportError as e:
     raise unittest.SkipTest(f"probing module not available: {e}")
 
 # Check if config module is available
+# The config module is registered automatically when _core module is imported
 if not hasattr(probing, "config"):
-    raise unittest.SkipTest(
-        "probing.config module not available. "
-        "The config module needs to be registered via create_probing_module()."
-    )
+    # Try importing _core to trigger module registration
+    try:
+        from probing import _core
+    except ImportError:
+        pass
+    
+    if not hasattr(probing, "config"):
+        raise unittest.SkipTest(
+            "probing.config module not available. "
+            "The config module should be registered automatically via _core module."
+        )
 
 
 class TestConfigModule(unittest.TestCase):

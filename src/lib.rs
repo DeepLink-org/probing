@@ -2,9 +2,18 @@
 extern crate ctor;
 
 use anyhow::Result;
+use pyo3::prelude::*;
 
-use probing_python::features::python_api::create_probing_module;
+use probing_python::features::python_api::{cli_main, query_json};
+use probing_python::features::vm_tracer::{
+    enable_tracer, disable_tracer, _get_python_stacks, _get_python_frames, initialize_globals,
+};
+use probing_python::features::config;
+use probing_python::features::tracing;
+use probing_python::extensions::python::ExternalTable;
 use probing_server::sync_env_settings;
+
+use probing_python::pkg::TCPStore;
 
 const ENV_PROBING_LOGLEVEL: &str = "PROBING_LOGLEVEL";
 const ENV_PROBING_PORT: &str = "PROBING_PORT";
@@ -43,17 +52,8 @@ pub fn get_hostname() -> Result<String> {
         .ok_or_else(|| anyhow::anyhow!("No suitable IP address found"))
 }
 
-#[ctor]
-fn setup() {
-    let pid = std::process::id();
-    eprintln!("Initializing libprobing for process {pid} ...",);
-
-    // initialize logging
-    env_logger::init_from_env(env_logger::Env::new().filter(ENV_PROBING_LOGLEVEL));
-
-    // initialize probing server (local Unix domain socket)
-    probing_server::start_local();
-
+/// Setup environment variables for server configuration
+fn setup_env_settings() {
     let mut report_port_basis: Option<u16> = None;
 
     match std::env::var(ENV_PROBING_PORT) {
@@ -126,9 +126,22 @@ fn setup() {
             }
         }
     }
+}
 
-    // initialize probing python module
-    let _ = create_probing_module();
+#[ctor]
+fn setup() {
+    let pid = std::process::id();
+    eprintln!("Initializing probing module for process {pid} ...",);
+
+    // Initialize logging (try_init to avoid conflicts)
+    let _ = env_logger::try_init_from_env(env_logger::Env::new().filter(ENV_PROBING_LOGLEVEL));
+
+    // Initialize probing server (local Unix domain socket)
+    // This needs to happen early, even if Python module is not imported
+    probing_server::start_local();
+    
+    // Setup environment variables
+    setup_env_settings();
     sync_env_settings();
 }
 
@@ -137,4 +150,42 @@ fn cleanup() {
     if let Err(e) = probing_server::cleanup() {
         log::error!("Failed to cleanup unix socket: {e}");
     }
+}
+
+/// Python module entry point - exported as probing._core
+#[pymodule]
+fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // Initialize logging (try_init to avoid conflicts if already initialized via #[ctor])
+    let _ = env_logger::try_init_from_env(env_logger::Env::new().filter(ENV_PROBING_LOGLEVEL));
+    
+    // Initialize globals and tracer if needed
+    if initialize_globals() {
+        // Enable tracer if tracing feature is enabled
+        // Note: This is handled by the probing-python crate's tracing feature
+        let _ = enable_tracer();
+    }
+    
+    // Register all classes
+    m.add_class::<ExternalTable>()?;
+    m.add_class::<TCPStore>()?;
+    
+    // Register all functions
+    m.add_function(wrap_pyfunction!(query_json, m)?)?;
+    m.add_function(wrap_pyfunction!(enable_tracer, m)?)?;
+    m.add_function(wrap_pyfunction!(disable_tracer, m)?)?;
+    m.add_function(wrap_pyfunction!(_get_python_stacks, m)?)?;
+    m.add_function(wrap_pyfunction!(_get_python_frames, m)?)?;
+    m.add_function(wrap_pyfunction!(cli_main, m)?)?;
+    
+    // Register config module as an attribute (not submodule, since _core is not a package)
+    let config_module = PyModule::new(m.py(), "config")?;
+    config::register_config_module(&config_module)?;
+    m.setattr("config", config_module)?;
+    
+    // Register _tracing module as an attribute
+    let tracing_module = PyModule::new(m.py(), "_tracing")?;
+    tracing::register_tracing_module(m.py(), &tracing_module)?;
+    m.setattr("_tracing", tracing_module)?;
+    
+    Ok(())
 }

@@ -252,14 +252,15 @@ impl ExternalTable {
 mod tests {
     use super::*;
     use crate::extensions::python::PythonPlugin;
-    use crate::features::python_api::create_probing_module;
     use probing_cc::extensions::envs::EnvPlugin;
     use probing_cc::extensions::files::FilesPlugin;
     use probing_core::core::Engine;
     use pyo3::ffi::c_str;
 
     fn setup() {
-        create_probing_module().unwrap();
+        // Module registration is now handled automatically via _core module
+        // Just ensure Python is initialized
+        Python::with_gil(|_py| {});
     }
 
     fn setup_table3() {

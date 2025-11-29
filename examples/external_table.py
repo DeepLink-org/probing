@@ -1,6 +1,5 @@
-import ctypes
-dll = ctypes.CDLL("target/debug/libprobing.so")
-
+# The probing module is now built as a standard Python package via maturin
+# No need for manual ctypes loading - just import the module
 import probing
 
 tbl = probing.ExternalTable("test", ["a", "b"])

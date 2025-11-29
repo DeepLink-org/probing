@@ -3,7 +3,7 @@
 #[macro_use]
 extern crate ctor;
 
-mod pkg;
+pub mod pkg;
 
 pub mod extensions;
 pub mod features;

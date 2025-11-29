@@ -1,14 +1,32 @@
+"""
+Probing - Dynamic Performance Profiler for Distributed AI
+
+This module provides performance profiling and debugging capabilities for AI applications.
+"""
+
 __all__ = [
     "query",
     "load_extension",
     "span",
     "event",
+    "cli_main",
+    "ExternalTable",
+    "TCPStore",
     "VERSION",
     "get_current_script_name",
     "should_enable_probing",
 ]
 
 VERSION = "0.2.2"
+
+# Import the Rust extension module
+# This will trigger the #[pymodule] initialization which registers all functions in _core
+try:
+    from probing import _core
+    _library_loaded = True
+except ImportError:
+    _library_loaded = False
+    _core = None
 
 
 def get_current_script_name():
@@ -78,172 +96,20 @@ def should_enable_probing():
     return False
 
 
-def initialize_probing():
-    """
-    Initialize probing by loading the dynamic library.
-    Only loads the library if PROBING environment variable indicates it should be enabled.
-
-    Returns:
-        ctypes.CDLL or None: The loaded library handle, or None if not enabled/not found.
-    """
-    import ctypes
-    import pathlib
-    import sys
-
-    # Check if probing should be enabled based on environment variable
-    if not should_enable_probing():
-        return None
-
-    # Determine library name based on OS
-    if sys.platform == "darwin":
-        lib_name = "libprobing.dylib"
-    else:
-        lib_name = "libprobing.so"
-
-    # Search paths for the library
-    current_file = pathlib.Path(__file__).resolve()
-
-    paths = [
-        pathlib.Path(sys.executable).parent / lib_name,
-        current_file.parent / lib_name,
-        pathlib.Path.cwd() / lib_name,
-        pathlib.Path.cwd() / "target" / "debug" / lib_name,
-        pathlib.Path.cwd() / "target" / "release" / lib_name,
-    ]
-
-    # Try loading the library from each path
-    for path in paths:
-        if path.exists():
-            try:
-                return ctypes.CDLL(str(path))
-            except Exception:
-                continue  # Try the next path if loading fails
-
-    return None
-
-
-handle = initialize_probing()
-_library_loaded = handle is not None
-
-if handle is None:
-    import sys
-    import functools
-    import types
-    import pathlib
-
-    # Define an empty module to indicate dummy mode
-    # Use ModuleType to create a proper module object
-    probing_module = types.ModuleType("probing")
-
-    # Set __path__ to make it a package so submodules can be imported
-    # This is critical for importing probing.ext.ray, etc.
-    current_file = pathlib.Path(__file__).resolve()
-    probing_module.__path__ = [str(current_file.parent)]
-    probing_module.__file__ = str(current_file)
-
-    sys.modules["probing"] = probing_module
-
-    # Re-add necessary attributes and functions to the empty module
-    probing_module.__all__ = __all__
-    probing_module.VERSION = VERSION
-    probing_module._library_loaded = False  # Library not loaded in dummy mode
-    probing_module.get_current_script_name = get_current_script_name
-    probing_module.should_enable_probing = should_enable_probing
-
-    def query(*args, **kwargs):
-        raise ImportError("Probing library is not loaded.")
-
-    def load_extension(*args, **kwargs):
-        raise ImportError("Probing library is not loaded.")
-
-    def span(*args, **kwargs):
-        """Dummy span implementation that supports both context manager and decorator usage."""
-        # Handle @span (without arguments) - no args and no kwargs
-        if len(args) == 0 and not kwargs:
-
-            def decorator(func):
-                @functools.wraps(func)
-                def wrapper(*wargs, **wkwargs):
-                    return func(*wargs, **wkwargs)
-
-                return wrapper
-
-            return decorator
-
-        # Handle @span(func) - first arg is a callable
-        if len(args) == 1 and callable(args[0]):
-            func = args[0]
-
-            @functools.wraps(func)
-            def wrapper(*wargs, **wkwargs):
-                return func(*wargs, **wkwargs)
-
-            return wrapper
-
-        # Handle @span("name") or with span("name")
-        if len(args) == 1 and isinstance(args[0], str):
-            name = args[0]
-
-            class DummySpanWrapper:
-                def __init__(self, name: str, **attrs):
-                    self.name = name
-                    self.attrs = attrs
-
-                def __call__(self, func):
-                    """Enable decorator form when a name was provided."""
-
-                    @functools.wraps(func)
-                    def wrapper(*wargs, **wkwargs):
-                        return func(*wargs, **wkwargs)
-
-                    return wrapper
-
-                def __enter__(self):
-                    return self
-
-                def __exit__(self, *exc):
-                    return False
-
-            return DummySpanWrapper(name, **kwargs)
-
-        # Default: use as context manager with first arg as name
-        if len(args) > 0:
-            name = args[0]
-            if not isinstance(name, str):
-                raise TypeError("span() requires a string name as the first argument")
-
-            class DummySpan:
-                def __init__(self, name: str, **attrs):
-                    self.name = name
-                    self.attrs = attrs
-
-                def __enter__(self):
-                    return self
-
-                def __exit__(self, *exc):
-                    return False
-
-            return DummySpan(name, **kwargs)
-
-        raise TypeError("span() requires at least one argument")
-
-    def event(*args, **kwargs):
-        return
-
-    # Add functions to the module
-    probing_module.query = query
-    probing_module.load_extension = load_extension
-    probing_module.span = span
-    probing_module.event = event
-
-    # Also update the current module's namespace for direct access
-    # This allows the functions to be accessible in the current module scope
-    globals()["query"] = query
-    globals()["load_extension"] = load_extension
-    globals()["span"] = span
-    globals()["event"] = event
-
-else:
+# Import functions from Rust module or provide dummy implementations
+if _library_loaded:
+    # First, export ExternalTable and TCPStore from _core to probing module namespace
+    # This must be done before importing other modules that might use ExternalTable
+    # (e.g., probing.inspect.trace uses @table decorator which accesses probing.ExternalTable)
+    ExternalTable = _core.ExternalTable
+    TCPStore = _core.TCPStore
+    
+    # Export config and _tracing modules from _core
+    # These are registered as attributes in _core, not submodules
+    config = _core.config
+    _tracing = _core._tracing
+    
+    # Now import other modules that may depend on ExternalTable
     import probing.hooks.import_hook
     import probing.inspect
 
@@ -253,9 +119,84 @@ else:
     from probing.tracing import span
     from probing.tracing import event
 
-    # Set _library_loaded to True when library is successfully loaded
-    _library_loaded = True
+    # Import cli_main directly from _core module
+    # All Rust functions are registered in _core via #[pymodule]
+    cli_main = _core.cli_main
+else:
+    # Dummy mode - library not loaded
+    import functools
+
+    # Provide dummy classes for ExternalTable and TCPStore
+    class ExternalTable:
+        def __init__(self, *args, **kwargs):
+            raise ImportError("Probing library is not loaded. Please install the probing package.")
+        
+        @classmethod
+        def get(cls, *args, **kwargs):
+            raise ImportError("Probing library is not loaded. Please install the probing package.")
     
-    # cli_main is added dynamically by Rust's create_probing_module
-    # It will be available as probing.cli_main after library initialization
-    # For CLI usage, we can access it via getattr with a fallback
+    class TCPStore:
+        def __init__(self, *args, **kwargs):
+            raise ImportError("Probing library is not loaded. Please install the probing package.")
+
+    def query(*args, **kwargs):
+        raise ImportError("Probing library is not loaded. Please install the probing package.")
+
+    def load_extension(*args, **kwargs):
+        raise ImportError("Probing library is not loaded. Please install the probing package.")
+
+    def span(*args, **kwargs):
+        """Dummy span implementation."""
+        if len(args) == 0 and not kwargs:
+            def decorator(func):
+                @functools.wraps(func)
+                def wrapper(*wargs, **wkwargs):
+                    return func(*wargs, **wkwargs)
+                return wrapper
+            return decorator
+
+        if len(args) == 1 and callable(args[0]):
+            func = args[0]
+            @functools.wraps(func)
+            def wrapper(*wargs, **wkwargs):
+                return func(*wargs, **wkwargs)
+            return wrapper
+
+        if len(args) == 1 and isinstance(args[0], str):
+            name = args[0]
+            class DummySpanWrapper:
+                def __init__(self, name: str, **attrs):
+                    self.name = name
+                    self.attrs = attrs
+                def __call__(self, func):
+                    @functools.wraps(func)
+                    def wrapper(*wargs, **wkwargs):
+                        return func(*wargs, **wkwargs)
+                    return wrapper
+                def __enter__(self):
+                    return self
+                def __exit__(self, *exc):
+                    return False
+            return DummySpanWrapper(name, **kwargs)
+
+        if len(args) > 0:
+            name = args[0]
+            if not isinstance(name, str):
+                raise TypeError("span() requires a string name as the first argument")
+            class DummySpan:
+                def __init__(self, name: str, **attrs):
+                    self.name = name
+                    self.attrs = attrs
+                def __enter__(self):
+                    return self
+                def __exit__(self, *exc):
+                    return False
+            return DummySpan(name, **kwargs)
+
+        raise TypeError("span() requires at least one argument")
+
+    def event(*args, **kwargs):
+        return
+
+    def cli_main(*args, **kwargs):
+        raise ImportError("Probing library is not loaded. Please install the probing package.")

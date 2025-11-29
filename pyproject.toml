@@ -44,12 +44,12 @@ Issues = "https://github.com/reiase/probing/issues"
 probing = "probing.cli.__main__:main"
 
 [tool.maturin]
-# Note: probing uses dynamic module loading via ctypes, not direct pyo3 bindings
-# The Rust library is built as a cdylib and loaded dynamically by Python
+module-name = "probing._core"
 manifest-path = "Cargo.toml"
 python-packages = ["probing"]
 python-source = "python"
 compatibility = "linux"
+bindings = "pyo3"
 cargo-extra-args = "--features extension-module"
 
 [build-system]

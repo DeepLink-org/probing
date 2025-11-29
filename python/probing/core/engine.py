@@ -57,9 +57,9 @@ def query(sql: str) -> "DataFrame":  # type: ignore
     """
     import sys
 
-    probing = sys.modules["probing"]
-
-    ret = probing.query_json(sql)
+    # Import query_json from _core module
+    from probing import _core
+    ret = _core.query_json(sql)
     try:
         import json
 

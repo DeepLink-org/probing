@@ -85,6 +85,12 @@ env_logger = { workspace = true }
 log = { workspace = true }
 nix = { workspace = true }
 mimalloc = { version = "0.1.47", optional = true }
+pyo3 = { version = "0.25.1", default-features = false, features = [
+    "abi3",
+    "abi3-py37",
+    "auto-initialize",
+    "macros",
+] }
 
 [dev-dependencies]
 anyhow = { workspace = true }

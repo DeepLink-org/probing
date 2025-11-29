@@ -524,7 +524,7 @@ pub fn register_tracing_module(_py: Python, module: &Bound<'_, PyModule>) -> PyR
     module.add_function(wrap_pyfunction!(_span_raw, module)?)?;
     module.add_function(wrap_pyfunction!(current_span, module)?)?;
 
-    // Note: The Python wrapper code in python/probing/tracing.py will import from probing._tracing
+    // Note: The Python wrapper code in python/probing/tracing.py will import from probing._core._tracing
     // This module (_tracing) only exposes the raw Rust functions:
     // - Span: The Span class
     // - Event: The Event class
