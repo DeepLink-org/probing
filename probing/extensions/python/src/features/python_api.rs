@@ -4,6 +4,16 @@ use probing_core::ENGINE;
 use probing_cli::cli_main as cli_main_impl;
 
 #[pyfunction]
+pub fn should_enable_probing() -> bool {
+    crate::python::should_enable_probing()
+}
+
+#[pyfunction]
+pub fn is_enabled() -> bool {
+    crate::python::is_enabled()
+}
+
+#[pyfunction]
 pub fn query_json(_py: Python, sql: String) -> PyResult<String> {
     // Check if we're already inside a tokio runtime
     let result = match tokio::runtime::Handle::try_current() {

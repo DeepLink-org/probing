@@ -20,6 +20,7 @@ __all__ = [
     "VERSION",
     "get_current_script_name",
     "should_enable_probing",
+    "is_enabled",
 ]
 
 VERSION = "0.2.2"
@@ -41,6 +42,19 @@ def get_current_script_name():
         return "<unknown>"
 
 
+def is_enabled():
+    """
+    Check if probing is currently enabled in the backend.
+    
+    Returns:
+        bool: True if probing is enabled, False otherwise.
+    """
+    try:
+        return _core.is_enabled()
+    except AttributeError:
+        # Fallback if _core doesn't have is_enabled yet (e.g. partial build)
+        return should_enable_probing()
+
 def should_enable_probing():
     """
     Check if probing should be enabled based on PROBING environment variable.
@@ -49,51 +63,9 @@ def should_enable_probing():
     Returns:
         bool: True if probing should be enabled, False otherwise.
     """
-    import os
-    import sys
-
-    # Get the PROBING environment variable
-    # Check PROBING_ORIGINAL first (saved by probing_hook.py before deletion)
-    # then fall back to PROBING
-    probe_value = os.environ.get("PROBING_ORIGINAL") or os.environ.get("PROBING", "0")
-
-    # If set to "0", disabled
-    if probe_value == "0":
-        return False
-
-    # Handle init: prefix (extract the probe setting part)
-    if probe_value.startswith("init:"):
-        parts = probe_value.split("+", 1)
-        probe_value = parts[1] if len(parts) > 1 else "0"
-        # Note: init script execution is handled by probing_hook.py, not here
-
-    # Handle "1" or "followed" - enable in current process
-    if probe_value.lower() in ["1", "followed"]:
-        return True
-
-    # Handle "2" or "nested" - enable in current and child processes
-    if probe_value.lower() in ["2", "nested"]:
-        return True
-
-    # Handle regex: pattern
-    if probe_value.lower().startswith("regex:"):
-        pattern = probe_value.split(":", 1)[1]
-        try:
-            import re
-
-            current_script = get_current_script_name()
-            return re.search(pattern, current_script) is not None
-        except Exception:
-            # If regex is invalid, don't enable
-            return False
-
-    # Handle script name matching
-    current_script = get_current_script_name()
-    if probe_value == current_script:
-        return True
-
-    # Default: don't enable if value doesn't match any pattern
-    return False
+    # Use the implementation from _core which handles PROBING and PROBING_ORIGINAL
+    # consistently with the Rust setup logic
+    return _core.should_enable_probing()
 
 
 # Export ExternalTable and TCPStore from _core to probing module namespace

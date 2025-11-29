@@ -177,6 +177,11 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(_get_python_frames, m)?)?;
     m.add_function(wrap_pyfunction!(cli_main, m)?)?;
     
+    // Add is_enabled function to help tests check state
+    use probing_python::features::python_api::{is_enabled, should_enable_probing};
+    m.add_function(wrap_pyfunction!(is_enabled, m)?)?;
+    m.add_function(wrap_pyfunction!(should_enable_probing, m)?)?;
+    
     // Register config functions directly to the module (flattened)
     config::register_config_functions(m)?;
     

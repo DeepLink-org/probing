@@ -98,7 +98,7 @@ def test_should_enable_probing_disabled_by_default():
         [
             sys.executable,
             "-c",
-            "import probing; print('enabled' if probing._library_loaded else 'disabled')",
+            "import probing; print('enabled' if probing.is_enabled() else 'disabled')",
         ],
         env=env,
         capture_output=True,
@@ -115,7 +115,7 @@ def test_should_enable_probing_disabled_by_default():
         [
             sys.executable,
             "-c",
-            "import probing; print('enabled' if probing._library_loaded else 'disabled')",
+            "import probing; print('enabled' if probing.is_enabled() else 'disabled')",
         ],
         env=env,
         capture_output=True,
@@ -136,7 +136,7 @@ def test_should_enable_probing_with_value_1():
         [
             sys.executable,
             "-c",
-            "import probing; print('enabled' if probing._library_loaded else 'disabled')",
+            "import probing; print('enabled' if probing.is_enabled() else 'disabled')",
         ],
         env=env,
         capture_output=True,
@@ -158,7 +158,7 @@ def test_should_enable_probing_with_value_followed():
         [
             sys.executable,
             "-c",
-            "import probing; print('enabled' if probing._library_loaded else 'disabled')",
+            "import probing; print('enabled' if probing.is_enabled() else 'disabled')",
         ],
         env=env,
         capture_output=True,
@@ -178,7 +178,7 @@ def test_should_enable_probing_with_value_2():
         [
             sys.executable,
             "-c",
-            "import probing; print('enabled' if probing._library_loaded else 'disabled')",
+            "import probing; print('enabled' if probing.is_enabled() else 'disabled')",
         ],
         env=env,
         capture_output=True,
@@ -198,7 +198,7 @@ def test_should_enable_probing_with_value_nested():
         [
             sys.executable,
             "-c",
-            "import probing; print('enabled' if probing._library_loaded else 'disabled')",
+            "import probing; print('enabled' if probing.is_enabled() else 'disabled')",
         ],
         env=env,
         capture_output=True,
@@ -263,7 +263,7 @@ def test_should_enable_probing_with_init_prefix():
         [
             sys.executable,
             "-c",
-            "import probing; print('enabled' if probing._library_loaded else 'disabled')",
+            "import probing; print('enabled' if probing.is_enabled() else 'disabled')",
         ],
         env=env,
         capture_output=True,
@@ -284,7 +284,7 @@ def test_should_enable_probing_with_init_prefix_no_setting():
         [
             sys.executable,
             "-c",
-            "import probing; print('enabled' if probing._library_loaded else 'disabled')",
+            "import probing; print('enabled' if probing.is_enabled() else 'disabled')",
         ],
         env=env,
         capture_output=True,
