@@ -610,8 +610,12 @@ def probe(func, watch=None, silent_watch=None, depth=1):
             raise RuntimeError(f"Probe attributes not found for code id {code_id}")
 
         ProbingTracer = getattr(_trace_module, "ProbingTracer")
+        # Handle None depth value - use default of 1 if None
+        probe_depth = attrs.get("__probe_depth__", 1)
+        if probe_depth is None:
+            probe_depth = 1
         tracer = ProbingTracer(
-            attrs.get("__probe_depth__", 1),
+            probe_depth,
             attrs.get("__probe_watch__", []),
             attrs.get("__probe_silent_watch__", []),
         )
@@ -678,6 +682,9 @@ class ProbingTracer:
 
     def _outof_depth(self):
         depth = self.count_calls - self.count_returns
+        # If self.depth is None, it means no depth limit, so we're never out of depth
+        if self.depth is None:
+            return False
         return depth > self.depth
 
     def _is_internal_frame(self, frame):
