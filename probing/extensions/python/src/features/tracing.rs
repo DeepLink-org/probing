@@ -517,20 +517,12 @@ impl Event {
     }
 }
 
-/// Registers the tracing module with Python.
-pub fn register_tracing_module(_py: Python, module: &Bound<'_, PyModule>) -> PyResult<()> {
+/// Registers the tracing module classes and functions directly to the parent module.
+pub fn register_tracing_functions(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<Span>()?;
     module.add_class::<Event>()?;
     module.add_function(wrap_pyfunction!(_span_raw, module)?)?;
     module.add_function(wrap_pyfunction!(current_span, module)?)?;
-
-    // Note: The Python wrapper code in python/probing/tracing.py will import from probing._core._tracing
-    // This module (_tracing) only exposes the raw Rust functions:
-    // - Span: The Span class
-    // - Event: The Event class
-    // - _span_raw: Internal function to create spans
-    // - current_span: Function to get current active span
-    // The Python wrapper (probing.tracing) will be loaded separately when imported
 
     Ok(())
 }

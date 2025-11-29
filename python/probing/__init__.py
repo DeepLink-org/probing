@@ -102,10 +102,13 @@ def should_enable_probing():
 ExternalTable = _core.ExternalTable
 TCPStore = _core.TCPStore
 
-# Export config and _tracing modules from _core
-# These are registered as attributes in _core, not submodules
-config = _core.config
-_tracing = _core._tracing
+# Import config module (which wraps _core functions)
+import probing.config as config
+
+# _tracing is now flattened into _core, but we keep the internal reference if needed
+# or we can remove this alias if it's not used outside of tracing.py
+# tracing.py now imports directly from _core
+_tracing = _core
 
 # Export functions from _core
 enable_tracer = _core.enable_tracer

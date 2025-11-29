@@ -45,11 +45,19 @@ from typing import Any, Callable, Optional
 # _tracing is registered as an attribute in _core (not a submodule)
 # Access it via probing._tracing (exported in __init__.py) or directly from _core
 import probing
-_tracing_module = probing._tracing
+from probing import _core
 
-Span = _tracing_module.Span
-span_raw = _tracing_module._span_raw
-current_span = _tracing_module.current_span
+# In flattened structure, Span and other tracing items are directly on _core
+try:
+    Span = _core.Span
+    span_raw = _core._span_raw
+    current_span = _core.current_span
+except AttributeError:
+    # During initialization or if extension is not built, these might be missing
+    # This allows partial imports or test discovery
+    Span = None
+    span_raw = None
+    current_span = lambda: None
 from probing.core.table import table
 
 

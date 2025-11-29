@@ -177,15 +177,11 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(_get_python_frames, m)?)?;
     m.add_function(wrap_pyfunction!(cli_main, m)?)?;
     
-    // Register config module as an attribute (not submodule, since _core is not a package)
-    let config_module = PyModule::new(m.py(), "config")?;
-    config::register_config_module(&config_module)?;
-    m.setattr("config", config_module)?;
+    // Register config functions directly to the module (flattened)
+    config::register_config_functions(m)?;
     
-    // Register _tracing module as an attribute
-    let tracing_module = PyModule::new(m.py(), "_tracing")?;
-    tracing::register_tracing_module(m.py(), &tracing_module)?;
-    m.setattr("_tracing", tracing_module)?;
+    // Register tracing classes and functions directly to the module (flattened)
+    tracing::register_tracing_functions(m)?;
     
     Ok(())
 }

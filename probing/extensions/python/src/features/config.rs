@@ -39,7 +39,7 @@ where
 ///
 /// Returns None if the key doesn't exist, otherwise returns the value
 /// converted to the appropriate Python type.
-#[pyfunction]
+#[pyfunction(name = "config_get")]
 fn get(py: Python, key: String) -> PyResult<Option<PyObject>> {
     let key_clone = key.clone();
     let ele = block_on_async(async move { config::get(&key_clone).await });
@@ -52,7 +52,7 @@ fn get(py: Python, key: String) -> PyResult<Option<PyObject>> {
 /// Set a configuration value.
 ///
 /// Supports str, int, float, bool, and None values.
-#[pyfunction]
+#[pyfunction(name = "config_set")]
 fn set(_py: Python, key: String, value: &Bound<'_, PyAny>) -> PyResult<()> {
     let ele = python_to_ele(value)?;
     let key_clone = key.clone();
@@ -64,7 +64,7 @@ fn set(_py: Python, key: String, value: &Bound<'_, PyAny>) -> PyResult<()> {
 ///
 /// Returns None if the key doesn't exist, otherwise returns the value
 /// converted to string.
-#[pyfunction]
+#[pyfunction(name = "config_get_str")]
 fn get_str(_py: Python, key: String) -> PyResult<Option<String>> {
     let key_clone = key.clone();
     Ok(block_on_async(
@@ -73,14 +73,14 @@ fn get_str(_py: Python, key: String) -> PyResult<Option<String>> {
 }
 
 /// Check if a configuration key exists.
-#[pyfunction]
+#[pyfunction(name = "config_contains_key")]
 fn contains_key(_py: Python, key: String) -> bool {
     let key_clone = key.clone();
     block_on_async(async move { config::contains_key(&key_clone).await })
 }
 
 /// Remove a configuration key and return its value.
-#[pyfunction]
+#[pyfunction(name = "config_remove")]
 fn remove(py: Python, key: String) -> PyResult<Option<PyObject>> {
     let key_clone = key.clone();
     let ele = block_on_async(async move { config::remove(&key_clone).await });
@@ -91,45 +91,40 @@ fn remove(py: Python, key: String) -> PyResult<Option<PyObject>> {
 }
 
 /// Get all configuration keys.
-#[pyfunction]
+#[pyfunction(name = "config_keys")]
 fn keys(_py: Python) -> Vec<String> {
     block_on_async(config::keys())
 }
 
 /// Clear all configuration.
-#[pyfunction]
+#[pyfunction(name = "config_clear")]
 fn clear(_py: Python) {
     block_on_async(config::clear());
 }
 
 /// Get the number of configuration entries.
-#[pyfunction]
+#[pyfunction(name = "config_len")]
 fn len(_py: Python) -> usize {
     block_on_async(config::len())
 }
 
 /// Check if the configuration store is empty.
-#[pyfunction]
+#[pyfunction(name = "config_is_empty")]
 fn is_empty(_py: Python) -> bool {
     block_on_async(config::is_empty())
 }
 
-/// Register the config module to the probing Python module
-pub fn register_config_module(parent_module: &Bound<'_, PyModule>) -> PyResult<()> {
-    let py = parent_module.py();
-    let config_module = PyModule::new(py, "config")?;
-
-    config_module.add_function(wrap_pyfunction!(get, py)?)?;
-    config_module.add_function(wrap_pyfunction!(set, py)?)?;
-    config_module.add_function(wrap_pyfunction!(get_str, py)?)?;
-    config_module.add_function(wrap_pyfunction!(contains_key, py)?)?;
-    config_module.add_function(wrap_pyfunction!(remove, py)?)?;
-    config_module.add_function(wrap_pyfunction!(keys, py)?)?;
-    config_module.add_function(wrap_pyfunction!(clear, py)?)?;
-    config_module.add_function(wrap_pyfunction!(len, py)?)?;
-    config_module.add_function(wrap_pyfunction!(is_empty, py)?)?;
-
-    parent_module.setattr("config", config_module)?;
+/// Register the config functions directly to the probing Python module.
+pub fn register_config_functions(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_function(wrap_pyfunction!(get, module)?)?;
+    module.add_function(wrap_pyfunction!(set, module)?)?;
+    module.add_function(wrap_pyfunction!(get_str, module)?)?;
+    module.add_function(wrap_pyfunction!(contains_key, module)?)?;
+    module.add_function(wrap_pyfunction!(remove, module)?)?;
+    module.add_function(wrap_pyfunction!(keys, module)?)?;
+    module.add_function(wrap_pyfunction!(clear, module)?)?;
+    module.add_function(wrap_pyfunction!(len, module)?)?;
+    module.add_function(wrap_pyfunction!(is_empty, module)?)?;
 
     Ok(())
 }
