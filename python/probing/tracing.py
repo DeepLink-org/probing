@@ -514,8 +514,9 @@ def _span_decorator(name: Optional[str] = None, kind: Optional[str] = None):
 
 
 # Monkey-patch Span class with convenience methods
-Span.with_ = staticmethod(_span_with)
-Span.decorator = staticmethod(_span_decorator)
+if Span:
+    Span.with_ = staticmethod(_span_with)
+    Span.decorator = staticmethod(_span_decorator)
 
 
 def add_event(name: str, *, attributes: Optional[list] = None):

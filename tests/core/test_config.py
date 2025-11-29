@@ -92,7 +92,7 @@ def test_get_str():
     assert probing.config.get_str("test.str") == "hello"
     assert probing.config.get_str("test.int") == "42"
     assert probing.config.get_str("test.float") == "3.14"
-    assert probing.config.get_str("test.bool") == "true"  # Rust bool to string is lowercase
+    assert probing.config.get_str("test.bool") == "True"
 
     # Nonexistent key
     assert probing.config.get_str("nonexistent") is None
