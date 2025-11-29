@@ -255,3 +255,7 @@ else:
 
     # Set _library_loaded to True when library is successfully loaded
     _library_loaded = True
+    
+    # cli_main is added dynamically by Rust's create_probing_module
+    # It will be available as probing.cli_main after library initialization
+    # For CLI usage, we can access it via getattr with a fallback

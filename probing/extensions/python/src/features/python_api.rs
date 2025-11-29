@@ -9,6 +9,7 @@ use crate::features::vm_tracer::{
 };
 use crate::pkg::TCPStore;
 use probing_core::ENGINE;
+use probing_cli::cli_main as cli_main_impl;
 
 #[pyfunction]
 fn query_json(_py: Python, sql: String) -> PyResult<String> {
@@ -44,6 +45,14 @@ fn query_json(_py: Python, sql: String) -> PyResult<String> {
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
 }
 
+#[pyfunction]
+fn cli_main(_py: Python, args: Vec<String>) -> PyResult<()> {
+    if let Err(e) = cli_main_impl(args) {
+        return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()));
+    }
+    Ok(())
+}
+
 pub fn create_probing_module() -> PyResult<()> {
     if initialize_globals() {
         #[cfg(feature = "tracing")]
@@ -70,6 +79,7 @@ pub fn create_probing_module() -> PyResult<()> {
             m.add_function(wrap_pyfunction!(disable_tracer, py)?)?;
             m.add_function(wrap_pyfunction!(_get_python_stacks, py)?)?;
             m.add_function(wrap_pyfunction!(_get_python_frames, py)?)?;
+            m.add_function(wrap_pyfunction!(cli_main, py)?)?;
 
             // Register config module
             config::register_config_module(&m)?;

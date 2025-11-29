@@ -1,17 +1,8 @@
 use anyhow::Result;
-use clap::Parser;
-use env_logger::Env;
-
-mod cli;
-mod table;
-
-#[cfg(target_os = "linux")]
-mod inject;
-
-const ENV_PROBING_LOGLEVEL: &str = "PROBING_LOGLEVEL";
+use probing_cli::cli_main;
 
 #[tokio::main]
 pub async fn main() -> Result<()> {
-    env_logger::init_from_env(Env::new().filter(ENV_PROBING_LOGLEVEL));
-    cli::Cli::parse().run().await
+    let args: Vec<String> = std::env::args().collect();
+    cli_main(args).await
 }
