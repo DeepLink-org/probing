@@ -395,7 +395,6 @@ mod tests {
                 Field::new("name", DataType::Utf8, false),
             ]));
 
-            // create data
             let id_array = Int32Array::from(vec![1, 2, 3]);
             let name_array = StringArray::from(vec!["a", "b", "c"]);
 
@@ -485,11 +484,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_engine_builder() {
-        // testing default builder
         let engine = Engine::builder().build().await.unwrap();
         assert_eq!(engine.default_namespace(), "probe");
 
-        // building with custom namespace
         let engine = Engine::builder()
             .with_default_namespace("test_namespace")
             .build()
@@ -500,14 +497,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_plugin_with_data() -> Result<()> {
-        // create engine
         let engine = Engine::builder().build().await?;
 
-        // register table plugin
         let plugin = Arc::new(TestTablePlugin::default());
         engine.enable(plugin).await?;
 
-        // verify table registration
         let result = engine
             .async_query("SELECT * FROM test_namespace.test_table")
             .await?
@@ -517,14 +511,13 @@ mod tests {
         assert_eq!(result.names[0], "id");
         assert_eq!(result.names[1], "name");
 
-        // verify data
         let result = engine
             .async_query("SELECT * FROM test_namespace.test_table WHERE id > 1")
             .await?
             .unwrap();
         if let Seq::SeqI32(ids) = &result.cols[0] {
-            assert_eq!(ids.len(), 2); // expect 2 rows
-            assert!(ids.iter().all(|&id| id > 1)); // with id > 1
+            assert_eq!(ids.len(), 2);
+            assert!(ids.iter().all(|&id| id > 1));
         }
 
         Ok(())
@@ -569,11 +562,9 @@ mod tests {
     async fn test_plugin_registration() {
         let engine = Engine::builder().build().await.unwrap();
 
-        // testing Table plugin registration
         let table_plugin = Arc::new(TestTablePlugin::default());
         assert!(engine.enable(table_plugin).await.is_ok());
 
-        // testing Namespace plugin registration
         let namespace_plugin = Arc::new(TestNamespacePlugin::default());
         assert!(engine.enable(namespace_plugin).await.is_ok());
     }
@@ -582,7 +573,6 @@ mod tests {
     async fn test_basic_queries() {
         let engine = Engine::builder().build().await.unwrap();
 
-        // testing basic SELECT query
         let result = engine
             .async_query("SELECT 1 as num, 'test' as str")
             .await
@@ -592,7 +582,6 @@ mod tests {
         assert_eq!(result.names[0], "num");
         assert_eq!(result.names[1], "str");
 
-        // testing empty result set
         let result = engine.async_query("SELECT 1 WHERE 1=0").await.unwrap();
         assert!(result.is_none());
     }
@@ -601,11 +590,9 @@ mod tests {
     async fn test_query_error_handling() {
         let engine = Engine::builder().build().await.unwrap();
 
-        // testing invalid SQL syntax
         let result = engine.async_query("SELECT invalid syntax").await;
         assert!(result.is_err());
 
-        // testing nonexistent table
         let result = engine.async_query("SELECT * FROM nonexistent_table").await;
         assert!(result.is_err());
     }

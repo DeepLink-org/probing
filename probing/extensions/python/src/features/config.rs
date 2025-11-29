@@ -12,26 +12,20 @@ where
     T: Send + 'static,
 {
     match tokio::runtime::Handle::try_current() {
-        Ok(_handle) => {
-            // We're inside a runtime, spawn a new thread to avoid nested runtime error
-            std::thread::spawn(move || {
-                tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                    .unwrap()
-                    .block_on(f)
-            })
-            .join()
-            .unwrap()
-        }
-        Err(_) => {
-            // Not in a runtime, create a new one
-            tokio::runtime::Builder::new_multi_thread()
+        Ok(_handle) => std::thread::spawn(move || {
+            tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
                 .unwrap()
                 .block_on(f)
-        }
+        })
+        .join()
+        .unwrap(),
+        Err(_) => tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(f),
     }
 }
 

@@ -16,7 +16,6 @@ impl ApiClient {
         
         let response = self.post_request_with_body("/query", request_body).await?;
         
-        // Parse Message<QueryDataFormat>
         let msg: Message<QueryDataFormat> = Self::parse_json(&response)?;
         
         match msg.payload {

@@ -101,7 +101,6 @@ impl EngineCall for PythonExt {
             body.len()
         );
 
-        // Normalize path - remove leading slashes and handle different path formats
         let normalized_path = path.trim_start_matches('/');
 
         // Try Python extension handlers first - router will handle routing automatically
@@ -110,7 +109,6 @@ impl EngineCall for PythonExt {
             if !is_no_handler_found_error(&result_bytes) {
                 return Ok(result_bytes);
             }
-            // If it's a "No handler found" error, fall through to check other handlers
         }
 
         // Handle non-Python extension endpoints
@@ -246,7 +244,6 @@ impl PythonExt {
 
     /// Enable a Python extension from code string
     fn set_enabled(&mut self, enabled: Maybe<String>) -> Result<(), EngineError> {
-        // Extract extension code from Maybe
         let ext = match &enabled {
             Maybe::Nothing => {
                 return Err(EngineError::InvalidOptionValue(
@@ -257,18 +254,15 @@ impl PythonExt {
             Maybe::Just(e) => e,
         };
 
-        // Check if extension is already loaded
         if self.enabled.0.contains_key(ext) {
             return Err(EngineError::PluginError(format!(
                 "Python extension '{ext}' is already enabled"
             )));
         }
 
-        // Execute Python code and get the extension object
         let pyext = execute_python_code(ext)
             .map_err(|e| EngineError::InvalidOptionValue(Self::OPTION_ENABLED.to_string(), e))?;
 
-        // Store the extension
         self.enabled.0.insert(ext.clone(), pyext);
         log::info!("Python extension enabled: {ext}");
         log::debug!("Current enabled extensions: {}", self.enabled);
@@ -278,7 +272,6 @@ impl PythonExt {
 
     /// Disable a previously enabled Python extension
     fn set_disabled(&mut self, disabled: Maybe<String>) -> Result<(), EngineError> {
-        // Extract extension name from Maybe
         let ext = match &disabled {
             Maybe::Nothing => {
                 return Err(EngineError::InvalidOptionValue(
@@ -289,28 +282,22 @@ impl PythonExt {
             Maybe::Just(e) => e,
         };
 
-        // Remove extension if it exists
         if let Some(pyext) = self.enabled.0.remove(ext) {
             log::info!("Disabling Python extension: {ext}");
 
-            // Call deinit method on extension object
-            Python::with_gil(|py| {
-                // Call the Python object's deinit method
-                match pyext.call_method0(py, "deinit") {
-                    Ok(_) => {
-                        log::debug!("Extension '{ext}' deinitialized successfully");
-                        Ok(())
-                    }
-                    Err(e) => {
-                        let error_msg = format!("Failed to call deinit method on '{ext}': {e}");
-                        log::error!("{error_msg}");
-                        Err(EngineError::PluginError(error_msg))
-                    }
+            Python::with_gil(|py| match pyext.call_method0(py, "deinit") {
+                Ok(_) => {
+                    log::debug!("Extension '{ext}' deinitialized successfully");
+                    Ok(())
+                }
+                Err(e) => {
+                    let error_msg = format!("Failed to call deinit method on '{ext}': {e}");
+                    log::error!("{error_msg}");
+                    Err(EngineError::PluginError(error_msg))
                 }
             })
         } else {
             log::debug!("Python extension '{ext}' was not enabled, nothing to disable");
-            // Extension wasn't found, not an error
             Ok(())
         }
     }
@@ -331,7 +318,6 @@ pub fn execute_python_code(code: &str) -> Result<pyo3::Py<pyo3::PyAny>, String> 
             .call_method1("load_extension", (code,))
             .map_err(|e| format!("Error loading Python plugin: {e}"))?;
 
-        // Verify the object has an init method
         if !result
             .hasattr("init")
             .map_err(|e| format!("Unable to check `init` method: {e}"))?
@@ -339,7 +325,6 @@ pub fn execute_python_code(code: &str) -> Result<pyo3::Py<pyo3::PyAny>, String> 
             return Err("Plugin must have an `init` method".to_string());
         }
 
-        // Initialize the plugin
         result
             .call_method0("init")
             .map_err(|e| format!("Error calling `init` method: {e}"))?;
@@ -385,7 +370,6 @@ fn call_python_handler(
     params: &HashMap<String, String>,
 ) -> Result<Vec<u8>, EngineError> {
     Python::with_gil(|py| {
-        // Import the router module directly
         let router_module = py.import("probing.handlers.router").map_err(|e| {
             EngineError::PluginError(format!("Failed to import router module: {e}"))
         })?;
@@ -394,7 +378,6 @@ fn call_python_handler(
             EngineError::PluginError(format!("Failed to get handle_request function: {e}"))
         })?;
 
-        // Convert params HashMap to Python dict
         let params_dict = pyo3::types::PyDict::new(py);
         for (key, value) in params {
             params_dict
@@ -404,7 +387,6 @@ fn call_python_handler(
                 })?;
         }
 
-        // Call the router's handle_request function directly
         let result = handle_func
             .call1((str_to_py(py, path), params_dict))
             .map_err(|e| EngineError::PluginError(format!("Failed to call handle_request: {e}")))?;

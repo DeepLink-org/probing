@@ -4,13 +4,13 @@ extern crate ctor;
 use anyhow::Result;
 use pyo3::prelude::*;
 
-use probing_python::features::python_api::{cli_main, query_json};
-use probing_python::features::vm_tracer::{
-    enable_tracer, disable_tracer, _get_python_stacks, _get_python_frames, initialize_globals,
-};
-use probing_python::features::config;
-use probing_python::features::tracing;
 use probing_python::extensions::python::ExternalTable;
+use probing_python::features::config;
+use probing_python::features::python_api::{cli_main, query_json};
+use probing_python::features::tracing;
+use probing_python::features::vm_tracer::{
+    _get_python_frames, _get_python_stacks, disable_tracer, enable_tracer, initialize_globals,
+};
 use probing_server::sync_env_settings;
 
 use probing_python::pkg::TCPStore;
@@ -139,7 +139,7 @@ fn setup() {
     // Initialize probing server (local Unix domain socket)
     // This needs to happen early, even if Python module is not imported
     probing_server::start_local();
-    
+
     // Setup environment variables
     setup_env_settings();
     sync_env_settings();
@@ -157,18 +157,18 @@ fn cleanup() {
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Initialize logging (try_init to avoid conflicts if already initialized via #[ctor])
     let _ = env_logger::try_init_from_env(env_logger::Env::new().filter(ENV_PROBING_LOGLEVEL));
-    
+
     // Initialize globals and tracer if needed
     if initialize_globals() {
         // Enable tracer if tracing feature is enabled
         // Note: This is handled by the probing-python crate's tracing feature
         let _ = enable_tracer();
     }
-    
+
     // Register all classes
     m.add_class::<ExternalTable>()?;
     m.add_class::<TCPStore>()?;
-    
+
     // Register all functions
     m.add_function(wrap_pyfunction!(query_json, m)?)?;
     m.add_function(wrap_pyfunction!(enable_tracer, m)?)?;
@@ -176,17 +176,17 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(_get_python_stacks, m)?)?;
     m.add_function(wrap_pyfunction!(_get_python_frames, m)?)?;
     m.add_function(wrap_pyfunction!(cli_main, m)?)?;
-    
+
     // Add is_enabled function to help tests check state
     use probing_python::features::python_api::{is_enabled, should_enable_probing};
     m.add_function(wrap_pyfunction!(is_enabled, m)?)?;
     m.add_function(wrap_pyfunction!(should_enable_probing, m)?)?;
-    
+
     // Register config functions directly to the module (flattened)
     config::register_config_functions(m)?;
-    
+
     // Register tracing classes and functions directly to the module (flattened)
     tracing::register_tracing_functions(m)?;
-    
+
     Ok(())
 }

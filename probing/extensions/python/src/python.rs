@@ -90,12 +90,14 @@ pub fn should_enable_probing() -> bool {
                             let argv = sys.getattr("argv").ok()?;
                             let script = argv.get_item(0).ok()?;
                             let script_str: String = script.extract().ok()?;
-                            Some(std::path::Path::new(&script_str)
-                                .file_name()?
-                                .to_string_lossy()
-                                .into_owned())
+                            Some(
+                                std::path::Path::new(&script_str)
+                                    .file_name()?
+                                    .to_string_lossy()
+                                    .into_owned(),
+                            )
                         });
-                        
+
                         if let Some(name) = script_name {
                             return regex.is_match(&name);
                         }
@@ -103,23 +105,25 @@ pub fn should_enable_probing() -> bool {
                 }
                 return false;
             }
-            
+
             // Handle script name matching
             let script_name = Python::with_gil(|py| {
                 let sys = py.import("sys").ok()?;
                 let argv = sys.getattr("argv").ok()?;
                 let script = argv.get_item(0).ok()?;
                 let script_str: String = script.extract().ok()?;
-                Some(std::path::Path::new(&script_str)
-                    .file_name()?
-                    .to_string_lossy()
-                    .into_owned())
+                Some(
+                    std::path::Path::new(&script_str)
+                        .file_name()?
+                        .to_string_lossy()
+                        .into_owned(),
+                )
             });
 
             if let Some(name) = script_name {
                 return probe_value == name;
             }
-            
+
             false
         }
     }

@@ -265,11 +265,11 @@ mod tests {
         Python::with_gil(|py| {
             use pyo3::types::PyModule;
             use pyo3::PyTypeInfo;
-            
+
             // Get or create probing module
             let sys = PyModule::import(py, "sys").unwrap();
             let modules = sys.getattr("modules").unwrap();
-            
+
             let probing = if modules.contains("probing").unwrap_or(false) {
                 PyModule::import(py, "probing").unwrap()
             } else {
@@ -277,11 +277,13 @@ mod tests {
                 modules.set_item("probing", &m).unwrap();
                 m
             };
-            
+
             // Manually add ExternalTable to probing module for tests
             // This mimics what _core module does
             if !probing.hasattr("ExternalTable").unwrap_or(false) {
-                probing.setattr("ExternalTable", ExternalTable::type_object(py)).unwrap();
+                probing
+                    .setattr("ExternalTable", ExternalTable::type_object(py))
+                    .unwrap();
             }
         });
     }
@@ -404,7 +406,10 @@ probing.ExternalTable.drop("table2")
         let df = tables.expect("Table 'table3' should be found in information_schema.tables");
         assert!(!df.cols.is_empty(), "Should have at least one column");
         // Check if we have any rows - DataFrame.len() returns number of rows
-        assert!(df.len() > 0, "Table 'table3' should be found in information_schema.tables");
+        assert!(
+            df.len() > 0,
+            "Table 'table3' should be found in information_schema.tables"
+        );
     }
 
     #[test]

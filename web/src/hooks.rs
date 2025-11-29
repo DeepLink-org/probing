@@ -37,14 +37,6 @@ pub fn use_api_simple<T: Clone + 'static>() -> ApiState<T> {
 /// 
 /// Automatically executes API call when component mounts, and re-executes when dependencies change.
 /// Uses cached ApiClient instance for better performance.
-/// 
-/// # Examples
-/// ```rust
-/// let state = use_api(move || {
-///     let client = ApiClient::new();
-///     async move { client.get_overview().await }
-/// });
-/// ```
 pub fn use_api<T, F, Fut>(mut fetch_fn: F) -> ApiState<T>
 where
     T: Clone + 'static,
