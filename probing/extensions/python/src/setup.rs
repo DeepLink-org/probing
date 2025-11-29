@@ -14,8 +14,12 @@ where
 
 #[ctor]
 fn setup() {
-    register_signal_handler(
-        nix::libc::SIGUSR2,
-        crate::features::stack_tracer::backtrace_signal_handler,
-    );
+    use crate::python::should_enable_probing;
+    
+    if should_enable_probing() {
+        register_signal_handler(
+            nix::libc::SIGUSR2,
+            crate::features::stack_tracer::backtrace_signal_handler,
+        );
+    }
 }

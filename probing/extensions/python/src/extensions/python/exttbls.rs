@@ -261,6 +261,7 @@ mod tests {
         // Module registration is now handled automatically via _core module
         // In test environment, we need to manually set up the probing module
         // since _core may not be importable as a Python module
+        pyo3::prepare_freethreaded_python();
         Python::with_gil(|py| {
             use pyo3::types::PyModule;
             use pyo3::PyTypeInfo;
@@ -387,8 +388,6 @@ probing.ExternalTable.drop("table2")
                 Engine::builder()
                     .with_default_namespace("probe")
                     .with_plugin(PythonPlugin::create("python"))
-                    .with_plugin(FilesPlugin::create("file"))
-                    .with_plugin(EnvPlugin::create("process", "envs"))
                     .build()
                     .await
             })

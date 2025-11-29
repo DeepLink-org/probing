@@ -53,6 +53,10 @@ fn call_custom_handler(
     })
 }
 
+pub fn should_enable_probing() -> bool {
+    std::env::var("PROBING").map(|v| v != "0").unwrap_or(false) || std::env::var("PROBING_ORIGINAL").map(|v| v != "0").unwrap_or(false)
+}
+
 #[pyfunction]
 pub fn crash_handler(typ: Py<PyAny>, value: Py<PyAny>, traceback: Py<PyAny>) {
     log::debug!(

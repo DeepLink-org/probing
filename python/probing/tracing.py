@@ -44,18 +44,12 @@ from typing import Any, Callable, Optional
 # Import from the internal Rust module
 # _tracing is registered as an attribute in _core (not a submodule)
 # Access it via probing._tracing (exported in __init__.py) or directly from _core
-try:
-    # Try from probing._tracing first (exported in __init__.py)
-    from probing._tracing import Span
-    from probing._tracing import _span_raw as span_raw
-    from probing._tracing import current_span
-except ImportError:
-    # Fallback: import _core and access _tracing attribute
-    from probing import _core
-    _tracing_module = _core._tracing
-    Span = _tracing_module.Span
-    span_raw = _tracing_module._span_raw
-    current_span = _tracing_module.current_span
+import probing
+_tracing_module = probing._tracing
+
+Span = _tracing_module.Span
+span_raw = _tracing_module._span_raw
+current_span = _tracing_module.current_span
 from probing.core.table import table
 
 

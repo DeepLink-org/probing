@@ -59,6 +59,7 @@ build-backend = "maturin"
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests", "python/probing"]
+pythonpath = ["python"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
