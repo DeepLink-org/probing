@@ -55,7 +55,7 @@ probing --version
 This should print the installed version of Probing, for example:
 
 ```
-probing 0.2.2
+probing 0.2.3
 ```
 
 You can also check if the `probing` command is available:
