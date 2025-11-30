@@ -26,9 +26,17 @@ runs:
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
         toolchain: nightly
-        target: wasm32-unknown-unknown, x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu
         components: rustfmt
         rustflags: ""
+
+    - name: Add Rust Targets
+      shell: bash
+      run: |
+        if [ "${{ runner.os }}" == "Linux" ]; then
+          rustup target add wasm32-unknown-unknown x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu
+        elif [ "${{ runner.os }}" == "macOS" ]; then
+          rustup target add wasm32-unknown-unknown x86_64-apple-darwin aarch64-apple-darwin
+        fi
 
     - name: Install uv
       uses: astral-sh/setup-uv@v6

@@ -5,8 +5,10 @@ on: [pull_request]
 jobs:
   prepare:
     name: Prepare Environment
-    runs-on: ubuntu-latest
-
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v3
       - name: Setup Build Environment
@@ -15,20 +17,9 @@ jobs:
           python-version: '3.12'
           install-cargo-tools: 'true'
           install-python-deps: 'true'
-      # - name: Save Cargo Cache
-      #   id: cache-deps
-      #   uses: actions/cache/save@v4
-      #   with:
-      #     path: |
-      #       ~/.cargo/bin/
-      #       ~/.cargo/registry/index/
-      #       ~/.cargo/registry/cache/
-      #       ~/.cargo/git/db/
-      #       ~/zig
-      #     key: ${{ steps.cache-restore.outputs.cache-primary-key || format('{0}-cargo-{1}', runner.os, github.run_id) }} # Fallback key
 
-  build:
-    name: Build Package and Run Python Tests
+  build-linux:
+    name: Build Package and Run Python Tests (Linux)
     needs: prepare
     runs-on: ubuntu-latest
     steps:
@@ -120,7 +111,7 @@ jobs:
           retention-days: 30
   test:
     name: Run Python Tests (Multi-version)
-    needs: [prepare, build]
+    needs: [prepare, build-linux]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -165,7 +156,7 @@ jobs:
 
   codecov:
     name: Upload Coverage to Codecov
-    needs: [build, rust-test]
+    needs: [build-linux, rust-test]
     runs-on: ubuntu-latest
     if: always()
 
@@ -214,24 +205,18 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-build-env
         with:
           python-version: '3.12'
-      - name: Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: nightly
-          components: rustfmt
+          install-cargo-tools: 'true'
+          install-python-deps: 'true'
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
 
       - name: Run Rust Tests
         run: cargo nextest run --workspace --no-default-features --nff
-
-      - name: Install Python Test Deps
-        run: pip install pytest pytest-cov maturin
 
       - name: Build and Install Wheel
         run: |
