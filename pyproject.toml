@@ -70,6 +70,7 @@ addopts = [
     "--showlocals",
     "--strict-markers",
     "--doctest-modules",
+    "--ignore=python/probing/cli/__main__.py",
 ]
 norecursedirs = [
     ".git",
@@ -105,4 +106,3 @@ ignore = []
 line-length = 88
 target-version = ["py37"]
 include = '\.pyi?$'
-

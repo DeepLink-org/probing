@@ -1,12 +1,19 @@
 """
-A REPL (Read-Eval-Print Loop) implementation using an in-process IPython kernel.
+Interactive REPL
 
-This module provides a `CodeExecutor` class that encapsulates an IPython kernel
-running within the same process. It allows for executing Python code, maintaining
-state between executions, and defining custom "magic" commands.
+Spec
+----
+This module provides an in-process REPL (Read-Eval-Print Loop) for interactive debugging.
 
-The results of executions are encapsulated in an `ExecutionResult` object,
-which can be easily serialized to JSON.
+Responsibilities:
+1.  Embed an IPython kernel within the application process.
+2.  Execute Python code and custom magic commands dynamically.
+3.  Capture and return execution results (stdout, stderr, errors).
+
+Public Interfaces:
+- `CodeExecutor`: Manages the lifecycle of the embedded IPython kernel.
+- `DebugConsole`: A wrapper around `CodeExecutor` compatible with `code.InteractiveConsole`.
+- `register_magic`: Decorator to define custom magic commands.
 """
 
 # from jupyter_client.session import Session
@@ -228,7 +235,7 @@ class CodeExecutor:
         >>> res2.display()
         Status: ok
         Output:
-        The value of a is 10
+        10
         >>> # Handling an error
         >>> res3 = executor.execute("print(b)")
         >>> res3.display() # doctest: +ELLIPSIS

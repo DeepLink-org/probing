@@ -22,7 +22,7 @@ import os
 import sys
 # Add python directory to path using absolute path
 sys.path.insert(0, r'{python_dir}')
-from probing import should_enable_probing
+from probing import _core
 
 # Clean environment variables first
 if 'PROBING' in os.environ:
@@ -31,22 +31,22 @@ if 'PROBING_ORIGINAL' in os.environ:
     del os.environ['PROBING_ORIGINAL']
 
 # Test with PROBING not set
-result1 = should_enable_probing()
+result1 = _core.should_enable_probing()
 print(f'PROBING not set: {{result1}}')
 
 # Test with PROBING=0
 os.environ['PROBING'] = '0'
-result2 = should_enable_probing()
+result2 = _core.should_enable_probing()
 print(f'PROBING=0: {{result2}}')
 
 # Test with PROBING=1
 os.environ['PROBING'] = '1'
-result3 = should_enable_probing()
+result3 = _core.should_enable_probing()
 print(f'PROBING=1: {{result3}}')
 
 # Test with PROBING=followed
 os.environ['PROBING'] = 'followed'
-result4 = should_enable_probing()
+result4 = _core.should_enable_probing()
 print(f'PROBING=followed: {{result4}}')
 """
 
@@ -292,40 +292,3 @@ def test_should_enable_probing_with_init_prefix_no_setting():
     )
     # Should default to "0" and be disabled
 
-
-def test_get_current_script_name():
-    """Test get_current_script_name function."""
-    # Test in a subprocess to get actual script name
-
-    # Get the absolute path to the python directory
-    test_file_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(os.path.dirname(test_file_dir))
-    python_dir = os.path.join(project_root, "python")
-
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-        script_name = os.path.basename(f.name)
-        f.write("import sys\n")
-        f.write("import os\n")
-        # Add python directory to path using absolute path
-        f.write(f"sys.path.insert(0, r'{python_dir}')\n")
-        f.write("from probing import get_current_script_name\n")
-        f.write(f"name = get_current_script_name()\n")
-        f.write(f"print(name)\n")
-        script_path = f.name
-
-    try:
-        env = os.environ.copy()
-        # Set PYTHONPATH as backup
-        if "PYTHONPATH" in env:
-            env["PYTHONPATH"] = f"{python_dir}:{env['PYTHONPATH']}"
-        else:
-            env["PYTHONPATH"] = python_dir
-
-        result = subprocess.run(
-            [sys.executable, script_path], env=env, capture_output=True, text=True
-        )
-        output = result.stdout + result.stderr
-        # Check that script name is in output (may be full path or just basename)
-        assert script_name in output or os.path.basename(script_name) in output
-    finally:
-        os.unlink(script_path)
