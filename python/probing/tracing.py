@@ -286,9 +286,7 @@ def span(*args, **kwargs):
             def __exit__(self, *args):
                 """Exit span context: finalize then record minimal end info."""
                 if self._span:
-                    result = self._span.__exit__(
-                        *args
-                    )
+                    result = self._span.__exit__(*args)
                     _record_span_end(self._span)
                     return result
                 return False

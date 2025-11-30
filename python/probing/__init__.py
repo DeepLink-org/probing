@@ -36,8 +36,10 @@ cli_main = _core.cli_main
 enable_tracer = _core.enable_tracer
 disable_tracer = _core.disable_tracer
 
+
 def is_enabled():
     return _core.is_enabled()
+
 
 # Internal Accessors
 _get_python_stacks = _core._get_python_stacks

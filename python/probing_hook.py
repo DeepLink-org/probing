@@ -40,11 +40,13 @@ if probe_value.startswith("init:"):
     parts = probe_value.split("+", 1)
     script_init = parts[0][5:]
     probe_value = parts[1] if len(parts) > 1 else "0"
-    
+
+
 def execute_init_script():
     if script_init is not None:
         with open(script_init, "r") as f:
             exec(f.read(), globals())
+
 
 def init_probing():
     try:
@@ -59,6 +61,7 @@ def init_probing():
                 file=sys.stderr,
             )
             import probing
+
             execute_init_script()
             # Environment variable is intentionally not preserved
 
@@ -84,6 +87,7 @@ def init_probing():
                         file=sys.stderr,
                     )
                     import probing
+
                     execute_init_script()
                 # Always preserve valid regex patterns for child processes
                 os.environ["PROBING"] = probe_value
@@ -99,6 +103,7 @@ def init_probing():
                     file=sys.stderr,
                 )
                 import probing
+
                 execute_init_script()
             # Always preserve the script name filter for child processes
             os.environ["PROBING"] = probe_value
