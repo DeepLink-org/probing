@@ -3,7 +3,7 @@ use dioxus_router::{Routable, Router};
 
 use crate::components::layout::AppLayout;
 use crate::pages::{
-    analytics::Analytics, chrome_tracing::ChromeTracing, cluster::Cluster, dashboard::Dashboard, 
+    analytics::Analytics, chrome_tracing::ChromeTracing, cluster::Cluster, dashboard::Dashboard,
     profiling::Profiling, python::Python, stack::Stack, traces::Traces,
 };
 
@@ -81,7 +81,7 @@ pub static PROFILING_PYTORCH_TIMELINE_RELOAD: GlobalSignal<i32> = Signal::global
 pub static PROFILING_RAY_TIMELINE_RELOAD: GlobalSignal<i32> = Signal::global(|| 0);
 
 // Sidebar state
-pub static SIDEBAR_WIDTH: GlobalSignal<f64> = Signal::global(|| 256.0); // Default 256px (w-64)
+pub static SIDEBAR_WIDTH: GlobalSignal<f64> = Signal::global(|| 256.0);
 pub static SIDEBAR_HIDDEN: GlobalSignal<bool> = Signal::global(|| false);
 
 #[component]

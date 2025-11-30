@@ -6,11 +6,12 @@ This module provides unified torch magic commands for:
 - Checking GPU memory usage
 """
 
-from IPython.core.magic import Magics, magics_class, line_magic
-from probing.repl import register_magic
-import gc
+from typing import Dict, Optional
+
+from IPython.core.magic import Magics, line_magic, magics_class
+
 import __main__
-from typing import Optional, List, Dict, Any
+from probing.repl import register_magic
 
 # Optional import - torch may not be installed
 try:
@@ -412,9 +413,9 @@ Examples:
                     return None
 
                 try:
-                    import tempfile
-                    import os
                     import json
+                    import os
+                    import tempfile
 
                     tmp_fd, tmp_path = tempfile.mkstemp(suffix=".json", text=True)
                     os.close(tmp_fd)
@@ -422,7 +423,7 @@ Examples:
                     try:
                         self._profiler.export_chrome_trace(tmp_path)
 
-                        with open(tmp_path, "r") as f:
+                        with open(tmp_path) as f:
                             trace_json = f.read()
 
                         # Verify it's valid JSON
@@ -442,7 +443,7 @@ Examples:
                             os.unlink(tmp_path)
                         except Exception:
                             pass
-                except Exception as e:
+                except Exception:
                     return None
 
         # Create and store global profiler

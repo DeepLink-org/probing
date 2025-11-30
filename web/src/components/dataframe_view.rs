@@ -5,7 +5,7 @@ use crate::components::table_view::TableView;
 #[component]
 pub fn DataFrameView(df: DataFrame, #[props(optional)] on_row_click: Option<EventHandler<usize>>) -> Element {
     let headers = use_memo(move || df.names.clone());
-    
+
     let data = use_memo(move || {
         let nrows = df.cols.iter().map(|x| x.len()).max().unwrap_or(0);
         (0..nrows)
@@ -29,6 +29,6 @@ pub fn DataFrameView(df: DataFrame, #[props(optional)] on_row_click: Option<Even
             })
             .collect::<Vec<Vec<String>>>()
     });
-    
+
     rsx! { TableView { headers: headers.read().clone(), data: data.read().clone(), on_row_click } }
 }

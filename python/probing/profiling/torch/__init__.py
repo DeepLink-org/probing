@@ -1,7 +1,25 @@
+"""
+Torch Profiling
+
+Spec
+----
+This module implements profiling hooks for PyTorch training loops.
+
+Responsibilities:
+1.  Install/Uninstall hooks on PyTorch Modules and Optimizers.
+2.  Track forward/backward passes and optimizer steps.
+3.  Manage training step lifecycle (`next_step`).
+
+Public Interfaces:
+- `install_hooks`: Attach profiling hooks to a model/optimizer.
+- `uninstall_hooks`: Remove attached hooks.
+- `next_step`: Signal the start of a new training iteration.
+"""
+
 import torch
 
-from .module_utils import module_analysis, module_get_fullname
 from ..types import BaseTracer
+from .module_utils import module_analysis, module_get_fullname
 from .step import next_step, step
 
 __all__ = ["next_step", "step", "install_hooks", "uninstall_hooks"]

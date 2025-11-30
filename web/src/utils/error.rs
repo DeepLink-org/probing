@@ -4,10 +4,10 @@ use thiserror::Error;
 pub enum AppError {
     #[error("Network error: {0}")]
     Network(String),
-    
+
     #[error("JSON parsing error: {0}")]
     Json(String),
-    
+
     #[error("API error: {0}")]
     Api(String),
 }

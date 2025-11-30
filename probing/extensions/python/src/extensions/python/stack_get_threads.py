@@ -1,6 +1,7 @@
 import sys
 import threading
 
+
 def _get_obj_type(obj):
     try:
         m = type(obj).__module__
@@ -31,10 +32,12 @@ def _get_obj_repr(obj, value=False):
 if "tid" not in locals():
     tid = threading.get_native_id()
 
+
 def get_threads():
     for thread in threading.enumerate():
         if thread.native_id == tid:
             return thread.ident
+
 
 stacks = []
 frames = sys._current_frames()
@@ -43,17 +46,20 @@ tid, nid = get_threads(), tid
 if tid in frames:
     curr = frames[tid]
     while curr is not None:
-        stack = {"PyFrame": {
-            "file": curr.f_code.co_filename,
-            "func": curr.f_code.co_name,
-            "lineno": curr.f_lineno,
-            "locals": {
-                k: _get_obj_repr(v, value=True) for k, v in curr.f_locals.items()
-            },
-        }}
+        stack = {
+            "PyFrame": {
+                "file": curr.f_code.co_filename,
+                "func": curr.f_code.co_name,
+                "lineno": curr.f_lineno,
+                "locals": {
+                    k: _get_obj_repr(v, value=True) for k, v in curr.f_locals.items()
+                },
+            }
+        }
         stacks.append(stack)
         curr = curr.f_back
     import json
+
     retval = json.dumps(stacks)
 else:
     retval = None

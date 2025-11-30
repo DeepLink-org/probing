@@ -12,19 +12,19 @@ pub fn ChromeTracing() -> Element {
     let state = use_api_simple::<String>();
     let profile_state = use_api_simple::<ProfileResponse>();
     let mut iframe_key = use_signal(|| 0);
-    
+
     // Create dependency, recalculate when limit changes
     let limit_value = use_memo({
         let limit = limit.clone();
         move || *limit.read()
     });
-    
+
     // Create data source dependency
     let data_source_value = use_memo({
         let data_source = data_source.clone();
         move || data_source.read().clone()
     });
-    
+
     // Refetch data when data source or limit changes (only for trace data source)
     use_effect({
         let data_source_value = data_source_value.clone();
@@ -56,7 +56,7 @@ pub fn ChromeTracing() -> Element {
                 subtitle: Some("View timeline in Chrome DevTools tracing format".to_string()),
                 icon: Some(&icondata::AiThunderboltOutlined),
             }
-            
+
             // Data source selector
             div {
                 class: "mb-4 p-4 bg-white rounded-lg shadow",
@@ -85,7 +85,7 @@ pub fn ChromeTracing() -> Element {
                         "PyTorch Profiler"
                     }
                 }
-                
+
                 // Trace Events controls
                 if *data_source.read() == "trace" {
                     div {
@@ -124,7 +124,7 @@ pub fn ChromeTracing() -> Element {
                         }
                     }
                 }
-                
+
                 // PyTorch Profiler controls
                 if *data_source.read() == "pytorch" {
                     div {
@@ -235,10 +235,10 @@ pub fn ChromeTracing() -> Element {
                     }
                 }
             }
-            
+
             // Chrome Tracing Viewer
             if state.is_loading() {
-                LoadingState { 
+                LoadingState {
                     message: Some(if *data_source.read() == "pytorch" {
                         "Loading PyTorch timeline data...".to_string()
                     } else {
@@ -249,13 +249,13 @@ pub fn ChromeTracing() -> Element {
                 // Use loaded data directly for display
                 // Validate that data is valid JSON
                 if trace_json.trim().is_empty() {
-                    ErrorState { 
-                        error: "Timeline data is empty. Make sure the profiler has been executed.".to_string(), 
+                    ErrorState {
+                        error: "Timeline data is empty. Make sure the profiler has been executed.".to_string(),
                         title: Some("Empty Timeline Data".to_string())
                     }
                 } else if let Err(e) = serde_json::from_str::<serde_json::Value>(trace_json) {
-                    ErrorState { 
-                        error: format!("Invalid JSON data: {:?}", e), 
+                    ErrorState {
+                        error: format!("Invalid JSON data: {:?}", e),
                         title: Some("Invalid Timeline Data".to_string())
                     }
                 } else {
@@ -272,8 +272,8 @@ pub fn ChromeTracing() -> Element {
                 }
             } else if let Some(Err(ref err)) = state.data.read().as_ref() {
                 // Display error message
-                ErrorState { 
-                    error: format!("Failed to load timeline: {:?}", err), 
+                ErrorState {
+                    error: format!("Failed to load timeline: {:?}", err),
                     title: Some("Load Timeline Error".to_string())
                 }
             } else {
@@ -317,14 +317,14 @@ fn get_tracing_viewer_url(data_source: String, limit: usize) -> String {
     } else {
         format!("/apis/pythonext/trace/chrome-tracing?limit={}", limit)
     };
-    
+
     // Get current page origin
     let origin = web_sys::window()
         .and_then(|w| w.location().origin().ok())
         .unwrap_or_else(|| "http://localhost:8080".to_string());
-    
+
     let json_url = format!("{}{}", origin, api_path);
-    
+
     // Create an HTML page that passes JSON URL via URL parameters
     // This allows iframe to automatically load remote JSON data
     get_tracing_viewer_html_with_url(&json_url)
@@ -339,7 +339,7 @@ fn get_tracing_viewer_html_with_url(json_url: &str) -> String {
         .replace('\\', "\\\\")
         .replace('`', "\\`")
         .replace('$', "\\$");
-    
+
     format!(r#"
 <!DOCTYPE html>
 <html>
@@ -377,14 +377,14 @@ fn get_tracing_viewer_html_with_url(json_url: &str) -> String {
                 // Get JSON data URL from URL parameters, or use default value
                 const urlParams = new URLSearchParams(window.location.search);
                 const jsonUrl = urlParams.get('url') || `{escaped_url}`;
-                
+
                 const iframe = document.getElementById('perfetto-iframe');
                 const loading = document.getElementById('loading');
-                
+
                 // First fetch JSON data, then use Catapult trace viewer to display directly
                 // This avoids iframe cross-origin issues
                 loading.textContent = 'Loading trace data...';
-                
+
                 // Fetch with CORS support
                 // Note: The server must have CORS headers configured
                 fetch(jsonUrl, {{
@@ -409,7 +409,7 @@ fn get_tracing_viewer_html_with_url(json_url: &str) -> String {
                         }} catch (e) {{
                             throw new Error('Invalid JSON data: ' + e.message);
                         }}
-                        
+
                         // Use Perfetto UI directly, pass data via blob URL
                         // Perfetto UI is Google's official new tracing tool, more reliable
                         loadPerfettoUI(traceData, jsonUrl);
@@ -418,19 +418,19 @@ fn get_tracing_viewer_html_with_url(json_url: &str) -> String {
                         console.error('Error loading trace data:', error);
                         showError('Failed to load trace data: ' + error.message, jsonUrl);
                     }});
-                
+
                 function loadPerfettoUI(traceData, jsonUrl) {{
                     loading.textContent = 'Loading Perfetto UI...';
                     iframe.style.display = 'block';
-                    
+
                     // Use Perfetto UI's postMessage API to pass trace data
                     // This avoids CSP restrictions and is more reliable
                     const perfettoUrl = 'https://ui.perfetto.dev/#!/';
                     iframe.src = perfettoUrl;
-                    
+
                     let loaded = false;
                     let errorShown = false;
-                    
+
                     // Listen for messages from Perfetto UI
                     const messageHandler = function(event) {{
                         // Check if message is from Perfetto UI
@@ -457,35 +457,35 @@ fn get_tracing_viewer_html_with_url(json_url: &str) -> String {
                         }}
                     }};
                     window.addEventListener('message', messageHandler);
-                    
+
                     iframe.onload = function() {{
                         // Perfetto UI page loaded, wait for PING/PONG handshake
                         // Then send trace data via postMessage
                         let handshakeComplete = false;
                         let retryCount = 0;
                         const maxRetries = 10;
-                        
+
                         // Listen for PONG message from Perfetto UI
                         // Note: In iframe scenario, we need to listen for messages from iframe
                         const handshakeHandler = function(event) {{
                             // Check if message is from Perfetto UI iframe
-                            if (event.origin === 'https://ui.perfetto.dev' || 
+                            if (event.origin === 'https://ui.perfetto.dev' ||
                                 (event.source === iframe.contentWindow && event.data === 'PONG')) {{
                                 if (event.data && event.data === 'PONG') {{
                                     handshakeComplete = true;
                                     window.removeEventListener('message', handshakeHandler);
-                                    
+
                                     // Handshake complete, send trace data
                                     try {{
                                         // Convert trace data to JSON string, then to ArrayBuffer
                                         const traceJson = JSON.stringify(traceData, null, 2);
                                         const encoder = new TextEncoder();
                                         const buffer = encoder.encode(traceJson).buffer;
-                                        
+
                                         // Build filename (extract from URL or use default)
                                         const urlParts = jsonUrl.split('/');
                                         const fileName = urlParts[urlParts.length - 1].split('?')[0] || 'trace.json';
-                                        
+
                                         // Send trace data to Perfetto UI
                                         // Use iframe.contentWindow.postMessage to send message
                                         iframe.contentWindow.postMessage({{
@@ -496,9 +496,9 @@ fn get_tracing_viewer_html_with_url(json_url: &str) -> String {
                                                 url: jsonUrl
                                             }}
                                         }}, 'https://ui.perfetto.dev');
-                                        
+
                                         console.log('Trace data sent to Perfetto UI');
-                                        
+
                                         // Wait a bit, then hide loading
                                         setTimeout(() => {{
                                             if (!loaded && !errorShown) {{
@@ -520,7 +520,7 @@ fn get_tracing_viewer_html_with_url(json_url: &str) -> String {
                             }}
                         }};
                         window.addEventListener('message', handshakeHandler);
-                        
+
                         // Send PING message to start handshake
                         // Note: window.open's message channel is not buffered, so we need to wait for UI to be ready
                         // In iframe scenario, we also need to wait for iframe to load
@@ -558,11 +558,11 @@ fn get_tracing_viewer_html_with_url(json_url: &str) -> String {
                                 }}
                             }}
                         }};
-                        
+
                         // Wait for iframe to fully load before sending PING
                         // Give Perfetto UI some time to register message listeners
                         setTimeout(sendPing, 1500);
-                        
+
                         // Timeout handling
                         setTimeout(() => {{
                             if (!loaded && !errorShown) {{
@@ -575,7 +575,7 @@ fn get_tracing_viewer_html_with_url(json_url: &str) -> String {
                             }}
                         }}, 10000);
                     }};
-                    
+
                     iframe.onerror = function() {{
                         if (!loaded && !errorShown) {{
                             errorShown = true;
@@ -583,7 +583,7 @@ fn get_tracing_viewer_html_with_url(json_url: &str) -> String {
                             window.removeEventListener('message', messageHandler);
                         }}
                     }};
-                    
+
                     // Set timeout, if not loaded after 30 seconds, show error
                     setTimeout(function() {{
                         if (!loaded && !errorShown) {{
@@ -593,7 +593,7 @@ fn get_tracing_viewer_html_with_url(json_url: &str) -> String {
                         }}
                     }}, 30000);
                 }}
-                
+
                 function showError(message, jsonUrl) {{
                     loading.innerHTML = `
                         <div style="padding: 20px; text-align: center;">
@@ -634,7 +634,7 @@ pub fn get_tracing_viewer_html(trace_json: &str) -> String {
         .replace('\\', "\\\\")
         .replace('`', "\\`")
         .replace('$', "\\$");
-    
+
     format!(r#"
 <!DOCTYPE html>
 <html>
@@ -671,17 +671,17 @@ pub fn get_tracing_viewer_html(trace_json: &str) -> String {
             try {{
                 // Parse loaded trace data
                 const traceData = JSON.parse(`{escaped_json}`);
-                
+
                 const iframe = document.getElementById('perfetto-iframe');
                 const loading = document.getElementById('loading');
-                
+
                 // Use Perfetto UI's postMessage API to pass trace data
                 const perfettoUrl = 'https://ui.perfetto.dev/#!/';
                 iframe.src = perfettoUrl;
-                
+
                 let loaded = false;
                 let errorShown = false;
-                
+
                 // Listen for messages from Perfetto UI
                 const messageHandler = function(event) {{
                     if (event.origin === 'https://ui.perfetto.dev') {{
@@ -706,28 +706,28 @@ pub fn get_tracing_viewer_html(trace_json: &str) -> String {
                     }}
                 }};
                 window.addEventListener('message', messageHandler);
-                
+
                 iframe.onload = function() {{
                     // Perfetto UI page loaded, wait for PING/PONG handshake
                     let handshakeComplete = false;
                     let retryCount = 0;
                     const maxRetries = 10;
-                    
+
                     // Listen for PONG message from Perfetto UI
                     const handshakeHandler = function(event) {{
-                        if (event.origin === 'https://ui.perfetto.dev' || 
+                        if (event.origin === 'https://ui.perfetto.dev' ||
                             (event.source === iframe.contentWindow && event.data === 'PONG')) {{
                             if (event.data && event.data === 'PONG') {{
                                 handshakeComplete = true;
                                 window.removeEventListener('message', handshakeHandler);
-                                
+
                                 // Handshake complete, send trace data
                                 try {{
                                     // Convert trace data to ArrayBuffer
                                     const traceJson = JSON.stringify(traceData, null, 2);
                                     const encoder = new TextEncoder();
                                     const buffer = encoder.encode(traceJson).buffer;
-                                    
+
                                     // Send trace data to Perfetto UI
                                     iframe.contentWindow.postMessage({{
                                         perfetto: {{
@@ -736,9 +736,9 @@ pub fn get_tracing_viewer_html(trace_json: &str) -> String {
                                             fileName: 'pytorch_timeline.json',
                                         }}
                                     }}, 'https://ui.perfetto.dev');
-                                    
+
                                     console.log('Trace data sent to Perfetto UI');
-                                    
+
                                     // Wait a bit, then hide loading
                                     setTimeout(() => {{
                                         if (!loaded && !errorShown) {{
@@ -760,7 +760,7 @@ pub fn get_tracing_viewer_html(trace_json: &str) -> String {
                         }}
                     }};
                     window.addEventListener('message', handshakeHandler);
-                    
+
                     // Send PING message to start handshake
                     const sendPing = function() {{
                         if (!handshakeComplete && retryCount < maxRetries) {{
@@ -794,10 +794,10 @@ pub fn get_tracing_viewer_html(trace_json: &str) -> String {
                             }}
                         }}
                     }};
-                    
+
                     // Wait for iframe to fully load before sending PING
                     setTimeout(sendPing, 1500);
-                    
+
                     // Timeout handling
                     setTimeout(() => {{
                         if (!loaded && !errorShown) {{
@@ -809,14 +809,14 @@ pub fn get_tracing_viewer_html(trace_json: &str) -> String {
                         }}
                     }}, 10000);
                 }};
-                
+
                 iframe.onerror = function() {{
                     if (!loaded && !errorShown) {{
                         errorShown = true;
                         showError('Failed to load Perfetto UI');
                     }}
                 }};
-                
+
                 function showError(message) {{
                     loading.innerHTML = `
                         <div style="padding: 20px; text-align: center;">
@@ -847,4 +847,3 @@ pub fn get_tracing_viewer_html(trace_json: &str) -> String {
 </html>
     "#)
 }
-

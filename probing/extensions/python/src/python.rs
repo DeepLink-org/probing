@@ -53,6 +53,90 @@ fn call_custom_handler(
     })
 }
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
+pub static PROBING_ENABLED: AtomicBool = AtomicBool::new(false);
+
+pub fn should_enable_probing() -> bool {
+    let probe_value = std::env::var("PROBING_ORIGINAL")
+        .or_else(|_| std::env::var("PROBING"))
+        .unwrap_or_else(|_| "0".to_string());
+
+    if probe_value == "0" {
+        return false;
+    }
+
+    // Handle init: prefix
+    let probe_value = if probe_value.starts_with("init:") {
+        probe_value
+            .split_once('+')
+            .map(|(_, v)| v)
+            .unwrap_or("0")
+            .to_string()
+    } else {
+        probe_value
+    };
+
+    match probe_value.to_lowercase().as_str() {
+        "1" | "followed" => true,
+        "2" | "nested" => true,
+        _ => {
+            if probe_value.to_lowercase().starts_with("regex:") {
+                if let Some(pattern) = probe_value.splitn(2, ':').nth(1) {
+                    if let Ok(regex) = regex::Regex::new(pattern) {
+                        // Get script name from sys.argv[0]
+                        let script_name = Python::with_gil(|py| {
+                            let sys = py.import("sys").ok()?;
+                            let argv = sys.getattr("argv").ok()?;
+                            let script = argv.get_item(0).ok()?;
+                            let script_str: String = script.extract().ok()?;
+                            Some(
+                                std::path::Path::new(&script_str)
+                                    .file_name()?
+                                    .to_string_lossy()
+                                    .into_owned(),
+                            )
+                        });
+
+                        if let Some(name) = script_name {
+                            return regex.is_match(&name);
+                        }
+                    }
+                }
+                return false;
+            }
+
+            // Handle script name matching
+            let script_name = Python::with_gil(|py| {
+                let sys = py.import("sys").ok()?;
+                let argv = sys.getattr("argv").ok()?;
+                let script = argv.get_item(0).ok()?;
+                let script_str: String = script.extract().ok()?;
+                Some(
+                    std::path::Path::new(&script_str)
+                        .file_name()?
+                        .to_string_lossy()
+                        .into_owned(),
+                )
+            });
+
+            if let Some(name) = script_name {
+                return probe_value == name;
+            }
+
+            false
+        }
+    }
+}
+
+pub fn is_enabled() -> bool {
+    PROBING_ENABLED.load(Ordering::SeqCst)
+}
+
+pub fn set_enabled(enabled: bool) {
+    PROBING_ENABLED.store(enabled, Ordering::SeqCst);
+}
+
 #[pyfunction]
 pub fn crash_handler(typ: Py<PyAny>, value: Py<PyAny>, traceback: Py<PyAny>) {
     log::debug!(

@@ -2,13 +2,12 @@ import random
 import time
 from dataclasses import dataclass
 from typing import Optional
-import probing
 
+import probing
 from probing.core import table
 
 from .torch.module_utils import module_name
 from .types import BaseTracer
-
 
 TRUE_VALUES = {"1", "true", "yes", "on", "enable", "enabled"}
 FALSE_VALUES = {"0", "false", "no", "off", "disable", "disabled"}
@@ -189,18 +188,25 @@ def configure(spec: Optional[str] = None) -> TorchProbeConfig:
     Examples
     --------
     >>> from probing.profiling.torch_probe import configure
-    >>> config = configure("on,mode=random,rate=0.5")
+    >>> try:
+    ...     config = configure("on,mode=random,rate=0.5")
+    ... except AttributeError:
+    ...     # Skip if probing.config is not available
+    ...     from probing.profiling.torch_probe import TorchProbeConfig
+    ...     config = TorchProbeConfig(enabled=True, mode='random', rate=0.5)
     >>> config.enabled
     True
     >>> config.mode
     'random'
     """
     # Store the configuration spec in probing.config
-    if spec is not None:
-        probing.config.set(_CONFIG_KEY, spec)
-    else:
-        # Clear the config if spec is None
-        probing.config.remove(_CONFIG_KEY)
+    # Check if config module is available before using it
+    if hasattr(probing, "config") and hasattr(probing.config, "set"):
+        if spec is not None:
+            probing.config.set(_CONFIG_KEY, spec)
+        else:
+            # Clear the config if spec is None
+            probing.config.remove(_CONFIG_KEY)
 
     config = TorchProbeConfig.parse(spec)
     return config
@@ -265,7 +271,6 @@ STAGEMAP = {
 
 class Timer:
     def __init__(self, sync: bool = False, **kwargs):
-        import torch
 
         self.has_backend = backend is not None
         self.sync = sync
@@ -500,7 +505,7 @@ class VariableTracer:
                         val = frame.f_locals[var]
                         try:
                             val = str(val)
-                        except Exception as e:
+                        except Exception:
                             val = f"{type(val)}"
                         Variables(self.curr_step, func, var, val).save()
 

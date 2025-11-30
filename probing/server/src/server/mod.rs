@@ -76,12 +76,9 @@ fn build_app(auth: bool) -> axum::Router {
         .nest_service("/apis", apis_route())
         .route("/ws", axum::routing::get(ws_handler))
         .fallback(static_files)
-        // Apply request size limiting middleware
         .layer(axum::middleware::from_fn(request_size_limit_middleware))
-        // Apply request logging middleware (optional, for debugging)
         .layer(axum::middleware::from_fn(request_logging_middleware));
 
-    // Apply authentication middleware if auth token is configured
     if auth {
         app = app.layer(axum::middleware::from_fn(
             crate::auth::selective_auth_middleware,

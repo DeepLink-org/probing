@@ -1,7 +1,8 @@
-import sys
-import unittest
+import importlib
 import os
+import sys
 import tempfile
+import unittest
 
 # Import the module we're testing
 from probing.hooks import import_hook
@@ -51,7 +52,7 @@ class TestImportHook(unittest.TestCase):
         import_hook.register_module_callback("my_module", my_callback)
 
         # Now import the module - should trigger the callback
-        import my_module  # type: ignore
+        importlib.import_module("my_module")
 
         self.assertTrue(callback_executed)
         self.assertIn("my_module", import_hook.triggered)
@@ -59,7 +60,6 @@ class TestImportHook(unittest.TestCase):
     def test_already_imported_module(self):
         """Test callback execution for an already imported module."""
         # First import the module
-        import math
 
         callback_executed = []
 

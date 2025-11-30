@@ -4,11 +4,11 @@ This module contains handler functions for various API endpoints
 that were previously embedded as Python code strings in Rust.
 """
 
+import io
 import json
 import sys
-import io
 import traceback
-from typing import Optional, List, Dict, Any
+from typing import Dict, List, Optional
 
 from probing.handlers.router import ext_handler, handle_request
 
@@ -115,7 +115,7 @@ def get_chrome_tracing(limit: int = 1000) -> str:
         # This ensures span_start events are processed before their corresponding span_end events
         limit_clause = f" LIMIT {limit}" if limit > 0 else ""
         query = f"""
-            SELECT 
+            SELECT
                 record_type,
                 trace_id,
                 span_id,
@@ -304,8 +304,8 @@ def get_pytorch_timeline() -> str:
     try:
         # Use the same approach as REPL - call _cmd_timeline() method
         # This ensures we use the exact same code path that works in REPL
-        from probing.repl.torch_magic import TorchMagic
         import __main__
+        from probing.repl.torch_magic import TorchMagic
 
         shell = None  # TorchMagic doesn't actually need shell for _cmd_timeline
         torch_magic = TorchMagic(shell)

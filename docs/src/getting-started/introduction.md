@@ -16,7 +16,7 @@ Probing is built on three fundamental principles:
 - No workflow disruptions
 - Dynamic probe injection into running processes
 
-### 🎯 **Zero Learning Curve** 
+### 🎯 **Zero Learning Curve**
 - Standard SQL interface for data analysis
 - Familiar database query patterns
 - Intuitive command-line tools
@@ -32,7 +32,7 @@ Probing is built on three fundamental principles:
 
 ### 🎯 **Live Code Execution (`eval`)**
 - **Arbitrary Python Code**: Run any Python code inside your target process
-- **Real-time State Inspection**: Check variables, objects, and system state instantly  
+- **Real-time State Inspection**: Check variables, objects, and system state instantly
 - **Dynamic Behavior Modification**: Change configuration, clear caches, or trigger actions
 - **Custom Metrics Collection**: Gather any data your application can compute
 
@@ -85,21 +85,21 @@ Query structured performance data using familiar SQL syntax to identify patterns
 ```bash
 # Analyze PyTorch training patterns
 probing $ENDPOINT query "
-SELECT 
+SELECT
     step,
     module,
     SUM(allocated) as total_memory_mb,
     COUNT(*) as operation_count
-FROM python.torch_trace 
-WHERE step > 100 
-GROUP BY step, module 
-ORDER BY total_memory_mb DESC 
+FROM python.torch_trace
+WHERE step > 100
+GROUP BY step, module
+ORDER BY total_memory_mb DESC
 LIMIT 10"
 # Expected output:
 # step  | module           | total_memory_mb | operation_count
 # ------|------------------|-----------------|----------------
 # 150   | transformer.attn | 2048.5         | 24
-# 149   | transformer.attn | 2047.8         | 24  
+# 149   | transformer.attn | 2047.8         | 24
 # 151   | transformer.mlp  | 1536.2         | 16
 # 150   | transformer.mlp  | 1535.9         | 16
 # ...
@@ -123,7 +123,7 @@ probing $ENDPOINT query "SELECT func, file, lineno FROM python.backtrace ORDER B
 
 # The python.backtrace table shows main thread execution context:
 # - func: function name
-# - file: source file path  
+# - file: source file path
 # - lineno: line number
 # - depth: call stack depth (0 = deepest frame)
 ```
@@ -135,14 +135,14 @@ probing $ENDPOINT query "SELECT func, file, lineno FROM python.backtrace ORDER B
 Now that you understand the three core capabilities, let's see how they work together to solve common AI/ML debugging challenges:
 
 ### Scenario 1: Training Process Hanging
-**Problem**: PyTorch training suddenly stops progressing.  
+**Problem**: PyTorch training suddenly stops progressing.
 **Solution**: Use the three capabilities in sequence:
 
 ```bash
 # 1. BACKTRACE: See what main thread is doing right now
 probing $ENDPOINT backtrace
 
-# 2. EVAL: Check broader system state  
+# 2. EVAL: Check broader system state
 probing $ENDPOINT eval "import threading; [(t.name, t.is_alive(), t.daemon) for t in threading.enumerate()]"
 # Expected output:
 # [('MainThread', True, False), ('Thread-1', False, False), ('Thread-2', True, True)]
@@ -153,13 +153,13 @@ probing $ENDPOINT query "SELECT func, file, lineno, depth FROM python.backtrace 
 # func         | file              | lineno | depth
 # -------------|-------------------|--------|-------
 # wait_for_data| /app/dataloader.py| 234    | 0
-# get_batch    | /app/training.py  | 89     | 1  
+# get_batch    | /app/training.py  | 89     | 1
 # train_step   | /app/main.py      | 156    | 2
 # ... (up to 10 frames total)
 ```
 
-### Scenario 2: Memory Leak Investigation  
-**Problem**: Memory usage keeps growing during training.  
+### Scenario 2: Memory Leak Investigation
+**Problem**: Memory usage keeps growing during training.
 **Solution**: Monitor, analyze, then correlate:
 
 ```bash
@@ -174,21 +174,21 @@ probing $ENDPOINT query "SELECT step, AVG(allocated) as avg_memory, MAX(allocate
 # step | avg_memory | peak_memory
 # -----|------------|-------------
 # 980  | 1024.5     | 1156.8
-# 981  | 1026.2     | 1158.9  
+# 981  | 1026.2     | 1158.9
 # 982  | 1028.7     | 1161.4   # ← Memory growing!
 # 983  | 1031.1     | 1164.2
 # ...
 ```
 
 ### Scenario 3: Performance Bottleneck Analysis
-**Problem**: Need to identify which model components are slowest.  
+**Problem**: Need to identify which model components are slowest.
 **Solution**: Real-time profiling with contextual analysis:
 
 ```bash
 # BACKTRACE: Capture execution state during slow periods
 probing $ENDPOINT backtrace
 
-# QUERY: Find most expensive operations across recent steps  
+# QUERY: Find most expensive operations across recent steps
 probing $ENDPOINT query "SELECT module, stage, AVG(allocated) as avg_memory, COUNT(*) as frequency FROM python.torch_trace WHERE step >= (SELECT MAX(step) - 5 FROM python.torch_trace) GROUP BY module, stage ORDER BY avg_memory DESC LIMIT 10"
 # Expected output:
 # module                | stage    | avg_memory | frequency
@@ -272,7 +272,7 @@ probing $ENDPOINT query "SELECT func, file, lineno FROM python.backtrace ORDER B
 # func           | file                  | lineno
 # ---------------|-----------------------|--------
 # forward        | /app/model.py         | 89
-# train_step     | /app/training.py      | 156  
+# train_step     | /app/training.py      | 156
 # main_loop      | /app/main.py          | 234
 # ...
 ```
@@ -361,10 +361,10 @@ Based on the capabilities and scenarios above, Probing is designed for different
 ### AI/ML Engineers
 **Debug training instabilities and optimize model performance**
 - "Why did my training suddenly diverge at step 15,000?" → Use `backtrace` + `query` to see exact main thread state
-- "Which layer is using the most GPU memory?" → Use `eval` to inspect torch memory + `query` torch_trace  
+- "Which layer is using the most GPU memory?" → Use `eval` to inspect torch memory + `query` torch_trace
 - "Is my data loader causing bottlenecks?" → Use `eval` to check thread states and `backtrace` for main thread analysis
 
-### DevOps Engineers  
+### DevOps Engineers
 **Monitor production AI services and troubleshoot issues**
 - "Service is using 90% CPU but I can't reproduce it" → Use `inject` + `eval` to inspect live production
 - "Memory usage keeps growing, is it a leak?" → Use `eval` + `query` for memory trend analysis
@@ -391,7 +391,7 @@ Understanding Probing's architecture helps you use it more effectively:
 ### Data Plane (Probes)
 - Lightweight probing components injected into target processes
 - Collect performance metrics and system data
-- Minimal performance overhead (<5% in most cases)  
+- Minimal performance overhead (<5% in most cases)
 - Distributed architecture with no single point of failure
 
 ### Control Plane (Interface)
@@ -420,7 +420,7 @@ This architecture enables the zero-intrusion, zero-setup experience you've seen 
 Ready to dive deeper? Here's your recommended learning path:
 
 ### 🚀 **Start Here** (Essential - 30 minutes)
-1. **[Installation](installation.md)** - Set up Probing on your system  
+1. **[Installation](installation.md)** - Set up Probing on your system
 
 ### 🎯 **Deep Dive** (Choose based on your needs)
 - **[SQL Analytics](../user-guide/sql-analytics.md)** - Advanced `query` techniques and data analysis
@@ -435,7 +435,7 @@ Ready to dive deeper? Here's your recommended learning path:
 ### 💡 **Learn from Examples**
 Browse `examples/` directory for real-world patterns:
 - **Training debugging workflows** - Common PyTorch issues and solutions
-- **Production monitoring setups** - Real deployment patterns  
+- **Production monitoring setups** - Real deployment patterns
 - **Custom analytics queries** - Advanced SQL patterns for ML workloads
 
 ## Community and Support

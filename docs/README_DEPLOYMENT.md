@@ -95,4 +95,3 @@ The workflow (`.github/workflows/docs.yml`) performs the following steps:
 - Verify GitHub Pages is enabled in repository settings
 - Check that the workflow has permission to write to the repository
 - Review the workflow logs for deployment errors
-

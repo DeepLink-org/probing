@@ -114,7 +114,7 @@ fn SqlQueryPanel() -> Element {
         if query.trim().is_empty() {
             return;
         }
-        
+
         *is_executing.write() = true;
         let mut loading = query_state.loading;
         let mut data = query_state.data;
@@ -140,14 +140,14 @@ fn SqlQueryPanel() -> Element {
                     *sql.write() = ev.value();
                 }
             }
-            
+
             button {
                 class: format!("px-6 py-2 bg-indigo-600 text-white rounded-md font-medium hover:bg-indigo-700 transition-colors shadow-sm {}", if *is_executing.read() { "opacity-50 cursor-not-allowed" } else { "" }),
                 disabled: *is_executing.read(),
                 onclick: execute_query,
                 if *is_executing.read() { "Running..." } else { "Run Query" }
             }
-            
+
             if query_state.is_loading() {
                 LoadingState { message: Some("Running query...".to_string()) }
             } else if let Some(Ok(df)) = query_state.data.read().as_ref() {

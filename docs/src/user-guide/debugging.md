@@ -179,7 +179,7 @@ sys.monitoring.OPTIMIZER_ID = 5
 - **INSTRUCTION**: A VM instruction is about to be executed.
 - **JUMP**: An unconditional jump in the control flow graph is made.
 - **LINE**: An instruction is about to be executed that has a different line number from the preceding instruction.
-- **PY_RESUME**: Resumption of a Python function (for generator and coroutine functions), except for throw() calls. 
+- **PY_RESUME**: Resumption of a Python function (for generator and coroutine functions), except for throw() calls.
 - **PY_RETURN**: Return from a Python function (occurs immediately before the return, the callee's frame will be on the stack).
 - **PY_START**: Start of a Python function (occurs immediately after the call, the callee's frame will be on the stack)
 - **PY_THROW**: A Python function is resumed by a throw() call.
@@ -287,7 +287,7 @@ Probing目前提供的一些机制能够较好的支撑分布式Debug能力的�
    - Probing自带Query引擎，善于处理大量本地数据；
    - Query引擎的分布式能力，能够帮助Probing自动管理集群层面的分布式数据处理；
    - Query引擎内部实现了高效的数据压缩；
-  
+
 3. 自动化
    - Query 引擎提供了编程能力；
    - 标准化的SQL查询语句，可以借助大模型自动生成SQL；
@@ -378,7 +378,7 @@ import probing
 with probing.trace("memory_usage"):
     for epoch in range(num_epochs):
         train_model(epoch)
-        
+
 # 通过SQL查询分析内存使用模式
 ```
 
@@ -390,7 +390,7 @@ with probing.trace("memory_usage"):
 # 监控集合通信操作
 with probing.trace("collective_ops"):
     torch.distributed.all_reduce(tensor)
-    
+
 # 分析不同节点的执行时间差异
 ```
 

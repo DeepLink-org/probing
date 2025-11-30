@@ -12,7 +12,7 @@ use crate::api::ApiClient;
 pub fn Stack(tid: Option<String>) -> Element {
     let tid_display = tid.clone();
     let mut mode = use_signal(|| String::from("mixed")); // py | cpp | mixed
-    
+
     let state = use_api(move || {
         let tid_clone = tid.clone();
         let current_mode = mode.read().clone();

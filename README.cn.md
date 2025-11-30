@@ -2,9 +2,9 @@
 
 <div align="center">
   <img src="probing.svg" alt="Probing Logo" width="200"/>
-  
+
   <p>
-    <a href="README.cn.md">中文</a> | 
+    <a href="README.cn.md">中文</a> |
     <a href="README.md">English</a>
   </p>
 </div>
@@ -26,7 +26,7 @@ Probing是一个专为AI应用设计的运行时性能分析和调试工具。�
 - **内存泄漏检测** - 跟踪训练步骤间的GPU/CPU内存使用
 - **实时变量检查** - 在不停止训练的情况下检查张量值、梯度和模型状态
 
-### 🛠️ **面向框架和库开发者**  
+### 🛠️ **面向框架和库开发者**
 - **运行时框架分析** - 了解框架在真实使用场景中的表现
 - **零侵入性能分析** - 无需代码修改即可分析框架内部
 - **生产环境调试** - 在用户实际环境中调试报告的问题
@@ -119,7 +119,7 @@ probing -t <pid> query "SELECT * FROM memory_usage WHERE timestamp > now() - int
 # 性能热点分析
 probing -t <pid> query "
   SELECT operation_name, avg(duration_ms), count(*)
-  FROM profiling_data 
+  FROM profiling_data
   WHERE timestamp > now() - interval '5 minutes'
   GROUP BY operation_name
   ORDER BY avg(duration_ms) DESC
@@ -128,8 +128,8 @@ probing -t <pid> query "
 # 训练进度跟踪
 probing -t <pid> query "
   SELECT epoch, avg(loss), min(loss), count(*) as steps
-  FROM training_logs 
-  GROUP BY epoch 
+  FROM training_logs
+  GROUP BY epoch
   ORDER BY epoch
 "
 ```
@@ -237,7 +237,7 @@ PROBING_TORCH_PROFILING="on,exprs=loss@train,acc1@train" PROBE=1 python examples
 ### 项目结构
 
 - `probing/cli/` - 命令行接口
-- `probing/core/` - 核心分析引擎  
+- `probing/core/` - 核心分析引擎
 - `probing/extensions/` - 语言特定扩展（Python, C++）
 - `probing/server/` - HTTP API服务器
 - `web/` - Web UI源码和构建输出（Dioxus + WebAssembly）

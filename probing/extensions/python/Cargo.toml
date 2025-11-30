@@ -16,6 +16,7 @@ probing-cc = { path = "../cc" }
 probing-core = { path = "../../core" }
 probing-proto = { path = "../../proto" }
 probing-store = { path = "../../crates/store" }
+probing-cli = { path = "../../cli" }
 
 anyhow = { workspace = true }
 ctor = { workspace = true }

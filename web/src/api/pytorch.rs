@@ -25,7 +25,7 @@ impl ApiClient {
     pub async fn get_pytorch_timeline(&self) -> Result<String> {
         let path = "/apis/pythonext/pytorch/timeline";
         let response = self.get_request(path).await?;
-        
+
         // Check if response is an error
         if let Ok(error_response) = serde_json::from_str::<serde_json::Value>(&response) {
             if let Some(error) = error_response.get("error") {
@@ -34,7 +34,7 @@ impl ApiClient {
                 return Err(crate::utils::error::AppError::Api(error_msg));
             }
         }
-        
+
         // Validate if response is valid Chrome tracing format
         if let Ok(trace_data) = serde_json::from_str::<serde_json::Value>(&response) {
             if let Some(trace_events) = trace_data.get("traceEvents") {
@@ -45,8 +45,7 @@ impl ApiClient {
                 }
             }
         }
-        
+
         Ok(response)
     }
 }
-

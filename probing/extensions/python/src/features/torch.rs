@@ -28,7 +28,7 @@ pub fn query_profiling() -> Result<Vec<String>> {
 
         let query = r#"
         select module, stage, median(duration)
-            from python.torch_trace 
+            from python.torch_trace
             where module <> 'None'
             group by module, stage
             order by (stage, module);

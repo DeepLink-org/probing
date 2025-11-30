@@ -3,7 +3,7 @@ use dioxus::prelude::*;
 #[component]
 pub fn CollapsibleCardWithIcon(title: String, icon: Element, children: Element) -> Element {
     let mut is_open = use_signal(|| false);
-    
+
     rsx! {
         div {
             class: "border border-gray-200 rounded-lg mb-2",

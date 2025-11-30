@@ -10,7 +10,7 @@ use crate::api::{ApiClient, TraceableItem};
 #[component]
 pub fn Python() -> Element {
     let mut selected_tab = use_signal(|| "trace".to_string());
-    
+
     rsx! {
         PageContainer {
             PageTitle {
@@ -33,7 +33,7 @@ pub fn Python() -> Element {
                     }
                 }
             }
-            
+
             if *selected_tab.read() == "trace" {
                 TraceView {}
             }
@@ -45,30 +45,30 @@ pub fn Python() -> Element {
 fn TraceView() -> Element {
     let _selected_function_filter = use_signal(|| Option::<String>::None);
     let mut refresh_key = use_signal(|| 0);
-    
+
     let functions_state = use_api(move || {
         let client = ApiClient::new();
         async move {
             client.get_traceable_items(None).await
         }
     });
-    
+
     let trace_info_state = use_api(move || {
         let client = ApiClient::new();
         async move {
             client.get_trace_info().await
         }
     });
-    
+
     let records_state = use_api_simple::<probing_proto::prelude::DataFrame>();
     let mut preview_function_name = use_signal(|| String::new());
     let mut preview_open = use_signal(|| false);
-    
+
     let mut dialog_open = use_signal(|| false);
     let mut dialog_function_name = use_signal(|| String::new());
     let mut dialog_watch_vars = use_signal(|| String::new());
     let mut dialog_print_to_terminal = use_signal(|| false);
-    
+
     rsx! {
         div {
             class: "space-y-6",
@@ -79,7 +79,7 @@ fn TraceView() -> Element {
                 preview_open: preview_open.clone(),
                 refresh_key: refresh_key.clone(),
             }
-            
+
             div {
                 class: "bg-white shadow-md rounded-lg p-6",
                 h2 {
@@ -94,7 +94,7 @@ fn TraceView() -> Element {
                     } else {
                         {
                             let mut click_signal = use_signal(|| (String::new(), Vec::new()));
-                            
+
                             use_effect(move || {
                                 let (func_name, vars) = click_signal.read().clone();
                                 if !func_name.is_empty() {
@@ -105,7 +105,7 @@ fn TraceView() -> Element {
                                     *click_signal.write() = (String::new(), Vec::new());
                                 }
                             });
-                            
+
                             rsx! {
                                 TraceableFunctionsList {
                                     items: items.clone(),
@@ -120,7 +120,7 @@ fn TraceView() -> Element {
                     EmptyState { message: "No data available".to_string() }
                 }
             }
-            
+
             if *preview_open.read() {
                 VariableRecordsModal {
                     preview_open: preview_open.clone(),
@@ -128,7 +128,7 @@ fn TraceView() -> Element {
                     records_state: records_state.clone(),
                 }
             }
-            
+
             if *dialog_open.read() {
                 StartTraceDialog {
                     dialog_open: dialog_open.clone(),
@@ -184,14 +184,14 @@ fn TraceableFunctionItem(
     let variables_list = use_signal(|| variables.clone());
     let children_state = use_signal(|| Option::<Vec<TraceableItem>>::None);
     let mut loading = use_signal(|| false);
-    
+
     let name_for_display = name.clone();
     let _name_for_click = name.clone();
     let name_for_expand_module = name.clone();
     let _name_for_expand_vars = name.clone();
     let item_type_clone = item_type.clone();
     let _variables_clone = variables_list.read().clone();
-    
+
     rsx! {
         div {
             class: "border border-gray-200 rounded-md",
@@ -205,12 +205,12 @@ fn TraceableFunctionItem(
                             onclick: move |_| {
                                 let expanded_val = *expanded.read();
                                 *expanded.write() = !expanded_val;
-                                
+
                                 if !expanded_val {
                                     let name_for_load = name_for_expand_module.clone();
                                     let mut children = children_state;
                                     let mut load_state = loading;
-                                    
+
                                     spawn(async move {
                                         *load_state.write() = true;
                                         let client = ApiClient::new();
@@ -237,7 +237,7 @@ fn TraceableFunctionItem(
                             class: "w-4",
                         }
                     }
-                    
+
                     {
                         let item_type_clone = item_type_clone.clone();
                         let (badge_class, badge_text) = match item_type_clone.as_str() {
@@ -252,12 +252,12 @@ fn TraceableFunctionItem(
                             }
                         }
                     }
-                    
+
                     div {
                         class: "font-medium text-gray-900",
                         "{name_for_display}"
                     }
-                    
+
                     if item_type_clone == "F" {
                         button {
                             class: "ml-auto text-xs text-gray-500 hover:text-gray-700",
@@ -275,7 +275,7 @@ fn TraceableFunctionItem(
                     }
                 }
             }
-            
+
             if item_type_clone == "F" && *variables_expanded.read() {
                 {
                     let vars = variables_list.read();
@@ -294,7 +294,7 @@ fn TraceableFunctionItem(
                                             let var_clone = var.clone();
                                             let mut click_signal = on_function_click.clone();
                                             let func_name = function_name.clone();
-                                            
+
                                             rsx! {
                                                 span {
                                                     class: "text-xs px-2 py-1 bg-indigo-50 text-indigo-700 rounded border border-indigo-200 cursor-pointer hover:bg-indigo-100 transition-colors",
@@ -322,7 +322,7 @@ fn TraceableFunctionItem(
                     }
                 }
             }
-            
+
             if is_module && *expanded.read() {
                 if *loading.read() {
                     div {
@@ -426,7 +426,7 @@ fn ActiveTraceItem(
 ) -> Element {
     let func_name_clone = func_name.clone();
     let func_name_for_preview = func_name.clone();
-    
+
     rsx! {
         div {
             class: "p-4 bg-gray-50 rounded-md border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors",
@@ -507,9 +507,9 @@ fn VariableRecordsModal(
                 if records_state.is_loading() {
                     LoadingState { message: Some("Loading records...".to_string()) }
                 } else if let Some(Ok(df)) = records_state.data.read().as_ref() {
-                    DataFrameView { 
-                        df: df.clone(), 
-                        on_row_click: None 
+                    DataFrameView {
+                        df: df.clone(),
+                        on_row_click: None
                     }
                 } else if let Some(Err(err)) = records_state.data.read().as_ref() {
                     ErrorState { error: format!("{:?}", err), title: None }
@@ -550,7 +550,7 @@ fn StartTraceDialog(
                     class: "text-lg font-semibold text-gray-900 mb-4",
                     "Start Tracing"
                 }
-                
+
                 div {
                     class: "space-y-4",
                     div {
@@ -566,7 +566,7 @@ fn StartTraceDialog(
                             value: "{dialog_function_name.read()}",
                         }
                     }
-                    
+
                     div {
                         class: "space-y-2",
                         label {
@@ -585,7 +585,7 @@ fn StartTraceDialog(
                             "Tip: You can add more variables separated by commas"
                         }
                     }
-                    
+
                     div {
                         class: "space-y-2",
                         div {
@@ -612,7 +612,7 @@ fn StartTraceDialog(
                             "If checked, variable changes will be printed to terminal; otherwise only logged to database"
                         }
                     }
-                    
+
                     div {
                         class: "flex gap-3 justify-end pt-4",
                         button {
@@ -630,7 +630,7 @@ fn StartTraceDialog(
                                 let print_to_terminal = *dialog_print_to_terminal.read();
                                 let mut refresh = refresh_key;
                                 let mut dialog_op = dialog_open;
-                                
+
                                 spawn(async move {
                                     let client = ApiClient::new();
                                     let watch_list: Vec<String> = if watch.is_empty() {
@@ -638,7 +638,7 @@ fn StartTraceDialog(
                                     } else {
                                         watch.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
                                     };
-                                    
+
                                     match client.start_trace(&func, Some(watch_list), print_to_terminal).await {
                                         Ok(resp) => {
                                                     if resp.success {
