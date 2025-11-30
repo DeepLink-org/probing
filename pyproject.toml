@@ -46,11 +46,11 @@ probing = "probing.cli.__main__:main"
 [tool.maturin]
 module-name = "probing._core"
 manifest-path = "Cargo.toml"
-python-packages = ["probing"]
 python-source = "python"
 compatibility = "linux"
 bindings = "pyo3"
 cargo-extra-args = "--features extension-module"
+include = ["probing.pth", "probing_hook.py"]
 
 [build-system]
 requires = ["maturin>=1.0,<2.0"]
