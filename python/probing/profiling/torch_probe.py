@@ -2,13 +2,12 @@ import random
 import time
 from dataclasses import dataclass
 from typing import Optional
-import probing
 
+import probing
 from probing.core import table
 
 from .torch.module_utils import module_name
 from .types import BaseTracer
-
 
 TRUE_VALUES = {"1", "true", "yes", "on", "enable", "enabled"}
 FALSE_VALUES = {"0", "false", "no", "off", "disable", "disabled"}
@@ -272,7 +271,6 @@ STAGEMAP = {
 
 class Timer:
     def __init__(self, sync: bool = False, **kwargs):
-        import torch
 
         self.has_backend = backend is not None
         self.sync = sync
@@ -507,7 +505,7 @@ class VariableTracer:
                         val = frame.f_locals[var]
                         try:
                             val = str(val)
-                        except Exception as e:
+                        except Exception:
                             val = f"{type(val)}"
                         Variables(self.curr_step, func, var, val).save()
 

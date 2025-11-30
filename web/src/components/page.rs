@@ -4,7 +4,7 @@ use icondata::Icon as IconData;
 
 #[component]
 pub fn PageTitle(
-    title: String, 
+    title: String,
     subtitle: Option<String>,
     #[props(optional)] icon: Option<&'static IconData>,
 ) -> Element {

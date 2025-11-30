@@ -1,10 +1,9 @@
 """Tests for probing initialization and environment variable handling."""
 
 import os
-import sys
-import pytest
-import tempfile
 import subprocess
+import sys
+import tempfile
 
 
 def test_should_enable_probing_function_direct():
@@ -291,4 +290,3 @@ def test_should_enable_probing_with_init_prefix_no_setting():
         text=True,
     )
     # Should default to "0" and be disabled
-

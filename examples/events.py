@@ -32,7 +32,9 @@ class Event(dict):
         if name in self:
             return self[name]
         else:
-            raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
+            raise AttributeError(
+                f"'{self.__class__.__name__}' object has no attribute '{name}'"
+            )
 
     def __setattr__(self, name: str, value: Any) -> None:
         return self.__setitem__(name, value)
@@ -78,7 +80,10 @@ class BackwardEndEvent(TorchEvent):
 def parse(line):
     expr = ast.parse(line, mode="eval")
     name = expr.body.func.id
-    args = [eval(compile(ast.Expression(body=arg), filename="", mode="eval")) for arg in expr.body.args]
+    args = [
+        eval(compile(ast.Expression(body=arg), filename="", mode="eval"))
+        for arg in expr.body.args
+    ]
     event = Event()
     event.name = name
     event.module = args[0]

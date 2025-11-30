@@ -39,10 +39,9 @@ Implicit name decorator::
 import functools
 import inspect
 from dataclasses import dataclass
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 # Import from the internal Rust module
-import probing
 from probing import _core
 
 try:

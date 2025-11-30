@@ -58,7 +58,7 @@ Using Rust, developers can more directly and deeply extend Probing's data query 
 pub trait EngineExtension: Debug + Send + Sync + EngineCall + EngineDatasource {
     fn name(&self) -> String;                                    // Extension name
     fn set(&mut self, key: &str, value: &str) -> Result<...>;   // Set configuration
-    fn get(&self, key: &str) -> Result<String, ...>;            // Get configuration  
+    fn get(&self, key: &str) -> Result<String, ...>;            // Get configuration
     fn options(&self) -> Vec<EngineExtensionOption>;             // List all configuration options
 }
 ```
@@ -71,7 +71,7 @@ Probing's data processing capabilities are built on a flexible data source abstr
 
 ```rust
 pub trait EngineDatasource {
-    fn datasrc(&self, namespace: &str, name: Option<&str>) 
+    fn datasrc(&self, namespace: &str, name: Option<&str>)
         -> Option<Arc<dyn Plugin + Sync + Send>>;
 }
 ```
@@ -104,7 +104,7 @@ Static table plugins are the most intuitive data providers in Probing's extensio
 ```rust
 pub trait CustomTable {
     fn name() -> &'static str;      // Table name
-    fn schema() -> SchemaRef;       // Table schema 
+    fn schema() -> SchemaRef;       // Table schema
     fn data() -> Vec<RecordBatch>;  // Data batches
 }
 

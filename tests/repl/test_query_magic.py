@@ -1,18 +1,20 @@
 """Unit tests for query_magic module - testing core functionality."""
 
-import pytest
-import pandas as pd
-from unittest.mock import patch
-import sys
 import os
+import sys
+from unittest.mock import patch
+
+import pandas as pd
+import pytest
 
 # Add python directory to path
 python_dir = os.path.join(os.path.dirname(__file__), "../../python")
 if python_dir not in sys.path:
     sys.path.insert(0, python_dir)
 
-from probing.repl.query_magic import QueryMagic
 from traitlets.config.configurable import Configurable
+
+from probing.repl.query_magic import QueryMagic
 
 
 @pytest.fixture

@@ -6,8 +6,6 @@ prevents the public probe APIs from pulling in extra helpers as side effects.
 
 from __future__ import annotations
 
-from typing import Dict, List, Set, Tuple
-
 __all__ = [
     "get_dict",
     "get_dict_list",
@@ -17,7 +15,7 @@ __all__ = [
 ]
 
 
-def get_dict() -> Dict[str, object]:
+def get_dict() -> dict[str, object]:
     return {
         "int": 1,
         "float": 1.0,
@@ -25,7 +23,7 @@ def get_dict() -> Dict[str, object]:
     }
 
 
-def get_list() -> List[object]:
+def get_list() -> list[object]:
     return [
         1,
         1.0,
@@ -33,7 +31,7 @@ def get_list() -> List[object]:
     ]
 
 
-def get_tuple() -> Tuple[object, object, object]:
+def get_tuple() -> tuple[object, object, object]:
     return (
         1,
         1.0,
@@ -41,7 +39,7 @@ def get_tuple() -> Tuple[object, object, object]:
     )
 
 
-def get_set() -> Set[object]:
+def get_set() -> set[object]:
     return {
         1,
         1.0,
@@ -49,7 +47,7 @@ def get_set() -> Set[object]:
     }
 
 
-def get_dict_list() -> List[Dict[str, object]]:
+def get_dict_list() -> list[dict[str, object]]:
     return [
         {
             "int": 1,

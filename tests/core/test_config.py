@@ -1,4 +1,5 @@
 import pytest
+
 import probing
 
 # Config tests might run before the extension is fully loaded/registered in some environments
@@ -6,9 +7,11 @@ import probing
 # With the new flattened structure, probing.config should be importable
 try:
     import probing.config
+
     config_available = True
 except ImportError:
     config_available = False
+
 
 @pytest.fixture(autouse=True)
 def clear_config():
@@ -25,10 +28,12 @@ def clear_config():
         except Exception:
             pass
 
+
 @pytest.mark.skipif(not config_available, reason="probing.config module not available")
 def test_config_module_exists():
     """Test that the config module is available."""
     assert hasattr(probing, "config")
+
 
 @pytest.mark.skipif(not config_available, reason="probing.config module not available")
 def test_set_and_get_string():
@@ -36,6 +41,7 @@ def test_set_and_get_string():
     probing.config.set("test.key1", "value1")
     value = probing.config.get("test.key1")
     assert value == "value1"
+
 
 @pytest.mark.skipif(not config_available, reason="probing.config module not available")
 def test_set_and_get_int():
@@ -49,12 +55,14 @@ def test_set_and_get_int():
     value = probing.config.get("test.large_int")
     assert value == 2**50
 
+
 @pytest.mark.skipif(not config_available, reason="probing.config module not available")
 def test_set_and_get_float():
     """Test setting and getting float values."""
     probing.config.set("test.float", 3.14)
     value = probing.config.get("test.float")
     assert abs(value - 3.14) < 1e-5
+
 
 @pytest.mark.skipif(not config_available, reason="probing.config module not available")
 def test_set_and_get_bool():
@@ -68,6 +76,7 @@ def test_set_and_get_bool():
     assert value_true is True
     assert value_false is False
 
+
 @pytest.mark.skipif(not config_available, reason="probing.config module not available")
 def test_set_and_get_none():
     """Test setting and getting None values."""
@@ -75,11 +84,13 @@ def test_set_and_get_none():
     value = probing.config.get("test.none")
     assert value is None
 
+
 @pytest.mark.skipif(not config_available, reason="probing.config module not available")
 def test_get_nonexistent_key():
     """Test getting a key that doesn't exist."""
     value = probing.config.get("nonexistent.key")
     assert value is None
+
 
 @pytest.mark.skipif(not config_available, reason="probing.config module not available")
 def test_get_str():
@@ -97,12 +108,14 @@ def test_get_str():
     # Nonexistent key
     assert probing.config.get_str("nonexistent") is None
 
+
 @pytest.mark.skipif(not config_available, reason="probing.config module not available")
 def test_contains_key():
     """Test checking if a key exists."""
     probing.config.set("test.key", "value")
     assert probing.config.contains_key("test.key")
     assert not probing.config.contains_key("nonexistent.key")
+
 
 @pytest.mark.skipif(not config_available, reason="probing.config module not available")
 def test_remove():
@@ -117,6 +130,7 @@ def test_remove():
     # Remove nonexistent key
     removed_none = probing.config.remove("nonexistent.key")
     assert removed_none is None
+
 
 @pytest.mark.skipif(not config_available, reason="probing.config module not available")
 def test_keys():
@@ -136,6 +150,7 @@ def test_keys():
     assert keys[1] == "b.key"
     assert keys[2] == "c.key"
 
+
 @pytest.mark.skipif(not config_available, reason="probing.config module not available")
 def test_clear():
     """Test clearing all configuration."""
@@ -146,6 +161,7 @@ def test_clear():
     probing.config.clear()
     assert probing.config.len() == 0
     assert probing.config.is_empty()
+
 
 @pytest.mark.skipif(not config_available, reason="probing.config module not available")
 def test_len():
@@ -161,6 +177,7 @@ def test_len():
     probing.config.remove("test.key1")
     assert probing.config.len() == 1
 
+
 @pytest.mark.skipif(not config_available, reason="probing.config module not available")
 def test_is_empty():
     """Test checking if config store is empty."""
@@ -172,6 +189,7 @@ def test_is_empty():
     probing.config.clear()
     assert probing.config.is_empty()
 
+
 @pytest.mark.skipif(not config_available, reason="probing.config module not available")
 def test_overwrite_value():
     """Test overwriting an existing value."""
@@ -180,6 +198,7 @@ def test_overwrite_value():
 
     probing.config.set("test.key", "value2")
     assert probing.config.get("test.key") == "value2"
+
 
 @pytest.mark.skipif(not config_available, reason="probing.config module not available")
 def test_mixed_types():

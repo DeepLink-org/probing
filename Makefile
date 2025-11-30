@@ -44,6 +44,7 @@ help:
 	@echo ""
 	@echo "Targets:"
 	@echo "  all             Build the wheel (default)."
+	@echo "  setup           Install dev tools and environment (pre-commit, etc.)."
 	@echo "  wheel           Build the Python wheel using maturin."
 	@echo "  develop         Install the package in editable mode."
 	@echo "  test            Run Rust tests."
@@ -64,6 +65,17 @@ help:
 	@echo "  TARGET     Target architecture for cross-compilation"
 	@echo "  PYTHON     Python version (default: 3.12)"
 	@echo ""
+
+# ==============================================================================
+# Setup Targets
+# ==============================================================================
+.PHONY: setup
+setup:
+	@echo "Setting up development environment..."
+	@echo "Installing pre-commit..."
+	@if command -v pip >/dev/null 2>&1; then pip install pre-commit; else echo "pip not found, skipping pre-commit install"; fi
+	@if command -v pre-commit >/dev/null 2>&1; then pre-commit install; else echo "pre-commit not found, skipping hook install"; fi
+	@echo "Environment setup complete."
 
 # ==============================================================================
 # Build Targets

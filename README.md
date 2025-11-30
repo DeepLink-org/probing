@@ -2,9 +2,9 @@
 
 <div align="center">
   <img src="probing.svg" alt="Probing Logo" width="200"/>
-  
+
   <p>
-    <a href="README.cn.md">中文</a> | 
+    <a href="README.cn.md">中文</a> |
     <a href="README.md">English</a>
   </p>
 </div>
@@ -26,7 +26,7 @@ Probing is a production-grade performance profiler designed specifically for dis
 - **Memory Leak Detection** - Track GPU/CPU memory usage across training steps
 - **Live Variable Inspection** - Check tensor values, gradients, and model states without stopping training
 
-### 🛠️ **For Framework & Library Developers**  
+### 🛠️ **For Framework & Library Developers**
 - **Runtime Framework Analysis** - Understand how your framework performs in real-world usage
 - **Zero-Intrusion Profiling** - Profile framework internals without code modifications
 - **Production Debugging** - Debug issues reported by users in their actual environments
@@ -119,7 +119,7 @@ probing -t <pid> query "SELECT * FROM memory_usage WHERE timestamp > now() - int
 # Performance hotspot analysis
 probing -t <pid> query "
   SELECT operation_name, avg(duration_ms), count(*)
-  FROM profiling_data 
+  FROM profiling_data
   WHERE timestamp > now() - interval '5 minutes'
   GROUP BY operation_name
   ORDER BY avg(duration_ms) DESC
@@ -128,8 +128,8 @@ probing -t <pid> query "
 # Training progress tracking
 probing -t <pid> query "
   SELECT epoch, avg(loss), min(loss), count(*) as steps
-  FROM training_logs 
-  GROUP BY epoch 
+  FROM training_logs
+  GROUP BY epoch
   ORDER BY epoch
 "
 ```
@@ -184,7 +184,7 @@ probing -t <pid> query "SELECT hour(timestamp), avg(memory_mb) FROM memory_usage
 # Memory leak detection
 probing -t <pid> query "
   SELECT function_name, sum(allocated_bytes) as total_alloc
-  FROM memory_allocations 
+  FROM memory_allocations
   WHERE timestamp > now() - interval '1 hour'
   GROUP BY function_name
   ORDER BY total_alloc DESC
@@ -276,7 +276,7 @@ PROBING_TORCH_PROFILING="on,exprs=loss@train,acc1@train" PROBE=1 python examples
 ### Project Structure
 
 - `probing/cli/` - Command-line interface
-- `probing/core/` - Core profiling engine  
+- `probing/core/` - Core profiling engine
 - `probing/extensions/` - Language-specific extensions (Python, C++)
 - `probing/server/` - HTTP API server
 - `web/` - Web UI source and build output (Dioxus + WebAssembly)

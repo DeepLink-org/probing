@@ -139,7 +139,7 @@ pub trait EngineDatasource: Debug + Send + Sync {
 ///
 /// * [`name`] - Returns the unique name of this extension
 /// * [`set`] - Sets a configuration option value
-/// * [`get`] - Retrieves a configuration option value  
+/// * [`get`] - Retrieves a configuration option value
 /// * [`options`] - Lists all available configuration options
 ///
 /// # Examples

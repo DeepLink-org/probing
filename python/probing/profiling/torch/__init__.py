@@ -18,8 +18,8 @@ Public Interfaces:
 
 import torch
 
-from .module_utils import module_analysis, module_get_fullname
 from ..types import BaseTracer
+from .module_utils import module_analysis, module_get_fullname
 from .step import next_step, step
 
 __all__ = ["next_step", "step", "install_hooks", "uninstall_hooks"]

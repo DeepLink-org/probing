@@ -17,9 +17,9 @@ Public Interfaces:
 """
 
 # from jupyter_client.session import Session
-from typing import Union, List, Optional, Dict, Type
-from dataclasses import dataclass, field, asdict
 import json
+from dataclasses import asdict, dataclass, field
+from typing import Dict, List, Optional, Type, Union
 
 # Magic class registry
 _MAGIC_REGISTRY: Dict[str, Type] = {}
@@ -155,8 +155,9 @@ class CodeExecutor:
     """
 
     def __init__(self):
-        from ipykernel.inprocess.manager import InProcessKernelManager
         import sys
+
+        from ipykernel.inprocess.manager import InProcessKernelManager
 
         # Save original __main__ before IPython replaces it
         original_main = sys.modules.get("__main__")
@@ -392,7 +393,7 @@ class DebugConsole(code.InteractiveConsole):
             if retval is not None:
                 return retval.to_json()
             return json.dumps({})
-        except Exception as e:
+        except Exception:
             import traceback
 
             traceback.print_exc()

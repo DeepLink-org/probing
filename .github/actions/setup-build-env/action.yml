@@ -21,7 +21,7 @@ runs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ inputs.python-version }}
-    
+
     - name: Install Rust toolchain
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
@@ -29,15 +29,15 @@ runs:
         target: wasm32-unknown-unknown, x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu
         components: rustfmt
         rustflags: ""
-    
+
     - name: Install uv
       uses: astral-sh/setup-uv@v6
       with:
         enable-cache: true
-    
+
     - name: Install Zig toolchain
       uses: mlugg/setup-zig@v2
-    
+
     - name: Cache dependencies
       id: cache-deps
       uses: actions/cache@v4
@@ -49,7 +49,7 @@ runs:
           ~/.cargo/git/db/
           ~/zig
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-    
+
     - name: Install cargo tools
       if: inputs.install-cargo-tools == 'true'
       shell: bash
@@ -60,7 +60,7 @@ runs:
         test -e ~/.cargo/bin/cargo-binstall || cargo install cargo-binstall
         test -e ~/.cargo/bin/dx || cargo binstall dioxus-cli -y
         test -e ~/.cargo/bin/trunk || cargo install trunk --locked
-    
+
     - name: Install Python Build Dependencies
       if: inputs.install-python-deps == 'true'
       shell: bash

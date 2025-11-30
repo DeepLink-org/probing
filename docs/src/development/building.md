@@ -383,7 +383,7 @@ Understanding the codebase organization:
 ```
 probing/
 ├── probing/cli/          # Command-line interface
-├── probing/core/         # Core profiling engine  
+├── probing/core/         # Core profiling engine
 ├── probing/extensions/   # Language-specific extensions
 │   ├── python/          # Python integration
 │   └── cc/              # C++ integration

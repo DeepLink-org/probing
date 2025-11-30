@@ -8,7 +8,7 @@ use crate::app::{SIDEBAR_WIDTH, SIDEBAR_HIDDEN};
 pub fn AppLayout(children: Element) -> Element {
     let _sidebar_width = SIDEBAR_WIDTH.read();
     let sidebar_hidden = SIDEBAR_HIDDEN.read();
-    
+
     rsx! {
         div {
             class: "flex h-screen bg-gradient-to-br from-gray-50 to-indigo-50/30 overflow-hidden",

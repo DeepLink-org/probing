@@ -44,7 +44,7 @@ if probe_value.startswith("init:"):
 
 def execute_init_script():
     if script_init is not None:
-        with open(script_init, "r") as f:
+        with open(script_init) as f:
             exec(f.read(), globals())
 
 
@@ -57,7 +57,7 @@ def init_probing():
 
         if probe_value.lower() in ["1", "followed"]:
             print(
-                f"Activating probing in 'followed' mode (current process only)",
+                "Activating probing in 'followed' mode (current process only)",
                 file=sys.stderr,
             )
             import probing
@@ -67,7 +67,7 @@ def init_probing():
 
         elif probe_value.lower() in ["2", "nested"]:
             print(
-                f"Activating probing in 'nested' mode (all child processes)",
+                "Activating probing in 'nested' mode (all child processes)",
                 file=sys.stderr,
             )
             import probing

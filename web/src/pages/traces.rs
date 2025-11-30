@@ -9,13 +9,13 @@ use crate::api::{ApiClient, SpanInfo, EventInfo};
 pub fn Traces() -> Element {
     let limit = use_signal(|| 400usize);
     let state = use_api_simple::<Vec<SpanInfo>>();
-    
+
     // Create dependency, recalculate when limit changes
     let limit_value = use_memo({
         let limit = limit.clone();
         move || *limit.read()
     });
-    
+
     // Refetch data when limit changes
     use_effect({
         let limit_value = limit_value.clone();
@@ -79,7 +79,7 @@ pub fn Traces() -> Element {
                     }
                 }
             }
-            
+
             Card {
                 title: "Span Tree",
                 if state.is_loading() {
@@ -112,9 +112,9 @@ fn SpanView(span: SpanInfo, depth: usize) -> Element {
     let duration = span.end_timestamp
         .map(|end| (end - span.start_timestamp) as f64 / 1_000_000_000.0)
         .unwrap_or(0.0);
-    
+
     let mut expanded = use_signal(|| depth < 2); // Auto-expand first 2 levels
-    
+
     rsx! {
         div {
             class: "border-l-2 border-gray-200 pl-4",
@@ -171,7 +171,7 @@ fn SpanView(span: SpanInfo, depth: usize) -> Element {
                     "{duration:.3}s"
                 }
             }
-            
+
             if *expanded.read() {
                 div {
                     class: "ml-6 space-y-2",
@@ -223,7 +223,7 @@ fn SpanView(span: SpanInfo, depth: usize) -> Element {
                             }
                         }
                     }
-                    
+
                     // Events
                     if !span.events.is_empty() {
                         div {
@@ -234,7 +234,7 @@ fn SpanView(span: SpanInfo, depth: usize) -> Element {
                             EventView { event: event.clone() }
                         }
                     }
-                    
+
                     // Children spans
                     if !span.children.is_empty() {
                         div {
@@ -275,4 +275,3 @@ fn EventView(event: EventInfo) -> Element {
         }
     }
 }
-

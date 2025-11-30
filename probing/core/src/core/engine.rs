@@ -624,7 +624,7 @@ mod tests {
         let engine = Engine::builder().build().await.unwrap();
 
         let query = "
-            SELECT 
+            SELECT
                 CAST(1 AS INT) as int_val,
                 CAST(2.5 AS FLOAT) as float_val,
                 'test' as string_val
@@ -696,7 +696,7 @@ mod tests {
         // Test scalar subquery
         let result = engine
             .async_query(
-                "SELECT id, name, (SELECT MAX(id) FROM test_namespace.test_table) as max_id 
+                "SELECT id, name, (SELECT MAX(id) FROM test_namespace.test_table) as max_id
                  FROM test_namespace.test_table",
             )
             .await?;
@@ -705,8 +705,8 @@ mod tests {
         // Test EXISTS subquery
         let result = engine
             .async_query(
-                "SELECT id, name 
-                 FROM test_namespace.test_table t1 
+                "SELECT id, name
+                 FROM test_namespace.test_table t1
                  WHERE EXISTS (SELECT 1 FROM test_namespace.test_table t2 WHERE t2.id > t1.id)",
             )
             .await?;
@@ -724,7 +724,7 @@ mod tests {
         // Test ROW_NUMBER()
         let result = engine
             .async_query(
-                "SELECT id, name, ROW_NUMBER() OVER (ORDER BY id) as row_num 
+                "SELECT id, name, ROW_NUMBER() OVER (ORDER BY id) as row_num
                  FROM test_namespace.test_table",
             )
             .await?;
@@ -733,7 +733,7 @@ mod tests {
         // Test RANK()
         let result = engine
             .async_query(
-                "SELECT id, name, RANK() OVER (ORDER BY id) as rank 
+                "SELECT id, name, RANK() OVER (ORDER BY id) as rank
                  FROM test_namespace.test_table",
             )
             .await?;
@@ -751,9 +751,9 @@ mod tests {
         // Test HAVING with GROUP BY
         let result = engine
             .async_query(
-                "SELECT name, COUNT(*) as count 
-                 FROM test_namespace.test_table 
-                 GROUP BY name 
+                "SELECT name, COUNT(*) as count
+                 FROM test_namespace.test_table
+                 GROUP BY name
                  HAVING COUNT(*) > 0",
             )
             .await?;

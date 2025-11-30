@@ -9,4 +9,3 @@ sys.path.insert(0, str(python_dir))
 # Note: The rust extension (_core) must be built and available.
 # If running in development mode, use 'maturin develop' to build and install
 # the extension into your virtual environment.
-

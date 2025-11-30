@@ -1,12 +1,13 @@
 """Tests for help magic commands."""
 
-import sys
 import os
+import sys
 
 # Add python/ to path explicitly
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "python"))
 
 import pytest
+
 from probing.repl import CodeExecutor
 
 

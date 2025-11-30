@@ -4,11 +4,10 @@ This module provides a centralized routing system that maps API paths to handler
 with automatic parameter parsing and validation.
 """
 
+import inspect
 import json
 import traceback
-import inspect
-from typing import Optional, Dict, Any, Callable, List, Tuple, Union
-
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 # Global router state
 _handlers: Dict[str, Dict[str, Any]] = (

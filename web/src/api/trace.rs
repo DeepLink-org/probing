@@ -58,14 +58,14 @@ impl ApiClient {
         } else {
             base.to_string()
         };
-        
+
         let response = self.get_request(&path).await?;
-        
+
         // Try to parse as new format (list of objects)
         if let Ok(items) = serde_json::from_str::<Vec<TraceableItem>>(&response) {
             return Ok(items);
         }
-        
+
         // Fallback to old format (list of strings)
         let strings: Vec<String> = Self::parse_json(&response)?;
         Ok(strings.iter().map(|s| {
@@ -105,23 +105,23 @@ impl ApiClient {
     ) -> Result<TraceResponse> {
         let base = "/apis/pythonext/trace/start";
         let mut params = vec![format!("function={}", function)];
-        
+
         if let Some(watch) = watch {
             if !watch.is_empty() {
                 params.push(format!("watch={}", watch.join(",")));
             }
         }
-        
+
         if print_to_terminal {
             params.push("print_to_terminal=true".to_string());
         }
-        
+
         let path = if params.len() > 1 {
             format!("{}?{}", base, params.join("&"))
         } else {
             format!("{}?function={}", base, function)
         };
-        
+
         let response = self.get_request(&path).await?;
         let result: TraceResponse = Self::parse_json(&response)?;
         Ok(result)
@@ -151,7 +151,7 @@ impl ApiClient {
         } else {
             String::new()
         };
-        
+
         // SQL query uses AS to rename columns for display
         let queries = vec![
             format!(
@@ -163,7 +163,7 @@ impl ApiClient {
                 where_clause, limit_clause
             ),
         ];
-        
+
         // Try each query until one succeeds
         let mut last_err: Option<crate::utils::error::AppError> = None;
         for query in queries.iter() {
@@ -177,12 +177,11 @@ impl ApiClient {
                 }
             }
         }
-        
+
         // If all queries failed, return error
         Err(last_err.unwrap_or_else(|| {
             crate::utils::error::AppError::Api("Failed to query python.trace_variables table".to_string())
         }))
     }
-    
-}
 
+}

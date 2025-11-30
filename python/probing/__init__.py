@@ -19,11 +19,8 @@ Public Interfaces:
 - Engine: `query`, `load_extension`
 """
 
-import os
-import sys
-
-from probing import _core
 import probing.config as config
+from probing import _core
 
 VERSION = "0.2.2"
 
@@ -46,11 +43,8 @@ _get_python_stacks = _core._get_python_stacks
 _get_python_frames = _core._get_python_frames
 
 # Submodules with side effects (must be imported after Core Primitives)
-import probing.hooks.import_hook
-import probing.inspect
-
-from probing.core.engine import query, load_extension
-from probing.tracing import span, event
+from probing.core.engine import load_extension, query
+from probing.tracing import event, span
 
 __all__ = [
     "VERSION",

@@ -18,7 +18,7 @@ probing $ENDPOINT query "SELECT columns FROM table WHERE conditions"
 
 **`information_schema.df_settings`** - System configuration and settings
 ```sql
-SELECT * FROM information_schema.df_settings 
+SELECT * FROM information_schema.df_settings
 WHERE name LIKE 'probing.%';
 ```
 
@@ -83,7 +83,7 @@ WHERE step = (SELECT max(step) FROM python.variables);
 Common columns:
 - `step` - Training step number
 - `func` - Function name
-- `name` - Variable name  
+- `name` - Variable name
 - `value` - Variable value (string representation)
 
 ## Advanced Analytics
@@ -92,7 +92,7 @@ Common columns:
 
 **Memory growth over time (using torch_trace):**
 ```sql
-SELECT 
+SELECT
   step,
   stage,
   avg(allocated) as avg_memory_mb,
@@ -105,7 +105,7 @@ ORDER BY step, stage;
 
 **Rolling averages:**
 ```sql
-SELECT 
+SELECT
   step,
   module,
   duration,
@@ -122,7 +122,7 @@ WHERE step > (SELECT max(step) - 5 FROM python.torch_trace);
 
 **Top slowest operations:**
 ```sql
-SELECT 
+SELECT
   module,
   stage,
   count(*) as execution_count,
@@ -140,7 +140,7 @@ LIMIT 10;
 
 **Execution patterns:**
 ```sql
-SELECT 
+SELECT
   step,
   stage,
   count(*) as operations_per_step
@@ -154,7 +154,7 @@ ORDER BY step DESC, operations_per_step DESC;
 
 **Memory usage trends during training:**
 ```sql
-SELECT 
+SELECT
   step,
   avg(allocated) as avg_memory_allocated,
   max(allocated) as peak_memory_allocated,
@@ -167,13 +167,13 @@ ORDER BY step;
 
 **Module execution time analysis:**
 ```sql
-SELECT 
+SELECT
   module,
   stage,
   avg(duration) as avg_duration,
   count(*) as execution_count
 FROM python.torch_trace
-WHERE module IS NOT NULL 
+WHERE module IS NOT NULL
   AND duration > 0
 GROUP BY module, stage
 ORDER BY avg_duration DESC;
@@ -215,7 +215,7 @@ WHERE module LIKE '%attention%'
 ### Statistical Functions
 
 ```sql
-SELECT 
+SELECT
   module,
   stage,
   count(*) as total_executions,
@@ -233,7 +233,7 @@ GROUP BY module, stage;
 ### Window Functions
 
 ```sql
-SELECT 
+SELECT
   step,
   allocated,
   LAG(allocated) OVER (ORDER BY step, seq) as prev_memory,
@@ -247,7 +247,7 @@ WHERE step > (SELECT max(step) - 5 FROM python.torch_trace);
 
 **Correlate torch traces with variable tracking:**
 ```sql
-SELECT 
+SELECT
   t.step,
   t.module,
   t.duration,
@@ -264,14 +264,14 @@ WHERE t.step > (SELECT max(step) - 3 FROM python.torch_trace)
 ### View Current Settings
 
 ```sql
-SELECT * FROM information_schema.df_settings 
+SELECT * FROM information_schema.df_settings
 WHERE name LIKE 'probing.%';
 ```
 
 ### System Configuration
 
 ```sql
-SELECT * FROM information_schema.df_settings 
+SELECT * FROM information_schema.df_settings
 WHERE name LIKE 'server.%' OR name LIKE 'torch.%';
 ```
 
@@ -281,13 +281,13 @@ WHERE name LIKE 'server.%' OR name LIKE 'torch.%';
 
 **Current training status:**
 ```sql
-SELECT 
+SELECT
   'Current Step' as metric,
   max(step) as value,
   '' as unit
 FROM python.torch_trace
 UNION ALL
-SELECT 
+SELECT
   'Peak Memory Usage',
   max(allocated),
   'MB'
@@ -297,7 +297,7 @@ WHERE step = (SELECT max(step) FROM python.torch_trace);
 
 **Training progress:**
 ```sql
-SELECT 
+SELECT
   step,
   count(*) as total_operations,
   avg(duration) as avg_duration,
@@ -322,7 +322,7 @@ probing $ENDPOINT query "SELECT * FROM python.torch_trace" > torch_traces.json
 # Time-series data for plotting
 probing $ENDPOINT query "
   SELECT step, stage, avg(duration), avg(allocated)
-  FROM python.torch_trace 
+  FROM python.torch_trace
   WHERE step > (SELECT max(step) - 10 FROM python.torch_trace)
   GROUP BY step, stage
 " > training_metrics.json
@@ -349,7 +349,7 @@ The SQL interface makes it easy to integrate with monitoring and visualization t
 ### Performance Regression Detection
 
 ```sql
-SELECT 
+SELECT
   module,
   stage,
   avg(duration) as current_avg,
@@ -363,7 +363,7 @@ HAVING avg(duration) > LAG(avg(duration)) OVER (ORDER BY step) * 1.2;
 ### Memory Usage Growth Detection
 
 ```sql
-SELECT 
+SELECT
   step,
   max(allocated) - min(allocated) as memory_growth_mb
 FROM python.torch_trace
@@ -377,7 +377,7 @@ ORDER BY step;
 
 For custom external tables with error tracking:
 ```sql
-SELECT 
+SELECT
   step,
   count(*) FILTER (WHERE error_count > 0) * 100.0 / count(*) as error_rate_percent
 FROM python.my_error_table

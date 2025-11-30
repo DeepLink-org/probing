@@ -19,8 +19,9 @@ ray.init(
     runtime_env={
         # "pip": ["probing"],  # Install probing in workers
         "env_vars": {"PROBING": "1"}  # Enable probing in workers
-    }
+    },
 )
+
 
 # Define a remote task
 # This will be automatically traced when executed
@@ -29,23 +30,25 @@ def compute_sum(a, b):
     """A simple computation task."""
     return a + b
 
+
 # Define an actor
 # Actor methods will also be automatically traced
 @ray.remote
 class Counter:
     """A simple counter actor."""
-    
+
     def __init__(self, initial_value=0):
         self.value = initial_value
-    
+
     def increment(self, amount=1):
         """Increment the counter."""
         self.value += amount
         return self.value
-    
+
     def get_value(self):
         """Get the current counter value."""
         return self.value
+
 
 # Execute tasks - they will be automatically traced
 print("Executing tasks...")
@@ -71,47 +74,49 @@ print("\nQuerying trace data...")
 try:
     import probing
     from probing.ext.ray import get_ray_timeline, get_ray_timeline_chrome_format
-    
+
     # Query for Ray task spans
-    task_spans = probing.query(
-        "SELECT * FROM TraceEvent WHERE name LIKE 'ray.task.%'"
-    )
+    task_spans = probing.query("SELECT * FROM TraceEvent WHERE name LIKE 'ray.task.%'")
     print(f"Found {len(task_spans)} task spans")
-    
+
     # Query for Ray actor method spans
     actor_spans = probing.query(
         "SELECT * FROM TraceEvent WHERE name LIKE 'ray.actor.%'"
     )
     print(f"Found {len(actor_spans)} actor method spans")
-    
+
     # Get timeline (similar to Ray dashboard)
     print("\nGetting Ray task timeline...")
     timeline = get_ray_timeline()
     print(f"Found {len(timeline)} timeline entries")
-    
+
     # Show timeline entries
     if timeline:
         print("\nTimeline entries:")
         for entry in timeline[:5]:
             duration_ms = entry["duration"] / 1_000_000 if entry["duration"] else None
             print(f"  - {entry['name']} ({entry['type']})")
-            print(f"    Start: {entry['start_time']}, Duration: {duration_ms}ms" if duration_ms else f"    Start: {entry['start_time']}")
-    
+            print(
+                f"    Start: {entry['start_time']}, Duration: {duration_ms}ms"
+                if duration_ms
+                else f"    Start: {entry['start_time']}"
+            )
+
     # Export to Chrome tracing format
     print("\nExporting timeline to Chrome format...")
     chrome_trace = get_ray_timeline_chrome_format()
     print(f"Chrome trace format (first 200 chars): {chrome_trace[:200]}...")
     print("Save this to a .json file and open in chrome://tracing")
-            
+
 except Exception as e:
     print(f"Error querying trace data: {e}")
 
 for i in range(1000):
     import time
+
     time.sleep(1)
 
 # Cleanup
 ray.shutdown()
 
 print("\nExample completed!")
-

@@ -100,7 +100,11 @@ target-version = "py37"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP"]
-ignore = []
+ignore = ["E501", "E402", "F841", "E731", "F401", "E722", "N806", "N801", "N802", "N803"]
+
+[tool.ruff.lint.per-file-ignores]
+"examples/*" = ["E722"]
+"tests/*" = ["F841"]
 
 [tool.black]
 line-length = 88

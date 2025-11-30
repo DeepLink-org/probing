@@ -3,7 +3,7 @@ use dioxus_router::{Routable, Router};
 
 use crate::components::layout::AppLayout;
 use crate::pages::{
-    analytics::Analytics, chrome_tracing::ChromeTracing, cluster::Cluster, dashboard::Dashboard, 
+    analytics::Analytics, chrome_tracing::ChromeTracing, cluster::Cluster, dashboard::Dashboard,
     profiling::Profiling, python::Python, stack::Stack, traces::Traces,
 };
 

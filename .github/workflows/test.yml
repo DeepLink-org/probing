@@ -43,15 +43,15 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
-      
+
       - name: Install Python coverage dependencies
         run: |
           pip install pytest pytest-cov coverage
-      
+
       - name: Build package
         run: |
           make ZIG=1 wheel
-      
+
       - name: Run Python tests and collect coverage
         run: |
           PROBING=1 PYTHONPATH=python/ uv run --python 3.12 -w pytest -w websockets -w pandas -w torch -w ipykernel -- \
@@ -59,13 +59,13 @@ jobs:
             python/probing tests
         env:
           PROBING: "1"
-      
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: wheel
           path: python
-      
+
       - name: Upload Python coverage report
         uses: actions/upload-artifact@v4
         with:
@@ -87,21 +87,21 @@ jobs:
           install-python-deps: 'false'
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
-      
+
       - name: Build web frontend
         run: |
           # Ensure wasm32 target is available (should already be installed by setup-build-env)
           rustup target add wasm32-unknown-unknown || true
           # Build web frontend (dioxus-cli should already be installed by setup-build-env)
           make web/dist
-      
+
       - name: Install llvm-tools-preview component
         run: |
           rustup component add llvm-tools-preview --toolchain nightly
-      
+
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
-      
+
       - name: Run Rust tests and collect coverage
         shell: bash
         run: |
@@ -111,7 +111,7 @@ jobs:
           cargo llvm-cov clean --workspace
           cargo nextest run --workspace --no-default-features --nff
           cargo llvm-cov --no-run --lcov --output-path coverage.lcov
-      
+
       - name: Upload Rust coverage report
         uses: actions/upload-artifact@v4
         with:
@@ -157,23 +157,23 @@ jobs:
     needs: [build, rust-test]
     runs-on: ubuntu-latest
     if: always()
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Download Rust coverage report
         uses: actions/download-artifact@v4
         with:
           name: rust-coverage
           path: .
-      
+
       - name: Download Python coverage report
         uses: actions/download-artifact@v4
         with:
           name: python-coverage
           path: .
-      
+
       - name: Check coverage files exist
         run: |
           if [ -f coverage.lcov ]; then
@@ -188,7 +188,7 @@ jobs:
             echo "✗ coverage.xml not found"
             exit 1
           fi
-      
+
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
         with:
