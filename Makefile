@@ -27,10 +27,11 @@ ifdef ZIG
 endif
 
 # Python version
-PYTHON ?= 3.12
+PYTHON ?= python3
 
 # Pytest runner command
-PYTEST_RUN := PROBING=1 PYTHONPATH=python/ uv run --python ${PYTHON} -w pytest -w websockets -w pandas -w torch -w ipykernel -- python -m pytest --doctest-modules
+# Lightweight version without uv
+PYTEST_RUN := PROBING=1 PYTHONPATH=python/ $(PYTHON) -m pytest
 
 # ==============================================================================
 # Standard Targets
@@ -47,8 +48,9 @@ help:
 	@echo "  setup           Install dev tools and environment (pre-commit, etc.)."
 	@echo "  wheel           Build the Python wheel using maturin."
 	@echo "  develop         Install the package in editable mode."
-	@echo "  test            Run Rust tests."
-	@echo "  pytest          Run Python tests."
+	@echo "  test            Run all tests (Rust + Python)."
+	@echo "  test-rust       Run Rust tests."
+	@echo "  test-python     Run Python tests."
 	@echo "  coverage-rust   Run Rust coverage (cargo llvm-cov)."
 	@echo "  coverage-python Generate Python coverage (pytest-cov)."
 	@echo "  coverage        Run both Rust and Python coverage and aggregate report."
@@ -63,7 +65,7 @@ help:
 	@echo "  DEBUG      Build mode: release (default) or debug"
 	@echo "  ZIG        Use zigbuild for cross-compilation"
 	@echo "  TARGET     Target architecture for cross-compilation"
-	@echo "  PYTHON     Python version (default: 3.12)"
+	@echo "  PYTHON     Python interpreter to use (default: python3)"
 	@echo ""
 
 # ==============================================================================
@@ -116,8 +118,12 @@ frontend:
 # ==============================================================================
 # Testing & Utility Targets
 # ==============================================================================
+
 .PHONY: test
-test:
+test: test-rust test-python
+
+.PHONY: test-rust
+test-rust:
 	@echo "Running Rust tests..."
 	@# Set Python environment variables for pyenv if available
 	@if command -v pyenv >/dev/null 2>&1; then \
@@ -130,17 +136,31 @@ test:
 	fi; \
 	cargo nextest run --workspace --no-default-features --nff
 
+# Renamed from 'pytest' to 'test-python' for consistency
+.PHONY: test-python
+test-python:
+	@echo "Running pytest for probing package..."
+	# Note: We rely on pyproject.toml/pytest.ini for configuration options like --doctest-modules
+	${PYTEST_RUN} python/probing tests
+
+.PHONY: pytest
+pytest: test-python
+
 .PHONY: coverage-rust
 coverage-rust:
 	@echo "Running Rust coverage (requires cargo-llvm-cov)..."
-	cargo llvm-cov nextest run --workspace --no-default-features --nff --lcov --output-path coverage/rust.lcov --ignore-filename-regex '(.*/tests?/|.*/benches?/|.*/examples?/)' || echo "Install with: cargo install cargo-llvm-cov"
-	cargo llvm-cov report nextest --workspace --no-default-features --nff --json --output-path coverage/rust-summary.json || true
+	# Matches CI workflow step "Run Rust tests and collect coverage"
+	# Uses --lcov and --output-path coverage.lcov to match CI artifact naming
+	cargo llvm-cov clean --workspace
+	cargo llvm-cov nextest run --workspace --no-default-features --nff --lcov --output-path coverage.lcov --ignore-filename-regex '(.*/tests?/|.*/benches?/|.*/examples?/)' || echo "Install with: cargo install cargo-llvm-cov"
+	cargo llvm-cov report nextest --workspace --no-default-features --nff --json --output-path coverage.json || true
 
 .PHONY: coverage-python
 coverage-python:
 	@echo "Running Python coverage..."
-	mkdir -p coverage
-	${PYTEST_RUN} --cov=python/probing --cov=tests --cov-report=term --cov-report=xml:coverage/python-coverage.xml --cov-report=html:coverage/python-html python/probing tests || echo "Install pytest-cov via: uv add pytest-cov"
+	# Matches CI workflow step "Run Python tests and collect coverage"
+	# Uses coverage.xml as output to match CI artifact naming
+	${PYTEST_RUN} --cov=python/probing --cov=tests --cov-report=xml:coverage.xml --cov-report=term python/probing tests || echo "Install pytest-cov via: uv add pytest-cov"
 
 .PHONY: coverage
 coverage: coverage-rust coverage-python
@@ -151,13 +171,6 @@ coverage: coverage-rust coverage-python
 bootstrap:
 	@echo "Bootstrapping Python environments..."
 	uv python install 3.8 3.9 3.10 3.11 3.12 3.13
-
-.PHONY: pytest
-pytest:
-	@echo "Running pytest for probing package..."
-	${PYTEST_RUN} python/probing
-	@echo "Running pytest for tests directory..."
-	${PYTEST_RUN} tests
 
 .PHONY: docs docs-serve
 docs:
@@ -175,3 +188,4 @@ clean:
 	rm -rf web/dist
 	rm -rf docs/_build
 	cargo clean
+	rm -f coverage.lcov coverage.xml coverage.json

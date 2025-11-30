@@ -1,3 +1,4 @@
+import importlib
 import os
 import sys
 import tempfile
@@ -51,6 +52,7 @@ class TestImportHook(unittest.TestCase):
         import_hook.register_module_callback("my_module", my_callback)
 
         # Now import the module - should trigger the callback
+        importlib.import_module("my_module")
 
         self.assertTrue(callback_executed)
         self.assertIn("my_module", import_hook.triggered)
