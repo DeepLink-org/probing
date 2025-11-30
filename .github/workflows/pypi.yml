@@ -11,31 +11,115 @@ name: Upload Python Package
 on:
   release:
     types: [published]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  deploy:
-    name: Build and Publish
+  linux:
     runs-on: ubuntu-latest
-
+    strategy:
+      matrix:
+        target: [x86_64, x86, aarch64, armv7, s390x, ppc64le]
     steps:
-    - uses: actions/checkout@v3
-    - name: Setup Build Environment
-      uses: ./.github/actions/setup-build-env
-      with:
-        python-version: '3.12'
-        install-cargo-tools: 'true'
-        install-python-deps: 'true'
-    - name: Cache Rust artifacts
-      uses: Swatinem/rust-cache@v2
-    - name: Build package
-      run: |
-        make ZIG=1 wheel
-    - name: Publish package
-      uses: pypa/gh-action-pypi-publish@27b31702a0e7fc50959f5ad993c78deac1bdfc29
-      with:
-        packages-dir: dist/
-        user: __token__
-        password: ${{ secrets.PYPI_API_TOKEN }}
+      - uses: actions/checkout@v4
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-build-env
+        with:
+          python-version: '3.12'
+          install-cargo-tools: 'true'
+          install-python-deps: 'false'
+
+      - name: Build frontend
+        run: make web/dist
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist --find-interpreter
+          sccache: 'true'
+          manylinux: auto
+          rust-toolchain: nightly
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-${{ matrix.target }}
+          path: dist
+
+  macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        target: [x86_64, aarch64]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-build-env
+        with:
+          python-version: '3.12'
+          install-cargo-tools: 'true'
+          install-python-deps: 'false'
+
+      - name: Build frontend
+        run: make web/dist
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist --find-interpreter
+          sccache: 'true'
+          rust-toolchain: nightly
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos-${{ matrix.target }}
+          path: dist
+
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-build-env
+        with:
+          install-python-deps: 'false'
+          install-cargo-tools: 'true'
+
+      - name: Build frontend
+        run: make web/dist
+
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+          rust-toolchain: nightly
+
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-sdist
+          path: dist
+
+  deploy:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    needs: [linux, macos, sdist]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          merge-multiple: true
+          path: dist
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
