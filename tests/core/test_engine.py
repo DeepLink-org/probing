@@ -1,6 +1,3 @@
-from json import load
-
-
 def test_query():
     import pandas as pd
 
@@ -17,6 +14,7 @@ def test_query():
 
 def test_load_extension():
     import sys
+
     from probing import load_extension
 
     statement = "probing.ext.example"

@@ -4,10 +4,10 @@ This module provides a unified %inspect command to inspect PyTorch objects,
 memory usage, and runtime state.
 """
 
-from IPython.core.magic import Magics, magics_class, line_magic
+from IPython.core.magic import Magics, line_magic, magics_class
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
+
 from probing.repl import register_magic
-import json
 
 
 @register_magic("inspect")
@@ -133,8 +133,9 @@ Examples:
     def _list_modules(self, args):
         """List PyTorch modules. Default shows only top-level modules."""
         try:
-            import torch
             import gc
+
+            import torch
 
             if args.all:
                 # Get all modules including submodules
@@ -192,8 +193,9 @@ Examples:
         Returns:
             List of tuples (module, module_id) for top-level torch.nn.Module instances.
         """
-        import torch
         import gc
+
+        import torch
 
         try:
             objs = gc.get_objects()
@@ -227,8 +229,9 @@ Examples:
     def _list_tensors(self, args):
         """List PyTorch tensors."""
         try:
-            from probing.inspect import get_torch_tensors
             import torch
+
+            from probing.inspect import get_torch_tensors
 
             tensor_items = get_torch_tensors()
 
@@ -284,8 +287,9 @@ Examples:
     def _list_optimizers(self, args):
         """List PyTorch optimizers."""
         try:
-            from probing.inspect import get_torch_optimizers
             import torch
+
+            from probing.inspect import get_torch_optimizers
 
             optim_items = get_torch_optimizers()
 

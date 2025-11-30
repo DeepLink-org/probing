@@ -6,12 +6,11 @@ import json
 import os
 import sys
 import threading
-import time
 import types
 import warnings
 from dataclasses import dataclass
 from types import FrameType, FunctionType, ModuleType
-from typing import Any, AnyStr, Callable, Dict, List, Set, Optional
+from typing import Any, AnyStr, Callable, Dict, List, Optional, Set
 
 from probing.core.table import table
 

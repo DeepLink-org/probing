@@ -58,7 +58,7 @@ probing $ENDPOINT query "SELECT * FROM python.metric_data"
 pub trait EngineExtension: Debug + Send + Sync + EngineCall + EngineDatasource {
     fn name(&self) -> String;                                    // 扩展名称
     fn set(&mut self, key: &str, value: &str) -> Result<...>;   // 设置配置
-    fn get(&self, key: &str) -> Result<String, ...>;            // 获取配置  
+    fn get(&self, key: &str) -> Result<String, ...>;            // 获取配置
     fn options(&self) -> Vec<EngineExtensionOption>;             // 列出所有配置项
 }
 ```
@@ -71,7 +71,7 @@ Probing的数据处理能力建立在一个灵活的数据源抽象之上。当�
 
 ```rust
 pub trait EngineDatasource {
-    fn datasrc(&self, namespace: &str, name: Option<&str>) 
+    fn datasrc(&self, namespace: &str, name: Option<&str>)
         -> Option<Arc<dyn Plugin + Sync + Send>>;
 }
 ```
@@ -104,7 +104,7 @@ pub trait EngineDatasource {
 ```rust
 pub trait CustomTable {
     fn name() -> &'static str;      // 表名
-    fn schema() -> SchemaRef;       // 表结构 
+    fn schema() -> SchemaRef;       // 表结构
     fn data() -> Vec<RecordBatch>;  // 数据批次
 }
 

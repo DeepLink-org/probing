@@ -1,7 +1,17 @@
-"""Handlers for Python extension API endpoints.
+"""
+API Handlers
 
-This package contains handler functions for various API endpoints.
-Handlers are automatically registered via the @ext_handler decorator.
+Spec
+----
+This module provides the routing and handling logic for Python-based API extensions.
+
+Responsibilities:
+1.  Registry for extension handlers via `@ext_handler`.
+2.  Dispatch mechanism for incoming requests (`handle_request`).
+
+Public Interfaces:
+- `ext_handler`: Decorator to register a function as an API endpoint.
+- `handle_request`: Function to process incoming requests and route them to handlers.
 """
 
 # Import pythonext to trigger handler registration via decorators

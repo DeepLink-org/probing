@@ -381,7 +381,7 @@ import probing
 with probing.span("memory_usage"):
     for epoch in range(num_epochs):
         train_model(epoch)
-        
+
 # Analyze memory usage patterns through SQL queries
 ```
 
@@ -393,7 +393,7 @@ Monitor communication and synchronization issues in distributed training:
 # Monitor collective communication operations
 with probing.span("collective_ops"):
     torch.distributed.all_reduce(tensor)
-    
+
 # Analyze execution time differences across different nodes
 ```
 

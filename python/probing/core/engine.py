@@ -22,13 +22,8 @@ Examples:
     <class 'module'>
 """
 
-import importlib
-import json
-import sys
-import traceback
 
-
-def query(sql: str) -> "DataFrame":  # type: ignore
+def query(sql: str) -> "DataFrame":  # noqa: F821
     """
     Execute a SQL query and return the result as a pandas DataFrame.
 
@@ -55,11 +50,11 @@ def query(sql: str) -> "DataFrame":  # type: ignore
            a  b
         0  1  2
     """
-    import sys
 
-    probing = sys.modules["probing"]
+    # Import query_json from _core module
+    from probing import _core
 
-    ret = probing.query_json(sql)
+    ret = _core.query_json(sql)
     try:
         import json
 

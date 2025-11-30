@@ -4,7 +4,8 @@ This module provides a help system that uses introspection to
 automatically discover all registered magic commands.
 """
 
-from IPython.core.magic import Magics, magics_class, line_magic
+from IPython.core.magic import Magics, line_magic, magics_class
+
 from probing.repl import register_magic
 
 

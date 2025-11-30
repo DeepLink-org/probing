@@ -32,7 +32,7 @@ pub fn Cluster() -> Element {
             } else if let Some(Err(error)) = state.data.read().as_ref() {
                 Card {
                     title: "Nodes",
-                    ErrorState { 
+                    ErrorState {
                         error: error.to_string(),
                         title: Some("Failed to load nodes".to_string())
                     }
@@ -100,7 +100,7 @@ fn ClusterTable(nodes: Vec<Node>) -> Element {
                 }
                 tbody {
                     for (idx, (node, timestamp_str, url)) in processed_nodes.iter().enumerate() {
-                        tr { 
+                        tr {
                             class: if idx % 2 == 0 { "bg-white" } else { "bg-gray-50" },
                             td { class: "px-4 py-2 text-gray-700 border-r border-gray-200", {node.host.clone()} }
                             td { class: "px-4 py-2 text-gray-700 border-r border-gray-200",

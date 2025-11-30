@@ -40,7 +40,7 @@ def foo():
 ```
 
 除了记录时间以外，这种手动插入代码还能记录分支和循环的情况、内存分配的情况等分析性能时感兴趣的信息。如果能够将这种过程自动化，为所执行的每一段代码都插入相关计时，我们就能从全局视角对整个应用进行Profiling了，这也是自动Instrumentation技术。对于C/C++代码，这种插桩需要编译器配合，比如GCC有profiling相关选项：
-```bash 
+```bash
 gcc a.c -g -pg
 ```
 借助Instrumentation，编译器还能实现代码覆盖率、AddressSanitizer、StackProtector等功能。除了直接在编译阶段影响二进制代码的生成，还可以在linker/loader中做手脚，比如大多数memory profiler都是通过替换libc中的malloc/free函数来实现对内存分配行为的追踪。
@@ -217,7 +217,7 @@ CUDA支持对设备上的PC指针（program counter）进行采样，每个SM（
 - GR Active: The percentage of cycles the compute engine is active；
 - Tensor Active / FP16 Active: The ratio of cycles the SM tensor pipes or FP16x2 pipes were active issuing tensor instructions to the number of cycles in the sample period as a percentage.
 - DRAM Read Bandwidth: The ratio of cycles the DRAM interface was active reading data to the elapsed cycles in the same period as a percentage.
-- PCIe Read Throughput: The ratio of bytes received on the PCIe interface to the maximum number of bytes receivable in the sample period as a percentage. 
+- PCIe Read Throughput: The ratio of bytes received on the PCIe interface to the maximum number of bytes receivable in the sample period as a percentage.
 - NVLink bytes received: The ratio of bytes received on the NVLink interface to the maximum number of bytes receivable in the sample period as a percentage.
 
 完整的列表请参考Nvidia官方文档。
@@ -274,7 +274,7 @@ block-beta
   1 2 3 4 5 6 7 8 9 10
   C["CPU:"] space CS["launch"]:2 space:7
   G["GPU:"] space:4 S["span"]:5 space:1
-  
+
   style TL fill:#00000000, stroke:#00000000;
   style G fill:#00000000, stroke:#00000000;
   style C fill:#00000000, stroke:#00000000;
@@ -286,15 +286,15 @@ block-beta
 
 现有的 Profiling 工具能够较好地解决单机性能分析问题，但在分布式训练场景下，它们面临全新的挑战：
 
-1. **性能特征的剧烈变化**  
+1. **性能特征的剧烈变化**
    - 当集群规模扩大时，训练任务的性能特性会显著转变。例如：
      - 3D 并行切分策略受集群规模及并行参数的影响，单机Profiling难以捕捉到所有参与角色的关键指标；
      - 大规模集群中，集合通信可能引发延迟激增和带宽利用率下降的问题，单机Profiling工具难以准确反映这些现象。
 
-2. **数据统计与解析的复杂性**  
+2. **数据统计与解析的复杂性**
    - 单机Profiling通常依靠单一样本得出较为确定的结论，而分布式环境更多依赖海量统计数据，这大大增加了结果的准确性要求和数据解析的复杂度。
 
-3. **跨节点协同调试需求**  
+3. **跨节点协同调试需求**
    - 分布式环境中，各节点之间必须实现精准的协调，对不同角色间的协同行为进行实时且深入的分析，这对Profiling工具提出了更高要求。
    - timeline 对于单机系统性能分析具有极大的帮助，但是对于分布式训练问题，timeline方法会面临两方面的问题：
 
@@ -303,13 +303,13 @@ block-beta
 
 **应对这些挑战的技术路线：**
 
-1. **以Sampling为主的低侵入Profiling**  
+1. **以Sampling为主的低侵入Profiling**
    - 通过灵活调整采样率，可以在保证系统整体性能的前提下，适应从单机调试到大规模分布式生产任务的Profiling需求。
 
-2. **Instrumentation与Sampling的混合方案**  
+2. **Instrumentation与Sampling的混合方案**
    - 针对执行时间较长、低频任务，在采样的基础上混入Instrumentation手段，从而既保证关键数据的准确性，又提供足够的上下文信息以辅助精细调优。
 
-3. **采样与性能建模的结合**  
+3. **采样与性能建模的结合**
    - 由于纯Sampling方法不足以展示完整的执行timeline，有必要引入性能建模：
      - 对训练任务的理论FLOPS（Floating-Point Operations Per Second）、内存吞吐和通信量进行建模；
      - 利用建模结果与采样数据相结合，量化各模型层的算力利用率和带宽利用率，从而全面评估计算、通信及访存之间的潜在掩盖现象。
@@ -347,7 +347,7 @@ probing给出的profiling方案本质上是通过纵向分层解耦分析代替�
   - 解决问题：
     - 定义流水线阶段理想执行时间（如T_pipeline = max(T_load, T_comp, T_save)
     - 计算实际效率（效率 = T_pipeline理想值 / T_pipeline实际值），识别拖尾阶段。
-  
+
 #### 小规模集群下分布式调优
 
 - 通信-计算掩盖失效

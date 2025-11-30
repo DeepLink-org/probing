@@ -10,9 +10,11 @@ build = "build.rs"
 name = "probing_cli"
 path = "src/lib.rs"
 
-[[bin]]
-name = "probing"
-path = "src/main.rs"
+# Binary entry point is now available through Python module
+# To build a standalone binary, uncomment the following:
+# [[bin]]
+# name = "probing"
+# path = "src/main.rs"
 
 [dependencies]
 probing-proto = { path = "../proto", default-features = false, features = [] }

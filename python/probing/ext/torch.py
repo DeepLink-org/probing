@@ -1,4 +1,5 @@
 import logging
+
 import probing
 
 hooks = {}
@@ -13,9 +14,9 @@ def is_true(value):
 def optimizer_step_post_hook(optimizer, *args, **kwargs):
     global hooks
     if optimizer not in hooks:
-        from probing.profiling.torch_probe import TorchProbe, TorchProbeConfig
         from probing.profiling.torch import install_hooks
         from probing.profiling.torch.module_utils import get_toplevel_module
+        from probing.profiling.torch_probe import TorchProbe, TorchProbeConfig
 
         # Get config directly from probing.config
         # Rust sync_env_settings() converts PROBING_TORCH_PROFILING to probing.torch.profiling

@@ -180,8 +180,7 @@ impl Span {
     /// Internal method to set initial attributes during span creation.
     /// This should only be called by the Python wrapper during span creation.
     #[pyo3(name = "_set_initial_attrs")]
-    fn set_initial_attrs(&mut self, attrs: &Bound<'_, PyAny>, py: Python) -> PyResult<()> {
-        // Convert Python dict to PyDict
+    fn set_initial_attrs(&mut self, attrs: &Bound<'_, PyAny>, _py: Python) -> PyResult<()> {
         let attrs_dict = attrs.downcast::<PyDict>().map_err(|_| {
             PyErr::new::<pyo3::exceptions::PyTypeError, _>("_set_initial_attrs expects a dict")
         })?;
@@ -292,7 +291,6 @@ impl Span {
 
     /// Gets an attribute by name (for dynamic attribute access like s.a, s.b).
     fn __getattr__(&self, name: &str, py: Python) -> PyResult<PyObject> {
-        // First check if it's a built-in attribute
         match name {
             "trace_id" => return Ok(self.trace_id().into_bound_py_any(py)?.into()),
             "span_id" => return Ok(self.span_id().into_bound_py_any(py)?.into()),
@@ -324,7 +322,6 @@ impl Span {
             _ => {}
         }
 
-        // Then check if it's in the attributes
         let inner = self
             .inner
             .lock()
@@ -336,7 +333,6 @@ impl Span {
             }
         }
 
-        // Not found
         Err(PyErr::new::<pyo3::exceptions::PyAttributeError, _>(
             format!("'Span' object has no attribute '{}'", name),
         ))
@@ -344,7 +340,6 @@ impl Span {
 
     /// Context manager entry (for `with` statement support).
     fn __enter__(slf: PyRef<Self>) -> PyResult<PyRef<Self>> {
-        // Push this span to the thread-local stack
         let py = slf.py();
         let span_obj: PyObject = Py::new(py, slf.clone())?.into();
         SPAN_STACK.with(|stack| {
@@ -360,19 +355,17 @@ impl Span {
         _exc_val: Option<&Bound<'_, PyAny>>,
         _exc_tb: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<bool> {
-        // End the span automatically
         slf.inner
             .lock()
             .expect("Failed to acquire lock on span (lock poisoned)")
             .end();
 
-        // Pop this span from the stack
         SPAN_STACK.with(|stack| {
             let mut stack = stack.borrow_mut();
             stack.pop();
         });
 
-        Ok(false) // Don't suppress exceptions
+        Ok(false)
     }
 
     /// Returns a string representation of the span.
@@ -394,15 +387,6 @@ impl Span {
     }
 }
 
-// /// Gets the current active span.
-// #[pyfunction]
-// fn current_span(py: Python) -> PyResult<Option<PyObject>> {
-//     SPAN_STACK.with(|stack| {
-//         let stack = stack.borrow();
-//         Ok(stack.last().cloned())
-//     })
-// }
-
 /// Gets the current active span.
 #[pyfunction]
 fn current_span(py: Python) -> PyResult<Option<PyObject>> {
@@ -422,19 +406,16 @@ fn _span_raw(
     kind: Option<String>,
     location: Option<String>,
 ) -> PyResult<Span> {
-    // Check if there's a current active span
     let parent = SPAN_STACK.with(|stack| {
         let stack = stack.borrow();
         stack.last().map(|obj| obj.clone_ref(py))
     });
 
     let span = if let Some(parent) = parent {
-        // Create a child span
         let parent_obj = parent.bind(py);
         let parent_span = parent_obj.downcast::<Span>()?;
         Span::new_child(parent_span, name, kind, location)
     } else {
-        // Create a root span
         Span::new(name, kind, location)
     };
 
@@ -517,20 +498,11 @@ impl Event {
     }
 }
 
-/// Registers the tracing module with Python.
-pub fn register_tracing_module(_py: Python, module: &Bound<'_, PyModule>) -> PyResult<()> {
+pub fn register_tracing_functions(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<Span>()?;
     module.add_class::<Event>()?;
     module.add_function(wrap_pyfunction!(_span_raw, module)?)?;
     module.add_function(wrap_pyfunction!(current_span, module)?)?;
-
-    // Note: The Python wrapper code in python/probing/tracing.py will import from probing._tracing
-    // This module (_tracing) only exposes the raw Rust functions:
-    // - Span: The Span class
-    // - Event: The Event class
-    // - _span_raw: Internal function to create spans
-    // - current_span: Function to get current active span
-    // The Python wrapper (probing.tracing) will be loaded separately when imported
 
     Ok(())
 }

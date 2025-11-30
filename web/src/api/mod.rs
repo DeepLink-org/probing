@@ -26,7 +26,7 @@ impl ApiClient {
     async fn get_request(&self, path: &str) -> Result<String> {
         let url = Self::build_url(path)?;
         let response = reqwest::get(&url).await?;
-        
+
         if !response.status().is_success() {
             return Err(AppError::Api(format!("HTTP error: {}", response.status())));
         }

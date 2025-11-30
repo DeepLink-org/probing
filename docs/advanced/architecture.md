@@ -45,7 +45,7 @@ Probing provides the following technical solutions for the above problems:
 
 + **Distributed Data Processing**
   Currently, each node runs an independent query engine that processes local data. The cluster API allows querying node information and status across the distributed system. The control plane can manage any process individually and query cluster information through the cluster management interface.
-  
+
   **Future Roadmap - Distributed SQL Query**: Probing is planning to implement distributed SQL query capabilities that will automatically split data computation tasks into local aggregation computation within each node and cross-node data aggregation analysis. This will enable unified SQL queries across the entire distributed system, allowing users to write a single SQL statement that transparently aggregates data from all nodes, achieving efficient monitoring and diagnosis in large-scale distributed environments without manual result merging.
 
 For the two key issues of distribution and heterogeneous computing, Probing makes special optimizations:
@@ -117,19 +117,19 @@ graph TB
         API[Unified API]
         UI & CLI --> API
     end
-    
+
     subgraph "Node 1"
         P1[Training Process]
         PR1[Probe]
         P1 -.- PR1
     end
-    
+
     subgraph "Node 2"
         P2[Training Process]
         PR2[Probe]
         P2 -.- PR2
     end
-    
+
     subgraph "Node 3"
         P3[Training Process]
         PR3[Probe]
@@ -139,7 +139,7 @@ graph TB
     PR1 <--Report Worker--> PR2
     PR2 <--Report Worker--> PR3
     PR3 <--Report Worker--> PR1
-    
+
     API --Control/Query--> PR1
 
     style UI fill:#ddd,stroke:#333

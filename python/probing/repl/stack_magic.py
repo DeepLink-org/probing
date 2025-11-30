@@ -1,8 +1,10 @@
-from IPython.core.magic import Magics, magics_class, line_magic
-from probing.repl import register_magic
-import traceback
-import sys
 import json
+import sys
+import traceback
+
+from IPython.core.magic import Magics, line_magic, magics_class
+
+from probing.repl import register_magic
 
 
 def _get_obj_type(obj):

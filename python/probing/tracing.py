@@ -39,12 +39,19 @@ Implicit name decorator::
 import functools
 import inspect
 from dataclasses import dataclass
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 # Import from the internal Rust module
-from probing._tracing import Span
-from probing._tracing import _span_raw as span_raw
-from probing._tracing import current_span
+from probing import _core
+
+try:
+    Span = _core.Span
+    span_raw = _core._span_raw
+    current_span = _core.current_span
+except AttributeError:
+    Span = None
+    span_raw = None
+    current_span = lambda: None
 from probing.core.table import table
 
 
@@ -166,7 +173,6 @@ def span(*args, **kwargs):
     # Location is automatically captured, not passed as parameter
     location = _get_location()
 
-    # Handle @span (without arguments) - no args and no kwargs
     if len(args) == 0 and not kwargs:
 
         def decorator(func: Callable) -> Callable:
@@ -229,11 +235,8 @@ def span(*args, **kwargs):
 
                 @functools.wraps(func)
                 def wrapper(*wargs, **wkwargs):
-                    # Create span with attributes set during creation
-                    # Get location from the decorator's call site
                     loc = _get_location()
                     if self.attrs:
-                        # Use span() function which handles attributes during creation
                         with span(
                             self.name,
                             kind=self.kind,
@@ -254,9 +257,7 @@ def span(*args, **kwargs):
                 Span
                     The underlying span instance.
                 """
-                # Get current span for parent relationship
                 parent = current_span()
-                # Get location from the context manager's call site
                 loc = self.location or _get_location()
 
                 if parent:
@@ -266,27 +267,17 @@ def span(*args, **kwargs):
                 else:
                     self._span = Span(self.name, kind=self.kind, location=loc)
 
-                # Set initial attributes during creation (before __enter__)
                 if self.attrs:
-                    # Convert Python dict to dict that can be passed to _set_initial_attrs
                     attrs_dict = dict(self.attrs)
                     if hasattr(self._span, "_set_initial_attrs"):
                         try:
                             self._span._set_initial_attrs(attrs_dict)
                         except Exception as e:
-                            # If setting attributes fails, log but continue
                             import warnings
 
                             warnings.warn(f"Failed to set initial attributes: {e}")
 
-                # Enter the span context manager
-                # This pushes the span to the thread-local stack
-                # We need to call __enter__ to push it to the stack, but we can return the span directly
-                entered = self._span.__enter__()
-                # __enter__ returns PyRef<Span> which should be automatically converted
-                # But to be safe, we return the span object directly
-
-                # Record span start to table
+                self._span.__enter__()
                 _record_span_start(self._span, self.attrs)
 
                 return self._span
@@ -294,24 +285,19 @@ def span(*args, **kwargs):
             def __exit__(self, *args):
                 """Exit span context: finalize then record minimal end info."""
                 if self._span:
-                    result = self._span.__exit__(
-                        *args
-                    )  # finalize span first (sets end timestamp)
-                    _record_span_end(self._span)  # then record minimal end row
+                    result = self._span.__exit__(*args)
+                    _record_span_end(self._span)
                     return result
                 return False
 
         return SpanWrapper(name, kind, location, kwargs)
 
-    # Default: use as context manager with first arg as name
     if len(args) > 0:
         name = args[0]
         if not isinstance(name, str):
             raise TypeError("span() requires a string name as the first argument")
 
-        # Get current span for parent relationship
         parent = current_span()
-        # Get location from the call site
         loc = location or _get_location()
 
         if parent:
@@ -319,7 +305,6 @@ def span(*args, **kwargs):
         else:
             span_obj = Span(name, kind=kind, location=loc)
 
-        # Set initial attributes during creation
         if kwargs:
             attrs_dict = dict(kwargs)
             if hasattr(span_obj, "_set_initial_attrs"):
@@ -379,9 +364,9 @@ def _record_span_end(span: Span):
     end_ts = span.end_timestamp or int(time.time_ns())
     event = TraceEvent(
         record_type="span_end",
-        trace_id=0,  # intentionally zeroed
+        trace_id=0,
         span_id=span.span_id,
-        name="",  # omit name
+        name="",
         time=end_ts,
         thread_id=getattr(span, "thread_id", 0),
         parent_id=-1,
@@ -501,8 +486,9 @@ def _span_decorator(name: Optional[str] = None, kind: Optional[str] = None):
 
 
 # Monkey-patch Span class with convenience methods
-Span.with_ = staticmethod(_span_with)
-Span.decorator = staticmethod(_span_decorator)
+if Span:
+    Span.with_ = staticmethod(_span_with)
+    Span.decorator = staticmethod(_span_decorator)
 
 
 def add_event(name: str, *, attributes: Optional[list] = None):

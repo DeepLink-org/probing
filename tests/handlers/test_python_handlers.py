@@ -2,18 +2,17 @@
 
 import json
 import sys
-from unittest.mock import patch, MagicMock
 
 # Add python directory to path
 sys.path.insert(0, "python")
 
+from probing.handlers.pythonext import handle_api_request
 from probing.handlers.router import (
-    ext_handler,
-    handle_request,
     _handlers,
     _path_mappings,
+    ext_handler,
+    handle_request,
 )
-from probing.handlers.pythonext import handle_api_request
 
 
 class TestHandlerRouter:
@@ -208,6 +207,7 @@ class TestHandlerRegistration:
 
         # Re-import pythonext to trigger handler registration via decorators
         import importlib
+
         import probing.handlers.pythonext
 
         importlib.reload(probing.handlers.pythonext)

@@ -4,11 +4,12 @@ This module provides magic commands to execute queries and manage
 extensions in the probing system.
 """
 
-from IPython.core.magic import Magics, magics_class, line_magic
+import pandas as pd
+from IPython.core.magic import Magics, line_magic, magics_class
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
 from IPython.display import display
+
 from probing.repl import register_magic
-import pandas as pd
 
 
 @register_magic("query")

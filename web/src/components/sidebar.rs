@@ -3,7 +3,7 @@ use dioxus_router::{Link, use_route, use_navigator};
 use icondata::Icon as IconData;
 use web_sys::window;
 
-use crate::app::{Route, PROFILING_VIEW, PROFILING_PPROF_FREQ, PROFILING_TORCH_ENABLED, 
+use crate::app::{Route, PROFILING_VIEW, PROFILING_PPROF_FREQ, PROFILING_TORCH_ENABLED,
     PROFILING_CHROME_DATA_SOURCE, PROFILING_CHROME_LIMIT, PROFILING_PYTORCH_STEPS,
     PROFILING_PYTORCH_TIMELINE_RELOAD, PROFILING_RAY_TIMELINE_RELOAD, SIDEBAR_WIDTH, SIDEBAR_HIDDEN};
 use crate::components::icon::Icon;
@@ -18,7 +18,7 @@ pub fn Sidebar() -> Element {
     let mut is_resizing = use_signal(|| false);
     let mut drag_start_x = use_signal(|| 0.0);
     let mut drag_start_width = use_signal(|| 256.0);
-    
+
     use_effect(move || {
         if let Some(window) = window() {
             let storage = window.local_storage().ok().flatten();
@@ -38,7 +38,7 @@ pub fn Sidebar() -> Element {
             }
         }
     });
-    
+
     let save_state = move || {
         if let Some(window) = window() {
             let storage = window.local_storage().ok().flatten();
@@ -48,10 +48,10 @@ pub fn Sidebar() -> Element {
             }
         }
     };
-    
+
     let sidebar_width = SIDEBAR_WIDTH.read();
     let _sidebar_hidden = SIDEBAR_HIDDEN.read();
-    
+
     let aside_class = format!("bg-gradient-to-b from-{} via-{} to-{} border-r border-{} h-screen flex flex-col flex-shrink-0 shadow-xl",
         colors::SIDEBAR_BG, colors::SIDEBAR_BG_VIA, colors::SIDEBAR_BG, colors::SIDEBAR_BORDER);
     let logo_border_class = format!("px-6 py-4 border-b border-{}", colors::SIDEBAR_BORDER);
@@ -63,7 +63,7 @@ pub fn Sidebar() -> Element {
         colors::SIDEBAR_TEXT_MUTED, colors::PRIMARY_TEXT_DARK);
     let hide_button_class = format!("absolute top-4 -right-3 w-6 h-6 bg-{} border border-{} rounded-full shadow-lg flex items-center justify-center hover:bg-{} z-30 transition-colors",
         colors::SIDEBAR_ACTIVE_BG, "slate-700", "slate-600");
-    
+
     rsx! {
         div {
             class: "relative flex h-screen",
@@ -94,7 +94,7 @@ pub fn Sidebar() -> Element {
                     }
                 }
             }
-            
+
             nav {
                 class: "flex-1 overflow-y-auto py-4",
                 div {
@@ -112,7 +112,7 @@ pub fn Sidebar() -> Element {
                             is_active: route == Route::DashboardPage {},
                         }
                     }
-                    
+
                     div {
                         class: "mb-4",
                         div {
@@ -141,7 +141,7 @@ pub fn Sidebar() -> Element {
                             is_active: route == Route::TracesPage {},
                         }
                     }
-                    
+
                     div {
                         class: "mb-4",
                         div {
@@ -163,7 +163,7 @@ pub fn Sidebar() -> Element {
                     }
                 }
             }
-            
+
             div {
                 class: "{footer_class}",
                 a {
@@ -175,7 +175,7 @@ pub fn Sidebar() -> Element {
                 }
             }
             }
-            
+
             button {
                 class: "{hide_button_class}",
                 title: "Hide Sidebar",
@@ -188,7 +188,7 @@ pub fn Sidebar() -> Element {
                     class: "w-4 h-4 text-slate-300"
                 }
             }
-            
+
             {
                 let hover_class = format!("hover:bg-{}/50", colors::PRIMARY);
                 let active_class = if *is_resizing.read() {
@@ -249,7 +249,7 @@ fn SidebarNavItem(to: Route, icon: &'static IconData, label: &'static str, is_ac
         format!("flex items-center space-x-3 px-3 py-2 text-sm font-medium rounded-md text-{} hover:bg-{} hover:text-{} transition-colors",
             colors::SIDEBAR_TEXT_SECONDARY, colors::SIDEBAR_HOVER_BG, colors::PRIMARY_TEXT)
     };
-    
+
     rsx! {
         Link {
             to: to,
@@ -264,7 +264,7 @@ fn SidebarNavItem(to: Route, icon: &'static IconData, label: &'static str, is_ac
 fn ProfilingSidebarItem(show_dropdown: Signal<bool>) -> Element {
     let route = use_route::<Route>();
     let is_active = route == Route::ProfilingPage {};
-    
+
     rsx! {
         div {
             {
@@ -293,7 +293,7 @@ fn ProfilingSidebarItem(show_dropdown: Signal<bool>) -> Element {
                     }
                 }
             }
-            
+
             if *show_dropdown.read() {
                 div {
                     class: "ml-6 mt-1 space-y-1",
@@ -322,7 +322,7 @@ fn ProfilingSidebarItem(show_dropdown: Signal<bool>) -> Element {
                         label: "Ray Timeline".to_string(),
                         icon: &icondata::AiClockCircleOutlined,
                     }
-                    
+
                     if is_active {
                         ProfilingControlsPanel {}
                     }
@@ -339,7 +339,7 @@ fn ProfilingSubItem(view: String, label: String, icon: &'static IconData) -> Ele
     let current_view = PROFILING_VIEW.read();
     let is_selected = *current_view == view;
     let is_on_profiling_page = route == Route::ProfilingPage {};
-    
+
     let button_class = if is_selected {
         format!("w-full flex items-center space-x-2 px-3 py-2 text-sm rounded-md transition-colors bg-{} text-{} font-medium border-l-2 border-{} shadow-sm",
             colors::PRIMARY_BG, colors::PRIMARY_TEXT, colors::PRIMARY_BORDER)
@@ -347,7 +347,7 @@ fn ProfilingSubItem(view: String, label: String, icon: &'static IconData) -> Ele
         format!("w-full flex items-center space-x-2 px-3 py-2 text-sm rounded-md transition-colors text-{} hover:bg-{} hover:text-{}",
             colors::SIDEBAR_TEXT_SECONDARY, colors::SIDEBAR_HOVER_BG, colors::PRIMARY_TEXT)
     };
-    
+
     rsx! {
         button {
             class: "{button_class}",
@@ -389,7 +389,7 @@ fn ProfilingControlsPanel() -> Element {
     let button_inactive_class = format!("flex-1 px-2 py-1 text-xs font-medium rounded bg-{} text-{} hover:bg-{}", colors::SIDEBAR_ACTIVE_BG, colors::SIDEBAR_TEXT_SECONDARY, "slate-600");
     let input_class = format!("w-full px-2 py-1 border border-{} bg-{} text-{} rounded text-xs focus:border-{} focus:outline-none",
         colors::SIDEBAR_INPUT_BORDER, colors::SIDEBAR_INPUT_BG, colors::SIDEBAR_TEXT_SECONDARY, colors::PRIMARY_BORDER);
-    
+
     rsx! {
         div {
             class: "{panel_border_class}",
@@ -447,7 +447,7 @@ fn ProfilingControlsPanel() -> Element {
 #[component]
 fn PprofControls(control_title_class: String, control_value_class: String) -> Element {
     const FREQ_VALUES: [i32; 4] = [0, 10, 100, 1000];
-    
+
     let freq = *PROFILING_PPROF_FREQ.read();
     let current_idx = match freq {
         f if f <= 0 => 0,
@@ -456,7 +456,7 @@ fn PprofControls(control_title_class: String, control_value_class: String) -> El
         _ => 3,
     };
     let label = FREQ_VALUES[current_idx];
-    
+
     rsx! {
         div {
             class: "space-y-2",
@@ -484,10 +484,10 @@ fn PprofControls(control_title_class: String, control_value_class: String) -> El
                                 *PROFILING_PPROF_FREQ.write() = mapped;
                                 spawn(async move {
                                     let client = ApiClient::new();
-                                    let expr = if mapped <= 0 { 
-                                        "set probing.pprof.sample_freq=;".to_string() 
-                                    } else { 
-                                        format!("set probing.pprof.sample_freq={};", mapped) 
+                                    let expr = if mapped <= 0 {
+                                        "set probing.pprof.sample_freq=;".to_string()
+                                    } else {
+                                        format!("set probing.pprof.sample_freq={};", mapped)
                                     };
                                     let _ = client.execute_query(&expr).await;
                                 });
@@ -513,7 +513,7 @@ fn TorchControls(
     } else {
         toggle_disabled_class.clone()
     };
-    
+
     rsx! {
         div {
             class: "space-y-2",
@@ -630,7 +630,7 @@ fn PyTorchTimelineControls(
 ) -> Element {
     let pytorch_profile_state = use_api_simple::<ProfileResponse>();
     let pytorch_timeline_state = use_api_simple::<String>();
-    
+
     rsx! {
         div {
             class: "space-y-3",

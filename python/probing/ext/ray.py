@@ -41,8 +41,9 @@ class ProbingSpanProcessor:
             return
 
         try:
-            import probing
             from opentelemetry.trace import SpanKind
+
+            import probing
 
             span_name = span.name
 
@@ -434,7 +435,7 @@ def get_ray_timeline(
         if not ray.is_initialized():
             return []
 
-        from ray.util.state import list_tasks, list_actors
+        from ray.util.state import list_actors, list_tasks
 
         timeline: list[dict] = []
 

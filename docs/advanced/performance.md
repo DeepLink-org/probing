@@ -42,7 +42,7 @@ def foo():
 ```
 
 In addition to recording time, this manual code insertion can also record branch and loop conditions, memory allocation situations, and other information of interest when analyzing performance. If this process can be automated, inserting relevant timing for every piece of code executed, we can profile the entire application from a global perspective. This is automatic Instrumentation technology. For C/C++ code, this instrumentation requires compiler support, such as GCC's profiling-related options:
-```bash 
+```bash
 gcc a.c -g -pg
 ```
 
@@ -285,7 +285,7 @@ block-beta
   1 2 3 4 5 6 7 8 9 10
   C["CPU:"] space CS["launch"]:2 space:7
   G["GPU:"] space:4 S["span"]:5 space:1
-  
+
   style TL fill:#00000000, stroke:#00000000;
   style G fill:#00000000, stroke:#00000000;
   style C fill:#00000000, stroke:#00000000;

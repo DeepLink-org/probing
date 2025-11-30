@@ -10,4 +10,3 @@ impl ApiClient {
         Self::parse_json(&response)
     }
 }
-

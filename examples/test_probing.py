@@ -12,12 +12,13 @@ Example:
     PROBE=nested python test_probing.py --children 2 --depth 2
     PROBE=regex:test_.* python test_probing.py --depth 2
 """
-import os
-import sys
-import subprocess
 import argparse
-import io
 import contextlib
+import io
+import os
+import subprocess
+import sys
+
 
 def get_process_summary():
     """Get a one-line summary of the current process status"""
@@ -25,43 +26,49 @@ def get_process_summary():
     stderr_output = io.StringIO()
     with contextlib.redirect_stderr(stderr_output):
         # Import probing_hook which will conditionally import probing
-        import probing_hook
-    
+        pass
+
     # Check if probing module is loaded
-    probing_imported = 'probing' in sys.modules
+    probing_imported = "probing" in sys.modules
     pid = os.getpid()
     script_name = os.path.basename(sys.argv[0])
-    probe_value = os.environ.get('PROBE', 'Not set')
-    
+    probe_value = os.environ.get("PROBE", "Not set")
+
     # Get any stderr output from the import
     stderr_msg = stderr_output.getvalue().strip()
-    
-    summary = f"PID:{pid} Script:{script_name} PROBE:{probe_value} Loaded:{probing_imported}"
+
+    summary = (
+        f"PID:{pid} Script:{script_name} PROBE:{probe_value} Loaded:{probing_imported}"
+    )
     if stderr_msg:
         # Add import message as part of the summary, cleaned up
-        import_msg = stderr_msg.replace('\n', ' ')
+        import_msg = stderr_msg.replace("\n", " ")
         summary += f" ({import_msg})"
-    
+
     return summary
 
+
 def main():
-    parser = argparse.ArgumentParser(description='Test probing hook with child processes')
-    parser.add_argument('--depth', type=int, default=1, help='Depth of process tree')
-    parser.add_argument('--children', type=int, default=2, help='Number of children per process')
-    parser.add_argument('--current-depth', type=int, default=0, help=argparse.SUPPRESS)
-    parser.add_argument('--prefix', type=str, default='', help=argparse.SUPPRESS)
+    parser = argparse.ArgumentParser(
+        description="Test probing hook with child processes"
+    )
+    parser.add_argument("--depth", type=int, default=1, help="Depth of process tree")
+    parser.add_argument(
+        "--children", type=int, default=2, help="Number of children per process"
+    )
+    parser.add_argument("--current-depth", type=int, default=0, help=argparse.SUPPRESS)
+    parser.add_argument("--prefix", type=str, default="", help=argparse.SUPPRESS)
     args = parser.parse_args()
-    
+
     # Get the current process summary
     summary = get_process_summary()
-    
-    lines = []
+
     # Print with appropriate indentation and tree structure
     if args.current_depth == 0:
         print(f"└─ {summary}")
     else:
         print(f"{args.prefix}└─ {summary}")
-    
+
     # If we haven't reached max depth, spawn child processes
     if args.current_depth < args.depth:
         for i in range(args.children):
@@ -70,28 +77,34 @@ def main():
                 next_prefix = args.prefix + "   "
             else:
                 next_prefix = args.prefix + "│  "
-                
+
             # Build command for the child process
             cmd = [
-                sys.executable, "examples/child_test_probing.py",
-                '--current-depth', str(args.current_depth + 1),
-                '--depth', str(args.depth),
-                '--children', str(args.children),
-                '--prefix', next_prefix
+                sys.executable,
+                "examples/child_test_probing.py",
+                "--current-depth",
+                str(args.current_depth + 1),
+                "--depth",
+                str(args.depth),
+                "--children",
+                str(args.children),
+                "--prefix",
+                next_prefix,
             ]
-            
+
             # Run child process and capture its output
             proc = subprocess.run(
-                cmd, 
+                cmd,
                 env=os.environ.copy(),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,  # Discard stderr from child processes
-                text=True
+                text=True,
             )
-                        
+
             # Print child process output
             if proc.stdout:
-                print(proc.stdout, end='')
+                print(proc.stdout, end="")
+
 
 if __name__ == "__main__":
     main()

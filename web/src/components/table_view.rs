@@ -24,7 +24,7 @@ pub fn TableView(
 
                 tbody {
                     for (row_idx, row) in data.iter().enumerate() {
-                        tr { 
+                        tr {
                             class: if row_idx % 2 == 0 { "bg-white" } else { "bg-gray-50" },
                             onclick: move |_| {
                                 if let Some(cb) = on_row_click {

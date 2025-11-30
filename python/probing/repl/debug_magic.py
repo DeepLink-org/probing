@@ -4,12 +4,14 @@ This module provides magic commands to trace Python function execution,
 watch variables, monitor function calls, and enable remote debugging.
 """
 
-from IPython.core.magic import Magics, magics_class, line_magic, cell_magic
-from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
-from probing.repl import register_magic
 import json
-import __main__
 from typing import Any, Dict
+
+from IPython.core.magic import Magics, cell_magic, line_magic, magics_class
+from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
+
+import __main__
+from probing.repl import register_magic
 
 
 @register_magic("debug")
@@ -179,21 +181,21 @@ Usage:
 Examples:
   # Show what's being watched
   %trace watch
-  
+
   # Watch a function with specific variables (prints to terminal)
   %trace watch __main__.train loss accuracy lr
   %trace watch torch.nn.Linear.forward input output
-  
+
   # Log a function (only saves to table, no terminal output)
   %trace log __main__.train loss accuracy lr
   %trace log mymodule.process data --depth 3
-  
+
   # Watch a function with custom depth
   %trace watch mymodule.process data --depth 3
-  
+
   # Stop watching
   %trace unwatch __main__.train
-  
+
   # List traceable functions
   %trace list torch.nn
   %trace ls torch.optim --limit 20
@@ -205,9 +207,10 @@ Cell Magic (separate):
 
     def _cmd_trace_watch(self, args_str: str) -> None:
         """Handle trace watch subcommand - function trace or show mode."""
-        from probing.inspect.trace import trace as trace_func
-        from probing.inspect.trace import show_trace
         import json
+
+        from probing.inspect.trace import show_trace
+        from probing.inspect.trace import trace as trace_func
 
         # Parse arguments
         parts = args_str.strip().split()
@@ -268,9 +271,10 @@ Cell Magic (separate):
 
     def _cmd_trace_log(self, args_str: str) -> None:
         """Handle trace log subcommand - similar to watch but silent (only saves to table)."""
-        from probing.inspect.trace import trace as trace_func
-        from probing.inspect.trace import show_trace
         import json
+
+        from probing.inspect.trace import show_trace
+        from probing.inspect.trace import trace as trace_func
 
         # Parse arguments
         parts = args_str.strip().split()
@@ -435,7 +439,7 @@ Cell Magic (separate):
         if len(items) > max_display:
             output.append(f"\n  ... and {len(items) - max_display} more")
             output.append(
-                f"\nTip: Use --limit/-n to show more results, or wildcards (*, ?) to narrow down"
+                "\nTip: Use --limit/-n to show more results, or wildcards (*, ?) to narrow down"
             )
 
         print("\n".join(output))
@@ -455,7 +459,6 @@ Cell Magic (separate):
 
             result = my_function(5)
         """
-        from probing.inspect.trace import probe as probe_decorator
 
         args = parse_argstring(self.probe, line)
 

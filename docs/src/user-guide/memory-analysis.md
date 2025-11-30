@@ -6,7 +6,7 @@ Probing provides comprehensive memory analysis capabilities for Python applicati
 
 Memory analysis in Probing covers:
 - PyTorch GPU memory monitoring
-- Tensor memory analysis  
+- Tensor memory analysis
 - Python memory monitoring via `psutil` and system tools
 - Memory allocation patterns via torch traces
 - Cross-step memory tracking
@@ -35,7 +35,7 @@ View memory allocation trends during training:
 ```bash
 probing $ENDPOINT query "
   SELECT step, stage, avg(allocated) as avg_memory_mb, max(allocated) as peak_memory_mb
-  FROM python.torch_trace 
+  FROM python.torch_trace
   WHERE step > (SELECT max(step) - 10 FROM python.torch_trace)
   GROUP BY step, stage
   ORDER BY step, stage
@@ -47,7 +47,7 @@ probing $ENDPOINT query "
 Identify memory growth patterns:
 ```bash
 probing $ENDPOINT query "
-  SELECT 
+  SELECT
     step,
     stage,
     allocated,
@@ -126,7 +126,7 @@ for ref_count, obj_type, obj_id in high_refs[:10]:
 Monitor for GPU memory leaks during training:
 ```bash
 probing $ENDPOINT query "
-  SELECT 
+  SELECT
     step,
     max(allocated) as peak_memory_mb,
     min(allocated) as min_memory_mb,
@@ -145,7 +145,7 @@ Calculate memory growth rates across training steps:
 ```bash
 probing $ENDPOINT query "
   WITH memory_deltas AS (
-    SELECT 
+    SELECT
       step,
       stage,
       allocated,
@@ -154,7 +154,7 @@ probing $ENDPOINT query "
     WHERE step > (SELECT max(step) - 10 FROM python.torch_trace)
       AND allocated > 0
   )
-  SELECT 
+  SELECT
     step,
     stage,
     allocated - prev_allocated as memory_growth_mb
@@ -318,7 +318,7 @@ if torch.cuda.is_available():
     for i in range(torch.cuda.device_count()):
         allocated = torch.cuda.memory_allocated(i)
         reserved = torch.cuda.memory_reserved(i)
-        
+
         if reserved > 0:
             fragmentation = (reserved - allocated) / reserved * 100
             print(f'GPU {i}: {fragmentation:.1f}% fragmented')
@@ -368,7 +368,7 @@ for i, stat in enumerate(gc.get_stats()):
 Analyze GPU memory allocation patterns during training:
 ```bash
 probing $ENDPOINT query "
-  SELECT 
+  SELECT
     step / 10 * 10 as step_range,  -- Group by 10-step ranges
     stage,
     avg(allocated) as avg_memory_mb,
@@ -400,7 +400,7 @@ try:
     print(f'PID: {os.getpid()}')
     print(f'RSS Memory: {memory_info.rss / 1024 / 1024:.1f} MB')
     print(f'VMS Memory: {memory_info.vms / 1024 / 1024:.1f} MB')
-    
+
     # If PyTorch is available, also show GPU memory
     try:
         import torch
@@ -470,10 +470,10 @@ print(f'\\nMemory growth in 0.1s: {growth:.2f} MB')
 Analyze GPU memory usage patterns by training step ranges:
 ```bash
 probing $ENDPOINT query "
-  SELECT 
-    CASE 
+  SELECT
+    CASE
       WHEN step % 100 < 25 THEN 'Early Phase'
-      WHEN step % 100 < 50 THEN 'Mid Phase' 
+      WHEN step % 100 < 50 THEN 'Mid Phase'
       WHEN step % 100 < 75 THEN 'Late Phase'
       ELSE 'End Phase'
     END as training_phase,
@@ -511,7 +511,7 @@ else:
 if torch.cuda.is_available():
     gpu_allocated_gb = torch.cuda.memory_allocated() / 1024**3
     gpu_reserved_gb = torch.cuda.memory_reserved() / 1024**3
-    
+
     if gpu_allocated_gb > 10:  # Alert above 10GB
         print(f'ALERT: HIGH_GPU_MEMORY - Allocated: {gpu_allocated_gb:.2f} GB')
     else:
@@ -525,18 +525,18 @@ Detect potential GPU memory leaks by monitoring allocation trends:
 ```bash
 probing $ENDPOINT query "
   WITH memory_trend AS (
-    SELECT 
+    SELECT
       step,
       allocated,
       AVG(allocated) OVER (
-        ORDER BY step 
+        ORDER BY step
         ROWS BETWEEN 10 PRECEDING AND CURRENT ROW
       ) as moving_avg_allocated
     FROM python.torch_trace
     WHERE step > (SELECT max(step) - 50 FROM python.torch_trace)
       AND allocated > 0
   )
-  SELECT 
+  SELECT
     step,
     allocated,
     moving_avg_allocated,
@@ -563,7 +563,7 @@ Before deploying, analyze memory patterns using available data:
 ```bash
 # Check for GPU memory growth during recent training
 probing $ENDPOINT query "
-  SELECT 
+  SELECT
     max(allocated) - min(allocated) as memory_growth_mb,
     max(allocated) as peak_memory_mb,
     count(DISTINCT step) as steps_analyzed
@@ -586,7 +586,7 @@ print(f'  Memory Percent: {process.memory_percent():.1f}%')
 # Basic memory health check
 if rss_mb > 8000:  # > 8GB
     print('  Status: HIGH MEMORY USAGE')
-elif rss_mb > 4000:  # > 4GB  
+elif rss_mb > 4000:  # > 4GB
     print('  Status: MODERATE MEMORY USAGE')
 else:
     print('  Status: NORMAL MEMORY USAGE')
@@ -599,7 +599,7 @@ Compare memory usage between different training runs:
 ```bash
 # Export current PyTorch memory profile
 probing $ENDPOINT query "
-  SELECT 
+  SELECT
     module,
     stage,
     avg(allocated) as avg_memory_mb,
@@ -611,11 +611,11 @@ probing $ENDPOINT query "
 
 # Compare with previous runs by analyzing torch trace patterns
 probing $ENDPOINT query "
-  SELECT 
+  SELECT
     step % 100 as relative_step,
     avg(allocated) as avg_memory_mb,
     stddev(allocated) as memory_variance
-  FROM python.torch_trace  
+  FROM python.torch_trace
   WHERE step > (SELECT max(step) - 200 FROM python.torch_trace)
   GROUP BY relative_step
   ORDER BY relative_step

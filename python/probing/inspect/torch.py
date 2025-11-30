@@ -1,5 +1,5 @@
-import weakref
 import time
+import weakref
 
 tensor_cache = {}
 module_cache = {}

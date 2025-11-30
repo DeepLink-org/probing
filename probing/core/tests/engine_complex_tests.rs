@@ -174,8 +174,8 @@ async fn test_join_queries() -> Result<()> {
     // Test INNER JOIN
     let result = engine
         .async_query(
-            "SELECT u.user_name, o.amount 
-             FROM test.users u 
+            "SELECT u.user_name, o.amount
+             FROM test.users u
              INNER JOIN test.orders o ON u.user_id = o.user_id",
         )
         .await?;

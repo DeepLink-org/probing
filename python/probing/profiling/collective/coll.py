@@ -1,8 +1,9 @@
-import torch
-import torch.distributed as dist
 import time
 from functools import wraps
-from typing import List, Optional, Union, Tuple
+from typing import List, Optional, Tuple
+
+import torch
+import torch.distributed as dist
 
 function_names = [
     "all_reduce",

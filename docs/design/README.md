@@ -13,5 +13,3 @@ As AI models scale to distributed clusters, something fundamental breaks: **dist
 ## Probing: Restoring the Pythonic Experience for Distributed Systems
 
 Probing's core mission is simple: **make distributed systems feel Pythonic again**. Your cluster, nodes, and distributed processes become Python objects with familiar interfaces—`len(cluster.nodes)`, `node.gpu_usage`, `cluster.training.status`. Interactive exploration, consistent patterns, and natural composition return to distributed debugging. Instead of context-switching between tools, you stay in Python and **talk to your distributed system pythonic**.
-
-
