@@ -207,3 +207,38 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
           verbose: true
+
+  macos-test:
+    name: macOS Tests (Rust + Python)
+    needs: prepare
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: nightly
+          components: rustfmt
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
+
+      - name: Run Rust Tests
+        run: cargo nextest run --workspace --no-default-features --nff
+
+      - name: Install Python Test Deps
+        run: pip install pytest pytest-cov maturin
+
+      - name: Build and Install Wheel
+        run: |
+          maturin build --release
+          pip install target/wheels/*.whl
+
+      - name: Run Python Tests
+        env:
+          PROBING: "1"
+        run: pytest tests
