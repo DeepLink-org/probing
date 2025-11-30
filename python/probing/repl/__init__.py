@@ -236,7 +236,7 @@ class CodeExecutor:
         >>> res2.display()
         Status: ok
         Output:
-        10
+        The value of a is 10
         >>> # Handling an error
         >>> res3 = executor.execute("print(b)")
         >>> res3.display() # doctest: +ELLIPSIS

@@ -54,7 +54,7 @@ jobs:
 
       - name: Run Python tests and collect coverage
         run: |
-          PROBING=1 PYTHONPATH=python/ uv run --python 3.12 -w pytest -w websockets -w pandas -w torch -w ipykernel -- \
+          PROBING=1 PYTHONPATH=python/ uv run --python 3.12 -w pytest -w pytest-cov -w coverage -w websockets -w pandas -w torch -w ipykernel -- \
             python -m pytest --cov=python/probing --cov=tests --cov-report=xml:coverage.xml \
             python/probing tests
         env:
