@@ -45,12 +45,14 @@ probing = "probing.cli.__main__:main"
 
 [project.optional-dependencies]
 test = [
-    "pytest>=8.0",
+    "pytest>=8.0; python_version >= '3.8'",
+    "pytest<8.0; python_version < '3.8'",
     "pytest-cov>=4.0",
     "coverage>=7.0",
 ]
 dev = [
-    "pytest>=8.0",
+    "pytest>=8.0; python_version >= '3.8'",
+    "pytest<8.0; python_version < '3.8'",
     "pytest-cov>=4.0",
     "coverage>=7.0",
     "ruff>=0.1.0",
