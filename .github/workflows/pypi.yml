@@ -38,7 +38,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist --find-interpreter
+          args: --release --out dist --zig --compatibility manylinux2014 --auditwheel repair
           sccache: 'true'
           manylinux: auto
           rust-toolchain: nightly
