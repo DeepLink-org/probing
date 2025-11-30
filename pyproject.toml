@@ -1,6 +1,6 @@
 [project]
 name = "probing"
-version = "0.2.2"
+version = "0.2.3"
 description = "Dynamic Performance Profiler for Distributed AI"
 readme = "README.md"
 authors = [

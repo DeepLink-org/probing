@@ -9,7 +9,7 @@
 project = "Probing"
 copyright = "2024, reiase"
 author = "reiase"
-release = "0.2.2"
+release = "0.2.3"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
