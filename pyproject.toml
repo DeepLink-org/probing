@@ -43,6 +43,20 @@ Issues = "https://github.com/reiase/probing/issues"
 [project.scripts]
 probing = "probing.cli.__main__:main"
 
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "coverage>=7.0",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "coverage>=7.0",
+    "ruff>=0.1.0",
+    "black>=24.0",
+]
+
 [tool.maturin]
 module-name = "probing._core"
 manifest-path = "Cargo.toml"
