@@ -1,4 +1,5 @@
 mod apis;
+mod query_dto;
 mod repl;
 
 pub mod cluster;
@@ -69,6 +70,7 @@ fn build_app(auth: bool) -> axum::Router {
         .route("/chrome-tracing", axum::routing::get(index))
         .route("/index.html", axum::routing::get(index))
         .route("/query", axum::routing::post(query))
+        .route("/query/dto", axum::routing::post(query_dto::query_dto))
         .route(
             "/config/{config_key}",
             axum::routing::get(get_config_value_handler),
