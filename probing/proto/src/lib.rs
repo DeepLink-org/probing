@@ -1,3 +1,4 @@
+pub mod dto;
 pub mod protocol;
 pub mod types;
 
@@ -24,4 +25,7 @@ pub mod prelude {
 
     // --- Error Handling ---
     pub use crate::types::ProtoError;
+
+    // --- DTO Structures ---
+    pub use crate::dto::query::{QueryDataDto, QueryOptionsDto, QueryRequestDto, QueryResponseDto};
 }

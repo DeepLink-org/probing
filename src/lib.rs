@@ -3,6 +3,7 @@ extern crate ctor;
 
 use anyhow::Result;
 use pyo3::prelude::*;
+use std::net::ToSocketAddrs;
 
 use probing_python::extensions::python::ExternalTable;
 use probing_python::features::config;
@@ -23,6 +24,35 @@ const ENV_PROBING_PORT: &str = "PROBING_PORT";
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 pub fn get_hostname() -> Result<String> {
+    // Pod environment - prioritize IP environment variables
+    let ip_env_vars = ["POD_IP"];
+    for env_var in &ip_env_vars {
+        if let Ok(ip) = std::env::var(env_var) {
+            if !ip.is_empty() && ip != "None" {
+                log::debug!("Using IP from environment variable {env_var}: {ip}");
+                return Ok(ip);
+            }
+        }
+    }
+
+    let ips = get_network_interfaces()?;
+
+    if let Ok(pattern) = std::env::var("PROBING_SERVER_ADDRPATTERN") {
+        for ip in ips.iter() {
+            if ip.starts_with(pattern.as_str()) {
+                log::debug!("Select IP address {ip} with pattern {pattern}");
+                return Ok(ip.clone());
+            }
+            log::debug!("Skip IP address {ip} with pattern {pattern}");
+        }
+    }
+
+    ips.first()
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!("No suitable IP address found"))
+}
+
+fn get_network_interfaces() -> Result<Vec<String>> {
     let ips = nix::ifaddrs::getifaddrs()?
         .filter_map(|addr| addr.address)
         .filter_map(|addr| addr.as_sockaddr_in().cloned())
@@ -35,21 +65,8 @@ pub fn get_hostname() -> Result<String> {
         })
         .collect::<Vec<_>>();
 
-    // Check for address pattern match from environment variable
-    if let Ok(pattern) = std::env::var("PROBING_SERVER_ADDRPATTERN") {
-        for ip in ips.iter() {
-            if ip.starts_with(pattern.as_str()) {
-                log::debug!("Select IP address {ip} with pattern {pattern}");
-                return Ok(ip.clone());
-            }
-            log::debug!("Skip IP address {ip} with pattern {pattern}");
-        }
-    }
-
-    // Return first IP if no pattern match found
-    ips.first()
-        .cloned()
-        .ok_or_else(|| anyhow::anyhow!("No suitable IP address found"))
+    log::debug!("Found network interface IPs: {:?}", ips);
+    Ok(ips)
 }
 
 /// Setup environment variables for server configuration
