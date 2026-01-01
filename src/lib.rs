@@ -3,7 +3,6 @@ extern crate ctor;
 
 use anyhow::Result;
 use pyo3::prelude::*;
-use std::net::ToSocketAddrs;
 
 use probing_python::extensions::python::ExternalTable;
 use probing_python::features::config;
@@ -145,8 +144,16 @@ fn setup_env_settings() {
     }
 }
 
+const ENV_PROBING_CLI_MODE: &str = "PROBING_CLI_MODE";
+
 #[ctor]
 fn setup() {
+    // Skip initialization if running in CLI mode (e.g., probing ls)
+    // CLI commands should not inject probes into themselves
+    if std::env::var(ENV_PROBING_CLI_MODE).is_ok() {
+        return;
+    }
+
     let pid = std::process::id();
     eprintln!("Initializing probing module for process {pid} ...",);
 
@@ -164,6 +171,11 @@ fn setup() {
 
 #[dtor]
 fn cleanup() {
+    // Skip cleanup if running in CLI mode (no probes were initialized)
+    if std::env::var(ENV_PROBING_CLI_MODE).is_ok() {
+        return;
+    }
+
     if let Err(e) = probing_server::cleanup() {
         log::error!("Failed to cleanup unix socket: {e}");
     }
