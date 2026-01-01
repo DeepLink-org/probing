@@ -65,7 +65,7 @@ runs:
         test -e ~/.cargo/bin/cargo-zigbuild || cargo install cargo-zigbuild
         test -e ~/.cargo/bin/rnr || cargo install rnr
         test -e ~/.cargo/bin/cargo-nextest || cargo install cargo-nextest
-        test -e ~/.cargo/bin/dx || cargo install dioxus-cli@0.7.0 -y
+        test -e ~/.cargo/bin/dx || cargo install dioxus-cli@0.7.2
 
     - name: Install Python Build Dependencies
       if: inputs.install-python-deps == 'true'
