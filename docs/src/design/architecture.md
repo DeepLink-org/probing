@@ -1,12 +1,173 @@
 # System Architecture
 
-Probing 整体被设计为简洁的两层结构：
-1. probe探针，被注入到目标进程，进而获得目标进程全部资源的访问权限，包括Python解释器、文件、内存等；
-2. cli命令行，用于控制进程内探针，读取数据或者执行代码。与probe探针通过RESTful API通信，用户也可以自行通过API控制probe探针；
+Probing is designed as a simple two-layer structure to minimize complexity and deployment difficulty.
 
-整体设计上尽可能避免引入不必要的组件，来降低整体整体复杂度与部署和使用难度。
+## High-Level Architecture
 
-在probe探针内部，主要包含三部分组件：
-1. engine：包含核心的数据存储与处理能力，并提供配置管理与扩展机制等基础设施；
-2. server：负责与cli命令行的交互；
-3. extensions：为探针提供性能数据，以及调试功能等；
+```mermaid
+graph TB
+    subgraph "User Interface"
+        CLI[CLI Client]
+        HTTP[HTTP API]
+        WEB[Web UI]
+    end
+
+    subgraph "Target Process"
+        PROBE[Probe]
+        subgraph "Probe Components"
+            ENGINE[Engine]
+            SERVER[Server]
+            EXT[Extensions]
+        end
+    end
+
+    CLI --> |Unix Socket / TCP| PROBE
+    HTTP --> |HTTP/REST| PROBE
+    WEB --> |WebSocket| PROBE
+
+    PROBE --> ENGINE
+    PROBE --> SERVER
+    PROBE --> EXT
+```
+
+## Components
+
+### 1. Probe
+
+Injected into target processes to gain full access to all resources:
+
+- Python interpreter access
+- File system access
+- Memory inspection
+- Network capabilities
+
+The probe runs an embedded HTTP server that listens on:
+
+- **Unix domain socket** - For local connections (default)
+- **TCP port** - For remote connections
+
+### 2. CLI
+
+Command-line interface for controlling probes:
+
+- Process discovery and listing
+- Probe injection and management
+- Query execution
+- Code evaluation
+
+Communication happens via HTTP protocol over Unix domain sockets (local) or TCP (remote).
+
+### 3. HTTP API
+
+RESTful API for programmatic access:
+
+- All CLI commands available as endpoints
+- WebSocket support for real-time data
+- Integration with monitoring tools
+
+## Probe Internal Architecture
+
+```mermaid
+graph LR
+    subgraph "Probe"
+        SERVER[HTTP Server]
+        ENGINE[Query Engine]
+        CONFIG[Config Manager]
+
+        subgraph "Extensions"
+            PYTHON[Python Extension]
+            TORCH[PyTorch Extension]
+            CUSTOM[Custom Tables]
+        end
+    end
+
+    SERVER --> ENGINE
+    SERVER --> CONFIG
+    ENGINE --> PYTHON
+    ENGINE --> TORCH
+    ENGINE --> CUSTOM
+```
+
+### Engine
+
+Core data storage and processing:
+
+- **DataFusion** - SQL query engine
+- **Arrow** - Columnar data format
+- Time-series data storage
+- Configuration management
+
+### Server
+
+HTTP server handling:
+
+- Request routing
+- Authentication (optional)
+- WebSocket connections
+- Response formatting
+
+### Extensions
+
+Pluggable data providers:
+
+- **Python Extension** - Backtrace, variables
+- **PyTorch Extension** - Torch traces, memory
+- **Custom Tables** - User-defined data sources
+
+## Data Flow
+
+```mermaid
+sequenceDiagram
+    participant CLI
+    participant Probe
+    participant Engine
+    participant Extension
+
+    CLI->>Probe: query "SELECT * FROM python.torch_trace"
+    Probe->>Engine: Parse & Plan Query
+    Engine->>Extension: Request Data
+    Extension-->>Engine: Arrow RecordBatch
+    Engine-->>Probe: Query Results
+    Probe-->>CLI: JSON Response
+```
+
+## Communication Protocol
+
+### Local Connection
+
+```
+probing -t <pid> query "..."
+         |
+         v
+    Unix Socket: /tmp/probing-<pid>.sock
+         |
+         v
+    HTTP Request: POST /query
+```
+
+### Remote Connection
+
+```
+probing -t host:port query "..."
+         |
+         v
+    TCP Connection: host:port
+         |
+         v
+    HTTP Request: POST /query
+```
+
+## Security Considerations
+
+- **Local mode**: Unix socket permissions (process owner only)
+- **Remote mode**: Optional authentication
+- **Network**: Support for TLS encryption
+
+## Performance Characteristics
+
+| Aspect | Target |
+|--------|--------|
+| Overhead | < 5% in typical workloads |
+| Memory | < 50MB additional |
+| Latency | < 10ms for queries |
+| Throughput | 1000+ queries/sec |

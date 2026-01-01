@@ -72,8 +72,9 @@ print(f"Counter value: {value}")
 # Query tracing data using probing
 print("\nQuerying trace data...")
 try:
-    import probing
     from probing.ext.ray import get_ray_timeline, get_ray_timeline_chrome_format
+
+    import probing
 
     # Query for Ray task spans
     task_spans = probing.query("SELECT * FROM TraceEvent WHERE name LIKE 'ray.task.%'")

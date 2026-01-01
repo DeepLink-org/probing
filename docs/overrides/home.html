@@ -1,0 +1,767 @@
+{% extends "main.html" %}
+
+{% block tabs %}
+  {{ super() }}
+
+  <style>
+    /* Prevent horizontal overflow */
+    body {
+      overflow-x: hidden;
+    }
+
+    /* Hide main content for home page */
+    .md-content {
+      display: none;
+    }
+
+    /* Hide table of contents */
+    @media screen and (min-width: 60em) {
+      .md-sidebar--secondary {
+        display: none;
+      }
+    }
+
+    /* Hide navigation */
+    @media screen and (min-width: 76.25em) {
+      .md-sidebar--primary {
+        display: none;
+      }
+    }
+
+    /* Make header static */
+    .md-header {
+      position: initial;
+    }
+
+    .md-main__inner {
+      margin: 0;
+    }
+
+    /* Feature Cards Section */
+    .probing-features-grid {
+      padding: 80px 0;
+      background: linear-gradient(180deg, rgba(16, 185, 129, 0.02) 0%, transparent 100%);
+    }
+
+    .probing-features-grid .container {
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    .probing-features-grid h2 {
+      text-align: center;
+      font-size: 2.5rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: var(--md-primary-fg-color);
+    }
+
+    .probing-features-grid .section-subtitle {
+      text-align: center;
+      font-size: 1.1rem;
+      opacity: 0.7;
+      margin-bottom: 48px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+    }
+
+    .feature-card {
+      background: var(--md-default-bg-color);
+      border: 1px solid rgba(16, 185, 129, 0.1);
+      border-radius: 16px;
+      padding: 32px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #10B981, #34D399);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 40px rgba(16, 185, 129, 0.15);
+      border-color: rgba(16, 185, 129, 0.3);
+    }
+
+    .feature-card:hover::before {
+      opacity: 1;
+    }
+
+    .feature-icon {
+      font-size: 2.5rem;
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    .feature-card h3 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--md-typeset-color);
+    }
+
+    .feature-card p {
+      font-size: 0.95rem;
+      line-height: 1.6;
+      opacity: 0.8;
+      margin: 0;
+    }
+
+    /* Quick Start Section */
+    .probing-quickstart {
+      padding: 80px 0;
+      background-color: var(--md-default-bg-color);
+    }
+
+    .probing-quickstart .container {
+      width: 100%;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    .probing-quickstart h2 {
+      text-align: center;
+      font-size: 2.5rem;
+      font-weight: 600;
+      margin-bottom: 48px;
+      color: var(--md-primary-fg-color);
+    }
+
+    .quickstart-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+
+    .quickstart-step {
+      display: flex;
+      gap: 24px;
+      align-items: flex-start;
+    }
+
+    .step-number {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #10B981, #34D399);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .step-content {
+      flex: 1;
+    }
+
+    .step-content h3 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--md-typeset-color);
+    }
+
+    .step-content .code-block {
+      background: #1e1e2e;
+      border-radius: 12px;
+      padding: 20px;
+      overflow-x: auto;
+    }
+
+    .step-content .code-block pre {
+      margin: 0;
+      background: transparent;
+    }
+
+    .step-content .code-block code {
+      font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
+      font-size: 0.9rem;
+      line-height: 1.6;
+      color: #cdd6f4;
+    }
+
+    /* Use Cases Section */
+    .probing-usecases {
+      padding: 80px 0;
+      background: linear-gradient(180deg, transparent 0%, rgba(16, 185, 129, 0.03) 100%);
+    }
+
+    .probing-usecases .container {
+      width: 100%;
+      max-width: 1140px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    .probing-usecases h2 {
+      text-align: center;
+      font-size: 2.5rem;
+      font-weight: 600;
+      margin-bottom: 48px;
+      color: var(--md-primary-fg-color);
+    }
+
+    .usecases-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+    }
+
+    .usecase-card {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(52, 211, 153, 0.05) 100%);
+      border-radius: 16px;
+      padding: 32px;
+      border: 1px solid rgba(16, 185, 129, 0.1);
+    }
+
+    .usecase-icon {
+      font-size: 2rem;
+      margin-bottom: 16px;
+    }
+
+    .usecase-card h3 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--md-typeset-color);
+    }
+
+    .usecase-card p {
+      font-size: 0.95rem;
+      line-height: 1.6;
+      opacity: 0.8;
+      margin: 0;
+    }
+
+    /* Feature Sections */
+    .probing-feature-section {
+      padding: 80px 0;
+      border-bottom: 1px solid rgba(128, 128, 128, 0.08);
+    }
+
+    .probing-feature-section .container {
+      width: 100%;
+      max-width: 1140px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    .probing-feature-content {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 60px;
+    }
+
+    .probing-feature-text {
+      flex: 1;
+      min-width: 300px;
+    }
+
+    .probing-feature-text h2 {
+      font-size: 1.8rem;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: var(--md-primary-fg-color);
+    }
+
+    .probing-feature-text p {
+      font-size: 1rem;
+      line-height: 1.7;
+      opacity: 0.85;
+      margin-bottom: 16px;
+    }
+
+    .probing-feature-demo {
+      flex: 1;
+      min-width: 400px;
+      display: flex;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .code-preview {
+      width: 100%;
+      max-width: 500px;
+      background: #1e1e2e;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+      overflow: hidden;
+    }
+
+    .code-preview pre {
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      overflow-x: auto;
+    }
+
+    .code-preview code {
+      font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
+      font-size: 0.85rem;
+      line-height: 1.6;
+      color: #cdd6f4;
+    }
+
+    .probing-feature-section.reverse .probing-feature-content {
+      flex-direction: row-reverse;
+    }
+
+    /* Community Section */
+    .probing-community {
+      padding: 80px 0;
+      background: linear-gradient(135deg, #064e3b 0%, #065f46 50%, #047857 100%);
+      color: white;
+    }
+
+    .probing-community .container {
+      width: 100%;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 0 20px;
+      text-align: center;
+    }
+
+    .probing-community h2 {
+      font-size: 2.5rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    .probing-community .section-subtitle {
+      font-size: 1.1rem;
+      opacity: 0.8;
+      margin-bottom: 40px;
+    }
+
+    .community-links {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .community-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 32px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      color: white;
+      text-decoration: none;
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
+
+    .community-link:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: translateY(-2px);
+      color: white;
+    }
+
+    .community-link svg {
+      width: 24px;
+      height: 24px;
+      fill: currentColor;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .probing-features-grid h2,
+      .probing-quickstart h2,
+      .probing-usecases h2,
+      .probing-community h2 {
+        font-size: 2rem;
+      }
+
+      .quickstart-step {
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .probing-feature-content {
+        flex-direction: column;
+        gap: 40px;
+      }
+
+      .probing-feature-section.reverse .probing-feature-content {
+        flex-direction: column;
+      }
+
+      .probing-feature-demo {
+        min-width: 100%;
+      }
+
+      .community-links {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .community-link {
+        width: 100%;
+        max-width: 300px;
+        justify-content: center;
+      }
+    }
+  </style>
+
+  <!-- Hero Section -->
+  <section class="mdx-container">
+    <div class="container">
+      <div class="intro-message">
+        <div class="hero-logo">
+          <span class="hero-icon">🔬</span>
+          <h1>Probing</h1>
+        </div>
+        {% if config.theme.language == "zh" %}
+        <h3>分布式 AI 动态性能分析器</h3>
+        {% else %}
+        <h3>Dynamic Performance Profiler for Distributed AI</h3>
+        {% endif %}
+        <hr class="intro-divider" />
+        <ul class="list-inline">
+          <li>
+            <a href="quickstart/" class="md-button md-button--primary">{% if config.theme.language == "zh" %}快速开始{% else %}Get Started{% endif %}</a>
+          </li>
+          <li>
+            <a href="guide/" class="md-button">{% if config.theme.language == "zh" %}用户指南{% else %}User Guide{% endif %}</a>
+          </li>
+          <li>
+            <a href="design/" class="md-button">{% if config.theme.language == "zh" %}设计文档{% else %}Design Docs{% endif %}</a>
+          </li>
+          <li>
+            <a href="https://github.com/DeepLink-org/probing" class="md-button" target="_blank" rel="noopener">GitHub</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Core Features Grid -->
+  <section class="probing-features-grid">
+    <div class="container">
+      {% if config.theme.language == "zh" %}
+      <h2>核心特性</h2>
+      <p class="section-subtitle">零侵入分析 AI 工作负载，SQL 驱动的分析能力</p>
+      {% else %}
+      <h2>Core Features</h2>
+      <p class="section-subtitle">Zero-intrusion profiling for AI workloads with SQL-powered analytics</p>
+      {% endif %}
+      <div class="features-grid">
+        <div class="feature-card">
+          <span class="feature-icon">🔍</span>
+          {% if config.theme.language == "zh" %}
+          <h3>零侵入</h3>
+          <p>无需修改代码即可附加到运行中的进程。无需插桩、无需重启、不中断工作流。</p>
+          {% else %}
+          <h3>Zero Intrusion</h3>
+          <p>Attach to running processes without code changes. No instrumentation, no restarts, no workflow disruption.</p>
+          {% endif %}
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">📊</span>
+          {% if config.theme.language == "zh" %}
+          <h3>SQL 分析</h3>
+          <p>使用标准 SQL 查询性能数据。用熟悉的语法分析 torch 追踪、内存使用等。</p>
+          {% else %}
+          <h3>SQL Analytics</h3>
+          <p>Query performance data with standard SQL. Use familiar syntax to analyze torch traces, memory usage, and more.</p>
+          {% endif %}
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">🎯</span>
+          {% if config.theme.language == "zh" %}
+          <h3>实时执行</h3>
+          <p>直接在目标进程中运行 Python 代码。检查变量、修改状态、实时调试。</p>
+          {% else %}
+          <h3>Live Execution</h3>
+          <p>Run Python code directly in target processes. Inspect variables, modify state, and debug in real-time.</p>
+          {% endif %}
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">📈</span>
+          {% if config.theme.language == "zh" %}
+          <h3>堆栈分析</h3>
+          <p>捕获带有变量值的执行堆栈。精确了解代码在任何时刻的执行状态。</p>
+          {% else %}
+          <h3>Stack Analysis</h3>
+          <p>Capture execution stacks with variable values. Understand exactly what your code is doing at any moment.</p>
+          {% endif %}
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">🌐</span>
+          {% if config.theme.language == "zh" %}
+          <h3>分布式支持</h3>
+          <p>监控跨多节点的进程。通过跨节点关联调试分布式训练问题。</p>
+          {% else %}
+          <h3>Distributed Ready</h3>
+          <p>Monitor processes across multiple nodes. Debug distributed training issues with cross-node correlation.</p>
+          {% endif %}
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">⚡</span>
+          {% if config.theme.language == "zh" %}
+          <h3>极低开销</h3>
+          <p>典型工作负载下性能影响小于 5%。生产级效率，适用于真实部署。</p>
+          {% else %}
+          <h3>Minimal Overhead</h3>
+          <p>Less than 5% performance impact in typical workloads. Production-grade efficiency for real deployments.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Quick Start Section -->
+  <section class="probing-quickstart">
+    <div class="container">
+      <h2>{% if config.theme.language == "zh" %}快速开始{% else %}Quick Start{% endif %}</h2>
+      <div class="quickstart-steps">
+        <div class="quickstart-step">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <h3>{% if config.theme.language == "zh" %}安装 Probing{% else %}Install Probing{% endif %}</h3>
+            <div class="code-block">
+              <pre><code class="language-bash">pip install probing</code></pre>
+            </div>
+          </div>
+        </div>
+        <div class="quickstart-step">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <h3>{% if config.theme.language == "zh" %}注入到运行中的进程{% else %}Inject into Running Process{% endif %}</h3>
+            <div class="code-block">
+              <pre><code class="language-bash"># {% if config.theme.language == "zh" %}查找进程{% else %}Find your process{% endif %}
+pgrep -f "python.*train"
+
+# {% if config.theme.language == "zh" %}注入探针{% else %}Inject probes{% endif %}
+probing -t &lt;pid&gt; inject</code></pre>
+            </div>
+          </div>
+        </div>
+        <div class="quickstart-step">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <h3>{% if config.theme.language == "zh" %}开始分析{% else %}Start Analyzing{% endif %}</h3>
+            <div class="code-block">
+              <pre><code class="language-bash"># {% if config.theme.language == "zh" %}查询性能数据{% else %}Query performance data{% endif %}
+probing -t &lt;pid&gt; query "SELECT * FROM python.torch_trace LIMIT 10"
+
+# {% if config.theme.language == "zh" %}在进程中执行代码{% else %}Execute code in process{% endif %}
+probing -t &lt;pid&gt; eval "print(torch.cuda.memory_allocated())"
+
+# {% if config.theme.language == "zh" %}捕获堆栈跟踪{% else %}Capture stack trace{% endif %}
+probing -t &lt;pid&gt; backtrace</code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SQL Analytics Feature -->
+  <section class="probing-feature-section">
+    <div class="container">
+      <div class="probing-feature-content">
+        <div class="probing-feature-text">
+          {% if config.theme.language == "zh" %}
+          <h2>SQL 驱动的分析</h2>
+          <p>
+            使用熟悉的 SQL 语法查询您的 AI 工作负载数据。使用标准数据库操作
+            分析 PyTorch 追踪、内存使用和自定义指标。
+          </p>
+          <p>
+            基于 Apache DataFusion 构建的高性能分析引擎，支持
+            聚合、窗口函数和复杂连接。
+          </p>
+          <a href="guide/sql-analytics/" class="md-button">了解更多 →</a>
+          {% else %}
+          <h2>SQL-Powered Analytics</h2>
+          <p>
+            Query your AI workload data with familiar SQL syntax. Analyze PyTorch traces,
+            memory usage, and custom metrics using standard database operations.
+          </p>
+          <p>
+            Built on Apache DataFusion for high-performance analytics with support for
+            aggregations, window functions, and complex joins.
+          </p>
+          <a href="guide/sql-analytics/" class="md-button">Learn More →</a>
+          {% endif %}
+        </div>
+        <div class="probing-feature-demo">
+          <div class="code-preview">
+            <pre><code class="language-sql">-- {% if config.theme.language == "zh" %}查找最慢操作{% else %}Find slowest operations{% endif %}
+SELECT
+    module,
+    AVG(duration) as avg_time,
+    MAX(allocated) as peak_memory
+FROM python.torch_trace
+WHERE step > 100
+GROUP BY module
+ORDER BY avg_time DESC
+LIMIT 10;</code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Live Debugging Feature -->
+  <section class="probing-feature-section reverse">
+    <div class="container">
+      <div class="probing-feature-content">
+        <div class="probing-feature-text">
+          {% if config.theme.language == "zh" %}
+          <h2>实时进程调试</h2>
+          <p>
+            在运行中的进程中执行任意 Python 代码而无需停止它们。
+            检查变量、查看 GPU 内存、实时修改行为。
+          </p>
+          <p>
+            交互式 REPL 模式用于探索性调试。Tab 补全和
+            完全访问进程上下文。
+          </p>
+          <a href="guide/debugging/" class="md-button">了解更多 →</a>
+          {% else %}
+          <h2>Live Process Debugging</h2>
+          <p>
+            Execute arbitrary Python code in running processes without stopping them.
+            Inspect variables, check GPU memory, and modify behavior on the fly.
+          </p>
+          <p>
+            Interactive REPL mode for exploratory debugging. Tab completion and
+            full access to the process context.
+          </p>
+          <a href="guide/debugging/" class="md-button">Learn More →</a>
+          {% endif %}
+        </div>
+        <div class="probing-feature-demo">
+          <div class="code-preview">
+            <pre><code class="language-bash"># {% if config.theme.language == "zh" %}检查 GPU 内存{% else %}Check GPU memory{% endif %}
+probing -t &lt;pid&gt; eval "
+import torch
+print(f'Allocated: {torch.cuda.memory_allocated()/1024**3:.2f} GB')
+print(f'Cached: {torch.cuda.memory_reserved()/1024**3:.2f} GB')"
+
+# {% if config.theme.language == "zh" %}交互式 REPL{% else %}Interactive REPL{% endif %}
+probing -t &lt;pid&gt; repl</code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Use Cases Section -->
+  <section class="probing-usecases">
+    <div class="container">
+      <h2>{% if config.theme.language == "zh" %}使用场景{% else %}Use Cases{% endif %}</h2>
+      <div class="usecases-grid">
+        <div class="usecase-card">
+          <div class="usecase-icon">🎓</div>
+          {% if config.theme.language == "zh" %}
+          <h3>训练调试</h3>
+          <p>调试训练不稳定、卡住和性能下降问题。实时了解训练为何发散或停止。</p>
+          {% else %}
+          <h3>Training Debugging</h3>
+          <p>Debug training instabilities, hangs, and performance regressions. Real-time insight into why training diverges or stops.</p>
+          {% endif %}
+        </div>
+        <div class="usecase-card">
+          <div class="usecase-icon">💾</div>
+          {% if config.theme.language == "zh" %}
+          <h3>内存分析</h3>
+          <p>追踪训练步骤中的 GPU/CPU 内存使用。检测内存泄漏并优化内存效率。</p>
+          {% else %}
+          <h3>Memory Analysis</h3>
+          <p>Track GPU/CPU memory usage across training steps. Detect memory leaks and optimize memory efficiency.</p>
+          {% endif %}
+        </div>
+        <div class="usecase-card">
+          <div class="usecase-icon">🚀</div>
+          {% if config.theme.language == "zh" %}
+          <h3>性能分析</h3>
+          <p>识别前向/反向传播中的瓶颈。找到慢操作并优化模型性能。</p>
+          {% else %}
+          <h3>Performance Profiling</h3>
+          <p>Identify bottlenecks in forward/backward passes. Find slow operations and optimize model performance.</p>
+          {% endif %}
+        </div>
+        <div class="usecase-card">
+          <div class="usecase-icon">🔧</div>
+          {% if config.theme.language == "zh" %}
+          <h3>生产监控</h3>
+          <p>无需重启即可监控 AI 服务。收集自定义指标并实时调试生产问题。</p>
+          {% else %}
+          <h3>Production Monitoring</h3>
+          <p>Monitor AI services without restarts. Collect custom metrics and debug production issues live.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Community Section -->
+  <section class="probing-community">
+    <div class="container">
+      {% if config.theme.language == "zh" %}
+      <h2>加入社区</h2>
+      <p class="section-subtitle">Probing 是开源的，欢迎参与！</p>
+      {% else %}
+      <h2>Join the Community</h2>
+      <p class="section-subtitle">Probing is open source. Get involved!</p>
+      {% endif %}
+      <div class="community-links">
+        <a href="https://github.com/DeepLink-org/probing" class="community-link" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+          </svg>
+          GitHub
+        </a>
+        <a href="https://github.com/DeepLink-org/probing/issues" class="community-link" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+          </svg>
+          {% if config.theme.language == "zh" %}问题反馈{% else %}Issues{% endif %}
+        </a>
+        <a href="https://pypi.org/project/probing/" class="community-link" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 0L1.5 6v12L12 24l10.5-6V6L12 0zm0 2.25l7.5 4.32v8.63l-7.5 4.32-7.5-4.32V6.57l7.5-4.32z"/>
+          </svg>
+          PyPI
+        </a>
+      </div>
+    </div>
+  </section>
+
+{% endblock %}
+
+{% block content %}{% endblock %}
+{% block footer %}
+  {{ super() }}
+{% endblock %}

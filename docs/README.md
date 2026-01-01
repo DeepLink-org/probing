@@ -1,173 +1,90 @@
-# Probing Documentation System
+# Probing Documentation
 
-This directory contains the complete documentation for the Probing project, built using [Sphinx](https://www.sphinx-doc.org/).
+This directory contains the documentation for Probing, built with [MkDocs](https://www.mkdocs.org/) and the [Material theme](https://squidfunk.github.io/mkdocs-material/).
 
 ## Quick Start
 
 ### Install Dependencies
 
 ```bash
-pip install -r requirements_doc.txt
+# Using pip
+pip install mkdocs mkdocs-material mkdocs-material-extensions mkdocstrings mkdocstrings-python
+
+# Or using uv
+uv pip install -r pyproject.toml
 ```
 
-### Build Documentation
+### Build and Serve
 
 ```bash
-# Build HTML documentation
-make html
+# Start live preview server
+make serve
 
-# Or use sphinx-build directly
-sphinx-build -b html . _build/html
+# Or directly with mkdocs
+mkdocs serve
 ```
 
-After building, the documentation will be generated in the `_build/html/` directory. Open `_build/html/index.html` in your browser to view the documentation.
+Then open http://localhost:8000 in your browser.
 
-### Live Preview (Development Mode)
-
-Using `sphinx-autobuild` can automatically detect file changes and rebuild the documentation while refreshing the browser:
+### Build Static Site
 
 ```bash
-# Method 1: Start from project root (recommended)
-make docs-serve
-
-# Method 2: Use convenience script in docs directory
-cd docs && ./serve.sh
-
-# Method 3: Use Makefile in docs directory
-cd docs && make serve
-
-# Method 4: Use sphinx-autobuild directly
-cd docs && sphinx-autobuild . _build/html --host 0.0.0.0 --port 8000 --open-browser
+make build
 ```
 
-After starting, the terminal will display the local access address (usually `http://127.0.0.1:8000`). Open it in your browser to view the documentation in real-time. After modifying any documentation files, the documentation will automatically rebuild and refresh the browser.
+The built site will be in the `site/` directory.
 
-**Common Options:**
-- `--host 0.0.0.0` - Allow access from other devices (on local network)
-- `--port 8000` - Specify port number (default 8000)
-- `--open-browser` - Automatically open browser
-
-## Documentation Structure
+## Directory Structure
 
 ```
 docs/
-├── conf.py              # Sphinx configuration file
-├── index.rst            # Main documentation index
-├── requirements_doc.txt # Python dependencies (documentation build only)
-├── Makefile            # Build script (Unix)
-├── getting-started/    # Getting started guide
-├── user-guide/         # User guide
-├── design/             # System design
-├── advanced/           # Advanced topics
-└── development/        # Development related
+├── mkdocs.yml           # MkDocs configuration
+├── pyproject.toml       # Python dependencies
+├── Makefile             # Build commands
+├── overrides/           # Custom templates
+│   └── home.html        # Homepage template
+└── src/                 # Documentation source
+    ├── index.md         # Homepage content
+    ├── installation.md  # Installation guide
+    ├── quickstart.md    # Quick start guide
+    ├── guide/           # User guide
+    ├── design/          # Design documents
+    ├── examples/        # Example workflows
+    ├── api-reference.md # API reference
+    └── assets/          # Static assets
+        └── stylesheets/ # CSS styles
 ```
 
 ## Writing Documentation
 
-### Markdown Support
+- All documentation is written in Markdown
+- Use [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/reference/) extensions
+- Admonitions, code blocks with copy button, and Mermaid diagrams are supported
 
-The documentation uses [MyST Parser](https://myst-parser.readthedocs.io/) to support Markdown format. You can write documentation directly in Markdown, with support for the following extensions:
-
-- Code block fences (using `:colon_fence:`)
-- Definition lists
-- Task lists
-- Math formulas (using `$` or `$$`)
-- Substitutions and references
-- And more
-
-### Adding New Documentation
-
-1. Create a `.md` file in the appropriate directory
-2. Add the corresponding entry in `index.rst`
-
-For example, to add a new user guide:
-
-```rst
-.. toctree::
-   :maxdepth: 2
-   :caption: User Guide
-
-   user-guide/sql-analytics
-   user-guide/memory-analysis
-   user-guide/new-guide  # Newly added documentation
-```
-
-### Documentation Format Examples
+### Example Admonition
 
 ```markdown
-# Title
+!!! note "Title"
+    This is a note admonition.
 
-This is a paragraph of regular text.
-
-## Code Example
-
-```python
-def hello():
-    print("Hello, World!")
+!!! warning
+    This is a warning.
 ```
 
-## Admonitions
+### Example Mermaid Diagram
 
-```{note}
-This is a note.
+````markdown
+```mermaid
+graph LR
+    A[Start] --> B[Process]
+    B --> C[End]
 ```
+````
 
-```{warning}
-This is a warning.
-```
+## Deployment
 
-## Math Formulas
-
-Inline formula: $E = mc^2$
-
-Block formula:
-
-$$
-\int_{-\infty}^{\infty} e^{-x^2} dx = \sqrt{\pi}
-$$
-```
-
-## Build Options
-
-### HTML Output
+To deploy to GitHub Pages:
 
 ```bash
-make html
+make deploy
 ```
-
-### PDF Output (requires LaTeX)
-
-```bash
-make latexpdf
-```
-
-### Other Formats
-
-```bash
-make help  # View all available formats
-```
-
-## Theme and Styling
-
-The documentation uses the `sphinx_rtd_theme` (Read the Docs theme). You can modify the theme configuration in `conf.py`.
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Module not found error**
-   - Ensure all dependencies are installed: `pip install -r requirements_doc.txt`
-
-2. **Build failure**
-   - Check for syntax errors in the documentation
-   - Ensure all referenced files exist
-
-3. **Character encoding issues**
-   - Ensure documentation uses UTF-8 encoding
-   - Check language settings in `conf.py`
-
-## More Information
-
-- [Sphinx Documentation](https://www.sphinx-doc.org/)
-- [MyST Parser Documentation](https://myst-parser.readthedocs.io/)
-- [Read the Docs Theme Documentation](https://sphinx-rtd-theme.readthedocs.io/)

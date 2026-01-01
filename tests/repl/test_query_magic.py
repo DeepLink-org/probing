@@ -12,9 +12,8 @@ python_dir = os.path.join(os.path.dirname(__file__), "../../python")
 if python_dir not in sys.path:
     sys.path.insert(0, python_dir)
 
-from traitlets.config.configurable import Configurable
-
 from probing.repl.query_magic import QueryMagic
+from traitlets.config.configurable import Configurable
 
 
 @pytest.fixture
