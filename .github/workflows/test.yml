@@ -48,6 +48,11 @@ jobs:
         run: |
           pip install pytest pytest-cov coverage
 
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y binutils
+
       - name: Build package
         run: |
           make ZIG=1 wheel
@@ -87,6 +92,11 @@ jobs:
           install-python-deps: 'false'
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y binutils
 
       - name: Build web frontend
         run: |
@@ -247,4 +257,4 @@ jobs:
       - name: Run Python Tests
         env:
           PROBING: "1"
-        run: maturin develop && pytest tests
+        run: pytest tests
