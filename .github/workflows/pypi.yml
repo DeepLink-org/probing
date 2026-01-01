@@ -31,11 +31,6 @@ jobs:
           install-cargo-tools: 'true'
           install-python-deps: 'false'
 
-      - name: Install build tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y binutils
-
       - name: Build frontend
         run: make web/dist
 
@@ -94,11 +89,6 @@ jobs:
         with:
           install-python-deps: 'false'
           install-cargo-tools: 'true'
-
-      - name: Install build tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y binutils
 
       - name: Build frontend
         run: make web/dist

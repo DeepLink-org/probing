@@ -46,6 +46,13 @@ runs:
     - name: Install Zig toolchain
       uses: mlugg/setup-zig@v2
 
+    - name: Install system build tools (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y binutils
+
     - name: Cache dependencies
       id: cache-deps
       uses: actions/cache@v4
