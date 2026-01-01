@@ -247,4 +247,4 @@ jobs:
       - name: Run Python Tests
         env:
           PROBING: "1"
-        run: maturin develop && pytest tests
+        run: pytest tests

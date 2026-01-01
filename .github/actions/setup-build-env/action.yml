@@ -46,6 +46,13 @@ runs:
     - name: Install Zig toolchain
       uses: mlugg/setup-zig@v2
 
+    - name: Install system build tools (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y binutils
+
     - name: Cache dependencies
       id: cache-deps
       uses: actions/cache@v4
@@ -56,7 +63,18 @@ runs:
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
           ~/zig
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        # Cache key includes:
+        # - OS: different OSes have different binaries
+        # - action.yml hash: invalidates cache when action changes
+        # - Python version: different Python versions may need different tools
+        # - Rust toolchain: nightly toolchain version
+        # - Tool versions: dioxus-cli version (update when tool versions change)
+        # - Cargo.lock: invalidates when dependencies change
+        key: ${{ runner.os }}-setup-${{ hashFiles('.github/actions/setup-build-env/action.yml') }}-python-${{ inputs.python-version }}-rust-nightly-dx-0.7.2-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-setup-${{ hashFiles('.github/actions/setup-build-env/action.yml') }}-python-${{ inputs.python-version }}-rust-nightly-dx-0.7.2-cargo-
+          ${{ runner.os }}-setup-${{ hashFiles('.github/actions/setup-build-env/action.yml') }}-cargo-
+          ${{ runner.os }}-cargo-
 
     - name: Install cargo tools
       if: inputs.install-cargo-tools == 'true'
@@ -65,9 +83,7 @@ runs:
         test -e ~/.cargo/bin/cargo-zigbuild || cargo install cargo-zigbuild
         test -e ~/.cargo/bin/rnr || cargo install rnr
         test -e ~/.cargo/bin/cargo-nextest || cargo install cargo-nextest
-        test -e ~/.cargo/bin/cargo-binstall || cargo install cargo-binstall
-        test -e ~/.cargo/bin/dx || cargo binstall dioxus-cli@0.7.0 -y
-        test -e ~/.cargo/bin/trunk || cargo install trunk --locked
+        test -e ~/.cargo/bin/dx || cargo install dioxus-cli@0.7.2
 
     - name: Install Python Build Dependencies
       if: inputs.install-python-deps == 'true'

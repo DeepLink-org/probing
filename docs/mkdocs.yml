@@ -80,22 +80,25 @@ plugins:
           site_name: "Probing 文档"
           nav_translations:
             Home: 首页
-            Installation: 安装指南
+            Getting Started: 入门指南
+            Why Probing: 为什么选择 Probing
+            Installation: 安装
             Quick Start: 快速开始
             User Guide: 用户指南
             SQL Analytics: SQL 分析
             Memory Analysis: 内存分析
             Debugging: 调试指南
             Troubleshooting: 常见问题
+            Examples: 示例
+            Training Debugging: 训练调试
+            Memory Leak: 内存泄漏
+            Performance Analysis: 性能分析
             Design: 设计文档
             Architecture: 系统架构
             Profiling: 性能分析
             Distributed: 分布式
             Extensibility: 扩展机制
-            Examples: 示例
-            Training Debugging: 训练调试
-            Memory Leak: 内存泄漏
-            Performance Analysis: 性能分析
+            Reference: 参考
             API Reference: API 参考
             Versions: 版本兼容性
             Contributing: 贡献指南
@@ -111,14 +114,21 @@ plugins:
 
 nav:
   - Home: index.md
-  - Installation: installation.md
-  - Quick Start: quickstart.md
+  - Getting Started:
+    - Why Probing: why-probing.md
+    - Installation: installation.md
+    - Quick Start: quickstart.md
   - User Guide:
     - guide/index.md
     - SQL Analytics: guide/sql-analytics.md
     - Memory Analysis: guide/memory-analysis.md
     - Debugging: guide/debugging.md
     - Troubleshooting: guide/troubleshooting.md
+    - Examples:
+      - examples/index.md
+      - Training Debugging: examples/training-debugging.md
+      - Memory Leak: examples/memory-leak.md
+      - Performance Analysis: examples/performance-analysis.md
   - Design:
     - design/index.md
     - Architecture: design/architecture.md
@@ -126,14 +136,10 @@ nav:
     - Debugging: design/debugging.md
     - Distributed: design/distributed.md
     - Extensibility: design/extensibility.md
-  - Examples:
-    - examples/index.md
-    - Training Debugging: examples/training-debugging.md
-    - Memory Leak: examples/memory-leak.md
-    - Performance Analysis: examples/performance-analysis.md
-  - API Reference: api-reference.md
-  - Versions: versions.md
-  - Contributing: contributing.md
+  - Reference:
+    - API Reference: api-reference.md
+    - Versions: versions.md
+    - Contributing: contributing.md
 
 extra:
   generator: false
