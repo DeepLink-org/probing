@@ -115,10 +115,31 @@ def init_probing():
         # In case of unexpected errors, don't enable probing
 
 
+def is_probing_cli():
+    """Check if the current process is the probing CLI itself."""
+    if current_script == "probing":
+        os.environ["PROBING_CLI_MODE"] = "1"
+        return True
+    # Check for 'python -m probing.cli'
+    try:
+        import __main__
+
+        if hasattr(__main__, "__file__") and __main__.__file__:
+            if "probing" in __main__.__file__ and "cli" in __main__.__file__:
+                os.environ["PROBING_CLI_MODE"] = "1"
+                return True
+    except Exception:
+        pass
+    return False
+
+
 try:
     import re
 
-    if re.search("torchrun", current_script) is None:
+    # Skip initialization for:
+    # 1. torchrun (launcher script)
+    # 2. probing CLI itself (should not inject probes into itself)
+    if re.search("torchrun", current_script) is None and not is_probing_cli():
         init_probing()
 except Exception as e:
     print(f"Error in probing hook: {e}", file=sys.stderr)
