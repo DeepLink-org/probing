@@ -1,43 +1,43 @@
-# Extensibility
+# 扩展机制
 
-Probing provides mechanisms for extending its capabilities with custom data sources and metrics.
+Probing 提供机制来扩展其功能，支持自定义数据源和指标。
 
-## Overview
+## 概览
 
-The extension system allows:
+扩展系统允许：
 
-- Custom data tables
-- User-defined metrics
-- Integration with external tools
-- Plugin architecture
+- 自定义数据表
+- 用户定义的指标
+- 与外部工具集成
+- 插件架构
 
-## Custom Tables
+## 自定义表
 
 ### Python API
 
-Create custom tables using the `@table` decorator:
+使用 `@table` 装饰器创建自定义表：
 
 ```python
 from probing import table
 
 @table("my_metrics")
 def get_metrics():
-    """Return data as list of dicts or pandas DataFrame."""
+    """返回字典列表或 pandas DataFrame。"""
     return [
         {"name": "loss", "value": current_loss},
         {"name": "accuracy", "value": current_acc},
     ]
 ```
 
-### Query Custom Tables
+### 查询自定义表
 
 ```sql
 SELECT * FROM python.my_metrics;
 ```
 
-### Table Schema
+### 表 Schema
 
-Tables are dynamically typed based on returned data:
+表根据返回数据动态类型化：
 
 ```python
 @table("training_state")
@@ -50,7 +50,7 @@ def get_training_state():
     }
 ```
 
-## External Table Integration
+## 外部表集成
 
 ### Pandas DataFrames
 
@@ -66,7 +66,7 @@ df = pd.DataFrame({
 register_table("external_metrics", df)
 ```
 
-### Arrow Tables
+### Arrow 表
 
 ```python
 import pyarrow as pa
@@ -80,16 +80,16 @@ table = pa.table({
 register_table("arrow_data", table)
 ```
 
-## Custom Metrics
+## 自定义指标
 
-### Defining Metrics
+### 定义指标
 
 ```python
 from probing import metric
 
 @metric("gpu_utilization")
 def gpu_util():
-    """Return current GPU utilization."""
+    """返回当前 GPU 利用率。"""
     import pynvml
     pynvml.nvmlInit()
     handle = pynvml.nvmlDeviceGetHandleByIndex(0)
@@ -97,22 +97,22 @@ def gpu_util():
     return util.gpu
 ```
 
-### Querying Metrics
+### 查询指标
 
 ```sql
 SELECT * FROM python.metrics WHERE name = 'gpu_utilization';
 ```
 
-## Hook System
+## 钩子系统
 
-### Module Hooks
+### 模块钩子
 
 ```python
 from probing import register_hook
 
 @register_hook("torch.nn.Linear", "forward")
 def linear_hook(module, input, output):
-    """Called on every Linear forward pass."""
+    """每次 Linear 前向传播时调用。"""
     record_custom_data({
         "module": str(module),
         "input_shape": list(input[0].shape),
@@ -120,23 +120,23 @@ def linear_hook(module, input, output):
     })
 ```
 
-### Function Hooks
+### 函数钩子
 
 ```python
 from probing import hook_function
 
 @hook_function("torch.optim.Adam.step")
 def optimizer_hook(optimizer):
-    """Called on every optimizer step."""
+    """每次优化器步骤时调用。"""
     record_custom_data({
         "lr": optimizer.param_groups[0]["lr"],
         "step_count": optimizer.state_dict()["state"][0]["step"],
     })
 ```
 
-## Plugin Architecture
+## 插件架构
 
-### Creating a Plugin
+### 创建插件
 
 ```python
 # my_plugin.py
@@ -146,50 +146,50 @@ class MyPlugin(Plugin):
     name = "my_plugin"
 
     def on_load(self):
-        """Called when plugin is loaded."""
+        """插件加载时调用。"""
         self.register_table("plugin_data", self.get_data)
 
     def on_unload(self):
-        """Called when plugin is unloaded."""
+        """插件卸载时调用。"""
         pass
 
     def get_data(self):
         return [{"key": "value"}]
 ```
 
-### Loading Plugins
+### 加载插件
 
 ```bash
-# Environment variable
+# 环境变量
 PROBING_PLUGINS=my_plugin python train.py
 
-# Or programmatically
+# 或编程方式
 import probing
 probing.load_plugin("my_plugin")
 ```
 
-## Configuration Extension
+## 配置扩展
 
-### Custom Config Options
+### 自定义配置选项
 
 ```python
 from probing import config
 
-# Register custom config
+# 注册自定义配置
 config.register("my_plugin.sample_rate", default=0.1, type=float)
 
-# Use in plugin
+# 在插件中使用
 rate = config.get("my_plugin.sample_rate")
 ```
 
-### Query Configuration
+### 查询配置
 
 ```sql
 SELECT * FROM information_schema.df_settings
 WHERE name LIKE 'my_plugin.%';
 ```
 
-## Integration Examples
+## 集成示例
 
 ### Weights & Biases
 
@@ -219,7 +219,7 @@ writer = SummaryWriter()
 
 @table("tensorboard_scalars")
 def get_tb_scalars():
-    # Access TensorBoard data
+    # 访问 TensorBoard 数据
     return logged_scalars
 ```
 
@@ -229,7 +229,7 @@ def get_tb_scalars():
 from probing import metric
 from prometheus_client import Gauge
 
-gpu_memory = Gauge("gpu_memory_bytes", "GPU memory usage")
+gpu_memory = Gauge("gpu_memory_bytes", "GPU 内存使用")
 
 @metric("prometheus_gpu_memory")
 def update_prometheus():
@@ -238,23 +238,23 @@ def update_prometheus():
     return mem
 ```
 
-## Best Practices
+## 最佳实践
 
-### 1. Lightweight Data Collection
+### 1. 轻量级数据收集
 
 ```python
-# Good: Return only necessary data
+# 好：只返回必要数据
 @table("efficient")
 def get_efficient():
     return {"step": step, "loss": loss}
 
-# Avoid: Expensive operations
+# 避免：昂贵的操作
 @table("expensive")
 def get_expensive():
-    return serialize_entire_model()  # Too heavy
+    return serialize_entire_model()  # 太重
 ```
 
-### 2. Error Handling
+### 2. 错误处理
 
 ```python
 @table("safe_data")
@@ -265,7 +265,7 @@ def get_safe_data():
         return {"error": str(e)}
 ```
 
-### 3. Caching
+### 3. 缓存
 
 ```python
 from functools import lru_cache
