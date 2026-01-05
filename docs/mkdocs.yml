@@ -68,13 +68,14 @@ plugins:
       fallback_to_default: true
       reconfigure_material: true
       reconfigure_search: true
+      default_language: zh
       languages:
-        - locale: en
+        en:
           default: true
           name: English
           build: true
           site_name: "Probing Documentation"
-        - locale: zh
+        zh:
           name: 中文
           build: true
           site_name: "Probing 文档"

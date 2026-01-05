@@ -8,3 +8,4 @@ mkdocs-static-i18n>=1.0.0
 mkdocstrings>=0.24.0
 mkdocstrings-python>=1.7.0
 jieba>=0.42.1
+mkdocs-i18n
