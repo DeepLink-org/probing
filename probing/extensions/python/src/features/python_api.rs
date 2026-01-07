@@ -42,7 +42,12 @@ pub fn query_json(_py: Python, sql: String) -> PyResult<String> {
 
 #[pyfunction]
 pub fn cli_main(_py: Python, args: Vec<String>) -> PyResult<()> {
-    if let Err(e) = cli_main_impl(args) {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+    if let Err(e) = runtime.block_on(cli_main_impl(args)) {
         return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
             e.to_string(),
         ));
