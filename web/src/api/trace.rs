@@ -14,12 +14,14 @@ pub struct TraceResponse {
 }
 
 /// Trace status information (simplified version, as show_trace only returns function name list)
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TraceInfo {
     pub function: String,
 }
 
 /// Variable change record
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VariableRecord {
     pub function_name: String,
@@ -44,6 +46,7 @@ pub struct TraceableItem {
 /// Trace API
 impl ApiClient {
     /// Get list of traceable functions (returns function name list, compatible with old format)
+    #[allow(dead_code)]
     pub async fn get_traceable_functions(&self, prefix: Option<&str>) -> Result<Vec<String>> {
         let items = self.get_traceable_items(prefix).await?;
         // Convert to old format for backward compatibility
@@ -104,11 +107,11 @@ impl ApiClient {
         print_to_terminal: bool,
     ) -> Result<TraceResponse> {
         let base = "/apis/pythonext/trace/start";
-        let mut params = vec![format!("function={}", function)];
+        let mut params = vec![format!("function={}", urlencoding::encode(function))];
 
         if let Some(watch) = watch {
             if !watch.is_empty() {
-                params.push(format!("watch={}", watch.join(",")));
+                params.push(format!("watch={}", urlencoding::encode(&watch.join(","))));
             }
         }
 
@@ -116,11 +119,7 @@ impl ApiClient {
             params.push("print_to_terminal=true".to_string());
         }
 
-        let path = if params.len() > 1 {
-            format!("{}?{}", base, params.join("&"))
-        } else {
-            format!("{}?function={}", base, function)
-        };
+        let path = format!("{}?{}", base, params.join("&"));
 
         let response = self.get_request(&path).await?;
         let result: TraceResponse = Self::parse_json(&response)?;
@@ -129,7 +128,10 @@ impl ApiClient {
 
     /// Stop tracing a function
     pub async fn stop_trace(&self, function: &str) -> Result<TraceResponse> {
-        let path = format!("/apis/pythonext/trace/stop?function={}", function);
+        let path = format!(
+            "/apis/pythonext/trace/stop?function={}",
+            urlencoding::encode(function)
+        );
         let response = self.get_request(&path).await?;
         let result: TraceResponse = Self::parse_json(&response)?;
         Ok(result)

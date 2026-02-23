@@ -1,12 +1,15 @@
+//! Dashboard: process info, threads, env vars. Single use_api, content by state.
+
 use dioxus::prelude::*;
 
+use crate::api::ApiClient;
 use crate::components::card::Card;
 use crate::components::card_view::ThreadsCard;
+use crate::components::common::{ErrorState, LoadingState};
 use crate::components::data::KeyValueList;
 use crate::components::page::{PageContainer, PageTitle};
-use crate::components::common::{LoadingState, ErrorState};
 use crate::hooks::use_api;
-use crate::api::ApiClient;
+use probing_proto::prelude::Process;
 
 #[component]
 pub fn Dashboard() -> Element {
@@ -19,44 +22,58 @@ pub fn Dashboard() -> Element {
         PageContainer {
             PageTitle {
                 title: "Dashboard".to_string(),
-                subtitle: Some("System overview and process information".to_string()),
+                subtitle: Some("Process and threads".to_string()),
                 icon: Some(&icondata::AiLineChartOutlined),
             }
-            if state.is_loading() {
-                Card {
-                    title: "Loading",
-                    LoadingState { message: Some("Loading process information...".to_string()) }
-                }
-            } else if let Some(Ok(process)) = state.data.read().as_ref() {
-                Card {
-                    title: "Process Information",
-                    KeyValueList {
-                        items: vec![
-                            ("Process ID (PID):", process.pid.to_string()),
-                            ("Executable Path:", process.exe.clone()),
-                            ("Command Line:", process.cmd.clone()),
-                            ("Working Directory:", process.cwd.clone()),
-                        ]
-                    }
-                }
-                Card {
-                    title: "Threads Information",
-                    div {
-                        class: "space-y-3",
-                        div { class: "text-sm text-gray-600", "Total threads: {process.threads.len()}" }
-                        ThreadsCard { threads: process.threads.clone() }
-                    }
-                }
-                Card {
-                    title: "Environment Variables",
-                    EnvVars { env: process.env.clone() }
-                }
-            } else if let Some(Err(err)) = state.data.read().as_ref() {
-                Card {
-                    title: "Error",
-                    ErrorState { error: format!("{:?}", err), title: None }
-                }
+            {dashboard_content(&state)}
+        }
+    }
+}
+
+fn dashboard_content(state: &crate::hooks::ApiState<Process>) -> Element {
+    if state.is_loading() {
+        return rsx! {
+            Card {
+                title: "Loading",
+                LoadingState { message: Some("Loading process information...".to_string()) }
             }
+        };
+    }
+    let data = state.data.read();
+    if let Some(Err(err)) = data.as_ref() {
+        return rsx! {
+            Card {
+                title: "Error",
+                ErrorState { error: err.display_message(), title: None }
+            }
+        };
+    }
+    let Some(Ok(process)) = data.as_ref() else {
+        return rsx! { div {} };
+    };
+    rsx! {
+        Card {
+            title: "Process Information",
+            KeyValueList {
+                items: vec![
+                    ("Process ID (PID):", process.pid.to_string()),
+                    ("Executable Path:", process.exe.clone()),
+                    ("Command Line:", process.cmd.clone()),
+                    ("Working Directory:", process.cwd.clone()),
+                ]
+            }
+        }
+        Card {
+            title: "Threads Information",
+            div {
+                class: "space-y-3",
+                div { class: "text-sm text-gray-600", "Total threads: {process.threads.len()}" }
+                ThreadsCard { threads: process.threads.clone() }
+            }
+        }
+        Card {
+            title: "Environment Variables",
+            EnvVars { env: process.env.clone() }
         }
     }
 }
@@ -73,7 +90,7 @@ fn EnvVars(env: std::collections::HashMap<String, String>) -> Element {
                     div {
                         class: "flex justify-between items-start py-2 border-b border-gray-200 last:border-b-0",
                         span { class: "font-medium text-gray-700 font-mono text-sm", "{name}" }
-                        span { class: "font-mono text-sm bg-gray-100 px-6 py-2 rounded break-all", "{value}" }
+                        span { class: "font-mono text-sm bg-gray-100 text-gray-900 px-6 py-2 rounded break-all", "{value}" }
                     }
                 }
             }

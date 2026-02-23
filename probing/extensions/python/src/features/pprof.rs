@@ -19,7 +19,10 @@ impl PprofHolder {
         let _ = self.0.lock().map(|mut holder| {
             match ProfilerGuardBuilder::default().frequency(freq).build() {
                 Ok(ph) => holder.replace(ph),
-                Err(_) => todo!(),
+                Err(e) => {
+                    log::error!("pprof ProfilerGuard build failed (freq={freq}): {e}; profiling unavailable");
+                    None
+                }
             };
         });
     }
@@ -38,12 +41,17 @@ impl PprofHolder {
     // }
 
     pub fn flamegraph(&self) -> Result<String> {
-        let holder = self.0.lock().unwrap();
+        let holder = self
+            .0
+            .lock()
+            .map_err(|e| anyhow::anyhow!("pprof lock poisoned: {e}"))?;
 
         if let Some(pp) = holder.as_ref() {
             let report = pp.report().build()?;
             let mut graph: Vec<u8> = vec![];
-            report.flamegraph(&mut graph).unwrap();
+            report
+                .flamegraph(&mut graph)
+                .map_err(|e| anyhow::anyhow!("pprof flamegraph write failed: {e}"))?;
             let graph = String::from_utf8(graph)?;
             Ok(graph)
         } else {

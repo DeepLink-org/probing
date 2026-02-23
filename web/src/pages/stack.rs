@@ -1,6 +1,8 @@
 use dioxus::prelude::*;
 use probing_proto::prelude::CallFrame;
 
+use crate::components::colors::colors;
+
 use crate::components::card::Card;
 use crate::components::callstack_view::CallStackView;
 use crate::components::page::{PageContainer, PageTitle};
@@ -34,15 +36,15 @@ pub fn Stack(tid: Option<String>) -> Element {
                 header_right: Some(rsx! {
                     div { class: "flex gap-2 items-center",
                         span { class: "text-sm text-gray-600", "Mode:" }
-                        button { class: format!("px-3 py-1 rounded transition-colors {}", if mode.read().as_str()=="py" { "bg-indigo-600 text-white shadow-sm" } else { "bg-gray-100 hover:bg-gray-200" }),
+                        button { class: format!("px-3 py-1 rounded transition-colors {}", if mode.read().as_str()=="py" { format!("bg-{} text-white shadow-sm", colors::PRIMARY) } else { format!("bg-{} hover:bg-{}", colors::BTN_SECONDARY_BG, colors::BTN_SECONDARY_HOVER) }),
                             onclick: move |_| {
                                 *mode.write() = String::from("py");
                             }, "Py" }
-                        button { class: format!("px-3 py-1 rounded transition-colors {}", if mode.read().as_str()=="cpp" { "bg-indigo-600 text-white shadow-sm" } else { "bg-gray-100 hover:bg-gray-200" }),
+                        button { class: format!("px-3 py-1 rounded transition-colors {}", if mode.read().as_str()=="cpp" { format!("bg-{} text-white shadow-sm", colors::PRIMARY) } else { format!("bg-{} hover:bg-{}", colors::BTN_SECONDARY_BG, colors::BTN_SECONDARY_HOVER) }),
                             onclick: move |_| {
                                 *mode.write() = String::from("cpp");
                             }, "C++" }
-                        button { class: format!("px-3 py-1 rounded transition-colors {}", if mode.read().as_str()=="mixed" { "bg-indigo-600 text-white shadow-sm" } else { "bg-gray-100 hover:bg-gray-200" }),
+                        button { class: format!("px-3 py-1 rounded transition-colors {}", if mode.read().as_str()=="mixed" { format!("bg-{} text-white shadow-sm", colors::PRIMARY) } else { format!("bg-{} hover:bg-{}", colors::BTN_SECONDARY_BG, colors::BTN_SECONDARY_HOVER) }),
                             onclick: move |_| {
                                 *mode.write() = String::from("mixed");
                             }, "Mixed" }
@@ -74,7 +76,7 @@ pub fn Stack(tid: Option<String>) -> Element {
                         }
                     }
                 } else if let Some(Err(err)) = state.data.read().as_ref() {
-                    ErrorState { error: format!("{:?}", err), title: None }
+                    ErrorState { error: err.display_message(), title: None }
                 }
             }
         }

@@ -165,7 +165,7 @@ impl PythonExt {
         })
     }
 
-    /// Handle eval request
+    /// Handle eval request. Catches panics from REPL so a single bad request cannot crash the server.
     fn handle_eval(&self, body: &[u8]) -> Result<Vec<u8>, EngineError> {
         let code = String::from_utf8(body.to_vec()).map_err(|e| {
             log::error!("Failed to convert body to UTF-8 string: {e}");
@@ -175,7 +175,18 @@ impl PythonExt {
         log::debug!("Python eval code: {code}");
 
         let mut repl = PythonRepl::default();
-        Ok(repl.process(code.as_str()).unwrap_or_default().into_bytes())
+        let out =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| repl.process(code.as_str())));
+        match out {
+            Ok(Some(s)) => Ok(s.into_bytes()),
+            Ok(None) => Ok(Vec::new()),
+            Err(_) => {
+                log::error!("Python REPL process panicked; returning error response");
+                Ok(serde_json::json!({"error": "REPL execution panicked"})
+                    .to_string()
+                    .into_bytes())
+            }
+        }
     }
 
     /// Set up a Python crash handler

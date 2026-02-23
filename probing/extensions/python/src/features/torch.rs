@@ -13,8 +13,42 @@ struct Frame {
     module: String,
 }
 
+const TORCH_QUERY: &str = r#"
+    select module, stage, median(CAST(duration AS DOUBLE))
+        from python.torch_trace
+        where module <> 'None'
+        group by module, stage
+        order by (stage, module);
+"#;
+
+/// Query torch profiling data. Prefer the global ENGINE (server's engine) so that
+/// when PROBING_TORCH_PROFILING=on the flamegraph uses the same data as the UI.
+fn query_profiling_impl() -> Result<probing_proto::types::DataFrame> {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|e| anyhow::anyhow!("Failed to create runtime: {e}"))?;
+
+    rt.block_on(async {
+        let engine = probing_core::ENGINE.read().await;
+        let result = engine
+            .async_query(TORCH_QUERY)
+            .await
+            .map_err(|e| anyhow::anyhow!("Torch query failed: {e}"))?;
+        Ok(result.unwrap_or_default())
+    })
+}
+
 pub fn query_profiling() -> Result<Vec<String>> {
     let data = thread::spawn(|| -> Result<probing_proto::types::DataFrame> {
+        // Use global ENGINE first (server's engine with python.torch_trace data)
+        match query_profiling_impl() {
+            Ok(df) => return Ok(df),
+            Err(e) => {
+                log::debug!("Global engine torch query failed ({e}), trying minimal engine");
+            }
+        }
+        // Fallback: build a minimal engine (e.g. when not running inside server)
         let engine = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -25,42 +59,13 @@ pub fn query_profiling() -> Result<Vec<String>> {
                     .build()
                     .await
             })?;
-
-        let query = r#"
-        select module, stage, median(duration)
-            from python.torch_trace
-            where module <> 'None'
-            group by module, stage
-            order by (stage, module);
-        "#;
-
-        // Check if we're already inside a tokio runtime to avoid nested runtime panic
-        match tokio::runtime::Handle::try_current() {
-            Ok(_handle) => {
-                // Inside a runtime, spawn a new thread
-                std::thread::spawn(move || {
-                    tokio::runtime::Builder::new_current_thread()
-                        .enable_all()
-                        .build()
-                        .unwrap()
-                        .block_on(async { engine.async_query(query).await })
-                })
-                .join()
-                .map_err(|_| anyhow::anyhow!("Thread panicked"))?
-                .map_err(|e| anyhow::anyhow!(e))?
-                .ok_or_else(|| anyhow::anyhow!("Query returned no data"))
-            }
-            Err(_) => {
-                // Not in a runtime, create a new one
-                tokio::runtime::Builder::new_multi_thread()
-                    .worker_threads(4)
-                    .enable_all()
-                    .build()
-                    .unwrap()
-                    .block_on(async { engine.async_query(query).await })?
-                    .ok_or_else(|| anyhow::anyhow!("Query returned no data"))
-            }
-        }
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        Ok(rt
+            .block_on(async { engine.async_query(TORCH_QUERY).await })?
+            .unwrap_or_default())
     })
     .join()
     .map_err(|_| anyhow::anyhow!("error joining thread"))??;

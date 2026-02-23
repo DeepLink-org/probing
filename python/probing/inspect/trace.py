@@ -4,13 +4,15 @@ import functools
 import inspect
 import json
 import os
+import re
 import sys
 import threading
+import time
 import types
 import warnings
 from dataclasses import dataclass
 from types import FrameType, FunctionType, ModuleType
-from typing import Any, AnyStr, Callable, Dict, List, Optional, Set
+from typing import Any, AnyStr, Callable, Dict, List, Set, Optional
 
 from probing.core.table import table
 
@@ -23,6 +25,54 @@ traced_functions = {}
 _probe_attrs = {}
 # Global dictionary to store module references needed by wrapper functions
 _probe_modules = {"sys": sys}
+
+# --- Security limits (input validation and DoS mitigation) ---
+MAX_TRACE_DEPTH = 20
+MAX_LIST_TRACEABLE_DEPTH = 10
+MAX_PREFIX_LENGTH = 512
+MAX_VARIABLE_VALUE_LENGTH = 8192
+# Top-level module names that must not be traceable via trace()/untrace() (e.g. from API)
+TRACE_BLOCKLIST_TOPLEVEL = frozenset(
+    {
+        "os",
+        "sys",
+        "subprocess",
+        "builtins",
+        "importlib",
+        "ctypes",
+        "socket",
+        "ssl",
+        "code",
+        "codeop",
+        "compiler",
+        "dis",
+        "ast",
+        "pickle",
+        "marshal",
+        "copyreg",
+        "runpy",
+        "posix",
+        "nt",
+        "errno",
+    }
+)
+# Pattern: only allow dotted identifiers (letters, digits, underscore, dot)
+TRACE_NAME_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_.]*$")
+
+
+def _validate_trace_name(name: str) -> None:
+    """Raise ValueError if name is not allowed for trace/untrace (security)."""
+    if not name or not isinstance(name, str):
+        raise ValueError("Function name must be a non-empty string")
+    if len(name) > MAX_PREFIX_LENGTH:
+        raise ValueError(f"Function name length must be at most {MAX_PREFIX_LENGTH}")
+    if not TRACE_NAME_PATTERN.match(name):
+        raise ValueError(
+            "Function name may only contain letters, digits, underscores and dots"
+        )
+    top = name.split(".", 1)[0]
+    if top in TRACE_BLOCKLIST_TOPLEVEL:
+        raise ValueError(f"Tracing is not allowed for module: {top}")
 
 
 @table("trace_variables")
@@ -609,8 +659,12 @@ def probe(func, watch=None, silent_watch=None, depth=1):
             raise RuntimeError(f"Probe attributes not found for code id {code_id}")
 
         ProbingTracer = getattr(_trace_module, "ProbingTracer")
+        # Handle None depth value - use default of 1 if None
+        probe_depth = attrs.get("__probe_depth__", 1)
+        if probe_depth is None:
+            probe_depth = 1
         tracer = ProbingTracer(
-            attrs.get("__probe_depth__", 1),
+            probe_depth,
             attrs.get("__probe_watch__", []),
             attrs.get("__probe_silent_watch__", []),
         )
@@ -659,14 +713,15 @@ def probe(func, watch=None, silent_watch=None, depth=1):
 
 
 class ProbingTracer:
-    def __init__(self, depth=1, watch=[], silent_watch=[]):
+    def __init__(self, depth=1, watch=None, silent_watch=None):
         self.depth = depth
         self.count_calls = 0
         self.count_returns = 0
-        self.watch = watch  # Variables to watch and print
-        self.silent_watch = silent_watch  # Variables to watch but only log to table
-        # Combined list of all watched variables
-        self.all_watch = list(set(watch + silent_watch))
+        watch = watch if watch is not None else []
+        silent_watch = silent_watch if silent_watch is not None else []
+        self.watch = list(watch)
+        self.silent_watch = list(silent_watch)
+        self.all_watch = list(set(self.watch + self.silent_watch))
         self.watch_impl = {}
 
     def on_call(self):
@@ -677,6 +732,9 @@ class ProbingTracer:
 
     def _outof_depth(self):
         depth = self.count_calls - self.count_returns
+        # If self.depth is None, it means no depth limit, so we're never out of depth
+        if self.depth is None:
+            return False
         return depth > self.depth
 
     def _is_internal_frame(self, frame):
@@ -745,6 +803,11 @@ class ProbingTracer:
                     else frame.f_code.co_filename
                 )
                 value_str = str(new_value)
+                if len(value_str) > MAX_VARIABLE_VALUE_LENGTH:
+                    value_str = (
+                        value_str[:MAX_VARIABLE_VALUE_LENGTH]
+                        + f"... (truncated, total {len(value_str)} chars)"
+                    )
                 value_type = type(new_value).__name__
 
                 # Print only if variable is in watch list (not silent_watch)
@@ -855,6 +918,14 @@ def list_traceable(prefix=None, depth=2):
         >>> list_traceable("torch.nn")  # doctest: +SKIP
         >>> list_traceable("torch.*.Linear")  # doctest: +SKIP
     """
+    if prefix is not None:
+        if not isinstance(prefix, str) or len(prefix) > MAX_PREFIX_LENGTH:
+            raise ValueError(
+                f"prefix must be a string of length at most {MAX_PREFIX_LENGTH}"
+            )
+    if depth is None:
+        depth = 2
+    depth = max(0, min(int(depth), MAX_LIST_TRACEABLE_DEPTH))
     collector = _TraceableCollector()
     filter_func = collector.create_filter(prefix)
     traceable_items = collector.collect_traceable_items(depth, filter_func)
@@ -887,7 +958,13 @@ def getname(obj):
     return _TraceableCollector.get_object_name(obj)
 
 
-def trace(func_or_name, watch=[], silent_watch=[], depth=1, callback=None):
+def trace(
+    func_or_name,
+    watch=None,
+    silent_watch=None,
+    depth=1,
+    callback=None,
+):
     def get_func(name):
         names = name.split(".")
         parent = sys.modules.get(names[0], None)
@@ -901,7 +978,16 @@ def trace(func_or_name, watch=[], silent_watch=[], depth=1, callback=None):
             else:
                 raise ValueError(f"{names[0]} not found in {parent}.")
 
+    if watch is None:
+        watch = []
+    if silent_watch is None:
+        silent_watch = []
+
     if isinstance(func_or_name, str):
+        _validate_trace_name(func_or_name)
+        if depth is None:
+            depth = 1
+        depth = max(0, min(int(depth), MAX_TRACE_DEPTH))
         if func_or_name in traced_functions:
             print(f"Function {func_or_name} is already being traced.")
             return
@@ -1025,6 +1111,7 @@ def untrace(func_or_name):
                 raise ValueError(f"{names[0]} not found in {parent}.")
 
     if isinstance(func_or_name, str):
+        _validate_trace_name(func_or_name)
         if func_or_name not in traced_functions:
             print(f"Function {func_or_name} is not being traced.")
             return
