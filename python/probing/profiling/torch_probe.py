@@ -42,7 +42,6 @@ class TorchTrace:
     max_cached: float = 0.0
     time_offset: float = 0.0
     duration: float = 0.0
-    duration: float = 0.0
 
 
 @table
@@ -209,6 +208,23 @@ def configure(spec: Optional[str] = None) -> TorchProbeConfig:
             probing.config.remove(_CONFIG_KEY)
 
     config = TorchProbeConfig.parse(spec)
+
+    # Register the optimizer hook when profiling is enabled. This is required because
+    # the hook is normally registered via the import-hook when "torch" is first
+    # imported, but that may not run (e.g. when probing is embedded). Calling
+    # ext.torch.init() ensures the optimizer step hook is always registered.
+    if config.enabled:
+        try:
+            from probing.ext.torch import init as torch_ext_init
+
+            torch_ext_init()
+        except ImportError as e:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "Torch profiling enabled but ext.torch init failed: %s", e
+            )
+
     return config
 
 
@@ -269,12 +285,35 @@ STAGEMAP = {
 }
 
 
+def _backend_has_event():
+    """Check if the backend supports Event for GPU timing (CUDA yes, MPS in PyTorch 2.0+)."""
+    if backend is None:
+        return False
+    # CUDA: torch.cuda.Event; MPS: torch.mps.event.Event
+    return hasattr(backend, "Event") or (
+        hasattr(backend, "event") and hasattr(backend.event, "Event")
+    )
+
+
+def _backend_event(enable_timing=True):
+    """Create a backend Event. CUDA: Event; MPS: event.Event."""
+    if backend is None:
+        return None
+    if hasattr(backend, "event") and hasattr(backend.event, "Event"):
+        return backend.event.Event(enable_timing=enable_timing)
+    if hasattr(backend, "Event"):
+        return backend.Event(enable_timing=enable_timing)
+    return None
+
+
 class Timer:
     def __init__(self, sync: bool = False, **kwargs):
 
         self.has_backend = backend is not None
+        self.use_gpu_events = _backend_has_event()
         self.sync = sync
         self.events = {}  # GPU timers
+        self.cpu_start = {}  # CPU fallback: {key: start_time}
         self.step_start = None
 
         super().__init__(**kwargs)
@@ -290,11 +329,21 @@ class Timer:
         else:
             time_offset = time.time() - self.step_start
 
-        if self.has_backend:
-            key = (id(mod), STAGEMAP[stage])
-            event = backend.Event(enable_timing=True)
-            event.record()
-            self.events[key] = event
+        key = (id(mod), STAGEMAP[stage])
+        if self.use_gpu_events:
+            try:
+                event = _backend_event(enable_timing=True)
+                if event is not None:
+                    event.record()
+                    self.events[key] = event
+                else:
+                    self.use_gpu_events = False
+                    self.cpu_start[key] = time.time()
+            except (AttributeError, TypeError):
+                self.use_gpu_events = False
+                self.cpu_start[key] = time.time()
+        else:
+            self.cpu_start[key] = time.time()
         return time_offset
 
     def end_timing(self, mod, stage) -> tuple:
@@ -306,9 +355,27 @@ class Timer:
         key = (id(mod), STAGEMAP[stage])
 
         if key in self.events:
-            end_event = backend.Event(enable_timing=True)
-            end_event.record()
-            return time_offset, (self.events.pop(key), end_event)
+            try:
+                end_event = _backend_event(enable_timing=True)
+                if end_event is not None:
+                    end_event.record()
+                    return time_offset, (self.events.pop(key), end_event)
+            except (AttributeError, TypeError):
+                pass
+            self.events.pop(key, None)
+        if key in self.cpu_start:
+            duration_sec = time.time() - self.cpu_start.pop(key)
+
+            # CPU fallback: use a simple (start, end) tuple; DelayedRecord checks events
+            # Create a minimal object that provides elapsed_time for compatibility
+            class _CpuTime:
+                def __init__(self, duration_ms):
+                    self._duration_ms = duration_ms
+
+                def elapsed_time(self, _other):
+                    return self._duration_ms
+
+            return time_offset, (_CpuTime(duration_sec * 1000), None)
         return time_offset, None
 
 

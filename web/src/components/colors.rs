@@ -6,12 +6,18 @@
 // - Main content area: Light gray/indigo background (clear, readable)
 // - Accent color: blue (consistent with sidebar, maintains visual unity)
 
+#[allow(dead_code)]
 pub mod colors {
     pub const PRIMARY: &str = "blue-600";
+    pub const PRIMARY_HOVER: &str = "blue-700";
     pub const PRIMARY_BG: &str = "blue-600/30";
     pub const PRIMARY_TEXT: &str = "blue-100";
     pub const PRIMARY_TEXT_DARK: &str = "blue-400";
     pub const PRIMARY_BORDER: &str = "blue-500";
+
+    /// Secondary button (inactive outline)
+    pub const BTN_SECONDARY_BG: &str = "gray-100";
+    pub const BTN_SECONDARY_HOVER: &str = "gray-200";
 
     pub const SIDEBAR_BG: &str = "slate-900";
     pub const SIDEBAR_BG_VIA: &str = "slate-800";
@@ -33,14 +39,21 @@ pub mod colors {
     pub const CONTENT_TEXT_MUTED: &str = "gray-500";
 
     pub const SUCCESS: &str = "green-600";
+    pub const SUCCESS_HOVER: &str = "green-700";
     pub const SUCCESS_LIGHT: &str = "green-50";
     pub const SUCCESS_TEXT: &str = "green-800";
     pub const SUCCESS_BORDER: &str = "green-200";
 
     pub const ERROR: &str = "red-600";
+    pub const ERROR_HOVER: &str = "red-700";
     pub const ERROR_LIGHT: &str = "red-50";
     pub const ERROR_TEXT: &str = "red-800";
     pub const ERROR_BORDER: &str = "red-200";
+
+    /// Content-area accent (e.g. badges, tags on light background)
+    pub const CONTENT_ACCENT_BG: &str = "blue-50";
+    pub const CONTENT_ACCENT_TEXT: &str = "blue-700";
+    pub const CONTENT_ACCENT_BORDER: &str = "blue-200";
 
     pub const WARNING: &str = "yellow-600";
     pub const WARNING_LIGHT: &str = "yellow-50";

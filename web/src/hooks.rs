@@ -35,8 +35,8 @@ pub fn use_api_simple<T: Clone + 'static>() -> ApiState<T> {
 
 /// Generic API call hook (auto-executes)
 ///
-/// Automatically executes API call when component mounts, and re-executes when dependencies change.
-/// Uses cached ApiClient instance for better performance.
+/// Automatically executes API call when component mounts, and re-executes when any reactive
+/// dependency (e.g. Signals read inside the closure) changes.
 pub fn use_api<T, F, Fut>(mut fetch_fn: F) -> ApiState<T>
 where
     T: Clone + 'static,

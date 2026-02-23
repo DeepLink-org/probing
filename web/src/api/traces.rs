@@ -431,7 +431,7 @@ impl ApiClient {
                     } else {
                         // No matching span_start found (may have been filtered by limit)
                         // Use unified pid to ensure all spans are in the same process
-                        let mut chrome_event = serde_json::json!({
+                        let chrome_event = serde_json::json!({
                             "name": if event.name.is_empty() { "unknown_span" } else { &event.name },
                             "cat": "span",
                             "ph": "E",
@@ -479,6 +479,7 @@ impl ApiClient {
     }
 
     /// Get Ray task execution timeline
+    #[allow(dead_code)]
     pub async fn get_ray_timeline(
         &self,
         task_filter: Option<&str>,
@@ -557,6 +558,7 @@ impl ApiClient {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RayTimelineEntry {
     pub name: String,

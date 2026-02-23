@@ -113,6 +113,8 @@ def get_chrome_tracing(limit: int = 1000) -> str:
         # Query trace events from the database
         # IMPORTANT: Order by timestamp ASC to process events in chronological order
         # This ensures span_start events are processed before their corresponding span_end events
+        if limit is None:
+            limit = 1000
         limit_clause = f" LIMIT {limit}" if limit > 0 else ""
         query = f"""
             SELECT
@@ -491,7 +493,10 @@ def start_trace(
             watch_list = []
             silent_watch_list = watch or []
 
-        trace(function, watch=watch_list, silent_watch=silent_watch_list, depth=depth)
+        depth_val = 1 if depth is None else depth
+        trace(
+            function, watch=watch_list, silent_watch=silent_watch_list, depth=depth_val
+        )
         return json.dumps({"success": True, "message": f"Started tracing {function}"})
     except Exception as e:
         return json.dumps({"success": False, "error": str(e)})
@@ -516,6 +521,33 @@ def stop_trace(function: str) -> str:
         return json.dumps({"success": False, "error": str(e)})
 
 
+@ext_handler(
+    "pythonext",
+    ["magics", "pythonext/magics", "python/magics"],
+)
+def get_magics_list() -> str:
+    """Get magic commands as JSON for UI quick actions.
+
+    Returns:
+        JSON string: [{"group": "Trace", "items": [{"label": "...", "command": "..."}, ...]}, ...]
+    """
+    try:
+        from probing.repl import debug_console
+        from probing.repl.help_magic import get_magics_for_ui
+
+        if (
+            debug_console
+            and getattr(debug_console, "code_executor", None)
+            and debug_console.code_executor
+        ):
+            shell = debug_console.code_executor.km.kernel.shell
+            result = get_magics_for_ui(shell)
+            return json.dumps(result)
+        return "[]"
+    except Exception as e:
+        return json.dumps({"error": str(e), "traceback": traceback.format_exc()})
+
+
 @ext_handler("pythonext", "trace/variables")
 def get_trace_variables(function: Optional[str] = None, limit: int = 100) -> str:
     """Get trace variables from database.
@@ -530,6 +562,8 @@ def get_trace_variables(function: Optional[str] = None, limit: int = 100) -> str
     try:
         import probing
 
+        if limit is None:
+            limit = 100
         # Try with python namespace first, fallback to direct table name
         if function:
             queries = [

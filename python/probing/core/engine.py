@@ -13,8 +13,8 @@ Examples:
     >>> import probing
     >>> # Execute a simple SQL query
     >>> df = probing.query("SHOW TABLES")
-    >>> type(df)
-    <class 'pandas.core.frame.DataFrame'>
+    >>> type(df)  # doctest: +ELLIPSIS
+    <class '...DataFrame'>
 
     >>> # Load a custom extension
     >>> mod = probing.load_extension("probing.ext.example")

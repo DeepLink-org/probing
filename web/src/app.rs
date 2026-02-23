@@ -1,3 +1,8 @@
+//! App entry and routing.
+//!
+//! Each route variant maps to a page component wrapped in [AppLayout](crate::components::layout::AppLayout).
+//! See `DESIGN.md` in this directory for structure and conventions.
+
 use dioxus::prelude::*;
 use dioxus_router::{Routable, Router};
 
@@ -7,6 +12,7 @@ use crate::pages::{
     profiling::Profiling, python::Python, stack::Stack, traces::Traces,
 };
 
+/// All routes. Each is rendered inside AppLayout by the corresponding page component below.
 #[derive(Routable, Clone, PartialEq)]
 #[rustfmt::skip]
 pub enum Route {
@@ -27,6 +33,8 @@ pub enum Route {
     #[route("/chrome-tracing")]
     ChromeTracingPage {},
 }
+
+// --- Page route components: each wraps a page in AppLayout ---
 
 #[component]
 pub fn DashboardPage() -> Element {
@@ -67,22 +75,6 @@ pub fn TracesPage() -> Element {
 pub fn ChromeTracingPage() -> Element {
     rsx! { AppLayout { ChromeTracing {} } }
 }
-
-// Global state: Profiling view type
-pub static PROFILING_VIEW: GlobalSignal<String> = Signal::global(|| "pprof".to_string());
-
-// Profiling control state
-pub static PROFILING_PPROF_FREQ: GlobalSignal<i32> = Signal::global(|| 99);
-pub static PROFILING_TORCH_ENABLED: GlobalSignal<bool> = Signal::global(|| false);
-pub static PROFILING_CHROME_DATA_SOURCE: GlobalSignal<String> = Signal::global(|| "trace".to_string());
-pub static PROFILING_CHROME_LIMIT: GlobalSignal<usize> = Signal::global(|| 1000);
-pub static PROFILING_PYTORCH_STEPS: GlobalSignal<i32> = Signal::global(|| 5);
-pub static PROFILING_PYTORCH_TIMELINE_RELOAD: GlobalSignal<i32> = Signal::global(|| 0);
-pub static PROFILING_RAY_TIMELINE_RELOAD: GlobalSignal<i32> = Signal::global(|| 0);
-
-// Sidebar state
-pub static SIDEBAR_WIDTH: GlobalSignal<f64> = Signal::global(|| 256.0);
-pub static SIDEBAR_HIDDEN: GlobalSignal<bool> = Signal::global(|| false);
 
 #[component]
 pub fn App() -> Element {

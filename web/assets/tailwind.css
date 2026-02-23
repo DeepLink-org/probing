@@ -24,26 +24,3 @@
 .table-container {
     box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
 }
-
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-    .page-layout {
-        background-color: #111827;
-        color: #f9fafb;
-    }
-
-    .header-bar {
-        background-color: #1f2937;
-        border-bottom-color: #374151;
-    }
-
-    .panel {
-        background-color: #1f2937;
-        border-color: #374151;
-    }
-
-    .table-container {
-        background-color: #1f2937;
-        border-color: #374151;
-    }
-}

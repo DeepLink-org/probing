@@ -5,8 +5,9 @@ use dioxus::prelude::*;
 use probing_proto::prelude::*;
 
 use crate::components::card::Card;
+use crate::components::colors::colors;
+use crate::components::common::{EmptyState, ErrorState, LoadingState};
 use crate::components::page::{PageContainer, PageTitle};
-use crate::components::common::{LoadingState, ErrorState, EmptyState};
 use crate::hooks::use_api;
 use crate::api::ApiClient;
 
@@ -21,7 +22,7 @@ pub fn Cluster() -> Element {
         PageContainer {
             PageTitle {
                 title: "Cluster Management".to_string(),
-                subtitle: Some("Monitor and manage your cluster nodes".to_string()),
+                subtitle: Some("Cluster nodes".to_string()),
                 icon: Some(&icondata::AiClusterOutlined),
             }
             if state.is_loading() {
@@ -106,7 +107,7 @@ fn ClusterTable(nodes: Vec<Node>) -> Element {
                             td { class: "px-4 py-2 text-gray-700 border-r border-gray-200",
                                 a {
                                     href: "{url}",
-                                    class: "text-indigo-600 hover:text-indigo-800 hover:underline transition-colors",
+                                    class: format!("text-{} hover:text-{} hover:underline transition-colors", colors::PRIMARY, colors::PRIMARY_HOVER),
                                     {node.addr.clone()}
                                 }
                             }

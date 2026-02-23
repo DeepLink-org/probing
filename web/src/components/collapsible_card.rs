@@ -1,14 +1,16 @@
 use dioxus::prelude::*;
 
+use crate::components::colors::colors;
+
 #[component]
 pub fn CollapsibleCardWithIcon(title: String, icon: Element, children: Element) -> Element {
     let mut is_open = use_signal(|| false);
 
     rsx! {
         div {
-            class: "border border-gray-200 rounded-lg mb-2",
+            class: "border border-gray-200 rounded-lg mb-2 bg-white",
             div {
-                class: "px-4 py-3 bg-gray-50 border-b border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors",
+                class: format!("px-4 py-3 bg-{} border-b border-{} cursor-pointer hover:bg-{} transition-colors", colors::CONTENT_BG, colors::CONTENT_BORDER, colors::BTN_SECONDARY_BG),
                 onclick: move |_| {
                     let current = *is_open.read();
                     *is_open.write() = !current;

@@ -1,4 +1,6 @@
 use dioxus::prelude::*;
+
+use crate::components::colors::colors;
 use crate::components::card::Card;
 use crate::components::dataframe_view::DataFrameView;
 use crate::components::page::{PageContainer, PageTitle};
@@ -21,12 +23,12 @@ pub fn Analytics() -> Element {
         PageContainer {
             PageTitle {
                 title: "Analytics".to_string(),
-                subtitle: Some("Query and analyze performance data with SQL".to_string()),
+                subtitle: Some("SQL and tables".to_string()),
                 icon: Some(&icondata::AiAreaChartOutlined),
             }
             Card {
                 title: "Tables",
-                content_class: Some("") ,
+                content_class: Some(""), // no extra padding for table card
                 if tables_state.is_loading() {
                     LoadingState { message: Some("Loading tables...".to_string()) }
                 } else if let Some(Ok(df)) = tables_state.data.read().as_ref() {
@@ -59,7 +61,7 @@ pub fn Analytics() -> Element {
                         rsx!{ DataFrameView { df: df.clone(), on_row_click: Some(handler) } }
                     }
                 } else if let Some(Err(err)) = tables_state.data.read().as_ref() {
-                    ErrorState { error: format!("{:?}", err), title: None }
+                    ErrorState { error: err.display_message(), title: None }
                 }
             }
 
@@ -75,7 +77,7 @@ pub fn Analytics() -> Element {
                         // Header
                         div { class: "flex items-center justify-between mb-3",
                             h3 { class: "text-lg font-semibold text-gray-900", "{preview_title}" }
-                            button { class: "px-3 py-1 text-sm rounded bg-gray-100 hover:bg-gray-200",
+                            button { class: format!("px-3 py-1 text-sm rounded bg-{} hover:bg-{}", colors::BTN_SECONDARY_BG, colors::BTN_SECONDARY_HOVER),
                                 onclick: move |_| {
                                     *preview_open.write() = false;
                                 },
@@ -88,7 +90,7 @@ pub fn Analytics() -> Element {
                         } else if let Some(Ok(df)) = preview_state.data.read().as_ref() {
                             DataFrameView { df: df.clone(), on_row_click: None }
                         } else if let Some(Err(err)) = preview_state.data.read().as_ref() {
-                            ErrorState { error: format!("{:?}", err), title: None }
+                            ErrorState { error: err.display_message(), title: None }
                         } else {
                             span { class: "text-gray-500", "Preparing preview..." }
                         }
@@ -142,7 +144,7 @@ fn SqlQueryPanel() -> Element {
             }
 
             button {
-                class: format!("px-6 py-2 bg-indigo-600 text-white rounded-md font-medium hover:bg-indigo-700 transition-colors shadow-sm {}", if *is_executing.read() { "opacity-50 cursor-not-allowed" } else { "" }),
+                class: format!("px-6 py-2 bg-{} text-white rounded-md font-medium hover:bg-{} transition-colors shadow-sm {}", colors::PRIMARY, colors::PRIMARY_HOVER, if *is_executing.read() { "opacity-50 cursor-not-allowed" } else { "" }),
                 disabled: *is_executing.read(),
                 onclick: execute_query,
                 if *is_executing.read() { "Running..." } else { "Run Query" }
@@ -153,7 +155,7 @@ fn SqlQueryPanel() -> Element {
             } else if let Some(Ok(df)) = query_state.data.read().as_ref() {
                 DataFrameView { df: df.clone(), on_row_click: None }
             } else if let Some(Err(err)) = query_state.data.read().as_ref() {
-                ErrorState { error: format!("{:?}", err), title: None }
+                ErrorState { error: err.display_message(), title: None }
             }
         }
     }

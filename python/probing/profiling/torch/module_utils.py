@@ -39,6 +39,9 @@ def try_catch(maxtry=3):
 def module_analysis(m, prefix=""):
     if not isinstance(m, torch.nn.Module):
         return
+    # Register root module name (e.g. "AlexNet", "features", "classifier")
+    root_name = module_get_fullname(m).split(".")[-1] if prefix == "" else prefix
+    module_name(m, root_name)
     for n, s in m.named_children():
         name = f"{prefix}.{n}" if prefix != "" else n
         module_name(s, name)

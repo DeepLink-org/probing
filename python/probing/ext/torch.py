@@ -65,7 +65,15 @@ def collective_hook():
         trace_all_collectives(verbose=is_true(trace_verbose))
 
 
+_hook_registered = False
+
+
 def init():
+    global _hook_registered
+    if _hook_registered:
+        return
+    _hook_registered = True
+
     from torch.optim.optimizer import register_optimizer_step_post_hook
 
     register_optimizer_step_post_hook(optimizer_step_post_hook)
