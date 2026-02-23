@@ -1,4 +1,3 @@
-
 use dioxus::prelude::*;
 
 use crate::api::{ApiClient, TraceableItem};
@@ -8,11 +7,8 @@ use crate::components::dataframe_view::DataFrameView;
 use crate::components::page::{PageContainer, PageTitle};
 use crate::hooks::{use_api, use_api_simple};
 
-
 #[component]
 pub fn Python() -> Element {
-    let mut selected_tab = use_signal(|| "trace".to_string());
-
     rsx! {
         PageContainer {
             PageTitle {
@@ -20,25 +16,7 @@ pub fn Python() -> Element {
                 subtitle: Some("Python trace and debug".to_string()),
                 icon: Some(&icondata::SiPython),
             }
-            div {
-                class: "mb-6 border-b border-gray-200",
-                div {
-                    class: "flex space-x-8",
-                    button {
-                        class: if *selected_tab.read() == "trace" {
-                            format!("py-4 px-1 border-b-2 border-{} font-medium text-sm text-{}", colors::PRIMARY_BORDER, colors::PRIMARY)
-                        } else {
-                            "py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                        },
-                        onclick: move |_| *selected_tab.write() = "trace".to_string(),
-                        "Trace"
-                    }
-                }
-            }
-
-            if *selected_tab.read() == "trace" {
-                TraceView {}
-            }
+            TraceView {}
         }
     }
 }
@@ -70,6 +48,7 @@ fn TraceView() -> Element {
     let mut dialog_function_name = use_signal(|| String::new());
     let mut dialog_watch_vars = use_signal(|| String::new());
     let mut dialog_print_to_terminal = use_signal(|| false);
+    let mut dialog_error = use_signal(|| String::new());
 
     rsx! {
         div {
@@ -103,6 +82,7 @@ fn TraceView() -> Element {
                                     *dialog_function_name.write() = func_name.clone();
                                     *dialog_watch_vars.write() = vars.join(", ");
                                     *dialog_print_to_terminal.write() = false;
+                                    *dialog_error.write() = String::new();
                                     *dialog_open.write() = true;
                                     *click_signal.write() = (String::new(), Vec::new());
                                 }
@@ -137,6 +117,7 @@ fn TraceView() -> Element {
                     dialog_function_name: dialog_function_name.clone(),
                     dialog_watch_vars: dialog_watch_vars.clone(),
                     dialog_print_to_terminal: dialog_print_to_terminal.clone(),
+                    dialog_error: dialog_error.clone(),
                     refresh_key: refresh_key.clone(),
                 }
             }
@@ -532,15 +513,19 @@ fn StartTraceDialog(
     #[props] dialog_function_name: Signal<String>,
     #[props] dialog_watch_vars: Signal<String>,
     #[props] dialog_print_to_terminal: Signal<bool>,
+    #[props] dialog_error: Signal<String>,
     #[props] refresh_key: Signal<i32>,
 ) -> Element {
+    let loading = use_signal(|| false);
     rsx! {
         div {
             class: "fixed inset-0 z-50 flex items-center justify-center",
             div {
                 class: "absolute inset-0 bg-black/50",
                 onclick: move |_| {
-                    *dialog_open.write() = false;
+                    if !*loading.read() {
+                        *dialog_open.write() = false;
+                    }
                 }
             }
             div {
@@ -615,23 +600,39 @@ fn StartTraceDialog(
                         }
                     }
 
+                    if !dialog_error.read().is_empty() {
+                        div {
+                            class: "rounded-md bg-red-50 border border-red-200 text-red-700 px-3 py-2 text-sm mb-4",
+                            "{dialog_error.read()}"
+                        }
+                    }
+
                     div {
                         class: "flex gap-3 justify-end pt-4",
                         button {
-                            class: "px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500",
+                            class: "px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50",
+                            disabled: *loading.read(),
                             onclick: move |_| {
-                                *dialog_open.write() = false;
+                                if !*loading.read() {
+                                    *dialog_open.write() = false;
+                                }
                             },
                             "Cancel"
                         }
                         button {
-                            class: format!("px-4 py-2 bg-{} text-white rounded-md hover:bg-{} focus:outline-none focus:ring-2 focus:ring-{} shadow-sm transition-colors", colors::PRIMARY, colors::PRIMARY_HOVER, colors::PRIMARY),
+                            class: format!("px-4 py-2 bg-{} text-white rounded-md hover:bg-{} focus:outline-none focus:ring-2 focus:ring-{} shadow-sm transition-colors disabled:opacity-50", colors::PRIMARY, colors::PRIMARY_HOVER, colors::PRIMARY),
+                            disabled: *loading.read(),
                             onclick: move |_| {
                                 let func = dialog_function_name.read().clone();
                                 let watch = dialog_watch_vars.read().clone();
                                 let print_to_terminal = *dialog_print_to_terminal.read();
                                 let mut refresh = refresh_key;
                                 let mut dialog_op = dialog_open;
+                                let mut err_msg = dialog_error;
+                                let mut loading_flag = loading;
+
+                                *loading_flag.write() = true;
+                                *err_msg.write() = String::new();
 
                                 spawn(async move {
                                     let client = ApiClient::new();
@@ -643,16 +644,24 @@ fn StartTraceDialog(
 
                                     match client.start_trace(&func, Some(watch_list), print_to_terminal).await {
                                         Ok(resp) => {
-                                                    if resp.success {
-                                                        *refresh.write() += 1;
-                                                        *dialog_op.write() = false;
-                                                    }
-                                                }
-                                                Err(_) => {}
+                                            if resp.success {
+                                                *refresh.write() += 1;
+                                                *dialog_op.write() = false;
+                                            } else {
+                                                let msg = resp.error
+                                                    .or(resp.message)
+                                                    .unwrap_or_else(|| "Start trace failed".to_string());
+                                                *err_msg.write() = msg;
                                             }
+                                        }
+                                        Err(e) => {
+                                            *err_msg.write() = e.display_message();
+                                        }
+                                    }
+                                    *loading_flag.write() = false;
                                 });
                             },
-                            "Start Trace"
+                            if *loading.read() { "Starting…" } else { "Start Trace" }
                         }
                     }
                 }

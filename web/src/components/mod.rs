@@ -13,6 +13,7 @@
 //! - **chrome_tracing_iframe** — Chrome Tracing viewer wrapper.
 
 pub mod card;
+pub mod global_command_panel;
 pub mod card_view;
 pub mod callstack_view;
 pub mod chrome_tracing_iframe;

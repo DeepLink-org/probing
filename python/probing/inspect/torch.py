@@ -7,31 +7,43 @@ optim_cache = {}
 
 _last_full_refresh_time = 0
 FULL_REFRESH_INTERVAL_SECONDS = 5 * 60
+# Limit number of objects to scan to avoid DoS in large processes
+MAX_OBJECTS_TO_SCAN = 200_000
 
 
 def update_cache(x):
+    """Add a single object to the appropriate cache if it is a Tensor/Module/Optimizer."""
     import torch
 
-    idx = id(x)
-    if isinstance(x, torch.Tensor):
-        if idx not in tensor_cache:
-            tensor_cache[idx] = weakref.ref(x)
-        return tensor_cache[idx]
-    if isinstance(x, torch.nn.Module):
-        if idx not in module_cache:
-            module_cache[idx] = weakref.ref(x)
-        return module_cache[idx]
-    if isinstance(x, torch.optim.Optimizer):
-        if idx not in optim_cache:
-            optim_cache[idx] = weakref.ref(x)
-        return optim_cache[idx]
+    try:
+        idx = id(x)
+        if isinstance(x, torch.Tensor):
+            if idx not in tensor_cache:
+                tensor_cache[idx] = weakref.ref(x)
+            return tensor_cache[idx]
+        if isinstance(x, torch.nn.Module):
+            if idx not in module_cache:
+                module_cache[idx] = weakref.ref(x)
+            return module_cache[idx]
+        if isinstance(x, torch.optim.Optimizer):
+            if idx not in optim_cache:
+                optim_cache[idx] = weakref.ref(x)
+            return optim_cache[idx]
+    except (ReferenceError, TypeError, AttributeError, RuntimeError):
+        pass
+    return None
 
 
 def refresh_cache():
     import gc
 
-    for obj in gc.get_objects():
-        update_cache(obj)
+    objects = gc.get_objects()
+    n = min(len(objects), MAX_OBJECTS_TO_SCAN) if MAX_OBJECTS_TO_SCAN else len(objects)
+    for i in range(n):
+        try:
+            update_cache(objects[i])
+        except (ReferenceError, TypeError, AttributeError, RuntimeError):
+            continue
     global _last_full_refresh_time
     _last_full_refresh_time = time.time()
 
