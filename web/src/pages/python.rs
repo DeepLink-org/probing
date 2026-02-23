@@ -1,10 +1,12 @@
 
 use dioxus::prelude::*;
-use crate::components::page::{PageContainer, PageTitle};
-use crate::components::common::{LoadingState, ErrorState, EmptyState};
-use crate::components::dataframe_view::DataFrameView;
-use crate::hooks::{use_api, use_api_simple};
+
 use crate::api::{ApiClient, TraceableItem};
+use crate::components::colors::colors;
+use crate::components::common::{EmptyState, ErrorState, LoadingState};
+use crate::components::dataframe_view::DataFrameView;
+use crate::components::page::{PageContainer, PageTitle};
+use crate::hooks::{use_api, use_api_simple};
 
 
 #[component]
@@ -15,7 +17,7 @@ pub fn Python() -> Element {
         PageContainer {
             PageTitle {
                 title: "Python".to_string(),
-                subtitle: Some("Inspect and debug Python processes".to_string()),
+                subtitle: Some("Python trace and debug".to_string()),
                 icon: Some(&icondata::SiPython),
             }
             div {
@@ -24,7 +26,7 @@ pub fn Python() -> Element {
                     class: "flex space-x-8",
                     button {
                         class: if *selected_tab.read() == "trace" {
-                            "py-4 px-1 border-b-2 border-indigo-500 font-medium text-sm text-indigo-600"
+                            format!("py-4 px-1 border-b-2 border-{} font-medium text-sm text-{}", colors::PRIMARY_BORDER, colors::PRIMARY)
                         } else {
                             "py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300"
                         },
@@ -44,7 +46,7 @@ pub fn Python() -> Element {
 #[component]
 fn TraceView() -> Element {
     let _selected_function_filter = use_signal(|| Option::<String>::None);
-    let mut refresh_key = use_signal(|| 0);
+    let refresh_key = use_signal(|| 0);
 
     let functions_state = use_api(move || {
         let client = ApiClient::new();
@@ -61,8 +63,8 @@ fn TraceView() -> Element {
     });
 
     let records_state = use_api_simple::<probing_proto::prelude::DataFrame>();
-    let mut preview_function_name = use_signal(|| String::new());
-    let mut preview_open = use_signal(|| false);
+    let preview_function_name = use_signal(|| String::new());
+    let preview_open = use_signal(|| false);
 
     let mut dialog_open = use_signal(|| false);
     let mut dialog_function_name = use_signal(|| String::new());
@@ -115,7 +117,7 @@ fn TraceView() -> Element {
                         }
                     }
                 } else if let Some(Err(err)) = functions_state.data.read().as_ref() {
-                    ErrorState { error: format!("{:?}", err), title: None }
+                    ErrorState { error: err.display_message(), title: None }
                 } else {
                     EmptyState { message: "No data available".to_string() }
                 }
@@ -183,7 +185,7 @@ fn TraceableFunctionItem(
     let mut variables_expanded = use_signal(|| !variables.is_empty());
     let variables_list = use_signal(|| variables.clone());
     let children_state = use_signal(|| Option::<Vec<TraceableItem>>::None);
-    let mut loading = use_signal(|| false);
+    let loading = use_signal(|| false);
 
     let name_for_display = name.clone();
     let _name_for_click = name.clone();
@@ -241,9 +243,9 @@ fn TraceableFunctionItem(
                     {
                         let item_type_clone = item_type_clone.clone();
                         let (badge_class, badge_text) = match item_type_clone.as_str() {
-                            "F" => ("bg-indigo-100 text-indigo-700", "[F]".to_string()),
-                            "M" => ("bg-green-100 text-green-700", "[M]".to_string()),
-                            _ => ("bg-gray-100 text-gray-700", format!("[{}]", item_type_clone)),
+                            "F" => (format!("bg-{} text-{}", colors::CONTENT_ACCENT_BG, colors::CONTENT_ACCENT_TEXT), "[F]".to_string()),
+                            "M" => (format!("bg-{} text-{}", colors::SUCCESS_LIGHT, colors::SUCCESS_TEXT), "[M]".to_string()),
+                            _ => ("bg-gray-100 text-gray-700".to_string(), format!("[{}]", item_type_clone)),
                         };
                         rsx! {
                             span {
@@ -297,7 +299,7 @@ fn TraceableFunctionItem(
 
                                             rsx! {
                                                 span {
-                                                    class: "text-xs px-2 py-1 bg-indigo-50 text-indigo-700 rounded border border-indigo-200 cursor-pointer hover:bg-indigo-100 transition-colors",
+                                                    class: format!("text-xs px-2 py-1 bg-{} text-{} rounded border border-{} cursor-pointer hover:bg-blue-100 transition-colors", colors::CONTENT_ACCENT_BG, colors::CONTENT_ACCENT_TEXT, colors::CONTENT_ACCENT_BORDER),
                                                     onclick: move |_| {
                                                         *click_signal.write() = (func_name.clone(), vec![var_clone.clone()]);
                                                     },
@@ -408,7 +410,7 @@ fn ActiveTracesCard(
                     }
                 }
             } else if let Some(Err(err)) = trace_info_state.data.read().as_ref() {
-                ErrorState { error: format!("{:?}", err), title: None }
+                ErrorState { error: err.display_message(), title: None }
             } else {
                 EmptyState { message: "No data available".to_string() }
             }
@@ -451,7 +453,7 @@ fn ActiveTraceItem(
                     "{func_name}"
                 }
                 button {
-                    class: "px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 shadow-sm",
+                    class: format!("px-3 py-1 bg-{} text-white text-sm rounded hover:bg-{} shadow-sm", colors::ERROR, colors::ERROR_HOVER),
                     onclick: move |e| {
                         e.stop_propagation();
                         let func = func_name_clone.clone();
@@ -497,7 +499,7 @@ fn VariableRecordsModal(
                         "Variable Records: {preview_function_name.read()}"
                     }
                     button {
-                        class: "px-3 py-1 text-sm rounded bg-gray-100 hover:bg-gray-200",
+                        class: format!("px-3 py-1 text-sm rounded bg-{} hover:bg-{}", colors::BTN_SECONDARY_BG, colors::BTN_SECONDARY_HOVER),
                         onclick: move |_| {
                             *preview_open.write() = false;
                         },
@@ -512,7 +514,7 @@ fn VariableRecordsModal(
                         on_row_click: None
                     }
                 } else if let Some(Err(err)) = records_state.data.read().as_ref() {
-                    ErrorState { error: format!("{:?}", err), title: None }
+                    ErrorState { error: err.display_message(), title: None }
                 } else {
                     span {
                         class: "text-gray-500",
@@ -591,7 +593,7 @@ fn StartTraceDialog(
                         div {
                             class: "flex items-center gap-2",
                             input {
-                                class: "w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500",
+                                class: format!("w-4 h-4 text-{} border-gray-300 rounded focus:ring-{}", colors::PRIMARY, colors::PRIMARY),
                                 r#type: "checkbox",
                                 checked: *dialog_print_to_terminal.read(),
                                 onchange: move |e| {
@@ -623,7 +625,7 @@ fn StartTraceDialog(
                             "Cancel"
                         }
                         button {
-                            class: "px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm transition-colors",
+                            class: format!("px-4 py-2 bg-{} text-white rounded-md hover:bg-{} focus:outline-none focus:ring-2 focus:ring-{} shadow-sm transition-colors", colors::PRIMARY, colors::PRIMARY_HOVER, colors::PRIMARY),
                             onclick: move |_| {
                                 let func = dialog_function_name.read().clone();
                                 let watch = dialog_watch_vars.read().clone();

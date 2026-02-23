@@ -12,6 +12,13 @@ pub enum AppError {
     Api(String),
 }
 
+impl AppError {
+    /// User-facing message for display in the UI (enables future i18n).
+    pub fn display_message(&self) -> String {
+        self.to_string()
+    }
+}
+
 impl From<reqwest::Error> for AppError {
     fn from(err: reqwest::Error) -> Self {
         AppError::Network(err.to_string())

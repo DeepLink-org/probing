@@ -5,7 +5,7 @@ mod app;
 mod components;
 mod hooks;
 mod pages;
-mod styles;
+mod state;
 mod utils;
 
 use app::App;

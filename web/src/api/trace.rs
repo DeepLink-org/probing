@@ -14,12 +14,14 @@ pub struct TraceResponse {
 }
 
 /// Trace status information (simplified version, as show_trace only returns function name list)
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TraceInfo {
     pub function: String,
 }
 
 /// Variable change record
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VariableRecord {
     pub function_name: String,
@@ -44,6 +46,7 @@ pub struct TraceableItem {
 /// Trace API
 impl ApiClient {
     /// Get list of traceable functions (returns function name list, compatible with old format)
+    #[allow(dead_code)]
     pub async fn get_traceable_functions(&self, prefix: Option<&str>) -> Result<Vec<String>> {
         let items = self.get_traceable_items(prefix).await?;
         // Convert to old format for backward compatibility

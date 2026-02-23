@@ -1,8 +1,14 @@
+//! App shell: sidebar (or show-sidebar button when collapsed) + main content area.
+//! All page content is rendered inside the main area with consistent padding and max-width.
+
 use dioxus::prelude::*;
 
-use crate::components::sidebar::Sidebar;
 use crate::components::icon::Icon;
-use crate::app::{SIDEBAR_WIDTH, SIDEBAR_HIDDEN};
+use crate::components::sidebar::Sidebar;
+use crate::state::sidebar::{save_sidebar_state, SIDEBAR_HIDDEN, SIDEBAR_WIDTH};
+
+/// Floating button shown when sidebar is hidden. Kept as a const for clarity and reuse.
+const SHOW_SIDEBAR_BUTTON_CLASS: &str = "fixed top-4 left-4 z-50 w-10 h-10 bg-white border border-gray-300 rounded-lg shadow-sm flex items-center justify-center hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2";
 
 #[component]
 pub fn AppLayout(children: Element) -> Element {
@@ -11,21 +17,17 @@ pub fn AppLayout(children: Element) -> Element {
 
     rsx! {
         div {
-            class: "flex h-screen bg-gradient-to-br from-gray-50 to-indigo-50/30 overflow-hidden",
+            class: "flex h-screen bg-gray-50 overflow-hidden",
             if !*sidebar_hidden {
                 Sidebar {}
             } else {
                 button {
-                    class: "fixed top-4 left-4 z-50 w-10 h-10 bg-white border border-gray-300 rounded-lg shadow-sm flex items-center justify-center hover:bg-gray-50",
+                    class: SHOW_SIDEBAR_BUTTON_CLASS,
                     title: "Show Sidebar",
+                    aria_label: "Show sidebar",
                     onclick: move |_| {
                         *SIDEBAR_HIDDEN.write() = false;
-                        if let Some(window) = web_sys::window() {
-                            let storage = window.local_storage().ok().flatten();
-                            if let Some(storage) = storage {
-                                let _ = storage.set_item("sidebar_hidden", "false");
-                            }
-                        }
+                        save_sidebar_state();
                     },
                     Icon {
                         icon: &icondata::AiMenuUnfoldOutlined,
@@ -34,13 +36,12 @@ pub fn AppLayout(children: Element) -> Element {
                 }
             }
             main {
-                class: "flex-1 overflow-y-auto p-6",
-                style: if *sidebar_hidden {
-                    "width: 100%;"
-                } else {
-                    ""
-                },
-                {children}
+                class: "flex-1 overflow-y-auto p-4 sm:p-6 bg-gray-50",
+                style: if *sidebar_hidden { "width: 100%;" } else { "" },
+                div {
+                    class: "max-w-7xl mx-auto w-full",
+                    {children}
+                }
             }
         }
     }
