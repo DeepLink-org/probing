@@ -175,15 +175,16 @@ impl PythonExt {
         log::debug!("Python eval code: {code}");
 
         let mut repl = PythonRepl::default();
-        let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            repl.process(code.as_str())
-        }));
+        let out =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| repl.process(code.as_str())));
         match out {
             Ok(Some(s)) => Ok(s.into_bytes()),
             Ok(None) => Ok(Vec::new()),
             Err(_) => {
                 log::error!("Python REPL process panicked; returning error response");
-                Ok(serde_json::json!({"error": "REPL execution panicked"}).to_string().into_bytes())
+                Ok(serde_json::json!({"error": "REPL execution panicked"})
+                    .to_string()
+                    .into_bytes())
             }
         }
     }

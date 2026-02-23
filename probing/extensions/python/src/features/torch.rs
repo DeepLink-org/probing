@@ -63,7 +63,8 @@ pub fn query_profiling() -> Result<Vec<String>> {
             .enable_all()
             .build()
             .unwrap();
-        Ok(rt.block_on(async { engine.async_query(TORCH_QUERY).await })?
+        Ok(rt
+            .block_on(async { engine.async_query(TORCH_QUERY).await })?
             .unwrap_or_default())
     })
     .join()

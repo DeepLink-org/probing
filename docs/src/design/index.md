@@ -45,4 +45,5 @@ Probing's core mission is simple: **make distributed systems feel Pythonic again
 | [Profiling](profiling.md) | Performance data collection |
 | [Debugging](debugging.md) | Debugging capabilities |
 | [Distributed](distributed.md) | Multi-node support |
+| [Cluster with Pulsing](cluster-pulsing.md) | Using Pulsing for membership and failure detection |
 | [Extensibility](extensibility.md) | Custom tables and metrics |
