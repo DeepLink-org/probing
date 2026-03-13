@@ -1,13 +1,18 @@
-use crate::inject::{InjectionTrait, Injector, LibcAddrs, Process};
+use crate::inject::{Injector, Process};
 use anyhow::{anyhow, Context, Error, Result};
 use clap::Args;
 use probing_proto::prelude::Query;
+#[cfg(target_arch = "x86_64")]
 use std::os::unix::ffi::OsStringExt;
 
 use super::ctrl;
 use super::ctrl::ProbeEndpoint;
 
+#[cfg(target_arch = "x86_64")]
+use crate::inject::{InjectionTrait, LibcAddrs};
+
 /// The x64 shellcode that will be injected into the tracee.
+#[cfg(target_arch = "x86_64")]
 const SHELLCODE: [u8; 6] = [
     // Nop slide to make up for the fact that jumping is imprecise.
     0x90, 0x90, // nop; nop
@@ -20,6 +25,7 @@ const SHELLCODE: [u8; 6] = [
 
 /// A type for managing the injection, execution and removal of shellcode in a
 /// target process (tracee).
+#[cfg(target_arch = "x86_64")]
 #[derive(Debug)]
 pub struct Injection<'a> {
     /// The state of the tracee's registers before the injection.
@@ -40,6 +46,7 @@ pub struct Injection<'a> {
     removed: bool,
 }
 
+#[cfg(target_arch = "x86_64")]
 impl<'a> Injection<'a> {
     /// Inject the shellcode into the given tracee.
     pub(crate) fn inject(
@@ -314,6 +321,7 @@ impl<'a> Injection<'a> {
     }
 }
 
+#[cfg(target_arch = "x86_64")]
 impl Drop for Injection<'_> {
     fn drop(&mut self) {
         if !self.removed {
@@ -328,6 +336,7 @@ impl Drop for Injection<'_> {
     }
 }
 
+#[cfg(target_arch = "x86_64")]
 impl<'a> InjectionTrait for Injection<'a> {
     fn inject(
         proc: &crate::inject::Process,
