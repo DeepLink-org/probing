@@ -2,6 +2,7 @@ use crate::inject::injection_trait::InjectionTrait;
 use crate::inject::{LibcAddrs, Process};
 use anyhow::Context;
 use anyhow::Result;
+use pete::ptracer::Registers;
 use std::os::unix::ffi::OsStringExt;
 
 /// The aarch64 shellcode that will be injected into the tracee.
@@ -25,7 +26,7 @@ const SHELLCODE_AARCH64: [u8; 16] = [
 #[derive(Debug)]
 pub struct InjectionAarch64<'a> {
     /// The state of the tracee's registers before the injection.
-    saved_registers: pete::Registers,
+    saved_registers: Registers,
     /// The original state of the memory that was overwritten by the injection.
     saved_memory: Vec<u8>,
     /// The address at which the shellcode was injected.
@@ -197,21 +198,19 @@ impl<'a> InjectionAarch64<'a> {
         log::trace!(
             "Calling function at {fn_address:x} with x0 = {x0:x}, x1 = {x1:x}, x2 = {x2:x}"
         );
+        // On aarch64, user_pt_regs has: regs[0..31], sp, pc, pstate
+        // x0 = regs[0], x1 = regs[1], ..., x8 = regs[8]
+        let mut regs = self.saved_registers;
+        regs.pc = self.injected_at;
+        regs.regs[8] = fn_address;
+        regs.regs[0] = x0;
+        regs.regs[1] = x1;
+        regs.regs[2] = x2;
+        // Ensure that the stack pointer is aligned to a 16 byte boundary, as required by
+        // the aarch64 ABI
+        regs.sp = self.saved_registers.sp & !0xf;
         self.tracee
-            .set_registers(pete::Registers {
-                // Jump to the start of the shellcode
-                pc: self.injected_at,
-                // The shellcode calls whatever is pointed to by x8
-                x8: fn_address,
-                // The relevant functions take their arguments in these registers
-                x0,
-                x1,
-                x2,
-                // Ensure that the stack pointer is aligned to a 16 byte boundary, as required by
-                // the aarch64 ABI
-                sp: self.saved_registers.sp & !0xf,
-                ..self.saved_registers
-            })
+            .set_registers(regs)
             .context("setting tracee registers to run shellcode failed")?;
         self.run_until_trap()
             .context("waiting for shellcode in tracee to trap failed")?;
@@ -219,7 +218,7 @@ impl<'a> InjectionAarch64<'a> {
             .tracee
             .registers()
             .context("reading shellcode call result from tracee registers failed")?
-            .x0;
+            .regs[0];
         log::trace!("Function returned {result:x}");
         Ok(result)
     }
@@ -234,22 +233,16 @@ impl<'a> InjectionAarch64<'a> {
         x3: u64,
     ) -> Result<u64> {
         log::trace!("Calling function at {fn_address:x} with x0 = {x0:x}, x1 = {x1:x}, x2 = {x2:x}, x3 = {x3:x}");
+        let mut regs = self.saved_registers;
+        regs.pc = self.injected_at;
+        regs.regs[8] = fn_address;
+        regs.regs[0] = x0;
+        regs.regs[1] = x1;
+        regs.regs[2] = x2;
+        regs.regs[3] = x3;
+        regs.sp = self.saved_registers.sp & !0xf;
         self.tracee
-            .set_registers(pete::Registers {
-                // Jump to the start of the shellcode
-                pc: self.injected_at,
-                // The shellcode calls whatever is pointed to by x8
-                x8: fn_address,
-                // The relevant functions take their arguments in these registers
-                x0,
-                x1,
-                x2,
-                x3,
-                // Ensure that the stack pointer is aligned to a 16 byte boundary, as required by
-                // the aarch64 ABI
-                sp: self.saved_registers.sp & !0xf,
-                ..self.saved_registers
-            })
+            .set_registers(regs)
             .context("setting tracee registers to run shellcode failed")?;
         self.run_until_trap()
             .context("waiting for shellcode in tracee to trap failed")?;
@@ -257,7 +250,7 @@ impl<'a> InjectionAarch64<'a> {
             .tracee
             .registers()
             .context("reading shellcode call result from tracee registers failed")?
-            .x0;
+            .regs[0];
         log::trace!("Function returned {result:x}");
         Ok(result)
     }
@@ -348,7 +341,14 @@ impl InjectionTrait for InjectionAarch64<'_> {
         tracer: &mut pete::Ptracer,
         tracee: pete::Tracee,
     ) -> Result<Self> {
-        Self::inject(proc, tracer, tracee)
+        // SAFETY: We need to convert &mut pete::Ptracer to &'a mut pete::Ptracer
+        // This is safe because the returned InjectionAarch64<'a> will have the same
+        // lifetime as the tracer reference, and the injection will be removed before
+        // the tracer goes out of scope in perform_injection.
+        unsafe {
+            let tracer_ref = &mut *(tracer as *mut pete::Ptracer);
+            Self::inject(proc, tracer_ref, tracee)
+        }
     }
 
     fn execute(&mut self, filename: &std::path::Path) -> Result<()> {
