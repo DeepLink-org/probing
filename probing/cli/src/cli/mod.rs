@@ -56,6 +56,9 @@ pub struct Cli {
 }
 
 impl Cli {
+    pub fn should_timeout(&self) -> bool {
+        self.command.as_ref().map_or(true, |cmd| cmd.is_timed_command())
+    }
     pub async fn run(&mut self) -> Result<()> {
         // Handle external commands first to avoid target requirement
         if let Some(Commands::External(args)) = &self.command {

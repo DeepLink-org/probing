@@ -171,3 +171,26 @@ pub enum Commands {
     #[command(subcommand = false, hide = true)]
     Store(StoreCommand),
 }
+
+impl Commands {
+    /// Determines whether this command should have a timeout applied.
+    /// Long-running commands like Launch and External should not time out.
+    pub fn is_timed_command(&self) -> bool {
+        match self {
+            // Long-running commands - no timeout
+            Commands::Repl => false,
+            Commands::Launch { .. } => false,
+            Commands::External(_) => false,
+            // Short-running commands - apply timeout
+            Commands::List { .. } => true,
+            Commands::Backtrace { .. } => true,
+            Commands::Rdma { .. } => true,
+            Commands::Eval { .. } => true,
+            Commands::Query { .. } => true,
+            Commands::Store(_) => true,
+            Commands::Config { .. } => true,
+            #[cfg(target_os = "linux")]
+            Commands::Inject(_) => true,
+        }
+    }
+}
