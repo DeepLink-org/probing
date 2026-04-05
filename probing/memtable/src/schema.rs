@@ -1,5 +1,80 @@
 use std::fmt;
 
+// ── Value ────────────────────────────────────────────────────────────
+
+/// Typed row cell for batch writes.
+pub enum Value<'a> {
+    U8(u8),
+    U32(u32),
+    I32(i32),
+    I64(i64),
+    F32(f32),
+    F64(f64),
+    U64(u64),
+    Str(&'a str),
+    Bytes(&'a [u8]),
+}
+
+impl Value<'_> {
+    pub(crate) fn encoded_size(&self) -> usize {
+        match self {
+            Value::U8(_) => 1,
+            Value::U32(_) | Value::I32(_) | Value::F32(_) => 4,
+            Value::I64(_) | Value::F64(_) | Value::U64(_) => 8,
+            Value::Str(s) => 4 + s.len(),
+            Value::Bytes(b) => 4 + b.len(),
+        }
+    }
+
+    pub(crate) fn encode(&self, out: &mut [u8]) -> usize {
+        match self {
+            Value::U8(v) => {
+                out[0] = *v;
+                1
+            }
+            Value::U32(v) => {
+                out[..4].copy_from_slice(&v.to_le_bytes());
+                4
+            }
+            Value::I32(v) => {
+                out[..4].copy_from_slice(&v.to_le_bytes());
+                4
+            }
+            Value::I64(v) => {
+                out[..8].copy_from_slice(&v.to_le_bytes());
+                8
+            }
+            Value::F32(v) => {
+                out[..4].copy_from_slice(&v.to_le_bytes());
+                4
+            }
+            Value::F64(v) => {
+                out[..8].copy_from_slice(&v.to_le_bytes());
+                8
+            }
+            Value::U64(v) => {
+                out[..8].copy_from_slice(&v.to_le_bytes());
+                8
+            }
+            Value::Str(s) => {
+                let b = s.as_bytes();
+                let len = 4 + b.len();
+                out[..4].copy_from_slice(&(b.len() as u32).to_le_bytes());
+                out[4..len].copy_from_slice(b);
+                len
+            }
+            Value::Bytes(b) => {
+                let len = 4 + b.len();
+                out[..4].copy_from_slice(&(b.len() as u32).to_le_bytes());
+                out[4..len].copy_from_slice(b);
+                len
+            }
+        }
+    }
+}
+
+// ── DType ────────────────────────────────────────────────────────────
+
 /// Column data type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
@@ -31,18 +106,18 @@ impl DType {
         self.fixed_size().is_some()
     }
 
-    pub(crate) fn from_u32(v: u32) -> Self {
+    pub(crate) fn from_u32(v: u32) -> Option<Self> {
         match v {
-            1 => Self::U8,
-            2 => Self::I32,
-            3 => Self::I64,
-            4 => Self::F32,
-            5 => Self::F64,
-            6 => Self::U64,
-            7 => Self::U32,
-            8 => Self::Str,
-            9 => Self::Bytes,
-            _ => panic!("invalid DType: {v}"),
+            1 => Some(Self::U8),
+            2 => Some(Self::I32),
+            3 => Some(Self::I64),
+            4 => Some(Self::F32),
+            5 => Some(Self::F64),
+            6 => Some(Self::U64),
+            7 => Some(Self::U32),
+            8 => Some(Self::Str),
+            9 => Some(Self::Bytes),
+            _ => None,
         }
     }
 }

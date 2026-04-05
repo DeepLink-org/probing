@@ -6,12 +6,11 @@
 //! cargo test -p probing-memtable --test chaos_stress -- --ignored --nocapture
 //! ```
 //!
-//! 注意：同一缓冲区的写端只能有一个线程持有 `DedupWriter`（`&mut`）；多写者并发在语言层面是 UB。
+//! 注意：同一缓冲区的写端只能有一个线程持有 `MemTableWriter`（`&mut`）；多写者并发在语言层面是 UB。
 //! 本测试用**单写线程**内交替模拟两个逻辑生产者，保留相近写压力。
 
 use probing_memtable::{
-    validate_buf, CachedReader, DType, DedupWriter, MemTable, MemTableMut, MemTableView, Schema,
-    Value,
+    validate_buf, CachedReader, DType, MemTable, MemTableView, MemTableWriter, Schema, Value,
 };
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -50,7 +49,7 @@ fn chaos_producer_consumer_wrap_stress_for_over_a_minute() {
     let need = MemTable::required_size(&schema, chunk_size as usize, num_chunks as usize);
     let mut buf = vec![0u8; need];
     {
-        let _mt = MemTableMut::init(&mut buf, &schema, chunk_size, num_chunks);
+        let _mt = MemTableWriter::init(&mut buf, &schema, chunk_size, num_chunks);
     }
     let addr = buf.as_ptr() as usize;
     let buf_len = buf.len();
@@ -81,11 +80,8 @@ fn chaos_producer_consumer_wrap_stress_for_over_a_minute() {
         thread::spawn(move || {
             barrier.wait();
             let buf = unsafe { std::slice::from_raw_parts_mut(addr as *mut u8, buf_len) };
-            let mut writer = DedupWriter::new(buf).unwrap();
-            let mut seeds = [
-                0xA5A5_5A5A_D3C3_B1B1u64 ^ 0,
-                0xA5A5_5A5A_D3C3_B1B1u64 ^ 1,
-            ];
+            let mut writer = MemTableWriter::new(buf).unwrap().dedup();
+            let mut seeds = [0xA5A5_5A5A_D3C3_B1B1u64 ^ 0, 0xA5A5_5A5A_D3C3_B1B1u64 ^ 1];
             let mut seqs = [0i64, 1_000_000i64];
             while start.elapsed() < duration {
                 for tid in 0..2usize {
@@ -157,6 +153,9 @@ fn chaos_producer_consumer_wrap_stress_for_over_a_minute() {
                                 let topic = c.next_str();
                                 let msg = c.next_str();
                                 let seq = c.next_i64();
+                                if c.is_stale() {
+                                    continue;
+                                }
                                 assert!(topics.contains(&topic), "bad topic: {topic}");
                                 assert!(msgs.contains(&msg), "bad msg: {msg}");
                                 assert!(seq >= 0, "bad seq: {seq}");
@@ -174,20 +173,13 @@ fn chaos_producer_consumer_wrap_stress_for_over_a_minute() {
                         }
                         Err(err) => {
                             let msg = panic_message(err);
-                            if msg.contains("stale Row")
-                                || msg.contains("stale RowIter")
-                                || msg.contains("stale RowCursor")
-                                || msg.contains("stale CachedReader")
+                            if msg.contains("stale read")
                                 || msg.contains("bad topic:")
                                 || msg.contains("bad msg:")
                                 || msg.contains("bad seq:")
                                 || msg.contains("out of range for slice")
                                 || msg.contains("range end index")
                                 || msg.contains("range start index")
-                                || msg.contains("chunk has been recycled")
-                                || msg.contains("resolve_var")
-                                || msg.contains("var_field_size")
-                                || msg.contains("assertion `left == right`")
                                 || msg.contains("index out of bounds")
                             {
                                 stale_panics.fetch_add(1, Ordering::Relaxed);

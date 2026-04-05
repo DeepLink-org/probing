@@ -2,8 +2,18 @@ use crate::dedup::DedupState;
 use crate::layout::{chunk_header, release_write_lock, w32, CHUNK_HEADER_SIZE};
 use std::sync::atomic::Ordering;
 
-/// Streaming row writer. Holds the write lock until `finish()` or `Drop`.
-/// When created from [`DedupWriter::row_writer`], string columns use hash dedup.
+/// Streaming row writer — **low-overhead, weak-contract** hot-path API.
+///
+/// When `locked` is true (default), holds the write lock from creation
+/// until [`finish()`](Self::finish) (or `Drop`).
+/// When `locked` is false (solo mode), no lock is touched.
+///
+/// Callers must supply columns in schema order via the typed `put_*`
+/// methods; **no per-call schema validation is performed**.
+/// Mismatched column count or types produce silently corrupt rows.
+///
+/// When created from a writer with dedup enabled, string/bytes columns
+/// participate in hash-based dedup automatically.
 pub struct RowWriter<'a> {
     pub(crate) buf: &'a mut [u8],
     pub(crate) dedup: Option<&'a mut DedupState>,
@@ -14,6 +24,7 @@ pub struct RowWriter<'a> {
     pub(crate) overflow: bool,
     pub(crate) done: bool,
     pub(crate) col_idx: usize,
+    pub(crate) locked: bool,
 }
 
 impl<'a> RowWriter<'a> {
@@ -40,12 +51,6 @@ impl<'a> RowWriter<'a> {
         }
     }
 
-    fn bump_col(&mut self) {
-        if self.dedup.is_some() {
-            self.col_idx += 1;
-        }
-    }
-
     fn write_str_dedup(&mut self, data: &[u8]) {
         if !self.overflow {
             if let Some(off) = self.dedup.as_ref().unwrap().lookup(self.col_idx, data) {
@@ -65,60 +70,60 @@ impl<'a> RowWriter<'a> {
 
     pub fn put_u8(&mut self, v: u8) -> &mut Self {
         self.write_raw(&[v]);
-        self.bump_col();
+        self.col_idx += 1;
         self
     }
     pub fn put_u32(&mut self, v: u32) -> &mut Self {
         self.write_raw(&v.to_le_bytes());
-        self.bump_col();
+        self.col_idx += 1;
         self
     }
     pub fn put_i32(&mut self, v: i32) -> &mut Self {
         self.write_raw(&v.to_le_bytes());
-        self.bump_col();
+        self.col_idx += 1;
         self
     }
     pub fn put_i64(&mut self, v: i64) -> &mut Self {
         self.write_raw(&v.to_le_bytes());
-        self.bump_col();
+        self.col_idx += 1;
         self
     }
     pub fn put_f32(&mut self, v: f32) -> &mut Self {
         self.write_raw(&v.to_le_bytes());
-        self.bump_col();
+        self.col_idx += 1;
         self
     }
     pub fn put_f64(&mut self, v: f64) -> &mut Self {
         self.write_raw(&v.to_le_bytes());
-        self.bump_col();
+        self.col_idx += 1;
         self
     }
     pub fn put_u64(&mut self, v: u64) -> &mut Self {
         self.write_raw(&v.to_le_bytes());
-        self.bump_col();
+        self.col_idx += 1;
         self
     }
 
     pub fn put_str(&mut self, s: &str) -> &mut Self {
         if self.dedup.is_some() {
             self.write_str_dedup(s.as_bytes());
-            self.col_idx += 1;
         } else {
             self.write_lp(s.as_bytes());
         }
+        self.col_idx += 1;
         self
     }
     pub fn put_bytes(&mut self, b: &[u8]) -> &mut Self {
         if self.dedup.is_some() {
             self.write_str_dedup(b);
-            self.col_idx += 1;
         } else {
             self.write_lp(b);
         }
+        self.col_idx += 1;
         self
     }
 
-    /// Commit the row and release the write lock.
+    /// Commit the row and release the write lock (if held).
     pub fn finish(&mut self) -> bool {
         if self.done {
             return false;
@@ -138,28 +143,26 @@ impl<'a> RowWriter<'a> {
                 .fetch_add(1, Ordering::Release);
             true
         };
-        release_write_lock(self.buf);
+        if self.locked {
+            release_write_lock(self.buf);
+        }
         ok
     }
 }
 
 impl Drop for RowWriter<'_> {
     fn drop(&mut self) {
-        if !self.done {
+        if !self.done && self.locked {
             release_write_lock(self.buf);
         }
     }
 }
 
-/// Same as [`RowWriter`]. Dedup is active only when the writer comes from [`DedupWriter::row_writer`].
-pub type DedupRowWriter<'a> = RowWriter<'a>;
-
 #[cfg(test)]
 mod tests {
     use crate::layout::header;
     use crate::memtable::MemTable;
-    use crate::schema::{DType, Schema};
-    use crate::value::Value;
+    use crate::schema::{DType, Schema, Value};
     use std::sync::atomic::Ordering;
 
     #[test]

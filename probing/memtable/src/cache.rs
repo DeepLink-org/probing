@@ -1,136 +1,140 @@
-use crate::layout::r32;
-use crate::row::Row;
-use std::collections::{HashMap, HashSet, VecDeque};
+use crate::layout::{chunk_header, r32};
+use crate::row::{panic_stale, Row};
+use std::collections::HashMap;
+use std::sync::atomic::Ordering;
 
 /// Cache key: (byte offset, chunk generation).
-///
-/// Including the generation prevents stale cache hits after ring-buffer wrap.
 type CacheKey = (usize, u64);
 
-/// Stateful reader with a generation-aware string cache.
+/// Dedup-ref cache: HashMap for general lookups + 1-entry fast path.
 ///
-/// Caches the most recent `window` resolved strings plus any strings
-/// that were resolved via dedup references (pinned). Pinned entries
-/// are capped at `max_pinned` to prevent unbounded cache growth.
+/// Only dedup back-references are cached.  Inline strings are read
+/// directly from the buffer slice at zero extra cost.
 ///
-/// Cache keys include the chunk generation so that a recycled chunk
-/// at the same offset never produces a stale hit.
+/// The cache is capped at `max_entries` with FIFO eviction.
 pub struct CachedReader<'a> {
     buf: &'a [u8],
+    last_key: CacheKey,
+    last_val: &'a [u8],
     cache: HashMap<CacheKey, &'a [u8]>,
-    recent: VecDeque<CacheKey>,
-    pinned: HashSet<CacheKey>,
-    pinned_order: VecDeque<CacheKey>,
-    window: usize,
-    max_pinned: usize,
+    order: Vec<CacheKey>,
+    write_pos: usize,
+    max_entries: usize,
 }
 
 impl<'a> CachedReader<'a> {
-    pub fn new(buf: &'a [u8], window: usize) -> Self {
-        Self::with_limits(buf, window, 4 * window)
-    }
-
-    pub fn with_limits(buf: &'a [u8], window: usize, max_pinned: usize) -> Self {
+    pub fn new(buf: &'a [u8], max_entries: usize) -> Self {
+        let cap = max_entries.clamp(4, 256);
         Self {
             buf,
-            cache: HashMap::new(),
-            recent: VecDeque::new(),
-            pinned: HashSet::new(),
-            pinned_order: VecDeque::new(),
-            window,
-            max_pinned,
+            last_key: (0, 0),
+            last_val: &[],
+            cache: HashMap::with_capacity(cap),
+            order: Vec::with_capacity(cap),
+            write_pos: 0,
+            max_entries: cap,
         }
     }
 
-    /// Resolve a dedup reference (the target is pinned in cache).
+    /// Resolve a dedup reference.
+    #[inline]
     pub fn resolve_ref(&mut self, data_off: usize, generation: u64) -> &'a [u8] {
         let key = (data_off, generation);
-        let cached = self.cache.get(&key).copied();
-        if let Some(b) = cached {
-            if self.pinned.insert(key) {
-                self.pinned_order.push_back(key);
-                self.evict();
-            }
+
+        // Fast path: exact repeat of previous call.
+        if key == self.last_key {
+            return self.last_val;
+        }
+
+        // HashMap lookup.
+        if let Some(&b) = self.cache.get(&key) {
+            self.last_key = key;
+            self.last_val = b;
             return b;
         }
+
+        self.resolve_slow(key, data_off)
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn resolve_slow(&mut self, key: CacheKey, data_off: usize) -> &'a [u8] {
         let len = r32(self.buf, data_off) as usize;
         let end = data_off.saturating_add(4).saturating_add(len);
         if end > self.buf.len() {
-            panic!("stale CachedReader: dedup resolve out of bounds");
+            panic_stale("CachedReader dedup resolve");
         }
         let b = &self.buf[data_off + 4..end];
+        self.last_key = key;
+        self.last_val = b;
+        if self.order.len() < self.max_entries {
+            self.order.push(key);
+        } else {
+            let old = self.order[self.write_pos];
+            self.cache.remove(&old);
+            self.order[self.write_pos] = key;
+            self.write_pos = (self.write_pos + 1) % self.max_entries;
+        }
         self.cache.insert(key, b);
-        self.recent.push_back(key);
-        self.pinned.insert(key);
-        self.pinned_order.push_back(key);
-        self.evict();
         b
     }
 
-    /// Cache an inline entry (evictable unless later pinned).
-    pub fn cache_inline(&mut self, abs_off: usize, data: &'a [u8], generation: u64) {
-        let key = (abs_off, generation);
-        if !self.cache.contains_key(&key) {
-            self.cache.insert(key, data);
-            self.recent.push_back(key);
-            self.evict();
-        }
-    }
-
-    fn evict(&mut self) {
-        while self.recent.len() > self.window {
-            let old = self.recent.pop_front().unwrap();
-            if !self.pinned.contains(&old) {
-                self.cache.remove(&old);
-            }
-        }
-        while self.pinned.len() > self.max_pinned {
-            if let Some(oldest) = self.pinned_order.pop_front() {
-                if self.pinned.remove(&oldest) && !self.recent.contains(&oldest) {
-                    self.cache.remove(&oldest);
-                }
-            } else {
-                break;
-            }
-        }
-    }
-
+    /// Returns `(cached_entries, max_entries)`.
     pub fn stats(&self) -> (usize, usize) {
-        (self.cache.len(), self.pinned.len())
+        (self.cache.len(), self.max_entries)
     }
 
     pub fn cursor(&mut self, row: &Row<'a>) -> CachedCursor<'a, '_> {
-        let abs_base = row.data.as_ptr() as usize - row.buf.as_ptr() as usize;
+        let stale = chunk_header(self.buf, row.chunk_start)
+            .generation
+            .load(Ordering::Acquire)
+            != row.generation;
         CachedCursor {
             data: row.data,
             pos: 0,
-            abs_base,
             chunk_start: row.chunk_start,
             generation: row.generation,
             cache: self,
+            stale,
         }
     }
 }
 
 /// Sequential cursor with generation-aware cached string resolution.
+///
+/// Unlike [`Row`] / [`RowCursor`], a stale chunk does **not** cause a
+/// panic.  Instead the cursor is silently marked stale and all subsequent
+/// reads return zero / empty values.  Call [`is_stale()`](Self::is_stale)
+/// after reading to check.
 pub struct CachedCursor<'a, 'c> {
     data: &'a [u8],
     pos: usize,
-    abs_base: usize,
     chunk_start: usize,
     generation: u64,
     cache: &'c mut CachedReader<'a>,
+    stale: bool,
 }
 
 impl<'a> CachedCursor<'a, '_> {
+    /// Returns `true` if the underlying chunk was recycled since this
+    /// cursor was created.  Once stale, all reads return zero / empty.
+    pub fn is_stale(&self) -> bool {
+        self.stale
+    }
+
     fn read_fixed<const N: usize>(&mut self) -> [u8; N] {
+        if self.stale {
+            return [0u8; N];
+        }
         let v: [u8; N] = self.data[self.pos..self.pos + N].try_into().unwrap();
         self.pos += N;
         v
     }
 
     fn read_lp_cached(&mut self) -> &'a [u8] {
-        let abs_off = self.abs_base + self.pos;
+        if self.stale {
+            return &[];
+        }
         let raw = i32::from_le_bytes(self.read_fixed::<4>());
         if raw < 0 {
             let data_off = self.chunk_start + (-raw) as usize;
@@ -139,7 +143,6 @@ impl<'a> CachedCursor<'a, '_> {
             let len = raw as usize;
             let b = &self.data[self.pos..self.pos + len];
             self.pos += len;
-            self.cache.cache_inline(abs_off, b, self.generation);
             b
         }
     }
@@ -181,11 +184,9 @@ impl<'a> CachedCursor<'a, '_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buf::init_buf;
-    use crate::memtable::DedupWriter;
-    use crate::memtable::{MemTable, MemTableMut, MemTableView};
-    use crate::schema::{DType, Schema};
-    use crate::value::Value;
+    use crate::memtable::{MemTable, MemTableView, MemTableWriter};
+    use crate::raw::init_buf;
+    use crate::schema::{DType, Schema, Value};
     use std::sync::atomic::Ordering;
 
     #[test]
@@ -194,7 +195,7 @@ mod tests {
         let size = MemTable::required_size(&schema, 4096, 1);
         let mut buf = vec![0u8; size];
         {
-            let mut dw = DedupWriter::init(&mut buf, &schema, 4096, 1);
+            let mut dw = MemTableWriter::init(&mut buf, &schema, 4096, 1).dedup();
             for i in 0..10i64 {
                 dw.row_writer().put_i64(i).put_str("same_tag").finish();
             }
@@ -209,25 +210,22 @@ mod tests {
             assert_eq!(c.next_str(), "same_tag");
         }
 
-        let (cached, pinned) = cache.stats();
-        assert!(pinned > 0, "referenced strings should be pinned");
-        assert!(cached > 0);
+        let (entries, _max) = cache.stats();
+        assert!(entries > 0, "dedup refs should be cached");
     }
 
     #[test]
-    fn cached_reader_window_eviction() {
+    fn cached_reader_eviction() {
         let schema = Schema::new().col("name", DType::Str);
         let size = MemTable::required_size(&schema, 16384, 1);
         let mut buf = vec![0u8; size];
         {
-            let mut dw = DedupWriter::init(&mut buf, &schema, 16384, 1);
-            // Write 100 unique strings, no dedup → all inline
+            let mut dw = MemTableWriter::init(&mut buf, &schema, 16384, 1).dedup();
             for i in 0..100 {
                 dw.push_row(&[Value::Str(&format!("unique_{i}"))]);
             }
         }
 
-        // window=8: should evict old entries
         let view = MemTableView::new(&buf).unwrap();
         let mut cache = CachedReader::new(view.as_bytes(), 8);
 
@@ -236,27 +234,24 @@ mod tests {
             assert_eq!(c.next_str(), format!("unique_{i}"));
         }
 
-        let (cached, pinned) = cache.stats();
-        assert!(cached <= 8, "cache should respect window: got {cached}");
-        assert_eq!(pinned, 0, "no dedup refs → no pinned entries");
+        let (entries, _max) = cache.stats();
+        assert_eq!(entries, 0, "no dedup refs → no cached entries");
     }
 
     #[test]
-    fn cached_reader_pinned_not_evicted() {
+    fn cached_reader_dedup_ref_retained() {
         let schema = Schema::new()
             .col("level", DType::Str)
             .col("seq", DType::I32);
         let size = MemTable::required_size(&schema, 8192, 1);
         let mut buf = vec![0u8; size];
         {
-            let mut dw = DedupWriter::init(&mut buf, &schema, 8192, 1);
-            // "INFO" repeated → dedup refs after first
+            let mut dw = MemTableWriter::init(&mut buf, &schema, 8192, 1).dedup();
             for i in 0..20 {
                 dw.push_row(&[Value::Str("INFO"), Value::I32(i)]);
             }
         }
 
-        // window=4 but pinned entries survive eviction
         let view = MemTableView::new(&buf).unwrap();
         let mut cache = CachedReader::new(view.as_bytes(), 4);
 
@@ -266,18 +261,17 @@ mod tests {
             assert_eq!(c.next_i32(), i as i32);
         }
 
-        let (_cached, pinned) = cache.stats();
-        assert!(pinned > 0, "dedup target should be pinned");
+        let (entries, _max) = cache.stats();
+        assert!(entries > 0, "dedup ref should be cached");
     }
 
     #[test]
-    fn cached_reader_pinned_limit() {
+    fn cached_reader_max_entries_cap() {
         let schema = Schema::new().col("tag", DType::Str).col("seq", DType::I32);
         let size = MemTable::required_size(&schema, 65536, 1);
         let mut buf = vec![0u8; size];
         {
-            let mut dw = DedupWriter::init(&mut buf, &schema, 65536, 1);
-            // 100 unique tags, each repeated twice → 100 pinned targets
+            let mut dw = MemTableWriter::init(&mut buf, &schema, 65536, 1).dedup();
             for i in 0..100 {
                 let tag = format!("tag_{i}");
                 dw.push_row(&[Value::Str(&tag), Value::I32(i as i32)]);
@@ -285,9 +279,8 @@ mod tests {
             }
         }
 
-        // max_pinned=10 → pinned entries should be capped
         let view = MemTableView::new(&buf).unwrap();
-        let mut cache = CachedReader::with_limits(view.as_bytes(), 8, 10);
+        let mut cache = CachedReader::new(view.as_bytes(), 10);
 
         for row in view.rows(0) {
             let mut c = cache.cursor(&row);
@@ -296,10 +289,10 @@ mod tests {
             assert!(tag.starts_with("tag_"));
         }
 
-        let (_cached, pinned) = cache.stats();
+        let (entries, _max) = cache.stats();
         assert!(
-            pinned <= 10,
-            "pinned should be capped at max_pinned=10, got {pinned}"
+            entries <= 10,
+            "cache should be capped at max_entries=10, got {entries}"
         );
     }
 
@@ -365,7 +358,7 @@ mod tests {
             thread::spawn(move || {
                 barrier.wait();
                 let buf = unsafe { std::slice::from_raw_parts_mut(addr as *mut u8, size) };
-                let mut mt = MemTableMut::new(buf).unwrap();
+                let mut mt = MemTableWriter::new(buf).unwrap();
                 let keys = ["k_a", "k_b", "k_c", "k_d", "k_e"];
                 for tid in 0..num_writers {
                     for seq in 0..rows_per_writer as i64 {
@@ -408,7 +401,7 @@ mod tests {
         let paths: Vec<String> = (0..50).map(|i| format!("/api/v1/resource/{i}")).collect();
 
         {
-            let mut dw = DedupWriter::init(&mut buf, &schema, 65536, 2);
+            let mut dw = MemTableWriter::init(&mut buf, &schema, 65536, 2).dedup();
             for i in 0..1000 {
                 dw.push_row(&[
                     Value::Str(&hosts[i % hosts.len()]),
@@ -440,9 +433,8 @@ mod tests {
         }
         assert_eq!(count, 1000);
 
-        let (cached, pinned) = cache.stats();
-        assert!(pinned > 0, "should have pinned entries from dedup");
-        assert!(cached > 0);
+        let (entries, _max) = cache.stats();
+        assert!(entries > 0, "should have cached entries from dedup");
     }
 
     #[test]
@@ -457,24 +449,24 @@ mod tests {
 
         // Phase 1: write "hello" into chunk 0
         {
-            let mut m = MemTableMut::new(&mut buf).unwrap();
+            let mut m = MemTableWriter::new(&mut buf).unwrap();
             m.push_row(&[Value::Str("hello")]);
         }
         let gen0 = MemTableView::new(reader_buf).unwrap().chunk_generation(0);
 
-        // Phase 2: read with cache — populates cache for chunk 0
+        // Phase 2: read with cache — inline strings are NOT cached (read
+        // directly from buffer), so the cache stays empty.  This makes stale
+        // cache hits impossible by design.
         let mut cache = CachedReader::new(reader_buf, 64);
         let view = MemTableView::new(reader_buf).unwrap();
         for row in view.rows(0) {
             let mut c = cache.cursor(&row);
             assert_eq!(c.next_str(), "hello");
         }
-        let (cache_sz_before, _) = cache.stats();
-        assert!(cache_sz_before > 0);
 
         // Phase 3: advance twice to recycle chunk 0 (0→1→0), write "world"
         {
-            let mut m = MemTableMut::new(&mut buf).unwrap();
+            let mut m = MemTableWriter::new(&mut buf).unwrap();
             m.advance_chunk(); // 0→1
             m.advance_chunk(); // 1→0 (chunk 0 recycled, generation bumped)
             m.push_row(&[Value::Str("world")]);

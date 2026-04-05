@@ -1,35 +1,110 @@
 //! Low-level layout: header, column descriptors, chunk headers, byte helpers.
+//!
+//! ## Header v2 binary layout (64 bytes, 1 cache line)
+//!
+//! ```text
+//! offset  size  field               notes
+//! ──────────────────────────────────────────────────────────
+//!  0       4    magic               0x4D454D54 ("MEMT" in LE)
+//!  4       2    version             2
+//!  6       2    header_size         64 (validation only)
+//!  8       2    byte_order          BOM: written as [0x01, 0x02]
+//! 10       2    _pad0               0
+//! 12       4    flags               feature bits (see FLAG_*)
+//! 16       4    num_cols
+//! 20       4    num_chunks
+//! 24       4    chunk_size
+//! 28       4    data_offset         (64-aligned)
+//! ─── 32 byte boundary (cold/hot split) ─────────────────
+//! 32       4    write_chunk         AtomicU32
+//! 36       4    write_lock          AtomicU32
+//! 40       4    refcount            AtomicU32
+//! 44       4    creator_pid         PID of creating process
+//! 48       8    creator_start_time  process start time (platform-specific)
+//! 56       8    _reserved           0
+//! ──────────────────────────────────────────────────────────
+//! ```
+//!
+//! All multi-byte fields are little-endian.  The `byte_order` BOM
+//! allows readers to detect endianness mismatch without guessing.
 
 use std::mem;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
 // ── C-style layout structs ──────────────────────────────────────────
 
-pub const MAGIC: u32 = 0x4D45_4D54; // "MEMT"
-pub const VERSION: u32 = 1;
+pub(crate) const MAGIC: u32 = 0x4D45_4D54; // "MEMT"
+pub(crate) const VERSION: u16 = 2;
 
-/// Fixed header at the start of every MemTable buffer.
+/// Byte-order mark: written as raw bytes `[0x01, 0x02]`.
+/// On a LE host, `u16::from_ne_bytes([0x01, 0x02])` == `0x0201`.
+pub(crate) const BYTE_ORDER_MARK: [u8; 2] = [0x01, 0x02];
+
+/// Feature flag: dedup back-references may appear in Str/Bytes columns.
+///
+/// Set when dedup is enabled.  When absent, `validate_buf`
+/// rejects any negative length-prefix (dedup ref) as invalid.
+pub(crate) const FLAG_DEDUP: u32 = 1 << 0;
+// Reserved for future use:
+// pub const FLAG_CHECKSUM:  u32 = 1 << 1;
+// pub const FLAG_COMPRESSED: u32 = 1 << 2;
+// pub const FLAG_SORTED:    u32 = 1 << 3;
+
+/// Bits that this version of the library understands.
+pub(crate) const FLAGS_KNOWN: u32 = FLAG_DEDUP;
+
+/// Fixed header at the start of every MemTable buffer (64 bytes).
+///
+/// **Cold zone** (bytes 0–31): immutable after init — `magic`, `version`,
+/// schema dimensions, layout offsets.
+///
+/// **Hot zone** (bytes 32–63): atomically mutated at runtime —
+/// `write_chunk`, `write_lock`, `refcount`.  Separated from the cold
+/// zone to avoid false-sharing on different cache lines.
 #[repr(C)]
-pub struct Header {
+pub(crate) struct Header {
+    // ── cold zone (read-only after init) ─────────────────
     pub magic: u32,
-    pub version: u32,
+    pub version: u16,
+    /// Size of this header in bytes (always 64 in v2).
+    ///
+    /// Used for validation only — column descriptors always start at
+    /// offset `size_of::<Header>()` (compile-time constant).  If a
+    /// future version extends the header, it will bump `version` and
+    /// `header_size` together so that older readers can detect the
+    /// mismatch and reject the buffer cleanly.
+    pub header_size: u16,
+    /// Byte-order mark, written as `BYTE_ORDER_MARK`.
+    pub byte_order: u16,
+    pub _pad0: u16,
+    /// Feature flags (see `FLAG_*` constants).
+    pub flags: u32,
     pub num_cols: u32,
     pub num_chunks: u32,
-    /// Ring buffer: index of the chunk currently being written (atomic).
-    pub write_chunk: AtomicU32,
+    pub chunk_size: u32,
     /// Byte offset where chunk data begins (64-aligned).
     pub data_offset: u32,
-    /// Byte budget per chunk (including the per-chunk `used: AtomicU32` header).
-    pub chunk_size: u32,
+
+    // ── hot zone (atomically mutated) ────────────────────
+    /// Ring buffer: index of the chunk currently being written.
+    pub write_chunk: AtomicU32,
     /// Spinlock for writer serialization: 0 = unlocked, 1 = locked.
     pub write_lock: AtomicU32,
-    /// Reference count for shared lifetime management (atomic).
+    /// Reference count for shared lifetime management.
     pub refcount: AtomicU32,
+    /// PID of the process that created this table (for cross-process discovery).
+    pub creator_pid: u32,
+    /// Process start time — for PID-recycling detection.
+    /// Linux: clock ticks since boot (`/proc/<pid>/stat` field 22).
+    /// macOS: microseconds since epoch (via `sysctl`).
+    /// Other: 0 (falls back to PID-only liveness check).
+    pub creator_start_time: u64,
+    pub _reserved: [u32; 2],
 }
 
 /// Per-column descriptor, immediately following the Header.
 #[repr(C)]
-pub struct ColumnDesc {
+pub(crate) struct ColumnDesc {
     /// Column name, length-prefixed: `[u16 len][utf8 bytes][padding]`.
     pub name: [u8; 56],
     /// `DType` value as `u32`.
@@ -58,7 +133,7 @@ impl ColumnDesc {
 
 /// Per-chunk metadata, at the start of every chunk's byte region.
 #[repr(C)]
-pub struct ChunkHeader {
+pub(crate) struct ChunkHeader {
     /// Incremented each time the chunk is recycled (ring wrap).
     /// Readers capture this to detect stale reads.
     pub generation: AtomicU64,
@@ -74,27 +149,16 @@ pub struct ChunkHeader {
 /// Chunk lifecycle state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
-pub enum ChunkState {
+pub(crate) enum ChunkState {
     Empty = 0,
     Writing = 1,
     Sealed = 2,
 }
 
-impl ChunkState {
-    pub(crate) fn from_u32(v: u32) -> Self {
-        match v {
-            0 => Self::Empty,
-            1 => Self::Writing,
-            2 => Self::Sealed,
-            _ => Self::Empty,
-        }
-    }
-}
-
 pub(crate) const CHUNK_HEADER_SIZE: usize = mem::size_of::<ChunkHeader>();
 
 const _: () = {
-    assert!(mem::size_of::<Header>() == 36);
+    assert!(mem::size_of::<Header>() == 64);
     assert!(mem::size_of::<ColumnDesc>() == 64);
     assert!(mem::size_of::<ChunkHeader>() == 24);
 };
@@ -129,7 +193,10 @@ pub(crate) fn chunk_header(buf: &[u8], cs: usize) -> &ChunkHeader {
     unsafe { &*(buf[cs..].as_ptr() as *const ChunkHeader) }
 }
 
-/// Acquire the writer spinlock.
+/// Acquire the writer spinlock with exponential back-off.
+///
+/// First few failures use `spin_loop()` (pause instruction), then
+/// escalate to `yield_now()` to avoid burning CPU under contention.
 ///
 /// SAFETY NOTE: the buffer parameter is `&mut [u8]` (not `&[u8]`) so that
 /// LLVM does **not** mark the pointer `readonly`. With `&[u8]` LLVM may
@@ -138,11 +205,19 @@ pub(crate) fn chunk_header(buf: &[u8], cs: usize) -> &ChunkHeader {
 pub(crate) fn acquire_write_lock(buf: &mut [u8]) {
     let ptr = buf.as_mut_ptr() as *const Header;
     let lock = unsafe { &(*ptr).write_lock };
+    let mut spins = 0u32;
     while lock
         .compare_exchange_weak(0, 1, Ordering::Acquire, Ordering::Relaxed)
         .is_err()
     {
-        std::hint::spin_loop();
+        if spins < 16 {
+            for _ in 0..1 << spins.min(4) {
+                std::hint::spin_loop();
+            }
+        } else {
+            std::thread::yield_now();
+        }
+        spins += 1;
     }
 }
 
@@ -181,8 +256,15 @@ mod tests {
 
     #[test]
     fn struct_sizes() {
-        assert_eq!(mem::size_of::<Header>(), 36);
+        assert_eq!(mem::size_of::<Header>(), 64);
         assert_eq!(mem::size_of::<ColumnDesc>(), 64);
         assert_eq!(mem::size_of::<ChunkHeader>(), 24);
+    }
+
+    #[test]
+    fn byte_order_mark_sanity() {
+        let bom = u16::from_ne_bytes(BYTE_ORDER_MARK);
+        let expected_le = u16::from_le_bytes(BYTE_ORDER_MARK);
+        assert_eq!(bom, expected_le);
     }
 }

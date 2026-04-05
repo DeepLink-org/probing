@@ -1,28 +1,35 @@
-use crate::layout::header;
+use crate::layout::Header;
 use std::sync::atomic::Ordering;
 
-/// Read current reference count.
+/// Access `Header.refcount` as `&AtomicU32` via raw pointer projection.
 ///
-/// Not inlined aggressively: `&[u8]` over the same allocation as `Header` can
-/// interact badly with release optimizations when refcount is touched across
-/// raw-pointer `unsafe` boundaries (see pointer-sharing tests).
-#[inline(never)]
-pub fn refcount(buf: &[u8]) -> u32 {
-    header(buf).refcount.load(Ordering::Acquire)
+/// Uses `addr_of!` to reach the field *without* creating an intermediate
+/// `&Header` reference — the `&[u8]` → `&Header` route lets LLVM assume the
+/// memory is `readonly`, conflicting with the atomic RMW in `acquire_ref` /
+/// `release_ref`.
+///
+/// `#[inline(never)]` on the mutating callers provides an additional LLVM
+/// optimisation barrier for provenance inherited from the `&[u8]` parameter.
+#[inline(always)]
+fn refcount_atomic(buf: &[u8]) -> &std::sync::atomic::AtomicU32 {
+    let ptr = buf.as_ptr() as *const Header;
+    unsafe { &*std::ptr::addr_of!((*ptr).refcount) }
 }
 
-/// Atomically increment the reference count. Returns the new count.
+pub fn refcount(buf: &[u8]) -> u32 {
+    refcount_atomic(buf).load(Ordering::Acquire)
+}
+
 #[inline(never)]
 pub fn acquire_ref(buf: &[u8]) -> u32 {
-    header(buf).refcount.fetch_add(1, Ordering::Relaxed) + 1
+    refcount_atomic(buf).fetch_add(1, Ordering::Relaxed) + 1
 }
 
-/// Atomically decrement the reference count. Returns the new count.
-///
 /// When the count drops to zero, an `Acquire` fence ensures all prior
 /// accesses from other holders are visible before the caller deallocates.
+#[inline(never)]
 pub fn release_ref(buf: &[u8]) -> u32 {
-    let prev = header(buf).refcount.fetch_sub(1, Ordering::Release);
+    let prev = refcount_atomic(buf).fetch_sub(1, Ordering::Release);
     debug_assert!(prev > 0, "release_ref on zero refcount");
     if prev == 1 {
         std::sync::atomic::fence(Ordering::Acquire);
@@ -33,11 +40,10 @@ pub fn release_ref(buf: &[u8]) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buf::init_buf;
     use crate::cache::CachedReader;
-    use crate::memtable::{MemTable, MemTableMut, MemTableView};
-    use crate::schema::{DType, Schema};
-    use crate::value::Value;
+    use crate::memtable::{MemTable, MemTableView, MemTableWriter};
+    use crate::raw::init_buf;
+    use crate::schema::{DType, Schema, Value};
 
     #[test]
     fn refcount_lifecycle() {
@@ -138,7 +144,7 @@ mod tests {
 
         let producer = thread::spawn(move || {
             let buf = unsafe { std::slice::from_raw_parts_mut(addr as *mut u8, size) };
-            let mut mt = MemTableMut::new(buf).unwrap();
+            let mut mt = MemTableWriter::new(buf).unwrap();
             for tid in 0..num_producers {
                 for i in 0..rows_per_producer as i64 {
                     mt.push_row(&[Value::Str("tag"), Value::I64(tid as i64 * 10000 + i)]);

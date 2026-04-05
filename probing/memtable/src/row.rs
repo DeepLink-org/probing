@@ -2,10 +2,17 @@ use crate::layout::{chunk_header, col_desc, r32};
 use crate::schema::DType;
 use std::sync::atomic::Ordering;
 
-/// Encoded size of a variable-length field at `off`: 4 if reference (negative), else 4+len.
+/// Unified panic for all stale-read conditions: the chunk was recycled while
+/// data was being accessed, or the offset arithmetic fell outside the buffer.
+#[cold]
+#[inline(never)]
+pub(crate) fn panic_stale(context: &str) -> ! {
+    panic!("stale read: chunk recycled ({context})")
+}
+
 fn var_field_size(buf: &[u8], off: usize) -> usize {
     if off + 4 > buf.len() {
-        panic!("stale Row: var_field_size out of bounds");
+        panic_stale("var_field_size");
     }
     let raw = i32::from_le_bytes(buf[off..off + 4].try_into().unwrap());
     if raw < 0 {
@@ -15,29 +22,27 @@ fn var_field_size(buf: &[u8], off: usize) -> usize {
     }
 }
 
-/// Resolve a variable-length field to its actual bytes.
-/// If `raw` (i32 at `off`) is negative, follow the reference within the chunk.
 fn resolve_var<'a>(buf: &'a [u8], off: usize, chunk_start: usize) -> &'a [u8] {
     if off + 4 > buf.len() {
-        panic!("stale Row: resolve_var out of bounds");
+        panic_stale("resolve_var offset");
     }
     let raw = i32::from_le_bytes(buf[off..off + 4].try_into().unwrap());
     if raw < 0 {
         let ref_off = chunk_start + (-raw) as usize;
         if ref_off + 4 > buf.len() {
-            panic!("stale Row: resolve_var ref header out of bounds");
+            panic_stale("resolve_var ref header");
         }
         let len = r32(buf, ref_off) as usize;
         let end = ref_off + 4 + len;
         if end > buf.len() {
-            panic!("stale Row: resolve_var ref payload out of bounds");
+            panic_stale("resolve_var ref payload");
         }
         &buf[ref_off + 4..end]
     } else {
         let len = raw as usize;
         let end = off + 4 + len;
         if end > buf.len() {
-            panic!("stale Row: resolve_var inline out of bounds");
+            panic_stale("resolve_var inline");
         }
         &buf[off + 4..end]
     }
@@ -47,12 +52,13 @@ fn resolve_var<'a>(buf: &'a [u8], off: usize, chunk_start: usize) -> &'a [u8] {
 
 /// Read-only handle to a single row within a chunk.
 ///
-/// Carries the chunk's `generation` at creation time. Access checks that the
-/// chunk generation still matches (release builds included), so stale reads
-/// after ring-buffer wrap fail fast.
+/// Generation is validated once per row by [`RowIter::next()`], not on
+/// every column access.  Call [`is_valid()`](Self::is_valid) explicitly
+/// if you hold a `Row` across long-lived operations.
 pub struct Row<'a> {
     pub(crate) data: &'a [u8],
     pub(crate) buf: &'a [u8],
+    pub(crate) data_offset: usize,
     pub(crate) chunk_start: usize,
     pub(crate) generation: u64,
 }
@@ -62,14 +68,12 @@ impl<'a> Row<'a> {
         self.generation
     }
 
-    fn assert_generation(&self) {
-        assert_eq!(
-            chunk_header(self.buf, self.chunk_start)
-                .generation
-                .load(Ordering::Acquire),
-            self.generation,
-            "stale Row: chunk has been recycled"
-        );
+    /// Check whether the underlying chunk is still at the same generation.
+    pub fn is_valid(&self) -> bool {
+        chunk_header(self.buf, self.chunk_start)
+            .generation
+            .load(Ordering::Acquire)
+            == self.generation
     }
 
     pub fn as_bytes(&self) -> &[u8] {
@@ -77,10 +81,10 @@ impl<'a> Row<'a> {
     }
 
     fn col_offset(&self, col: usize) -> usize {
-        self.assert_generation();
         let mut off = 0;
         for i in 0..col {
-            let dt = DType::from_u32(col_desc(self.buf, i).dtype);
+            let dt = DType::from_u32(col_desc(self.buf, i).dtype)
+                .unwrap_or_else(|| panic_stale("corrupt column dtype"));
             if let Some(sz) = dt.fixed_size() {
                 off += sz;
             } else {
@@ -88,6 +92,11 @@ impl<'a> Row<'a> {
             }
         }
         off
+    }
+
+    fn resolve_var_col(&self, col: usize) -> &'a [u8] {
+        let off = self.col_offset(col);
+        resolve_var(self.buf, self.data_offset + off, self.chunk_start)
     }
 
     pub fn col_u8(&self, col: usize) -> u8 {
@@ -118,12 +127,7 @@ impl<'a> Row<'a> {
         u64::from_le_bytes(self.data[off..off + 8].try_into().unwrap())
     }
     pub fn col_str(&self, col: usize) -> &str {
-        let off = self.col_offset(col);
-        let b = resolve_var(
-            self.buf,
-            self.data.as_ptr() as usize - self.buf.as_ptr() as usize + off,
-            self.chunk_start,
-        );
+        let b = self.resolve_var_col(col);
         if b.is_empty() {
             ""
         } else {
@@ -131,16 +135,10 @@ impl<'a> Row<'a> {
         }
     }
     pub fn col_bytes(&self, col: usize) -> &[u8] {
-        let off = self.col_offset(col);
-        resolve_var(
-            self.buf,
-            self.data.as_ptr() as usize - self.buf.as_ptr() as usize + off,
-            self.chunk_start,
-        )
+        self.resolve_var_col(col)
     }
 
     pub fn cursor(&self) -> RowCursor<'a> {
-        self.assert_generation();
         RowCursor {
             data: self.data,
             pos: 0,
@@ -153,8 +151,8 @@ impl<'a> Row<'a> {
 
 /// Sequential cursor over columns within a row — O(1) per column.
 ///
-/// Like [`Row`], carries a chunk `generation` snapshot; each read checks it
-/// so wrap-after-hold is caught in release builds too.
+/// Generation is validated once per row by [`RowIter::next()`].
+/// Column reads do **not** re-check, keeping the hot path branch-free.
 pub struct RowCursor<'a> {
     data: &'a [u8],
     pos: usize,
@@ -168,18 +166,15 @@ impl<'a> RowCursor<'a> {
         self.generation
     }
 
-    fn assert_generation(&self) {
-        assert_eq!(
-            chunk_header(self.buf, self.chunk_start)
-                .generation
-                .load(Ordering::Acquire),
-            self.generation,
-            "stale RowCursor: chunk has been recycled"
-        );
+    /// Check whether the underlying chunk is still at the same generation.
+    pub fn is_valid(&self) -> bool {
+        chunk_header(self.buf, self.chunk_start)
+            .generation
+            .load(Ordering::Acquire)
+            == self.generation
     }
 
     fn read_fixed<const N: usize>(&mut self) -> [u8; N] {
-        self.assert_generation();
         let v: [u8; N] = self.data[self.pos..self.pos + N].try_into().unwrap();
         self.pos += N;
         v
@@ -190,18 +185,18 @@ impl<'a> RowCursor<'a> {
         if raw < 0 {
             let ref_off = self.chunk_start + (-raw) as usize;
             if ref_off + 4 > self.buf.len() {
-                panic!("stale RowCursor: dedup ref out of bounds");
+                panic_stale("RowCursor dedup ref header");
             }
             let len = r32(self.buf, ref_off) as usize;
             let end = ref_off + 4 + len;
             if end > self.buf.len() {
-                panic!("stale RowCursor: dedup ref out of bounds");
+                panic_stale("RowCursor dedup ref payload");
             }
             &self.buf[ref_off + 4..end]
         } else {
             let len = raw as usize;
             if self.pos + len > self.data.len() {
-                panic!("stale RowCursor: inline str out of bounds");
+                panic_stale("RowCursor inline str");
             }
             let data = &self.data[self.pos..self.pos + len];
             self.pos += len;
@@ -245,11 +240,11 @@ impl<'a> RowCursor<'a> {
 
 /// Iterator over rows in a chunk.
 ///
-/// Captures the chunk's `generation` at creation time. Under concurrent writers,
-/// `next()` returns [`None`] if the chunk was recycled or the row length does
-/// not fit the iterator snapshot — no panic. After a row is yielded, column
-/// access on [`Row`] / [`RowCursor`] still checks generation and may panic if
-/// the chunk wrapped before you read (fail-fast for single-thread misuse too).
+/// Captures the chunk's `generation` at creation time.  Each call to
+/// [`next()`](Iterator::next) checks generation **once**; if the chunk
+/// was recycled it returns [`None`].  Column reads on the yielded [`Row`]
+/// / [`RowCursor`] do **not** re-check, keeping the per-column path free
+/// of atomic loads.
 pub struct RowIter<'a> {
     pub(crate) buf: &'a [u8],
     pub(crate) chunk_start: usize,
@@ -277,13 +272,10 @@ impl<'a> RowIter<'a> {
 impl<'a> Iterator for RowIter<'a> {
     type Item = Row<'a>;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.pos >= self.end {
+        if self.pos + 4 > self.end {
             return None;
         }
         if !self.is_valid() {
-            return None;
-        }
-        if self.pos + 4 > self.end {
             return None;
         }
         let row_len = r32(self.buf, self.pos) as usize;
@@ -291,15 +283,14 @@ impl<'a> Iterator for RowIter<'a> {
         if row_total > self.end.saturating_sub(self.pos) {
             return None;
         }
-        if !self.is_valid() {
-            return None;
-        }
         let row_end = self.pos + row_total;
-        let data = &self.buf[self.pos + 4..row_end];
+        let data_offset = self.pos + 4;
+        let data = &self.buf[data_offset..row_end];
         self.pos = row_end;
         Some(Row {
             data,
             buf: self.buf,
+            data_offset,
             chunk_start: self.chunk_start,
             generation: self.generation,
         })
@@ -308,9 +299,8 @@ impl<'a> Iterator for RowIter<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::memtable::{MemTable, MemTableMut};
-    use crate::schema::{DType, Schema};
-    use crate::value::Value;
+    use crate::memtable::{MemTable, MemTableWriter};
+    use crate::schema::{DType, Schema, Value};
 
     #[test]
     fn row_raw_bytes() {
@@ -366,7 +356,7 @@ mod tests {
         let schema = Schema::new().col("v", DType::I32);
         let size = MemTable::required_size(&schema, 80, 2);
         let mut buf = vec![0u8; size];
-        let mut mt = MemTableMut::init(&mut buf, &schema, 80, 2);
+        let mut mt = MemTableWriter::init(&mut buf, &schema, 80, 2);
 
         for i in 0..3 {
             mt.push_row(&[Value::I32(i)]);

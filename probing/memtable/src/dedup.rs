@@ -3,15 +3,24 @@ use xxhash_rust::xxh3;
 
 /// Per-chunk string/bytes dedup map for streaming or batch writers.
 /// Cleared when advancing to the next chunk.
-pub struct DedupState {
+///
+/// Strings shorter than `min_dedup_len` are always stored inline,
+/// skipping the hash + HashMap overhead.  Default is 0 (dedup all).
+pub(crate) struct DedupState {
     seen: HashMap<u64, usize>,
+    min_dedup_len: usize,
 }
 
 impl DedupState {
     pub fn new() -> Self {
         Self {
-            seen: HashMap::new(),
+            seen: HashMap::with_capacity(64),
+            min_dedup_len: 0,
         }
+    }
+
+    pub fn set_min_dedup_len(&mut self, len: usize) {
+        self.min_dedup_len = len;
     }
 
     pub fn clear(&mut self) {
@@ -23,14 +32,14 @@ impl DedupState {
     }
 
     pub(crate) fn lookup(&self, col: usize, data: &[u8]) -> Option<usize> {
-        if data.is_empty() {
+        if data.len() < self.min_dedup_len {
             return None;
         }
         self.seen.get(&Self::key(col, data)).copied()
     }
 
     pub(crate) fn insert(&mut self, col: usize, data: &[u8], chunk_offset: usize) {
-        if !data.is_empty() {
+        if data.len() >= self.min_dedup_len {
             self.seen.insert(Self::key(col, data), chunk_offset);
         }
     }
@@ -44,22 +53,15 @@ impl Default for DedupState {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::buf::{advance_chunk_unlocked, init_buf};
-    use crate::layout::{
-        acquire_write_lock, chunk_header, header, release_write_lock, w32, CHUNK_HEADER_SIZE,
-    };
-    use crate::memtable::{DedupWriter, MemTable, MemTableView};
-    use crate::schema::{DType, Schema};
-    use crate::value::Value;
-    use std::sync::atomic::Ordering;
+    use crate::memtable::{MemTable, MemTableView, MemTableWriter};
+    use crate::schema::{DType, Schema, Value};
 
     #[test]
     fn dedup_str_saves_space() {
         let schema = Schema::new().col("tag", DType::Str).col("val", DType::I32);
         let size = MemTable::required_size(&schema, 4096, 1);
         let mut buf = vec![0u8; size];
-        let mut dw = DedupWriter::init(&mut buf, &schema, 4096, 1);
+        let mut dw = MemTableWriter::init(&mut buf, &schema, 4096, 1).dedup();
 
         dw.push_row(&[Value::Str("hello"), Value::I32(1)]);
         let used_after_first = dw.chunk_used(0);
@@ -96,7 +98,7 @@ mod tests {
             .col("status", DType::Str);
         let size = MemTable::required_size(&schema, 4096, 1);
         let mut buf = vec![0u8; size];
-        let mut dw = DedupWriter::init(&mut buf, &schema, 4096, 1);
+        let mut dw = MemTableWriter::init(&mut buf, &schema, 4096, 1).dedup();
 
         dw.row_writer()
             .put_i64(1)
@@ -145,7 +147,7 @@ mod tests {
         let schema = Schema::new().col("payload", DType::Bytes);
         let size = MemTable::required_size(&schema, 4096, 1);
         let mut buf = vec![0u8; size];
-        let mut dw = DedupWriter::init(&mut buf, &schema, 4096, 1);
+        let mut dw = MemTableWriter::init(&mut buf, &schema, 4096, 1).dedup();
 
         let data = &[0xDE, 0xAD, 0xBE, 0xEF];
         dw.push_row(&[Value::Bytes(data)]);
@@ -166,7 +168,7 @@ mod tests {
         let schema = Schema::new().col("s", DType::Str);
         let size = MemTable::required_size(&schema, 4096, 1);
         let mut buf = vec![0u8; size];
-        let mut dw = DedupWriter::init(&mut buf, &schema, 4096, 1);
+        let mut dw = MemTableWriter::init(&mut buf, &schema, 4096, 1).dedup();
         dw.push_row(&[Value::Str("")]);
         dw.push_row(&[Value::Str("")]);
         assert_eq!(dw.chunk_used(0), 16); // both inline: 8+8
@@ -178,7 +180,7 @@ mod tests {
         let schema = Schema::new().col("tag", DType::Str);
         let size = MemTable::required_size(&schema, 128, 2);
         let mut buf = vec![0u8; size];
-        let mut dw = DedupWriter::init(&mut buf, &schema, 128, 2);
+        let mut dw = MemTableWriter::init(&mut buf, &schema, 128, 2).dedup();
 
         for _ in 0..5 {
             dw.push_row(&[Value::Str("repeat")]);
@@ -203,7 +205,7 @@ mod tests {
             .col("msg", DType::Str);
         let size = MemTable::required_size(&schema, 8192, 1);
         let mut buf = vec![0u8; size];
-        let mut dw = DedupWriter::init(&mut buf, &schema, 8192, 1);
+        let mut dw = MemTableWriter::init(&mut buf, &schema, 8192, 1).dedup();
 
         let levels = ["INFO", "WARN", "ERROR"];
         for i in 0..30 {
@@ -230,7 +232,7 @@ mod tests {
             .col("msg", DType::Str);
         let size = MemTable::required_size(&schema, 65536, 8);
         let mut buf = vec![0u8; size];
-        let mut dw = DedupWriter::init(&mut buf, &schema, 65536, 8);
+        let mut dw = MemTableWriter::init(&mut buf, &schema, 65536, 8).dedup();
 
         let levels = ["TRACE", "DEBUG", "INFO", "WARN", "ERROR"];
         let components = ["http", "db", "cache", "auth", "scheduler", "worker"];
@@ -270,7 +272,7 @@ mod tests {
         // tiny chunks → frequent wraps
         let size = MemTable::required_size(&schema, 256, 4);
         let mut buf = vec![0u8; size];
-        let mut dw = DedupWriter::init(&mut buf, &schema, 256, 4);
+        let mut dw = MemTableWriter::init(&mut buf, &schema, 256, 4).dedup();
 
         let tags = ["alpha", "beta", "gamma"];
         for i in 0..500i64 {
@@ -293,141 +295,37 @@ mod tests {
 
     #[test]
     fn stress_concurrent_dedup_writers() {
-        use std::alloc;
-        use std::thread;
-
         let schema = Schema::new()
             .col("tid", DType::I32)
             .col("tag", DType::Str)
             .col("seq", DType::I64);
-        let size = MemTable::required_size(&schema, 32768, 8);
-        let layout = alloc::Layout::from_size_align(size, 64).unwrap();
-        let ptr = unsafe { alloc::alloc_zeroed(layout) };
-        assert!(!ptr.is_null());
-
-        unsafe {
-            let buf = std::slice::from_raw_parts_mut(ptr, size);
-            init_buf(buf, &schema, 32768, 8);
-        }
-
         let num_threads = 8;
         let rows_per_thread = 200;
-        let addr = ptr as usize;
+        let size = MemTable::required_size(&schema, 32768, 8);
+        let mut buf = vec![0u8; size];
+        let mut mt = MemTableWriter::init(&mut buf, &schema, 32768, 8).dedup();
 
-        // 单写线程：多线程各自 `from_raw_parts_mut` 同缓冲仍是重叠 `&mut`，属 UB。
-        let writer = thread::spawn(move || {
-            let buf = unsafe { std::slice::from_raw_parts_mut(addr as *mut u8, size) };
-            let mut state = DedupState::new();
-            let tags = ["A", "B", "C", "D"];
-            for tid in 0..num_threads {
-                for seq in 0..rows_per_thread as i64 {
-                    acquire_write_lock(buf);
-                    let h = header(buf);
-                    let wc = h.write_chunk.load(Ordering::Relaxed) as usize;
-                    let csz = h.chunk_size as usize;
-                    let cs = h.data_offset as usize + wc * csz;
-                    let used = chunk_header(buf, cs).used.load(Ordering::Relaxed) as usize;
-
-                    let tag = tags[seq as usize % tags.len()];
-                    let values = [Value::I32(tid as i32), Value::Str(tag), Value::I64(seq)];
-                        let row_data: usize = values
-                            .iter()
-                            .enumerate()
-                            .map(|(i, v)| match v {
-                                Value::Str(s) if state.lookup(i, s.as_bytes()).is_some() => 4,
-                                _ => v.encoded_size(),
-                            })
-                            .sum();
-                        let total = 4 + row_data;
-
-                        if CHUNK_HEADER_SIZE + used + total > csz {
-                            advance_chunk_unlocked(buf);
-                            state.clear();
-                            let wc2 = header(buf).write_chunk.load(Ordering::Relaxed) as usize;
-                            let cs2 = header(buf).data_offset as usize + wc2 * csz;
-                            let used2 =
-                                chunk_header(buf, cs2).used.load(Ordering::Relaxed) as usize;
-                            let row_start = cs2 + CHUNK_HEADER_SIZE + used2;
-                            w32(buf, row_start, row_data as u32);
-                            let mut off = row_start + 4;
-                            for (i, v) in values.iter().enumerate() {
-                                match v {
-                                    Value::Str(s) => {
-                                        let chunk_off = off - cs2;
-                                        v.encode(&mut buf[off..]);
-                                        state.insert(i, s.as_bytes(), chunk_off);
-                                        off += v.encoded_size();
-                                    }
-                                    _ => {
-                                        v.encode(&mut buf[off..]);
-                                        off += v.encoded_size();
-                                    }
-                                }
-                            }
-                            chunk_header(buf, cs2)
-                                .used
-                                .store((used2 + total) as u32, Ordering::Release);
-                            chunk_header(buf, cs2)
-                                .row_count
-                                .fetch_add(1, Ordering::Release);
-                        } else {
-                            let row_start = cs + CHUNK_HEADER_SIZE + used;
-                            w32(buf, row_start, row_data as u32);
-                            let mut off = row_start + 4;
-                            for (i, v) in values.iter().enumerate() {
-                                match v {
-                                    Value::Str(s) => {
-                                        if let Some(ref_off) = state.lookup(i, s.as_bytes()) {
-                                            buf[off..off + 4].copy_from_slice(
-                                                &(-(ref_off as i32)).to_le_bytes(),
-                                            );
-                                            off += 4;
-                                        } else {
-                                            let chunk_off = off - cs;
-                                            v.encode(&mut buf[off..]);
-                                            state.insert(i, s.as_bytes(), chunk_off);
-                                            off += v.encoded_size();
-                                        }
-                                    }
-                                    _ => {
-                                        v.encode(&mut buf[off..]);
-                                        off += v.encoded_size();
-                                    }
-                                }
-                            }
-                            chunk_header(buf, cs)
-                                .used
-                                .store((used + total) as u32, Ordering::Release);
-                            chunk_header(buf, cs)
-                                .row_count
-                                .fetch_add(1, Ordering::Release);
-                        }
-                    release_write_lock(buf);
-                }
+        let tags = ["A", "B", "C", "D"];
+        for tid in 0..num_threads {
+            for seq in 0..rows_per_thread as i64 {
+                let tag = tags[seq as usize % tags.len()];
+                mt.push_row(&[Value::I32(tid as i32), Value::Str(tag), Value::I64(seq)]);
             }
-        });
+        }
 
-        writer.join().unwrap();
+        let view = MemTableView::new(&buf).unwrap();
+        let total: usize = (0..view.num_chunks()).map(|c| view.num_rows(c)).sum();
+        assert_eq!(total, num_threads * rows_per_thread);
 
-        unsafe {
-            let buf = std::slice::from_raw_parts(ptr, size);
-            let view = MemTableView::new(buf).unwrap();
-            let total: usize = (0..view.num_chunks()).map(|c| view.num_rows(c)).sum();
-            assert_eq!(total, num_threads * rows_per_thread);
-
-            let tags = ["A", "B", "C", "D"];
-            for chunk in 0..view.num_chunks() {
-                for row in view.rows(chunk) {
-                    let mut c = row.cursor();
-                    let tid = c.next_i32();
-                    let tag = c.next_str();
-                    let _seq = c.next_i64();
-                    assert!((0..num_threads as i32).contains(&tid));
-                    assert!(tags.contains(&tag), "corrupt tag: {tag}");
-                }
+        for chunk in 0..view.num_chunks() {
+            for row in view.rows(chunk) {
+                let mut c = row.cursor();
+                let tid = c.next_i32();
+                let tag = c.next_str();
+                let _seq = c.next_i64();
+                assert!((0..num_threads as i32).contains(&tid));
+                assert!(tags.contains(&tag), "corrupt tag: {tag}");
             }
-
-            alloc::dealloc(ptr as *mut u8, layout);
         }
     }
 
@@ -442,7 +340,7 @@ mod tests {
         }
         let size = MemTable::required_size(&schema, 65536, 1);
         let mut buf = vec![0u8; size];
-        let mut dw = DedupWriter::init(&mut buf, &schema, 65536, 1);
+        let mut dw = MemTableWriter::init(&mut buf, &schema, 65536, 1).dedup();
 
         let tags = ["x", "y", "z"];
         for i in 0..200 {
@@ -481,7 +379,7 @@ mod tests {
         // each chunk fits ~2-3 rows only
         let size = MemTable::required_size(&schema, 64, 16);
         let mut buf = vec![0u8; size];
-        let mut dw = DedupWriter::init(&mut buf, &schema, 64, 16);
+        let mut dw = MemTableWriter::init(&mut buf, &schema, 64, 16).dedup();
 
         let tags = ["aaa", "bbb"];
         for i in 0..200 {
@@ -506,7 +404,7 @@ mod tests {
         let schema = Schema::new().col("payload", DType::Str);
         let size = MemTable::required_size(&schema, 65536, 2);
         let mut buf = vec![0u8; size];
-        let mut dw = DedupWriter::init(&mut buf, &schema, 65536, 2);
+        let mut dw = MemTableWriter::init(&mut buf, &schema, 65536, 2).dedup();
 
         // a 1KB string repeated many times
         let long_str: String = "x".repeat(1024);

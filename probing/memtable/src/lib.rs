@@ -12,20 +12,31 @@
 //!
 //! # Memory Layout
 //!
+//! See [`layout`] module for the full binary specification.
+//!
 //! ```text
 //! ┌──────────────────────────────────┐ 0
-//! │ Header (36 bytes, repr(C))       │
-//! │   magic: u32                     │
-//! │   version: u32                   │
+//! │ Header v2 (64 bytes, repr(C))    │
+//! │  ── cold zone (read-only) ──     │
+//! │   magic: u32     (0x4D454D54)    │
+//! │   version: u16   (2)             │
+//! │   header_size: u16 (64)          │
+//! │   byte_order: u16 (BOM 0x0102)   │
+//! │   _pad0: u16                     │
+//! │   flags: u32     (feature bits)  │
 //! │   num_cols: u32                  │
 //! │   num_chunks: u32                │
-//! │   write_chunk: AtomicU32         │
-//! │   data_offset: u32               │
 //! │   chunk_size: u32                │
+//! │   data_offset: u32               │
+//! │  ── hot zone (atomic) ────       │
+//! │   write_chunk: AtomicU32         │
 //! │   write_lock: AtomicU32          │
-//! │   refcount: AtomicU32           │
-//! ├──────────────────────────────────┤ 36
-//! │ ColumnDesc × N (64 bytes each)  │
+//! │   refcount: AtomicU32            │
+//! │   creator_pid: u32                │
+//! │   creator_start_time: u64         │
+//! │   _reserved: [u32; 2]            │
+//! ├──────────────────────────────────┤ 64
+//! │ ColumnDesc × N (64 bytes each)   │
 //! │   name: [u8; 56]  (LP u16)      │
 //! │   dtype: u32                     │
 //! │   elem_size: u32                 │
@@ -78,25 +89,21 @@
 //! }
 //! ```
 
-mod buf;
 mod cache;
 mod dedup;
+pub mod discover;
 mod layout;
 mod memtable;
+mod raw;
 mod refcount;
 mod row;
 mod schema;
-mod table;
-mod value;
 mod writer;
 
-pub use buf::validate_buf;
 pub use cache::{CachedCursor, CachedReader};
-pub use dedup::DedupState;
-pub use layout::{ChunkHeader, ChunkState, ColumnDesc, Header, MAGIC, VERSION};
-pub use memtable::{DedupWriter, MemTable, MemTableMut, MemTableView};
+pub use memtable::{MemTable, MemTableView, MemTableWriter};
+pub use raw::validate_buf;
 pub use refcount::{acquire_ref, refcount, release_ref};
 pub use row::{Row, RowCursor, RowIter};
-pub use schema::{Col, DType, Schema};
-pub use value::Value;
-pub use writer::{DedupRowWriter, RowWriter};
+pub use schema::{Col, DType, Schema, Value};
+pub use writer::RowWriter;
