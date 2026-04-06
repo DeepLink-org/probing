@@ -12,9 +12,12 @@ default = ["extension-module"]
 
 [dependencies]
 probing-cc = { path = "../extensions/cc" }
+probing-memtable = { path = "../memtable" }
 probing-python = { path = "../extensions/python", default-features = false }
 probing-proto = { path = "../proto" }
 probing-core = { path = "../core" }
+
+datafusion = { version = "47.0.0", default-features = false }
 
 anyhow = { workspace = true }
 log = { workspace = true }

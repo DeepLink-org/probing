@@ -1,4 +1,4 @@
-use probing_core::core::cluster::{get_nodes as core_get_nodes, update_node};
+use probing_core::core::cluster::{get_nodes as core_get_nodes, merge_pulsing_nodes, update_node};
 use probing_proto::prelude::*;
 
 use super::error::ApiResult;
@@ -6,6 +6,13 @@ use super::error::ApiResult;
 /// Update a node in the cluster (HTTP handler)
 pub async fn put_node(axum::Json(node): axum::Json<Node>) -> ApiResult<()> {
     update_node(node);
+    Ok(())
+}
+
+/// Merge Pulsing-sourced member list into cluster view (POST body = Vec<Node>).
+/// Preserves rank/role from existing reported nodes.
+pub async fn post_sync_nodes(axum::Json(nodes): axum::Json<Vec<Node>>) -> ApiResult<()> {
+    merge_pulsing_nodes(nodes);
     Ok(())
 }
 

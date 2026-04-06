@@ -16,3 +16,7 @@ libc = "0.2"
 [[bench]]
 name = "memtable_report"
 harness = false
+
+[[bench]]
+name = "memh_report"
+harness = false

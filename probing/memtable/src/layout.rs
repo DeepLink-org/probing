@@ -33,7 +33,11 @@ use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
 // ── C-style layout structs ──────────────────────────────────────────
 
-pub(crate) const MAGIC: u32 = 0x4D45_4D54; // "MEMT"
+/// Magic number for MEMT (ring-buffer time-series table): bytes `M E M T` in little-endian.
+pub const MAGIC_MEMT: u32 = 0x4D45_4D54;
+pub(crate) const MAGIC: u32 = MAGIC_MEMT;
+
+/// Header format version for MEMT.
 pub(crate) const VERSION: u16 = 2;
 
 /// Byte-order mark: written as raw bytes `[0x01, 0x02]`.

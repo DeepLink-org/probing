@@ -16,6 +16,21 @@ pub enum Value<'a> {
 }
 
 impl Value<'_> {
+    /// Return the `DType` tag for this value.
+    pub fn dtype(&self) -> DType {
+        match self {
+            Value::U8(_) => DType::U8,
+            Value::U32(_) => DType::U32,
+            Value::I32(_) => DType::I32,
+            Value::I64(_) => DType::I64,
+            Value::F32(_) => DType::F32,
+            Value::F64(_) => DType::F64,
+            Value::U64(_) => DType::U64,
+            Value::Str(_) => DType::Str,
+            Value::Bytes(_) => DType::Bytes,
+        }
+    }
+
     pub(crate) fn encoded_size(&self) -> usize {
         match self {
             Value::U8(_) => 1,

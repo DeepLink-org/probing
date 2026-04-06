@@ -5,6 +5,7 @@ members = [
     # "app",
     "probing/cli",
     "probing/proto",
+    "probing/memtable",
     "probing/core",
     "probing/extensions/cc",
     "probing/extensions/python",
@@ -13,7 +14,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.2.3"
+version = "0.2.4"
 authors = ["reiase <reiase@gmail.com>"]
 edition = "2021"
 license = "Apache-2.0"

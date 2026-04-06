@@ -17,7 +17,12 @@ pub async fn initialize_engine() -> Result<()> {
         .with_extension(py::PythonExt::default(), "python", None)
         .with_extension(cc::ClusterExtension::default(), "cluster", Some("nodes"))
         .with_extension(cc::EnvExtension::default(), "process", Some("envs"))
-        .with_extension(cc::FilesExtension::default(), "files", None);
+        .with_extension(cc::FilesExtension::default(), "files", None)
+        .with_extension(
+            crate::memtable_ext::MemTableExtension::default(),
+            "memtable",
+            None,
+        );
 
     #[cfg(target_os = "linux")]
     let builder = builder.with_extension(cc::RdmaExtension::default(), "taskstats", None);

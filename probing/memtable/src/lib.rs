@@ -93,6 +93,7 @@ mod cache;
 mod dedup;
 pub mod discover;
 mod layout;
+pub mod memh;
 mod memtable;
 mod raw;
 mod refcount;
@@ -102,8 +103,46 @@ mod writer;
 
 pub use cache::{CachedCursor, CachedReader};
 pub use memtable::{MemTable, MemTableView, MemTableWriter};
+pub use memh::{
+    init_buf as init_memh_buf, validate_memh, TypedValue,
+    InsertError, InsertResult, MemhInitError, MemhValidateError,
+    MemhView, MemhWriter, SharedMemhWriter, MAGIC_MEMH, VERSION_MEMH,
+};
 pub use raw::validate_buf;
 pub use refcount::{acquire_ref, refcount, release_ref};
 pub use row::{Row, RowCursor, RowIter};
 pub use schema::{Col, DType, Schema, Value};
 pub use writer::RowWriter;
+pub use layout::MAGIC_MEMT;
+
+/// Table format discriminant — determined by the first 4 bytes (magic number).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TableKind {
+    /// Ring-buffer time-series table (`MEMT`, `0x4D45_4D54`).
+    Ring,
+    /// Open-addressing hash table (`MEMH`, `0x484D_454D`).
+    Hash,
+}
+
+/// Inspect the first 4 bytes of `buf` and return the table kind, or `None` if
+/// the magic is not recognised.
+///
+/// # Example
+/// ```rust
+/// use probing_memtable::{detect_table, TableKind, MemTable, Schema, DType};
+///
+/// let schema = Schema::new().col("ts", DType::I64);
+/// let t = MemTable::new(&schema, 1024, 1);
+/// assert_eq!(detect_table(t.as_bytes()), Some(TableKind::Ring));
+/// ```
+pub fn detect_table(buf: &[u8]) -> Option<TableKind> {
+    if buf.len() < 4 {
+        return None;
+    }
+    let magic = u32::from_le_bytes(buf[..4].try_into().unwrap());
+    match magic {
+        MAGIC_MEMT => Some(TableKind::Ring),
+        MAGIC_MEMH => Some(TableKind::Hash),
+        _ => None,
+    }
+}
