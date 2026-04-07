@@ -3203,7 +3203,7 @@ dependencies = [
 
 [[package]]
 name = "probing"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "anyhow",
  "arrow",
@@ -3217,12 +3217,13 @@ dependencies = [
  "probing-python",
  "probing-server",
  "pyo3",
+ "pyo3-build-config",
  "tokio",
 ]
 
 [[package]]
 name = "probing-cc"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3238,7 +3239,7 @@ dependencies = [
 
 [[package]]
 name = "probing-cli"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "anyhow",
  "clap 4.5.38",
@@ -3266,7 +3267,7 @@ dependencies = [
 
 [[package]]
 name = "probing-core"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "anyhow",
  "arrow",
@@ -3291,7 +3292,7 @@ dependencies = [
 
 [[package]]
 name = "probing-macros"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "probing-core",
  "quote",
@@ -3299,8 +3300,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "probing-memtable"
+version = "0.2.4"
+dependencies = [
+ "libc",
+ "memmap2",
+ "xxhash-rust",
+]
+
+[[package]]
 name = "probing-proto"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "anyhow",
  "arrow",
@@ -3316,7 +3326,7 @@ dependencies = [
 
 [[package]]
 name = "probing-python"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3346,12 +3356,14 @@ dependencies = [
 
 [[package]]
 name = "probing-server"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "anyhow",
+ "async-trait",
  "axum",
  "base64 0.21.7",
  "bytes",
+ "datafusion",
  "futures-util",
  "http-body-util",
  "include_dir",
@@ -3361,6 +3373,7 @@ dependencies = [
  "once_cell",
  "probing-cc",
  "probing-core",
+ "probing-memtable",
  "probing-proto",
  "probing-python",
  "procfs",
@@ -3374,7 +3387,7 @@ dependencies = [
 
 [[package]]
 name = "probing-store"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "thiserror 2.0.12",
  "tokio",
@@ -4980,6 +4993,12 @@ name = "writeable"
 version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e9df38ee2d2c3c5948ea468a8406ff0db0b29ae1ffde1bcf20ef305bcc95c51"
+
+[[package]]
+name = "xxhash-rust"
+version = "0.8.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fdd20c5420375476fbd4394763288da7eb0cc0b8c11deed431a91562af7335d3"
 
 [[package]]
 name = "yoke"

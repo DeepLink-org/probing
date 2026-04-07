@@ -1,5 +1,4 @@
 use anyhow::Result;
-use serde_json::Value;
 use std::io::Write;
 
 use http_body_util::{BodyExt, Full};

@@ -137,7 +137,7 @@ fn row_data_size(values: &[Value]) -> usize {
     values.iter().map(|v| v.encoded_size()).sum()
 }
 
-fn push_plain_row(buf: &mut [u8], values: &[Value]) {
+pub(crate) fn push_plain_row(buf: &mut [u8], values: &[Value]) {
     let row_data = row_data_size(values);
     if !write_row_bytes(buf, values, row_data) {
         advance_chunk_unlocked(buf);

@@ -15,6 +15,7 @@ pub use error::EngineError;
 pub use error::Result;
 
 pub use plugin::CustomNamespace;
+pub use plugin::CustomNamespaceDataSource;
 pub use plugin::CustomTable;
 pub use plugin::LazyTableSource;
 pub use plugin::NamespacePluginHelper;

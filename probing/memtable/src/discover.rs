@@ -4,8 +4,10 @@
 //!
 //! ```text
 //! /dev/shm/probing/<pid>/
-//! ├── metrics       ← self-describing memtable file (mmap)
-//! └── traces        ← self-describing memtable file (mmap)
+//! ├── metrics              ← no dot → SQL ``memtable.metrics``
+//! ├── pulsing.actors       ← first `.` splits schema/table → SQL ``pulsing.actors``
+//! ├── acme.widgets         ← any prefix works the same → SQL ``acme.widgets``
+//! └── foo.bar.baz          ← table name is ``bar.baz`` (rest after first ``.``)
 //! ```
 //!
 //! Discovery is `readdir`; reading is `mmap` + [`MemTableView::new`].
@@ -39,9 +41,12 @@
 //! ```
 
 use crate::layout::{header, MAGIC};
+use crate::memh::layout::required_total_size as memh_required_size;
+use crate::memh::table::init_buf as memh_init_buf;
+use crate::memh::{MemhView, MemhWriter};
 use crate::memtable::{MemTable, MemTableView, MemTableWriter};
 use crate::raw::{init_buf, process_start_time, validate_buf};
-use crate::schema::Schema;
+use crate::schema::{Schema, Value};
 
 use memmap2::{Mmap, MmapMut};
 use std::fs::{self, File, OpenOptions};
@@ -161,9 +166,42 @@ impl ExposedTable {
 
     /// Create a [`MemTableWriter`] backed by the mmap'd region.
     ///
-    /// The writer exclusively borrows `self` until dropped.
+    /// **Note**: this re-validates the entire buffer on every call.
+    /// Prefer [`push_row`](Self::push_row) for hot-path writes.
     pub fn writer(&mut self) -> MemTableWriter<'_> {
         MemTableWriter::new(&mut self.mmap).expect("mmap buffer validated at creation")
+    }
+
+    /// Append a row without re-validating the buffer.
+    ///
+    /// This is the fast path for high-frequency writes — it skips the
+    /// O(rows × chunks) `validate_buf` that `writer()` performs on every call.
+    /// Safe because the buffer was validated at `create()` time and only
+    /// mutated through well-formed write operations.
+    ///
+    /// # Panic safety
+    ///
+    /// The spinlock is released even if the write panics (e.g. row exceeds
+    /// chunk capacity), preventing a deadlocked mmap file.
+    pub fn push_row(&mut self, values: &[Value]) {
+        use crate::layout::{acquire_write_lock, release_write_lock};
+        use crate::memtable::push_plain_row;
+        use crate::raw::validate_row_schema;
+
+        debug_assert!(
+            validate_row_schema(&self.mmap, values),
+            "value types do not match schema"
+        );
+
+        acquire_write_lock(&mut self.mmap);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            push_plain_row(&mut self.mmap, values);
+        }));
+        release_write_lock(&mut self.mmap);
+
+        if let Err(payload) = result {
+            std::panic::resume_unwind(payload);
+        }
     }
 
     /// Create a read-only [`MemTableView`].
@@ -176,6 +214,85 @@ impl Drop for ExposedTable {
     fn drop(&mut self) {
         let _ = fs::remove_file(&self.path);
         let _ = fs::remove_dir(&self.dir); // succeeds only if empty
+    }
+}
+
+// ── ExposedHashTable ─────────────────────────────────────────────────
+
+/// An MEMH hash table backed by an mmap'd file, exposed for cross-process discovery.
+///
+/// On [`Drop`], the file is removed (same lifecycle as [`ExposedTable`]).
+pub struct ExposedHashTable {
+    mmap: MmapMut,
+    path: PathBuf,
+    dir: PathBuf,
+}
+
+impl ExposedHashTable {
+    /// Create a hash table in the [`default_dir`].
+    pub fn create(
+        name: &str,
+        num_buckets: u32,
+        arena_cap: usize,
+        hash_seed: u64,
+    ) -> io::Result<Self> {
+        Self::create_in(&default_dir(), name, num_buckets, arena_cap, hash_seed)
+    }
+
+    /// Create a hash table in a custom base directory.
+    pub fn create_in(
+        base_dir: &Path,
+        name: &str,
+        num_buckets: u32,
+        arena_cap: usize,
+        hash_seed: u64,
+    ) -> io::Result<Self> {
+        let dir = base_dir.join(std::process::id().to_string());
+        fs::create_dir_all(&dir)?;
+
+        let path = dir.join(name);
+        let size = memh_required_size(num_buckets, arena_cap);
+
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&path)?;
+        file.set_len(size as u64)?;
+
+        let mut mmap = unsafe { MmapMut::map_mut(&file)? };
+        memh_init_buf(&mut mmap, num_buckets, arena_cap, hash_seed)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("{e}")))?;
+
+        Ok(Self { mmap, path, dir })
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.mmap
+    }
+
+    pub fn as_bytes_mut(&mut self) -> &mut [u8] {
+        &mut self.mmap
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub fn writer(&mut self) -> MemhWriter<'_> {
+        MemhWriter::new(&mut self.mmap).expect("mmap buffer validated at creation")
+    }
+
+    pub fn view(&self) -> MemhView<'_> {
+        MemhView::new(&self.mmap).expect("mmap buffer validated at creation")
+    }
+}
+
+impl Drop for ExposedHashTable {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.path);
+        let _ = fs::remove_dir(&self.dir);
     }
 }
 

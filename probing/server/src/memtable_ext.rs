@@ -1,20 +1,153 @@
+//! Mmap memtable integration for DataFusion.
+//!
+//! ## File → SQL mapping (no hard-coded product prefix)
+//!
+//! Each regular file under `<data_dir>/<pid>/` can be queried when its name is valid:
+//!
+//! - **First `.` splits schema vs table** — `acme.actors` → schema `acme`, table `actors`;
+//!   `foo.bar.baz` → schema `foo`, table `bar.baz` (on-disk name is the full filename).
+//! - **No `.`** — exposed as `memtable.<filename>` (e.g. `metrics` → `memtable.metrics`).
+//!
+//! Schema head and table tail must be non-empty; only ASCII letters, digits, `_`, and
+//! `.` inside the table tail are allowed (no `/`, `\\`). Leading-dot names are ignored.
+use std::any::Any;
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use datafusion::arrow::array::{
     ArrayRef, BinaryBuilder, Float32Builder, Float64Builder, GenericStringBuilder, Int32Builder,
     Int64Builder, RecordBatch, UInt32Builder, UInt64Builder, UInt8Builder,
 };
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use datafusion::catalog::CatalogProvider;
+use datafusion::catalog::SchemaProvider;
+use datafusion::datasource::TableProvider;
+use datafusion::error::DataFusionError;
+use datafusion::error::Result as DfResult;
 
 use probing_core::core::{
-    CustomNamespace, EngineCall, EngineDatasource, EngineError, EngineExtension,
-    EngineExtensionOption, LazyTableSource, NamespacePluginHelper, Plugin,
+    EngineCall, EngineDatasource, EngineError, EngineExtension, EngineExtensionOption,
+    LazyTableSource, Plugin, PluginType,
 };
 use probing_memtable::discover::default_dir;
 use probing_memtable::{detect_table, DType, MemTableView, MemhView, TableKind, TypedValue};
 
+/// SQL schema used for mmap files whose basename contains no `.`.
+pub const DEFAULT_UNDOTTED_SCHEMA: &str = "memtable";
+
 fn self_dir() -> std::path::PathBuf {
     default_dir().join(std::process::id().to_string())
+}
+
+#[inline]
+fn valid_schema_head(s: &str) -> bool {
+    !s.is_empty() && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+}
+
+#[inline]
+fn valid_table_tail(s: &str) -> bool {
+    !s.is_empty()
+        && !s.contains('/')
+        && !s.contains('\\')
+        && s
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'.')
+}
+
+/// Map basename `filename` → `(schema, table)` for routing; [`None`] if skipped.
+pub fn classify_mmap_basename(filename: &str) -> Option<(String, String)> {
+    if filename.starts_with('.') {
+        return None;
+    }
+    if let Some((head, tail)) = filename.split_once('.') {
+        if valid_schema_head(head) && valid_table_tail(tail) {
+            return Some((head.to_string(), tail.to_string()));
+        }
+        return None;
+    }
+    if valid_schema_head(filename) {
+        Some((DEFAULT_UNDOTTED_SCHEMA.to_string(), filename.to_string()))
+    } else {
+        None
+    }
+}
+
+/// On-disk filename for a `(schema, table)` pair.
+pub fn mmap_filename_for(schema: &str, table: &str) -> String {
+    if schema == DEFAULT_UNDOTTED_SCHEMA {
+        table.to_string()
+    } else {
+        format!("{schema}.{table}")
+    }
+}
+
+fn tables_in_schema(target_schema: &str) -> Vec<String> {
+    let dir = self_dir();
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        return vec![];
+    };
+    let mut out = Vec::new();
+    for e in entries.flatten() {
+        if !e.path().is_file() {
+            continue;
+        }
+        let n = e.file_name().to_string_lossy().to_string();
+        if let Some((sch, tbl)) = classify_mmap_basename(&n) {
+            if sch == target_schema {
+                out.push(tbl);
+            }
+        }
+    }
+    out.sort();
+    out.dedup();
+    out
+}
+
+fn discover_all_schemas() -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    let dir = self_dir();
+    if let Ok(entries) = std::fs::read_dir(&dir) {
+        for e in entries.flatten() {
+            if !e.path().is_file() {
+                continue;
+            }
+            let n = e.file_name().to_string_lossy().to_string();
+            if let Some((sch, _)) = classify_mmap_basename(&n) {
+                out.insert(sch);
+            }
+        }
+    }
+    out.insert(DEFAULT_UNDOTTED_SCHEMA.to_string());
+    out
+}
+
+fn bytes_to_lazy_table(data: &[u8], logical_name: &str) -> Arc<LazyTableSource> {
+    match detect_table(data) {
+        Some(TableKind::Ring) => {
+            let view = match MemTableView::new(data) {
+                Ok(v) => v,
+                Err(_) => return Arc::new(LazyTableSource::default()),
+            };
+            Arc::new(LazyTableSource {
+                name: logical_name.to_string(),
+                schema: Some(view_to_arrow_schema(&view)),
+                data: view_to_recordbatch(&view),
+            })
+        }
+        Some(TableKind::Hash) => {
+            let view = match MemhView::new(data) {
+                Ok(v) => v,
+                Err(_) => return Arc::new(LazyTableSource::default()),
+            };
+            Arc::new(LazyTableSource {
+                name: logical_name.to_string(),
+                schema: Some(memh_kv_schema()),
+                data: memh_view_to_recordbatch(&view),
+            })
+        }
+        None => Arc::new(LazyTableSource::default()),
+    }
 }
 
 fn dtype_to_arrow(dt: DType) -> DataType {
@@ -177,67 +310,122 @@ fn memh_view_to_recordbatch(view: &MemhView<'_>) -> Vec<RecordBatch> {
     }
 }
 
-// ── CustomNamespace ────────────────────────────────────────────────────
+// ── Dynamic schemas from mmap filenames ───────────────────────────────
 
-#[derive(Default, Debug)]
-pub struct MemTableNamespace;
+/// One DataFusion schema: tables are mmap files whose basename maps here via
+/// [`classify_mmap_basename`].
+#[derive(Debug)]
+pub struct MmapFileSchemaProvider {
+    schema: String,
+}
 
-impl CustomNamespace for MemTableNamespace {
-    fn name() -> &'static str {
-        "memtable"
-    }
-
-    fn list() -> Vec<String> {
-        let dir = self_dir();
-        let entries = match std::fs::read_dir(&dir) {
-            Ok(e) => e,
-            Err(_) => return vec![],
-        };
-        entries
-            .flatten()
-            .filter(|e| e.path().is_file())
-            .filter_map(|e| Some(e.file_name().to_string_lossy().to_string()))
-            .collect()
-    }
-
-    fn make_lazy(expr: &str) -> Arc<LazyTableSource> {
-        let path = self_dir().join(expr);
-        let data = match std::fs::read(&path) {
-            Ok(d) => d,
-            Err(_) => return Arc::new(LazyTableSource::default()),
-        };
-
-        match detect_table(&data) {
-            Some(TableKind::Ring) => {
-                let view = match MemTableView::new(&data) {
-                    Ok(v) => v,
-                    Err(_) => return Arc::new(LazyTableSource::default()),
-                };
-                Arc::new(LazyTableSource {
-                    name: expr.to_string(),
-                    schema: Some(view_to_arrow_schema(&view)),
-                    data: view_to_recordbatch(&view),
-                })
-            }
-            Some(TableKind::Hash) => {
-                let view = match MemhView::new(&data) {
-                    Ok(v) => v,
-                    Err(_) => return Arc::new(LazyTableSource::default()),
-                };
-                Arc::new(LazyTableSource {
-                    name: expr.to_string(),
-                    schema: Some(memh_kv_schema()),
-                    data: memh_view_to_recordbatch(&view),
-                })
-            }
-            None => Arc::new(LazyTableSource::default()),
+impl MmapFileSchemaProvider {
+    pub fn new(schema: impl Into<String>) -> Self {
+        Self {
+            schema: schema.into(),
         }
     }
 }
 
-// ── EngineExtension ────────────────────────────────────────────────────
+#[async_trait]
+impl SchemaProvider for MmapFileSchemaProvider {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 
-pub type MemTablePlugin = NamespacePluginHelper<MemTableNamespace>;
+    fn table_names(&self) -> Vec<String> {
+        tables_in_schema(&self.schema)
+    }
+
+    async fn table(&self, name: &str) -> DfResult<Option<Arc<dyn TableProvider>>> {
+        let names = self.table_names();
+        if !names.iter().any(|n| n == name) {
+            return Ok(None);
+        }
+        let path = self_dir().join(mmap_filename_for(&self.schema, name));
+        let data = match std::fs::read(&path) {
+            Ok(d) => d,
+            Err(_) => return Ok(None),
+        };
+        Ok(Some(bytes_to_lazy_table(&data, name)))
+    }
+
+    fn register_table(
+        &self,
+        _name: String,
+        _table: Arc<dyn TableProvider>,
+    ) -> DfResult<Option<Arc<dyn TableProvider>>> {
+        Err(DataFusionError::NotImplemented(
+            "unable to create tables".to_string(),
+        ))
+    }
+
+    fn deregister_table(&self, _name: &str) -> DfResult<Option<Arc<dyn TableProvider>>> {
+        Err(DataFusionError::NotImplemented(
+            "unable to drop tables".to_string(),
+        ))
+    }
+
+    fn table_exist(&self, name: &str) -> bool {
+        self.table_names().iter().any(|n| n == name)
+    }
+}
+
+/// Wraps `probe` catalog; delegates static schemas (python, cluster, …)
+/// to inner, discovers mmap-backed schemas (e.g. `pulsing.*`) at query time.
+#[derive(Debug)]
+struct DynamicMmapCatalog {
+    inner: Arc<dyn CatalogProvider>,
+}
+
+impl CatalogProvider for DynamicMmapCatalog {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn schema_names(&self) -> Vec<String> {
+        let mut names: BTreeSet<String> = self.inner.schema_names().into_iter().collect();
+        for sch in discover_all_schemas() {
+            names.insert(sch);
+        }
+        names.into_iter().collect()
+    }
+
+    fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
+        if !tables_in_schema(name).is_empty() || name == DEFAULT_UNDOTTED_SCHEMA {
+            return Some(Arc::new(MmapFileSchemaProvider::new(name)));
+        }
+        self.inner.schema(name)
+    }
+
+    fn register_schema(
+        &self,
+        name: &str,
+        schema: Arc<dyn SchemaProvider>,
+    ) -> DfResult<Option<Arc<dyn SchemaProvider>>> {
+        self.inner.register_schema(name, schema)
+    }
+}
+
+/// Namespace plugin that wraps the `probe` catalog with [`DynamicMmapCatalog`]
+/// for dynamic schema discovery from mmap files at query time.
+#[derive(Debug, Default)]
+pub struct UnifiedMemtablePlugin;
+
+impl Plugin for UnifiedMemtablePlugin {
+    fn name(&self) -> String { "mmap_memtables".into() }
+    fn kind(&self) -> PluginType { PluginType::Namespace }
+    fn namespace(&self) -> String { "memtable".into() }
+
+    fn provide_catalog(
+        &self,
+        inner: Arc<dyn CatalogProvider>,
+    ) -> Option<Arc<dyn CatalogProvider>> {
+        Some(Arc::new(DynamicMmapCatalog { inner }))
+    }
+}
+
+// ── EngineExtension ────────────────────────────────────────────────────
 
 #[derive(Debug, Default, EngineExtension)]
 pub struct MemTableExtension {}
@@ -247,10 +435,10 @@ impl EngineCall for MemTableExtension {}
 impl EngineDatasource for MemTableExtension {
     fn datasrc(
         &self,
-        namespace: &str,
+        _namespace: &str,
         _name: Option<&str>,
     ) -> Option<Arc<dyn Plugin + Sync + Send>> {
-        Some(MemTablePlugin::create(namespace))
+        Some(Arc::new(UnifiedMemtablePlugin::default()))
     }
 }
 
@@ -261,6 +449,10 @@ mod tests {
         AsArray, Float64Array, Int32Array, Int64Array, UInt8Array,
     };
     use probing_memtable::{MemTable, Schema as MtSchema, Value};
+    use std::sync::Mutex;
+
+    /// `PROBING_DATA_DIR` is process-global; serialize tests that mutate it.
+    static PROBING_DATA_DIR_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn dtype_mapping_covers_all_variants() {
@@ -371,8 +563,34 @@ mod tests {
         assert_eq!(col.value(1), 255);
     }
 
+    fn read_lazy_from_mmap(schema: &str, table: &str) -> Arc<LazyTableSource> {
+        let path = self_dir().join(mmap_filename_for(schema, table));
+        let data = std::fs::read(path).unwrap();
+        bytes_to_lazy_table(&data, table)
+    }
+
+    #[test]
+    fn classify_and_mmap_roundtrip() {
+        assert_eq!(
+            classify_mmap_basename("pulsing.actors"),
+            Some(("pulsing".into(), "actors".into()))
+        );
+        assert_eq!(
+            classify_mmap_basename("foo.bar.baz"),
+            Some(("foo".into(), "bar.baz".into()))
+        );
+        assert_eq!(
+            classify_mmap_basename("metrics"),
+            Some((DEFAULT_UNDOTTED_SCHEMA.into(), "metrics".into()))
+        );
+        assert_eq!(mmap_filename_for(DEFAULT_UNDOTTED_SCHEMA, "metrics"), "metrics");
+        assert_eq!(mmap_filename_for("pulsing", "actors"), "pulsing.actors");
+        assert_eq!(mmap_filename_for("foo", "bar.baz"), "foo.bar.baz");
+    }
+
     #[test]
     fn namespace_list_and_make_lazy_via_exposed_table() {
+        let _lock = PROBING_DATA_DIR_LOCK.lock().unwrap();
         use probing_memtable::discover::ExposedTable;
 
         let tmp = tempfile::tempdir().unwrap();
@@ -390,12 +608,10 @@ mod tests {
             w.push_row(&[Value::I64(200), Value::Str("beta")]);
         }
 
-        // list() should find the table
-        let names = MemTableNamespace::list();
+        let names = tables_in_schema(DEFAULT_UNDOTTED_SCHEMA);
         assert!(names.contains(&"test_metrics".to_string()), "got: {names:?}");
 
-        // make_lazy() should read data correctly
-        let lazy = MemTableNamespace::make_lazy("test_metrics");
+        let lazy = read_lazy_from_mmap(DEFAULT_UNDOTTED_SCHEMA, "test_metrics");
         assert_eq!(lazy.data.len(), 1);
         let batch = &lazy.data[0];
         assert_eq!(batch.num_rows(), 2);
@@ -415,4 +631,47 @@ mod tests {
             None => std::env::remove_var("PROBING_DATA_DIR"),
         }
     }
+
+    #[test]
+    fn dotted_schema_isolated_from_memtable_list() {
+        let _lock = PROBING_DATA_DIR_LOCK.lock().unwrap();
+        use probing_memtable::discover::ExposedTable;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let orig = std::env::var("PROBING_DATA_DIR").ok();
+        std::env::set_var("PROBING_DATA_DIR", tmp.path());
+
+        let schema = MtSchema::new()
+            .col("ts", DType::I64)
+            .col("msg", DType::Str);
+        let dotted = mmap_filename_for("acme", "metrics_demo");
+        let mut ring = ExposedTable::create(&dotted, &schema, 4096, 2).unwrap();
+        {
+            let mut w = ring.writer();
+            w.push_row(&[Value::I64(1), Value::Str("x")]);
+        }
+
+        let mem_names = tables_in_schema(DEFAULT_UNDOTTED_SCHEMA);
+        assert!(
+            !mem_names.contains(&"metrics_demo".to_string()),
+            "dotted file must not appear as memtable table: {mem_names:?}"
+        );
+
+        let acme_names = tables_in_schema("acme");
+        assert!(
+            acme_names.contains(&"metrics_demo".to_string()),
+            "got: {acme_names:?}"
+        );
+
+        let lazy = read_lazy_from_mmap("acme", "metrics_demo");
+        assert_eq!(lazy.data.len(), 1);
+        assert_eq!(lazy.data[0].num_rows(), 1);
+
+        drop(ring);
+        match orig {
+            Some(v) => std::env::set_var("PROBING_DATA_DIR", v),
+            None => std::env::remove_var("PROBING_DATA_DIR"),
+        }
+    }
+
 }

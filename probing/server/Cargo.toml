@@ -27,6 +27,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 
+async-trait = "0.1.83"
 bytes = "1"
 include_dir = "=0.7.4"
 nu-ansi-term = "0.50.1"

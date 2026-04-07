@@ -119,6 +119,20 @@ pub trait Plugin {
     ) -> Result<()> {
         Ok(())
     }
+
+    /// Optionally wrap the catalog with a dynamic provider.
+    ///
+    /// Called by the engine after [`register_namespace`](Self::register_namespace).
+    /// If `Some(wrapper)` is returned, the engine replaces the default catalog
+    /// with `wrapper` via `SessionContext::register_catalog`, enabling dynamic
+    /// schema discovery at query time.
+    #[allow(unused)]
+    fn provide_catalog(
+        &self,
+        inner: Arc<dyn CatalogProvider>,
+    ) -> Option<Arc<dyn CatalogProvider>> {
+        None
+    }
 }
 
 /// Core query engine for the Probing system
@@ -259,7 +273,10 @@ impl Engine {
 
         if plugin.kind() == PluginType::Namespace {
             let state: SessionState = self.context.state();
-            plugin.register_namespace(catalog, &state)?;
+            plugin.register_namespace(catalog.clone(), &state)?;
+            if let Some(wrapper) = plugin.provide_catalog(catalog) {
+                self.context.register_catalog("probe", wrapper);
+            }
             let mut maps = self.plugins.write().await;
             maps.insert(format!("probe.{namespace}"), plugin);
         } else if plugin.kind() == PluginType::Table {
@@ -992,6 +1009,162 @@ mod tests {
 
         if let Seq::SeqI32(ids) = &result.cols[0] {
             assert_eq!(ids.len(), 2);
+        }
+
+        Ok(())
+    }
+
+    // ── provide_catalog: dynamic schema discovery ──────────────────────
+
+    /// A CatalogProvider wrapper that dynamically returns a schema named
+    /// "dynamic_sch" with a single table "my_table", simulating mmap
+    /// discovery at query time.
+    #[derive(Debug)]
+    struct DynCatalog {
+        inner: Arc<dyn CatalogProvider>,
+        /// Toggled ON after "late" schema appears.
+        has_dynamic: std::sync::atomic::AtomicBool,
+    }
+
+    impl CatalogProvider for DynCatalog {
+        fn as_any(&self) -> &dyn Any { self }
+
+        fn schema_names(&self) -> Vec<String> {
+            let mut names = self.inner.schema_names();
+            if self.has_dynamic.load(std::sync::atomic::Ordering::Relaxed) {
+                if !names.contains(&"dynamic_sch".to_string()) {
+                    names.push("dynamic_sch".to_string());
+                }
+            }
+            names
+        }
+
+        fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
+            if name == "dynamic_sch"
+                && self.has_dynamic.load(std::sync::atomic::Ordering::Relaxed)
+            {
+                let schema = Arc::new(Schema::new(vec![
+                    Field::new("id", DataType::Int32, false),
+                ]));
+                let batch = RecordBatch::try_new(
+                    schema.clone(),
+                    vec![Arc::new(Int32Array::from(vec![1, 2]))],
+                )
+                .unwrap();
+                let mem = MemorySchemaProvider::new();
+                let table = Arc::new(
+                    datafusion::datasource::MemTable::try_new(schema, vec![vec![batch]]).unwrap(),
+                );
+                mem.register_table("late_table".into(), table).unwrap();
+                return Some(Arc::new(mem));
+            }
+            self.inner.schema(name)
+        }
+
+        fn register_schema(
+            &self,
+            name: &str,
+            schema: Arc<dyn SchemaProvider>,
+        ) -> Result<Option<Arc<dyn SchemaProvider>>> {
+            self.inner.register_schema(name, schema)
+        }
+    }
+
+    /// A Namespace plugin that returns a DynCatalog wrapper via provide_catalog.
+    struct DynPlugin {
+        catalog: std::sync::Mutex<Option<Arc<DynCatalog>>>,
+    }
+
+    impl Plugin for DynPlugin {
+        fn name(&self) -> String { "dyn".into() }
+        fn kind(&self) -> PluginType { PluginType::Namespace }
+        fn namespace(&self) -> String { "dyn".into() }
+
+        fn provide_catalog(
+            &self,
+            inner: Arc<dyn CatalogProvider>,
+        ) -> Option<Arc<dyn CatalogProvider>> {
+            let cat = Arc::new(DynCatalog {
+                inner,
+                has_dynamic: std::sync::atomic::AtomicBool::new(false),
+            });
+            *self.catalog.lock().unwrap() = Some(cat.clone());
+            Some(cat)
+        }
+    }
+
+    #[tokio::test]
+    async fn provide_catalog_enables_dynamic_schema() -> Result<()> {
+        let plugin = Arc::new(DynPlugin {
+            catalog: std::sync::Mutex::new(None),
+        });
+
+        let engine = Engine::builder()
+            .with_default_namespace("probe")
+            .with_plugin(plugin.clone())
+            .build()
+            .await?;
+
+        // Before enabling the dynamic flag, "dynamic_sch" must not appear.
+        let result = engine
+            .async_query(
+                "SELECT table_schema, table_name \
+                 FROM information_schema.tables \
+                 WHERE table_catalog = 'probe' AND table_schema = 'dynamic_sch'",
+            )
+            .await?;
+        let row_count = result.map(|df| df.cols[0].len()).unwrap_or(0);
+        assert_eq!(row_count, 0, "dynamic_sch must not exist yet");
+
+        // Flip the flag — simulates mmap files appearing after init.
+        plugin
+            .catalog
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .has_dynamic
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+
+        // Now "dynamic_sch" must be visible in information_schema.tables
+        let result = engine
+            .async_query(
+                "SELECT table_schema, table_name \
+                 FROM information_schema.tables \
+                 WHERE table_catalog = 'probe' AND table_schema = 'dynamic_sch'",
+            )
+            .await?;
+        let table_count = result.map(|df| df.cols[0].len()).unwrap_or(0);
+        assert!(
+            table_count > 0,
+            "dynamic_sch.late_table must appear in information_schema.tables after flag flip"
+        );
+
+        // Also verify it appears in schemata
+        let result = engine
+            .async_query(
+                "SELECT schema_name \
+                 FROM information_schema.schemata \
+                 WHERE catalog_name = 'probe' AND schema_name = 'dynamic_sch'",
+            )
+            .await?;
+        let schema_count = result.map(|df| df.cols[0].len()).unwrap_or(0);
+        assert!(
+            schema_count > 0,
+            "dynamic_sch must appear in information_schema.schemata after flag flip"
+        );
+
+        // Verify the table can actually be queried
+        let result = engine
+            .async_query("SELECT * FROM dynamic_sch.late_table")
+            .await?
+            .unwrap();
+        if let Seq::SeqI32(ids) = &result.cols[0] {
+            assert_eq!(ids.len(), 2);
+            assert_eq!(ids[0], 1);
+            assert_eq!(ids[1], 2);
+        } else {
+            panic!("expected SeqI32, got {:?}", result.cols[0]);
         }
 
         Ok(())

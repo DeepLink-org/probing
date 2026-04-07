@@ -51,7 +51,7 @@ probing --version
 应该会输出已安装的 Probing 版本，例如：
 
 ```
-probing 0.2.3
+probing 0.2.4
 ```
 
 您也可以检查 `probing` 命令是否可用：
