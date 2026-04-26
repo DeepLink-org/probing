@@ -1,3 +1,10 @@
+"""
+Import hook：在指定模块被 import 时执行回调。
+
+- register：模块名 -> 回调（或回调列表），loader 在模块加载后执行。
+- add_module_callback(module_name, callback)：往 register 里追加回调，统一走这套机制。
+"""
+
 import importlib.abc
 import importlib.util
 import sys
@@ -58,19 +65,9 @@ class ProbingLoader(importlib.abc.Loader):
         elif hasattr(self.original_loader, "load_module"):
             self.original_loader.load_module(self.fullname)
 
-        # After module execution, immediately trigger the callback
         if self.fullname in register and self.fullname not in triggered:
             triggered[self.fullname] = True
-            try:
-                # register[self.fullname]()
-                callbacks = register[self.fullname]
-                if isinstance(callbacks, list):
-                    for cb in callbacks:
-                        cb()
-                else:
-                    callbacks()
-            except Exception as e:
-                print(f"Error in callback for {self.fullname}: {e}")
+            _run_callbacks(self.fullname)
 
 
 class ProbingFinder(importlib.abc.MetaPathFinder):
@@ -114,17 +111,47 @@ class ProbingFinder(importlib.abc.MetaPathFinder):
             sys.meta_path = saved_meta_path
 
 
+def _run_callbacks(module_name):
+    """Run all callbacks for a module (no args, for loader compatibility)."""
+    if module_name not in register:
+        return
+    callbacks = register[module_name]
+    if isinstance(callbacks, list):
+        for cb in callbacks:
+            try:
+                cb()
+            except Exception as e:
+                print(f"Error in callback for {module_name}: {e}")  # noqa: T201
+    else:
+        try:
+            callbacks()
+        except Exception as e:
+            print(f"Error in callback for {module_name}: {e}")  # noqa: T201
+
+
 def register_module_callback(module_name, callback):
-    """Register callback function for module import"""
+    """Register callback function for module import (replaces any existing)."""
     register[module_name] = callback
 
-    # If the module is already imported, execute the callback immediately
     if module_name in sys.modules and module_name not in triggered:
+        triggered[module_name] = True
         try:
-            triggered[module_name] = True
             callback(sys.modules[module_name])
         except Exception as e:
-            print(f"Error executing callback for {module_name}: {e}")
+            print(f"Error executing callback for {module_name}: {e}")  # noqa: T201
+
+
+def add_module_callback(module_name, callback):
+    """Add a callback for module import (keeps existing callbacks). Triggers when module is loaded."""
+    if module_name not in register:
+        register[module_name] = []
+    if not isinstance(register[module_name], list):
+        register[module_name] = [register[module_name]]
+    register[module_name].append(callback)
+
+    if module_name in sys.modules and module_name not in triggered:
+        triggered[module_name] = True
+        _run_callbacks(module_name)
 
 
 # Initialize recursion protection set

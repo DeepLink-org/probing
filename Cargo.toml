@@ -5,6 +5,7 @@ members = [
     # "app",
     "probing/cli",
     "probing/proto",
+    "probing/memtable",
     "probing/core",
     "probing/extensions/cc",
     "probing/extensions/python",
@@ -91,6 +92,9 @@ pyo3 = { version = "0.25.1", default-features = false, features = [
     "auto-initialize",
     "macros",
 ] }
+
+[build-dependencies]
+pyo3-build-config = "0.25.1"
 
 [dev-dependencies]
 anyhow = { workspace = true }

@@ -101,6 +101,12 @@ pub fn Sidebar() -> Element {
                             label: "Traces",
                             is_active: route == Route::TracesPage {},
                         }
+                        SidebarNavItem {
+                            to: Route::PulsingPage {},
+                            icon: &icondata::AiDeploymentUnitOutlined,
+                            label: "Pulsing",
+                            is_active: route == Route::PulsingPage {},
+                        }
                         div { class: "pt-2" }
                         SidebarNavItem {
                             to: Route::ClusterPage {},
