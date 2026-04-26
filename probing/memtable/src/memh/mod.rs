@@ -25,6 +25,6 @@ pub mod table;
 pub use codec::TypedValue;
 pub use layout::{MAGIC_MEMH, VERSION_MEMH};
 pub use table::{
-    init_buf, view_from_buf, writer_from_buf, InsertError, InsertResult, MemhInitError,
-    MemhValidateError, MemhView, MemhWriter, SharedMemhWriter, validate_memh,
+    init_buf, validate_memh, view_from_buf, writer_from_buf, InsertError, InsertResult,
+    MemhInitError, MemhValidateError, MemhView, MemhWriter, SharedMemhWriter,
 };

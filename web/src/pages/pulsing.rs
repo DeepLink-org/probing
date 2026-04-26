@@ -208,7 +208,6 @@ fn parse_spans(df: &DataFrame) -> Vec<SpanRow> {
     let ci_dur = col("duration_us");
     let ci_status = col("status_code");
     let ci_actor = col("attr_actor_name");
-    let _ci_op = col("attr_pulsing_op");
 
     let nrows = df.cols.first().map(|c| c.len()).unwrap_or(0);
     (0..nrows)

@@ -96,12 +96,12 @@ pub struct MemhHeader {
     pub data_offset: u32,         // 20  start of bucket array (64-aligned)
     pub _reserved_cold: [u32; 2], // 24
     // hot zone
-    pub arena_bump: AtomicU32,    // 32  bytes appended to arena so far
-    pub write_lock: AtomicU32,    // 36  spinlock: 0 = free
-    pub refcount: AtomicU32,      // 40
-    pub creator_pid: u32,         // 44
-    pub creator_start_time: u64,  // 48
-    pub _reserved: [u32; 2],      // 56
+    pub arena_bump: AtomicU32,   // 32  bytes appended to arena so far
+    pub write_lock: AtomicU32,   // 36  spinlock: 0 = free
+    pub refcount: AtomicU32,     // 40
+    pub creator_pid: u32,        // 44
+    pub creator_start_time: u64, // 48
+    pub _reserved: [u32; 2],     // 56
 }
 
 /// Placed immediately after `MemhHeader` at offset 64.
@@ -186,11 +186,7 @@ pub fn slot_off(data_offset: usize, idx: usize) -> usize {
 /// - All remaining fields are read from the same 32-byte cache line via plain
 ///   (non-volatile) loads, which is safe after the Acquire fence.
 #[inline(always)]
-pub fn read_slot(
-    buf: &[u8],
-    data_offset: usize,
-    idx: usize,
-) -> (u8, u8, u32, u64, u32, [u8; 8]) {
+pub fn read_slot(buf: &[u8], data_offset: usize, idx: usize) -> (u8, u8, u32, u64, u32, [u8; 8]) {
     let o = slot_off(data_offset, idx);
     debug_assert!(o + SLOT_STRIDE <= buf.len());
     unsafe {
@@ -198,9 +194,9 @@ pub fn read_slot(
         let tag = std::ptr::read_volatile(p);
         atomic::fence(Ordering::Acquire);
         let val_dtype = *p.add(1);
-        let key_len   = u32::from_le_bytes(*p.add(4).cast::<[u8; 4]>());
-        let hash      = u64::from_le_bytes(*p.add(8).cast::<[u8; 8]>());
-        let head_off  = u32::from_le_bytes(*p.add(16).cast::<[u8; 4]>());
+        let key_len = u32::from_le_bytes(*p.add(4).cast::<[u8; 4]>());
+        let hash = u64::from_le_bytes(*p.add(8).cast::<[u8; 8]>());
+        let head_off = u32::from_le_bytes(*p.add(16).cast::<[u8; 4]>());
         let mut val_bytes = [0u8; 8];
         std::ptr::copy_nonoverlapping(p.add(24), val_bytes.as_mut_ptr(), 8);
         (tag, val_dtype, key_len, hash, head_off, val_bytes)
@@ -247,13 +243,7 @@ pub fn commit_slot(
 /// Update only `head_off` and `tag` (used for **updates** and **deletes**).
 ///
 /// `key_len`, `hash`, and `val_bytes` are left unchanged (same key, new record).
-pub fn commit_slot_head(
-    buf: &mut [u8],
-    data_offset: usize,
-    idx: usize,
-    tag: u8,
-    head_off: u32,
-) {
+pub fn commit_slot_head(buf: &mut [u8], data_offset: usize, idx: usize, tag: u8, head_off: u32) {
     let o = slot_off(data_offset, idx);
     buf[o + 16..o + 20].copy_from_slice(&head_off.to_le_bytes());
     atomic::fence(Ordering::Release);
@@ -285,7 +275,11 @@ pub fn update_slot_inline_value(
 pub fn clear_slot(buf: &mut [u8], data_offset: usize, idx: usize, tombstone: bool) {
     let o = slot_off(data_offset, idx);
     buf[o + 1..o + SLOT_STRIDE].fill(0);
-    let tag = if tombstone { SLOT_TOMBSTONE } else { SLOT_EMPTY };
+    let tag = if tombstone {
+        SLOT_TOMBSTONE
+    } else {
+        SLOT_EMPTY
+    };
     atomic::fence(Ordering::Release);
     unsafe { std::ptr::write_volatile(buf.as_mut_ptr().add(o), tag) };
 }

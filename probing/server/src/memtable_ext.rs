@@ -50,8 +50,7 @@ fn valid_table_tail(s: &str) -> bool {
     !s.is_empty()
         && !s.contains('/')
         && !s.contains('\\')
-        && s
-            .bytes()
+        && s.bytes()
             .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'.')
 }
 
@@ -267,7 +266,7 @@ fn memh_kv_schema() -> SchemaRef {
 
 fn typed_value_to_str(v: &TypedValue<'_>) -> String {
     match v {
-        TypedValue::U8(n)  => n.to_string(),
+        TypedValue::U8(n) => n.to_string(),
         TypedValue::I32(n) => n.to_string(),
         TypedValue::I64(n) => n.to_string(),
         TypedValue::F32(n) => n.to_string(),
@@ -290,7 +289,7 @@ fn typed_value_to_str(v: &TypedValue<'_>) -> String {
 
 fn memh_view_to_recordbatch(view: &MemhView<'_>) -> Vec<RecordBatch> {
     let schema = memh_kv_schema();
-    let mut keys:   GenericStringBuilder<i32> = GenericStringBuilder::new();
+    let mut keys: GenericStringBuilder<i32> = GenericStringBuilder::new();
     let mut values: GenericStringBuilder<i32> = GenericStringBuilder::new();
 
     for (k, v) in view.iter() {
@@ -413,14 +412,17 @@ impl CatalogProvider for DynamicMmapCatalog {
 pub struct UnifiedMemtablePlugin;
 
 impl Plugin for UnifiedMemtablePlugin {
-    fn name(&self) -> String { "mmap_memtables".into() }
-    fn kind(&self) -> PluginType { PluginType::Namespace }
-    fn namespace(&self) -> String { "memtable".into() }
+    fn name(&self) -> String {
+        "mmap_memtables".into()
+    }
+    fn kind(&self) -> PluginType {
+        PluginType::Namespace
+    }
+    fn namespace(&self) -> String {
+        "memtable".into()
+    }
 
-    fn provide_catalog(
-        &self,
-        inner: Arc<dyn CatalogProvider>,
-    ) -> Option<Arc<dyn CatalogProvider>> {
+    fn provide_catalog(&self, inner: Arc<dyn CatalogProvider>) -> Option<Arc<dyn CatalogProvider>> {
         Some(Arc::new(DynamicMmapCatalog { inner }))
     }
 }
@@ -445,9 +447,7 @@ impl EngineDatasource for MemTableExtension {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use datafusion::arrow::array::{
-        AsArray, Float64Array, Int32Array, Int64Array, UInt8Array,
-    };
+    use datafusion::arrow::array::{AsArray, Float64Array, Int32Array, Int64Array, UInt8Array};
     use probing_memtable::{MemTable, Schema as MtSchema, Value};
     use std::sync::Mutex;
 
@@ -484,11 +484,19 @@ mod tests {
         assert_eq!(batch.num_rows(), 2);
         assert_eq!(batch.num_columns(), 3);
 
-        let ids = batch.column(0).as_any().downcast_ref::<Int32Array>().unwrap();
+        let ids = batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<Int32Array>()
+            .unwrap();
         assert_eq!(ids.value(0), 1);
         assert_eq!(ids.value(1), 2);
 
-        let vals = batch.column(1).as_any().downcast_ref::<Float64Array>().unwrap();
+        let vals = batch
+            .column(1)
+            .as_any()
+            .downcast_ref::<Float64Array>()
+            .unwrap();
         assert!((vals.value(0) - 3.14).abs() < 1e-10);
         assert!((vals.value(1) - 2.72).abs() < 1e-10);
 
@@ -513,7 +521,11 @@ mod tests {
         // Ring buffer may have overwritten old chunks, but total rows should be > 0
         assert!(batch.num_rows() > 0);
 
-        let col = batch.column(0).as_any().downcast_ref::<Int64Array>().unwrap();
+        let col = batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<Int64Array>()
+            .unwrap();
         // Verify values are sequential (from whatever chunks survived)
         for i in 1..col.len() {
             assert!(col.value(i) > col.value(i - 1));
@@ -558,7 +570,11 @@ mod tests {
 
         let view = t.view();
         let batches = view_to_recordbatch(&view);
-        let col = batches[0].column(0).as_any().downcast_ref::<UInt8Array>().unwrap();
+        let col = batches[0]
+            .column(0)
+            .as_any()
+            .downcast_ref::<UInt8Array>()
+            .unwrap();
         assert_eq!(col.value(0), 0);
         assert_eq!(col.value(1), 255);
     }
@@ -583,7 +599,10 @@ mod tests {
             classify_mmap_basename("metrics"),
             Some((DEFAULT_UNDOTTED_SCHEMA.into(), "metrics".into()))
         );
-        assert_eq!(mmap_filename_for(DEFAULT_UNDOTTED_SCHEMA, "metrics"), "metrics");
+        assert_eq!(
+            mmap_filename_for(DEFAULT_UNDOTTED_SCHEMA, "metrics"),
+            "metrics"
+        );
         assert_eq!(mmap_filename_for("pulsing", "actors"), "pulsing.actors");
         assert_eq!(mmap_filename_for("foo", "bar.baz"), "foo.bar.baz");
     }
@@ -598,9 +617,7 @@ mod tests {
         let orig = std::env::var("PROBING_DATA_DIR").ok();
         std::env::set_var("PROBING_DATA_DIR", tmp.path());
 
-        let schema = MtSchema::new()
-            .col("ts", DType::I64)
-            .col("msg", DType::Str);
+        let schema = MtSchema::new().col("ts", DType::I64).col("msg", DType::Str);
         let mut table = ExposedTable::create("test_metrics", &schema, 4096, 2).unwrap();
         {
             let mut w = table.writer();
@@ -609,14 +626,21 @@ mod tests {
         }
 
         let names = tables_in_schema(DEFAULT_UNDOTTED_SCHEMA);
-        assert!(names.contains(&"test_metrics".to_string()), "got: {names:?}");
+        assert!(
+            names.contains(&"test_metrics".to_string()),
+            "got: {names:?}"
+        );
 
         let lazy = read_lazy_from_mmap(DEFAULT_UNDOTTED_SCHEMA, "test_metrics");
         assert_eq!(lazy.data.len(), 1);
         let batch = &lazy.data[0];
         assert_eq!(batch.num_rows(), 2);
 
-        let ts = batch.column(0).as_any().downcast_ref::<Int64Array>().unwrap();
+        let ts = batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<Int64Array>()
+            .unwrap();
         assert_eq!(ts.value(0), 100);
         assert_eq!(ts.value(1), 200);
 
@@ -641,9 +665,7 @@ mod tests {
         let orig = std::env::var("PROBING_DATA_DIR").ok();
         std::env::set_var("PROBING_DATA_DIR", tmp.path());
 
-        let schema = MtSchema::new()
-            .col("ts", DType::I64)
-            .col("msg", DType::Str);
+        let schema = MtSchema::new().col("ts", DType::I64).col("msg", DType::Str);
         let dotted = mmap_filename_for("acme", "metrics_demo");
         let mut ring = ExposedTable::create(&dotted, &schema, 4096, 2).unwrap();
         {
@@ -673,5 +695,4 @@ mod tests {
             None => std::env::remove_var("PROBING_DATA_DIR"),
         }
     }
-
 }

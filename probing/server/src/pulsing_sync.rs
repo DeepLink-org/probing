@@ -76,7 +76,7 @@ fn probing_addr_for(pulsing_addr: &str) -> (String /* host */, String /* addr */
 fn parse_member(node_id: &str, value: &str) -> Option<Node> {
     let mut parts = value.splitn(3, '|');
     let pulsing_addr = parts.next()?.trim();
-    let status       = parts.next()?.trim().to_string();
+    let status = parts.next()?.trim().to_string();
     // epoch (third field) unused — merge_pulsing_nodes stamps its own timestamp
 
     // Don't add permanently-dead entries to the live cluster view.

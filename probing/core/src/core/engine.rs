@@ -127,10 +127,7 @@ pub trait Plugin {
     /// with `wrapper` via `SessionContext::register_catalog`, enabling dynamic
     /// schema discovery at query time.
     #[allow(unused)]
-    fn provide_catalog(
-        &self,
-        inner: Arc<dyn CatalogProvider>,
-    ) -> Option<Arc<dyn CatalogProvider>> {
+    fn provide_catalog(&self, inner: Arc<dyn CatalogProvider>) -> Option<Arc<dyn CatalogProvider>> {
         None
     }
 }
@@ -1027,7 +1024,9 @@ mod tests {
     }
 
     impl CatalogProvider for DynCatalog {
-        fn as_any(&self) -> &dyn Any { self }
+        fn as_any(&self) -> &dyn Any {
+            self
+        }
 
         fn schema_names(&self) -> Vec<String> {
             let mut names = self.inner.schema_names();
@@ -1040,12 +1039,9 @@ mod tests {
         }
 
         fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
-            if name == "dynamic_sch"
-                && self.has_dynamic.load(std::sync::atomic::Ordering::Relaxed)
+            if name == "dynamic_sch" && self.has_dynamic.load(std::sync::atomic::Ordering::Relaxed)
             {
-                let schema = Arc::new(Schema::new(vec![
-                    Field::new("id", DataType::Int32, false),
-                ]));
+                let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
                 let batch = RecordBatch::try_new(
                     schema.clone(),
                     vec![Arc::new(Int32Array::from(vec![1, 2]))],
@@ -1076,9 +1072,15 @@ mod tests {
     }
 
     impl Plugin for DynPlugin {
-        fn name(&self) -> String { "dyn".into() }
-        fn kind(&self) -> PluginType { PluginType::Namespace }
-        fn namespace(&self) -> String { "dyn".into() }
+        fn name(&self) -> String {
+            "dyn".into()
+        }
+        fn kind(&self) -> PluginType {
+            PluginType::Namespace
+        }
+        fn namespace(&self) -> String {
+            "dyn".into()
+        }
 
         fn provide_catalog(
             &self,

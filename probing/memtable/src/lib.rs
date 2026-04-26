@@ -102,18 +102,18 @@ mod schema;
 mod writer;
 
 pub use cache::{CachedCursor, CachedReader};
-pub use memtable::{MemTable, MemTableView, MemTableWriter};
+pub use layout::MAGIC_MEMT;
 pub use memh::{
-    init_buf as init_memh_buf, validate_memh, TypedValue,
-    InsertError, InsertResult, MemhInitError, MemhValidateError,
-    MemhView, MemhWriter, SharedMemhWriter, MAGIC_MEMH, VERSION_MEMH,
+    init_buf as init_memh_buf, validate_memh, InsertError, InsertResult, MemhInitError,
+    MemhValidateError, MemhView, MemhWriter, SharedMemhWriter, TypedValue, MAGIC_MEMH,
+    VERSION_MEMH,
 };
+pub use memtable::{MemTable, MemTableView, MemTableWriter};
 pub use raw::validate_buf;
 pub use refcount::{acquire_ref, refcount, release_ref};
 pub use row::{Row, RowCursor, RowIter};
 pub use schema::{Col, DType, Schema, Value};
 pub use writer::RowWriter;
-pub use layout::MAGIC_MEMT;
 
 /// Table format discriminant — determined by the first 4 bytes (magic number).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

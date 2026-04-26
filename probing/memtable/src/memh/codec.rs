@@ -38,14 +38,14 @@ pub const NO_PREV: u32 = 0xFFFF_FFFF;
 /// (PUT_INLINE and TOMBSTONE have no val_payload.)
 #[repr(C)]
 pub struct ArenaRecordHeader {
-    pub record_len: u32,  //  0
-    pub slot_idx: u32,    //  4
-    pub hash_lo: u32,     //  8
-    pub hash_hi: u32,     // 12
-    pub prev_off: u32,    // 16
-    pub flags: u16,       // 20
-    pub key_len: u16,     // 22
-    pub val_dtype: u32,   // 24
+    pub record_len: u32, //  0
+    pub slot_idx: u32,   //  4
+    pub hash_lo: u32,    //  8
+    pub hash_hi: u32,    // 12
+    pub prev_off: u32,   // 16
+    pub flags: u16,      // 20
+    pub key_len: u16,    // 22
+    pub val_dtype: u32,  // 24
 }
 
 impl ArenaRecordHeader {
@@ -153,24 +153,24 @@ pub fn decode_inline_value(val_dtype: u8, val_bytes: &[u8; 8]) -> Option<TypedVa
 pub fn decode_value_payload<'a>(dtype: DType, payload: &'a [u8]) -> Option<TypedValue<'a>> {
     match dtype {
         DType::U8 => Some(TypedValue::U8(payload[0])),
-        DType::I32 => Some(TypedValue::I32(
-            i32::from_le_bytes(payload[..4].try_into().ok()?),
-        )),
-        DType::I64 => Some(TypedValue::I64(
-            i64::from_le_bytes(payload[..8].try_into().ok()?),
-        )),
-        DType::F32 => Some(TypedValue::F32(
-            f32::from_le_bytes(payload[..4].try_into().ok()?),
-        )),
-        DType::F64 => Some(TypedValue::F64(
-            f64::from_le_bytes(payload[..8].try_into().ok()?),
-        )),
-        DType::U64 => Some(TypedValue::U64(
-            u64::from_le_bytes(payload[..8].try_into().ok()?),
-        )),
-        DType::U32 => Some(TypedValue::U32(
-            u32::from_le_bytes(payload[..4].try_into().ok()?),
-        )),
+        DType::I32 => Some(TypedValue::I32(i32::from_le_bytes(
+            payload[..4].try_into().ok()?,
+        ))),
+        DType::I64 => Some(TypedValue::I64(i64::from_le_bytes(
+            payload[..8].try_into().ok()?,
+        ))),
+        DType::F32 => Some(TypedValue::F32(f32::from_le_bytes(
+            payload[..4].try_into().ok()?,
+        ))),
+        DType::F64 => Some(TypedValue::F64(f64::from_le_bytes(
+            payload[..8].try_into().ok()?,
+        ))),
+        DType::U64 => Some(TypedValue::U64(u64::from_le_bytes(
+            payload[..8].try_into().ok()?,
+        ))),
+        DType::U32 => Some(TypedValue::U32(u32::from_le_bytes(
+            payload[..4].try_into().ok()?,
+        ))),
         DType::Str => {
             let slen = u32::from_le_bytes(payload[..4].try_into().ok()?) as usize;
             let bytes = payload.get(4..4 + slen)?;
