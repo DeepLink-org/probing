@@ -3,6 +3,8 @@ mod asset;
 pub mod auth;
 mod engine;
 mod extensions;
+pub mod memtable_ext;
+mod pulsing_sync;
 mod report;
 // Make server module public for integration tests in tests/ directory
 pub mod server;

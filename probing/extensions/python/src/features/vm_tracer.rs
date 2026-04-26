@@ -58,7 +58,7 @@ pub fn enable_tracer() -> PyResult<()> {
         if PYVERSION.major == 3 && PYVERSION.minor >= 10 {
             let interp = ffi::PyInterpreterState_Get();
             let old_eval_frame = ffi::_PyInterpreterState_GetEvalFrameFunc(interp);
-            if old_eval_frame as usize != rust_eval_frame as usize {
+            if old_eval_frame as usize != rust_eval_frame as *const () as usize {
                 PYFRAMEEVAL = old_eval_frame;
             }
             ffi::_PyInterpreterState_SetEvalFrameFunc(interp, rust_eval_frame);
@@ -78,7 +78,7 @@ pub fn disable_tracer() -> PyResult<()> {
     unsafe {
         let interp = ffi::PyInterpreterState_Get();
         let old_eval_frame = ffi::_PyInterpreterState_GetEvalFrameFunc(interp);
-        if old_eval_frame as usize == rust_eval_frame as usize {
+        if old_eval_frame as usize == rust_eval_frame as *const () as usize {
             ffi::_PyInterpreterState_SetEvalFrameFunc(interp, PYFRAMEEVAL);
         }
         PYSTACKS.clear();

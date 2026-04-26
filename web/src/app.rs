@@ -9,7 +9,7 @@ use dioxus_router::{Routable, Router};
 use crate::components::layout::AppLayout;
 use crate::pages::{
     analytics::Analytics, chrome_tracing::ChromeTracing, cluster::Cluster, dashboard::Dashboard,
-    profiling::Profiling, python::Python, stack::Stack, traces::Traces,
+    profiling::Profiling, pulsing::Pulsing, python::Python, stack::Stack, traces::Traces,
 };
 
 /// All routes. Each is rendered inside AppLayout by the corresponding page component below.
@@ -32,6 +32,8 @@ pub enum Route {
     TracesPage {},
     #[route("/chrome-tracing")]
     ChromeTracingPage {},
+    #[route("/pulsing")]
+    PulsingPage {},
 }
 
 // --- Page route components: each wraps a page in AppLayout ---
@@ -74,6 +76,11 @@ pub fn TracesPage() -> Element {
 #[component]
 pub fn ChromeTracingPage() -> Element {
     rsx! { AppLayout { ChromeTracing {} } }
+}
+
+#[component]
+pub fn PulsingPage() -> Element {
+    rsx! { AppLayout { Pulsing {} } }
 }
 
 #[component]

@@ -64,6 +64,7 @@ mod analytics;
 mod cluster;
 mod dashboard;
 mod profiling;
+mod pulsing;
 mod pytorch;
 mod repl;
 mod stack;
@@ -78,6 +79,8 @@ pub use cluster::*;
 pub use dashboard::*;
 #[allow(unused_imports)]
 pub use profiling::*;
+#[allow(unused_imports)]
+pub use pulsing::*;
 #[allow(unused_imports)]
 pub use pytorch::*;
 #[allow(unused_imports)]

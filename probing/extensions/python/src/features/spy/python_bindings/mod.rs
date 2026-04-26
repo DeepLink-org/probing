@@ -18,6 +18,7 @@ pub mod version;
 // Instead we will define some constants here that define valid offsets for the
 // member variables we care about here
 // (note 'generate_bindings.py' has code to figure out these offsets)
+#[allow(dead_code)]
 pub mod pyruntime {
     // use crate::version::Version;
     use super::version::Version;

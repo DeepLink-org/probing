@@ -91,6 +91,7 @@ plugins:
             Architecture: 系统架构
             Profiling: 性能分析
             Distributed: 分布式
+            Cluster with Pulsing: 基于 Pulsing 的集群
             Extensibility: 扩展机制
             Examples: 示例
             Training Debugging: 训练调试
@@ -125,6 +126,7 @@ nav:
     - Profiling: design/profiling.md
     - Debugging: design/debugging.md
     - Distributed: design/distributed.md
+    - Cluster with Pulsing: design/cluster-pulsing.md
     - Extensibility: design/extensibility.md
   - Examples:
     - examples/index.md
