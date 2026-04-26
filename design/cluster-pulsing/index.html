@@ -10,35 +10,35 @@
       
       
       
-        <link rel="canonical" href="https://github.com/DeepLink-org/probing/versions/">
+        <link rel="canonical" href="https://github.com/DeepLink-org/probing/design/cluster-pulsing/">
       
       
-        <link rel="prev" href="../api-reference/">
+        <link rel="prev" href="../distributed/">
       
       
-        <link rel="next" href="../contributing/">
+        <link rel="next" href="../extensibility/">
       
       
         
           <link rel="alternate" href="./" hreflang="en">
         
-          <link rel="alternate" href="../zh/versions/" hreflang="zh">
+          <link rel="alternate" href="../../zh/design/cluster-pulsing/" hreflang="zh">
         
       
       
-      <link rel="icon" href="../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>Versions - Probing Documentation</title>
+        <title>Cluster with Pulsing - Probing Documentation</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -57,11 +57,11 @@
       
     
     
-      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
     
-      <link rel="stylesheet" href="../assets/stylesheets/home.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/home.css">
     
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -86,7 +86,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#version-compatibility" class="md-skip">
+        <a href="#cluster-management-with-pulsing" class="md-skip">
           Skip to content
         </a>
       
@@ -100,7 +100,7 @@
 
 <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="Probing Documentation" class="md-header__button md-logo" aria-label="Probing Documentation" data-md-component="logo">
+    <a href="../.." title="Probing Documentation" class="md-header__button md-logo" aria-label="Probing Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -120,7 +120,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Versions
+              Cluster with Pulsing
             
           </span>
         </div>
@@ -173,7 +173,7 @@
           </li>
         
           <li class="md-select__item">
-            <a href="../zh/versions/" hreflang="zh" class="md-select__link">
+            <a href="../../zh/design/cluster-pulsing/" hreflang="zh" class="md-select__link">
               中文
             </a>
           </li>
@@ -262,7 +262,7 @@
   
   
     <li class="md-tabs__item">
-      <a href=".." class="md-tabs__link">
+      <a href="../.." class="md-tabs__link">
         
   
   
@@ -281,7 +281,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../installation/" class="md-tabs__link">
+      <a href="../../installation/" class="md-tabs__link">
         
   
   
@@ -300,7 +300,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../quickstart/" class="md-tabs__link">
+      <a href="../../quickstart/" class="md-tabs__link">
         
   
   
@@ -321,7 +321,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../guide/" class="md-tabs__link">
+        <a href="../../guide/" class="md-tabs__link">
           
   
   
@@ -339,11 +339,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../design/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
           
   
   
@@ -365,7 +367,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../examples/" class="md-tabs__link">
+        <a href="../../examples/" class="md-tabs__link">
           
   
   
@@ -385,7 +387,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../api-reference/" class="md-tabs__link">
+      <a href="../../api-reference/" class="md-tabs__link">
         
   
   
@@ -402,11 +404,9 @@
   
   
   
-    
   
-  
-    <li class="md-tabs__item md-tabs__item--active">
-      <a href="./" class="md-tabs__link">
+    <li class="md-tabs__item">
+      <a href="../../versions/" class="md-tabs__link">
         
   
   
@@ -425,7 +425,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="../contributing/" class="md-tabs__link">
+      <a href="../../contributing/" class="md-tabs__link">
         
   
   
@@ -460,7 +460,7 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="Probing Documentation" class="md-nav__button md-logo" aria-label="Probing Documentation" data-md-component="logo">
+    <a href="../.." title="Probing Documentation" class="md-nav__button md-logo" aria-label="Probing Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -490,7 +490,7 @@
   
   
     <li class="md-nav__item">
-      <a href=".." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -517,7 +517,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../installation/" class="md-nav__link">
+      <a href="../../installation/" class="md-nav__link">
         
   
   
@@ -544,7 +544,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../quickstart/" class="md-nav__link">
+      <a href="../../quickstart/" class="md-nav__link">
         
   
   
@@ -602,7 +602,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../guide/" class="md-nav__link ">
+            <a href="../../guide/" class="md-nav__link ">
               
   
   
@@ -646,7 +646,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guide/sql-analytics/" class="md-nav__link">
+      <a href="../../guide/sql-analytics/" class="md-nav__link">
         
   
   
@@ -674,7 +674,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guide/memory-analysis/" class="md-nav__link">
+      <a href="../../guide/memory-analysis/" class="md-nav__link">
         
   
   
@@ -702,7 +702,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guide/debugging/" class="md-nav__link">
+      <a href="../../guide/debugging/" class="md-nav__link">
         
   
   
@@ -730,7 +730,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guide/troubleshooting/" class="md-nav__link">
+      <a href="../../guide/troubleshooting/" class="md-nav__link">
         
   
   
@@ -762,6 +762,8 @@
       
   
   
+    
+  
   
   
     
@@ -787,20 +789,23 @@
     
     
       
+        
+        
+      
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../design/" class="md-nav__link ">
+            <a href="../" class="md-nav__link ">
               
   
   
@@ -818,13 +823,13 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
@@ -844,7 +849,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../design/architecture/" class="md-nav__link">
+      <a href="../architecture/" class="md-nav__link">
         
   
   
@@ -872,7 +877,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../design/profiling/" class="md-nav__link">
+      <a href="../profiling/" class="md-nav__link">
         
   
   
@@ -900,7 +905,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../design/debugging/" class="md-nav__link">
+      <a href="../debugging/" class="md-nav__link">
         
   
   
@@ -928,7 +933,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../design/distributed/" class="md-nav__link">
+      <a href="../distributed/" class="md-nav__link">
         
   
   
@@ -953,10 +958,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../design/cluster-pulsing/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster with Pulsing
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -972,6 +1004,153 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        现状
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="现状">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#probing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        probing 当前集群模型
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pulsing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pulsing 提供的集群能力
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        设计目标
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#loose-coupling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        松耦合原则（Loose Coupling）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        集成形态（在松耦合下的表现）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        数据流（松耦合）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        接口与兼容性
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        实施步骤建议
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        依赖与约束
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        小结
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -984,7 +1163,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../design/extensibility/" class="md-nav__link">
+      <a href="../extensibility/" class="md-nav__link">
         
   
   
@@ -1048,7 +1227,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../examples/" class="md-nav__link ">
+            <a href="../../examples/" class="md-nav__link ">
               
   
   
@@ -1092,7 +1271,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../examples/training-debugging/" class="md-nav__link">
+      <a href="../../examples/training-debugging/" class="md-nav__link">
         
   
   
@@ -1120,7 +1299,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../examples/memory-leak/" class="md-nav__link">
+      <a href="../../examples/memory-leak/" class="md-nav__link">
         
   
   
@@ -1148,7 +1327,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../examples/performance-analysis/" class="md-nav__link">
+      <a href="../../examples/performance-analysis/" class="md-nav__link">
         
   
   
@@ -1183,7 +1362,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../api-reference/" class="md-nav__link">
+      <a href="../../api-reference/" class="md-nav__link">
         
   
   
@@ -1207,37 +1386,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Versions
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../versions/" class="md-nav__link">
         
   
   
@@ -1253,187 +1405,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#current-version" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Current Version
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#system-requirements" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        System Requirements
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="System Requirements">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#python-version" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Python Version
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pytorch-version" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        PyTorch Version
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#operating-systems" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Operating Systems
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#changelog" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Changelog
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Changelog">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#v060" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        v0.6.0
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#v050" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        v0.5.0
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#upgrade-guide" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Upgrade Guide
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Upgrade Guide">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#from-v05x-to-v06x" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        From v0.5.x to v0.6.x
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#deprecation-policy" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Deprecation Policy
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#feature-support-matrix" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Feature Support Matrix
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#reporting-issues" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Reporting Issues
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1445,7 +1416,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../contributing/" class="md-nav__link">
+      <a href="../../contributing/" class="md-nav__link">
         
   
   
@@ -1492,33 +1463,22 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#current-version" class="md-nav__link">
+  <a href="#_1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Current Version
+        现状
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#system-requirements" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        System Requirements
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="System Requirements">
+    <nav class="md-nav" aria-label="现状">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#python-version" class="md-nav__link">
+  <a href="#probing" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Python Version
+        probing 当前集群模型
       
     </span>
   </a>
@@ -1526,21 +1486,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#pytorch-version" class="md-nav__link">
+  <a href="#pulsing" class="md-nav__link">
     <span class="md-ellipsis">
       
-        PyTorch Version
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#operating-systems" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Operating Systems
+        Pulsing 提供的集群能力
       
     </span>
   </a>
@@ -1553,77 +1502,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#changelog" class="md-nav__link">
+  <a href="#_2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Changelog
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Changelog">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#v060" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        v0.6.0
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#v050" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        v0.5.0
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#upgrade-guide" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Upgrade Guide
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Upgrade Guide">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#from-v05x-to-v06x" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        From v0.5.x to v0.6.x
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#deprecation-policy" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Deprecation Policy
+        设计目标
       
     </span>
   </a>
@@ -1631,10 +1513,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#feature-support-matrix" class="md-nav__link">
+  <a href="#loose-coupling" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Feature Support Matrix
+        松耦合原则（Loose Coupling）
       
     </span>
   </a>
@@ -1642,10 +1524,65 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#reporting-issues" class="md-nav__link">
+  <a href="#_3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Reporting Issues
+        集成形态（在松耦合下的表现）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        数据流（松耦合）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        接口与兼容性
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        实施步骤建议
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        依赖与约束
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        小结
       
     </span>
   </a>
@@ -1672,166 +1609,150 @@
   
 
 
-<h1 id="version-compatibility">Version Compatibility<a class="headerlink" href="#version-compatibility" title="Permanent link">&para;</a></h1>
-<p>This page documents Probing version compatibility and changelog.</p>
-<h2 id="current-version">Current Version<a class="headerlink" href="#current-version" title="Permanent link">&para;</a></h2>
-<p><strong>Probing v0.6.x</strong> (Latest)</p>
-<h2 id="system-requirements">System Requirements<a class="headerlink" href="#system-requirements" title="Permanent link">&para;</a></h2>
-<h3 id="python-version">Python Version<a class="headerlink" href="#python-version" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Probing Version</th>
-<th>Python Support</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>0.6.x</td>
-<td>Python 3.9 - 3.12</td>
-</tr>
-<tr>
-<td>0.5.x</td>
-<td>Python 3.8 - 3.11</td>
-</tr>
-</tbody>
-</table>
-<h3 id="pytorch-version">PyTorch Version<a class="headerlink" href="#pytorch-version" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Probing Version</th>
-<th>PyTorch Support</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>0.6.x</td>
-<td>PyTorch 2.0+</td>
-</tr>
-<tr>
-<td>0.5.x</td>
-<td>PyTorch 1.13+</td>
-</tr>
-</tbody>
-</table>
-<h3 id="operating-systems">Operating Systems<a class="headerlink" href="#operating-systems" title="Permanent link">&para;</a></h3>
+<h1 id="cluster-management-with-pulsing">Cluster Management with Pulsing<a class="headerlink" href="#cluster-management-with-pulsing" title="Permanent link">&para;</a></h1>
+<p>This document describes how probing's cluster module reuses Pulsing's distributed capabilities (gossip membership, failure detection, naming) for automatic node discovery and liveness, while keeping existing APIs and business semantics (rank, role, etc.).</p>
+<h2 id="_1">现状<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<h3 id="probing">probing 当前集群模型<a class="headerlink" href="#probing" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Linux</strong>: Full support (recommended for production)</li>
-<li><strong>macOS</strong>: Full support (Intel and Apple Silicon)</li>
-<li><strong>Windows</strong>: Experimental (WSL2 recommended)</li>
+<li><strong>数据源</strong>：内存中的 <code>probing_proto::Cluster</code>，key 为 <code>host:addr</code>，带 <code>rank_index</code>（rank → 节点）。</li>
+<li><strong>Node 字段</strong>（proto）：<code>host</code>, <code>addr</code>, <code>local_rank</code>, <code>rank</code>, <code>world_size</code>, <code>group_rank</code>, <code>role_name</code>, <code>role_rank</code>, <code>role_world_size</code>, <code>status</code>, <code>timestamp</code>。</li>
+<li><strong>写入路径</strong>：</li>
+<li><strong>rank 0</strong>：本机直接调用 <code>update_node(node)</code>（见 <code>report.rs</code>）。</li>
+<li><strong>其他 rank</strong>：通过 HTTP <code>PUT /apis/nodes</code> 向「中心」（report_addr，通常为 rank 0 或独立 server）上报。</li>
+<li><strong>读取路径</strong>：HTTP <code>GET /apis/nodes</code>、Web 集群页、extensions/cc 的 <code>nodes</code> 表（Arrow）。</li>
+<li><strong>特点</strong>：无内置故障检测；依赖应用侧定时上报；中心聚合视图。</li>
 </ul>
-<h2 id="changelog">Changelog<a class="headerlink" href="#changelog" title="Permanent link">&para;</a></h2>
-<h3 id="v060">v0.6.0<a class="headerlink" href="#v060" title="Permanent link">&para;</a></h3>
-<p><strong>New Features</strong></p>
+<h3 id="pulsing">Pulsing 提供的集群能力<a class="headerlink" href="#pulsing" title="Permanent link">&para;</a></h3>
 <ul>
-<li>SQL query engine based on DataFusion</li>
-<li>Mermaid diagram support in documentation</li>
-<li>Improved distributed debugging support</li>
-<li>New <code>torch_trace</code> table for PyTorch profiling</li>
+<li><strong>Gossip 成员</strong>：SWIM 风格，<code>GossipCluster</code>，周期 gossip + 故障检测（PFail → Fail）。</li>
+<li><strong>成员信息</strong>：<code>MemberInfo</code>：<code>node_id</code>（u128）、<code>addr</code>（SocketAddr）、<code>status</code>（Alive/Suspect/Dead）、<code>incarnation</code> 等。</li>
+<li><strong>API</strong>：</li>
+<li>Rust：<code>cluster.all_members()</code> / <code>alive_members()</code>。</li>
+<li>Python：<code>await system.members()</code> → <code>list[dict]</code>（<code>node_id</code>, <code>addr</code>, <code>status</code> 等）。</li>
+<li>HTTP：<code>GET /cluster/members</code> 返回 JSON 成员列表。</li>
+<li><strong>发现</strong>：seed 加入、named actor 注册、跨节点解析。</li>
 </ul>
-<p><strong>Breaking Changes</strong></p>
-<ul>
-<li>Deprecated <code>probing.trace()</code> API, use <code>probing.enable_torch_profiling()</code> instead</li>
-<li>Configuration format changed from JSON to TOML</li>
-</ul>
-<p><strong>Bug Fixes</strong></p>
-<ul>
-<li>Fixed memory leak in long-running sessions</li>
-<li>Improved error messages for invalid SQL queries</li>
-</ul>
-<h3 id="v050">v0.5.0<a class="headerlink" href="#v050" title="Permanent link">&para;</a></h3>
-<p><strong>New Features</strong></p>
-<ul>
-<li>Initial PyTorch profiling support</li>
-<li>Memory analysis capabilities</li>
-<li>Basic SQL query support</li>
-</ul>
-<p><strong>Bug Fixes</strong></p>
-<ul>
-<li>Various stability improvements</li>
-</ul>
-<h2 id="upgrade-guide">Upgrade Guide<a class="headerlink" href="#upgrade-guide" title="Permanent link">&para;</a></h2>
-<h3 id="from-v05x-to-v06x">From v0.5.x to v0.6.x<a class="headerlink" href="#from-v05x-to-v06x" title="Permanent link">&para;</a></h3>
+<h2 id="_2">设计目标<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
 <ol>
-<li>Update Python to 3.9+ if needed</li>
-<li>Update PyTorch to 2.0+ if needed</li>
-<li>Update Probing:</li>
+<li><strong>成员发现与存活</strong>：由 Pulsing 负责「谁在集群里、谁还活着」，probing 不再仅依赖应用上报来推断存活。</li>
+<li><strong>保留业务语义</strong>：rank、world_size、role_name 等训练/作业语义仍由 probing 侧维护（上报或配置）。</li>
+<li><strong>接口兼容</strong>：现有 <code>get_nodes</code> / <code>put_node</code>、<code>nodes</code> 表、Web 集群页行为保持可用；可演进为「Pulsing 成员 + 业务元数据合并」视图。</li>
+<li><strong>松耦合</strong>：probing 自管、主动发现 Pulsing；不要求 Pulsing 或应用先「接好」probing。</li>
 </ol>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>--upgrade<span class="w"> </span>probing
-</span></code></pre></div>
+<h2 id="loose-coupling">松耦合原则（Loose Coupling）<a class="headerlink" href="#loose-coupling" title="Permanent link">&para;</a></h2>
 <ol>
-<li>Update configuration files (if using custom config):</li>
+<li>
+<p><strong>probing 被注入后，自己管好自己</strong>
+   不依赖外部先启动或配置 Pulsing；probing 进程内行为自洽（上报、本地 CLUSTER、HTTP API 等照常工作）。</p>
+</li>
+<li>
+<p><strong>cluster 模块主动发现 Pulsing</strong>
+   probing 的 cluster 模块在适当时机（例如 server 启动或首次访问集群视图时）<strong>尝试发现</strong>当前环境里是否已有 Pulsing（例如检测全局 ActorSystem、环境变量、或指定 URL/端口）。</p>
+</li>
+<li>
+<p><strong>发现 Pulsing 后的两种路径</strong></p>
+</li>
+<li><strong>a. Pulsing 已初始化</strong>
+     若发现 Pulsing 的 ActorSystem 已经存在（例如用户代码已 <code>pul.init()</code>）：<ul>
+<li>在该 ActorSystem 上<strong>注册一个专用于集群管理的 actor</strong>（例如 named actor <code>"probing/cluster"</code>）；</li>
+<li>节点发现通过<strong>向该 actor 请求</strong>或<strong>该 actor 订阅/拉取 members()</strong> 得到，再写回 probing 的 <code>CLUSTER</code>。</li>
+</ul>
+</li>
+<li><strong>b. Pulsing 未初始化，且配置了初始化方式</strong>
+     若未发现已初始化的 Pulsing，但配置中指定了如何初始化（例如 <code>pulsing_seeds</code>、standalone 等）：<ul>
+<li>probing <strong>尝试自己初始化</strong> Pulsing（例如在 Python 侧调用 <code>pul.init(seeds=...)</code> 或等价逻辑）；</li>
+<li>初始化成功后，再走路径 a：注册集群管理 actor，通过该 actor 做节点发现。</li>
+</ul>
+</li>
 </ol>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Old format (v0.5.x)</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">probing</span><span class="o">.</span><span class="n">trace</span><span class="p">(</span><span class="n">enabled</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># New format (v0.6.x)</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">probing</span><span class="o">.</span><span class="n">enable_torch_profiling</span><span class="p">()</span>
+<p>未发现 Pulsing 或未配置初始化时，cluster 模块<strong>仅使用现有上报</strong>构建视图，行为与当前一致。</p>
+<h2 id="_3">集成形态（在松耦合下的表现）<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>有 Pulsing（已初始化）</strong>：cluster 模块发现现有 ActorSystem → 注册集群管理 actor → 通过该 actor 拉取 members，与上报合并写入 CLUSTER。</li>
+<li><strong>有 Pulsing（需由 probing 初始化）</strong>：cluster 模块按配置初始化 Pulsing → 注册集群管理 actor → 同上。</li>
+<li><strong>无 Pulsing</strong>：不注册 actor，仅靠 PUT /apis/nodes 与 rank 0 本地 update_node 构建视图。</li>
+</ul>
+<h2 id="_4">数据流（松耦合）<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>┌─────────────────────────────────────────────────────────────────┐
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>│  probing 进程（被注入后自管）                                      │
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>│  • cluster 模块尝试发现 Pulsing                                   │
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>└────────────────────────────┬──────────────────────────────────┘
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>                               │
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>           ┌───────────────────┼───────────────────┐
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>           ▼                   ▼                   ▼
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    未发现 Pulsing     发现已初始化 Pulsing    未初始化但配置了 init
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>           │                   │                   │
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>           ▼                   ▼                   ▼
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    仅用上报构建视图    在 ActorSystem 上       probing 自己 init
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    (当前行为)          注册集群管理 actor      Pulsing，再注册 actor
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>                               │                   │
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>                               └─────────┬─────────┘
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>                                         ▼
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>┌─────────────────────────────────────────────────────────────────┐
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>│  Pulsing ActorSystem                                             │
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>│  • 集群管理 actor（如 &quot;probing/cluster&quot;）拉取 members()           │
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>│  • 映射为 Node 基础信息，与 PUT 上报的 rank/role 合并               │
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>└────────────────────────────┬──────────────────────────────────┘
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>                              │
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>                              ▼
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>┌─────────────────────────────────────────────────────────────────┐
+</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>│  probing_core::cluster::CLUSTER                                 │
+</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>│  Cluster { nodes: host:addr -&gt; Node, rank_index }                │
+</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>│  Node = 基础(Pulsing) + 业务(rank, world_size, role, ...)         │
+</span><span id="__span-0-27"><a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>└────────────────────────────┬──────────────────────────────────┘
+</span><span id="__span-0-28"><a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>                              │
+</span><span id="__span-0-29"><a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>              ┌───────────────┼───────────────┐
+</span><span id="__span-0-30"><a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>              ▼               ▼               ▼
+</span><span id="__span-0-31"><a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>        GET /apis/nodes   Web 集群页    extensions/cc nodes 表
 </span></code></pre></div>
-<h2 id="deprecation-policy">Deprecation Policy<a class="headerlink" href="#deprecation-policy" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Major version changes may include breaking changes</li>
-<li>Minor version changes maintain backward compatibility</li>
-<li>Deprecated features show warnings for at least one minor version before removal</li>
+<li><strong>合并规则</strong>：以 <code>host:addr</code> 或 Pulsing <code>node_id</code> 为键；若某节点仅有 Pulsing 信息则只填基础字段，rank/role 为空或默认；若仅有上报则仅填业务字段，存活状态可标为「未知」或依赖超时剔除。</li>
+<li><strong>故障检测</strong>：从 Pulsing 来的节点若 <code>status != Alive</code>，可在 probing 视图中标记为 Unhealthy/Unreachable 或从列表中过滤/标注。</li>
 </ul>
-<h2 id="feature-support-matrix">Feature Support Matrix<a class="headerlink" href="#feature-support-matrix" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Feature</th>
-<th>v0.5.x</th>
-<th>v0.6.x</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Basic Profiling</td>
-<td>✅</td>
-<td>✅</td>
-</tr>
-<tr>
-<td>SQL Queries</td>
-<td>Partial</td>
-<td>✅</td>
-</tr>
-<tr>
-<td>PyTorch Tracing</td>
-<td>Basic</td>
-<td>Full</td>
-</tr>
-<tr>
-<td>Memory Analysis</td>
-<td>Basic</td>
-<td>Full</td>
-</tr>
-<tr>
-<td>Distributed Support</td>
-<td>❌</td>
-<td>✅</td>
-</tr>
-<tr>
-<td>Custom Tables</td>
-<td>❌</td>
-<td>✅</td>
-</tr>
-<tr>
-<td>Web UI</td>
-<td>❌</td>
-<td>Beta</td>
-</tr>
-</tbody>
-</table>
-<h2 id="reporting-issues">Reporting Issues<a class="headerlink" href="#reporting-issues" title="Permanent link">&para;</a></h2>
-<p>For bugs and feature requests, please use the <a href="https://github.com/DeepLink-org/probing/issues">GitHub Issue Tracker</a>.</p>
-<p>When reporting issues, please include:</p>
+<h2 id="_5">接口与兼容性<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Probing version (<code>pip show probing</code>)</li>
-<li>Python version (<code>python --version</code>)</li>
-<li>PyTorch version (if applicable)</li>
-<li>Operating system</li>
-<li>Minimal reproduction example</li>
+<li><strong>保持</strong>：<code>GET /apis/nodes</code>、<code>PUT /apis/nodes</code>、<code>cluster::get_nodes()</code>、<code>cluster::update_node()</code>、extensions/cc <code>nodes</code> 表 schema（host, addr, rank, world_size, role_*, status, timestamp）。</li>
+<li><strong>扩展</strong>（可选）：</li>
+<li>Node 或 API 增加 <code>pulsing_node_id</code>、<code>pulsing_status</code>，便于调试与展示。</li>
+<li>配置项：发现方式（如 <code>pulsing_auto_discover</code>）、初始化方式（如 <code>pulsing_seeds</code>、<code>pulsing_init_mode</code>）。</li>
+<li><strong>兼容</strong>：未发现 Pulsing 且未配置初始化时，行为与当前一致，仅靠上报构建集群视图。</li>
 </ul>
+<h2 id="_6">实施步骤建议<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Phase 1（发现 + 使用已有 Pulsing）</strong></li>
+<li>cluster 模块实现「发现 Pulsing」：检测全局 ActorSystem（Python 侧 <code>pul.get_system()</code> / 是否已 init）、或环境变量/配置中的 Pulsing 入口。</li>
+<li>若已初始化：在 ActorSystem 上注册集群管理 actor（named，如 <code>"probing/cluster"</code>），该 actor 负责拉取 <code>members()</code>、映射为 <code>Vec&lt;Node&gt;</code>，并可由 probing 侧定时请求或订阅更新；合并进 CLUSTER。</li>
+<li>
+<p>配置：仅「是否启用发现」与「集群管理 actor 名称」等，不强制要求配置 Pulsing。</p>
+</li>
+<li>
+<p><strong>Phase 2（可选由 probing 初始化 Pulsing）</strong></p>
+</li>
+<li>当未发现已初始化的 Pulsing 且配置了初始化方式（如 <code>pulsing_seeds</code>、standalone）时，cluster 模块（或 Python 桥）尝试调用 <code>pul.init(...)</code>（或等价）。</li>
+<li>初始化成功后走 Phase 1：注册集群管理 actor，通过该 actor 做节点发现。</li>
+<li>
+<p>统一「成员源」：仅上报 / Pulsing（通过集群管理 actor）/ 合并。</p>
+</li>
+<li>
+<p><strong>Phase 3（可选增强）</strong></p>
+</li>
+<li>集群管理 actor 可对外提供「注册 rank/role」接口，与 PUT /apis/nodes 互补或替代。</li>
+<li>分布式存储（TopologyView）的节点列表也可从 Pulsing 成员驱动。</li>
+</ol>
+<h2 id="_7">依赖与约束<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>依赖</strong>：若在 Rust 侧直接依赖 Pulsing，需在 probing 的 Cargo 中增加 <code>pulsing-actor</code>（或仅通过 HTTP/FFI 调用则无 Rust 依赖）。</li>
+<li><strong>进程模型</strong>：当前 report 仅 rank 0 写本地、其余 PUT 到中心；与 Pulsing 集成后，中心或 rank 0 需能访问 Pulsing 视图（同进程或远程）。</li>
+<li><strong>身份对应</strong>：需要约定 Pulsing 节点与 probing 节点的对应关系（例如同一进程既上报 <code>host:addr</code> 又加入 Pulsing，则用 <code>addr</code> 或 node_id 关联）。</li>
+</ul>
+<h2 id="_8">小结<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>松耦合</strong>：probing 被注入后自管；cluster 模块主动发现 Pulsing；发现后要么用已有 ActorSystem 并注册集群管理 actor，要么在配置允许时由 probing 自己初始化 Pulsing 再注册 actor。</li>
+<li><strong>用 Pulsing 做</strong>：通过「集群管理 actor」做成员发现与存活检测；该 actor 挂在 Pulsing 的 ActorSystem 上，由 probing 注册与使用。</li>
+<li><strong>probing 保留</strong>：rank/world_size/role 等业务语义、现有 HTTP API、<code>nodes</code> 表与 Web 集群页；无 Pulsing 时行为不变。</li>
+<li><strong>集成方式</strong>：发现 → 已初始化则注册 actor / 未初始化且配置则先 init 再注册 actor → 通过该 actor 拉取 members 并与上报合并写入 CLUSTER。</li>
+</ul>
+<p>这样在不破坏现有使用方式、且不要求应用或 Pulsing 先接好 probing 的前提下，为 probing 带来基于 Pulsing 的自动集群发现与故障感知能力。</p>
 
 
 
@@ -1913,10 +1834,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.indexes", "navigation.tracking", "navigation.top", "search.highlight", "search.share", "content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.indexes", "navigation.tracking", "navigation.top", "search.highlight", "search.share", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>

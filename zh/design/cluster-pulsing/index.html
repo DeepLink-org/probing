@@ -10,17 +10,17 @@
       
       
       
-        <link rel="canonical" href="https://github.com/DeepLink-org/probing/zh/design/debugging/">
+        <link rel="canonical" href="https://github.com/DeepLink-org/probing/zh/design/cluster-pulsing/">
       
       
-        <link rel="prev" href="../profiling/">
+        <link rel="prev" href="../distributed/">
       
       
-        <link rel="next" href="../distributed/">
+        <link rel="next" href="../extensibility/">
       
       
         
-          <link rel="alternate" href="../../../design/debugging/" hreflang="en">
+          <link rel="alternate" href="../../../design/cluster-pulsing/" hreflang="en">
         
           <link rel="alternate" href="./" hreflang="zh">
         
@@ -31,7 +31,7 @@
     
     
       
-        <title>调试指南 - Probing 文档</title>
+        <title>基于 Pulsing 的集群 - Probing 文档</title>
       
     
     
@@ -88,7 +88,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#_1" class="md-skip">
+        <a href="#pulsing" class="md-skip">
           跳转至
         </a>
       
@@ -122,7 +122,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              调试指南
+              基于 Pulsing 的集群
             
           </span>
         </div>
@@ -169,7 +169,7 @@
       <ul class="md-select__list">
         
           <li class="md-select__item">
-            <a href="../../../design/debugging/" hreflang="en" class="md-select__link">
+            <a href="../../../design/cluster-pulsing/" hreflang="en" class="md-select__link">
               English
             </a>
           </li>
@@ -904,37 +904,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    调试指南
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../debugging/" class="md-nav__link">
         
   
   
@@ -950,326 +923,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="目录">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      目录
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#_2" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        概览
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_3" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        代码执行
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="代码执行">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#eval" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Eval 命令
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_4" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        执行流程
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        执行上下文
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_6" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        安全考虑
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_7" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        堆栈分析
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="堆栈分析">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_8" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        堆栈跟踪捕获
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_9" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        帧信息
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_10" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        查询堆栈
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#repl" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        交互式 REPL
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="交互式 REPL">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#repl_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        启动 REPL
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#repl_2" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        REPL 功能
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_11" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        示例会话
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_12" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        远程调试
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="远程调试">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_13" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        设置
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_14" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        安全
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_15" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        调试模式
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="调试模式">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_16" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        查找卡住位置
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_17" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        检查状态
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_18" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        修改行为
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_19" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        线程调试
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="线程调试">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_20" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        列出线程
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_21" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        主线程焦点
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1307,10 +960,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../cluster-pulsing/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    基于 Pulsing 的集群
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1326,6 +1006,231 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        现状
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="现状">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#probing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        probing 当前集群模型
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pulsing_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pulsing 提供的集群能力
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        设计目标
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        松耦合原则
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        集成形态（在松耦合下的表现）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="集成形态（在松耦合下的表现）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pulsing-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        组网由 Pulsing 后台负责，调用方只调 API 等待
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ray-torchrun-bootstrap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        借助 Ray / torchrun 组网（由 bootstrap 内部调用）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        数据流（松耦合）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        接口与兼容性
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        实施步骤建议
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        依赖与约束
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        小结
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        设计点评
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="设计点评">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        优点
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        潜在问题与风险
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        建议补充
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1638,10 +1543,49 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        现状
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="现状">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#probing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        probing 当前集群模型
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pulsing_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pulsing 提供的集群能力
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#_2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        概览
+        设计目标
       
     </span>
   </a>
@@ -1652,30 +1596,30 @@
   <a href="#_3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        代码执行
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="代码执行">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#eval" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Eval 命令
+        松耦合原则
       
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
   <a href="#_4" class="md-nav__link">
     <span class="md-ellipsis">
       
-        执行流程
+        集成形态（在松耦合下的表现）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="集成形态（在松耦合下的表现）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pulsing-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        组网由 Pulsing 后台负责，调用方只调 API 等待
       
     </span>
   </a>
@@ -1683,21 +1627,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
+  <a href="#ray-torchrun-bootstrap" class="md-nav__link">
     <span class="md-ellipsis">
       
-        执行上下文
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_6" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        安全考虑
+        借助 Ray / torchrun 组网（由 bootstrap 内部调用）
       
     </span>
   </a>
@@ -1706,6 +1639,28 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        数据流（松耦合）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        接口与兼容性
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1713,219 +1668,74 @@
   <a href="#_7" class="md-nav__link">
     <span class="md-ellipsis">
       
-        堆栈分析
+        实施步骤建议
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="堆栈分析">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_8" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        堆栈跟踪捕获
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_9" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        帧信息
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_10" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        查询堆栈
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#repl" class="md-nav__link">
+  <a href="#_8" class="md-nav__link">
     <span class="md-ellipsis">
       
-        交互式 REPL
+        依赖与约束
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="交互式 REPL">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        小结
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        设计点评
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="设计点评">
       <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#repl_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        启动 REPL
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#repl_2" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        REPL 功能
-      
-    </span>
-  </a>
-  
-</li>
         
           <li class="md-nav__item">
   <a href="#_11" class="md-nav__link">
     <span class="md-ellipsis">
       
-        示例会话
+        优点
       
     </span>
   </a>
   
 </li>
         
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
+          <li class="md-nav__item">
   <a href="#_12" class="md-nav__link">
     <span class="md-ellipsis">
       
-        远程调试
+        潜在问题与风险
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="远程调试">
-      <ul class="md-nav__list">
+</li>
         
           <li class="md-nav__item">
   <a href="#_13" class="md-nav__link">
     <span class="md-ellipsis">
       
-        设置
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_14" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        安全
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_15" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        调试模式
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="调试模式">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_16" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        查找卡住位置
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_17" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        检查状态
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_18" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        修改行为
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_19" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        线程调试
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="线程调试">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_20" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        列出线程
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_21" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        主线程焦点
+        建议补充
       
     </span>
   </a>
@@ -1957,165 +1767,197 @@
   
 
 
-<h1 id="_1">调试架构<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
-<p>Probing 通过代码注入和堆栈分析提供强大的调试能力。</p>
-<h2 id="_2">概览<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
-<p>调试子系统支持：</p>
+<h1 id="pulsing">基于 Pulsing 的集群管理<a class="headerlink" href="#pulsing" title="Permanent link">&para;</a></h1>
+<p>本文档描述如何让 probing 的集群管理复用 Pulsing 的分布式能力（gossip 成员、故障检测、命名发现），在保持现有 API 与业务语义的前提下，获得自动成员发现与存活检测。</p>
+<h2 id="_1">现状<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<h3 id="probing">probing 当前集群模型<a class="headerlink" href="#probing" title="Permanent link">&para;</a></h3>
 <ul>
-<li>在目标进程中实时执行代码</li>
-<li>带变量检查的堆栈跟踪捕获</li>
-<li>交互式 REPL 会话</li>
-<li>远程调试支持</li>
+<li><strong>数据源</strong>：内存中的 <code>probing_proto::Cluster</code>，key 为 <code>host:addr</code>，带 <code>rank_index</code>（rank → 节点）。</li>
+<li><strong>Node 字段</strong>（proto）：<code>host</code>, <code>addr</code>, <code>local_rank</code>, <code>rank</code>, <code>world_size</code>, <code>group_rank</code>, <code>role_name</code>, <code>role_rank</code>, <code>role_world_size</code>, <code>status</code>, <code>timestamp</code>。</li>
+<li><strong>写入路径</strong>：</li>
+<li><strong>rank 0</strong>：本机直接调用 <code>update_node(node)</code>（见 <code>report.rs</code>）。</li>
+<li><strong>其他 rank</strong>：通过 HTTP <code>PUT /apis/nodes</code> 向「中心」（report_addr，通常为 rank 0 或独立 server）上报。</li>
+<li><strong>读取路径</strong>：HTTP <code>GET /apis/nodes</code>、Web 集群页、extensions/cc 的 <code>nodes</code> 表（Arrow）。</li>
+<li><strong>特点</strong>：无内置故障检测；依赖应用侧定时上报；中心聚合视图。</li>
 </ul>
-<h2 id="_3">代码执行<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
-<h3 id="eval">Eval 命令<a class="headerlink" href="#eval" title="Permanent link">&para;</a></h3>
-<p>在目标进程上下文中执行任意 Python 代码：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;print(model.state_dict().keys())&quot;</span>
-</span></code></pre></div>
-<h3 id="_4">执行流程<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
-<pre class="mermaid"><code>sequenceDiagram
-    participant CLI
-    participant 服务器
-    participant Python
-
-    CLI-&gt;&gt;服务器: POST /eval {"code": "..."}
-    服务器-&gt;&gt;Python: PyRun_String(code)
-    Python-&gt;&gt;Python: 在 __main__ 中执行
-    Python--&gt;&gt;服务器: 结果/异常
-    服务器--&gt;&gt;CLI: JSON 响应</code></pre>
-<h3 id="_5">执行上下文<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
-<p>代码在主模块的全局命名空间中执行：</p>
+<h3 id="pulsing_1">Pulsing 提供的集群能力<a class="headerlink" href="#pulsing_1" title="Permanent link">&para;</a></h3>
 <ul>
-<li>访问所有已导入的模块</li>
-<li>访问全局变量</li>
-<li>可以直接修改状态</li>
+<li><strong>Gossip 成员</strong>：SWIM 风格，<code>GossipCluster</code>，周期 gossip + 故障检测（PFail → Fail）。</li>
+<li><strong>成员信息</strong>：<code>MemberInfo</code>：<code>node_id</code>（u128）、<code>addr</code>（SocketAddr）、<code>status</code>（Alive/Suspect/Dead）、<code>incarnation</code> 等。</li>
+<li><strong>API</strong>：</li>
+<li>Rust：<code>cluster.all_members()</code> / <code>alive_members()</code>。</li>
+<li>Python：<code>await system.members()</code> → <code>list[dict]</code>（<code>node_id</code>, <code>addr</code>, <code>status</code> 等）。</li>
+<li>HTTP：<code>GET /cluster/members</code> 返回 JSON 成员列表。</li>
+<li><strong>发现</strong>：seed 加入、named actor 注册、跨节点解析。</li>
 </ul>
-<h3 id="_6">安全考虑<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h3>
+<h2 id="_2">设计目标<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>成员发现与存活</strong>：由 Pulsing 负责「谁在集群里、谁还活着」，probing 不再仅依赖应用上报来推断存活。</li>
+<li><strong>保留业务语义</strong>：rank、world_size、role_name 等训练/作业语义仍由 probing 侧维护（上报或配置）。</li>
+<li><strong>接口兼容</strong>：现有 <code>get_nodes</code> / <code>put_node</code>、<code>nodes</code> 表、Web 集群页行为保持可用；可演进为「Pulsing 成员 + 业务元数据合并」视图。</li>
+<li><strong>松耦合</strong>：probing 自管、主动发现 Pulsing；不要求 Pulsing 或应用先「接好」probing。</li>
+</ol>
+<h2 id="_3">松耦合原则<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<ol>
+<li>
+<p><strong>probing 被注入后，自己管好自己</strong>
+   不依赖外部先启动或配置 Pulsing；probing 进程内行为自洽（上报、本地 CLUSTER、HTTP API 等照常工作）。</p>
+</li>
+<li>
+<p><strong>cluster 模块主动发现 Pulsing</strong>
+   probing 的 cluster 模块在适当时机（例如 server 启动或首次访问集群视图时）<strong>尝试发现</strong>当前环境里是否已有 Pulsing（例如检测全局 ActorSystem、环境变量、或指定 URL/端口）。</p>
+</li>
+<li>
+<p><strong>发现 Pulsing 后的两种路径</strong></p>
+</li>
+<li><strong>a. Pulsing 已初始化</strong>
+     若发现 Pulsing 的 ActorSystem 已经存在（例如用户代码已 <code>pul.init()</code>）：<ul>
+<li>在该 ActorSystem 上<strong>注册一个专用于集群管理的 actor</strong>（例如 named actor <code>"probing/cluster"</code>）；</li>
+<li>节点发现通过<strong>向该 actor 请求</strong>或<strong>该 actor 订阅/拉取 members()</strong> 得到，再写回 probing 的 <code>CLUSTER</code>。</li>
+</ul>
+</li>
+<li><strong>b. Pulsing 未初始化，且配置了初始化方式</strong>
+     若未发现已初始化的 Pulsing，但配置中指定了如何初始化（例如 <code>pulsing_seeds</code>、standalone 等）：<ul>
+<li>probing <strong>尝试自己初始化</strong> Pulsing（例如在 Python 侧调用 <code>pul.init(seeds=...)</code> 或等价逻辑）；</li>
+<li>初始化成功后，再走路径 a：注册集群管理 actor，通过该 actor 做节点发现。</li>
+</ul>
+</li>
+</ol>
+<p>未发现 Pulsing 或未配置初始化时，cluster 模块<strong>仅使用现有上报</strong>构建视图，行为与当前一致。</p>
+<h2 id="_4">集成形态（在松耦合下的表现）<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
 <ul>
-<li>代码以完全权限运行</li>
-<li>无沙箱（设计如此）</li>
-<li>使用适当的访问控制</li>
+<li><strong>有 Pulsing（已初始化）</strong>：cluster 模块发现现有 ActorSystem → 通过拉取 members() 与上报合并写入 CLUSTER。</li>
+<li><strong>有 Pulsing（需由 probing 初始化）</strong>：cluster 模块按配置初始化 Pulsing → 同上。</li>
+<li><strong>无 Pulsing</strong>：不注册 actor，仅靠 PUT /apis/nodes 与 rank 0 本地 update_node 构建视图。</li>
 </ul>
-<h2 id="_7">堆栈分析<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h2>
-<h3 id="_8">堆栈跟踪捕获<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h3>
-<p>捕获当前执行堆栈：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>backtrace
-</span></code></pre></div>
-<h3 id="_9">帧信息<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h3>
-<p>每个堆栈帧包括：</p>
-<table>
-<thead>
-<tr>
-<th>字段</th>
-<th>描述</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>func</td>
-<td>函数名</td>
-</tr>
-<tr>
-<td>file</td>
-<td>源文件路径</td>
-</tr>
-<tr>
-<td>lineno</td>
-<td>行号</td>
-</tr>
-<tr>
-<td>depth</td>
-<td>堆栈深度（0 = 最内层）</td>
-</tr>
-<tr>
-<td>frame_type</td>
-<td>Python 或 Native</td>
-</tr>
-<tr>
-<td>locals</td>
-<td>局部变量（可选）</td>
-</tr>
-</tbody>
-</table>
-<h3 id="_10">查询堆栈<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h3>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">func</span><span class="p">,</span><span class="w"> </span><span class="n">file</span><span class="p">,</span><span class="w"> </span><span class="n">lineno</span><span class="p">,</span><span class="w"> </span><span class="n">depth</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">backtrace</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">depth</span><span class="p">;</span>
-</span></code></pre></div>
-<h2 id="repl">交互式 REPL<a class="headerlink" href="#repl" title="Permanent link">&para;</a></h2>
-<h3 id="repl_1">启动 REPL<a class="headerlink" href="#repl_1" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>probing<span class="w"> </span>-t<span class="w"> </span>&lt;pid&gt;<span class="w"> </span>repl
-</span></code></pre></div>
-<h3 id="repl_2">REPL 功能<a class="headerlink" href="#repl_2" title="Permanent link">&para;</a></h3>
+<h3 id="pulsing-api">组网由 Pulsing 后台负责，调用方只调 API 等待<a class="headerlink" href="#pulsing-api" title="Permanent link">&para;</a></h3>
+<p>Pulsing 提供 <strong>bootstrap</strong> 模块：在<strong>后台线程</strong>中自动尝试组网（先 Ray 再 torchrun），对外只暴露 <code>wait_ready(timeout)</code> / <code>await_ready(timeout)</code>。probing 或其他调用方<strong>不</strong>实现 init_in_ray / init_in_torchrun，只需在需要集群时调用 <code>pulsing.bootstrap.wait_ready(timeout)</code> 等待，返回 True 后即可 <code>get_system()</code> 并使用。组网逻辑（谁当 seed、如何广播）全部在 Pulsing 内部完成。</p>
+<h3 id="ray-torchrun-bootstrap">借助 Ray / torchrun 组网（由 bootstrap 内部调用）<a class="headerlink" href="#ray-torchrun-bootstrap" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Tab 补全</li>
-<li>多行输入</li>
-<li>历史记录支持</li>
-<li>异常显示</li>
+<li><strong>Ray</strong>：<code>pulsing.integrations.ray.init_in_ray()</code>，首个进程通过 Ray KV 成为 seed，其余以 <code>seeds=[seed_addr]</code> 加入。</li>
+<li><strong>torchrun</strong>：<code>pulsing.integrations.torchrun.init_in_torchrun()</code>，rank0 广播地址，其他 rank 以 seed 加入。</li>
 </ul>
-<h3 id="_11">示例会话<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h3>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="o">&gt;&gt;&gt;</span> <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">model</span> <span class="o">=</span> <span class="n">get_model</span><span class="p">()</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">model</span><span class="o">.</span><span class="n">training</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="kc">True</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">memory_allocated</span><span class="p">()</span> <span class="o">/</span> <span class="mi">1024</span><span class="o">**</span><span class="mi">3</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="mf">2.5</span>
+<p>bootstrap 后台会按顺序尝试上述两种方式；probing 只需在启动同步前调用 <code>pulsing.bootstrap.wait_ready(PROBING_PULSING_BOOTSTRAP_TIMEOUT)</code> 等待即可。</p>
+<h2 id="_5">数据流（松耦合）<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>┌─────────────────────────────────────────────────────────────────┐
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>│  probing 进程（被注入后自管）                                      │
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>│  • cluster 模块尝试发现 Pulsing                                   │
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>└────────────────────────────┬──────────────────────────────────┘
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>                               │
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>           ┌───────────────────┼───────────────────┐
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>           ▼                   ▼                   ▼
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    未发现 Pulsing     发现已初始化 Pulsing    未初始化但配置了 init
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>           │                   │                   │
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>           ▼                   ▼                   ▼
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    仅用上报构建视图    在 ActorSystem 上       probing 自己 init
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    (当前行为)          注册集群管理 actor      Pulsing，再注册 actor
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>                               │                   │
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>                               └─────────┬─────────┘
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>                                         ▼
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>┌─────────────────────────────────────────────────────────────────┐
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>│  Pulsing ActorSystem                                             │
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>│  • 集群管理 actor（如 &quot;probing/cluster&quot;）拉取 members()           │
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>│  • 映射为 Node 基础信息，与 PUT 上报的 rank/role 合并               │
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>└────────────────────────────┬──────────────────────────────────┘
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>                              │
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>                              ▼
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>┌─────────────────────────────────────────────────────────────────┐
+</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>│  probing_core::cluster::CLUSTER                                 │
+</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>│  Cluster { nodes: host:addr -&gt; Node, rank_index }                │
+</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>│  Node = 基础(Pulsing) + 业务(rank, world_size, role, ...)         │
+</span><span id="__span-0-27"><a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>└────────────────────────────┬──────────────────────────────────┘
+</span><span id="__span-0-28"><a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>                              │
+</span><span id="__span-0-29"><a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>              ┌───────────────┼───────────────┐
+</span><span id="__span-0-30"><a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>              ▼               ▼               ▼
+</span><span id="__span-0-31"><a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>        GET /apis/nodes   Web 集群页    extensions/cc nodes 表
 </span></code></pre></div>
-<h2 id="_12">远程调试<a class="headerlink" href="#_12" title="Permanent link">&para;</a></h2>
-<h3 id="_13">设置<a class="headerlink" href="#_13" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># 在目标机器上</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nv">PROBING_PORT</span><span class="o">=</span><span class="m">8080</span><span class="w"> </span>python<span class="w"> </span>train.py
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># 从远程机器</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>probing<span class="w"> </span>-t<span class="w"> </span>host:8080<span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;...&quot;</span>
-</span></code></pre></div>
-<h3 id="_14">安全<a class="headerlink" href="#_14" title="Permanent link">&para;</a></h3>
 <ul>
-<li>通过令牌认证</li>
-<li>支持 TLS 加密</li>
-<li>基于 IP 的访问控制</li>
+<li><strong>合并规则</strong>：以 <code>host:addr</code> 或 Pulsing <code>node_id</code> 为键；若某节点仅有 Pulsing 信息则只填基础字段，rank/role 为空或默认；若仅有上报则仅填业务字段，存活状态可标为「未知」或依赖超时剔除。</li>
+<li><strong>故障检测</strong>：从 Pulsing 来的节点若 <code>status != Alive</code>，可在 probing 视图中标记为 Unhealthy/Unreachable 或从列表中过滤/标注。</li>
 </ul>
-<h2 id="_15">调试模式<a class="headerlink" href="#_15" title="Permanent link">&para;</a></h2>
-<h3 id="_16">查找卡住位置<a class="headerlink" href="#_16" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># 捕获堆栈</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>backtrace
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># 检查执行阻塞在哪里</span>
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="s2">SELECT func, file, lineno</span>
-</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="s2">FROM python.backtrace</span>
-</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="s2">WHERE depth &lt; 5&quot;</span>
-</span></code></pre></div>
-<h3 id="_17">检查状态<a class="headerlink" href="#_17" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># 检查模型状态</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="s2">for name, param in model.named_parameters():</span>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="s2">    print(f&#39;{name}: {param.shape}&#39;)&quot;</span>
-</span></code></pre></div>
-<h3 id="_18">修改行为<a class="headerlink" href="#_18" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># 修改学习率</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="s2">optimizer.param_groups[0][&#39;lr&#39;] = 0.0001&quot;</span>
-</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>
-</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="c1"># 强制保存检查点</span>
-</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="s2">trainer.save_checkpoint(&#39;debug_checkpoint.pt&#39;)&quot;</span>
-</span></code></pre></div>
-<h2 id="_19">线程调试<a class="headerlink" href="#_19" title="Permanent link">&para;</a></h2>
-<h3 id="_20">列出线程<a class="headerlink" href="#_20" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="s2">import threading</span>
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="s2">for t in threading.enumerate():</span>
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="s2">    print(f&#39;{t.name}: alive={t.is_alive()}&#39;)&quot;</span>
-</span></code></pre></div>
-<h3 id="_21">主线程焦点<a class="headerlink" href="#_21" title="Permanent link">&para;</a></h3>
-<p>默认情况下，backtrace 捕获主线程。对于其他线程：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="s2">import sys, traceback</span>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="s2">for thread_id, frame in sys._current_frames().items():</span>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="s2">    print(f&#39;线程 {thread_id}:&#39;)</span>
-</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="s2">    traceback.print_stack(frame)&quot;</span>
-</span></code></pre></div>
+<h2 id="_6">接口与兼容性<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>保持</strong>：<code>GET /apis/nodes</code>、<code>PUT /apis/nodes</code>、<code>cluster::get_nodes()</code>、<code>cluster::update_node()</code>、extensions/cc <code>nodes</code> 表 schema（host, addr, rank, world_size, role_*, status, timestamp）。</li>
+<li><strong>扩展</strong>（可选）：</li>
+<li>Node 或 API 增加 <code>pulsing_node_id</code>、<code>pulsing_status</code>，便于调试与展示。</li>
+<li>配置项：发现方式（如 <code>pulsing_auto_discover</code>）、初始化方式（如 <code>pulsing_seeds</code>、<code>pulsing_init_mode</code>）。</li>
+<li><strong>兼容</strong>：未发现 Pulsing 且未配置初始化时，行为与当前一致，仅靠上报构建集群视图。</li>
+</ul>
+<h2 id="_7">实施步骤建议<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Phase 1（发现 + 使用已有 Pulsing）</strong></li>
+<li>cluster 模块实现「发现 Pulsing」：检测全局 ActorSystem（Python 侧 <code>pul.get_system()</code> / 是否已 init）、或环境变量/配置中的 Pulsing 入口。</li>
+<li>若已初始化：在 ActorSystem 上注册集群管理 actor（named，如 <code>"probing/cluster"</code>），该 actor 负责拉取 <code>members()</code>、映射为 <code>Vec&lt;Node&gt;</code>，并可由 probing 侧定时请求或订阅更新；合并进 CLUSTER。</li>
+<li>
+<p>配置：仅「是否启用发现」与「集群管理 actor 名称」等，不强制要求配置 Pulsing。</p>
+</li>
+<li>
+<p><strong>Phase 2（可选由 probing 初始化 Pulsing）</strong></p>
+</li>
+<li>当未发现已初始化的 Pulsing 且配置了初始化方式（如 <code>pulsing_seeds</code>、standalone）时，cluster 模块（或 Python 桥）尝试调用 <code>pul.init(...)</code>（或等价）。</li>
+<li>初始化成功后走 Phase 1：注册集群管理 actor，通过该 actor 做节点发现。</li>
+<li>
+<p>统一「成员源」：仅上报 / Pulsing（通过集群管理 actor）/ 合并。</p>
+</li>
+<li>
+<p><strong>Phase 3（可选增强）</strong></p>
+</li>
+<li>集群管理 actor 可对外提供「注册 rank/role」接口，与 PUT /apis/nodes 互补或替代。</li>
+<li>分布式存储（TopologyView）的节点列表也可从 Pulsing 成员驱动。</li>
+</ol>
+<h2 id="_8">依赖与约束<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>依赖</strong>：若在 Rust 侧直接依赖 Pulsing，需在 probing 的 Cargo 中增加 <code>pulsing-actor</code>（或仅通过 HTTP/FFI 调用则无 Rust 依赖）。</li>
+<li><strong>进程模型</strong>：当前 report 仅 rank 0 写本地、其余 PUT 到中心；与 Pulsing 集成后，中心或 rank 0 需能访问 Pulsing 视图（同进程或远程）。</li>
+<li><strong>身份对应</strong>：需要约定 Pulsing 节点与 probing 节点的对应关系（例如同一进程既上报 <code>host:addr</code> 又加入 Pulsing，则用 <code>addr</code> 或 node_id 关联）。</li>
+</ul>
+<h2 id="_9">小结<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>松耦合</strong>：probing 被注入后自管；cluster 模块主动发现 Pulsing；发现后要么用已有 ActorSystem 并注册集群管理 actor，要么在配置允许时由 probing 自己初始化 Pulsing 再注册 actor。</li>
+<li><strong>用 Pulsing 做</strong>：通过「集群管理 actor」做成员发现与存活检测；该 actor 挂在 Pulsing 的 ActorSystem 上，由 probing 注册与使用。</li>
+<li><strong>probing 保留</strong>：rank/world_size/role 等业务语义、现有 HTTP API、<code>nodes</code> 表与 Web 集群页；无 Pulsing 时行为不变。</li>
+<li><strong>集成方式</strong>：发现 → 已初始化则注册 actor / 未初始化且配置则先 init 再注册 actor → 通过该 actor 拉取 members 并与上报合并写入 CLUSTER。</li>
+</ul>
+<p>这样在不破坏现有使用方式、且不要求应用或 Pulsing 先接好 probing 的前提下，为 probing 带来基于 Pulsing 的自动集群发现与故障感知能力。</p>
+<hr />
+<h2 id="_10">设计点评<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h2>
+<h3 id="_11">优点<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>松耦合方向正确</strong>：probing 自管、主动发现 Pulsing，无 Pulsing 时退化为纯上报，不绑架部署顺序，对现有用户友好。</li>
+<li><strong>职责清晰</strong>：Pulsing 管「谁在、谁活」，probing 管 rank/role 等业务语义；集群管理 actor 作为单一桥梁，边界明确。</li>
+<li><strong>兼容与渐进</strong>：GET/PUT、nodes 表、Web 页不变；Phase 1→2→3 可分批落地，风险可控。</li>
+<li><strong>发现路径完整</strong>：已初始化 / 未初始化且配置 init 两条路径都覆盖，文档里写清楚了分支逻辑。</li>
+</ul>
+<h3 id="_12">潜在问题与风险<a class="headerlink" href="#_12" title="Permanent link">&para;</a></h3>
+<ol>
+<li>
+<p><strong>发现时机与竞态</strong>
+   「适当时机」若只在 server 启动或首次访问时做一次发现，之后 Pulsing 才被用户 <code>pul.init()</code>，可能漏掉。建议：发现失败或未发现时，在后续<strong>定时重试</strong>或「首次访问集群视图时重试」，并文档化重试策略（间隔、上限）。</p>
+</li>
+<li>
+<p><strong>集群管理 actor 的归属与生命周期</strong>
+   actor 由 probing 在「别人的」ActorSystem 上注册，若 probing 先退出而 Pulsing 常驻，会留下 named actor；若 Pulsing 先 shutdown，probing 侧要有<strong>检测断开 + 回退到仅上报</strong>的逻辑，否则会持续请求已失效的 actor。文档可明确：actor 随哪边生命周期、断开后是否自动降级。</p>
+</li>
+<li>
+<p><strong>probing 自己 init Pulsing 的适用边界</strong>
+   由 probing 调 <code>pul.init(seeds=...)</code> 时，当前进程会加入 Pulsing 集群。若同一台机上多进程都注入 probing 且都配置了 init，可能变成多节点加入同一集群，是否预期需要写清；standalone 与 cluster 模式在「由 probing 初始化」时的行为建议在文档里区分（例如仅允许 standalone 或仅允许指定了 seeds 的 cluster）。</p>
+</li>
+<li>
+<p><strong>身份对应 (host:addr vs node_id)</strong>
+   Pulsing 的 <code>node_id</code> 与 probing 的 <code>host:addr</code> 如何稳定对应，文档只说了「约定」。若同一物理机多进程、或容器重启导致 addr 复用，合并时可能错位或重复。建议在实施时约定：例如优先用 <code>addr</code> 做关联，或要求上报里带 <code>pulsing_node_id</code> 以便精确匹配，并在设计里写一句「合并键策略」。</p>
+</li>
+<li>
+<p><strong>Rust 与 Python 的边界</strong>
+   cluster 模块若在 Rust（server）里，发现「全局 ActorSystem」必然要经 Python 或 HTTP；若在 Python 扩展里，则可直接 <code>pul.get_system()</code>。文档里「发现」和「注册 actor」到底在 Rust 侧还是 Python 侧实现，会直接影响 Phase 1 的落地方式，建议在实施步骤里明确<strong>谁负责发现、谁负责注册 actor、谁负责拉取并写 CLUSTER</strong>（例如：Python 发现+注册 actor，Rust 通过 FFI/HTTP 向该 actor 要成员并写 CLUSTER）。</p>
+</li>
+</ol>
+<h3 id="_13">建议补充<a class="headerlink" href="#_13" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>配置契约</strong>：列出「发现 / 初始化」相关配置项与默认值（如 <code>pulsing_auto_discover=true</code>、未配置 seeds 时不自动 init），避免实现时各说各话。</li>
+<li><strong>可观测</strong>：发现成功/失败、是否使用集群管理 actor、降级到仅上报，建议打日志或指标，便于运维判断当前是否在用 Pulsing 视图。</li>
+<li><strong>测试策略</strong>：无 Pulsing、已有 Pulsing、probing 自己 init 三种场景各有一个明确测试用例，防止回归。</li>
+</ul>
+<p>整体上，这个实现方向合理、文档已把主流程和松耦合讲清楚；把上述「发现重试、生命周期与降级、身份对应、Rust/Python 边界」在文档或后续实现里补上，落地会更稳。</p>
 
 
 
