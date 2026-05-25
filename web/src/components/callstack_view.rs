@@ -23,7 +23,7 @@ pub fn CallStackView(callstack: CallFrame) -> Element {
             }
         }
         CallFrame::PyFrame { file, func, lineno, locals } => {
-            let url = format!("/apis/files?path={}", file);
+            let url = crate::utils::base_path::with_base(&format!("/apis/files?path={}", file));
             let key = format!("{func} @ {file}: {lineno}");
             rsx! {
                 CollapsibleCardWithIcon {

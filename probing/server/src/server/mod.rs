@@ -201,6 +201,7 @@ pub fn sync_env_settings() {
                     "PROBING_ASSETS_ROOT",
                     "PROBING_SERVER_ADDRPATTERN",
                     "PROBING_AUTH_TOKEN", // Skip syncing the auth token for security reasons
+                    "PROBING_BASE_PATH",  // Used by server at startup, not a runtime setting
                 ]
                 .contains(&k.as_str())
         })
