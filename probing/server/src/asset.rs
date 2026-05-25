@@ -90,8 +90,11 @@ fn rewrite_html_paths(html: &str, base_path: &str) -> String {
         while let Some(pos) = result[offset..].find(&pattern) {
             let global_pos = offset + pos;
             let value_start = global_pos + pattern.len(); // position right after the leading /
-            // Find the closing quote to get the full attribute value
-            let value_end = result[value_start..].find('"').map(|i| value_start + i).unwrap_or(result.len());
+                                                          // Find the closing quote to get the full attribute value
+            let value_end = result[value_start..]
+                .find('"')
+                .map(|i| value_start + i)
+                .unwrap_or(result.len());
             let value = &result[value_start..value_end];
             // Skip protocol-relative URLs: //cdn.example.com/...
             if value.starts_with('/') {
@@ -105,7 +108,10 @@ fn rewrite_html_paths(html: &str, base_path: &str) -> String {
             }
             // Insert base_path right after the leading /
             // e.g. href="/./assets/foo.js" -> href="/proxy/task-123/./assets/foo.js"
-            result.insert_str(value_start, &format!("{}/", base_path.trim_start_matches('/')));
+            result.insert_str(
+                value_start,
+                &format!("{}/", base_path.trim_start_matches('/')),
+            );
             offset = value_start + base_path.len() + 1;
         }
     }
