@@ -22,7 +22,7 @@ thiserror = { workspace = true }
 
 async-trait = "0.1.83"
 rmesg = { version = "1.0.21", optional = true }
-datafusion = { version = "47.0.0", default-features = false, features = [] }
+datafusion = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 procfs = { version = "0.17.0", default-features = false, features = ["chrono"] }

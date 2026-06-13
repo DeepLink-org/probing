@@ -6,19 +6,26 @@ use async_trait::async_trait;
 use datafusion::arrow::array::RecordBatch;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::catalog::{CatalogProvider, SchemaProvider, Session, TableProvider};
-use datafusion::datasource::memory::DataSourceExec;
-use datafusion::datasource::memory::MemorySourceConfig;
+use datafusion::common::Statistics;
 use datafusion::datasource::TableType;
 use datafusion::error::{DataFusionError, Result};
 use datafusion::execution::SessionState;
+use datafusion::logical_expr::TableProviderFilterPushDown;
+use datafusion::physical_plan::common::compute_record_batch_statistics;
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
+
+use super::plugin_advanced::{scan_memory_partitions, supports_filters_pushdown_for_schema};
 
 /// Trait defining a custom table with static/dynamic schema and data
 ///
 /// Implement this to create tables that:
 /// - Have a fixed name
 /// - Use a predefined schema
+///
+/// The default [`TableDataSource`] integration applies **conservative** `WHERE` / `LIMIT`
+/// pushdown (same rules as [`super::plugin_advanced`](super::plugin_advanced)): simple predicates
+/// whose columns all exist on the table may run inside the scan; others stay in a planner `Filter`.
 pub trait CustomTable {
     /// Returns the table name (must be constant)
     fn name() -> &'static str;
@@ -120,21 +127,47 @@ impl<T: CustomTable + Default + Debug + Send + Sync + 'static> TableProvider
         TableType::Base
     }
 
+    fn supports_filters_pushdown(
+        &self,
+        filters: &[&Expr],
+    ) -> Result<Vec<TableProviderFilterPushDown>> {
+        supports_filters_pushdown_for_schema(&T::schema(), filters)
+    }
+
+    fn statistics(&self) -> Option<Statistics> {
+        let partitions = vec![T::data()];
+        Some(compute_record_batch_statistics(
+            &partitions,
+            T::schema().as_ref(),
+            None,
+        ))
+    }
+
     async fn scan(
         &self,
-        _state: &dyn Session,
+        state: &dyn Session,
         projection: Option<&Vec<usize>>,
-        // filters and limit can be used here to inject some push-down operations if needed
-        _filters: &[Expr],
-        _limit: Option<usize>,
+        filters: &[Expr],
+        limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        let data = T::data();
-        let srccfg = MemorySourceConfig::try_new(&[data], T::schema(), projection.cloned())?;
-        let exec = DataSourceExec::new(Arc::new(srccfg));
-        Ok(Arc::new(exec))
+        let batches = T::data();
+        let partitions = vec![batches];
+        scan_memory_partitions(
+            state,
+            T::schema(),
+            &partitions,
+            projection,
+            filters,
+            limit,
+        )
+        .await
     }
 }
 
+/// Eager in-memory table built from pre-materialized [`RecordBatch`]es (e.g. mmap → Arrow).
+///
+/// Supports the same **conservative** `WHERE` / `LIMIT` pushdown as [`TableDataSource`] via
+/// [`super::plugin_advanced::scan_memory_partitions`](super::plugin_advanced::scan_memory_partitions).
 #[derive(Default, Debug)]
 pub struct LazyTableSource {
     pub name: String,
@@ -163,13 +196,31 @@ impl TableProvider for LazyTableSource {
         TableType::Base
     }
 
+    fn supports_filters_pushdown(
+        &self,
+        filters: &[&Expr],
+    ) -> Result<Vec<TableProviderFilterPushDown>> {
+        supports_filters_pushdown_for_schema(&self.schema(), filters)
+    }
+
+    fn statistics(&self) -> Option<Statistics> {
+        if self.data.is_empty() {
+            return None;
+        }
+        let partitions = vec![self.data.clone()];
+        Some(compute_record_batch_statistics(
+            &partitions,
+            self.schema().as_ref(),
+            None,
+        ))
+    }
+
     async fn scan(
         &self,
-        _state: &dyn Session,
+        state: &dyn Session,
         projection: Option<&Vec<usize>>,
-        // filters and limit can be used here to inject some push-down operations if needed
-        _filters: &[Expr],
-        _limit: Option<usize>,
+        filters: &[Expr],
+        limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let data = &self.data;
         if data.is_empty() {
@@ -178,10 +229,16 @@ impl TableProvider for LazyTableSource {
             ));
         }
         let schema = data[0].schema();
-        let srccfg =
-            MemorySourceConfig::try_new(std::slice::from_ref(data), schema, projection.cloned())?;
-        let exec = DataSourceExec::new(Arc::new(srccfg));
-        Ok(Arc::new(exec))
+        let partitions = vec![self.data.clone()];
+        scan_memory_partitions(
+            state,
+            schema,
+            &partitions,
+            projection,
+            filters,
+            limit,
+        )
+        .await
     }
 }
 

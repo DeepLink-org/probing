@@ -170,4 +170,8 @@ pub enum Commands {
     /// Access various storage backends
     #[command(subcommand = false, hide = true)]
     Store(StoreCommand),
+
+    /// Stress and benchmark the in-process data layer
+    #[command(hide = true)]
+    Bench(super::bench::BenchCommand),
 }

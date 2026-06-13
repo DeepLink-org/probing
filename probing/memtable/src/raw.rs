@@ -1,11 +1,41 @@
 use crate::layout::{
     chunk_header, col_desc, col_desc_mut, compute_data_offset, header, header_mut, r32, w32,
     ChunkHeader, ChunkState, Header, BYTE_ORDER_MARK, CHUNK_HEADER_SIZE, FLAGS_KNOWN, FLAG_DEDUP,
-    MAGIC, VERSION,
+    MAGIC, TS_MAX_INIT, TS_MIN_INIT, VERSION,
 };
 use crate::schema::{DType, Schema, Value};
 use std::mem;
 use std::sync::atomic::Ordering;
+
+/// Column names recognised as the designated timestamp column (must be
+/// `I64`). Matched at [`init_buf`] time and recorded in `Header::ts_col`.
+pub(crate) const TS_COL_NAMES: [&str; 2] = ["timestamp", "ts"];
+
+/// Fold a committed row's timestamp into the chunk's `min_ts`/`max_ts`.
+///
+/// Called by the (single, lock-holding) writer **before** the `used`
+/// Release store that publishes the row, so any reader that observes the
+/// row also observes a covering ts range.
+pub(crate) fn note_row_ts(ch: &ChunkHeader, ts: i64) {
+    if ts < ch.min_ts.load(Ordering::Relaxed) {
+        ch.min_ts.store(ts, Ordering::Relaxed);
+    }
+    if ts > ch.max_ts.load(Ordering::Relaxed) {
+        ch.max_ts.store(ts, Ordering::Relaxed);
+    }
+}
+
+/// Extract the designated timestamp from a row, per `Header::ts_col`.
+#[inline]
+pub(crate) fn row_ts(h: &Header, values: &[Value]) -> Option<i64> {
+    match h.ts_col as usize {
+        0 => None,
+        idx => match values.get(idx - 1) {
+            Some(Value::I64(ts)) => Some(*ts),
+            _ => None,
+        },
+    }
+}
 
 /// Returns the kernel-reported start time of a process.
 ///
@@ -74,6 +104,9 @@ pub(crate) fn write_row_bytes(buf: &mut [u8], values: &[Value], row_data: usize)
     }
     unsafe {
         let ch = &*(ptr.add(cs) as *const ChunkHeader);
+        if let Some(ts) = row_ts(&*(ptr as *const Header), values) {
+            note_row_ts(ch, ts);
+        }
         ch.used.store((used + total) as u32, Ordering::Release);
         ch.row_count.fetch_add(1, Ordering::Release);
     }
@@ -104,6 +137,8 @@ pub(crate) fn advance_chunk_unlocked(buf: &mut [u8]) {
         let new_ch = &*(ptr.add(cs) as *const ChunkHeader);
         new_ch.used.store(0, Ordering::Relaxed);
         new_ch.row_count.store(0, Ordering::Relaxed);
+        new_ch.min_ts.store(TS_MIN_INIT, Ordering::Relaxed);
+        new_ch.max_ts.store(TS_MAX_INIT, Ordering::Relaxed);
         new_ch
             .state
             .store(ChunkState::Writing as u32, Ordering::Relaxed);
@@ -222,6 +257,15 @@ pub fn validate_buf(buf: &[u8]) -> Result<(), &'static str> {
             return Err("invalid column dtype");
         }
     }
+    let ts_col = h.ts_col as usize;
+    if ts_col != 0 {
+        if ts_col > nc {
+            return Err("ts_col out of range");
+        }
+        if DType::from_u32(col_desc(buf, ts_col - 1).dtype) != Some(DType::I64) {
+            return Err("ts_col must reference an I64 column");
+        }
+    }
     let payload_cap = csz - CHUNK_HEADER_SIZE;
     for i in 0..h.num_chunks as usize {
         let cs = expected_off + i * csz;
@@ -294,12 +338,21 @@ pub(crate) fn init_buf(buf: &mut [u8], schema: &Schema, chunk_size: u32, num_chu
         CHUNK_HEADER_SIZE + 8
     );
 
+    // First I64 column with a recognised timestamp name becomes the
+    // designated time column (index + 1; 0 = none).
+    let ts_col = schema
+        .cols
+        .iter()
+        .position(|c| c.dtype == DType::I64 && TS_COL_NAMES.contains(&c.name.as_str()))
+        .map(|i| (i + 1) as u16)
+        .unwrap_or(0);
+
     let h = header_mut(buf);
     h.magic = MAGIC;
     h.version = VERSION;
     h.header_size = mem::size_of::<Header>() as u16;
     h.byte_order = u16::from_ne_bytes(BYTE_ORDER_MARK);
-    h._pad0 = 0;
+    h.ts_col = ts_col;
     h.flags = 0;
     h.num_cols = nc as u32;
     h.num_chunks = num_chunks;
@@ -310,7 +363,7 @@ pub(crate) fn init_buf(buf: &mut [u8], schema: &Schema, chunk_size: u32, num_chu
     h.refcount.store(1, Ordering::Relaxed);
     h.creator_pid = std::process::id();
     h.creator_start_time = process_start_time(std::process::id());
-    h._reserved = [0; 2];
+    h.lock_owner_start.store(0, Ordering::Relaxed);
 
     for (i, col) in schema.cols.iter().enumerate() {
         let cd = col_desc_mut(buf, i);
@@ -326,6 +379,8 @@ pub(crate) fn init_buf(buf: &mut [u8], schema: &Schema, chunk_size: u32, num_chu
         ch.generation.store(0, Ordering::Relaxed);
         ch.used.store(0, Ordering::Relaxed);
         ch.row_count.store(0, Ordering::Relaxed);
+        ch.min_ts.store(TS_MIN_INIT, Ordering::Relaxed);
+        ch.max_ts.store(TS_MAX_INIT, Ordering::Relaxed);
         ch.state.store(ChunkState::Empty as u32, Ordering::Relaxed);
     }
     // Chunk 0 is the initial write target

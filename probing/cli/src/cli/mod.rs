@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use probing_proto::prelude::Query;
 
+pub mod bench;
 pub mod commands;
 pub mod ctrl;
 pub mod repl;
@@ -74,6 +75,9 @@ impl Cli {
             }
             Some(Commands::Store(cmd)) => {
                 return cmd.run().await;
+            }
+            Some(Commands::Bench(cmd)) => {
+                return cmd.run();
             }
             _ => {}
         }
@@ -170,6 +174,7 @@ impl Cli {
             Commands::Launch { .. }
             | Commands::List { .. }
             | Commands::Store(..)
+            | Commands::Bench(..)
             | Commands::External(..) => {
                 unreachable!("These commands should be handled in run() method")
             }

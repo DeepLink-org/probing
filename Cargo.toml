@@ -22,7 +22,13 @@ description = "Performance and Stability Diagnostic Tool for AI Applications"
 
 [workspace.dependencies]
 anyhow = "1.0"
-arrow = { version = "55.1.0", default-features = false, features = ["csv"] }
+arrow = { version = "58.1.0", default-features = false, features = ["csv"] }
+datafusion = { version = "53.1.0", default-features = false, features = [
+    "datetime_expressions",
+    "sql",
+    "regex_expressions",
+    "string_expressions",
+] }
 chrono = { version = "0.4", features = ["serde"] }
 ctor = { version = "0.4.1", features = [] }
 env_logger = { version = "0.11.6", default-features = false, features = [
@@ -77,7 +83,9 @@ default = ["extension-module", "use-mimalloc"]
 [dependencies]
 probing-core = { path = "probing/core" }
 probing-server = { path = "probing/server", default-features = false }
-probing-python = { path = "probing/extensions/python", default-features = false, features=["tracing"] }
+probing-python = { path = "probing/extensions/python", default-features = false, features = [
+    "tracing",
+] }
 probing-cli = { path = "probing/cli" }
 
 anyhow = { workspace = true }
@@ -110,6 +118,6 @@ tokio = { workspace = true }
 [profile.release]
 opt-level = "z"    # Optimize for size.
 panic = "unwind"
-strip = false       # Automatically strip symbols from the binary.
+strip = false      # Automatically strip symbols from the binary.
 lto = "thin"
 codegen-units = 16

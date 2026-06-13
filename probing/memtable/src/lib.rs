@@ -93,6 +93,7 @@ mod cache;
 mod dedup;
 pub mod discover;
 mod layout;
+pub mod memc;
 pub mod memh;
 mod memtable;
 mod raw;
@@ -108,7 +109,7 @@ pub use memh::{
     MemhValidateError, MemhView, MemhWriter, SharedMemhWriter, TypedValue, MAGIC_MEMH,
     VERSION_MEMH,
 };
-pub use memtable::{MemTable, MemTableView, MemTableWriter};
+pub use memtable::{BackingKind, MemTable, MemTableView, MemTableWriter};
 pub use raw::validate_buf;
 pub use refcount::{acquire_ref, refcount, release_ref};
 pub use row::{Row, RowCursor, RowIter};

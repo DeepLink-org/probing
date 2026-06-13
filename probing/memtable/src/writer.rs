@@ -1,5 +1,6 @@
 use crate::dedup::DedupState;
 use crate::layout::{chunk_header, release_write_lock, w32, CHUNK_HEADER_SIZE};
+use crate::raw::note_row_ts;
 use std::sync::atomic::Ordering;
 
 /// Streaming row writer — **low-overhead, weak-contract** hot-path API.
@@ -25,6 +26,11 @@ pub struct RowWriter<'a> {
     pub(crate) done: bool,
     pub(crate) col_idx: usize,
     pub(crate) locked: bool,
+    /// `Header::ts_col` (timestamp column index + 1; 0 = none).
+    pub(crate) ts_col: u16,
+    /// Timestamp captured by `put_i64` on the designated column,
+    /// folded into the chunk's min/max on a successful `finish()`.
+    pub(crate) pending_ts: Option<i64>,
 }
 
 impl<'a> RowWriter<'a> {
@@ -84,6 +90,9 @@ impl<'a> RowWriter<'a> {
         self
     }
     pub fn put_i64(&mut self, v: i64) -> &mut Self {
+        if self.ts_col as usize == self.col_idx + 1 {
+            self.pending_ts = Some(v);
+        }
         self.write_raw(&v.to_le_bytes());
         self.col_idx += 1;
         self
@@ -135,6 +144,9 @@ impl<'a> RowWriter<'a> {
             let row_data = self.pos - self.row_start - 4;
             w32(self.buf, self.row_start, row_data as u32);
             let new_used = (self.pos - self.chunk_start - CHUNK_HEADER_SIZE) as u32;
+            if let Some(ts) = self.pending_ts {
+                note_row_ts(chunk_header(self.buf, self.chunk_start), ts);
+            }
             chunk_header(self.buf, self.chunk_start)
                 .used
                 .store(new_used, Ordering::Release);
@@ -197,8 +209,8 @@ mod tests {
     #[test]
     fn row_writer_overflow() {
         let schema = Schema::new().col("x", DType::I64);
-        // ChunkHeader=24, each I64 row=12 → 40-24=16 → 1 row fits, 2nd overflows
-        let mut t = MemTable::new(&schema, 40, 1);
+        // ChunkHeader=40, each I64 row=12 → 56-40=16 → 1 row fits, 2nd overflows
+        let mut t = MemTable::new(&schema, 56, 1);
         assert!(t.row_writer().put_i64(1).finish());
         assert!(!t.row_writer().put_i64(2).finish());
         assert_eq!(t.num_rows(0), 1);
