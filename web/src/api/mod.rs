@@ -19,7 +19,7 @@ impl ApiClient {
 
     /// Build API URL
     fn build_url(path: &str) -> Result<String> {
-        Ok(format!("{}{}", Self::get_origin()?, path))
+        Ok(format!("{}{}", Self::get_origin()?, crate::utils::base_path::with_base(path)))
     }
 
     /// Send GET request
