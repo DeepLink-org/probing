@@ -4,7 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Probing Web Interface</title>
-    <link rel="icon" type="image/svg" href="/logo.svg">
+    <link rel="icon" type="image/svg" id="favicon" href="/logo.svg">
+    <script>
+      if (window.__PROBING_BASE_PATH__) {
+        document.getElementById('favicon').href = window.__PROBING_BASE_PATH__ + '/logo.svg';
+      }
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body>
