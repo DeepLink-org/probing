@@ -22,9 +22,9 @@ pub enum Backend {
 /// Streaming row writer vs. value-vector `push_row`.
 #[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WriterMode {
-    /// `push_row` — concurrency-safe auto-advance; allocates a value row.
+    /// `push_row` — auto-advance on chunk full; allocates a value row.
     Push,
-    /// `RowWriter` streaming fast path (single-threaded only).
+    /// `RowWriter` streaming fast path (zero per-row allocation).
     Streaming,
 }
 
@@ -81,13 +81,14 @@ pub struct WriteArgs {
     #[arg(long, default_value_t = 1_000_000)]
     pub rows: u64,
 
-    /// Concurrent writer threads. >1 requires a shared backend
-    /// (shm/file/shared) to exercise the cross-handle write lock.
+    /// Concurrent writer threads. Only valid with `--backend heap`, where each
+    /// thread gets its own independent table. Shared backends are single-writer.
     #[arg(long, default_value_t = 1)]
     pub threads: usize,
 
-    /// Writer API to exercise.
-    #[arg(long, value_enum, default_value = "push")]
+    /// Writer API to exercise. `streaming` is the zero-allocation single-row
+    /// fast path (no per-row value vector); `push` allocates a value row.
+    #[arg(long, value_enum, default_value = "streaming")]
     pub writer: WriterMode,
 
     /// File path for `--backend file` (defaults to a temp file).
@@ -178,8 +179,8 @@ pub struct MixedArgs {
     #[arg(long, value_enum, default_value = "shared")]
     pub backend: Backend,
 
-    /// Concurrent writer threads.
-    #[arg(long, default_value_t = 2)]
+    /// Writer threads. MEMT is single-writer; must be 1.
+    #[arg(long, default_value_t = 1)]
     pub writers: usize,
 
     /// Concurrent reader (scan) threads.
@@ -218,7 +219,7 @@ pub struct MpArgs {
     #[arg(long, value_enum, default_value = "shared")]
     pub backend: Backend,
 
-    /// Number of writer processes.
+    /// Writer processes. MEMT is single-writer; must be 1.
     #[arg(long, default_value_t = 1)]
     pub writers: usize,
 

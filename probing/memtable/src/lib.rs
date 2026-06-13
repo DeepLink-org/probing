@@ -5,10 +5,14 @@
 //!
 //! ## Concurrency
 //!
-//! - **Writers** are serialized by a spinlock (`write_lock` in Header).
+//! MEMT is **single-writer**: exactly one writer owns each buffer, so there
+//! is no in-buffer write lock.
+//!
+//! - **Writer**: a single owner appends rows; the `&mut` borrow (or the
+//!   caller's own serialization) guarantees exclusivity. No lock is taken.
 //! - **Readers** are lock-free: per-chunk `used` is updated with `Release` ordering
-//!   by writers and loaded with `Acquire` by readers, ensuring row data visibility.
-//! - `RowWriter` holds the lock for its lifetime; released by `finish()` or `Drop`.
+//!   by the writer and loaded with `Acquire` by readers, ensuring row data visibility.
+//!   Readers re-validate the chunk `generation` to discard rows from a recycled chunk.
 //!
 //! # Memory Layout
 //!
@@ -16,13 +20,13 @@
 //!
 //! ```text
 //! ┌──────────────────────────────────┐ 0
-//! │ Header v2 (64 bytes, repr(C))    │
+//! │ Header v4 (64 bytes, repr(C))    │
 //! │  ── cold zone (read-only) ──     │
 //! │   magic: u32     (0x4D454D54)    │
-//! │   version: u16   (2)             │
+//! │   version: u16   (4)             │
 //! │   header_size: u16 (64)          │
 //! │   byte_order: u16 (BOM 0x0102)   │
-//! │   _pad0: u16                     │
+//! │   ts_col: u16                    │
 //! │   flags: u32     (feature bits)  │
 //! │   num_cols: u32                  │
 //! │   num_chunks: u32                │
@@ -30,11 +34,11 @@
 //! │   data_offset: u32               │
 //! │  ── hot zone (atomic) ────       │
 //! │   write_chunk: AtomicU32         │
-//! │   write_lock: AtomicU32          │
 //! │   refcount: AtomicU32            │
 //! │   creator_pid: u32                │
+//! │   _pad0: u32                     │
 //! │   creator_start_time: u64         │
-//! │   _reserved: [u32; 2]            │
+//! │   _reserved: u64                 │
 //! ├──────────────────────────────────┤ 64
 //! │ ColumnDesc × N (64 bytes each)   │
 //! │   name: [u8; 56]  (LP u16)      │

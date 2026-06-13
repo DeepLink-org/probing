@@ -113,11 +113,12 @@ pub(crate) fn write_row_bytes(buf: &mut [u8], values: &[Value], row_data: usize)
     true
 }
 
-/// Advance the ring buffer to the next chunk (caller must hold the write lock).
+/// Advance the ring buffer to the next chunk.
 ///
-/// Takes `&mut [u8]` so that LLVM does not mark the pointer `readonly`;
-/// see [`acquire_write_lock`](crate::layout::acquire_write_lock) for details.
-pub(crate) fn advance_chunk_unlocked(buf: &mut [u8]) {
+/// MEMT is single-writer, so no lock is taken. Takes `&mut [u8]` so that
+/// LLVM does not mark the pointer `readonly` (which would let it elide the
+/// atomic stores below in optimised builds).
+pub(crate) fn advance_chunk_raw(buf: &mut [u8]) {
     let ptr = buf.as_mut_ptr();
     unsafe {
         let h = &*(ptr as *const Header);
@@ -359,11 +360,11 @@ pub(crate) fn init_buf(buf: &mut [u8], schema: &Schema, chunk_size: u32, num_chu
     h.chunk_size = chunk_size;
     h.data_offset = data_off as u32;
     h.write_chunk.store(0, Ordering::Relaxed);
-    h.write_lock.store(0, Ordering::Relaxed);
     h.refcount.store(1, Ordering::Relaxed);
     h.creator_pid = std::process::id();
+    h._pad0 = 0;
     h.creator_start_time = process_start_time(std::process::id());
-    h.lock_owner_start.store(0, Ordering::Relaxed);
+    h._reserved = 0;
 
     for (i, col) in schema.cols.iter().enumerate() {
         let cd = col_desc_mut(buf, i);

@@ -53,12 +53,12 @@ The hot tier is mapped read-only at query time; the cold tier is read via `Segme
 Every MEMT buffer (heap, shared memory, or mmap'd file) begins with a 64-byte header (one cache
 line), followed by per-column descriptors, then chunk data.
 
-**Header v3 (64 bytes):**
+**Header v4 (64 bytes):**
 
 | offset | size | field | notes |
 |---|---|---|---|
 | 0 | 4 | `magic` | `0x4D454D54` (`"MEMT"`) |
-| 4 | 2 | `version` | 3 |
+| 4 | 2 | `version` | 4 |
 | 6 | 2 | `header_size` | 64 (validation) |
 | 8 | 2 | `byte_order` | BOM `[0x01,0x02]` |
 | 10 | 2 | `ts_col` | timestamp column index + 1 (0 = none) |
@@ -68,15 +68,18 @@ line), followed by per-column descriptors, then chunk data.
 | 24 | 4 | `chunk_size` | bytes per chunk |
 | 28 | 4 | `data_offset` | 64-aligned |
 | 32 | 4 | `write_chunk` | `AtomicU32` — current ring slot |
-| 36 | 4 | `write_lock` | `AtomicU32` — 0 = free, else holder PID |
-| 40 | 4 | `refcount` | `AtomicU32` |
-| 44 | 4 | `creator_pid` | |
-| 48 | 8 | `creator_start_time` | for PID-recycling detection |
-| 56 | 8 | `lock_owner_start` | `AtomicU64` — lock holder's start time |
+| 36 | 4 | `refcount` | `AtomicU32` |
+| 40 | 4 | `creator_pid` | |
+| 44 | 4 | `_pad0` | alignment (was `write_lock` in v3) |
+| 48 | 8 | `creator_start_time` | for PID-recycling detection during discovery |
+| 56 | 8 | `_reserved` | reserved (was `lock_owner_start` in v3) |
 
 Bytes 0–31 are the **cold zone** (immutable after init); bytes 32–63 are the **hot zone**
 (atomically mutated), split to avoid false sharing. Each chunk starts with a 40-byte
 `ChunkHeader` carrying a `generation` counter and per-chunk `min_ts`/`max_ts` (`AtomicI64`).
+
+> **v4** dropped the `write_lock` and `lock_owner_start` fields: MEMT is single-writer, so there is
+> no in-buffer write lock. Their byte slots are now reserved.
 
 ### Backends
 
@@ -95,25 +98,42 @@ slot (wrapping), sealing the previous chunk. Each slot carries a monotonically i
 **logical (oldest → newest) order** and re-check the generation after reading — a chunk recycled
 mid-read is discarded rather than surfacing torn rows.
 
-### Robust Write Lock
+### Single-Writer Model (no lock)
 
-`write_lock` holds **0 (free) or the holder's PID**. A waiter spins; if it spins past
-`LOCK_STEAL_TIMEOUT` (500 ms) it enters a steal decision:
+MEMT is **single-writer**: exactly one writer owns each buffer (the creator process; any in-process
+write is serialized by the caller). There is **no in-buffer write lock** — the writer appends rows
+without any CAS or fence on a lock word. Readers are lock-free and never coordinated with the writer
+except through the per-chunk `used` / `row_count` `Release` stores and `generation` re-validation.
 
-- if the holder process no longer exists (`kill(pid, 0)`), the lock is stolen;
-- if the holder exists but its kernel start time differs from `lock_owner_start`, the PID was
-  recycled by an unrelated process — stolen after a short re-check grace.
+Why this is safe and sufficient:
 
-Stealing is data-safe: rows only become visible via the `Release` store of `row_count` at the end
-of a write, so a half-written row from a dead holder stays uncommitted and is simply overwritten.
+- Production uses one writer per table — the Python `ExternalTable` path writes one file per process
+  (named `<data_dir>/<pid>/…`); a process restart means a new PID and a fresh file.
+- Readers never wrote to the lock anyway; their correctness rides the `Release`/`Acquire` ordering on
+  `used`/`row_count` plus the `generation` check on each chunk.
+- Removing the lock also removes the fork-safety hazard the PID-stealing spinlock had to guard
+  against (a forked child inheriting a cached start time and being mistaken for a recycled PID).
 
-!!! note "Fork safety"
-    The holder's start time is read via a per-PID cache, **not** a one-shot cache. A child that
-    inherited a parent's cached value would record the parent's start time and be mistaken for a
-    recycled PID by a waiter — exactly the hazard fork-heavy workloads (PyTorch DataLoader)
-    trigger. Re-reading whenever the live PID changes makes every post-fork caller observe its own
-    start time. (Start times come from `/proc` on Linux; on platforms without it the steal-on-recycle
-    path is inert.)
+> The **cold tier (MEMC)** has a separate concurrency story — multiple compactor writers are
+> distinguished by `writer_id` and segment isolation — and is unaffected by the MEMT single-writer
+> model.
+
+### Single-Writer Fast Path
+
+Since data is generated **one row at a time**, the single-row commit path is tuned to be as cheap as
+possible:
+
+- **Zero per-row allocation.** The `RowWriter` streaming API encodes fields directly into the ring
+  chunk; no `Vec<Value>` is built per row. (The `push_row(&[Value])` convenience API still works but
+  asks the caller to materialize a value slice.)
+- **No lock, no per-row `catch_unwind`.** With a single writer there is nothing to lock and nothing
+  to release on panic, so neither a per-row CAS + `Release` fence nor a `catch_unwind`/`Drop` guard
+  is needed.
+
+Reader correctness is independent of the write path: row visibility always rides the `used` /
+`row_count` `Release` stores in `finish()`. Measured single-thread `metrics` throughput (M4,
+release): plain `push_row` + spinlock ≈ 18.8M rows/s → streaming, lock-free ≈ 29.9M rows/s
+(**+59%** end to end).
 
 ### Timestamp Metadata
 
@@ -273,7 +293,7 @@ re-validates).
 - No torn rows on reads (generation re-validation); cold torn-tail recovery.
 - Exactly-once across tiers (query dedup) and across restarts (`prime_from_cold`).
 - Bounded hot memory; bounded cold bytes/TTL.
-- Fork-safe locking.
+- Single-writer, lock-free hot path (MEMT); readers lock-free via generation re-validation.
 
 **Known trade-offs (P2 backlog):**
 

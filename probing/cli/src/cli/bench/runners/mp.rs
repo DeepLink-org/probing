@@ -6,9 +6,9 @@
 //! wall-clock window (synchronised by a shared start instant) and prints a
 //! one-line JSON result; the orchestrator aggregates them.
 //!
-//! This is the scenario the data layer is built for: independent OS processes
-//! contending on the in-buffer robust write lock (writers) while others read
-//! lock-free (readers) — the cross-process path threads cannot exercise.
+//! This exercises the cross-process read path: a single writer process feeds
+//! the shared mapping while several reader processes read lock-free. MEMT is
+//! single-writer, so there is exactly one writer process.
 //!
 //! Worker vs. orchestrator is selected by the `PROBING_BENCH_MP_ROLE`
 //! environment variable, so the public surface stays a single `mp` command.
@@ -41,11 +41,11 @@ pub fn run(args: &MpArgs, json: bool, seed: u64) -> Result<()> {
 fn orchestrate(args: &MpArgs, json: bool, seed: u64) -> Result<()> {
     let spec = args.schema.spec();
     let row_bytes = spec.approx_row_bytes() as u64;
-    let writers = args.writers.max(1);
-    let readers = args.readers;
-    if writers + readers == 0 {
-        bail!("need at least one worker (--writers/--readers)");
+    if args.writers > 1 {
+        bail!("mp is single-writer (MEMT); --writers must be 1");
     }
+    let writers = 1usize;
+    let readers = args.readers;
 
     // Create the shared backing and keep it alive for the whole run.
     let (attach, _creator) = match args.backend {

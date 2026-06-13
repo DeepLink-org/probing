@@ -1,10 +1,8 @@
 //! `write` — write throughput across backends, writer counts and APIs.
 //!
-//! With `--threads > 1` on a shared backend (`shm`/`file`/`shared`) every
-//! thread opens its own handle to the same mapping, so the run genuinely
-//! contends on the in-buffer robust write lock. The `heap` backend cannot be
-//! shared, so multi-threaded heap runs use independent per-thread tables
-//! (parallel throughput, no lock contention).
+//! MEMT is single-writer, so shared backends (`shm`/`file`/`shared`) run with
+//! one writer. `--threads > 1` is only valid on the `heap` backend, where each
+//! thread gets its own independent table (parallel throughput, one writer each).
 
 use std::sync::Barrier;
 use std::time::Instant;
@@ -37,10 +35,19 @@ pub fn run(args: &WriteArgs, json: bool, seed: u64) -> Result<()> {
     if args.writer == WriterMode::Streaming && threads > 1 {
         bail!("--writer streaming requires --threads 1 (advance-on-overflow is not concurrency-safe)");
     }
+    // MEMT is single-writer. Multiple threads writing the SAME mapping is
+    // unsupported, so shared backends are capped to one writer. The heap
+    // backend instead gives each thread its own independent table.
+    if threads > 1 && args.backend != Backend::Heap {
+        bail!(
+            "--threads > 1 requires --backend heap (independent per-thread tables); \
+             shared backends (shm/file/shared) are single-writer"
+        );
+    }
     if threads > 1 && args.backend == Backend::Heap {
         eprintln!(
             "note: heap backend cannot be shared; --threads {threads} uses independent \
-             per-thread tables (no lock contention)"
+             per-thread tables (parallel, single-writer each)"
         );
     }
 

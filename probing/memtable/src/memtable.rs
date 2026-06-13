@@ -1,10 +1,10 @@
 use crate::dedup::DedupState;
 use crate::layout::{
-    acquire_write_lock, chunk_header, chunk_start_off, col_desc, compute_data_offset, header,
-    header_mut, release_write_lock, w32, CHUNK_HEADER_SIZE, FLAG_DEDUP,
+    chunk_header, chunk_start_off, col_desc, compute_data_offset, header, header_mut, w32,
+    CHUNK_HEADER_SIZE, FLAG_DEDUP,
 };
 use crate::raw::{
-    advance_chunk_unlocked, init_buf, note_row_ts, row_ts, validate_buf, validate_row_schema,
+    advance_chunk_raw, init_buf, note_row_ts, row_ts, validate_buf, validate_row_schema,
     write_row_bytes,
 };
 use crate::refcount::refcount;
@@ -166,11 +166,7 @@ macro_rules! impl_table_reader {
 
 // ── Write helpers ────────────────────────────────────────────────────
 
-fn make_row_writer<'a>(
-    buf: &'a mut [u8],
-    dedup: Option<&'a mut DedupState>,
-    locked: bool,
-) -> RowWriter<'a> {
+fn make_row_writer<'a>(buf: &'a mut [u8], dedup: Option<&'a mut DedupState>) -> RowWriter<'a> {
     let h = header(buf);
     let wc = h.write_chunk.load(Ordering::Relaxed) as usize;
     let csz = h.chunk_size as usize;
@@ -188,15 +184,9 @@ fn make_row_writer<'a>(
         overflow: false,
         done: false,
         col_idx: 0,
-        locked,
         ts_col,
         pending_ts: None,
     }
-}
-
-fn begin_row_writer<'a>(buf: &'a mut [u8], dedup: Option<&'a mut DedupState>) -> RowWriter<'a> {
-    acquire_write_lock(buf);
-    make_row_writer(buf, dedup, true)
 }
 
 fn row_data_size(values: &[Value]) -> usize {
@@ -206,7 +196,7 @@ fn row_data_size(values: &[Value]) -> usize {
 pub(crate) fn push_plain_row(buf: &mut [u8], values: &[Value]) {
     let row_data = row_data_size(values);
     if !write_row_bytes(buf, values, row_data) {
-        advance_chunk_unlocked(buf);
+        advance_chunk_raw(buf);
         assert!(
             write_row_bytes(buf, values, row_data),
             "row exceeds chunk capacity"
@@ -214,18 +204,6 @@ pub(crate) fn push_plain_row(buf: &mut [u8], values: &[Value]) {
     }
 }
 
-fn locked_append(buf: &mut [u8], values: &[Value]) -> bool {
-    acquire_write_lock(buf);
-    let ok = write_row_bytes(buf, values, row_data_size(values));
-    release_write_lock(buf);
-    ok
-}
-
-fn locked_advance(buf: &mut [u8]) {
-    acquire_write_lock(buf);
-    advance_chunk_unlocked(buf);
-    release_write_lock(buf);
-}
 
 const MAX_DEDUP_COLS: usize = 64;
 
@@ -413,16 +391,14 @@ impl MemTable {
         let mut buf = vec![0u8; size];
         init_buf(&mut buf, schema, chunk_size, num_chunks);
         Self {
-            backing: Backing::Heap(buf),
-        }
+            backing: Backing::Heap(buf),        }
     }
 
     /// Adopt an existing heap buffer (validates the MEMT layout).
     pub fn from_buf(buf: Vec<u8>) -> Result<Self, &'static str> {
         validate_buf(&buf)?;
         Ok(Self {
-            backing: Backing::Heap(buf),
-        })
+            backing: Backing::Heap(buf),        })
     }
 
     // ── POSIX shared memory (memory-only) ────────────────────────────
@@ -451,8 +427,7 @@ impl MemTable {
                 mmap,
                 name: cname.into_string().expect("validated utf-8"),
                 unlink_on_drop: true,
-            },
-        })
+            },        })
     }
 
     /// Attach to an existing POSIX shared-memory table created by
@@ -471,8 +446,7 @@ impl MemTable {
                 mmap,
                 name: cname.into_string().expect("validated utf-8"),
                 unlink_on_drop: false,
-            },
-        })
+            },        })
     }
 
     // ── mmap'd file (disk-backed, persistent) ────────────────────────
@@ -511,8 +485,7 @@ impl MemTable {
                 path,
                 dir: None,
                 unlink_on_drop: false,
-            },
-        })
+            },        })
     }
 
     /// Reopen an existing mmap'd-file table read-write (validates the
@@ -530,8 +503,7 @@ impl MemTable {
                 path,
                 dir: None,
                 unlink_on_drop: false,
-            },
-        })
+            },        })
     }
 
     // ── discoverable file (data-dir convention) ──────────────────────
@@ -591,8 +563,7 @@ impl MemTable {
                 path,
                 dir: Some(dir),
                 unlink_on_drop: true,
-            },
-        })
+            },        })
     }
 
     // ── backing introspection ─────────────────────────────────────────
@@ -645,26 +616,23 @@ impl MemTable {
     impl_table_reader!();
 
     pub fn row_writer(&mut self) -> RowWriter<'_> {
-        begin_row_writer(self.backing.bytes_mut(), None)
+        make_row_writer(self.backing.bytes_mut(), None)
     }
     pub fn append_row(&mut self, values: &[Value]) -> bool {
         assert!(
             validate_row_schema(self.backing.bytes(), values),
             "value types do not match schema"
         );
-        locked_append(self.backing.bytes_mut(), values)
+        write_row_bytes(self.backing.bytes_mut(), values, row_data_size(values))
     }
     pub fn advance_chunk(&mut self) {
-        locked_advance(self.backing.bytes_mut())
+        advance_chunk_raw(self.backing.bytes_mut())
     }
 
     /// Append a row, auto-advancing to the next chunk when full.
     ///
-    /// # Panic safety
-    ///
-    /// The spinlock is released even if the write panics (e.g. row exceeds
-    /// chunk capacity) — for shared tables this prevents a deadlocked mmap
-    /// file that other processes may still be reading.
+    /// MEMT is single-writer: the `&mut self` borrow guarantees exclusive
+    /// access, so no lock is taken.
     pub fn push_row(&mut self, values: &[Value]) {
         assert!(
             validate_row_schema(self.backing.bytes(), values),
@@ -673,15 +641,7 @@ impl MemTable {
         self.push_row_unchecked(values);
     }
     pub fn push_row_unchecked(&mut self, values: &[Value]) {
-        let buf = self.backing.bytes_mut();
-        acquire_write_lock(buf);
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            push_plain_row(buf, values);
-        }));
-        release_write_lock(buf);
-        if let Err(payload) = result {
-            std::panic::resume_unwind(payload);
-        }
+        push_plain_row(self.backing.bytes_mut(), values);
     }
 }
 
@@ -767,58 +727,36 @@ impl fmt::Display for MemTableView<'_> {
 
 /// Unified writer for external buffers (`&mut [u8]`).
 ///
-/// Supports four modes via builder methods:
+/// MEMT is single-writer: the `&mut [u8]` borrow guarantees exclusive
+/// access, so no lock is taken. Two modes via builder methods:
 ///
 /// | Mode | Construction |
 /// |------|-------------|
-/// | Locked, plain | `MemTableWriter::new(buf)?` |
-/// | Locked, dedup | `MemTableWriter::new(buf)?.dedup()` |
-/// | Solo, plain | `MemTableWriter::new(buf)?.solo()` |
-/// | Solo, dedup | `MemTableWriter::new(buf)?.solo().dedup()` |
-///
-/// **Locked** (default): writers are serialized via a spinlock — safe for
-/// multiple writer threads sharing the same buffer through raw pointers.
-///
-/// **Solo**: no spinlock — the `&mut [u8]` borrow guarantees exclusive
-/// access at compile time.  Saves ~5 ns/row of CAS overhead.
+/// | Plain | `MemTableWriter::new(buf)?` |
+/// | Dedup | `MemTableWriter::new(buf)?.dedup()` |
 ///
 /// **Dedup**: per-chunk, hash-based string/bytes dedup.  Repeated values
 /// are stored as 4-byte back-references within the same chunk.
 pub struct MemTableWriter<'a> {
     buf: &'a mut [u8],
     dedup: Option<DedupState>,
-    locked: bool,
 }
 
 impl<'a> MemTableWriter<'a> {
     pub fn new(buf: &'a mut [u8]) -> Result<Self, &'static str> {
         validate_buf(buf)?;
-        Ok(Self {
-            buf,
-            dedup: None,
-            locked: true,
-        })
+        Ok(Self { buf, dedup: None })
     }
 
     pub fn init(buf: &'a mut [u8], schema: &Schema, chunk_size: u32, num_chunks: u32) -> Self {
         init_buf(buf, schema, chunk_size, num_chunks);
-        Self {
-            buf,
-            dedup: None,
-            locked: true,
-        }
+        Self { buf, dedup: None }
     }
 
     /// Enable per-chunk string/bytes dedup.  Sets `FLAG_DEDUP` in header.
     pub fn dedup(mut self) -> Self {
         header_mut(self.buf).flags |= FLAG_DEDUP;
         self.dedup = Some(DedupState::new());
-        self
-    }
-
-    /// Disable the spinlock (single-producer mode).
-    pub fn solo(mut self) -> Self {
-        self.locked = false;
         self
     }
 
@@ -838,11 +776,7 @@ impl<'a> MemTableWriter<'a> {
     impl_table_reader!();
 
     pub fn row_writer(&mut self) -> RowWriter<'_> {
-        if self.locked {
-            begin_row_writer(self.buf, self.dedup.as_mut())
-        } else {
-            make_row_writer(self.buf, self.dedup.as_mut(), false)
-        }
+        make_row_writer(self.buf, self.dedup.as_mut())
     }
 
     pub fn push_row(&mut self, values: &[Value]) {
@@ -858,15 +792,9 @@ impl<'a> MemTableWriter<'a> {
     }
 
     pub fn advance_chunk(&mut self) {
-        if self.locked {
-            acquire_write_lock(self.buf);
-        }
-        advance_chunk_unlocked(self.buf);
+        advance_chunk_raw(self.buf);
         if let Some(ref mut s) = self.dedup {
             s.clear();
-        }
-        if self.locked {
-            release_write_lock(self.buf);
         }
     }
 
@@ -875,27 +803,17 @@ impl<'a> MemTableWriter<'a> {
             validate_row_schema(self.buf, values),
             "value types do not match schema"
         );
-        if self.locked {
-            acquire_write_lock(self.buf);
-        }
-        let ok = if let Some(ref mut state) = self.dedup {
+        if let Some(ref mut state) = self.dedup {
             append_row_dedup_bytes(self.buf, state, values)
         } else {
             write_row_bytes(self.buf, values, row_data_size(values))
-        };
-        if self.locked {
-            release_write_lock(self.buf);
         }
-        ok
     }
 
     fn push_inner(&mut self, values: &[Value]) {
-        if self.locked {
-            acquire_write_lock(self.buf);
-        }
         if let Some(ref mut state) = self.dedup {
             if !append_row_dedup_bytes(self.buf, state, values) {
-                advance_chunk_unlocked(self.buf);
+                advance_chunk_raw(self.buf);
                 state.clear();
                 assert!(
                     append_row_dedup_bytes(self.buf, state, values),
@@ -905,19 +823,15 @@ impl<'a> MemTableWriter<'a> {
         } else {
             push_plain_row(self.buf, values);
         }
-        if self.locked {
-            release_write_lock(self.buf);
-        }
     }
 }
 
 impl fmt::Display for MemTableWriter<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mode = match (self.locked, self.dedup.is_some()) {
-            (true, false) => "locked",
-            (true, true) => "locked+dedup",
-            (false, false) => "solo",
-            (false, true) => "solo+dedup",
+        let mode = if self.dedup.is_some() {
+            "dedup"
+        } else {
+            "plain"
         };
         write!(
             f,
@@ -1349,7 +1263,6 @@ mod tests {
         assert_eq!(h.num_chunks, 4);
         assert_eq!(h.chunk_size, 1024);
         assert_eq!(h.write_chunk.load(Ordering::Relaxed), 0);
-        assert_eq!(h.write_lock.load(Ordering::Relaxed), 0);
         assert_eq!(h.refcount.load(Ordering::Relaxed), 1);
     }
 
@@ -1488,67 +1401,15 @@ mod tests {
     }
 
     #[test]
-    fn concurrent_multiple_writers() {
-        use std::alloc;
-        use std::thread;
-
-        let schema = Schema::new().col("tid", DType::I64).col("seq", DType::I64);
-        let chunk_size = 8192u32;
-        let num_chunks = 8u32;
-        let size = MemTable::required_size(&schema, chunk_size as usize, num_chunks as usize);
-        let layout = alloc::Layout::from_size_align(size, 64).unwrap();
-        let ptr = unsafe { alloc::alloc_zeroed(layout) };
-        assert!(!ptr.is_null());
-
-        unsafe {
-            let buf = std::slice::from_raw_parts_mut(ptr, size);
-            init_buf(buf, &schema, chunk_size, num_chunks);
-        }
-
-        let num_writers = 8;
-        let rows_per_writer = 50;
-        let addr = ptr as usize;
-
-        // 单写线程：多线程各自 `&mut` 同一块缓冲在语言层面是 UB，release 下易死锁/损坏元数据。
-        let writer = thread::spawn(move || {
-            let buf = unsafe { std::slice::from_raw_parts_mut(addr as *mut u8, size) };
-            let mut mt = MemTableWriter::new(buf).unwrap();
-            for tid in 0..num_writers {
-                for seq in 0..rows_per_writer as i64 {
-                    mt.push_row(&[Value::I64(tid as i64), Value::I64(seq)]);
-                }
-            }
-        });
-        writer.join().unwrap();
-
-        unsafe {
-            let buf = std::slice::from_raw_parts(ptr, size);
-            let view = MemTableView::new(buf).unwrap();
-            let total: usize = (0..view.num_chunks()).map(|c| view.num_rows(c)).sum();
-            assert_eq!(total, num_writers * rows_per_writer);
-
-            // every row should be a valid (tid, seq) pair
-            for chunk in 0..view.num_chunks() {
-                for row in view.rows(chunk) {
-                    let mut c = row.cursor();
-                    let tid = c.next_i64();
-                    let seq = c.next_i64();
-                    assert!((0..num_writers as i64).contains(&tid));
-                    assert!((0..rows_per_writer as i64).contains(&seq));
-                }
-            }
-
-            alloc::dealloc(ptr, layout);
-        }
-    }
-
-    #[test]
-    fn concurrent_writers_and_readers() {
+    fn single_writer_concurrent_readers() {
         use std::alloc;
         use std::sync::atomic::{AtomicBool, AtomicUsize};
         use std::sync::{Arc, Barrier};
         use std::thread;
 
+        // The production model: one writer feeds the ring while N lock-free
+        // readers continuously scan it. Readers must never observe a torn or
+        // corrupt row.
         let schema = Schema::new().col("val", DType::I64);
         let chunk_size = 4096u32;
         let num_chunks = 4u32;
@@ -1562,16 +1423,14 @@ mod tests {
             init_buf(buf, &schema, chunk_size, num_chunks);
         }
 
-        let num_writers = 4;
-        let rows_per_writer = 100;
+        let total_rows = 400i64;
         let num_readers = 4;
         let addr = ptr as usize;
         let done = Arc::new(AtomicBool::new(false));
         let total_reads = Arc::new(AtomicUsize::new(0));
-        // 1 个写线程 + num_readers 个读线程（不能多写线程同缓冲 &mut，见 concurrent_multiple_writers）
         let barrier = Arc::new(Barrier::new(1 + num_readers));
 
-        // spawn readers — continuously scan all chunks while writers are active
+        // Readers continuously scan all chunks while the writer is active.
         let reader_handles: Vec<_> = (0..num_readers)
             .map(|_| {
                 let done = done.clone();
@@ -1604,10 +1463,8 @@ mod tests {
                 barrier.wait();
                 let buf = unsafe { std::slice::from_raw_parts_mut(addr as *mut u8, size) };
                 let mut mt = MemTableWriter::new(buf).unwrap();
-                for tid in 0..num_writers {
-                    for seq in 0..rows_per_writer as i64 {
-                        mt.push_row(&[Value::I64(tid as i64 * 1000 + seq)]);
-                    }
+                for seq in 0..total_rows {
+                    mt.push_row(&[Value::I64(seq)]);
                 }
             })
         };
@@ -1619,72 +1476,17 @@ mod tests {
             h.join().unwrap();
         }
 
-        // readers actually read some rows
         assert!(
             total_reads.load(Ordering::Relaxed) > 0,
             "readers should have observed rows"
         );
 
-        // final consistency: total rows == writers × rows_per_writer
+        // Final consistency: every written row is present.
         unsafe {
             let buf = std::slice::from_raw_parts(ptr, size);
             let view = MemTableView::new(buf).unwrap();
             let total: usize = (0..view.num_chunks()).map(|c| view.num_rows(c)).sum();
-            assert_eq!(total, num_writers * rows_per_writer);
-            alloc::dealloc(ptr, layout);
-        }
-    }
-
-    #[test]
-    fn concurrent_row_writer_contention() {
-        use std::alloc;
-        use std::thread;
-
-        let schema = Schema::new().col("tid", DType::I32).col("msg", DType::Str);
-        let chunk_size = 16384u32;
-        let num_chunks = 4u32;
-        let size = MemTable::required_size(&schema, chunk_size as usize, num_chunks as usize);
-        let layout = alloc::Layout::from_size_align(size, 64).unwrap();
-        let ptr = unsafe { alloc::alloc_zeroed(layout) };
-        assert!(!ptr.is_null());
-
-        unsafe {
-            let buf = std::slice::from_raw_parts_mut(ptr, size);
-            init_buf(buf, &schema, chunk_size, num_chunks);
-        }
-
-        let num_writers = 8;
-        let rows_per_writer = 60;
-        let addr = ptr as usize;
-
-        let writer = thread::spawn(move || {
-            let buf = unsafe { std::slice::from_raw_parts_mut(addr as *mut u8, size) };
-            let mut mt = MemTableWriter::new(buf).unwrap();
-            for tid in 0..num_writers {
-                let tag = format!("t{tid}");
-                for _ in 0..rows_per_writer {
-                    mt.row_writer().put_i32(tid as i32).put_str(&tag).finish();
-                }
-            }
-        });
-        writer.join().unwrap();
-
-        unsafe {
-            let buf = std::slice::from_raw_parts(ptr, size);
-            let view = MemTableView::new(buf).unwrap();
-            let total: usize = (0..view.num_chunks()).map(|c| view.num_rows(c)).sum();
-            assert_eq!(total, num_writers * rows_per_writer);
-
-            for chunk in 0..view.num_chunks() {
-                for row in view.rows(chunk) {
-                    let mut c = row.cursor();
-                    let tid = c.next_i32();
-                    let msg = c.next_str();
-                    assert!((0..num_writers as i32).contains(&tid));
-                    assert_eq!(msg, format!("t{tid}"));
-                }
-            }
-
+            assert_eq!(total, total_rows as usize);
             alloc::dealloc(ptr, layout);
         }
     }
@@ -1868,14 +1670,14 @@ mod tests {
         t.push_row(&[Value::Str("oops")]); // Str instead of U32
     }
 
-    // ── MemTableWriter solo mode tests ──────────────────────────
+    // ── MemTableWriter tests ──────────────────────────
 
     #[test]
-    fn solo_writer_basic() {
+    fn mem_table_writer_basic() {
         let schema = Schema::new().col("ts", DType::I64).col("val", DType::F64);
         let size = MemTable::required_size(&schema, 4096, 2);
         let mut buf = vec![0u8; size];
-        let mut sw = MemTableWriter::init(&mut buf, &schema, 4096, 2).solo();
+        let mut sw = MemTableWriter::init(&mut buf, &schema, 4096, 2);
 
         sw.push_row(&[Value::I64(100), Value::F64(3.14)]);
         sw.push_row(&[Value::I64(200), Value::F64(2.72)]);
@@ -1888,11 +1690,11 @@ mod tests {
     }
 
     #[test]
-    fn solo_writer_row_writer() {
+    fn mem_table_writer_row_writer() {
         let schema = Schema::new().col("id", DType::I32).col("msg", DType::Str);
         let size = MemTable::required_size(&schema, 4096, 1);
         let mut buf = vec![0u8; size];
-        let mut sw = MemTableWriter::init(&mut buf, &schema, 4096, 1).solo();
+        let mut sw = MemTableWriter::init(&mut buf, &schema, 4096, 1);
 
         sw.row_writer().put_i32(1).put_str("hello").finish();
         sw.row_writer().put_i32(2).put_str("world").finish();
@@ -1905,28 +1707,11 @@ mod tests {
     }
 
     #[test]
-    fn solo_writer_no_lock_touched() {
-        let schema = Schema::new().col("x", DType::I32);
-        let size = MemTable::required_size(&schema, 1024, 1);
-        let mut buf = vec![0u8; size];
-        let mut sw = MemTableWriter::init(&mut buf, &schema, 1024, 1).solo();
-        sw.push_row(&[Value::I32(42)]);
-        sw.row_writer().put_i32(99).finish();
-        assert_eq!(
-            header(sw.as_bytes()).write_lock.load(Ordering::Relaxed),
-            0,
-            "solo mode must never touch the write_lock"
-        );
-    }
-
-    #[test]
-    fn solo_writer_dedup() {
+    fn mem_table_writer_dedup() {
         let schema = Schema::new().col("tag", DType::Str).col("seq", DType::I32);
         let size = MemTable::required_size(&schema, 8192, 1);
         let mut buf = vec![0u8; size];
-        let mut sw = MemTableWriter::init(&mut buf, &schema, 8192, 1)
-            .solo()
-            .dedup();
+        let mut sw = MemTableWriter::init(&mut buf, &schema, 8192, 1).dedup();
 
         for i in 0..20 {
             sw.push_row(&[Value::Str("repeat"), Value::I32(i)]);
@@ -1934,9 +1719,9 @@ mod tests {
 
         let used_dedup = sw.chunk_used(0);
 
-        // Compare with plain solo writer
+        // Compare with a plain writer
         let mut buf2 = vec![0u8; size];
-        let mut sw2 = MemTableWriter::init(&mut buf2, &schema, 8192, 1).solo();
+        let mut sw2 = MemTableWriter::init(&mut buf2, &schema, 8192, 1);
         for i in 0..20 {
             sw2.push_row(&[Value::Str("repeat"), Value::I32(i)]);
         }
@@ -1955,11 +1740,11 @@ mod tests {
     }
 
     #[test]
-    fn solo_writer_auto_advance() {
+    fn mem_table_writer_auto_advance() {
         let schema = Schema::new().col("v", DType::I64);
         let size = MemTable::required_size(&schema, 64, 4);
         let mut buf = vec![0u8; size];
-        let mut sw = MemTableWriter::init(&mut buf, &schema, 64, 4).solo();
+        let mut sw = MemTableWriter::init(&mut buf, &schema, 64, 4);
 
         for i in 0..50i64 {
             sw.push_row_unchecked(&[Value::I64(i)]);
@@ -2058,86 +1843,5 @@ mod tests {
         assert!(MemTableView::new(t.as_bytes()).is_err());
         header_mut(t.as_bytes_mut()).ts_col = 1; // col 0 is I64 → ok
         assert!(MemTableView::new(t.as_bytes()).is_ok());
-    }
-
-    // ── robust write lock ──────────────────────────────────────────────
-
-    /// PID of a process that no longer exists: spawn a short-lived child
-    /// and wait for it to exit.
-    fn dead_pid() -> u32 {
-        let mut child = std::process::Command::new("true")
-            .spawn()
-            .expect("spawn true");
-        let pid = child.id();
-        child.wait().expect("wait true");
-        pid
-    }
-
-    #[test]
-    fn lock_word_holds_pid_while_held() {
-        let schema = Schema::new().col("x", DType::I32);
-        let mut t = MemTable::new(&schema, 1024, 1);
-        let lock_ptr = header(t.as_bytes()).write_lock.as_ptr() as usize;
-        let lock = unsafe { &*(lock_ptr as *const std::sync::atomic::AtomicU32) };
-        {
-            let _w = t.row_writer(); // holds the lock
-            assert_eq!(
-                lock.load(Ordering::Relaxed),
-                std::process::id(),
-                "lock word must hold the owner PID"
-            );
-        }
-        assert_eq!(lock.load(Ordering::Relaxed), 0);
-    }
-
-    #[test]
-    fn stale_lock_from_dead_process_is_stolen() {
-        let schema = Schema::new().col("x", DType::I32);
-        let mut t = MemTable::new(&schema, 1024, 1);
-
-        // Simulate a writer that crashed inside the critical section.
-        header(t.as_bytes())
-            .write_lock
-            .store(dead_pid(), Ordering::SeqCst);
-
-        let start = std::time::Instant::now();
-        t.push_row(&[Value::I32(42)]); // must not deadlock
-        let took = start.elapsed();
-
-        assert_eq!(t.rows(0).next().unwrap().col_i32(0), 42);
-        assert_eq!(header(t.as_bytes()).write_lock.load(Ordering::Relaxed), 0);
-        assert!(
-            took >= crate::layout::LOCK_STEAL_TIMEOUT,
-            "steal must wait out the timeout first (took {took:?})"
-        );
-    }
-
-    #[test]
-    fn live_holder_is_not_preempted() {
-        let schema = Schema::new().col("x", DType::I32);
-        let mut t = MemTable::new(&schema, 1024, 1);
-
-        // Another thread of this (alive) process holds the lock and
-        // releases it well past the steal timeout.
-        let me = std::process::id();
-        header(t.as_bytes()).write_lock.store(me, Ordering::SeqCst);
-        let lock_ptr = header(t.as_bytes()).write_lock.as_ptr() as usize;
-        let hold = crate::layout::LOCK_STEAL_TIMEOUT + std::time::Duration::from_millis(200);
-        let releaser = std::thread::spawn(move || {
-            std::thread::sleep(hold);
-            let lock = unsafe { &*(lock_ptr as *const std::sync::atomic::AtomicU32) };
-            lock.store(0, Ordering::Release);
-        });
-
-        let start = std::time::Instant::now();
-        t.push_row(&[Value::I32(7)]);
-        let took = start.elapsed();
-        releaser.join().unwrap();
-
-        assert!(
-            took >= hold - std::time::Duration::from_millis(50),
-            "live holder must be waited on, not preempted (took {took:?})"
-        );
-        assert_eq!(t.rows(0).next().unwrap().col_i32(0), 7);
     }
 }

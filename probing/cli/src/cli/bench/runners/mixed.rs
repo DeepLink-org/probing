@@ -1,7 +1,7 @@
-//! `mixed` — end-to-end pipeline / soak: concurrent writers, optional
-//! background compactor, and concurrent readers over one shared table for a
-//! fixed duration. Reports per-role throughput plus the resulting cold-tier
-//! footprint.
+//! `mixed` — end-to-end pipeline / soak: a single writer, optional background
+//! compactor, and concurrent readers over one shared table for a fixed
+//! duration. Reports per-role throughput plus the resulting cold-tier
+//! footprint. MEMT is single-writer, so the writer count is fixed at 1.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -19,7 +19,10 @@ use crate::cli::bench::workload::RowGen;
 pub fn run(args: &MixedArgs, json: bool, seed: u64) -> Result<()> {
     let spec = args.schema.spec();
     let row_bytes = spec.approx_row_bytes() as u64;
-    let writers = args.writers.max(1);
+    if args.writers > 1 {
+        bail!("mixed is single-writer (MEMT); --writers must be 1");
+    }
+    let writers = 1usize;
     let readers = args.readers;
 
     // Create the shared backing; keep the creator alive for the whole run.
