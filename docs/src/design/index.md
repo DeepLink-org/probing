@@ -42,6 +42,7 @@ Probing's core mission is simple: **make distributed systems feel Pythonic again
 | Document | Description |
 |----------|-------------|
 | [Architecture](architecture.md) | System structure and components |
+| [Data Layer](data-layer.md) | Hot/cold columnar store and SQL integration |
 | [Profiling](profiling.md) | Performance data collection |
 | [Debugging](debugging.md) | Debugging capabilities |
 | [Distributed](distributed.md) | Multi-node support |

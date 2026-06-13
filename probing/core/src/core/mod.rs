@@ -4,6 +4,8 @@ pub mod cluster_model;
 mod engine;
 mod error;
 pub mod extension;
+pub mod memtable_sql;
+mod plugin_advanced;
 mod plugin;
 
 pub use engine::Engine;
@@ -19,7 +21,11 @@ pub use plugin::CustomNamespaceDataSource;
 pub use plugin::CustomTable;
 pub use plugin::LazyTableSource;
 pub use plugin::NamespacePluginHelper;
+pub use plugin_advanced::PluginAdvancedTable;
 pub use plugin::TablePluginHelper;
+
+pub use memtable_sql::MemTableExtension;
+pub use memtable_sql::UnifiedMemtablePlugin;
 
 pub use extension::EngineCall;
 pub use extension::EngineDatasource;

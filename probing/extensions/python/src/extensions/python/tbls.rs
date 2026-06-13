@@ -5,13 +5,12 @@ use std::sync::Arc;
 use anyhow::Result;
 
 use log::error;
+use probing_core::core::LazyTableSource;
 use probing_core::core::{
     ArrayRef, CustomNamespace, DataType, Field, Float64Array, Int64Array, NamespacePluginHelper,
     RecordBatch, Schema, SchemaRef, StringArray,
 };
-use probing_core::core::{Float32Array, Int32Array, LazyTableSource};
-use probing_proto::prelude::{CallFrame, Ele, TimeSeries};
-use probing_proto::types;
+use probing_proto::prelude::CallFrame;
 use pyo3::types::PyAnyMethods;
 use pyo3::types::PyDict;
 use pyo3::types::PyDictMethods;
@@ -161,27 +160,6 @@ impl PythonNamespace {
         })
     }
 
-    fn data_from_extern(expr: &str) -> Result<Vec<RecordBatch>> {
-        let binding = super::exttbls::EXTERN_TABLES
-            .lock()
-            .map_err(|e| anyhow::anyhow!("Failed to lock EXTERN_TABLES: {:?}", e))?;
-
-        let table = binding
-            .get(expr)
-            .ok_or_else(|| anyhow::anyhow!("Table '{}' not found", expr))?;
-
-        let names = table
-            .lock()
-            .map_err(|e| anyhow::anyhow!("Failed to lock table: {:?}", e))?
-            .names
-            .clone();
-
-        let ts = table
-            .lock()
-            .map_err(|e| anyhow::anyhow!("Failed to lock table: {:?}", e))?;
-
-        Self::time_series_to_recordbatch(names, &ts)
-    }
 }
 
 impl CustomNamespace for PythonNamespace {
@@ -190,15 +168,10 @@ impl CustomNamespace for PythonNamespace {
     }
 
     fn list() -> Vec<String> {
-        let mut tables = super::exttbls::EXTERN_TABLES.lock().map_or_else(
-            |e| {
-                log::error!("Failed to lock EXTERN_TABLES: {e:?}");
-                vec![]
-            },
-            |binding| binding.keys().cloned().collect(),
-        );
-        tables.push("backtrace".to_string()); // Add backtrace to the list
-        tables
+        // Extern tables (`probing.ExternalTable`) are mmap-backed and served
+        // by the mmap SQL catalog (`probing_core::core::memtable_sql`), not
+        // by this namespace.
+        vec!["backtrace".to_string()]
     }
 
     fn data(expr: &str) -> Vec<RecordBatch> {
@@ -207,14 +180,6 @@ impl CustomNamespace for PythonNamespace {
                 Ok(batches) => batches,
                 Err(e) => {
                     error!("Error getting backtrace data: {e:?}");
-                    vec![]
-                }
-            }
-        } else if Self::list().contains(&expr.to_string()) {
-            match Self::data_from_extern(expr) {
-                Ok(batches) => batches,
-                Err(e) => {
-                    error!("Error getting data from extern: {e:?}");
                     vec![]
                 }
             }
@@ -244,168 +209,21 @@ impl CustomNamespace for PythonNamespace {
             });
         }
 
-        let binding = super::exttbls::EXTERN_TABLES.lock().map_or_else(
-            |e| {
-                log::error!("Failed to lock EXTERN_TABLES: {e:?}");
-                Default::default()
-            },
-            |binding| binding.clone(),
-        );
-
-        if binding.contains_key(expr) {
-            let table = binding.get(expr).unwrap();
-            let names = table.lock().unwrap().names.clone();
-            let dtypes = table
-                .lock()
-                .unwrap()
-                .cols
-                .iter()
-                .map(|x| x.dtype())
-                .collect::<Vec<_>>();
-            let mut fields = Vec::new();
-
-            // Check if table already has a timestamp column
-            let has_timestamp = names.iter().any(|n| n == "timestamp");
-
-            // Only add timestamp if it doesn't already exist
-            if !has_timestamp {
-                fields.push(Field::new("timestamp", DataType::Int64, true));
-            }
-
-            for (name, dtype) in names.iter().zip(dtypes.iter()) {
-                fields.push(Field::new(
-                    name,
-                    match dtype {
-                        types::EleType::I64 => DataType::Int64,
-                        types::EleType::F64 => DataType::Float64,
-                        types::EleType::I32 => DataType::Int32,
-                        types::EleType::F32 => DataType::Float32,
-                        _ => DataType::Utf8,
-                    },
-                    false,
-                ));
-            }
-
-            let schema = Some(SchemaRef::new(Schema::new(fields)));
-
-            Arc::new(LazyTableSource {
-                name: expr.to_string(),
-                schema,
-                data: Self::data_from_extern(expr).unwrap_or_default(),
-            })
+        let data: Vec<RecordBatch> = Self::data_from_python(expr).unwrap_or_default();
+        let schema = if data.is_empty() {
+            None
         } else {
-            let data: Vec<RecordBatch> = Self::data_from_python(expr).unwrap_or_default();
-            let schema = if data.is_empty() {
-                None
-            } else {
-                Some(data[0].schema().clone())
-            };
-            Arc::new(LazyTableSource {
-                name: expr.to_string(),
-                schema,
-                data,
-            })
-        }
+            Some(data[0].schema().clone())
+        };
+        Arc::new(LazyTableSource {
+            name: expr.to_string(),
+            schema,
+            data,
+        })
     }
 }
 
 impl PythonNamespace {
-    pub fn time_series_to_recordbatch(
-        names: Vec<String>,
-        ts: &TimeSeries,
-    ) -> Result<Vec<RecordBatch>> {
-        let mut fields: Vec<Field> = vec![];
-        let mut columns: Vec<ArrayRef> = vec![];
-
-        fields.push(Field::new("timestamp", DataType::Int64, true));
-        names.iter().zip(ts.cols.iter()).for_each(|(name, col)| {
-            let data_type = match col.dtype() {
-                types::EleType::I64 => DataType::Int64,
-                types::EleType::F64 => DataType::Float64,
-                types::EleType::I32 => DataType::Int32,
-                types::EleType::F32 => DataType::Float32,
-                _ => DataType::Utf8,
-            };
-            fields.push(Field::new(name, data_type, false));
-        });
-
-        let length = ts.len();
-
-        let timeseries = ts
-            .timestamp
-            .iter()
-            .take(length)
-            .map(|x| match x {
-                Ele::I64(x) => x,
-                _ => 0,
-            })
-            .collect::<Vec<_>>();
-        columns.push(Arc::new(Int64Array::from(timeseries)));
-
-        for col in ts.cols.iter() {
-            let col = match col.dtype() {
-                types::EleType::I64 => Arc::new(Int64Array::from(
-                    col.iter()
-                        .take(length)
-                        .map(|x| match x {
-                            Ele::I64(x) => x,
-                            _ => 0,
-                        })
-                        .collect::<Vec<_>>(),
-                )) as ArrayRef,
-                types::EleType::F64 => Arc::new(Float64Array::from(
-                    col.iter()
-                        .take(length)
-                        .map(|x| match x {
-                            Ele::F64(x) => x,
-                            _ => 0.0,
-                        })
-                        .collect::<Vec<_>>(),
-                )) as ArrayRef,
-                types::EleType::I32 => Arc::new(Int32Array::from(
-                    col.iter()
-                        .take(length)
-                        .map(|x| match x {
-                            Ele::I32(x) => x,
-                            _ => 0,
-                        })
-                        .collect::<Vec<_>>(),
-                )) as ArrayRef,
-                types::EleType::F32 => Arc::new(Float32Array::from(
-                    col.iter()
-                        .take(length)
-                        .map(|x| match x {
-                            Ele::F32(x) => x,
-                            _ => 0.0,
-                        })
-                        .collect::<Vec<_>>(),
-                )) as ArrayRef,
-                types::EleType::Text => Arc::new(StringArray::from(
-                    col.iter()
-                        .take(length)
-                        .map(|x| match x {
-                            Ele::Text(x) => x,
-                            _ => x.to_string(),
-                        })
-                        .collect::<Vec<_>>(),
-                )) as ArrayRef,
-                _ => Arc::new(StringArray::from(
-                    col.iter()
-                        .take(length)
-                        .map(|x| x.to_string())
-                        .collect::<Vec<_>>(),
-                )) as ArrayRef,
-            };
-
-            columns.push(col);
-        }
-
-        Ok(vec![RecordBatch::try_new(
-            SchemaRef::new(Schema::new(fields)),
-            columns,
-        )?])
-    }
-
     pub fn object_to_recordbatch(obj: Bound<'_, PyAny>) -> Result<Vec<RecordBatch>> {
         let mut fields: Vec<Field> = vec![];
         let mut columns: Vec<ArrayRef> = vec![];

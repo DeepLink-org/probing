@@ -89,6 +89,7 @@ plugins:
             Troubleshooting: 常见问题
             Design: 设计文档
             Architecture: 系统架构
+            Data Layer: 数据层
             Profiling: 性能分析
             Distributed: 分布式
             Cluster with Pulsing: 基于 Pulsing 的集群
@@ -123,6 +124,7 @@ nav:
   - Design:
     - design/index.md
     - Architecture: design/architecture.md
+    - Data Layer: design/data-layer.md
     - Profiling: design/profiling.md
     - Debugging: design/debugging.md
     - Distributed: design/distributed.md
