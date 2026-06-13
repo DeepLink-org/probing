@@ -10,19 +10,19 @@
       
       
       
-        <link rel="canonical" href="https://github.com/DeepLink-org/probing/guide/troubleshooting/">
+        <link rel="canonical" href="https://github.com/DeepLink-org/probing/design/data-layer/">
       
       
-        <link rel="prev" href="../debugging/">
+        <link rel="prev" href="../architecture/">
       
       
-        <link rel="next" href="../../design/">
+        <link rel="next" href="../profiling/">
       
       
         
           <link rel="alternate" href="./" hreflang="en">
         
-          <link rel="alternate" href="../../zh/guide/troubleshooting/" hreflang="zh">
+          <link rel="alternate" href="../../zh/design/data-layer/" hreflang="zh">
         
       
       
@@ -31,7 +31,7 @@
     
     
       
-        <title>Troubleshooting - Probing Documentation</title>
+        <title>Data Layer - Probing Documentation</title>
       
     
     
@@ -86,7 +86,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#troubleshooting" class="md-skip">
+        <a href="#data-layer" class="md-skip">
           Skip to content
         </a>
       
@@ -120,7 +120,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Troubleshooting
+              Data Layer
             
           </span>
         </div>
@@ -173,7 +173,7 @@
           </li>
         
           <li class="md-select__item">
-            <a href="../../zh/guide/troubleshooting/" hreflang="zh" class="md-select__link">
+            <a href="../../zh/design/data-layer/" hreflang="zh" class="md-select__link">
               中文
             </a>
           </li>
@@ -317,13 +317,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../guide/" class="md-tabs__link">
           
   
   
@@ -341,11 +339,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../design/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
           
   
   
@@ -568,8 +568,6 @@
       
   
   
-    
-  
   
   
     
@@ -591,23 +589,20 @@
     
     
       
-        
-        
-      
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../" class="md-nav__link ">
+            <a href="../../guide/" class="md-nav__link ">
               
   
   
@@ -625,13 +620,13 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="">
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -651,7 +646,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../sql-analytics/" class="md-nav__link">
+      <a href="../../guide/sql-analytics/" class="md-nav__link">
         
   
   
@@ -679,7 +674,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../memory-analysis/" class="md-nav__link">
+      <a href="../../guide/memory-analysis/" class="md-nav__link">
         
   
   
@@ -687,6 +682,585 @@
     
   
     Memory Analysis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Debugging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Layer
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Layer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#design-goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Design Goals
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hot-tier-memt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hot Tier (MEMT)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Hot Tier (MEMT)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#file-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File Layout
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#backends" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backends
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ring-buffer-generations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ring Buffer &amp; Generations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#single-writer-model-no-lock" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single-Writer Model (no lock)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#single-writer-fast-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single-Writer Fast Path
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#timestamp-metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timestamp Metadata
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cold-tier-memc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cold Tier (MEMC)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Cold Tier (MEMC)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#directory-file-naming" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Directory &amp; File Naming
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#segment-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Segment Format
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#column-encodings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Column Encodings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#crash-recovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Crash Recovery
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compactor-roller" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compactor (Roller)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Compactor (Roller)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#exactly-once-across-restarts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exactly-Once Across Restarts
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#runtime-owner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Runtime Owner
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sql-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SQL Integration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SQL Integration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#catalog-discovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Catalog Discovery
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#providers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Providers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#three-level-time-pruning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Three-Level Time Pruning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hotcold-exactly-once" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hot∪Cold Exactly-Once
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration Reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#guarantees-known-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Guarantees &amp; Known Limits
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../profiling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Profiling
   
 
     
@@ -732,541 +1306,10 @@
                 
   
   
-    
-  
-  
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Troubleshooting
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Troubleshooting
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#connection-issues" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Connection Issues
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Connection Issues">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#cannot-connect-to-process" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Cannot Connect to Process
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#connection-refused-remote" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Connection Refused (Remote)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#query-issues" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Query Issues
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Query Issues">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#table-not-found" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Table Not Found
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#empty-results" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Empty Results
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#eval-issues" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Eval Issues
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Eval Issues">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#code-execution-fails" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Code Execution Fails
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#import-errors" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Import Errors
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#performance-issues" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Performance Issues
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Performance Issues">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#high-overhead" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        High Overhead
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#query-timeout" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Query Timeout
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#data-issues" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Data Issues
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Data Issues">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#missing-data" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Missing Data
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#incorrect-values" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Incorrect Values
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#platform-specific-issues" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Platform-Specific Issues
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Platform-Specific Issues">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#linux" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Linux
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#macos" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        macOS
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#windows" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Windows
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#getting-help" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Getting Help
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-      
-        
-          
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
-        
-          
-          <div class="md-nav__link md-nav__container">
-            <a href="../../design/" class="md-nav__link ">
-              
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Design
-  
-
-    
-  </span>
-  
-  
-
-            </a>
-            
-              
-              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="0">
-                <span class="md-nav__icon md-icon"></span>
-              </label>
-            
-          </div>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Design
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-            
-              
-                
-  
-  
   
   
     <li class="md-nav__item">
-      <a href="../../design/architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Architecture
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/data-layer/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Data Layer
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/profiling/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Profiling
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/debugging/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Debugging
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/distributed/" class="md-nav__link">
+      <a href="../distributed/" class="md-nav__link">
         
   
   
@@ -1294,7 +1337,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/cluster-pulsing/" class="md-nav__link">
+      <a href="../cluster-pulsing/" class="md-nav__link">
         
   
   
@@ -1322,7 +1365,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/extensibility/" class="md-nav__link">
+      <a href="../extensibility/" class="md-nav__link">
         
   
   
@@ -1622,22 +1665,44 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#connection-issues" class="md-nav__link">
+  <a href="#design-goals" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Connection Issues
+        Design Goals
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Connection Issues">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hot-tier-memt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hot Tier (MEMT)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Hot Tier (MEMT)">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#cannot-connect-to-process" class="md-nav__link">
+  <a href="#file-layout" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Cannot Connect to Process
+        File Layout
       
     </span>
   </a>
@@ -1645,10 +1710,54 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#connection-refused-remote" class="md-nav__link">
+  <a href="#backends" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Connection Refused (Remote)
+        Backends
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ring-buffer-generations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ring Buffer &amp; Generations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#single-writer-model-no-lock" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single-Writer Model (no lock)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#single-writer-fast-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single-Writer Fast Path
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#timestamp-metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timestamp Metadata
       
     </span>
   </a>
@@ -1661,22 +1770,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#query-issues" class="md-nav__link">
+  <a href="#cold-tier-memc" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Query Issues
+        Cold Tier (MEMC)
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Query Issues">
+    <nav class="md-nav" aria-label="Cold Tier (MEMC)">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#table-not-found" class="md-nav__link">
+  <a href="#directory-file-naming" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Table Not Found
+        Directory &amp; File Naming
       
     </span>
   </a>
@@ -1684,10 +1793,32 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#empty-results" class="md-nav__link">
+  <a href="#segment-format" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Empty Results
+        Segment Format
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#column-encodings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Column Encodings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#crash-recovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Crash Recovery
       
     </span>
   </a>
@@ -1700,33 +1831,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#eval-issues" class="md-nav__link">
+  <a href="#compactor-roller" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Eval Issues
+        Compactor (Roller)
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Eval Issues">
+    <nav class="md-nav" aria-label="Compactor (Roller)">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#code-execution-fails" class="md-nav__link">
+  <a href="#exactly-once-across-restarts" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Code Execution Fails
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#import-errors" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Import Errors
+        Exactly-Once Across Restarts
       
     </span>
   </a>
@@ -1739,22 +1859,33 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#performance-issues" class="md-nav__link">
+  <a href="#runtime-owner" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Performance Issues
+        Runtime Owner
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Performance Issues">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sql-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SQL Integration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SQL Integration">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#high-overhead" class="md-nav__link">
+  <a href="#catalog-discovery" class="md-nav__link">
     <span class="md-ellipsis">
       
-        High Overhead
+        Catalog Discovery
       
     </span>
   </a>
@@ -1762,10 +1893,32 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#query-timeout" class="md-nav__link">
+  <a href="#providers" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Query Timeout
+        Providers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#three-level-time-pruning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Three-Level Time Pruning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hotcold-exactly-once" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hot∪Cold Exactly-Once
       
     </span>
   </a>
@@ -1778,99 +1931,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#data-issues" class="md-nav__link">
+  <a href="#configuration-reference" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Data Issues
+        Configuration Reference
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Data Issues">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#missing-data" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Missing Data
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#incorrect-values" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Incorrect Values
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#platform-specific-issues" class="md-nav__link">
+  <a href="#guarantees-known-limits" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Platform-Specific Issues
+        Guarantees &amp; Known Limits
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Platform-Specific Issues">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#linux" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Linux
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#macos" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        macOS
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#windows" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Windows
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#getting-help" class="md-nav__link">
+  <a href="#testing" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Getting Help
+        Testing
       
     </span>
   </a>
@@ -1897,265 +1983,419 @@
   
 
 
-<h1 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h1>
-<p>Common issues and their solutions when using Probing.</p>
-<h2 id="connection-issues">Connection Issues<a class="headerlink" href="#connection-issues" title="Permanent link">&para;</a></h2>
-<h3 id="cannot-connect-to-process">Cannot Connect to Process<a class="headerlink" href="#cannot-connect-to-process" title="Permanent link">&para;</a></h3>
-<p><strong>Symptom</strong>: <code>probing $ENDPOINT inject</code> fails or times out.</p>
-<p><strong>Solutions</strong>:</p>
-<ol>
-<li>
-<p><strong>Verify process exists</strong>:
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>ps<span class="w"> </span>aux<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="nv">$ENDPOINT</span>
-</span></code></pre></div></p>
-</li>
-<li>
-<p><strong>Check Linux requirement</strong>:
-   Injection only works on Linux. On other platforms, start your process with:
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>python<span class="w"> </span>your_script.py
-</span></code></pre></div></p>
-</li>
-<li>
-<p><strong>Check permissions</strong>:
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># May need sudo for injection</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>sudo<span class="w"> </span>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>inject
-</span></code></pre></div></p>
-</li>
-</ol>
-<h3 id="connection-refused-remote">Connection Refused (Remote)<a class="headerlink" href="#connection-refused-remote" title="Permanent link">&para;</a></h3>
-<p><strong>Symptom</strong>: Cannot connect to remote process.</p>
-<p><strong>Solutions</strong>:</p>
-<ol>
-<li>
-<p><strong>Verify server is running</strong>:
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># On remote machine</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>netstat<span class="w"> </span>-tlnp<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="nv">$PORT</span>
-</span></code></pre></div></p>
-</li>
-<li>
-<p><strong>Check firewall</strong>:
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Allow port</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>sudo<span class="w"> </span>ufw<span class="w"> </span>allow<span class="w"> </span><span class="nv">$PORT</span>
-</span></code></pre></div></p>
-</li>
-<li>
-<p><strong>Verify endpoint format</strong>:
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">ENDPOINT</span><span class="o">=</span>hostname:port<span class="w">  </span><span class="c1"># Not just hostname</span>
-</span></code></pre></div></p>
-</li>
-</ol>
-<h2 id="query-issues">Query Issues<a class="headerlink" href="#query-issues" title="Permanent link">&para;</a></h2>
-<h3 id="table-not-found">Table Not Found<a class="headerlink" href="#table-not-found" title="Permanent link">&para;</a></h3>
-<p><strong>Symptom</strong>: <code>Table 'python.torch_trace' not found</code></p>
-<p><strong>Solutions</strong>:</p>
-<ol>
-<li>
-<p><strong>Check if PyTorch profiling is enabled</strong>:
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="s2">import probing</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="s2">print(probing.get_config())&quot;</span>
-</span></code></pre></div></p>
-</li>
-<li>
-<p><strong>Enable PyTorch tracing</strong>:
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span>on<span class="w"> </span>python<span class="w"> </span>your_script.py
-</span></code></pre></div></p>
-</li>
-<li>
-<p><strong>Wait for data collection</strong>:
-   Tables are populated as operations occur. Run some training steps first.</p>
-</li>
-</ol>
-<h3 id="empty-results">Empty Results<a class="headerlink" href="#empty-results" title="Permanent link">&para;</a></h3>
-<p><strong>Symptom</strong>: Query returns no rows.</p>
-<p><strong>Solutions</strong>:</p>
-<ol>
-<li>
-<p><strong>Check table contents</strong>:
-   <div class="language-sql highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span><span class="p">;</span>
-</span></code></pre></div></p>
-</li>
-<li>
-<p><strong>Verify filter conditions</strong>:
-   <div class="language-sql highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1">-- Remove filters to debug</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">5</span><span class="p">;</span>
-</span></code></pre></div></p>
-</li>
-<li>
-<p><strong>Check step range</strong>:
-   <div class="language-sql highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="k">MIN</span><span class="p">(</span><span class="n">step</span><span class="p">),</span><span class="w"> </span><span class="k">MAX</span><span class="p">(</span><span class="n">step</span><span class="p">)</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span><span class="p">;</span>
-</span></code></pre></div></p>
-</li>
-</ol>
-<h2 id="eval-issues">Eval Issues<a class="headerlink" href="#eval-issues" title="Permanent link">&para;</a></h2>
-<h3 id="code-execution-fails">Code Execution Fails<a class="headerlink" href="#code-execution-fails" title="Permanent link">&para;</a></h3>
-<p><strong>Symptom</strong>: <code>probing eval</code> returns error or unexpected result.</p>
-<p><strong>Solutions</strong>:</p>
-<ol>
-<li>
-<p><strong>Check syntax</strong>:
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Use proper quoting</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;print(&#39;hello&#39;)&quot;</span>
-</span></code></pre></div></p>
-</li>
-<li>
-<p><strong>Handle imports</strong>:
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># Import modules first</span>
-</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;import torch; print(torch.__version__)&quot;</span>
-</span></code></pre></div></p>
-</li>
-<li>
-<p><strong>Check variable scope</strong>:
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># Use globals() to see available variables</span>
-</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;print(list(globals().keys())[:10])&quot;</span>
-</span></code></pre></div></p>
-</li>
-</ol>
-<h3 id="import-errors">Import Errors<a class="headerlink" href="#import-errors" title="Permanent link">&para;</a></h3>
-<p><strong>Symptom</strong>: <code>ModuleNotFoundError</code> in eval.</p>
-<p><strong>Solutions</strong>:</p>
-<ol>
-<li>
-<p><strong>Check if module is loaded</strong>:
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;import sys; print(&#39;torch&#39; in sys.modules)&quot;</span>
-</span></code></pre></div></p>
-</li>
-<li>
-<p><strong>Use try-except</strong>:
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="s2">try:</span>
-</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="s2">    import torch</span>
-</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="s2">    print(torch.__version__)</span>
-</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="s2">except ImportError:</span>
-</span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="s2">    print(&#39;torch not available&#39;)&quot;</span>
-</span></code></pre></div></p>
-</li>
-</ol>
-<h2 id="performance-issues">Performance Issues<a class="headerlink" href="#performance-issues" title="Permanent link">&para;</a></h2>
-<h3 id="high-overhead">High Overhead<a class="headerlink" href="#high-overhead" title="Permanent link">&para;</a></h3>
-<p><strong>Symptom</strong>: Application runs slower with Probing.</p>
-<p><strong>Solutions</strong>:</p>
-<ol>
-<li>
-<p><strong>Reduce sampling rate</strong>:
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>config<span class="w"> </span>probing.sample_rate<span class="o">=</span><span class="m">0</span>.01
-</span></code></pre></div></p>
-</li>
-<li>
-<p><strong>Disable unused features</strong>:
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span>off<span class="w"> </span>python<span class="w"> </span>your_script.py
-</span></code></pre></div></p>
-</li>
-<li>
-<p><strong>Use targeted profiling</strong>:
-   Only enable profiling for specific modules or operations.</p>
-</li>
-</ol>
-<h3 id="query-timeout">Query Timeout<a class="headerlink" href="#query-timeout" title="Permanent link">&para;</a></h3>
-<p><strong>Symptom</strong>: SQL queries take too long.</p>
-<p><strong>Solutions</strong>:</p>
-<ol>
-<li>
-<p><strong>Add LIMIT clause</strong>:
-   <div class="language-sql highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">100</span><span class="p">;</span>
-</span></code></pre></div></p>
-</li>
-<li>
-<p><strong>Use step filtering</strong>:
-   <div class="language-sql highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="k">MAX</span><span class="p">(</span><span class="n">step</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">10</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span><span class="p">)</span>
-</span></code></pre></div></p>
-</li>
-<li>
-<p><strong>Aggregate data</strong>:
-   <div class="language-sql highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">step</span><span class="p">,</span><span class="w"> </span><span class="k">AVG</span><span class="p">(</span><span class="n">duration</span><span class="p">)</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span><span class="w"> </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">step</span><span class="p">;</span>
-</span></code></pre></div></p>
-</li>
-</ol>
-<h2 id="data-issues">Data Issues<a class="headerlink" href="#data-issues" title="Permanent link">&para;</a></h2>
-<h3 id="missing-data">Missing Data<a class="headerlink" href="#missing-data" title="Permanent link">&para;</a></h3>
-<p><strong>Symptom</strong>: Expected data not appearing in tables.</p>
-<p><strong>Solutions</strong>:</p>
-<ol>
-<li>
-<p><strong>Verify profiling is active</strong>:
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="s2">import probing</span>
-</span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="s2">print(probing.is_profiling_active())&quot;</span>
-</span></code></pre></div></p>
-</li>
-<li>
-<p><strong>Check data retention</strong>:
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>config<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>retention
-</span></code></pre></div></p>
-</li>
-<li>
-<p><strong>Force data flush</strong>:
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="s2">import probing</span>
-</span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="s2">probing.flush()&quot;</span>
-</span></code></pre></div></p>
-</li>
-</ol>
-<h3 id="incorrect-values">Incorrect Values<a class="headerlink" href="#incorrect-values" title="Permanent link">&para;</a></h3>
-<p><strong>Symptom</strong>: Data values seem wrong.</p>
-<p><strong>Solutions</strong>:</p>
-<ol>
-<li><strong>Verify units</strong>:</li>
-<li>Memory is typically in MB</li>
-<li>
-<p>Duration is in seconds</p>
-</li>
-<li>
-<p><strong>Check for aggregation</strong>:
-   <div class="language-sql highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="c1">-- Sum vs individual values</span>
-</span><span id="__span-24-2"><a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="k">SUM</span><span class="p">(</span><span class="n">allocated</span><span class="p">)</span><span class="w"> </span><span class="n">vs</span><span class="w"> </span><span class="k">SELECT</span><span class="w"> </span><span class="n">allocated</span>
-</span></code></pre></div></p>
-</li>
-<li>
-<p><strong>Validate manually</strong>:
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-25-1"><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-25-2"><a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="s2">import torch</span>
-</span><span id="__span-25-3"><a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="s2">print(torch.cuda.memory_allocated() / 1024**2)&quot;</span><span class="w">  </span><span class="c1"># MB</span>
-</span></code></pre></div></p>
-</li>
-</ol>
-<h2 id="platform-specific-issues">Platform-Specific Issues<a class="headerlink" href="#platform-specific-issues" title="Permanent link">&para;</a></h2>
-<h3 id="linux">Linux<a class="headerlink" href="#linux" title="Permanent link">&para;</a></h3>
+<h1 id="data-layer">Data Layer<a class="headerlink" href="#data-layer" title="Permanent link">&para;</a></h1>
+<p>Probing's data layer is a <strong>per-process, crash-resilient, time-retained data plane</strong> for
+observability data (metrics, samples, traces). Every producer writes through one in-house
+columnar store, <a href="https://github.com/DeepLink-org/probing"><code>probing-memtable</code></a>, and every
+consumer queries it through SQL (DataFusion). It is built as <strong>two tiers</strong>:</p>
 <ul>
-<li><strong>ptrace errors</strong>: May need <code>CAP_SYS_PTRACE</code> capability</li>
-<li><strong>SELinux</strong>: May need to adjust policies</li>
+<li>a <strong>hot tier</strong> (<code>MEMT</code>): a fixed-capacity ring buffer for the live window — constant memory,
+  zero-allocation writes;</li>
+<li>a <strong>cold tier</strong> (<code>MEMC</code>): immutable, compressed segments for time retention beyond the ring,
+  with whole-file eviction.</li>
 </ul>
-<h3 id="macos">macOS<a class="headerlink" href="#macos" title="Permanent link">&para;</a></h3>
+<p>A single SQL time predicate prunes and queries both tiers at once.</p>
+<h2 id="design-goals">Design Goals<a class="headerlink" href="#design-goals" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Injection not supported</strong>: Use <code>PROBING=1</code> at startup</li>
-<li><strong>SIP restrictions</strong>: May affect some features</li>
+<li><strong>Bounded resource use.</strong> The hot ring never grows; the cold store is capped by a byte budget
+  and TTL.</li>
+<li><strong>Crash resilience.</strong> A process killed mid-write never surfaces torn rows; cold segments
+  recover from a torn tail via forward scan.</li>
+<li><strong>Time retention.</strong> Data that scrolls out of the hot ring survives in cold segments and stays
+  queryable.</li>
+<li><strong>One write path, one read path.</strong> Producers (server, Python/Torch extensions) all write
+  <code>probing-memtable</code>; consumers all go through <code>probing-core::memtable_sql</code>.</li>
+<li><strong>Fork safety.</strong> Correct under fork-heavy workloads (PyTorch DataLoader workers).</li>
 </ul>
-<h3 id="windows">Windows<a class="headerlink" href="#windows" title="Permanent link">&para;</a></h3>
+<h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h2>
+<pre class="mermaid"><code>graph LR
+    APP[push_row / RowWriter] --&gt; MEMT
+    subgraph HOT[Hot tier · probing-memtable]
+        MEMT[MEMT ring buffer] --&gt; SEALED[sealed chunk\nmin/max ts + generation]
+    end
+    SEALED --&gt;|transpose + Pco| ROLLER[Compactor / Roller]
+    ROLLER --&gt; MEMC
+    subgraph COLD[Cold tier · MEMC segments]
+        MEMC[ColdStore\nimmutable segments]
+    end
+
+    SQL[SQL query] --&gt; HCT[HotColdTable]
+    HCT --&gt;|chunk pruning| MEMT
+    HCT --&gt;|segment + page pruning| MEMC</code></pre>
+<p>The hot tier is mapped read-only at query time; the cold tier is read via <code>SegmentReader</code>. The
+<code>HotColdTable</code> provider unions them into one scan, deduplicating chunks that exist in both tiers.</p>
+<h2 id="hot-tier-memt">Hot Tier (MEMT)<a class="headerlink" href="#hot-tier-memt" title="Permanent link">&para;</a></h2>
+<h3 id="file-layout">File Layout<a class="headerlink" href="#file-layout" title="Permanent link">&para;</a></h3>
+<p>Every MEMT buffer (heap, shared memory, or mmap'd file) begins with a 64-byte header (one cache
+line), followed by per-column descriptors, then chunk data.</p>
+<p><strong>Header v3 (64 bytes):</strong></p>
+<table>
+<thead>
+<tr>
+<th>offset</th>
+<th>size</th>
+<th>field</th>
+<th>notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>4</td>
+<td><code>magic</code></td>
+<td><code>0x4D454D54</code> (<code>"MEMT"</code>)</td>
+</tr>
+<tr>
+<td>4</td>
+<td>2</td>
+<td><code>version</code></td>
+<td>3</td>
+</tr>
+<tr>
+<td>6</td>
+<td>2</td>
+<td><code>header_size</code></td>
+<td>64 (validation)</td>
+</tr>
+<tr>
+<td>8</td>
+<td>2</td>
+<td><code>byte_order</code></td>
+<td>BOM <code>[0x01,0x02]</code></td>
+</tr>
+<tr>
+<td>10</td>
+<td>2</td>
+<td><code>ts_col</code></td>
+<td>timestamp column index + 1 (0 = none)</td>
+</tr>
+<tr>
+<td>12</td>
+<td>4</td>
+<td><code>flags</code></td>
+<td>feature bits (<code>FLAG_DEDUP</code>, …)</td>
+</tr>
+<tr>
+<td>16</td>
+<td>4</td>
+<td><code>num_cols</code></td>
+<td></td>
+</tr>
+<tr>
+<td>20</td>
+<td>4</td>
+<td><code>num_chunks</code></td>
+<td>ring slot count</td>
+</tr>
+<tr>
+<td>24</td>
+<td>4</td>
+<td><code>chunk_size</code></td>
+<td>bytes per chunk</td>
+</tr>
+<tr>
+<td>28</td>
+<td>4</td>
+<td><code>data_offset</code></td>
+<td>64-aligned</td>
+</tr>
+<tr>
+<td>32</td>
+<td>4</td>
+<td><code>write_chunk</code></td>
+<td><code>AtomicU32</code> — current ring slot</td>
+</tr>
+<tr>
+<td>36</td>
+<td>4</td>
+<td><code>refcount</code></td>
+<td><code>AtomicU32</code></td>
+</tr>
+<tr>
+<td>40</td>
+<td>4</td>
+<td><code>creator_pid</code></td>
+<td></td>
+</tr>
+<tr>
+<td>44</td>
+<td>4</td>
+<td><code>_pad0</code></td>
+<td>alignment (was <code>write_lock</code> in v2)</td>
+</tr>
+<tr>
+<td>48</td>
+<td>8</td>
+<td><code>creator_start_time</code></td>
+<td>for PID-recycling detection during discovery</td>
+</tr>
+<tr>
+<td>56</td>
+<td>8</td>
+<td><code>_reserved</code></td>
+<td>reserved</td>
+</tr>
+</tbody>
+</table>
+<p>Bytes 0–31 are the <strong>cold zone</strong> (immutable after init); bytes 32–63 are the <strong>hot zone</strong>
+(atomically mutated), split to avoid false sharing. Each chunk starts with a 40-byte
+<code>ChunkHeader</code> carrying a <code>generation</code> counter and per-chunk <code>min_ts</code>/<code>max_ts</code> (<code>AtomicI64</code>).</p>
+<blockquote>
+<p><strong>v3</strong> vs v2: <code>_pad0</code> became <code>ts_col</code>; dropped <code>write_lock</code> (single-writer model);
+<code>ChunkHeader</code> gained <code>min_ts</code>/<code>max_ts</code> (24 → 40 bytes).</p>
+</blockquote>
+<h3 id="backends">Backends<a class="headerlink" href="#backends" title="Permanent link">&para;</a></h3>
+<p>The same API backs three storage kinds:</p>
 <ul>
-<li><strong>Limited support</strong>: Only query/eval with pre-enabled processes</li>
+<li><strong>Heap</strong> — a private <code>Vec&lt;u8&gt;</code>; for in-process use.</li>
+<li><strong>POSIX shared memory</strong> (<code>shm_open</code> + <code>mmap</code>) — cross-process, named, unlinked on cleanup.</li>
+<li><strong>File-backed mmap</strong> — persistent, discoverable files under <code>&lt;data_dir&gt;/&lt;pid&gt;/</code>. This is what
+  the SQL layer reads.</li>
 </ul>
-<h2 id="getting-help">Getting Help<a class="headerlink" href="#getting-help" title="Permanent link">&para;</a></h2>
-<p>If you're still stuck:</p>
+<h3 id="ring-buffer-generations">Ring Buffer &amp; Generations<a class="headerlink" href="#ring-buffer-generations" title="Permanent link">&para;</a></h3>
+<p>Writes append to the current chunk; when a row does not fit, the writer advances to the next ring
+slot (wrapping), sealing the previous chunk. Each slot carries a monotonically increasing
+<code>generation</code> (incremented every time the ring wraps onto it). Readers materialize chunks in
+<strong>logical (oldest → newest) order</strong> and re-check the generation after reading — a chunk recycled
+mid-read is discarded rather than surfacing torn rows.</p>
+<h3 id="single-writer-model-no-lock">Single-Writer Model (no lock)<a class="headerlink" href="#single-writer-model-no-lock" title="Permanent link">&para;</a></h3>
+<p>MEMT is <strong>single-writer</strong>: exactly one writer owns each buffer (the creator process; any in-process
+write is serialized by the caller). There is <strong>no in-buffer write lock</strong> — the writer appends rows
+without any CAS or fence on a lock word. Readers are lock-free and never coordinated with the writer
+except through the per-chunk <code>used</code> / <code>row_count</code> <code>Release</code> stores and <code>generation</code> re-validation.</p>
+<p>Why this is safe and sufficient:</p>
+<ul>
+<li>Production uses one writer per table — the Python <code>ExternalTable</code> path writes one file per process
+  (named <code>&lt;data_dir&gt;/&lt;pid&gt;/…</code>); a process restart means a new PID and a fresh file.</li>
+<li>Readers never wrote to the lock anyway; their correctness rides the <code>Release</code>/<code>Acquire</code> ordering on
+  <code>used</code>/<code>row_count</code> plus the <code>generation</code> check on each chunk.</li>
+<li>Removing the lock also removes the fork-safety hazard the PID-stealing spinlock had to guard
+  against (a forked child inheriting a cached start time and being mistaken for a recycled PID).</li>
+</ul>
+<blockquote>
+<p>The <strong>cold tier (MEMC)</strong> has a separate concurrency story — multiple compactor writers are
+distinguished by <code>writer_id</code> and segment isolation — and is unaffected by the MEMT single-writer
+model.</p>
+</blockquote>
+<h3 id="single-writer-fast-path">Single-Writer Fast Path<a class="headerlink" href="#single-writer-fast-path" title="Permanent link">&para;</a></h3>
+<p>Since data is generated <strong>one row at a time</strong>, the single-row commit path is tuned to be as cheap as
+possible:</p>
+<ul>
+<li><strong>Zero per-row allocation.</strong> The <code>RowWriter</code> streaming API encodes fields directly into the ring
+  chunk; no <code>Vec&lt;Value&gt;</code> is built per row. (The <code>push_row(&amp;[Value])</code> convenience API still works but
+  asks the caller to materialize a value slice.)</li>
+<li><strong>No lock, no per-row <code>catch_unwind</code>.</strong> With a single writer there is nothing to lock and nothing
+  to release on panic, so neither a per-row CAS + <code>Release</code> fence nor a <code>catch_unwind</code>/<code>Drop</code> guard
+  is needed.</li>
+</ul>
+<p>Reader correctness is independent of the write path: row visibility always rides the <code>used</code> /
+<code>row_count</code> <code>Release</code> stores in <code>finish()</code>. Measured single-thread <code>metrics</code> throughput (M4,
+release): plain <code>push_row</code> + spinlock ≈ 18.8M rows/s → streaming, lock-free ≈ 29.9M rows/s
+(<strong>+59%</strong> end to end).</p>
+<h3 id="timestamp-metadata">Timestamp Metadata<a class="headerlink" href="#timestamp-metadata" title="Permanent link">&para;</a></h3>
+<p>When the schema has an <code>I64</code> column named <code>timestamp</code> (or <code>ts</code>), <code>ts_col</code> records it and the write
+path maintains per-chunk <code>min_ts</code>/<code>max_ts</code>. This is the basis for chunk-level time pruning at query
+time, and it is <strong>structurally identical</strong> to the cold tier's page/segment time ranges.</p>
+<h2 id="cold-tier-memc">Cold Tier (MEMC)<a class="headerlink" href="#cold-tier-memc" title="Permanent link">&para;</a></h2>
+<h3 id="directory-file-naming">Directory &amp; File Naming<a class="headerlink" href="#directory-file-naming" title="Permanent link">&para;</a></h3>
+<p>Cold segments live in <code>&lt;data_dir&gt;/&lt;pid&gt;/cold</code> — co-located with, and scoped like, the hot ring
+files, so cold data never mixes across processes. Each segment is named
+<code>&lt;writer_id&gt;-&lt;seq&gt;.memc</code>, where <code>writer_id</code> is a hash of <code>(pid, start_time)</code> and <code>seq</code> is a
+monotonically increasing sequence the <code>ColdStore</code> recovers on open.</p>
+<h3 id="segment-format">Segment Format<a class="headerlink" href="#segment-format" title="Permanent link">&para;</a></h3>
+<p>A segment is a sequence of 64-aligned blocks. All integrity checks use <strong>xxh3-64 truncated to 32
+bits</strong>.</p>
+<p><strong>Segment header (64 bytes):</strong> <code>magic</code> (<code>"MEMC"</code>), <code>version</code> (1), BOM, <code>flags</code> (bit 0 = sealed),
+<code>writer_pid</code>, <code>writer_start</code>, <code>created_unix_ms</code>, <code>footer_off</code> (0 until sealed), segment-wide
+<code>ts_min</code>/<code>ts_max</code>, <code>page_count</code>, header checksum.</p>
+<p><strong>Blocks</strong> share a 64-byte header:</p>
+<table>
+<thead>
+<tr>
+<th>magic</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>MCTB</code></td>
+<td>table-definition block — declares a <code>table_id</code>, name, column dtypes, ts column</td>
+</tr>
+<tr>
+<td><code>MCPG</code></td>
+<td>page block — one columnar page for a <code>table_id</code></td>
+</tr>
+<tr>
+<td><code>MCFT</code></td>
+<td>footer — page directory written on seal</td>
+</tr>
+</tbody>
+</table>
+<p>The page/block header carries <code>table_id</code>, <code>row_count</code>, <code>col_count</code>, <code>ts_min</code>/<code>ts_max</code>,
+<code>payload_len</code>, <code>payload_xxh</code>, and — crucially for restart dedup — <code>source_gen</code> and <code>source_chunk</code>
+(the hot-ring chunk generation and index this page was drained from; <code>u32::MAX</code> = not applicable).
+The header is itself checksummed (covering <code>source_chunk</code>).</p>
+<p>A single segment holds pages from <strong>multiple tables</strong>, distinguished by <code>table_id</code>. This decouples
+file/directory count from table count: hundreds of tables share one set of segment files.</p>
+<h3 id="column-encodings">Column Encodings<a class="headerlink" href="#column-encodings" title="Permanent link">&para;</a></h3>
+<p>Each column is encoded independently (<code>ColEncoding</code>):</p>
+<ul>
+<li><strong><code>Pco</code></strong> — numeric columns (<code>i32/i64/f32/f64/u32/u64</code>), compressed with Pco (level 8). Monotonic
+  timestamp columns compress &gt; 4×.</li>
+<li><strong><code>RawFixed</code></strong> — <code>u8</code> (Pco offers no benefit for byte columns).</li>
+<li><strong><code>RawVarLen</code></strong> — <code>Str</code>/<code>Bytes</code>, stored as concatenated <code>[u32 len][bytes]</code> entries (Pco has no
+  string support).</li>
+</ul>
+<h3 id="crash-recovery">Crash Recovery<a class="headerlink" href="#crash-recovery" title="Permanent link">&para;</a></h3>
+<ul>
+<li>A <strong>sealed</strong> segment is read via its footer page directory — O(1) location of every page.</li>
+<li>An <strong>unsealed or torn</strong> segment is recovered by <strong>forward scan</strong>: walk blocks from the start,
+  verifying each block's header and payload checksum, stopping at the first bad block and dropping
+  the torn tail. Table-definition blocks are always scanned (cheap, and they precede pages).</li>
+</ul>
+<p>There is no heuristic that tries to repair a half-written record.</p>
+<div class="admonition warning">
+<p class="admonition-title">Durability</p>
+<p>Pages are not <code>fsync</code>'d individually (only <code>sync_data</code> on seal). A <code>SIGKILL</code> may lose
+not-yet-flushed tail pages of the open segment. This is acceptable for observability data but
+is an explicit trade-off.</p>
+</div>
+<h2 id="compactor-roller">Compactor (Roller)<a class="headerlink" href="#compactor-roller" title="Permanent link">&para;</a></h2>
+<p>The <code>Compactor</code> drains newly-sealed hot chunks into cold segments.</p>
+<ul>
+<li><strong>Drain semantics.</strong> Only <code>Sealed</code> chunks are drained (never the currently-writing chunk). Rows
+  are transposed to columns; the chunk's <code>generation</code> is re-checked before and after — if the ring
+  recycled it, the page is dropped and retried next pass. Draining is <strong>idempotent</strong>: a per-chunk
+  <code>drained_gen</code> high-water mark skips already-compacted chunk generations.</li>
+<li><strong>Rolling.</strong> The open segment is sealed and a new one started when it reaches
+  <code>target_segment_bytes</code> (default 64 MiB — the main fragmentation knob), or when it exceeds
+  <code>max_segment_age</code> (default 300 s, so low-rate tables still become queryable), or on explicit
+  flush.</li>
+<li><strong>Eviction.</strong> <code>enforce</code> deletes oldest segments past a byte budget (<code>max_total_bytes</code>) or TTL,
+  always protecting the newest segment.</li>
+</ul>
+<h3 id="exactly-once-across-restarts">Exactly-Once Across Restarts<a class="headerlink" href="#exactly-once-across-restarts" title="Permanent link">&para;</a></h3>
+<p><code>drained_gen</code> is in-memory, so a naive restart over a persistent cold dir would re-compact
+chunks still resident in the hot ring, producing duplicate rows. <code>prime_from_cold()</code> rebuilds the
+watermark on startup: it scans existing cold segments and, per <code>(table, source_chunk)</code>, takes the
+max <code>source_gen</code>, merging it into <code>drained_gen</code> the first time a table is seen. The result is
+<strong>exactly-once</strong> even across restarts.</p>
+<h2 id="runtime-owner">Runtime Owner<a class="headerlink" href="#runtime-owner" title="Permanent link">&para;</a></h2>
+<p><code>ColdCompactor</code> is a process-global singleton (modeled on the task-stats worker) that gives the
+compactor a single lifecycle home:</p>
+<ul>
+<li>a background thread <strong>rediscovers</strong> ring files under <code>&lt;data_dir&gt;/&lt;pid&gt;/</code> each pass (tables appear
+  over time), drains each into the shared <code>ColdStore</code>, rolls by age, and enforces the budget;</li>
+<li>on startup it calls <code>prime_from_cold()</code>; on stop it flushes (seals the open segment).</li>
+</ul>
+<p>It is <strong>opt-in</strong> (off by default) to avoid spawning a compaction thread in every forked worker.
+Configuration is applied via the <code>MemTableExtension</code> option surface or environment variables; the
+server calls <code>start_cold_compaction_from_env()</code> at engine init.</p>
+<h2 id="sql-integration">SQL Integration<a class="headerlink" href="#sql-integration" title="Permanent link">&para;</a></h2>
+<h3 id="catalog-discovery">Catalog Discovery<a class="headerlink" href="#catalog-discovery" title="Permanent link">&para;</a></h3>
+<p>mmap files under <code>&lt;data_dir&gt;/&lt;pid&gt;/</code> are exposed as DataFusion tables, with the filename mapping
+to <code>(schema, table)</code>:</p>
+<ul>
+<li>first <code>.</code> splits schema vs table — <code>acme.actors</code> → schema <code>acme</code>, table <code>actors</code>;</li>
+<li>no <code>.</code> → schema <code>memtable</code> (e.g. <code>metrics</code> → <code>memtable.metrics</code>).</li>
+</ul>
+<p><code>DynamicMmapCatalog</code> merges these dynamic schemas with the static <code>probe</code> catalog. A query like
+<code>SELECT … FROM probe.memtable.metrics</code> resolves through <code>MmapFileSchemaProvider::table()</code>.</p>
+<h3 id="providers">Providers<a class="headerlink" href="#providers" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>RingMmapTable</code></strong> — lazy provider over a hot ring file. Materializes Arrow batches at <code>scan()</code>
+  time, pruning chunks whose <code>[min_ts, max_ts]</code> cannot match the query's time predicate.</li>
+<li><strong><code>HotColdTable</code></strong> — unions a hot ring with its cold segments under one logical table (keyed by
+  on-disk basename, so names never collide across schemas). This is what the catalog returns for
+  ring tables.</li>
+</ul>
+<h3 id="three-level-time-pruning">Three-Level Time Pruning<a class="headerlink" href="#three-level-time-pruning" title="Permanent link">&para;</a></h3>
+<p>One time predicate prunes both tiers, in increasing granularity:</p>
 <ol>
-<li>
-<p><strong>Check logs</strong>:
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-26-1"><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-26-2"><a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="s2">import logging</span>
-</span><span id="__span-26-3"><a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="s2">logging.basicConfig(level=logging.DEBUG)&quot;</span>
-</span></code></pre></div></p>
-</li>
-<li>
-<p><strong>Report issue</strong>:
-   <a href="https://github.com/DeepLink-org/probing/issues">GitHub Issues</a></p>
-</li>
-<li>
-<p><strong>Include diagnostics</strong>:
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-27-1"><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>probing<span class="w"> </span>--version
-</span><span id="__span-27-2"><a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>python<span class="w"> </span>--version
-</span><span id="__span-27-3"><a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>uname<span class="w"> </span>-a
-</span></code></pre></div></p>
-</li>
+<li><strong>Segment level</strong> — skip a sealed cold segment whose header <code>ts_range</code> cannot match (no mmap).</li>
+<li><strong>Page level</strong> — skip cold pages outside the range via the page directory.</li>
+<li><strong>Chunk level</strong> — skip hot chunks outside the range via their <code>min_ts</code>/<code>max_ts</code>.</li>
 </ol>
+<p>Hot and cold batches are handed to the scan as two partitions, so projection, filter, and limit
+pushdown apply uniformly across both.</p>
+<h3 id="hotcold-exactly-once">Hot∪Cold Exactly-Once<a class="headerlink" href="#hotcold-exactly-once" title="Permanent link">&para;</a></h3>
+<p>A compacted chunk still lives in the hot ring until overwritten, so a naive union would
+double-count it. <code>cold_scan</code> returns the set of <code>(source_chunk, source_gen)</code> the cold pages came
+from; the hot side then <strong>excludes</strong> any chunk whose <code>(index, current generation)</code> is in that set.
+Each row is counted exactly once, and the dedup is immune to ring recycling (the generation check
+re-validates).</p>
+<h2 id="configuration-reference">Configuration Reference<a class="headerlink" href="#configuration-reference" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th><code>SET memtable.*</code></th>
+<th>env</th>
+<th>meaning</th>
+<th>default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cold_compaction</code></td>
+<td><code>PROBING_COLD</code></td>
+<td>run the background compactor (<code>on</code>/<code>off</code>)</td>
+<td>off</td>
+</tr>
+<tr>
+<td><code>cold_max_total_mb</code></td>
+<td><code>PROBING_COLD_MAX_TOTAL_MB</code></td>
+<td>cold-store byte budget (MiB)</td>
+<td>unlimited</td>
+</tr>
+<tr>
+<td><code>cold_ttl_secs</code></td>
+<td><code>PROBING_COLD_TTL_SECS</code></td>
+<td>evict cold segments older than this</td>
+<td>none</td>
+</tr>
+<tr>
+<td>—</td>
+<td><code>PROBING_COLD_TARGET_MB</code></td>
+<td>segment roll size (MiB)</td>
+<td>64</td>
+</tr>
+<tr>
+<td>—</td>
+<td><code>PROBING_COLD_POLL_MS</code></td>
+<td>drain-pass interval</td>
+<td>2000</td>
+</tr>
+<tr>
+<td>—</td>
+<td><code>PROBING_COLD_MAX_AGE_SECS</code></td>
+<td>seal idle open segment after</td>
+<td>300</td>
+</tr>
+</tbody>
+</table>
+<h2 id="guarantees-known-limits">Guarantees &amp; Known Limits<a class="headerlink" href="#guarantees-known-limits" title="Permanent link">&para;</a></h2>
+<p><strong>Guaranteed:</strong></p>
+<ul>
+<li>No torn rows on reads (generation re-validation); cold torn-tail recovery.</li>
+<li>Exactly-once across tiers (query dedup) and across restarts (<code>prime_from_cold</code>).</li>
+<li>Bounded hot memory; bounded cold bytes/TTL.</li>
+<li>Single-writer, lock-free hot path (MEMT); readers lock-free via generation re-validation.</li>
+</ul>
+<p><strong>Known trade-offs (P2 backlog):</strong></p>
+<ul>
+<li><strong>Cold dir is per-PID.</strong> Cross-process isolation is clean, but cold data is not persistent across
+  restarts by default (a new PID is a new cold dir). <code>prime_from_cold</code> makes restart dedup correct
+  whenever a persistent cold dir is configured.</li>
+<li><strong>No per-page <code>fsync</code></strong> — a <code>SIGKILL</code> may lose the open segment's not-yet-flushed tail.</li>
+<li><strong>No segment-level manifest</strong> — multi-segment queries open each segment header to prune.</li>
+<li><strong>Pco level is fixed (8)</strong> — not adapted per column.</li>
+<li><strong>Runtime is single-process</strong> — cross-process / cluster aggregation is not yet wired.</li>
+</ul>
+<h2 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h2>
+<p>The data layer ships with unit and end-to-end tests: hot-ring lock/recycle/fork tests
+(<code>probing-memtable</code>), MEMC format/recovery/compactor tests (including restart-dedup with a negative
+control), and SQL end-to-end tests that drain through the runtime owner and query the union through
+the real catalog path (<code>probing-core::memtable_sql</code>).</p>
 
 
 
