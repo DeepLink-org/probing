@@ -53,12 +53,12 @@ The hot tier is mapped read-only at query time; the cold tier is read via `Segme
 Every MEMT buffer (heap, shared memory, or mmap'd file) begins with a 64-byte header (one cache
 line), followed by per-column descriptors, then chunk data.
 
-**Header v4 (64 bytes):**
+**Header v3 (64 bytes):**
 
 | offset | size | field | notes |
 |---|---|---|---|
 | 0 | 4 | `magic` | `0x4D454D54` (`"MEMT"`) |
-| 4 | 2 | `version` | 4 |
+| 4 | 2 | `version` | 3 |
 | 6 | 2 | `header_size` | 64 (validation) |
 | 8 | 2 | `byte_order` | BOM `[0x01,0x02]` |
 | 10 | 2 | `ts_col` | timestamp column index + 1 (0 = none) |
@@ -70,16 +70,16 @@ line), followed by per-column descriptors, then chunk data.
 | 32 | 4 | `write_chunk` | `AtomicU32` — current ring slot |
 | 36 | 4 | `refcount` | `AtomicU32` |
 | 40 | 4 | `creator_pid` | |
-| 44 | 4 | `_pad0` | alignment (was `write_lock` in v3) |
+| 44 | 4 | `_pad0` | alignment (was `write_lock` in v2) |
 | 48 | 8 | `creator_start_time` | for PID-recycling detection during discovery |
-| 56 | 8 | `_reserved` | reserved (was `lock_owner_start` in v3) |
+| 56 | 8 | `_reserved` | reserved |
 
 Bytes 0–31 are the **cold zone** (immutable after init); bytes 32–63 are the **hot zone**
 (atomically mutated), split to avoid false sharing. Each chunk starts with a 40-byte
 `ChunkHeader` carrying a `generation` counter and per-chunk `min_ts`/`max_ts` (`AtomicI64`).
 
-> **v4** dropped the `write_lock` and `lock_owner_start` fields: MEMT is single-writer, so there is
-> no in-buffer write lock. Their byte slots are now reserved.
+> **v3** vs v2: `_pad0` became `ts_col`; dropped `write_lock` (single-writer model);
+> `ChunkHeader` gained `min_ts`/`max_ts` (24 → 40 bytes).
 
 ### Backends
 

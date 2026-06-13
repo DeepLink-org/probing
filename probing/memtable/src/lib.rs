@@ -20,10 +20,10 @@
 //!
 //! ```text
 //! ┌──────────────────────────────────┐ 0
-//! │ Header v4 (64 bytes, repr(C))    │
+//! │ Header v3 (64 bytes, repr(C))    │
 //! │  ── cold zone (read-only) ──     │
 //! │   magic: u32     (0x4D454D54)    │
-//! │   version: u16   (4)             │
+//! │   version: u16   (3)             │
 //! │   header_size: u16 (64)          │
 //! │   byte_order: u16 (BOM 0x0102)   │
 //! │   ts_col: u16                    │

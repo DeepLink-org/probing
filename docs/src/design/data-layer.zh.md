@@ -47,12 +47,12 @@ graph LR
 每个 MEMT 缓冲区（堆、共享内存或 mmap 文件）都以 64 字节头部（一个 cache line）开始，随后是
 逐列描述符，再是 chunk 数据。
 
-**Header v4（64 字节）：**
+**Header v3（64 字节）：**
 
 | 偏移 | 大小 | 字段 | 说明 |
 |---|---|---|---|
 | 0 | 4 | `magic` | `0x4D454D54`（`"MEMT"`） |
-| 4 | 2 | `version` | 4 |
+| 4 | 2 | `version` | 3 |
 | 6 | 2 | `header_size` | 64（仅校验） |
 | 8 | 2 | `byte_order` | BOM `[0x01,0x02]` |
 | 10 | 2 | `ts_col` | 时间戳列索引 + 1（0 = 无） |
@@ -64,16 +64,16 @@ graph LR
 | 32 | 4 | `write_chunk` | `AtomicU32`——当前环形槽位 |
 | 36 | 4 | `refcount` | `AtomicU32` |
 | 40 | 4 | `creator_pid` | |
-| 44 | 4 | `_pad0` | 对齐填充（v3 中为 `write_lock`） |
+| 44 | 4 | `_pad0` | 对齐填充（v2 中为 `write_lock`） |
 | 48 | 8 | `creator_start_time` | 用于发现期的 PID 回收检测 |
-| 56 | 8 | `_reserved` | 预留（v3 中为 `lock_owner_start`） |
+| 56 | 8 | `_reserved` | 预留 |
 
 字节 0–31 是**冷区**（初始化后不可变），字节 32–63 是**热区**（运行时原子修改），二者分离以避免
 伪共享。每个 chunk 以 40 字节的 `ChunkHeader` 开头，携带 `generation` 计数器及逐 chunk 的
 `min_ts`/`max_ts`（`AtomicI64`）。
 
-> **v4** 移除了 `write_lock` 与 `lock_owner_start` 字段：MEMT 是单写者，缓冲区内不再有写锁。其字节
-> 槽位现已预留。
+> **v3** 相对 v2：`_pad0` 改为 `ts_col`；移除 `write_lock`（单写者模型）；`ChunkHeader` 新增
+> `min_ts`/`max_ts`（24 → 40 字节）。
 
 ### 三种后端
 

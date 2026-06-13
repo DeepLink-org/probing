@@ -1,12 +1,12 @@
 //! Low-level layout: header, column descriptors, chunk headers, byte helpers.
 //!
-//! ## Header v4 binary layout (64 bytes, 1 cache line)
+//! ## Header v3 binary layout (64 bytes, 1 cache line)
 //!
 //! ```text
 //! offset  size  field               notes
 //! ──────────────────────────────────────────────────────────
 //!  0       4    magic               0x4D454D54 ("MEMT" in LE)
-//!  4       2    version             4
+//!  4       2    version             3
 //!  6       2    header_size         64 (validation only)
 //!  8       2    byte_order          BOM: written as [0x01, 0x02]
 //! 10       2    ts_col              timestamp column index + 1 (0 = none)
@@ -44,11 +44,9 @@ pub(crate) const MAGIC: u32 = MAGIC_MEMT;
 
 /// Header format version for MEMT.
 ///
-/// v4: dropped the `write_lock` and `lock_owner_start` fields — MEMT is
-/// single-writer, so there is no in-buffer write lock. Their bytes are now
-/// `_pad0`/`_reserved`. v3 added per-chunk `min_ts`/`max_ts` and the PID
-/// write lock (both since superseded).
-pub(crate) const VERSION: u16 = 4;
+/// v3: `_pad0` became `ts_col`; dropped `write_lock` (single-writer model);
+/// `ChunkHeader` grew `min_ts`/`max_ts` (24 → 40 bytes).
+pub(crate) const VERSION: u16 = 3;
 
 /// Byte-order mark: written as raw bytes `[0x01, 0x02]`.
 /// On a LE host, `u16::from_ne_bytes([0x01, 0x02])` == `0x0201`.
@@ -80,7 +78,7 @@ pub(crate) struct Header {
     // ── cold zone (read-only after init) ─────────────────
     pub magic: u32,
     pub version: u16,
-    /// Size of this header in bytes (always 64 in v2).
+    /// Size of this header in bytes (always 64).
     ///
     /// Used for validation only — column descriptors always start at
     /// offset `size_of::<Header>()` (compile-time constant).  If a
@@ -111,14 +109,14 @@ pub(crate) struct Header {
     pub refcount: AtomicU32,
     /// PID of the process that created this table (for cross-process discovery).
     pub creator_pid: u32,
-    /// Padding to 8-align `creator_start_time` (was `write_lock` in v3).
+    /// Padding to 8-align `creator_start_time` (was `write_lock` in v2).
     pub _pad0: u32,
     /// Process start time — for PID-recycling detection during discovery.
     /// Linux: clock ticks since boot (`/proc/<pid>/stat` field 22).
     /// macOS: microseconds since epoch (via `sysctl`).
     /// Other: 0 (falls back to PID-only liveness check).
     pub creator_start_time: u64,
-    /// Reserved for future use (was `lock_owner_start` in v3).
+    /// Reserved for future use (was part of `_reserved` in v2).
     pub _reserved: u64,
 }
 
