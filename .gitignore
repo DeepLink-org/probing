@@ -27,3 +27,4 @@ pkg/
 venv/
 python/probing/probing
 docs/site/
+.claude/

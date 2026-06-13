@@ -20,6 +20,7 @@ path = "src/lib.rs"
 probing-proto = { path = "../proto", default-features = false, features = [] }
 probing-store = { path = "../crates/store", default-features = false, features = [
 ] }
+probing-memtable = { path = "../memtable" }
 
 anyhow = { workspace = true }
 log = { workspace = true }

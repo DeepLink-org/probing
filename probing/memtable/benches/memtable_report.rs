@@ -280,40 +280,6 @@ fn bench_push_row_unchecked_fixed(rows: &[FixedInput]) -> u64 {
     rows.len() as u64
 }
 
-fn bench_solo_push_row_fixed(rows: &[FixedInput]) -> u64 {
-    let schema = fixed_schema();
-    let bytes_per_row = 4 + 8 + 8;
-    let chunk_size = 64 * 1024;
-    let total_bytes = rows.len() * bytes_per_row;
-    let num_chunks = ((total_bytes / chunk_size) + 2).max(2);
-    let size = MemTable::required_size(&schema, chunk_size, num_chunks);
-    let mut buf = vec![0u8; size];
-    let mut sw =
-        MemTableWriter::init(&mut buf, &schema, chunk_size as u32, num_chunks as u32).solo();
-    for &(ts, value) in rows {
-        sw.push_row_unchecked(&[Value::I64(ts), Value::I64(value)]);
-    }
-    black_box(sw.num_chunks());
-    rows.len() as u64
-}
-
-fn bench_solo_row_writer_fixed(rows: &[FixedInput]) -> u64 {
-    let schema = fixed_schema();
-    let bytes_per_row = 4 + 8 + 8;
-    let chunk_size = 64 * 1024;
-    let total_bytes = rows.len() * bytes_per_row;
-    let num_chunks = ((total_bytes / chunk_size) + 2).max(2);
-    let size = MemTable::required_size(&schema, chunk_size, num_chunks);
-    let mut buf = vec![0u8; size];
-    let mut sw =
-        MemTableWriter::init(&mut buf, &schema, chunk_size as u32, num_chunks as u32).solo();
-    for &(ts, value) in rows {
-        sw.row_writer().put_i64(ts).put_i64(value).finish();
-    }
-    black_box(sw.num_chunks());
-    rows.len() as u64
-}
-
 fn bench_dedup_push_row_strings(rows: &[StringInput]) -> u64 {
     let schema = string_schema();
     let approx_bytes_per_row = 4 + 8 + (4 + 5) + (4 + 20);
@@ -509,9 +475,7 @@ fn print_report(results: &[BenchResult]) {
             ("baseline_memcpy_fixed", None),
             ("baseline_raw_append", Some("baseline_memcpy_fixed")),
             ("baseline_flat_encode", Some("baseline_raw_append")),
-            ("solo_row_writer_fixed", Some("baseline_flat_encode")),
             ("row_writer_fixed", Some("baseline_flat_encode")),
-            ("solo_push_row_fixed", Some("solo_row_writer_fixed")),
             ("push_row_unchecked_fixed", Some("row_writer_fixed")),
             ("push_row_fixed", Some("row_writer_fixed")),
         ],
@@ -593,18 +557,6 @@ fn main() {
             FIXED_ROWS as u64,
             FIXED_ROWS as u64 * fixed_bytes,
             || bench_push_row_unchecked_fixed(&fixed_write_inputs),
-        ),
-        run_case(
-            "solo_push_row_fixed",
-            FIXED_ROWS as u64,
-            FIXED_ROWS as u64 * fixed_bytes,
-            || bench_solo_push_row_fixed(&fixed_write_inputs),
-        ),
-        run_case(
-            "solo_row_writer_fixed",
-            FIXED_ROWS as u64,
-            FIXED_ROWS as u64 * fixed_bytes,
-            || bench_solo_row_writer_fixed(&fixed_write_inputs),
         ),
         run_case(
             "row_writer_fixed",

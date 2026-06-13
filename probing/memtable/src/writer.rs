@@ -1,12 +1,12 @@
 use crate::dedup::DedupState;
-use crate::layout::{chunk_header, release_write_lock, w32, CHUNK_HEADER_SIZE};
+use crate::layout::{chunk_header, w32, CHUNK_HEADER_SIZE};
+use crate::raw::note_row_ts;
 use std::sync::atomic::Ordering;
 
 /// Streaming row writer — **low-overhead, weak-contract** hot-path API.
 ///
-/// When `locked` is true (default), holds the write lock from creation
-/// until [`finish()`](Self::finish) (or `Drop`).
-/// When `locked` is false (solo mode), no lock is touched.
+/// MEMT is single-writer, so no lock is taken; the `&mut` borrow guarantees
+/// exclusive access for the writer's lifetime.
 ///
 /// Callers must supply columns in schema order via the typed `put_*`
 /// methods; **no per-call schema validation is performed**.
@@ -24,7 +24,11 @@ pub struct RowWriter<'a> {
     pub(crate) overflow: bool,
     pub(crate) done: bool,
     pub(crate) col_idx: usize,
-    pub(crate) locked: bool,
+    /// `Header::ts_col` (timestamp column index + 1; 0 = none).
+    pub(crate) ts_col: u16,
+    /// Timestamp captured by `put_i64` on the designated column,
+    /// folded into the chunk's min/max on a successful `finish()`.
+    pub(crate) pending_ts: Option<i64>,
 }
 
 impl<'a> RowWriter<'a> {
@@ -84,6 +88,9 @@ impl<'a> RowWriter<'a> {
         self
     }
     pub fn put_i64(&mut self, v: i64) -> &mut Self {
+        if self.ts_col as usize == self.col_idx + 1 {
+            self.pending_ts = Some(v);
+        }
         self.write_raw(&v.to_le_bytes());
         self.col_idx += 1;
         self
@@ -123,7 +130,8 @@ impl<'a> RowWriter<'a> {
         self
     }
 
-    /// Commit the row and release the write lock (if held).
+    /// Commit the row. Returns `false` if the row overflowed the chunk (and
+    /// nothing was committed) or `finish` was already called.
     pub fn finish(&mut self) -> bool {
         if self.done {
             return false;
@@ -135,6 +143,9 @@ impl<'a> RowWriter<'a> {
             let row_data = self.pos - self.row_start - 4;
             w32(self.buf, self.row_start, row_data as u32);
             let new_used = (self.pos - self.chunk_start - CHUNK_HEADER_SIZE) as u32;
+            if let Some(ts) = self.pending_ts {
+                note_row_ts(chunk_header(self.buf, self.chunk_start), ts);
+            }
             chunk_header(self.buf, self.chunk_start)
                 .used
                 .store(new_used, Ordering::Release);
@@ -143,27 +154,14 @@ impl<'a> RowWriter<'a> {
                 .fetch_add(1, Ordering::Release);
             true
         };
-        if self.locked {
-            release_write_lock(self.buf);
-        }
         ok
-    }
-}
-
-impl Drop for RowWriter<'_> {
-    fn drop(&mut self) {
-        if !self.done && self.locked {
-            release_write_lock(self.buf);
-        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::layout::header;
     use crate::memtable::MemTable;
     use crate::schema::{DType, Schema, Value};
-    use std::sync::atomic::Ordering;
 
     #[test]
     fn row_writer_basic() {
@@ -197,23 +195,25 @@ mod tests {
     #[test]
     fn row_writer_overflow() {
         let schema = Schema::new().col("x", DType::I64);
-        // ChunkHeader=24, each I64 row=12 → 40-24=16 → 1 row fits, 2nd overflows
-        let mut t = MemTable::new(&schema, 40, 1);
+        // ChunkHeader=40, each I64 row=12 → 56-40=16 → 1 row fits, 2nd overflows
+        let mut t = MemTable::new(&schema, 56, 1);
         assert!(t.row_writer().put_i64(1).finish());
         assert!(!t.row_writer().put_i64(2).finish());
         assert_eq!(t.num_rows(0), 1);
     }
 
     #[test]
-    fn row_writer_drop_releases_lock() {
+    fn row_writer_drop_without_finish_commits_nothing() {
         let schema = Schema::new().col("x", DType::I32);
         let mut t = MemTable::new(&schema, 1024, 1);
         {
-            let _w = t.row_writer(); // acquires lock
-                                     // dropped without finish() → lock released by Drop
+            let mut w = t.row_writer();
+            w.put_i32(99); // dropped without finish() → row not committed
         }
-        // lock should be free; this must not deadlock
+        assert_eq!(t.num_rows(0), 0, "uncommitted row must not be visible");
+        // A subsequent write still works and is the first visible row.
         t.push_row(&[Value::I32(42)]);
+        assert_eq!(t.num_rows(0), 1);
         assert_eq!(t.rows(0).next().unwrap().col_i32(0), 42);
     }
 
@@ -233,15 +233,14 @@ mod tests {
     }
 
     #[test]
-    fn write_lock_field_is_zero_after_operations() {
+    fn mixed_push_and_row_writer() {
         let schema = Schema::new().col("x", DType::I32);
         let mut t = MemTable::new(&schema, 1024, 1);
         t.push_row(&[Value::I32(1)]);
         t.row_writer().put_i32(2).finish();
-        assert_eq!(
-            header(t.as_bytes()).write_lock.load(Ordering::Relaxed),
-            0,
-            "write_lock must be 0 after all operations complete"
-        );
+        assert_eq!(t.num_rows(0), 2);
+        let rows: Vec<_> = t.rows(0).collect();
+        assert_eq!(rows[0].col_i32(0), 1);
+        assert_eq!(rows[1].col_i32(0), 2);
     }
 }

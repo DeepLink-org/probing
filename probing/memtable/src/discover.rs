@@ -45,7 +45,7 @@ use crate::memh::layout::required_total_size as memh_required_size;
 use crate::memh::table::init_buf as memh_init_buf;
 use crate::memh::{MemhView, MemhWriter};
 use crate::memtable::{MemTable, MemTableView, MemTableWriter};
-use crate::raw::{init_buf, process_start_time, validate_buf};
+use crate::raw::{process_start_time, validate_buf};
 use crate::schema::{Schema, Value};
 
 use memmap2::{Mmap, MmapMut};
@@ -102,12 +102,12 @@ pub fn is_creator_alive(pid: u32, expected_start_time: u64) -> bool {
 
 /// A memtable backed by an mmap'd file, exposed for cross-process discovery.
 ///
-/// On [`Drop`], the file is removed. If the parent `<pid>/` directory is
-/// empty afterward, it is removed too.
+/// Thin wrapper around a **shared-memory** [`MemTable`] (see
+/// [`MemTable::shared`]); kept for API stability. On [`Drop`], the file is
+/// removed. If the parent `<pid>/` directory is empty afterward, it is
+/// removed too.
 pub struct ExposedTable {
-    mmap: MmapMut,
-    path: PathBuf,
-    dir: PathBuf,
+    inner: MemTable,
 }
 
 impl ExposedTable {
@@ -131,37 +131,22 @@ impl ExposedTable {
         chunk_size: u32,
         num_chunks: u32,
     ) -> io::Result<Self> {
-        let dir = base_dir.join(std::process::id().to_string());
-        fs::create_dir_all(&dir)?;
-
-        let path = dir.join(name);
-        let size = MemTable::required_size(schema, chunk_size as usize, num_chunks as usize);
-
-        let file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(&path)?;
-        file.set_len(size as u64)?;
-
-        let mut mmap = unsafe { MmapMut::map_mut(&file)? };
-        init_buf(&mut mmap, schema, chunk_size, num_chunks);
-
-        Ok(Self { mmap, path, dir })
+        Ok(Self {
+            inner: MemTable::shared_in(base_dir, name, schema, chunk_size, num_chunks)?,
+        })
     }
 
     pub fn as_bytes(&self) -> &[u8] {
-        &self.mmap
+        self.inner.as_bytes()
     }
 
     pub fn as_bytes_mut(&mut self) -> &mut [u8] {
-        &mut self.mmap
+        self.inner.as_bytes_mut()
     }
 
     /// File path of this table.
     pub fn path(&self) -> &Path {
-        &self.path
+        self.inner.path().expect("ExposedTable is always shared")
     }
 
     /// Create a [`MemTableWriter`] backed by the mmap'd region.
@@ -169,51 +154,21 @@ impl ExposedTable {
     /// **Note**: this re-validates the entire buffer on every call.
     /// Prefer [`push_row`](Self::push_row) for hot-path writes.
     pub fn writer(&mut self) -> MemTableWriter<'_> {
-        MemTableWriter::new(&mut self.mmap).expect("mmap buffer validated at creation")
+        MemTableWriter::new(self.inner.as_bytes_mut()).expect("mmap buffer validated at creation")
     }
 
     /// Append a row without re-validating the buffer.
     ///
     /// This is the fast path for high-frequency writes — it skips the
     /// O(rows × chunks) `validate_buf` that `writer()` performs on every call.
-    /// Safe because the buffer was validated at `create()` time and only
-    /// mutated through well-formed write operations.
-    ///
-    /// # Panic safety
-    ///
-    /// The spinlock is released even if the write panics (e.g. row exceeds
-    /// chunk capacity), preventing a deadlocked mmap file.
+    /// MEMT is single-writer, so no lock is taken (see [`MemTable::push_row`]).
     pub fn push_row(&mut self, values: &[Value]) {
-        use crate::layout::{acquire_write_lock, release_write_lock};
-        use crate::memtable::push_plain_row;
-        use crate::raw::validate_row_schema;
-
-        debug_assert!(
-            validate_row_schema(&self.mmap, values),
-            "value types do not match schema"
-        );
-
-        acquire_write_lock(&mut self.mmap);
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            push_plain_row(&mut self.mmap, values);
-        }));
-        release_write_lock(&mut self.mmap);
-
-        if let Err(payload) = result {
-            std::panic::resume_unwind(payload);
-        }
+        self.inner.push_row(values)
     }
 
     /// Create a read-only [`MemTableView`].
     pub fn view(&self) -> MemTableView<'_> {
-        MemTableView::new(&self.mmap).expect("mmap buffer validated at creation")
-    }
-}
-
-impl Drop for ExposedTable {
-    fn drop(&mut self) {
-        let _ = fs::remove_file(&self.path);
-        let _ = fs::remove_dir(&self.dir); // succeeds only if empty
+        self.inner.view()
     }
 }
 
@@ -293,6 +248,42 @@ impl Drop for ExposedHashTable {
     fn drop(&mut self) {
         let _ = fs::remove_file(&self.path);
         let _ = fs::remove_dir(&self.dir);
+    }
+}
+
+// ── MappedFile ────────────────────────────────────────────────────────
+
+/// Read-only mmap of a memtable file (MEMT ring or MEMH hash), without
+/// format validation.
+///
+/// This is the zero-copy read path for SQL/catalog integration: pages are
+/// faulted in on demand instead of copying the whole file to the heap
+/// (rings are sized for capacity, so most chunks may be untouched).
+/// Callers inspect the bytes with [`crate::detect_table`] and construct
+/// the appropriate view, which performs its own validation.
+///
+/// The mapping stays valid even if the creating process unlinks the file
+/// (e.g. [`ExposedTable`] drop) while this handle is alive.
+#[derive(Debug)]
+pub struct MappedFile {
+    mmap: Mmap,
+    path: PathBuf,
+}
+
+impl MappedFile {
+    pub fn open(path: impl AsRef<Path>) -> io::Result<Self> {
+        let path = path.as_ref().to_path_buf();
+        let file = File::open(&path)?;
+        let mmap = unsafe { Mmap::map(&file)? };
+        Ok(Self { mmap, path })
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.mmap
     }
 }
 
@@ -469,6 +460,7 @@ fn read_any_start_time(dir: &Path) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::raw::init_buf;
     use crate::schema::{DType, Value};
     use std::sync::atomic::{AtomicU32, Ordering as AtOrd};
 

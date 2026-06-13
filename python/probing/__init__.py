@@ -22,7 +22,7 @@ Public Interfaces:
 import probing.config as config
 from probing import _core
 
-VERSION = "0.2.4"
+VERSION = "0.2.5"
 
 # Core Primitives
 ExternalTable = _core.ExternalTable
