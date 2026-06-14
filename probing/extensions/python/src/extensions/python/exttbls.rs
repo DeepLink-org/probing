@@ -22,7 +22,7 @@ use probing_memtable::{DType, Schema as MtSchema, Value};
 use probing_proto::prelude::Ele;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyType};
-use pyo3::{pyclass, pymethods, Bound, PyObject, PyResult, Python};
+use pyo3::{pyclass, pymethods, Bound, PyResult, Python};
 
 use crate::features::convert::{ele_to_python, python_to_ele};
 
@@ -34,7 +34,7 @@ const NUM_CHUNKS: u32 = 8;
 const MIN_CHUNK_BYTES: usize = 4 * 1024;
 const MAX_CHUNK_BYTES: usize = 8 * 1024 * 1024;
 
-fn value_to_object(py: Python, v: &Ele) -> PyObject {
+fn value_to_object(py: Python, v: &Ele) -> Py<PyAny> {
     ele_to_python(py, v).unwrap_or_else(|_| py.None())
 }
 
@@ -45,7 +45,8 @@ fn now_micros() -> i64 {
         .unwrap_or(0)
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
+#[derive(Clone)]
 pub struct PyExternalTableConfig {
     #[pyo3(get)]
     chunk_size: usize,
@@ -65,21 +66,6 @@ impl Default for PyExternalTableConfig {
     }
 }
 
-impl FromPyObject<'_> for PyExternalTableConfig {
-    fn extract_bound(ob: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let chunk_size: usize = ob.get_item("chunk_size")?.extract()?;
-        let discard_threshold: usize = ob.get_item("discard_threshold")?.extract()?;
-        let discard_strategy: String = ob
-            .get_item("discard_strategy")
-            .map_or(Ok("None".to_string()), |v| v.extract())?;
-        Ok(PyExternalTableConfig {
-            chunk_size,
-            discard_threshold,
-            discard_strategy,
-        })
-    }
-}
-
 #[pymethods]
 impl PyExternalTableConfig {
     #[new]
@@ -92,7 +78,7 @@ impl PyExternalTableConfig {
     }
 
     #[allow(clippy::wrong_self_convention)] // Python-facing method name, kept for API compat
-    fn into_py(&self, py: Python<'_>) -> PyObject {
+    fn into_py(&self, py: Python<'_>) -> Py<PyAny> {
         let dict = PyDict::new(py);
         dict.set_item("chunk_size", self.chunk_size).unwrap();
         dict.set_item("discard_threshold", self.discard_threshold)
@@ -301,13 +287,13 @@ impl std::fmt::Debug for ExternBacking {
 pub static EXTERN_TABLES: Lazy<Mutex<HashMap<String, Arc<Mutex<ExternBacking>>>>> =
     Lazy::new(|| Mutex::new(Default::default()));
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Debug)]
 pub struct ExternalTable(Arc<Mutex<ExternBacking>>, usize);
 
 impl ExternalTable {
-    fn extract_eles(values: Vec<PyObject>) -> Vec<Ele> {
-        Python::with_gil(|py| {
+    fn extract_eles(values: Vec<Py<PyAny>>) -> Vec<Ele> {
+        Python::attach(|py| {
             values
                 .into_iter()
                 .map(|v| {
@@ -399,7 +385,7 @@ impl ExternalTable {
         self.0.lock().unwrap().columns.clone()
     }
 
-    fn append(&mut self, values: Vec<PyObject>) -> PyResult<()> {
+    fn append(&mut self, values: Vec<Py<PyAny>>) -> PyResult<()> {
         if values.len() != self.1 {
             return Err(pyo3::exceptions::PyValueError::new_err(
                 "column count mismatch",
@@ -413,7 +399,7 @@ impl ExternalTable {
             .map_err(pyo3::exceptions::PyValueError::new_err)
     }
 
-    fn append_ts(&mut self, t: i64, values: Vec<PyObject>) -> PyResult<()> {
+    fn append_ts(&mut self, t: i64, values: Vec<Py<PyAny>>) -> PyResult<()> {
         if values.len() != self.1 {
             return Err(pyo3::exceptions::PyValueError::new_err(
                 "column count mismatch",
@@ -427,7 +413,7 @@ impl ExternalTable {
             .map_err(pyo3::exceptions::PyValueError::new_err)
     }
 
-    fn append_many(&mut self, rows: Vec<Vec<PyObject>>) -> PyResult<()> {
+    fn append_many(&mut self, rows: Vec<Vec<Py<PyAny>>>) -> PyResult<()> {
         for row in rows {
             self.append(row)?;
         }
@@ -435,12 +421,12 @@ impl ExternalTable {
     }
 
     #[pyo3(signature = (limit=None))]
-    fn take(&self, limit: Option<usize>) -> PyResult<Vec<(PyObject, Vec<PyObject>)>> {
+    fn take(&self, limit: Option<usize>) -> PyResult<Vec<(Py<PyAny>, Vec<Py<PyAny>>)>> {
         let rows = self.0.lock().unwrap().take(limit);
         let result = rows
             .iter()
             .map(|(t, vals)| {
-                Python::with_gil(|py| {
+                Python::attach(|py| {
                     let t = value_to_object(py, t);
                     let vals = vals
                         .iter()
@@ -470,8 +456,8 @@ mod tests {
 
     fn setup() {
         let _ = &*TEST_DATA_DIR;
-        pyo3::prepare_freethreaded_python();
-        Python::with_gil(|py| {
+        pyo3::Python::initialize();
+        Python::attach(|py| {
             use pyo3::types::PyModule;
             use pyo3::PyTypeInfo;
 
@@ -497,7 +483,7 @@ mod tests {
     /// Create a table with a unique name and three rows; idempotent per name.
     fn setup_table(name: &str) {
         setup();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             py.run(
                 &std::ffi::CString::new(format!(
                     r#"
@@ -544,7 +530,7 @@ if not hasattr(probing, "_made_{name}"):
     #[test]
     fn test_create_table_in_python() {
         setup();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             py.run(
                 c_str!(
                     r#"
@@ -564,7 +550,7 @@ table = probing.ExternalTable.get_or_create("table2", ["a", "b"])
     #[test]
     fn test_drop_table_in_python() {
         setup();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             py.run(
                 c_str!(
                     r#"
@@ -592,13 +578,13 @@ probing.ExternalTable.drop("table_to_drop")
             1_000_000,
             "BaseMemorySize".to_string(),
         );
-        Python::with_gil(|py| {
-            let vals: Vec<PyObject> = vec![
+        Python::attach(|py| {
+            let vals: Vec<Py<PyAny>> = vec![
                 1i64.into_pyobject(py).unwrap().into_any().unbind(),
                 "hello".into_pyobject(py).unwrap().into_any().unbind(),
             ];
             table.append(vals).unwrap();
-            let vals: Vec<PyObject> = vec![
+            let vals: Vec<Py<PyAny>> = vec![
                 2i64.into_pyobject(py).unwrap().into_any().unbind(),
                 "world".into_pyobject(py).unwrap().into_any().unbind(),
             ];
@@ -614,7 +600,7 @@ probing.ExternalTable.drop("table_to_drop")
         // take() returns rows oldest → newest, with coerced values
         let rows = table.take(None).unwrap();
         assert_eq!(rows.len(), 2);
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let (_, vals) = &rows[0];
             assert_eq!(vals[0].extract::<i64>(py).unwrap(), 1);
             assert_eq!(vals[1].extract::<String>(py).unwrap(), "hello");
@@ -626,7 +612,7 @@ probing.ExternalTable.drop("table_to_drop")
         // take(limit) keeps the most recent rows
         let rows = table.take(Some(1)).unwrap();
         assert_eq!(rows.len(), 1);
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             assert_eq!(rows[0].1[1].extract::<String>(py).unwrap(), "world");
         });
     }

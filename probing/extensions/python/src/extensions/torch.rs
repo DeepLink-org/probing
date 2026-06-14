@@ -19,7 +19,7 @@ impl EngineDatasource for TorchExtension {}
 
 impl TorchExtension {
     fn set_profiling(&mut self, profiling: Maybe<String>) -> Result<(), EngineError> {
-        let py_result = Python::with_gil(|py| -> pyo3::PyResult<()> {
+        let py_result = Python::attach(|py| -> pyo3::PyResult<()> {
             let module = py.import("probing.profiling.torch_probe")?;
             match &profiling {
                 Maybe::Just(spec) => {

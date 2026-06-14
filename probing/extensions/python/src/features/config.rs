@@ -34,7 +34,7 @@ where
 /// Returns None if the key doesn't exist, otherwise returns the value
 /// converted to the appropriate Python type.
 #[pyfunction(name = "config_get")]
-fn get(py: Python, key: String) -> PyResult<Option<PyObject>> {
+fn get(py: Python, key: String) -> PyResult<Option<Py<PyAny>>> {
     let key_clone = key.clone();
     let ele = block_on_async(async move { config::get(&key_clone).await });
     match ele {
@@ -75,7 +75,7 @@ fn contains_key(_py: Python, key: String) -> bool {
 
 /// Remove a configuration key and return its value.
 #[pyfunction(name = "config_remove")]
-fn remove(py: Python, key: String) -> PyResult<Option<PyObject>> {
+fn remove(py: Python, key: String) -> PyResult<Option<Py<PyAny>>> {
     let key_clone = key.clone();
     let ele = block_on_async(async move { config::remove(&key_clone).await });
     match ele {

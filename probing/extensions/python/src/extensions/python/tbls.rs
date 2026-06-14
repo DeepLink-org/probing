@@ -96,7 +96,7 @@ impl PythonNamespace {
     }
 
     fn data_from_python(expr: &str) -> Result<Vec<RecordBatch>> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let import_path = expr.split(|c| c == '(' || c == '[').next().unwrap_or(expr);
 
             let parts: Vec<&str> = import_path
@@ -147,11 +147,11 @@ impl PythonNamespace {
                 .map_err(|e| anyhow::anyhow!("Failed to evaluate Python expression: {:?}", e))?;
 
             // Handle different Python types
-            if let Ok(list) = result.downcast::<PyList>() {
+            if let Ok(list) = result.cast::<PyList>() {
                 return Self::list_to_recordbatch(list);
             }
 
-            if let Ok(dict) = result.downcast::<PyDict>() {
+            if let Ok(dict) = result.cast::<PyDict>() {
                 return Self::dict_to_recordbatch(dict);
             }
 
@@ -229,7 +229,7 @@ impl PythonNamespace {
         let mut columns: Vec<ArrayRef> = vec![];
 
         if obj.is_instance_of::<PyDict>() {
-            let item = obj.downcast::<PyDict>().unwrap();
+            let item = obj.cast::<PyDict>().unwrap();
             for (key, value) in item.iter() {
                 let key_str = key.extract::<String>()?;
                 Self::add_field_and_array(&mut fields, &mut columns, key_str, value)?;
@@ -298,11 +298,11 @@ impl PythonNamespace {
 
         for (index, item) in list.try_iter()?.enumerate() {
             let item = item?;
-            let item = if let Ok(dict) = item.downcast::<PyDict>() {
+            let item = if let Ok(dict) = item.cast::<PyDict>() {
                 Some(dict.clone())
             } else {
                 match item.getattr("__dict__") {
-                    Ok(dict) => Some(dict.downcast::<PyDict>().unwrap().clone()),
+                    Ok(dict) => Some(dict.cast::<PyDict>().unwrap().clone()),
                     Err(_) => {
                         let dict = PyDict::new(item.py());
                         dict.set_item("value", item).unwrap();

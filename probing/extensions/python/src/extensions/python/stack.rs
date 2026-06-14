@@ -8,7 +8,7 @@ const STACK_THREADS: &str = include_str!("stack_get_threads.py");
 pub fn get_python_stacks(tid: i32) -> Option<String> {
     log::debug!("Collecting python backtrace for TID: {tid:?}");
 
-    Python::with_gil(|py| {
+    Python::attach(|py| {
         log::debug!("Start calling backtrace for TID: {tid:?}");
         let global = PyDict::new(py);
         global.set_item("tid", tid).unwrap_or_else(|err| {
@@ -26,7 +26,7 @@ pub fn get_python_stacks(tid: i32) -> Option<String> {
                 None
             }
             Err(err) => {
-                error!("Failed to get 'retval' from Python stack dump: {err}");
+                error!("Failed to read 'retval' from Python global dict: {err}");
                 None
             }
         }

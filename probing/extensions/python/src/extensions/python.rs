@@ -296,7 +296,7 @@ impl PythonExt {
         if let Some(pyext) = self.enabled.0.remove(ext) {
             log::info!("Disabling Python extension: {ext}");
 
-            Python::with_gil(|py| match pyext.call_method0(py, "deinit") {
+            Python::attach(|py| match pyext.call_method0(py, "deinit") {
                 Ok(_) => {
                     log::debug!("Extension '{ext}' deinitialized successfully");
                     Ok(())
@@ -317,7 +317,7 @@ impl PythonExt {
 /// Execute Python code and return the resulting object
 /// The code should return an object with init/deinit methods
 pub fn execute_python_code(code: &str) -> Result<pyo3::Py<pyo3::PyAny>, String> {
-    Python::with_gil(|py| {
+    Python::attach(|py| {
         let pkg = py.import("probing");
 
         if pkg.is_err() {
@@ -371,7 +371,7 @@ fn is_no_handler_found_error(result_bytes: &[u8]) -> bool {
 }
 
 /// Helper to convert String to PyObject
-fn str_to_py(py: Python, s: &str) -> PyObject {
+fn str_to_py(py: Python, s: &str) -> Py<PyAny> {
     PyString::new(py, s).to_owned().unbind().into()
 }
 
@@ -380,7 +380,7 @@ fn call_python_handler(
     path: &str,
     params: &HashMap<String, String>,
 ) -> Result<Vec<u8>, EngineError> {
-    Python::with_gil(|py| {
+    Python::attach(|py| {
         let router_module = py.import("probing.handlers.router").map_err(|e| {
             EngineError::PluginError(format!("Failed to import router module: {e}"))
         })?;
@@ -420,7 +420,7 @@ mod tests {
         assert_eq!(list.to_string(), "");
 
         // Add extensions
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let ext1 = py.None();
             let ext2 = py.None();
             list.0.insert("ext1".to_string(), ext1);
@@ -460,7 +460,7 @@ mod tests {
 
     #[test]
     fn test_str_to_py() {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let py_obj = str_to_py(py, "test_string");
             let extracted: String = py_obj.extract(py).unwrap();
             assert_eq!(extracted, "test_string");

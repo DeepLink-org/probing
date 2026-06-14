@@ -1,4 +1,4 @@
-use std::{any::Any, fmt::Debug, marker::PhantomData, sync::Arc};
+use std::{fmt::Debug, marker::PhantomData, sync::Arc};
 
 use super::Plugin;
 use arrow::datatypes::{DataType, Field, Schema};
@@ -115,10 +115,6 @@ pub struct TableDataSource<T: CustomTable> {
 impl<T: CustomTable + Default + Debug + Send + Sync + 'static> TableProvider
     for TableDataSource<T>
 {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn schema(&self) -> SchemaRef {
         T::schema()
     }
@@ -177,10 +173,6 @@ pub struct LazyTableSource {
 
 #[async_trait]
 impl TableProvider for LazyTableSource {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn schema(&self) -> SchemaRef {
         if let Some(schema) = &self.schema {
             return schema.clone();
@@ -359,9 +351,6 @@ pub struct CustomNamespaceDataSource<T: CustomNamespace> {
 impl<T: CustomNamespace + Default + Debug + Send + Sync + 'static> SchemaProvider
     for CustomNamespaceDataSource<T>
 {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn table_names(&self) -> Vec<String> {
         T::list()
     }

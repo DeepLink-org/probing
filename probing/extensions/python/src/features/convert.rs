@@ -11,8 +11,8 @@ use pyo3::types::{PyBool, PyFloat, PyInt, PyString};
 ///
 /// This is the unified implementation that should be used throughout
 /// the codebase instead of scattered conversion functions.
-pub fn ele_to_python(py: Python, ele: &Ele) -> PyResult<PyObject> {
-    let obj: PyObject = match ele {
+pub fn ele_to_python(py: Python, ele: &Ele) -> PyResult<Py<PyAny>> {
+    let obj: Py<PyAny> = match ele {
         Ele::Nil => py.None(),
         Ele::BOOL(b) => PyBool::new(py, *b).to_owned().unbind().into(),
         Ele::I32(i) => PyInt::new(py, *i as i64).to_owned().unbind().into(),

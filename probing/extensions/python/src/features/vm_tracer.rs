@@ -16,7 +16,7 @@ use crate::features::spy::PYVERSION;
 
 #[allow(static_mut_refs)]
 pub fn initialize_globals() -> bool {
-    Python::with_gil(|py| {
+    Python::attach(|py| {
         let ver = py.version_info();
         unsafe {
             if PYVERSION.major == 0 {
@@ -88,7 +88,7 @@ pub fn disable_tracer() -> PyResult<()> {
 }
 
 #[pyfunction]
-pub fn _get_python_stacks(py: Python) -> PyResult<PyObject> {
+pub fn _get_python_stacks(py: Python) -> PyResult<Py<PyAny>> {
     use pyo3::types::{PyDict, PyList};
 
     let py_list = PyList::empty(py);
@@ -109,7 +109,7 @@ pub fn _get_python_stacks(py: Python) -> PyResult<PyObject> {
 
 #[allow(static_mut_refs)]
 #[pyfunction]
-pub fn _get_python_frames(py: Python) -> PyResult<PyObject> {
+pub fn _get_python_frames(py: Python) -> PyResult<Py<PyAny>> {
     use pyo3::types::{PyDict, PyList};
 
     let py_list = PyList::empty(py);

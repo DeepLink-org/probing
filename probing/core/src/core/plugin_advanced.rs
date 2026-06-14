@@ -5,7 +5,6 @@
 //! and [`super::plugin::LazyTableSource`](super::plugin::LazyTableSource) via [`scan_memory_partitions`]
 //! and [`supports_filters_pushdown_for_schema`].
 
-use std::any::Any;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -212,10 +211,6 @@ pub(crate) async fn scan_memory_partitions(
 
 #[async_trait]
 impl TableProvider for PluginAdvancedTable {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn schema(&self) -> SchemaRef {
         Arc::clone(&self.schema)
     }

@@ -11,11 +11,11 @@ use crate::features::convert::{ele_to_python, python_to_ele};
 
 // Thread-local storage for span context
 thread_local! {
-    static SPAN_STACK: RefCell<Vec<PyObject>> = RefCell::new(Vec::new());
+    static SPAN_STACK: RefCell<Vec<Py<PyAny>>> = RefCell::new(Vec::new());
 }
 
 /// Python binding for Span
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct Span {
     inner: Arc<Mutex<RawSpan>>,
@@ -181,7 +181,7 @@ impl Span {
     /// This should only be called by the Python wrapper during span creation.
     #[pyo3(name = "_set_initial_attrs")]
     fn set_initial_attrs(&mut self, attrs: &Bound<'_, PyAny>, _py: Python) -> PyResult<()> {
-        let attrs_dict = attrs.downcast::<PyDict>().map_err(|_| {
+        let attrs_dict = attrs.cast::<PyDict>().map_err(|_| {
             PyErr::new::<pyo3::exceptions::PyTypeError, _>("_set_initial_attrs expects a dict")
         })?;
 
@@ -202,20 +202,20 @@ impl Span {
     fn add_event(
         &mut self,
         name: String,
-        attributes: Option<Vec<PyObject>>,
+        attributes: Option<Vec<Py<PyAny>>>,
         py: Python,
     ) -> PyResult<()> {
         let attrs = if let Some(attrs) = attributes {
             let mut converted = Vec::new();
             for attr_obj in attrs {
                 // Try to convert attribute object
-                if let Ok(dict) = attr_obj.bind(py).downcast::<PyDict>() {
+                if let Ok(dict) = attr_obj.bind(py).cast::<PyDict>() {
                     for (k, v) in dict.iter() {
                         let key = k.extract::<String>()?;
                         let ele = python_to_ele(&v)?;
                         converted.push(attr(key, ele));
                     }
-                } else if let Ok(list) = attr_obj.bind(py).downcast::<PyList>() {
+                } else if let Ok(list) = attr_obj.bind(py).cast::<PyList>() {
                     if list.len() == 2 {
                         let key = list.get_item(0)?.extract::<String>()?;
                         let value = list.get_item(1)?;
@@ -254,7 +254,7 @@ impl Span {
     }
 
     /// Gets all attributes as a dictionary.
-    fn get_attributes(&self, py: Python) -> PyResult<PyObject> {
+    fn get_attributes(&self, py: Python) -> PyResult<Py<PyAny>> {
         let dict = PyDict::new(py);
         let inner = self
             .inner
@@ -268,7 +268,7 @@ impl Span {
     }
 
     /// Gets all events as a list.
-    fn get_events(&self, py: Python) -> PyResult<PyObject> {
+    fn get_events(&self, py: Python) -> PyResult<Py<PyAny>> {
         let list = PyList::empty(py);
         let inner = self
             .inner
@@ -290,7 +290,7 @@ impl Span {
     }
 
     /// Gets an attribute by name (for dynamic attribute access like s.a, s.b).
-    fn __getattr__(&self, name: &str, py: Python) -> PyResult<PyObject> {
+    fn __getattr__(&self, name: &str, py: Python) -> PyResult<Py<PyAny>> {
         match name {
             "trace_id" => return Ok(self.trace_id().into_bound_py_any(py)?.into()),
             "span_id" => return Ok(self.span_id().into_bound_py_any(py)?.into()),
@@ -341,7 +341,7 @@ impl Span {
     /// Context manager entry (for `with` statement support).
     fn __enter__(slf: PyRef<Self>) -> PyResult<PyRef<Self>> {
         let py = slf.py();
-        let span_obj: PyObject = Py::new(py, slf.clone())?.into();
+        let span_obj: Py<PyAny> = Py::new(py, slf.clone())?.into();
         SPAN_STACK.with(|stack| {
             stack.borrow_mut().push(span_obj);
         });
@@ -389,7 +389,7 @@ impl Span {
 
 /// Gets the current active span.
 #[pyfunction]
-fn current_span(py: Python) -> PyResult<Option<PyObject>> {
+fn current_span(py: Python) -> PyResult<Option<Py<PyAny>>> {
     SPAN_STACK.with(|stack| {
         let stack = stack.borrow();
         Ok(stack.last().map(|obj| obj.clone_ref(py)))
@@ -413,7 +413,7 @@ fn _span_raw(
 
     let span = if let Some(parent) = parent {
         let parent_obj = parent.bind(py);
-        let parent_span = parent_obj.downcast::<Span>()?;
+        let parent_span = parent_obj.cast::<Span>()?;
         Span::new_child(parent_span, name, kind, location)
     } else {
         Span::new(name, kind, location)
@@ -433,17 +433,17 @@ impl Event {
     /// Creates a new event.
     #[new]
     #[pyo3(signature = (name, *, attributes=None))]
-    fn new(name: String, attributes: Option<Vec<PyObject>>, py: Python) -> PyResult<Self> {
+    fn new(name: String, attributes: Option<Vec<Py<PyAny>>>, py: Python) -> PyResult<Self> {
         let attrs = if let Some(attrs) = attributes {
             let mut converted = Vec::new();
             for attr_obj in attrs {
-                if let Ok(dict) = attr_obj.bind(py).downcast::<PyDict>() {
+                if let Ok(dict) = attr_obj.bind(py).cast::<PyDict>() {
                     for (k, v) in dict.iter() {
                         let key = k.extract::<String>()?;
                         let ele = python_to_ele(&v)?;
                         converted.push(attr(key, ele));
                     }
-                } else if let Ok(list) = attr_obj.bind(py).downcast::<PyList>() {
+                } else if let Ok(list) = attr_obj.bind(py).cast::<PyList>() {
                     if list.len() == 2 {
                         let key = list.get_item(0)?.extract::<String>()?;
                         let value = list.get_item(1)?;
@@ -480,7 +480,7 @@ impl Event {
     }
 
     /// Gets all attributes as a dictionary.
-    fn get_attributes(&self, py: Python) -> PyResult<PyObject> {
+    fn get_attributes(&self, py: Python) -> PyResult<Py<PyAny>> {
         let dict = PyDict::new(py);
         for attr in &self.inner.attributes {
             let value = ele_to_python(py, &attr.1)?;

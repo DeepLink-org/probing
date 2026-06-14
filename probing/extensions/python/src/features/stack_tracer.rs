@@ -34,7 +34,7 @@ impl SignalTracer {
                     .map(|raw_name| {
                         cpp_demangle::Symbol::new(raw_name)
                             .ok()
-                            .map(|demangled| demangled.to_string())
+                            .and_then(|sym| sym.demangle().ok())
                             .unwrap_or_else(|| raw_name.to_string())
                     })
                     .unwrap_or_else(|| format!("unknown@{symbol_address:p}"));

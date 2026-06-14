@@ -26,7 +26,6 @@
 //!   `[min_ts, max_ts]` range cannot satisfy the query's time predicates are
 //!   **pruned** before materialisation ([`RingMmapTable`]).
 
-use std::any::Any;
 use std::collections::{BTreeSet, HashSet};
 use std::panic::AssertUnwindSafe;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -573,10 +572,6 @@ impl RingMmapTable {
 
 #[async_trait]
 impl TableProvider for RingMmapTable {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn schema(&self) -> SchemaRef {
         Arc::clone(&self.schema)
     }
@@ -725,10 +720,6 @@ impl HotColdTable {
 
 #[async_trait]
 impl TableProvider for HotColdTable {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn schema(&self) -> SchemaRef {
         Arc::clone(&self.schema)
     }
@@ -878,10 +869,6 @@ impl MmapFileSchemaProvider {
 
 #[async_trait]
 impl SchemaProvider for MmapFileSchemaProvider {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn table_names(&self) -> Vec<String> {
         let mut names = tables_in_schema(&self.schema);
         if let Some(inner) = &self.inner {
@@ -959,10 +946,6 @@ struct DynamicMmapCatalog {
 }
 
 impl CatalogProvider for DynamicMmapCatalog {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn schema_names(&self) -> Vec<String> {
         let mut names: BTreeSet<String> = self.inner.schema_names().into_iter().collect();
         for sch in discover_all_schemas() {
