@@ -12,12 +12,14 @@
 //! - **collapsible_card** / **card_view** / **callstack_view** / **value_list** — Domain helpers.
 //! - **chrome_tracing_iframe** — Chrome Tracing viewer wrapper.
 
+pub mod stat_card;
 pub mod card;
 pub mod global_command_panel;
 pub mod card_view;
 pub mod callstack_view;
 pub mod chrome_tracing_iframe;
 pub mod collapsible_card;
+pub mod cpu_threads_table;
 pub mod colors;
 pub mod common;
 pub mod dataframe_view;

@@ -10,20 +10,20 @@ use datafusion::datasource::TableProvider;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
 use datafusion::physical_plan::ExecutionPlan;
-use probing_core::core::{Plugin, PluginType};
+use probing_core::core::{ProbeDataSource, ProbeDataSourceKind};
 use std::any::Any;
 use std::sync::Arc;
 
 /// Generic test table plugin implementation
 #[derive(Debug, Clone)]
-pub struct GenericTablePlugin {
+pub struct GenericTableProbeDataSource {
     pub name: String,
     pub namespace: String,
     pub schema: SchemaRef,
     pub batches: Vec<RecordBatch>,
 }
 
-impl GenericTablePlugin {
+impl GenericTableProbeDataSource {
     /// Create a simple test table plugin
     pub fn new(name: &str, namespace: &str, schema: SchemaRef, batches: Vec<RecordBatch>) -> Self {
         Self {
@@ -83,13 +83,13 @@ impl GenericTablePlugin {
     }
 }
 
-impl Plugin for GenericTablePlugin {
+impl ProbeDataSource for GenericTableProbeDataSource {
     fn name(&self) -> String {
         self.name.clone()
     }
 
-    fn kind(&self) -> PluginType {
-        PluginType::Table
+    fn kind(&self) -> ProbeDataSourceKind {
+        ProbeDataSourceKind::Table
     }
 
     fn namespace(&self) -> String {
@@ -107,7 +107,7 @@ impl Plugin for GenericTablePlugin {
 }
 
 #[async_trait::async_trait]
-impl TableProvider for GenericTablePlugin {
+impl TableProvider for GenericTableProbeDataSource {
     fn as_any(&self) -> &dyn Any {
         self
     }

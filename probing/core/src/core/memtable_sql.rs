@@ -60,10 +60,10 @@ use probing_memtable::{detect_table, DType, MemTableView, MemhView, TableKind, T
 
 use super::plugin_advanced::{scan_memory_partitions, supports_filters_pushdown_for_schema};
 use super::{
-    EngineCall, EngineDatasource, EngineError, EngineExtension, EngineExtensionOption, Maybe,
-    Plugin, PluginAdvancedTable, PluginType,
+    ProbeExtensionCall, EngineError, ProbeExtension, ProbeExtensionOption, Maybe,
+    ProbeDataSource, PluginAdvancedTable, ProbeDataSourceKind,
 };
-use probing_macros::EngineExtension as EngineExtensionDerive;
+use probing_macros::ProbeExtension as ProbeExtensionDerive;
 
 /// SQL schema used for mmap files whose basename contains no `.`.
 pub const DEFAULT_UNDOTTED_SCHEMA: &str = "memtable";
@@ -978,14 +978,14 @@ impl CatalogProvider for DynamicMmapCatalog {
 /// Namespace plugin that wraps the `probe` catalog with [`DynamicMmapCatalog`]
 /// for dynamic schema discovery from mmap files at query time.
 #[derive(Debug, Default)]
-pub struct UnifiedMemtablePlugin;
+pub struct UnifiedMemtableProbeDataSource;
 
-impl Plugin for UnifiedMemtablePlugin {
+impl ProbeDataSource for UnifiedMemtableProbeDataSource {
     fn name(&self) -> String {
         "mmap_memtables".into()
     }
-    fn kind(&self) -> PluginType {
-        PluginType::Namespace
+    fn kind(&self) -> ProbeDataSourceKind {
+        ProbeDataSourceKind::Namespace
     }
     fn namespace(&self) -> String {
         "memtable".into()
@@ -1208,7 +1208,7 @@ pub fn start_cold_compaction_from_env() {
     ColdCompactor::instance().apply(ColdRuntimeConfig::from_env());
 }
 
-// ── EngineExtension ────────────────────────────────────────────────────
+// ── ProbeExtension ────────────────────────────────────────────────────
 
 /// Exposes mmap memtables to SQL and owns the cold-compaction config surface.
 ///
@@ -1216,8 +1216,8 @@ pub fn start_cold_compaction_from_env() {
 /// - `cold_compaction` (`on`/`off`) — run the background compactor.
 /// - `cold_max_total_mb` — cold-store byte budget in MiB.
 /// - `cold_ttl_secs` — evict cold segments older than this.
-#[derive(Debug, Default, EngineExtensionDerive)]
-pub struct MemTableExtension {
+#[derive(Debug, Default, ProbeExtensionDerive)]
+pub struct MemTableProbeExtension {
     /// Background hot→cold compaction switch: "on" or "off".
     #[option(aliases = ["cold.compaction"])]
     cold_compaction: Maybe<String>,
@@ -1229,7 +1229,7 @@ pub struct MemTableExtension {
     cold_ttl_secs: Maybe<i64>,
 }
 
-impl MemTableExtension {
+impl MemTableProbeExtension {
     fn cold_enabled(&self) -> bool {
         matches!(
             self.cold_compaction,
@@ -1273,17 +1273,7 @@ impl MemTableExtension {
     }
 }
 
-impl EngineCall for MemTableExtension {}
-
-impl EngineDatasource for MemTableExtension {
-    fn datasrc(
-        &self,
-        _namespace: &str,
-        _name: Option<&str>,
-    ) -> Option<Arc<dyn Plugin + Sync + Send>> {
-        Some(Arc::new(UnifiedMemtablePlugin))
-    }
-}
+impl ProbeExtensionCall for MemTableProbeExtension {}
 
 #[cfg(test)]
 mod tests {

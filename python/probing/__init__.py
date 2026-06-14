@@ -21,11 +21,10 @@ Public Interfaces:
 
 import probing.config as config
 from probing import _core
+from probing.external_table import ExternalTable
 
 VERSION = "0.2.5"
 
-# Core Primitives
-ExternalTable = _core.ExternalTable
 TCPStore = _core.TCPStore
 
 # Control Functions

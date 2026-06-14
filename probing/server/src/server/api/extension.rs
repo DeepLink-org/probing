@@ -6,7 +6,7 @@ use axum::{
 };
 use http_body_util::BodyExt;
 
-use probing_core::core::EngineExtensionManager;
+use probing_core::core::ProbeExtensionManager;
 
 use crate::engine::ENGINE;
 use crate::server::api::response;
@@ -53,7 +53,7 @@ pub async fn handle(req: axum::extract::Request) -> ApiResult<Response> {
             .config()
             .options()
             .extensions
-            .get::<EngineExtensionManager>()
+            .get::<ProbeExtensionManager>()
             .cloned()
     };
 

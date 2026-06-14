@@ -4,7 +4,7 @@ use once_cell::sync::Lazy;
 use probing_proto::prelude::{Ele, EleExt};
 use tokio::sync::RwLock;
 
-use crate::core::{EngineError, EngineExtensionManager};
+use crate::core::{EngineError, ProbeExtensionManager};
 use crate::ENGINE;
 
 /// Global configuration key-value store.
@@ -67,7 +67,7 @@ pub async fn is_empty() -> bool {
 /// # Examples
 /// ```rust
 /// probing_core::config::write("server.address", "0.0.0.0:8080")?;
-/// probing_core::config::write("taskstats.interval", "1000")?;
+/// probing_core::config::write("cpu.sample_interval", "1000")?;
 /// probing_core::config::write("server.debug", "true")?;
 /// # Ok::<(), probing_core::core::EngineError>(())
 /// ```
@@ -80,7 +80,7 @@ pub async fn write(key: &str, value: &str) -> Result<(), EngineError> {
             .config_mut()
             .options_mut()
             .extensions
-            .get_mut::<EngineExtensionManager>()
+            .get_mut::<ProbeExtensionManager>()
         {
             let extension_key = if key.starts_with("probing.") {
                 &key[8..]
@@ -115,7 +115,7 @@ pub async fn write(key: &str, value: &str) -> Result<(), EngineError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::{EngineCall, EngineDatasource, EngineExtension, EngineExtensionOption};
+    use crate::core::{ProbeExtensionCall, ProbeExtension, ProbeExtensionOption};
     use crate::{create_engine, initialize_engine};
 
     async fn setup_test() {
@@ -139,10 +139,9 @@ mod tests {
         }
     }
 
-    impl EngineCall for TestExtension {}
-    impl EngineDatasource for TestExtension {}
+    impl ProbeExtensionCall for TestExtension {}
 
-    impl EngineExtension for TestExtension {
+    impl ProbeExtension for TestExtension {
         fn name(&self) -> String {
             "test".to_string()
         }
@@ -165,8 +164,8 @@ mod tests {
             }
         }
 
-        fn options(&self) -> Vec<EngineExtensionOption> {
-            vec![EngineExtensionOption {
+        fn options(&self) -> Vec<ProbeExtensionOption> {
+            vec![ProbeExtensionOption {
                 key: "option".to_string(),
                 value: Some(self.test_option.clone()),
                 help: "Test option",
@@ -178,7 +177,7 @@ mod tests {
     async fn test_config_set_syncs_to_config_store() {
         setup_test().await;
 
-        let builder = create_engine().with_extension(TestExtension::default(), "test", None);
+        let builder = create_engine().with_extension(TestExtension::default());
         initialize_engine(builder)
             .await
             .expect("Failed to initialize engine");
@@ -210,7 +209,7 @@ mod tests {
     async fn test_config_get_from_config_store() {
         setup_test().await;
 
-        let builder = create_engine().with_extension(TestExtension::default(), "test", None);
+        let builder = create_engine().with_extension(TestExtension::default());
         initialize_engine(builder)
             .await
             .expect("Failed to initialize engine");
@@ -230,7 +229,7 @@ mod tests {
     async fn test_config_set_updates_extension_and_store() {
         setup_test().await;
 
-        let builder = create_engine().with_extension(TestExtension::default(), "test", None);
+        let builder = create_engine().with_extension(TestExtension::default());
         initialize_engine(builder)
             .await
             .expect("Failed to initialize engine");

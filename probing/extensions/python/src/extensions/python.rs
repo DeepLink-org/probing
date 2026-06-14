@@ -4,11 +4,10 @@ use std::fmt::Display;
 use anyhow::Result;
 use async_trait::async_trait;
 
-use probing_core::core::EngineCall;
-use probing_core::core::EngineDatasource;
+use probing_core::core::ProbeExtensionCall;
 use probing_core::core::EngineError;
-use probing_core::core::EngineExtension;
-use probing_core::core::EngineExtensionOption;
+use probing_core::core::ProbeExtension;
+use probing_core::core::ProbeExtensionOption;
 use probing_core::core::Maybe;
 use probing_proto::prelude::CallFrame;
 use pyo3::prelude::*;
@@ -17,7 +16,7 @@ use pyo3::Python;
 
 pub use exttbls::ExternalTable;
 pub use exttbls::PyExternalTableConfig;
-pub use tbls::PythonPlugin;
+pub use tbls::PythonProbeDataSource;
 
 use crate::features::stack_tracer::{SignalTracer, StackTracer};
 use crate::python::enable_crash_handler;
@@ -49,7 +48,7 @@ impl Display for PyExtList {
 }
 
 /// Python integration with the probing system
-#[derive(Debug, EngineExtension)]
+#[derive(Debug, ProbeExtension)]
 pub struct PythonExt {
     /// Path to Python crash handler script (executed when interpreter crashes)
     #[option(aliases = ["crash.handler"])]
@@ -80,7 +79,7 @@ impl Default for PythonExt {
 }
 
 #[async_trait]
-impl EngineCall for PythonExt {
+impl ProbeExtensionCall for PythonExt {
     async fn call(
         &self,
         path: &str,
@@ -96,17 +95,6 @@ impl EngineCall for PythonExt {
 
         let normalized_path = path.trim_start_matches('/');
         call_python_handler(normalized_path, params, body)
-    }
-}
-
-impl EngineDatasource for PythonExt {
-    /// Create a plugin instance for the specified namespace
-    fn datasrc(
-        &self,
-        namespace: &str,
-        _name: Option<&str>,
-    ) -> Option<std::sync::Arc<dyn probing_core::core::Plugin + Sync + Send>> {
-        Some(PythonPlugin::create(namespace))
     }
 }
 

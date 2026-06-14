@@ -122,9 +122,9 @@ def table(name_or_class: Optional[Union[str, Type[Any]]] = None):
 
         @classmethod
         def drop(cls):
-            table = cache[cls]
-            del cache[cls]
-            table.drop(table_name)
+            if cls in cache:
+                del cache[cls]
+            probing.ExternalTable.drop(table_name)
 
         def save(self):
             cls.append(self)

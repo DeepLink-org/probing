@@ -46,13 +46,166 @@ from probing import _core
 
 try:
     Span = _core.Span
-    span_raw = _core._span_raw
     current_span = _core.current_span
+    active_span_for_events = _core.active_span_for_events
+    active_span_by_kind = _core.active_span_by_kind
+    step_snapshot = _core.py_step_snapshot
+    sync_local_step = _core.py_sync_local_step
+    advance_local_step = _core.py_advance_local_step
+    set_step_bucket_size = _core.py_set_step_bucket_size
+    current_local_step = _core.py_current_local_step
 except AttributeError:
     Span = None
-    span_raw = None
     current_span = lambda: None
+    active_span_for_events = lambda: None
+    active_span_by_kind = lambda _kind: None
+    step_snapshot = lambda: None
+    sync_local_step = lambda _step: None
+    advance_local_step = lambda: None
+    set_step_bucket_size = lambda _bucket: None
+    current_local_step = lambda: 0
 from probing.core.table import table
+
+TRAIN_STEP_KIND = "train.step"
+
+# Materialized span rows derived from ``python.trace_event`` (start/end join).
+SPANS_SQL = """
+SELECT
+    s.trace_id,
+    s.span_id,
+    COALESCE(s.parent_id, -1) AS parent_span_id,
+    s.name,
+    s.kind,
+    CAST(s.timestamp / 1000 AS BIGINT) AS start_us,
+    CAST(e.timestamp / 1000 AS BIGINT) AS end_us,
+    CAST((e.timestamp - s.timestamp) / 1000 AS BIGINT) AS duration_us,
+    s.thread_id,
+    s.location,
+    s.attributes
+FROM python.trace_event s
+JOIN python.trace_event e
+  ON s.span_id = e.span_id AND e.record_type = 'span_end'
+WHERE s.record_type = 'span_start'
+"""
+
+STAGE_KIND_MAP = {
+    "forward": "nn.forward",
+    "backward": "nn.backward",
+    "step": "optim.step",
+}
+
+
+def _step_fields(snapshot) -> dict:
+    if snapshot is None:
+        return {}
+    return {
+        "local_step": int(snapshot.local_step),
+        "global_step": int(snapshot.global_step),
+        "bucket_size": int(snapshot.bucket_size),
+        "rank": int(snapshot.rank),
+        "world_size": int(snapshot.world_size),
+    }
+
+
+def _merge_span_attributes(attrs: dict, *, source: str = "manual") -> dict:
+    """Merge user attrs with step coordinates, topology, and source label."""
+    merged = dict(attrs)
+    merged.setdefault("source", source)
+    snap = step_snapshot()
+    if snap is not None:
+        merged.update(_step_fields(snap))
+    from probing.parallel import parallel_fields
+
+    merged.update(parallel_fields())
+    return merged
+
+
+def comm_kind(op: str) -> str:
+    """Span kind for a collective op, e.g. ``comm.all_reduce``."""
+    if op.startswith("comm."):
+        return op
+    return f"comm.{op}"
+
+
+def _create_span_object(
+    name: str, kind: Optional[str], location: Optional[str], attrs: dict
+):
+    parent = current_span()
+    if parent:
+        span_obj = Span.new_child(parent, name, kind=kind, location=location)
+    else:
+        span_obj = Span(name, kind=kind, location=location)
+    if attrs and hasattr(span_obj, "_set_initial_attrs"):
+        try:
+            span_obj._set_initial_attrs(dict(attrs))
+        except Exception as e:
+            import warnings
+
+            warnings.warn(f"Failed to set initial attributes: {e}")
+    return span_obj
+
+
+class _RecordedSpan:
+    """Internal context manager: span stack + TraceEvent persistence."""
+
+    def __init__(
+        self,
+        name: str,
+        kind: Optional[str] = None,
+        location: Optional[str] = None,
+        attrs: Optional[dict] = None,
+        *,
+        source: str = "manual",
+    ):
+        self.name = name
+        self.kind = kind
+        self.location = location
+        self.attrs = dict(attrs or {})
+        self.source = source
+        self._span = None
+        self._reentrant = False
+        self._owns_step_advance = False
+
+    def __enter__(self):
+        if self.kind == TRAIN_STEP_KIND:
+            existing = active_span_by_kind(TRAIN_STEP_KIND)
+            if existing is not None:
+                self._span = existing
+                self._reentrant = True
+                return existing
+
+        loc = self.location or _get_location()
+        merged = _merge_span_attributes(self.attrs, source=self.source)
+        self._span = _create_span_object(self.name, self.kind, loc, merged)
+        self._span.__enter__()
+        _record_span_start(self._span, merged)
+        if self.kind == TRAIN_STEP_KIND:
+            self._owns_step_advance = True
+        return self._span
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self._span is None:
+            return False
+        if self._reentrant:
+            return False
+        result = self._span.__exit__(exc_type, exc_val, exc_tb)
+        _record_span_end(self._span)
+        if self._owns_step_advance:
+            advance_local_step()
+        return result
+
+
+def recorded_span(name: str, kind: Optional[str] = None, **attrs):
+    """Open a span that is always persisted to ``python.trace_event``."""
+    return _RecordedSpan(name, kind=kind, attrs=attrs)
+
+
+def module_stage_kind(stage: str) -> str:
+    """Map TorchProbe stage label to span kind."""
+    for key, kind in STAGE_KIND_MAP.items():
+        if key in stage:
+            return kind
+    return "torch.module"
 
 
 def _get_location() -> Optional[str]:
@@ -178,9 +331,7 @@ def span(*args, **kwargs):
         def decorator(func: Callable) -> Callable:
             @functools.wraps(func)
             def wrapper(*wargs, **wkwargs):
-                # Get location from the decorator's call site
-                loc = _get_location()
-                with span_raw(func.__name__, kind=kind, location=loc) as s:
+                with _RecordedSpan(func.__name__, kind=kind) as _s:
                     return func(*wargs, **wkwargs)
 
             return wrapper
@@ -193,9 +344,7 @@ def span(*args, **kwargs):
 
         @functools.wraps(func)
         def wrapper(*wargs, **wkwargs):
-            # Get location from the decorator's call site
-            loc = _get_location()
-            with span_raw(func.__name__, kind=kind, location=loc) as s:
+            with _RecordedSpan(func.__name__, kind=kind) as _s:
                 return func(*wargs, **wkwargs)
 
         return wrapper
@@ -217,77 +366,35 @@ def span(*args, **kwargs):
                 self.kind = kind
                 self.location = location
                 self.attrs = attrs
-                self._span = None
+                self._inner = None
 
             def __call__(self, func: Callable) -> Callable:
-                """Enable decorator form when a name was provided.
-
-                Parameters
-                ----------
-                func : Callable
-                    Function to wrap.
-
-                Returns
-                -------
-                Callable
-                    Wrapped function executing inside a span.
-                """
+                """Enable decorator form when a name was provided."""
 
                 @functools.wraps(func)
                 def wrapper(*wargs, **wkwargs):
-                    loc = _get_location()
-                    if self.attrs:
-                        with span(
-                            self.name,
-                            kind=self.kind,
-                            **self.attrs,
-                        ) as s:
-                            return func(*wargs, **wkwargs)
-                    else:
-                        with span_raw(self.name, kind=self.kind, location=loc) as s:
-                            return func(*wargs, **wkwargs)
+                    with _RecordedSpan(
+                        self.name,
+                        kind=self.kind,
+                        location=self.location,
+                        attrs=self.attrs,
+                    ) as _s:
+                        return func(*wargs, **wkwargs)
 
                 return wrapper
 
             def __enter__(self):
-                """Enter span context.
-
-                Returns
-                -------
-                Span
-                    The underlying span instance.
-                """
-                parent = current_span()
-                loc = self.location or _get_location()
-
-                if parent:
-                    self._span = Span.new_child(
-                        parent, self.name, kind=self.kind, location=loc
-                    )
-                else:
-                    self._span = Span(self.name, kind=self.kind, location=loc)
-
-                if self.attrs:
-                    attrs_dict = dict(self.attrs)
-                    if hasattr(self._span, "_set_initial_attrs"):
-                        try:
-                            self._span._set_initial_attrs(attrs_dict)
-                        except Exception as e:
-                            import warnings
-
-                            warnings.warn(f"Failed to set initial attributes: {e}")
-
-                self._span.__enter__()
-                _record_span_start(self._span, self.attrs)
-
-                return self._span
+                self._inner = _RecordedSpan(
+                    self.name,
+                    kind=self.kind,
+                    location=self.location,
+                    attrs=self.attrs,
+                )
+                return self._inner.__enter__()
 
             def __exit__(self, *args):
-                """Exit span context: finalize then record minimal end info."""
-                if self._span:
-                    result = self._span.__exit__(*args)
-                    _record_span_end(self._span)
-                    return result
+                if self._inner:
+                    return self._inner.__exit__(*args)
                 return False
 
         return SpanWrapper(name, kind, location, kwargs)
@@ -376,6 +483,69 @@ def _record_span_end(span: Span):
         event_attributes="",
     )
     event.save()
+
+
+def record_closed_span(
+    name: str,
+    *,
+    kind: Optional[str] = None,
+    duration_ns: int,
+    attrs: Optional[dict] = None,
+    source: str = "manual",
+) -> None:
+    """Persist span_start + span_end without entering the span stack.
+
+    Used for hot-path instrumentation where ``recorded_span`` stack/location
+    capture would add unnecessary overhead.
+    """
+    import json
+    import time
+
+    if duration_ns < 0:
+        duration_ns = 0
+
+    TraceEvent.init_table()
+    merged = _merge_span_attributes(dict(attrs or {}), source=source)
+    end_ns = int(time.time_ns())
+    start_ns = end_ns - duration_ns
+
+    parent = current_span()
+    if parent:
+        span_obj = Span.new_child(parent, name, kind=kind, location="")
+    else:
+        span_obj = Span(name, kind=kind, location="")
+
+    attrs_json = json.dumps(merged) if merged else ""
+    parent_id = span_obj.parent_id if span_obj.parent_id is not None else -1
+    kind_str = kind or ""
+
+    TraceEvent(
+        record_type="span_start",
+        trace_id=span_obj.trace_id,
+        span_id=span_obj.span_id,
+        name=name,
+        time=start_ns,
+        thread_id=getattr(span_obj, "thread_id", 0),
+        parent_id=parent_id,
+        kind=kind_str,
+        location="",
+        attributes=attrs_json,
+        event_attributes="",
+    ).save()
+
+    TraceEvent(
+        record_type="span_end",
+        trace_id=0,
+        span_id=span_obj.span_id,
+        name="",
+        time=end_ns,
+        thread_id=getattr(span_obj, "thread_id", 0),
+        parent_id=-1,
+        kind="",
+        location="",
+        attributes="",
+        event_attributes="",
+    ).save()
 
 
 def _record_event(span: Span, event_name: str, event_attributes: Optional[list] = None):
@@ -476,8 +646,7 @@ def _span_decorator(name: Optional[str] = None, kind: Optional[str] = None):
         @functools.wraps(func)
         def wrapper(*wargs, **wkwargs):
             span_name = name or func.__name__
-            location = _get_location()
-            with span_raw(span_name, kind=kind, location=location) as s:
+            with _RecordedSpan(span_name, kind=kind) as _s:
                 return func(*wargs, **wkwargs)
 
         return wrapper
@@ -512,8 +681,10 @@ def add_event(name: str, *, attributes: Optional[list] = None):
     ...     add_event("phase")
     ...     add_event("kv", attributes=[{"x": 1}, ("y", 2)])
     """
-    current = current_span()
+    current = active_span_for_events()
     if current is None:
+        current = current_span()
+    if current is None or getattr(current, "is_ended", False):
         raise RuntimeError("No active span in current context. Cannot add event.")
 
     current.add_event(name, attributes=attributes)

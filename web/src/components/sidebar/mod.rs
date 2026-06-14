@@ -102,6 +102,12 @@ pub fn Sidebar() -> Element {
                             is_active: route == Route::TracesPage {},
                         }
                         SidebarNavItem {
+                            to: Route::TrainingPage {},
+                            icon: &icondata::AiRadarChartOutlined,
+                            label: "Training",
+                            is_active: route == Route::TrainingPage {},
+                        }
+                        SidebarNavItem {
                             to: Route::PulsingPage {},
                             icon: &icondata::AiDeploymentUnitOutlined,
                             label: "Pulsing",

@@ -1,7 +1,10 @@
 pub mod config;
 pub mod core;
+pub mod runtime;
 pub mod storage;
 pub mod trace;
+
+pub use runtime::{block_on, register_python_main_thread, run_on_native_thread, CORE_RUNTIME};
 
 use self::core::Engine;
 use self::core::EngineBuilder;

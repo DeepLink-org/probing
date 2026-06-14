@@ -18,8 +18,6 @@ def optimizer_step_post_hook(optimizer, *args, **kwargs):
         from probing.profiling.torch.module_utils import get_toplevel_module
         from probing.profiling.torch_probe import TorchProbe, TorchProbeConfig
 
-        # Get config directly from probing.config
-        # Rust sync_env_settings() converts PROBING_TORCH_PROFILING to probing.torch.profiling
         spec = probing.config.get_str("probing.torch.profiling")
 
         config = TorchProbeConfig.parse(spec)
@@ -53,16 +51,10 @@ def optimizer_step_post_hook(optimizer, *args, **kwargs):
 
 
 def collective_hook():
-    """Initialize collective profiling if enabled."""
-    # Get config directly from probing.config
-    # Rust sync_env_settings() converts PROBING_* env vars to probing.* config keys
-    enable = probing.config.get_str("probing.torch.collective.enable")
-    trace_verbose = probing.config.get_str("probing.torch.collective.verbose")
+    """Autostart low-overhead collective tracing for distributed torch jobs."""
+    from probing.profiling.collective import maybe_start_collective_tracing
 
-    if is_true(enable):
-        from probing.profiling.collective import trace_all_collectives
-
-        trace_all_collectives(verbose=is_true(trace_verbose))
+    maybe_start_collective_tracing()
 
 
 _hook_registered = False

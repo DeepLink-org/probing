@@ -3,38 +3,37 @@ pub mod cluster;
 pub mod cluster_model;
 mod engine;
 mod error;
-pub mod extension;
+pub mod probe_extension;
 pub mod memtable_sql;
-mod plugin;
+mod data_source;
 mod plugin_advanced;
 
 pub use engine::Engine;
 pub use engine::EngineBuilder;
-pub use engine::Plugin;
-pub use engine::PluginType;
+pub use data_source::ProbeDataSource;
+pub use data_source::ProbeDataSourceKind;
 
 pub use error::EngineError;
 pub use error::Result;
 
-pub use plugin::CustomNamespace;
-pub use plugin::CustomNamespaceDataSource;
-pub use plugin::CustomTable;
-pub use plugin::LazyTableSource;
-pub use plugin::NamespacePluginHelper;
-pub use plugin::TablePluginHelper;
+pub use data_source::CustomNamespace;
+pub use data_source::CustomNamespaceDataSource;
+pub use data_source::CustomTable;
+pub use data_source::LazyTableSource;
+pub use data_source::NamespaceProbeDataSource;
+pub use data_source::TableProbeDataSource;
 pub use plugin_advanced::PluginAdvancedTable;
 
-pub use memtable_sql::MemTableExtension;
-pub use memtable_sql::UnifiedMemtablePlugin;
+pub use memtable_sql::MemTableProbeExtension;
+pub use memtable_sql::UnifiedMemtableProbeDataSource;
 
-pub use extension::EngineCall;
-pub use extension::EngineDatasource;
-pub use extension::EngineExtension;
-pub use extension::EngineExtensionManager;
-pub use extension::EngineExtensionOption;
-pub use extension::Maybe;
+pub use probe_extension::ProbeExtensionCall;
+pub use probe_extension::ProbeExtension;
+pub use probe_extension::ProbeExtensionManager;
+pub use probe_extension::ProbeExtensionOption;
+pub use probe_extension::Maybe;
 
-pub use probing_macros::EngineExtension;
+pub use probing_macros::ProbeExtension;
 
 pub use datafusion::arrow::array::ArrayRef;
 pub use datafusion::arrow::array::Float32Array;

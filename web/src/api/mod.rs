@@ -27,11 +27,19 @@ impl ApiClient {
         let url = Self::build_url(path)?;
         let response = reqwest::get(&url).await?;
 
-        if !response.status().is_success() {
-            return Err(AppError::Api(format!("HTTP error: {}", response.status())));
+        let status = response.status();
+        let body = response.text().await.map_err(|e| AppError::Api(e.to_string()))?;
+
+        if !status.is_success() {
+            if let Ok(value) = serde_json::from_str::<serde_json::Value>(&body) {
+                if let Some(err) = value.get("error").and_then(|v| v.as_str()) {
+                    return Err(AppError::Api(err.to_string()));
+                }
+            }
+            return Err(AppError::Api(format!("HTTP error: {status}")));
         }
 
-        response.text().await.map_err(|e| AppError::Api(e.to_string()))
+        Ok(body)
     }
 
     /// Send POST request (custom Content-Type)
@@ -62,7 +70,9 @@ impl ApiClient {
 // Export all API modules
 mod analytics;
 mod cluster;
+mod cpu;
 mod dashboard;
+mod gpu;
 mod profiling;
 mod pulsing;
 mod pytorch;
@@ -70,11 +80,16 @@ mod repl;
 mod stack;
 mod trace;
 mod traces;
+mod training;
 
 #[allow(unused_imports)]
 pub use analytics::*;
 #[allow(unused_imports)]
 pub use cluster::*;
+#[allow(unused_imports)]
+pub use cpu::*;
+#[allow(unused_imports)]
+pub use gpu::*;
 #[allow(unused_imports)]
 pub use dashboard::*;
 #[allow(unused_imports)]
@@ -91,3 +106,5 @@ pub use stack::*;
 pub use trace::*;
 #[allow(unused_imports)]
 pub use traces::*;
+#[allow(unused_imports)]
+pub use training::*;

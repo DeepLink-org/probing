@@ -5,7 +5,9 @@ use html_escape::encode_text;
 use inferno;
 use log::{error, warn};
 
-use crate::extensions::python::PythonPlugin;
+use probing_core::runtime::block_on;
+
+use crate::extensions::python::PythonProbeDataSource;
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct Frame {
@@ -24,12 +26,7 @@ const TORCH_QUERY: &str = r#"
 /// Query torch profiling data. Prefer the global ENGINE (server's engine) so that
 /// when PROBING_TORCH_PROFILING=on the flamegraph uses the same data as the UI.
 fn query_profiling_impl() -> Result<probing_proto::types::DataFrame> {
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .map_err(|e| anyhow::anyhow!("Failed to create runtime: {e}"))?;
-
-    rt.block_on(async {
+    block_on(async {
         let engine = probing_core::ENGINE.read().await;
         let result = engine
             .async_query(TORCH_QUERY)
@@ -55,7 +52,7 @@ pub fn query_profiling() -> Result<Vec<String>> {
             .unwrap()
             .block_on(async {
                 probing_core::create_engine()
-                    .with_plugin(PythonPlugin::create("python"))
+                    .with_data_source(PythonProbeDataSource::create("python"))
                     .build()
                     .await
             })?;

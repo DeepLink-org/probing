@@ -6,7 +6,7 @@ use anyhow::Result;
 
 use log::error;
 use probing_core::core::{
-    ArrayRef, CustomNamespace, DataType, Field, Float64Array, Int64Array, NamespacePluginHelper,
+    ArrayRef, CustomNamespace, DataType, Field, Float64Array, Int64Array, NamespaceProbeDataSource,
     RecordBatch, Schema, SchemaRef, StringArray,
 };
 use probing_proto::prelude::CallFrame;
@@ -338,7 +338,7 @@ impl PythonNamespace {
     }
 }
 
-pub type PythonPlugin = NamespacePluginHelper<PythonNamespace>;
+pub type PythonProbeDataSource = NamespaceProbeDataSource<PythonNamespace>;
 
 #[cfg(test)]
 mod tests {

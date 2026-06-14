@@ -1,23 +1,20 @@
-use probing_core::core::EngineCall;
-use probing_core::core::EngineDatasource;
+use probing_core::core::ProbeExtensionCall;
 use probing_core::core::EngineError;
-use probing_core::core::EngineExtension;
-use probing_core::core::EngineExtensionOption;
+use probing_core::core::ProbeExtension;
+use probing_core::core::ProbeExtensionOption;
 use probing_core::core::Maybe;
 use pyo3::prelude::*;
 
-#[derive(Debug, Default, EngineExtension)]
-pub struct TorchExtension {
+#[derive(Debug, Default, ProbeExtension)]
+pub struct TorchProbeExtension {
     /// Combined PyTorch profiling specification string (see TorchProbeConfig).
     #[option(aliases=["profiling_mode"])]
     profiling: Maybe<String>,
 }
 
-impl EngineCall for TorchExtension {}
+impl ProbeExtensionCall for TorchProbeExtension {}
 
-impl EngineDatasource for TorchExtension {}
-
-impl TorchExtension {
+impl TorchProbeExtension {
     fn set_profiling(&mut self, profiling: Maybe<String>) -> Result<(), EngineError> {
         let py_result = Python::attach(|py| -> pyo3::PyResult<()> {
             let module = py.import("probing.profiling.torch_probe")?;

@@ -5,12 +5,12 @@
 | Layer | URL pattern | Registration |
 |-------|-------------|--------------|
 | **Server public** | `/apis/{resource}` | `server/api/mod.rs` (explicit Axum routes) |
-| **Extension** | `/apis/{ext.name()}/{local_path}` | `@ext_handler` (Python) or `EngineCall` (Rust) |
+| **Extension** | `/apis/{ext.name()}/{local_path}` | `@ext_handler` (Python) or `ProbeExtensionCall` (Rust) |
 | **SQL** | `POST /query` | DataFusion engine (not REST) |
 
-Extension HTTP name comes from `EngineExtension::name()` (struct name lowercased, e.g. `PythonExt` → `pythonext`).
+Extension HTTP name comes from `ProbeExtension::name()` (derived: struct lowercased, with `probeextension` → `extension`, e.g. `RdmaProbeExtension` → `rdmaextension`, `PythonExt` → `pythonext`).
 
-SQL namespace (`with_extension(..., namespace, ...)`) is separate and may differ (e.g. SQL `python.*`, HTTP `pythonext`).
+SQL catalog registration uses [`EngineBuilder::with_data_source`](super::engine::EngineBuilder::with_data_source) and is separate from extension HTTP/SET wiring.
 
 ## Server public API
 
@@ -24,6 +24,23 @@ Registered in `server/api/mod.rs`:
 | POST | `/apis/nodes/sync` | Merge nodes from Pulsing |
 | GET | `/apis/flamegraph/torch` | PyTorch CPU flamegraph (SVG) |
 | GET | `/apis/flamegraph/pprof` | pprof flamegraph (SVG) |
+| GET | `/apis/training/step_matrix` | Cross-rank train.step samples (`cluster=false` default; set `cluster=true` for on-demand fan-out) |
+| POST | `/apis/cluster/query` | On-demand SQL fan-out (`{"expr":"…","cluster":true}`) |
+
+## Cluster query (on-demand fan-out)
+
+Training agents write to **local memtable only**. Cross-node aggregation is explicit:
+
+- **Local** (default): `GET /apis/training/step_matrix?cluster=false` or `POST /apis/cluster/query` with `"cluster": false`
+- **Cluster scan**: `cluster=true` fans out the same SQL to peer nodes from the Pulsing cluster view, merges rows, and tags `_probe_host` / `_probe_addr`
+
+CLI:
+
+```bash
+probing -t host:8080 cluster query "SELECT rank, local_step, duration_ms FROM python.comm_collective LIMIT 20"
+probing -t host:8080 cluster query --local "SELECT * FROM python.comm_collective LIMIT 5"
+probing -t host:8080 cluster nodes
+```
 
 ## Extension API (`pythonext`)
 
@@ -51,7 +68,7 @@ Rust-backed endpoints (`callstack`, `eval`) are thin `@ext_handler` wrappers aro
 
 | Extension | Example path | Notes |
 |-----------|--------------|-------|
-| `rdmaextension` | `POST /apis/rdmaextension/` | Rust `EngineCall`, CLI only |
+| `rdmaextension` | `POST /apis/rdmaextension/` | Rust `ProbeExtensionCall`, CLI only |
 
 ## Top-level (non `/apis`)
 

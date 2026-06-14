@@ -12,16 +12,13 @@ use once_cell::sync::Lazy;
 use tokio::sync::{Mutex, RwLock};
 
 use super::error::EngineError;
-use super::Plugin;
 use crate::config;
 
-/// Global extensions registry.
+/// Global probe extension registry.
 ///
-/// This provides a global storage for all engine extensions, allowing
-/// EngineExtensionManager to operate on a shared set of extensions.
-/// Uses asynchronous `RwLock` and `Mutex` for async access.
-pub static EXTENSIONS: Lazy<
-    RwLock<BTreeMap<String, Arc<Mutex<dyn EngineExtension + Send + Sync>>>>,
+/// Shared storage for [`ProbeExtension`] instances; [`ProbeExtensionManager`] operates on this map.
+pub static PROBE_EXTENSIONS: Lazy<
+    RwLock<BTreeMap<String, Arc<Mutex<dyn ProbeExtension + Send + Sync>>>>,
 > = Lazy::new(|| RwLock::new(BTreeMap::new()));
 
 #[derive(Clone, Debug, Default)]
@@ -79,16 +76,16 @@ impl<T: Display> From<Maybe<T>> for String {
 /// * `key` - The unique identifier for this option
 /// * `value` - The current value of the option, if set
 /// * `help` - Static help text describing the purpose and usage of this option
-pub struct EngineExtensionOption {
+pub struct ProbeExtensionOption {
     pub key: String,
     pub value: Option<String>,
     pub help: &'static str,
 }
 
-/// Extension trait for handling API calls
+/// Extension trait for handling HTTP API calls
 #[allow(unused)]
 #[async_trait]
-pub trait EngineCall: Debug + Send + Sync {
+pub trait ProbeExtensionCall: Debug + Send + Sync {
     /// Handle API calls to the extension
     ///
     /// # Arguments
@@ -109,96 +106,12 @@ pub trait EngineCall: Debug + Send + Sync {
     }
 }
 
-/// Extension trait for providing data sources
+/// Configurable Probing extension: HTTP calls, SET options, and runtime side effects.
+///
+/// SQL catalog registration is separate — use [`ProbeDataSource`] via
+/// [`super::engine::EngineBuilder::with_data_source`].
 #[allow(unused)]
-pub trait EngineDatasource: Debug + Send + Sync {
-    /// Provide a data source plugin implementation
-    ///
-    /// # Arguments
-    /// * `namespace` - The namespace for the data source
-    /// * `name` - Optional name of the specific data source
-    ///
-    /// # Returns
-    /// * `Some(Arc<dyn Plugin>)` - Data source plugin if available
-    /// * `None` - If no matching data source is available
-    fn datasrc(
-        &self,
-        namespace: &str,
-        name: Option<&str>,
-    ) -> Option<Arc<dyn Plugin + Sync + Send>> {
-        None
-    }
-}
-
-/// A trait for engine extensions that can be configured with key-value pairs.
-///
-/// This trait defines the interface for extensions that can be registered with
-/// the [`EngineExtensionManager`] to provide configurable functionality.
-///
-/// # Required Methods
-///
-/// * [`name`] - Returns the unique name of this extension
-/// * [`set`] - Sets a configuration option value
-/// * [`get`] - Retrieves a configuration option value
-/// * [`options`] - Lists all available configuration options
-///
-/// # Examples
-///
-/// ```
-/// use probing_core::core::{EngineExtension, EngineExtensionOption};
-/// use probing_core::core::EngineCall;
-/// use probing_core::core::EngineDatasource;
-/// use probing_core::core::EngineError;
-///
-/// #[derive(Debug)]
-/// struct MyExtension {
-///     some_option: String
-/// }
-///
-/// impl EngineCall for MyExtension {}
-///
-/// impl EngineDatasource for MyExtension {}
-///
-/// impl EngineExtension for MyExtension {
-///     fn name(&self) -> String {
-///         "my_extension".to_string()
-///     }
-///
-///     fn set(&mut self, key: &str, value: &str) -> Result<String, EngineError> {
-///         match key {
-///             "some_option" => {
-///                 let old = self.some_option.clone();
-///                 self.some_option = value.to_string();
-///                 Ok(old)
-///             }
-///             _ => Err(EngineError::UnsupportedOption(key.to_string()))
-///         }
-///     }
-///
-///     fn get(&self, key: &str) -> Result<String, EngineError> {
-///         match key {
-///             "some_option" => Ok(self.some_option.clone()),
-///             _ => Err(EngineError::UnsupportedOption(key.to_string()))
-///         }
-///     }
-///
-///     fn options(&self) -> Vec<EngineExtensionOption> {
-///         vec![
-///             EngineExtensionOption {
-///                 key: "some_option".to_string(),
-///                 value: Some(self.some_option.clone()),
-///                 help: "An example option"
-///             }
-///         ]
-///     }
-/// }
-/// let mut ext = MyExtension { some_option: "default".to_string() };
-/// assert_eq!(ext.name(), "my_extension");
-/// assert_eq!(ext.set("some_option", "new").unwrap(), "default");
-/// assert_eq!(ext.get("some_option").unwrap(), "new");
-/// ```
-#[allow(unused)]
-pub trait EngineExtension: Debug + Send + Sync + EngineCall + EngineDatasource {
+pub trait ProbeExtension: Debug + Send + Sync + ProbeExtensionCall {
     fn name(&self) -> String;
     fn set(&mut self, key: &str, value: &str) -> Result<String, EngineError> {
         todo!()
@@ -206,7 +119,7 @@ pub trait EngineExtension: Debug + Send + Sync + EngineCall + EngineDatasource {
     fn get(&self, key: &str) -> Result<String, EngineError> {
         todo!()
     }
-    fn options(&self) -> Vec<EngineExtensionOption> {
+    fn options(&self) -> Vec<ProbeExtensionOption> {
         todo!()
     }
 }
@@ -216,9 +129,9 @@ pub trait EngineExtension: Debug + Send + Sync + EngineCall + EngineDatasource {
 /// This module provides a flexible extension system that allows for runtime configuration
 /// of engine components through a key-value interface. It consists of three main components:
 ///
-/// - [`EngineExtensionOption`]: Represents a single configuration option with metadata
-/// - [`EngineExtension`]: A trait that must be implemented by configurable extensions
-/// - [`EngineExtensionManager`]: Manages multiple extensions and their configurations
+/// - [`ProbeExtensionOption`]: Represents a single configuration option with metadata
+/// - [`ProbeExtension`]: A trait that must be implemented by configurable extensions
+/// - [`ProbeExtensionManager`]: Manages multiple extensions and their configurations
 ///
 /// The extension system integrates with DataFusion's configuration framework through
 /// implementations of [`ConfigExtension`] and [`ExtensionOptions`].
@@ -228,20 +141,17 @@ pub trait EngineExtension: Debug + Send + Sync + EngineCall + EngineDatasource {
 /// ```rust
 /// use std::sync::Arc;
 /// use tokio::sync::Mutex;
-/// use probing_core::core::EngineExtensionManager;
-/// use probing_core::core::{EngineExtension, EngineExtensionOption, EngineCall, EngineDatasource, EngineError};
+/// use probing_core::core::ProbeExtensionManager;
+/// use probing_core::core::{ProbeExtension, ProbeExtensionOption, ProbeExtensionCall, EngineError};
 ///
 /// #[derive(Debug)]
 /// struct MyExtension {
 ///     some_option: String
 /// }
 ///
-/// // MyExtension needs to implement EngineCall and EngineDatasource.
-/// // These traits have default implementations for their methods if not overridden.
-/// impl EngineCall for MyExtension {}
-/// impl EngineDatasource for MyExtension {}
+/// impl ProbeExtensionCall for MyExtension {}
 ///
-/// impl EngineExtension for MyExtension {
+/// impl ProbeExtension for MyExtension {
 ///     fn name(&self) -> String {
 ///         "my_extension".to_string() // This name is used to form the option namespace
 ///     }
@@ -264,9 +174,9 @@ pub trait EngineExtension: Debug + Send + Sync + EngineCall + EngineDatasource {
 ///         }
 ///     }
 ///
-///     fn options(&self) -> Vec<EngineExtensionOption> {
+///     fn options(&self) -> Vec<ProbeExtensionOption> {
 ///         vec![
-///             EngineExtensionOption {
+///             ProbeExtensionOption {
 ///                 key: "some_option".to_string(), // Local option key
 ///                 value: Some(self.some_option.clone()),
 ///                 help: "An example option"
@@ -277,7 +187,7 @@ pub trait EngineExtension: Debug + Send + Sync + EngineCall + EngineDatasource {
 ///
 /// // This example demonstrates usage within an async context.
 /// # async fn manager_usage_example() -> Result<(), EngineError> {
-///     let mut manager = EngineExtensionManager::default();
+///     let mut manager = ProbeExtensionManager::default();
 ///     // Register extensions. The first argument "my_ext_instance_key" is an internal key for the manager
 ///     // and does not directly affect option key formation for set_option/get_option.
 ///     manager.register(
@@ -312,19 +222,19 @@ pub trait EngineExtension: Debug + Send + Sync + EngineCall + EngineDatasource {
 /// Engine extension manager that operates on the global extensions registry.
 ///
 /// This struct no longer holds extensions directly. Instead, it operates
-/// on the global `EXTENSIONS` registry, allowing multiple instances to
+/// on the global `PROBE_EXTENSIONS` registry, allowing multiple instances to
 /// work with the same set of extensions.
 #[derive(Clone, Debug, Default)]
-pub struct EngineExtensionManager;
+pub struct ProbeExtensionManager;
 
-impl EngineExtensionManager {
+impl ProbeExtensionManager {
     /// Register an extension in the global extensions registry.
     pub async fn register(
         &mut self,
         name: String,
-        extension: Arc<Mutex<dyn EngineExtension + Send + Sync>>,
+        extension: Arc<Mutex<dyn ProbeExtension + Send + Sync>>,
     ) {
-        EXTENSIONS.write().await.insert(name, extension);
+        PROBE_EXTENSIONS.write().await.insert(name, extension);
     }
 
     /// Extract namespace from extension name by removing "extension" suffix and converting to lowercase
@@ -342,7 +252,7 @@ impl EngineExtensionManager {
     /// ConfigStore is not updated by this method.
     pub async fn set_option(&mut self, key: &str, value: &str) -> Result<(), EngineError> {
         let extensions_clone: Vec<_> = {
-            let extensions = EXTENSIONS.read().await;
+            let extensions = PROBE_EXTENSIONS.read().await;
             extensions.values().cloned().collect()
         }; // Lock is released here
 
@@ -394,7 +304,7 @@ impl EngineExtensionManager {
 
     pub async fn get_option(&self, key: &str) -> Result<String, EngineError> {
         let extensions_clone: Vec<_> = {
-            let extensions = EXTENSIONS.read().await;
+            let extensions = PROBE_EXTENSIONS.read().await;
             extensions.values().cloned().collect()
         }; // Lock is released here
 
@@ -417,10 +327,10 @@ impl EngineExtensionManager {
         Err(EngineError::UnsupportedOption(key.to_string()))
     }
 
-    pub async fn options(&self) -> Vec<EngineExtensionOption> {
+    pub async fn options(&self) -> Vec<ProbeExtensionOption> {
         let mut all_options = Vec::new();
         let extensions_clone: Vec<_> = {
-            let extensions = EXTENSIONS.read().await;
+            let extensions = PROBE_EXTENSIONS.read().await;
             extensions.values().cloned().collect()
         }; // Lock is released here
 
@@ -438,7 +348,7 @@ impl EngineExtensionManager {
         body: &[u8],
     ) -> Result<Vec<u8>, EngineError> {
         let extensions_clone: Vec<_> = {
-            let extensions = EXTENSIONS.read().await;
+            let extensions = PROBE_EXTENSIONS.read().await;
             extensions.values().cloned().collect()
         }; // Lock is released here
 
@@ -490,11 +400,11 @@ impl EngineExtensionManager {
     }
 }
 
-impl ConfigExtension for EngineExtensionManager {
+impl ConfigExtension for ProbeExtensionManager {
     const PREFIX: &'static str = "probing";
 }
 
-impl ExtensionOptions for EngineExtensionManager {
+impl ExtensionOptions for ProbeExtensionManager {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -504,8 +414,8 @@ impl ExtensionOptions for EngineExtensionManager {
     }
 
     fn cloned(&self) -> Box<dyn ExtensionOptions> {
-        // EngineExtensionManager is now a zero-sized type, so cloning is trivial
-        Box::new(EngineExtensionManager)
+        // ProbeExtensionManager is now a zero-sized type, so cloning is trivial
+        Box::new(ProbeExtensionManager)
     }
 
     fn set(&mut self, key: &str, value: &str) -> datafusion::error::Result<()> {
@@ -539,14 +449,14 @@ mod tests {
     // Helper to ensure clean state before each test
     async fn setup_test() {
         config::clear().await;
-        EXTENSIONS.write().await.clear();
+        PROBE_EXTENSIONS.write().await.clear();
     }
 
     // Helper to ensure clean state after each test
     async fn teardown_test() {
         config::clear().await;
         // 确保在清空之前所有锁都已释放
-        let mut extensions = EXTENSIONS.write().await;
+        let mut extensions = PROBE_EXTENSIONS.write().await;
         extensions.clear();
         // 显式释放写锁
         drop(extensions);
@@ -565,10 +475,9 @@ mod tests {
         }
     }
 
-    impl EngineCall for TestExtension {}
-    impl EngineDatasource for TestExtension {}
+    impl ProbeExtensionCall for TestExtension {}
 
-    impl EngineExtension for TestExtension {
+    impl ProbeExtension for TestExtension {
         fn name(&self) -> String {
             "test".to_string()
         }
@@ -591,8 +500,8 @@ mod tests {
             }
         }
 
-        fn options(&self) -> Vec<EngineExtensionOption> {
-            vec![EngineExtensionOption {
+        fn options(&self) -> Vec<ProbeExtensionOption> {
+            vec![ProbeExtensionOption {
                 key: "option".to_string(),
                 value: Some(self.test_option.clone()),
                 help: "Test option",
@@ -604,7 +513,7 @@ mod tests {
     async fn test_set_option_syncs_to_config_store() {
         setup_test().await;
 
-        let mut manager = EngineExtensionManager::default();
+        let mut manager = ProbeExtensionManager::default();
         let extension = Arc::new(Mutex::new(TestExtension::default()));
         manager.register("test".to_string(), extension).await;
 
@@ -620,7 +529,7 @@ mod tests {
 
         // Verify extension was updated
         {
-            let extensions = EXTENSIONS.read().await;
+            let extensions = PROBE_EXTENSIONS.read().await;
             let ext_guard = extensions.get("test").unwrap().lock().await;
             let value = ext_guard.get("option").unwrap();
             assert_eq!(value, "new_value");
@@ -636,7 +545,7 @@ mod tests {
         // Pre-populate ConfigStore
         config::set("test.option", "old_value").await;
 
-        let mut manager = EngineExtensionManager::default();
+        let mut manager = ProbeExtensionManager::default();
         let extension = Arc::new(Mutex::new(TestExtension::default()));
         manager.register("test".to_string(), extension).await;
 
@@ -657,7 +566,7 @@ mod tests {
     async fn test_set_option_unsupported_key() {
         setup_test().await;
 
-        let mut manager = EngineExtensionManager::default();
+        let mut manager = ProbeExtensionManager::default();
         let extension = Arc::new(Mutex::new(TestExtension::default()));
         manager.register("test".to_string(), extension).await;
 

@@ -7,12 +7,15 @@ mod spa;
 pub use runtime::SERVER_RUNTIME;
 
 pub mod cluster;
+pub mod cluster_fanout;
+pub mod cluster_query;
 pub mod config;
 pub mod error;
 pub mod file_api;
 pub mod middleware;
 pub mod profiling;
 pub mod system;
+pub mod training;
 
 use crate::server::error::ApiError;
 use anyhow::Result;

@@ -5,14 +5,14 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use probing_core::core::{
-    EngineCall, EngineDatasource, EngineError, EngineExtension, EngineExtensionManager,
+    ProbeExtensionCall, EngineError, ProbeExtension, ProbeExtensionManager,
 };
 
 #[derive(Debug)]
 struct PythonextStub;
 
 #[async_trait]
-impl EngineCall for PythonextStub {
+impl ProbeExtensionCall for PythonextStub {
     async fn call(
         &self,
         path: &str,
@@ -23,8 +23,7 @@ impl EngineCall for PythonextStub {
     }
 }
 
-impl EngineDatasource for PythonextStub {}
-impl EngineExtension for PythonextStub {
+impl ProbeExtension for PythonextStub {
     fn name(&self) -> String {
         "pythonext".to_string()
     }
@@ -37,8 +36,8 @@ fn load_spec() -> serde_json::Value {
     serde_json::from_str(&text).expect("parse api_spec.json")
 }
 
-async fn register_pythonext_stub() -> EngineExtensionManager {
-    let mut manager = EngineExtensionManager::default();
+async fn register_pythonext_stub() -> ProbeExtensionManager {
+    let mut manager = ProbeExtensionManager::default();
     manager
         .register(
             "pythonext".to_string(),

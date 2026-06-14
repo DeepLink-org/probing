@@ -9,7 +9,7 @@ use datafusion::datasource::{
 use datafusion::error::Result;
 use datafusion::prelude::SessionContext;
 
-use probing_core::core::{CustomNamespace, EngineCall, EngineDatasource, NamespacePluginHelper};
+use probing_core::core::{CustomNamespace, NamespaceProbeDataSource};
 
 #[derive(Default, Debug)]
 pub struct FileList {}
@@ -52,27 +52,4 @@ impl CustomNamespace for FileList {
     }
 }
 
-pub type FilesPlugin = NamespacePluginHelper<FileList>;
-
-use probing_core::core::EngineError;
-use probing_core::core::EngineExtension;
-use probing_core::core::EngineExtensionOption;
-
-#[derive(Debug, Default, EngineExtension)]
-pub struct FilesExtension {}
-
-impl EngineCall for FilesExtension {}
-
-#[allow(unused)]
-impl EngineDatasource for FilesExtension {
-    fn datasrc(
-        &self,
-        namespace: &str,
-        name: Option<&str>,
-    ) -> Option<std::sync::Arc<dyn probing_core::core::Plugin + Sync + Send>> {
-        match name {
-            Some(name) => Some(FilesPlugin::create(namespace)),
-            None => None,
-        }
-    }
-}
+pub type FilesProbeDataSource = NamespaceProbeDataSource<FileList>;

@@ -145,6 +145,16 @@ impl ProbeEndpoint {
             QueryDataFormat::TimeSeries(_) => todo!(),
         }
     }
+
+    pub async fn get(&self, url: &str) -> Result<String> {
+        let bytes = request(self.clone(), url, None).await?;
+        Ok(String::from_utf8(bytes)?)
+    }
+
+    pub async fn post_json(&self, url: &str, body: &str) -> Result<String> {
+        let bytes = request(self.clone(), url, Some(body.to_string())).await?;
+        Ok(String::from_utf8(bytes)?)
+    }
 }
 
 pub async fn request(ctrl: ProbeEndpoint, url: &str, body: Option<String>) -> Result<Vec<u8>> {

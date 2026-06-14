@@ -17,6 +17,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use once_cell::sync::Lazy;
+use probing_core::run_on_native_thread;
 use probing_memtable::discover::ExposedTable;
 use probing_memtable::{DType, Schema as MtSchema, Value};
 use probing_proto::prelude::Ele;
@@ -286,6 +287,10 @@ impl std::fmt::Debug for ExternBacking {
 pub static EXTERN_TABLES: Lazy<Mutex<HashMap<String, Arc<Mutex<ExternBacking>>>>> =
     Lazy::new(|| Mutex::new(Default::default()));
 
+fn with_detached_native<R: Send + 'static>(f: impl FnOnce() -> R + Send + 'static) -> R {
+    Python::attach(|py| py.detach(|| run_on_native_thread(f)))
+}
+
 #[pyclass(from_py_object)]
 #[derive(Clone, Debug)]
 pub struct ExternalTable(Arc<Mutex<ExternBacking>>, usize);
@@ -326,26 +331,33 @@ impl ExternalTable {
         discard_strategy: String,
     ) -> Self {
         let _ = chunk_size; // ring chunking is byte-based; kept for API compat
-        let ncolumn = columns.len();
-        let backing = Self::create_backing(name, columns, discard_threshold, &discard_strategy);
-        EXTERN_TABLES
-            .lock()
-            .unwrap()
-            .insert(name.to_string(), backing.clone());
-        ExternalTable(backing, ncolumn)
+        let name = name.to_string();
+        with_detached_native(move || {
+            let ncolumn = columns.len();
+            let backing =
+                Self::create_backing(&name, columns, discard_threshold, &discard_strategy);
+            EXTERN_TABLES
+                .lock()
+                .unwrap()
+                .insert(name, backing.clone());
+            ExternalTable(backing, ncolumn)
+        })
     }
 
     #[classmethod]
     fn get(_cls: &Bound<'_, PyType>, name: &str) -> PyResult<ExternalTable> {
-        let binding = EXTERN_TABLES.lock().unwrap();
-        if let Some(backing) = binding.get(name) {
-            let ncolumn = backing.lock().unwrap().columns.len();
-            Ok(ExternalTable(backing.clone(), ncolumn))
-        } else {
-            Err(pyo3::exceptions::PyValueError::new_err(format!(
-                "table {name} not found"
-            )))
-        }
+        let name = name.to_string();
+        with_detached_native(move || {
+            let binding = EXTERN_TABLES.lock().unwrap();
+            if let Some(backing) = binding.get(&name) {
+                let ncolumn = backing.lock().unwrap().columns.len();
+                Ok(ExternalTable(backing.clone(), ncolumn))
+            } else {
+                Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "table {name} not found"
+                )))
+            }
+        })
     }
 
     #[classmethod]
@@ -359,28 +371,34 @@ impl ExternalTable {
         discard_strategy: String,
     ) -> PyResult<ExternalTable> {
         let _ = chunk_size;
-        let mut binding = EXTERN_TABLES.lock().unwrap();
-        if let Some(backing) = binding.get(name) {
-            let ncolumn = backing.lock().unwrap().columns.len();
-            Ok(ExternalTable(backing.clone(), ncolumn))
-        } else {
-            let ncolumn = columns.len();
-            let backing = Self::create_backing(name, columns, discard_threshold, &discard_strategy);
-            binding.insert(name.to_string(), backing.clone());
-            Ok(ExternalTable(backing, ncolumn))
-        }
+        let name = name.to_string();
+        with_detached_native(move || {
+            let mut binding = EXTERN_TABLES.lock().unwrap();
+            if let Some(backing) = binding.get(&name) {
+                let ncolumn = backing.lock().unwrap().columns.len();
+                Ok(ExternalTable(backing.clone(), ncolumn))
+            } else {
+                let ncolumn = columns.len();
+                let backing =
+                    Self::create_backing(&name, columns, discard_threshold, &discard_strategy);
+                binding.insert(name, backing.clone());
+                Ok(ExternalTable(backing, ncolumn))
+            }
+        })
     }
 
     #[classmethod]
     fn drop(_cls: &Bound<'_, PyType>, name: &str) -> PyResult<()> {
-        // Dropping the backing drops the ExposedTable, which unlinks the
-        // mmap file and removes the table from SQL.
-        let _ = EXTERN_TABLES.lock().unwrap().remove(name);
-        Ok(())
+        let name = name.to_string();
+        with_detached_native(move || {
+            let _ = EXTERN_TABLES.lock().unwrap().remove(&name);
+            Ok(())
+        })
     }
 
     fn names(&self) -> Vec<String> {
-        self.0.lock().unwrap().columns.clone()
+        let backing = self.0.clone();
+        with_detached_native(move || backing.lock().unwrap().columns.clone())
     }
 
     fn append(&mut self, values: Vec<Py<PyAny>>) -> PyResult<()> {
@@ -390,11 +408,14 @@ impl ExternalTable {
             ));
         }
         let eles = Self::extract_eles(values);
-        self.0
-            .lock()
-            .unwrap()
-            .append(now_micros(), &eles)
-            .map_err(pyo3::exceptions::PyValueError::new_err)
+        let backing = self.0.clone();
+        with_detached_native(move || {
+            backing
+                .lock()
+                .unwrap()
+                .append(now_micros(), &eles)
+                .map_err(pyo3::exceptions::PyValueError::new_err)
+        })
     }
 
     fn append_ts(&mut self, t: i64, values: Vec<Py<PyAny>>) -> PyResult<()> {
@@ -404,11 +425,14 @@ impl ExternalTable {
             ));
         }
         let eles = Self::extract_eles(values);
-        self.0
-            .lock()
-            .unwrap()
-            .append(t, &eles)
-            .map_err(pyo3::exceptions::PyValueError::new_err)
+        let backing = self.0.clone();
+        with_detached_native(move || {
+            backing
+                .lock()
+                .unwrap()
+                .append(t, &eles)
+                .map_err(pyo3::exceptions::PyValueError::new_err)
+        })
     }
 
     fn append_many(&mut self, rows: Vec<Vec<Py<PyAny>>>) -> PyResult<()> {
@@ -420,29 +444,32 @@ impl ExternalTable {
 
     #[pyo3(signature = (limit=None))]
     fn take(&self, limit: Option<usize>) -> PyResult<Vec<(Py<PyAny>, Vec<Py<PyAny>>)>> {
-        let rows = self.0.lock().unwrap().take(limit);
-        let result = rows
-            .iter()
-            .map(|(t, vals)| {
-                Python::attach(|py| {
-                    let t = value_to_object(py, t);
-                    let vals = vals
-                        .iter()
-                        .map(|v| value_to_object(py, v))
-                        .collect::<Vec<_>>();
-                    (t, vals)
+        let backing = self.0.clone();
+        with_detached_native(move || {
+            let rows = backing.lock().unwrap().take(limit);
+            let result = rows
+                .iter()
+                .map(|(t, vals)| {
+                    Python::attach(|py| {
+                        let t = value_to_object(py, t);
+                        let vals = vals
+                            .iter()
+                            .map(|v| value_to_object(py, v))
+                            .collect::<Vec<_>>();
+                        (t, vals)
+                    })
                 })
-            })
-            .collect();
-        Ok(result)
+                .collect();
+            Ok(result)
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::extensions::python::PythonPlugin;
-    use probing_core::core::{Engine, UnifiedMemtablePlugin};
+    use crate::extensions::python::PythonProbeDataSource;
+    use probing_core::core::{Engine, UnifiedMemtableProbeDataSource};
     use pyo3::ffi::c_str;
 
     /// Route all mmap files of this test process into one tempdir.
@@ -505,8 +532,8 @@ if not hasattr(probing, "_made_{name}"):
     async fn engine_with_python() -> Engine {
         Engine::builder()
             .with_default_namespace("probe")
-            .with_plugin(PythonPlugin::create("python"))
-            .with_plugin(Arc::new(UnifiedMemtablePlugin))
+            .with_data_source(PythonProbeDataSource::create("python"))
+            .with_data_source(Arc::new(UnifiedMemtableProbeDataSource))
             .build()
             .await
             .unwrap()

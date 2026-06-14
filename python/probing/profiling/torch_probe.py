@@ -5,6 +5,13 @@ from typing import Optional
 
 import probing
 from probing.core import table
+from probing.tracing import (
+    TRAIN_STEP_KIND,
+    current_local_step,
+    module_stage_kind,
+    recorded_span,
+    sync_local_step,
+)
 
 from .torch.module_utils import module_name
 from .types import BaseTracer
@@ -586,6 +593,10 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
         self.enabled = config.enabled
         self.curr_step = 0
         self.pending = []
+        self._open_spans = {}
+        self._train_step_cm = None
+
+        sync_local_step(0)
 
         super().__init__(
             tracepy=config.tracepy,
@@ -595,6 +606,25 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
             exprs=config.exprs,
         )
 
+    def _begin_train_step_span(self) -> None:
+        if self._train_step_cm is not None:
+            return
+        sync_local_step(self.curr_step)
+        self._train_step_cm = recorded_span(
+            "step", kind=TRAIN_STEP_KIND, source="torch_probe"
+        )
+        self._train_step_cm.__enter__()
+
+    def _end_train_step_span(self) -> None:
+        if self._train_step_cm is None:
+            return
+        # Reentrant: outer span (e.g. manual train.step) owns the lifecycle.
+        if getattr(self._train_step_cm, "_reentrant", False):
+            self._train_step_cm = None
+            return
+        self._train_step_cm.__exit__(None, None, None)
+        self._train_step_cm = None
+
     def log_module_stage(self, stage, mod, force=False) -> None:
         if not self.enabled:
             return
@@ -603,17 +633,33 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
             return
 
         record = mem_stats()
-        record.step = self.curr_step
+        record.step = current_local_step()
         record.seq = self.offset()
-        record.module = self.mod_names.get(id(mod), "None")
+        module_name_str = self.mod_names.get(id(mod), "None")
+        record.module = module_name_str
         record.stage = stage
+        mapped_stage = STAGEMAP[stage]
+        span_key = (id(mod), mapped_stage)
+        span_kind = module_stage_kind(stage)
 
         if stage.startswith("pre"):
             record.time_offset = self.begin_timing(mod, stage)
-            # record.save()
+            span_cm = recorded_span(
+                module_name_str,
+                kind=span_kind,
+                module=module_name_str,
+                stage=mapped_stage,
+                seq=record.seq,
+                source="torch_probe",
+            )
+            span_cm.__enter__()
+            self._open_spans[span_key] = span_cm
             self.pending.append(DelayedRecord(record, None))
         else:
             record.time_offset, events = self.end_timing(mod, stage)
+            span_cm = self._open_spans.pop(span_key, None)
+            if span_cm is not None:
+                span_cm.__exit__(None, None, None)
             self.pending.append(DelayedRecord(record, events))
 
     def post_step_hook(self, opt, args, kwargs):
@@ -622,9 +668,14 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
             return
         if not self.finalized:
             self.finalize_discovery()
+            sync_local_step(0)
+            self.curr_step = 0
+            self._begin_train_step_span()
         else:
-            self.curr_step += 1
+            self._end_train_step_span()
             self.next_mod()
+            self._begin_train_step_span()
+            self.curr_step = current_local_step()
 
         # Ensure backend operations are complete before processing traces
         if self.has_backend and self.pending:

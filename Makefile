@@ -10,6 +10,14 @@ else
 	CARGO_FLAGS :=
 endif
 
+# GPU: always compiled in; Linux wheels also enable CUDA (dlopen, no link-time driver).
+ifeq ($(shell uname -s),Linux)
+	MATURIN_GPU_FEATURES := gpu,gpu-cuda
+else
+	MATURIN_GPU_FEATURES := gpu
+endif
+MATURIN_FLAGS += --features $(MATURIN_GPU_FEATURES)
+
 # Frontend framework: dioxus
 
 # OS-specific library extension
@@ -32,6 +40,7 @@ PYTHON ?= python3
 # Pytest runner command
 # Lightweight version without uv
 PYTEST_RUN := PROBING=1 PYTHONPATH=python/ $(PYTHON) -m pytest
+PYTEST_ARGS := tests
 
 # ==============================================================================
 # Standard Targets
@@ -51,6 +60,7 @@ help:
 	@echo "  test            Run all tests (Rust + Python)."
 	@echo "  test-rust       Run Rust tests."
 	@echo "  test-python     Run Python tests."
+	@echo "  test-doctest    Run python/probing module doctests (optional)."
 	@echo "  coverage-rust   Run Rust coverage (cargo llvm-cov)."
 	@echo "  coverage-python Generate Python coverage (pytest-cov)."
 	@echo "  coverage        Run both Rust and Python coverage and aggregate report."
@@ -140,8 +150,12 @@ test-rust:
 .PHONY: test-python
 test-python:
 	@echo "Running pytest for probing package..."
-	# Note: We rely on pyproject.toml/pytest.ini for configuration options like --doctest-modules
-	${PYTEST_RUN} python/probing tests
+	${PYTEST_RUN} $(PYTEST_ARGS)
+
+.PHONY: test-doctest
+test-doctest:
+	@echo "Running module doctests (may require PROBING=0; Rust examples are +SKIP)..."
+	${PYTEST_RUN} --doctest-modules python/probing --ignore=python/probing/cli/__main__.py
 
 .PHONY: pytest
 pytest: test-python
@@ -160,7 +174,7 @@ coverage-python:
 	@echo "Running Python coverage..."
 	# Matches CI workflow step "Run Python tests and collect coverage"
 	# Uses coverage.xml as output to match CI artifact naming
-	${PYTEST_RUN} --cov=python/probing --cov=tests --cov-report=xml:coverage.xml --cov-report=term python/probing tests || echo "Install pytest-cov via: uv add pytest-cov"
+	${PYTEST_RUN} --cov=python/probing --cov=tests --cov-report=xml:coverage.xml --cov-report=term $(PYTEST_ARGS) || echo "Install pytest-cov via: uv add pytest-cov"
 
 .PHONY: coverage
 coverage: coverage-rust coverage-python

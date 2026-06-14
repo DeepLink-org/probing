@@ -2,32 +2,9 @@ use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
 use probing_core::config;
+use probing_core::runtime::block_on;
 
 use crate::features::convert::{ele_to_python, python_to_ele};
-
-/// Helper function to run async config operations from sync Python bindings
-fn block_on_async<F, T>(f: F) -> T
-where
-    F: std::future::Future<Output = T> + Send + 'static,
-    T: Send + 'static,
-{
-    match tokio::runtime::Handle::try_current() {
-        Ok(_handle) => std::thread::spawn(move || {
-            tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .unwrap()
-                .block_on(f)
-        })
-        .join()
-        .unwrap(),
-        Err(_) => tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap()
-            .block_on(f),
-    }
-}
 
 /// Get a configuration value.
 ///
@@ -36,7 +13,7 @@ where
 #[pyfunction(name = "config_get")]
 fn get(py: Python, key: String) -> PyResult<Option<Py<PyAny>>> {
     let key_clone = key.clone();
-    let ele = block_on_async(async move { config::get(&key_clone).await });
+    let ele = py.detach(|| block_on(async move { config::get(&key_clone).await }));
     match ele {
         Some(val) => Ok(Some(ele_to_python(py, &val)?)),
         None => Ok(None),
@@ -47,10 +24,10 @@ fn get(py: Python, key: String) -> PyResult<Option<Py<PyAny>>> {
 ///
 /// Supports str, int, float, bool, and None values.
 #[pyfunction(name = "config_set")]
-fn set(_py: Python, key: String, value: &Bound<'_, PyAny>) -> PyResult<()> {
+fn set(py: Python, key: String, value: &Bound<'_, PyAny>) -> PyResult<()> {
     let ele = python_to_ele(value)?;
     let key_clone = key.clone();
-    block_on_async(async move { config::set(&key_clone, ele).await });
+    py.detach(|| block_on(async move { config::set(&key_clone, ele).await }));
     Ok(())
 }
 
@@ -59,25 +36,23 @@ fn set(_py: Python, key: String, value: &Bound<'_, PyAny>) -> PyResult<()> {
 /// Returns None if the key doesn't exist, otherwise returns the value
 /// converted to string.
 #[pyfunction(name = "config_get_str")]
-fn get_str(_py: Python, key: String) -> PyResult<Option<String>> {
+fn get_str(py: Python, key: String) -> PyResult<Option<String>> {
     let key_clone = key.clone();
-    Ok(block_on_async(
-        async move { config::get_str(&key_clone).await },
-    ))
+    Ok(py.detach(|| block_on(async move { config::get_str(&key_clone).await })))
 }
 
 /// Check if a configuration key exists.
 #[pyfunction(name = "config_contains_key")]
-fn contains_key(_py: Python, key: String) -> bool {
+fn contains_key(py: Python, key: String) -> bool {
     let key_clone = key.clone();
-    block_on_async(async move { config::contains_key(&key_clone).await })
+    py.detach(|| block_on(async move { config::contains_key(&key_clone).await }))
 }
 
 /// Remove a configuration key and return its value.
 #[pyfunction(name = "config_remove")]
 fn remove(py: Python, key: String) -> PyResult<Option<Py<PyAny>>> {
     let key_clone = key.clone();
-    let ele = block_on_async(async move { config::remove(&key_clone).await });
+    let ele = py.detach(|| block_on(async move { config::remove(&key_clone).await }));
     match ele {
         Some(val) => Ok(Some(ele_to_python(py, &val)?)),
         None => Ok(None),
@@ -86,26 +61,26 @@ fn remove(py: Python, key: String) -> PyResult<Option<Py<PyAny>>> {
 
 /// Get all configuration keys.
 #[pyfunction(name = "config_keys")]
-fn keys(_py: Python) -> Vec<String> {
-    block_on_async(config::keys())
+fn keys(py: Python) -> Vec<String> {
+    py.detach(|| block_on(config::keys()))
 }
 
 /// Clear all configuration.
 #[pyfunction(name = "config_clear")]
-fn clear(_py: Python) {
-    block_on_async(config::clear());
+fn clear(py: Python) {
+    py.detach(|| block_on(config::clear()));
 }
 
 /// Get the number of configuration entries.
 #[pyfunction(name = "config_len")]
-fn len(_py: Python) -> usize {
-    block_on_async(config::len())
+fn len(py: Python) -> usize {
+    py.detach(|| block_on(config::len()))
 }
 
 /// Check if the configuration store is empty.
 #[pyfunction(name = "config_is_empty")]
-fn is_empty(_py: Python) -> bool {
-    block_on_async(config::is_empty())
+fn is_empty(py: Python) -> bool {
+    py.detach(|| block_on(config::is_empty()))
 }
 
 /// Register the config functions directly to the probing Python module.

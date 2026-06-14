@@ -18,7 +18,9 @@
     { "method": "PUT", "path": "/apis/nodes" },
     { "method": "POST", "path": "/apis/nodes/sync" },
     { "method": "GET", "path": "/apis/flamegraph/torch" },
-    { "method": "GET", "path": "/apis/flamegraph/pprof" }
+    { "method": "GET", "path": "/apis/flamegraph/pprof" },
+    { "method": "GET", "path": "/apis/training/step_matrix" },
+    { "method": "POST", "path": "/apis/cluster/query" }
   ],
   "top_level": [
     { "method": "POST", "path": "/query" },
@@ -137,7 +139,10 @@
       },
       {
         "source": "web/src/api/cluster.rs",
-        "calls": [{ "method": "GET", "path": "/apis/nodes" }]
+        "calls": [
+          { "method": "GET", "path": "/apis/nodes" },
+          { "method": "POST", "path": "/apis/cluster/query" }
+        ]
       },
       {
         "source": "web/src/components/callstack_view.rs",
@@ -185,11 +190,22 @@
         ]
       },
       {
+        "source": "web/src/api/training.rs",
+        "calls": [{ "method": "GET", "path": "/apis/training/step_matrix" }]
+      },
+      {
         "source": "web/src/api/analytics.rs",
         "calls": [{ "method": "POST", "path": "/query" }]
       }
     ],
     "cli": [
+      {
+        "source": "probing/cli/src/cli/cluster.rs",
+        "calls": [
+          { "method": "GET", "path": "/apis/nodes" },
+          { "method": "POST", "path": "/apis/cluster/query" }
+        ]
+      },
       {
         "source": "probing/cli/src/cli/ctrl.rs",
         "calls": [

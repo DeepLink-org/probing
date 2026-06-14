@@ -1,8 +1,5 @@
 use probing_core::core::cluster;
 use probing_core::core::CustomTable;
-use probing_core::core::EngineCall;
-use probing_core::core::EngineDatasource;
-use probing_core::core::TablePluginHelper;
 
 use probing_core::core::ArrayRef;
 use probing_core::core::DataType;
@@ -10,6 +7,7 @@ use probing_core::core::Field;
 use probing_core::core::RecordBatch;
 use probing_core::core::Schema;
 use probing_core::core::SchemaRef;
+use probing_core::core::TableProbeDataSource;
 use probing_core::core::TimeUnit;
 
 #[derive(Default, Debug)]
@@ -70,26 +68,4 @@ impl CustomTable for ClusterTable {
     }
 }
 
-pub type ClusterPlugin = TablePluginHelper<ClusterTable>;
-
-use probing_core::core::EngineError;
-use probing_core::core::EngineExtension;
-use probing_core::core::EngineExtensionOption;
-
-#[derive(Debug, Default, EngineExtension)]
-pub struct ClusterExtension {}
-
-impl EngineCall for ClusterExtension {}
-
-impl EngineDatasource for ClusterExtension {
-    fn datasrc(
-        &self,
-        namespace: &str,
-        name: Option<&str>,
-    ) -> Option<std::sync::Arc<dyn probing_core::core::Plugin + Sync + Send>> {
-        match name {
-            Some(name) => Some(ClusterPlugin::create(namespace, name)),
-            None => None,
-        }
-    }
-}
+pub type ClusterProbeDataSource = TableProbeDataSource<ClusterTable>;

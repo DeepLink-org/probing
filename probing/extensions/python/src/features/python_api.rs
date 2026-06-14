@@ -1,6 +1,7 @@
 use pyo3::prelude::*;
 
 use probing_cli::cli_main as cli_main_impl;
+use probing_core::runtime::block_on;
 use probing_core::ENGINE;
 
 use crate::features::stack_tracer::{SignalTracer, StackTracer};
@@ -17,26 +18,18 @@ pub fn is_enabled() -> bool {
 }
 
 #[pyfunction]
-pub fn query_json(_py: Python, sql: String) -> PyResult<String> {
-    let result = match tokio::runtime::Handle::try_current() {
-        Ok(_handle) => std::thread::spawn(move || {
-            tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .unwrap_or_else(|e| panic!("Failed to create current-thread runtime: {e}"))
-                .block_on(async { ENGINE.read().await.async_query(sql.as_str()).await })
+pub fn query_json(py: Python, sql: String) -> PyResult<String> {
+    let result = py
+        .detach(|| {
+            block_on(async move {
+                ENGINE
+                    .read()
+                    .await
+                    .async_query(sql.as_str())
+                    .await
+            })
         })
-        .join()
-        .map_err(|_| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Thread panicked"))?
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string())),
-        Err(_) => tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(4)
-            .enable_all()
-            .build()
-            .unwrap_or_else(|e| panic!("Failed to create multi-thread runtime: {e}"))
-            .block_on(async { ENGINE.read().await.async_query(sql.as_str()).await })
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string())),
-    };
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()));
 
     let final_result = result.unwrap_or_default();
     serde_json::to_string(&final_result)

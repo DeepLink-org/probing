@@ -11,6 +11,7 @@ use probing_python::features::tracing;
 use probing_python::features::vm_tracer::{
     _get_python_frames, _get_python_stacks, disable_tracer, enable_tracer, initialize_globals,
 };
+use probing_core::register_python_main_thread;
 use probing_server::sync_env_settings;
 
 use probing_python::pkg::TCPStore;
@@ -182,8 +183,10 @@ fn cleanup() {
 }
 
 /// Python module entry point - exported as probing._core
-#[pymodule]
+#[pymodule(gil_used = true)]
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    register_python_main_thread();
+
     // Initialize logging (try_init to avoid conflicts if already initialized via #[ctor])
     let _ = env_logger::try_init_from_env(env_logger::Env::new().filter(ENV_PROBING_LOGLEVEL));
 

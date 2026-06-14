@@ -5,7 +5,10 @@ use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
 
 use probing_core::trace::Span as RawSpan;
-use probing_core::trace::{attr, Attribute, Event as RawEvent, SpanStatus, Timestamp};
+use probing_core::trace::{
+    advance_local_step, attr, set_step_bucket_size, step_snapshot, sync_local_step, Attribute,
+    Event as RawEvent, SpanStatus, StepSnapshot, Timestamp,
+};
 
 use crate::features::convert::{ele_to_python, python_to_ele};
 
@@ -298,11 +301,21 @@ impl Span {
         _exc_val: Option<&Bound<'_, PyAny>>,
         _exc_tb: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<bool> {
+        let self_id = slf.span_id();
         slf.inner.lock().expect(SPAN_LOCK_POISONED).end();
 
         SPAN_STACK.with(|stack| {
             let mut stack = stack.borrow_mut();
-            stack.pop();
+            if let Some(pos) = stack.iter().rposition(|obj| {
+                Python::attach(|py| {
+                    obj.bind(py)
+                        .cast::<Span>()
+                        .ok()
+                        .is_some_and(|span| span.borrow().span_id() == self_id)
+                })
+            }) {
+                stack.remove(pos);
+            }
         });
 
         Ok(false)
@@ -332,6 +345,92 @@ fn current_span(py: Python) -> PyResult<Option<Py<PyAny>>> {
         let stack = stack.borrow();
         Ok(stack.last().map(|obj| obj.clone_ref(py)))
     })
+}
+
+/// Innermost active (non-ended) span for event attachment.
+#[pyfunction]
+fn active_span_for_events(py: Python) -> PyResult<Option<Py<PyAny>>> {
+    SPAN_STACK.with(|stack| {
+        let stack = stack.borrow();
+        for obj in stack.iter().rev() {
+            let is_active = obj.bind(py).cast::<Span>().ok().is_some_and(|span| {
+                !span.borrow().is_ended()
+            });
+            if is_active {
+                return Ok(Some(obj.clone_ref(py)));
+            }
+        }
+        Ok(None)
+    })
+}
+
+/// Return the innermost active span whose kind matches ``kind`` (or None).
+#[pyfunction]
+fn active_span_by_kind(py: Python, kind: String) -> PyResult<Option<Py<PyAny>>> {
+    SPAN_STACK.with(|stack| {
+        let stack = stack.borrow();
+        for obj in stack.iter().rev() {
+            let bound = obj.bind(py);
+            if let Ok(span) = bound.cast::<Span>() {
+                if span.borrow().kind().as_deref() == Some(kind.as_str()) {
+                    return Ok(Some(obj.clone_ref(py)));
+                }
+            }
+        }
+        Ok(None)
+    })
+}
+
+#[pyclass(from_py_object)]
+#[derive(Clone, Copy)]
+struct PyStepSnapshot {
+    #[pyo3(get)]
+    local_step: u64,
+    #[pyo3(get)]
+    global_step: u64,
+    #[pyo3(get)]
+    bucket_size: u64,
+    #[pyo3(get)]
+    rank: i64,
+    #[pyo3(get)]
+    world_size: i64,
+}
+
+impl From<StepSnapshot> for PyStepSnapshot {
+    fn from(s: StepSnapshot) -> Self {
+        Self {
+            local_step: s.local_step,
+            global_step: s.global_step,
+            bucket_size: s.bucket_size,
+            rank: s.rank,
+            world_size: s.world_size,
+        }
+    }
+}
+
+#[pyfunction]
+fn py_step_snapshot() -> PyStepSnapshot {
+    step_snapshot().into()
+}
+
+#[pyfunction]
+fn py_sync_local_step(step: u64) -> PyStepSnapshot {
+    sync_local_step(step).into()
+}
+
+#[pyfunction]
+fn py_advance_local_step() -> PyStepSnapshot {
+    advance_local_step().into()
+}
+
+#[pyfunction]
+fn py_set_step_bucket_size(bucket: u64) {
+    set_step_bucket_size(bucket);
+}
+
+#[pyfunction]
+fn py_current_local_step() -> u64 {
+    probing_core::trace::current_local_step()
 }
 
 /// Internal function to create a span - called by Python wrapper.
@@ -416,8 +515,16 @@ impl Event {
 pub fn register_tracing_functions(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<Span>()?;
     module.add_class::<Event>()?;
+    module.add_class::<PyStepSnapshot>()?;
     module.add_function(wrap_pyfunction!(_span_raw, module)?)?;
     module.add_function(wrap_pyfunction!(current_span, module)?)?;
+    module.add_function(wrap_pyfunction!(active_span_for_events, module)?)?;
+    module.add_function(wrap_pyfunction!(active_span_by_kind, module)?)?;
+    module.add_function(wrap_pyfunction!(py_step_snapshot, module)?)?;
+    module.add_function(wrap_pyfunction!(py_sync_local_step, module)?)?;
+    module.add_function(wrap_pyfunction!(py_advance_local_step, module)?)?;
+    module.add_function(wrap_pyfunction!(py_set_step_bucket_size, module)?)?;
+    module.add_function(wrap_pyfunction!(py_current_local_step, module)?)?;
 
     Ok(())
 }

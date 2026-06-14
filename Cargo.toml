@@ -9,6 +9,7 @@ members = [
     "probing/core",
     "probing/extensions/cc",
     "probing/extensions/python",
+    "probing/extensions/gpu",
     "probing/server",
     "probing/crates/store",
 ]
@@ -78,7 +79,9 @@ extension-module = [
     "probing-python/extension-module",
     "probing-server/extension-module",
 ]
-default = ["extension-module", "use-mimalloc"]
+gpu = ["probing-server/gpu"]
+gpu-cuda = ["probing-server/gpu-cuda"]
+default = ["extension-module", "use-mimalloc", "gpu"]
 
 [dependencies]
 probing-core = { path = "probing/core" }

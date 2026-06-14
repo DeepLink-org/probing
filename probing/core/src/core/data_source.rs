@@ -1,15 +1,62 @@
+//! Probe data sources: catalog registration adapters for DataFusion.
+//!
+//! A [`ProbeDataSource`] registers tables or namespaces into the engine catalog.
+//! This is distinct from [`super::probe_extension::ProbeExtension`], which provides HTTP
+//! handlers, configuration, and side effects. Register data sources with
+//! [`EngineBuilder::with_data_source`](super::engine::EngineBuilder::with_data_source).
+
 use std::{fmt::Debug, marker::PhantomData, sync::Arc};
 
-use super::Plugin;
+use datafusion::catalog::{CatalogProvider, SchemaProvider, Session, TableProvider};
+use datafusion::error::Result;
+use datafusion::execution::SessionState;
+
+/// Kind of probe data source: single table or entire namespace.
+#[derive(PartialEq, Eq)]
+pub enum ProbeDataSourceKind {
+    /// Single table registered under a namespace.
+    Table,
+    /// Namespace (schema) containing dynamically discovered tables.
+    Namespace,
+}
+
+/// Catalog registration adapter for Probing query engine data sources.
+pub trait ProbeDataSource {
+    fn name(&self) -> String;
+    fn kind(&self) -> ProbeDataSourceKind;
+    fn namespace(&self) -> String;
+
+    #[allow(unused)]
+    fn register_table(
+        &self,
+        namespace: Arc<dyn SchemaProvider>,
+        state: &SessionState,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    #[allow(unused)]
+    fn register_namespace(
+        &self,
+        catalog: Arc<dyn CatalogProvider>,
+        state: &SessionState,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    #[allow(unused)]
+    fn provide_catalog(&self, inner: Arc<dyn CatalogProvider>) -> Option<Arc<dyn CatalogProvider>> {
+        None
+    }
+}
+
 use arrow::datatypes::{DataType, Field, Schema};
 use async_trait::async_trait;
 use datafusion::arrow::array::RecordBatch;
 use datafusion::arrow::datatypes::SchemaRef;
-use datafusion::catalog::{CatalogProvider, SchemaProvider, Session, TableProvider};
 use datafusion::common::Statistics;
 use datafusion::datasource::TableType;
-use datafusion::error::{DataFusionError, Result};
-use datafusion::execution::SessionState;
+use datafusion::error::DataFusionError;
 use datafusion::logical_expr::TableProviderFilterPushDown;
 use datafusion::physical_plan::common::compute_record_batch_statistics;
 use datafusion::physical_plan::ExecutionPlan;
@@ -39,7 +86,7 @@ pub trait CustomTable {
 
 /// Helper struct that bridges a CustomTable implementation with the Plugin system.
 /// Handles registration and integration with DataFusion query engine.
-pub struct TablePluginHelper<T: CustomTable> {
+pub struct TableProbeDataSource<T: CustomTable> {
     /// Name of the table as it will be registered
     name: String,
 
@@ -50,7 +97,7 @@ pub struct TablePluginHelper<T: CustomTable> {
     data: PhantomData<T>,
 }
 
-impl<T: CustomTable> Default for TablePluginHelper<T> {
+impl<T: CustomTable> Default for TableProbeDataSource<T> {
     fn default() -> Self {
         Self {
             name: T::name().to_string(),
@@ -60,11 +107,11 @@ impl<T: CustomTable> Default for TablePluginHelper<T> {
     }
 }
 
-/// Methods for constructing and working with TablePluginHelper instances
+/// Methods for constructing and working with TableProbeDataSource instances
 impl<T: CustomTable + std::default::Default + std::fmt::Debug + Send + Sync + 'static>
-    TablePluginHelper<T>
+    TableProbeDataSource<T>
 {
-    /// Creates a new TablePluginHelper with custom name and namespace
+    /// Creates a new TableProbeDataSource with custom name and namespace
     pub fn new<S: Into<String>>(namespace: S, name: S) -> Self {
         Self {
             name: name.into(),
@@ -73,21 +120,23 @@ impl<T: CustomTable + std::default::Default + std::fmt::Debug + Send + Sync + 's
         }
     }
 
-    /// Factory method that creates a TablePluginHelper wrapped in an Arc
+    /// Factory method that creates a TableProbeDataSource wrapped in an Arc
     /// Returns a trait object that can be used with the plugin system
-    pub fn create<S: Into<String>>(namespace: S, name: S) -> Arc<dyn Plugin + Send + Sync> {
+    pub fn create<S: Into<String>>(namespace: S, name: S) -> Arc<dyn ProbeDataSource + Send + Sync> {
         Arc::new(Self::new(namespace, name))
     }
 }
 
-/// Implementation of the Plugin trait for TablePluginHelper
-impl<T: CustomTable + Default + Debug + Send + Sync + 'static> Plugin for TablePluginHelper<T> {
+/// Implementation of the Plugin trait for TableProbeDataSource
+impl<T: CustomTable + Default + Debug + Send + Sync + 'static> ProbeDataSource
+    for TableProbeDataSource<T>
+{
     fn name(&self) -> String {
         self.name.clone()
     }
 
-    fn kind(&self) -> super::PluginType {
-        super::PluginType::Table
+    fn kind(&self) -> ProbeDataSourceKind {
+        ProbeDataSourceKind::Table
     }
 
     fn namespace(&self) -> String {
@@ -262,7 +311,7 @@ pub trait CustomNamespace: Sync + Send {
 
 /// Helper struct that bridges a CustomNamespace implementation with the Plugin system
 /// Manages registration and integration with DataFusion query engine
-pub struct NamespacePluginHelper<T: CustomNamespace> {
+pub struct NamespaceProbeDataSource<T: CustomNamespace> {
     /// Namespace the schema belongs to
     namespace: String,
 
@@ -270,7 +319,7 @@ pub struct NamespacePluginHelper<T: CustomNamespace> {
     data: PhantomData<T>,
 }
 
-impl<T: CustomNamespace> Default for NamespacePluginHelper<T> {
+impl<T: CustomNamespace> Default for NamespaceProbeDataSource<T> {
     fn default() -> Self {
         Self {
             namespace: "probe".to_string(),
@@ -280,7 +329,7 @@ impl<T: CustomNamespace> Default for NamespacePluginHelper<T> {
 }
 
 impl<T: CustomNamespace + std::default::Default + std::fmt::Debug + Send + Sync + 'static>
-    NamespacePluginHelper<T>
+    NamespaceProbeDataSource<T>
 {
     pub fn new<S: Into<String>>(namespace: S) -> Self {
         Self {
@@ -289,20 +338,20 @@ impl<T: CustomNamespace + std::default::Default + std::fmt::Debug + Send + Sync 
         }
     }
 
-    pub fn create<S: Into<String>>(namespace: S) -> Arc<dyn Plugin + Send + Sync> {
+    pub fn create<S: Into<String>>(namespace: S) -> Arc<dyn ProbeDataSource + Send + Sync> {
         Arc::new(Self::new(namespace))
     }
 }
 
-impl<T: CustomNamespace + Default + Debug + Send + Sync + 'static> Plugin
-    for NamespacePluginHelper<T>
+impl<T: CustomNamespace + Default + Debug + Send + Sync + 'static> ProbeDataSource
+    for NamespaceProbeDataSource<T>
 {
     fn name(&self) -> String {
         self.namespace.clone()
     }
 
-    fn kind(&self) -> super::PluginType {
-        super::PluginType::Namespace
+    fn kind(&self) -> ProbeDataSourceKind {
+        ProbeDataSourceKind::Namespace
     }
 
     fn namespace(&self) -> String {

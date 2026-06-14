@@ -5,10 +5,10 @@ use probing_proto::prelude::{DataFrame, Ele};
 
 use crate::api::ApiClient;
 use crate::components::card::Card;
-use crate::components::colors::colors;
 use crate::components::common::{EmptyState, ErrorState, LoadingState};
 use crate::components::dataframe_view::DataFrameView;
 use crate::components::page::{PageContainer, PageTitle};
+use crate::components::stat_card::StatCard;
 use crate::hooks::use_api;
 
 #[component]
@@ -152,17 +152,6 @@ fn summary_row(
             StatCard { label: "Live Actors", value: count_rows(actors) }
             StatCard { label: "Spans Captured", value: scalar_count(span_count) }
             StatCard { label: "Cluster Members", value: count_rows(members) }
-        }
-    }
-}
-
-#[component]
-fn StatCard(label: &'static str, value: String) -> Element {
-    rsx! {
-        div {
-            class: "bg-white border border-gray-200 rounded-lg px-5 py-4 shadow-sm",
-            p { class: "text-xs font-medium text-gray-500 uppercase tracking-wide", "{label}" }
-            p { class: format!("text-2xl font-bold text-{} mt-1", colors::PRIMARY), "{value}" }
         }
     }
 }

@@ -1,0 +1,71 @@
+use anyhow::Result;
+use probing_proto::prelude::Node;
+
+use crate::cli::ctrl::ProbeEndpoint;
+use crate::table::render_dataframe;
+
+#[derive(clap::Subcommand, Debug, Clone)]
+pub enum ClusterCommand {
+    /// Fan-out SQL across cluster nodes (on-demand; default queries all peers)
+    Query {
+        #[arg()]
+        query: String,
+        /// Query only the connected endpoint (skip cluster fan-out)
+        #[arg(long)]
+        local: bool,
+    },
+    /// List nodes in the cluster view
+    Nodes,
+}
+
+pub async fn run(ctrl: ProbeEndpoint, cmd: ClusterCommand) -> Result<()> {
+    match cmd {
+        ClusterCommand::Query { query, local } => cluster_query(ctrl, &query, !local).await,
+        ClusterCommand::Nodes => cluster_nodes(ctrl).await,
+    }
+}
+
+async fn cluster_query(ctrl: ProbeEndpoint, expr: &str, cluster: bool) -> Result<()> {
+    let body = serde_json::json!({
+        "expr": expr,
+        "cluster": cluster,
+    });
+    let reply = ctrl.post_json("/apis/cluster/query", &body.to_string()).await?;
+    let value: serde_json::Value = serde_json::from_str(&reply)?;
+    if let Some(err) = value.get("error").and_then(|v| v.as_str()) {
+        anyhow::bail!("{err}");
+    }
+    let df = value
+        .get("dataframe")
+        .ok_or_else(|| anyhow::anyhow!("missing dataframe in response"))?;
+    let dataframe: probing_proto::prelude::DataFrame = serde_json::from_value(df.clone())?;
+    if let Some(meta) = value.get("meta") {
+        let nodes = meta.get("nodes_queried").and_then(|v| v.as_u64()).unwrap_or(0);
+        let failed = meta
+            .get("nodes_failed")
+            .and_then(|v| v.as_array())
+            .map(|a| a.len())
+            .unwrap_or(0);
+        eprintln!(
+            "cluster query: cluster={cluster}, nodes_queried={nodes}, nodes_failed={failed}"
+        );
+    }
+    render_dataframe(&dataframe);
+    Ok(())
+}
+
+async fn cluster_nodes(ctrl: ProbeEndpoint) -> Result<()> {
+    let reply = ctrl.get("/apis/nodes").await?;
+    let nodes: Vec<Node> = serde_json::from_str(&reply)?;
+    if nodes.is_empty() {
+        println!("No cluster nodes registered.");
+        return Ok(());
+    }
+    for node in nodes {
+        println!(
+            "{}:{} rank={:?} world_size={:?} status={:?}",
+            node.host, node.addr, node.rank, node.world_size, node.status
+        );
+    }
+    Ok(())
+}

@@ -152,6 +152,7 @@ impl StackTracer for SignalTracer {
         log::debug!("Collecting backtrace for TID: {tid:?}");
 
         let pid = nix::unistd::getpid().as_raw(); // PID of the current process (thread group ID)
+        let tid_param = tid;
         let tid = tid.unwrap_or(pid); // Target thread ID, or current process's PID if tid_param is None (signals the main thread)
 
         let _guard = BACKTRACE_MUTEX.try_lock().map_err(|e| {
@@ -171,17 +172,42 @@ impl StackTracer for SignalTracer {
         log::debug!("Sending SIGUSR2 signal to process {pid} (thread: {tid})");
 
         #[cfg(target_os = "linux")]
-        let ret = unsafe { libc::syscall(libc::SYS_tgkill, pid, tid, libc::SIGUSR2) };
+        {
+            let ret = unsafe { libc::syscall(libc::SYS_tgkill, pid, tid, libc::SIGUSR2) };
+            if ret != 0 {
+                let last_error = std::io::Error::last_os_error();
+                let error_msg = format!(
+                    "Failed to send SIGUSR2 to process {pid} (thread: {tid}): {last_error}"
+                );
+                log::error!("{error_msg}");
+                return Err(anyhow::anyhow!(error_msg));
+            }
+        }
 
         #[cfg(target_os = "macos")]
-        let ret = unsafe { libc::kill(tid, libc::SIGUSR2) };
+        {
+            let signal_result = if tid_param.is_none() || tid == pid {
+                let ret = unsafe { libc::kill(pid, libc::SIGUSR2) };
+                if ret != 0 {
+                    Err(std::io::Error::last_os_error())
+                } else {
+                    Ok(())
+                }
+            } else {
+                probing_cc::extensions::send_sigusr2_to_thread_id(tid)
+            };
+            if let Err(e) = signal_result {
+                let error_msg =
+                    format!("Failed to send SIGUSR2 to process {pid} (thread: {tid}): {e}");
+                log::error!("{error_msg}");
+                return Err(anyhow::anyhow!(error_msg));
+            }
+        }
 
-        if ret != 0 {
-            let last_error = std::io::Error::last_os_error();
-            let error_msg =
-                format!("Failed to send SIGUSR2 to process {pid} (thread: {tid}): {last_error}");
-            log::error!("{error_msg}");
-            return Err(anyhow::anyhow!(error_msg));
+        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+        {
+            let _ = (pid, tid, tid_param);
+            return Err(anyhow::anyhow!("Stack tracing is not supported on this platform"));
         }
 
         let native_frames = rx.recv_timeout(Duration::from_secs(2))?;

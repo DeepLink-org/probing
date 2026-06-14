@@ -7,13 +7,12 @@ edition.workspace = true
 license.workspace = true
 
 [features]
-default = ["kmsg", "taskstats"]
+default = ["kmsg"]
 kmsg = ["dep:rmesg"]
-taskstats = []
 
 [dependencies]
-probing-proto = { path = "../../proto" }
 probing-core = { path = "../../core" }
+probing-memtable = { path = "../../memtable" }
 
 anyhow = { workspace = true }
 log = { workspace = true }
@@ -26,3 +25,7 @@ datafusion = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 procfs = { version = "0.17.0", default-features = false, features = ["chrono"] }
+libc = "0.2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2"

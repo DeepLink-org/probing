@@ -1,82 +1,150 @@
+use std::sync::Arc;
+
 use anyhow::{self, Result};
 use probing_proto::prelude::*;
 
 use crate::extensions as se;
 use probing_cc::extensions as cc;
 use probing_python::extensions as py;
+#[cfg(feature = "gpu")]
+use probing_gpu::extensions as gpu;
+
+use probing_core::config;
 
 use crate::server::error::{ApiError, ApiResult};
 
 pub use probing_core::ENGINE;
+use probing_core::core::UnifiedMemtableProbeDataSource;
+use probing_python::extensions::python::PythonProbeDataSource;
 
 pub async fn initialize_engine() -> Result<()> {
     let builder = probing_core::create_engine()
-        .with_extension(py::PprofExtension::default(), "pprof", None)
-        .with_extension(py::TorchExtension::default(), "torch", None)
-        .with_extension(se::ServerExtension::default(), "server", None)
-        .with_extension(py::PythonExt::default(), "python", None)
-        .with_extension(cc::ClusterExtension::default(), "cluster", Some("nodes"))
-        .with_extension(cc::EnvExtension::default(), "process", Some("envs"))
-        .with_extension(cc::FilesExtension::default(), "files", None)
-        .with_extension(
-            crate::memtable_ext::MemTableExtension::default(),
-            "memtable",
-            None,
-        );
+        .with_data_source(cc::ClusterProbeDataSource::create("cluster", "nodes"))
+        .with_data_source(cc::EnvProbeDataSource::create("process", "envs"))
+        .with_data_source(cc::FilesProbeDataSource::create("files"))
+        .with_extension(py::PprofProbeExtension::default())
+        .with_extension(py::TorchProbeExtension::default())
+        .with_extension(se::ServerProbeExtension::default())
+        .with_extension(py::PythonExt::default())
+        .with_data_source(PythonProbeDataSource::create("python"))
+        .with_extension(crate::memtable_ext::MemTableProbeExtension::default())
+        .with_data_source(Arc::new(UnifiedMemtableProbeDataSource))
+        .with_extension(cc::CpuProbeExtension::default());
+
+    #[cfg(feature = "gpu")]
+    let builder = builder
+        .with_data_source(gpu::GpuDevicesProbeDataSource::create("gpu", "devices"))
+        .with_extension(gpu::GpuProbeExtension::default());
 
     #[cfg(target_os = "linux")]
-    let builder = builder.with_extension(cc::RdmaExtension::default(), "rdma", Some("mlx_hca"));
-
-    #[cfg(target_os = "linux")]
-    let builder = builder.with_extension(cc::TaskStatsExtension::default(), "process", None);
+    let builder = builder
+        .with_extension(cc::RdmaProbeExtension::default())
+        .with_data_source(cc::RdmaProbeDataSource::create("rdma", "mlx_hca"));
 
     let result = probing_core::initialize_engine(builder).await;
     // Opt-in background hot→cold compaction (PROBING_COLD=on / SET memtable.cold_compaction).
     crate::memtable_ext::start_cold_compaction_from_env();
+    if result.is_ok() {
+        cc::start_cpu_sampling_from_env();
+        #[cfg(feature = "gpu")]
+        gpu::start_gpu_sampling_from_env();
+    }
     result
+}
+
+/// Parse `SET key = value` (value may be quoted).
+fn parse_set_assignment(stmt: &str) -> Option<(&str, &str)> {
+    let mut s = stmt.trim();
+    if s.len() >= 3
+        && s.as_bytes()[0].to_ascii_lowercase() == b's'
+        && s.as_bytes()[1].to_ascii_lowercase() == b'e'
+        && s.as_bytes()[2].to_ascii_lowercase() == b't'
+    {
+        s = s[3..].trim_start();
+    } else {
+        return None;
+    }
+    let eq = s.find('=')?;
+    let key = s[..eq].trim();
+    if key.is_empty() {
+        return None;
+    }
+    let mut value = s[eq + 1..].trim();
+    if value.len() >= 2 {
+        let bytes = value.as_bytes();
+        if (bytes[0] == b'\'' && bytes[bytes.len() - 1] == b'\'')
+            || (bytes[0] == b'"' && bytes[bytes.len() - 1] == b'"')
+        {
+            value = &value[1..value.len() - 1];
+        }
+    }
+    Some((key, value))
+}
+
+fn is_set_expr(expr: &str) -> bool {
+    expr.split(';').any(|part| {
+        let p = part.trim();
+        p.len() >= 3
+            && p.as_bytes()[0].to_ascii_lowercase() == b's'
+            && p.as_bytes()[1].to_ascii_lowercase() == b'e'
+            && p.as_bytes()[2].to_ascii_lowercase() == b't'
+    })
+}
+
+/// Route extension SET knobs through `config::write` (`probing.<namespace>.*`).
+async fn execute_set_via_config(key: &str, value: &str) -> Result<()> {
+    let probe_key = if key.starts_with("probing.") {
+        key.to_string()
+    } else {
+        format!("probing.{key}")
+    };
+    config::write(&probe_key, value)
+        .await
+        .map_err(|e| anyhow::anyhow!("{e}"))
 }
 
 pub async fn handle_query(request: Query) -> Result<QueryDataFormat> {
     let Query { expr, opts: _ } = request;
 
-    // No more thread::spawn or block_on needed here.
     // We are already running within the Axum/Tokio runtime.
 
-    // Acquire the engine lock asynchronously
-    let engine = ENGINE.read().await;
-
-    if expr.starts_with("set ") || expr.starts_with("SET ") {
-        // Split potentially multiple SET statements
+    if is_set_expr(&expr) {
         for q in expr.split(';').filter(|s| !s.trim().is_empty()) {
             let trimmed_q = q.trim();
             if trimmed_q.is_empty() {
                 continue;
             }
             log::debug!("Executing SET statement: {trimmed_q}");
-            // Execute the SQL statement asynchronously
-            match engine.sql(trimmed_q).await {
-                Ok(_) => {
-                    log::debug!("Successfully executed: {trimmed_q}");
+            if let Some((key, value)) = parse_set_assignment(trimmed_q) {
+                match execute_set_via_config(key, value).await {
+                    Ok(()) => log::debug!("Successfully configured: {key}={value}"),
+                    Err(e) => {
+                        log::error!("Error executing SET statement '{trimmed_q}': {e}");
+                        return Err(anyhow::anyhow!("Failed SET query '{trimmed_q}': {e}"));
+                    }
                 }
-                Err(e) => {
-                    log::error!("Error executing SET statement '{trimmed_q}': {e}");
-                    return Err(anyhow::anyhow!("Failed SET query '{trimmed_q}': {e}"));
+            } else {
+                let engine = ENGINE.read().await;
+                match engine.sql(trimmed_q).await {
+                    Ok(_) => log::debug!("Successfully executed: {trimmed_q}"),
+                    Err(e) => {
+                        log::error!("Error executing SET statement '{trimmed_q}': {e}");
+                        return Err(anyhow::anyhow!("Failed SET query '{trimmed_q}': {e}"));
+                    }
                 }
-            };
-        }
-        // Return Nil even if some SET statements failed (adjust if needed)
-        Ok(QueryDataFormat::Nil)
-    } else {
-        log::debug!("Executing SELECT query: {expr}");
-        // Use the fully async query method and await it
-        match engine.async_query(&expr).await {
-            Ok(Some(dataframe)) => Ok(QueryDataFormat::DataFrame(dataframe)),
-            Ok(None) => Ok(QueryDataFormat::Nil),
-            Err(e) => {
-                log::error!("Error executing SELECT query '{expr}': {e}");
-                // Convert DataFusionError/EngineError into anyhow::Error
-                Err(e.into())
             }
+        }
+        return Ok(QueryDataFormat::Nil);
+    }
+
+    let engine = ENGINE.read().await;
+    log::debug!("Executing SELECT query: {expr}");
+    match engine.async_query(&expr).await {
+        Ok(Some(dataframe)) => Ok(QueryDataFormat::DataFrame(dataframe)),
+        Ok(None) => Ok(QueryDataFormat::Nil),
+        Err(e) => {
+            log::error!("Error executing SELECT query '{expr}': {e}");
+            Err(e.into())
         }
     }
 }

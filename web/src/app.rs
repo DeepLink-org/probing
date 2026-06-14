@@ -10,6 +10,7 @@ use crate::components::layout::AppLayout;
 use crate::pages::{
     analytics::Analytics, chrome_tracing::ChromeTracing, cluster::Cluster, dashboard::Dashboard,
     profiling::Profiling, pulsing::Pulsing, python::Python, stack::Stack, traces::Traces,
+    training::Training,
 };
 
 /// All routes. Each is rendered inside AppLayout by the corresponding page component below.
@@ -22,6 +23,8 @@ pub enum Route {
     ClusterPage {},
     #[route("/stacks")]
     StackPage {},
+    #[route("/stacks/:tid")]
+    StackWithTidPage { tid: String },
     #[route("/profiling")]
     ProfilingPage {},
     #[route("/analytics")]
@@ -34,6 +37,8 @@ pub enum Route {
     ChromeTracingPage {},
     #[route("/pulsing")]
     PulsingPage {},
+    #[route("/training")]
+    TrainingPage {},
 }
 
 // --- Page route components: each wraps a page in AppLayout ---
@@ -51,6 +56,11 @@ pub fn ClusterPage() -> Element {
 #[component]
 pub fn StackPage() -> Element {
     rsx! { AppLayout { Stack { tid: None } } }
+}
+
+#[component]
+pub fn StackWithTidPage(tid: String) -> Element {
+    rsx! { AppLayout { Stack { tid: Some(tid) } } }
 }
 
 #[component]
@@ -81,6 +91,11 @@ pub fn ChromeTracingPage() -> Element {
 #[component]
 pub fn PulsingPage() -> Element {
     rsx! { AppLayout { Pulsing {} } }
+}
+
+#[component]
+pub fn TrainingPage() -> Element {
+    rsx! { AppLayout { Training {} } }
 }
 
 #[component]

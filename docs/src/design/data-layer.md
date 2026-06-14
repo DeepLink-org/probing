@@ -232,7 +232,7 @@ compactor a single lifecycle home:
 - on startup it calls `prime_from_cold()`; on stop it flushes (seals the open segment).
 
 It is **opt-in** (off by default) to avoid spawning a compaction thread in every forked worker.
-Configuration is applied via the `MemTableExtension` option surface or environment variables; the
+Configuration is applied via the `MemTableProbeExtension` option surface or environment variables; the
 server calls `start_cold_compaction_from_env()` at engine init.
 
 ## SQL Integration

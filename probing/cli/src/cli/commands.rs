@@ -1,6 +1,7 @@
 use clap::{Args, Subcommand};
 
 use super::store::StoreCommand;
+use crate::cli::cluster;
 
 #[derive(Args, Default, Debug)]
 pub struct Settings {
@@ -170,6 +171,10 @@ pub enum Commands {
     /// Access various storage backends
     #[command(subcommand = false, hide = true)]
     Store(StoreCommand),
+
+    /// On-demand cluster SQL fan-out and node listing
+    #[command(subcommand)]
+    Cluster(cluster::ClusterCommand),
 
     /// Stress and benchmark the in-process data layer
     #[command(hide = true)]

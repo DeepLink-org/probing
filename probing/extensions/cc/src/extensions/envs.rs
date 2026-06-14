@@ -3,7 +3,7 @@ use std::sync::Arc;
 use datafusion::arrow::array::{GenericStringBuilder, RecordBatch};
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 
-use probing_core::core::{CustomTable, EngineCall, EngineDatasource, TablePluginHelper};
+use probing_core::core::{CustomTable, TableProbeDataSource};
 
 #[derive(Default, Debug)]
 pub struct EnvTable {}
@@ -42,26 +42,4 @@ impl CustomTable for EnvTable {
     }
 }
 
-pub type EnvPlugin = TablePluginHelper<EnvTable>;
-
-use probing_core::core::EngineError;
-use probing_core::core::EngineExtension;
-use probing_core::core::EngineExtensionOption;
-
-#[derive(Debug, Default, EngineExtension)]
-pub struct EnvExtension {}
-
-impl EngineCall for EnvExtension {}
-
-impl EngineDatasource for EnvExtension {
-    fn datasrc(
-        &self,
-        namespace: &str,
-        name: Option<&str>,
-    ) -> Option<std::sync::Arc<dyn probing_core::core::Plugin + Sync + Send>> {
-        match name {
-            Some(name) => Some(EnvPlugin::create(namespace, name)),
-            None => None,
-        }
-    }
-}
+pub type EnvProbeDataSource = TableProbeDataSource<EnvTable>;

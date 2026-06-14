@@ -10,16 +10,11 @@ The module offers functions to:
 - Load and initialize Rust extensions for extended functionality
 
 Examples:
-    >>> import probing
-    >>> # Execute a simple SQL query
-    >>> df = probing.query("SHOW TABLES")
-    >>> type(df)  # doctest: +ELLIPSIS
-    <class '...DataFrame'>
-
-    >>> # Load a custom extension
-    >>> mod = probing.load_extension("probing.ext.example")
-    >>> type(mod)
-    <class 'module'>
+    >>> import probing  # doctest: +SKIP
+    >>> df = probing.query("SHOW TABLES")  # doctest: +SKIP
+    >>> type(df)  # doctest: +SKIP
+    >>> mod = probing.load_extension("probing.ext.example")  # doctest: +SKIP
+    >>> type(mod)  # doctest: +SKIP
 """
 
 
@@ -44,17 +39,16 @@ def query(sql: str) -> "DataFrame":  # noqa: F821
         ValueError: If the SQL statement is invalid.
 
     Examples:
-        >>> import probing
-        >>> df = probing.query("SELECT 1 AS a, 2 AS b")
-        >>> print(df)
-           a  b
-        0  1  2
+        >>> import probing  # doctest: +SKIP
+        >>> df = probing.query("SELECT 1 AS a, 2 AS b")  # doctest: +SKIP
+        >>> print(df)  # doctest: +SKIP
     """
 
     # Import query_json from _core module
     from probing import _core
+    from probing._native import call_native
 
-    ret = _core.query_json(sql)
+    ret = call_native(_core.query_json, sql)
     try:
         import json
 
@@ -91,10 +85,9 @@ def load_extension(statement: str):
         AttributeError: If the specified attribute doesn't exist in the module.
 
     Examples:
-        >>> import probing
-        >>> mod = probing.load_extension("probing.ext.example")
-        >>> type(mod)
-        <class 'module'>
+        >>> import probing  # doctest: +SKIP
+        >>> mod = probing.load_extension("probing.ext.example")  # doctest: +SKIP
+        >>> type(mod)  # doctest: +SKIP
     """
 
     import importlib

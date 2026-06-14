@@ -3,6 +3,7 @@ use clap::Parser;
 use probing_proto::prelude::Query;
 
 pub mod bench;
+pub mod cluster;
 pub mod commands;
 pub mod ctrl;
 pub mod repl;
@@ -169,6 +170,7 @@ impl Cli {
             }
             Commands::Eval { code } => ctrl.eval(code.clone()).await,
             Commands::Query { query } => ctrl::query(ctrl, Query::new(query.clone())).await,
+            Commands::Cluster(cmd) => cluster::run(ctrl, cmd.clone()).await,
             Commands::Repl => repl::start_repl(ctrl).await,
             // These commands are handled in run() method and don't need a target
             Commands::Launch { .. }

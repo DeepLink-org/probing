@@ -1,4 +1,5 @@
 use dioxus::prelude::*;
+use gloo_timers::callback::Interval;
 use std::future::Future;
 use crate::utils::error::AppError;
 
@@ -58,4 +59,18 @@ where
     });
 
     state
+}
+
+/// Periodic tick signal for polling APIs (e.g. dashboard metrics).
+pub fn use_poll_tick(interval_ms: u32) -> Signal<u32> {
+    let tick = use_signal(|| 0u32);
+    let _interval = use_signal(|| None::<Interval>);
+    use_effect(move || {
+        let mut tick = tick;
+        let mut slot = _interval;
+        slot.set(Some(Interval::new(interval_ms, move || {
+            tick.set(tick() + 1);
+        })));
+    });
+    tick
 }

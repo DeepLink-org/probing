@@ -1,22 +1,19 @@
-use probing_core::core::EngineCall;
-use probing_core::core::EngineDatasource;
+use probing_core::core::ProbeExtensionCall;
 use probing_core::core::EngineError;
-use probing_core::core::EngineExtension;
-use probing_core::core::EngineExtensionOption;
+use probing_core::core::ProbeExtension;
+use probing_core::core::ProbeExtensionOption;
 use probing_core::core::Maybe;
 
-#[derive(Debug, Default, EngineExtension)]
-pub struct PprofExtension {
+#[derive(Debug, Default, ProbeExtension)]
+pub struct PprofProbeExtension {
     /// CPU profiling sample frequency in Hz (higher values increase overhead)
     #[option(aliases=["sample.freq"])]
     sample_freq: Maybe<i32>,
 }
 
-impl EngineCall for PprofExtension {}
+impl ProbeExtensionCall for PprofProbeExtension {}
 
-impl EngineDatasource for PprofExtension {}
-
-impl PprofExtension {
+impl PprofProbeExtension {
     fn set_sample_freq(&mut self, pprof_sample_freq: Maybe<i32>) -> Result<(), EngineError> {
         match self.sample_freq {
             Maybe::Just(_) => Err(EngineError::InvalidOptionValue(
