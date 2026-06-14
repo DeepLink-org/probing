@@ -5,9 +5,51 @@ use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
 
 use probing_core::trace::Span as RawSpan;
-use probing_core::trace::{attr, Event as RawEvent, SpanStatus, Timestamp};
+use probing_core::trace::{attr, Attribute, Event as RawEvent, SpanStatus, Timestamp};
 
 use crate::features::convert::{ele_to_python, python_to_ele};
+
+const SPAN_LOCK_POISONED: &str = "Failed to acquire lock on span (lock poisoned)";
+
+fn parse_py_attributes(py: Python, attributes: Vec<Py<PyAny>>) -> PyResult<Vec<Attribute>> {
+    let mut converted = Vec::new();
+    for attr_obj in attributes {
+        if let Ok(dict) = attr_obj.bind(py).cast::<PyDict>() {
+            for (k, v) in dict.iter() {
+                let key = k.extract::<String>()?;
+                let ele = python_to_ele(&v)?;
+                converted.push(attr(key, ele));
+            }
+        } else if let Ok(list) = attr_obj.bind(py).cast::<PyList>() {
+            if list.len() == 2 {
+                let key = list.get_item(0)?.extract::<String>()?;
+                let value = list.get_item(1)?;
+                let ele = python_to_ele(&value)?;
+                converted.push(attr(key, ele));
+            }
+        }
+    }
+    Ok(converted)
+}
+
+fn attrs_to_dict(py: Python, attrs: &[Attribute]) -> PyResult<Py<PyAny>> {
+    let dict = PyDict::new(py);
+    for attr in attrs {
+        let value = ele_to_python(py, &attr.1)?;
+        dict.set_item(&attr.0, value)?;
+    }
+    Ok(dict.into())
+}
+
+fn optional_into_py<'py, T>(py: Python<'py>, val: Option<T>) -> PyResult<Py<PyAny>>
+where
+    T: IntoPyObjectExt<'py>,
+{
+    match val {
+        Some(v) => Ok(v.into_bound_py_any(py)?.into()),
+        None => Ok(py.None()),
+    }
+}
 
 // Thread-local storage for span context
 thread_local! {
@@ -19,6 +61,16 @@ thread_local! {
 #[derive(Clone)]
 pub struct Span {
     inner: Arc<Mutex<RawSpan>>,
+}
+
+impl Span {
+    fn with_inner<R>(&self, f: impl FnOnce(&RawSpan) -> R) -> R {
+        f(&self.inner.lock().expect(SPAN_LOCK_POISONED))
+    }
+
+    fn with_inner_mut<R>(&mut self, f: impl FnOnce(&mut RawSpan) -> R) -> R {
+        f(&mut self.inner.lock().expect(SPAN_LOCK_POISONED))
+    }
 }
 
 #[pymethods]
@@ -42,13 +94,9 @@ impl Span {
         kind: Option<String>,
         location: Option<String>,
     ) -> Self {
-        let parent_borrowed = parent.borrow();
-        let parent_span = parent_borrowed
-            .inner
-            .lock()
-            .expect("Failed to acquire lock on parent span (lock poisoned)");
-        let span = RawSpan::new_child(&*parent_span, name, kind.as_deref(), location.as_deref());
-        drop(parent_span);
+        let span = parent.borrow().with_inner(|parent_span| {
+            RawSpan::new_child(parent_span, name, kind.as_deref(), location.as_deref())
+        });
         Span {
             inner: Arc::new(Mutex::new(span)),
         }
@@ -57,68 +105,43 @@ impl Span {
     /// Gets the trace ID.
     #[getter]
     fn trace_id(&self) -> u64 {
-        self.inner
-            .lock()
-            .expect("Failed to acquire lock on span (lock poisoned)")
-            .trace_id
+        self.with_inner(|s| s.trace_id)
     }
 
     /// Gets the span ID.
     #[getter]
     fn span_id(&self) -> u64 {
-        self.inner
-            .lock()
-            .expect("Failed to acquire lock on span (lock poisoned)")
-            .span_id
+        self.with_inner(|s| s.span_id)
     }
 
     /// Gets the parent span ID.
     #[getter]
     fn parent_id(&self) -> Option<u64> {
-        self.inner
-            .lock()
-            .expect("Failed to acquire lock on span (lock poisoned)")
-            .parent_id
+        self.with_inner(|s| s.parent_id)
     }
 
     /// Gets the originating thread numeric id.
     #[getter]
     fn thread_id(&self) -> u64 {
-        self.inner
-            .lock()
-            .expect("Failed to acquire lock on span (lock poisoned)")
-            .thread_id
+        self.with_inner(|s| s.thread_id)
     }
 
     /// Gets the span name.
     #[getter]
     fn name(&self) -> String {
-        self.inner
-            .lock()
-            .expect("Failed to acquire lock on span (lock poisoned)")
-            .name
-            .clone()
+        self.with_inner(|s| s.name.clone())
     }
 
     /// Gets the span kind.
     #[getter]
     fn kind(&self) -> Option<String> {
-        self.inner
-            .lock()
-            .expect("Failed to acquire lock on span (lock poisoned)")
-            .kind
-            .clone()
+        self.with_inner(|s| s.kind.clone())
     }
 
     /// Gets the span status.
     #[getter]
     fn status(&self) -> String {
-        match self
-            .inner
-            .lock()
-            .expect("Failed to acquire lock on span (lock poisoned)")
-            .status()
-        {
+        match self.with_inner(|s| s.status()) {
             SpanStatus::Active => "Active".to_string(),
             SpanStatus::Completed => "Completed".to_string(),
         }
@@ -127,54 +150,36 @@ impl Span {
     /// Checks if the span has been ended.
     #[getter]
     fn is_ended(&self) -> bool {
-        self.inner
-            .lock()
-            .expect("Failed to acquire lock on span (lock poisoned)")
-            .is_ended()
+        self.with_inner(|s| s.is_ended())
     }
 
     /// Gets the duration of the span if it has been ended.
     #[getter]
     fn duration(&self) -> Option<f64> {
-        self.inner
-            .lock()
-            .expect("Failed to acquire lock on span (lock poisoned)")
-            .duration()
-            .map(|d| d.as_secs_f64())
+        self.with_inner(|s| s.duration().map(|d| d.as_secs_f64()))
     }
 
     /// Gets the start timestamp (nanoseconds since epoch).
     #[getter]
     fn start_timestamp(&self) -> u128 {
-        self.inner
-            .lock()
-            .expect("Failed to acquire lock on span (lock poisoned)")
-            .start
-            .0
+        self.with_inner(|s| s.start.0)
     }
 
     /// Gets the end timestamp (nanoseconds since epoch) if the span has been ended.
     #[getter]
     fn end_timestamp(&self) -> Option<u128> {
-        self.inner
-            .lock()
-            .expect("Failed to acquire lock on span (lock poisoned)")
-            .end
-            .map(|t| t.0)
+        self.with_inner(|s| s.end.map(|t| t.0))
     }
 
     /// Gets the location from location if available.
     #[getter]
     fn location(&self) -> Option<String> {
-        self.inner
-            .lock()
-            .expect("Failed to acquire lock on span (lock poisoned)")
-            .loc
-            .as_ref()
-            .and_then(|loc| match loc {
+        self.with_inner(|s| {
+            s.loc.as_ref().and_then(|loc| match loc {
                 probing_core::trace::Location::UnknownLocation(path) => Some(path.clone()),
                 probing_core::trace::Location::KnownLocation(_) => None,
             })
+        })
     }
 
     /// Internal method to set initial attributes during span creation.
@@ -185,16 +190,14 @@ impl Span {
             PyErr::new::<pyo3::exceptions::PyTypeError, _>("_set_initial_attrs expects a dict")
         })?;
 
-        let mut inner = self
-            .inner
-            .lock()
-            .expect("Failed to acquire lock on span (lock poisoned)");
-        for (key, value) in attrs_dict.iter() {
-            let key_str = key.extract::<String>()?;
-            let ele = python_to_ele(&value)?;
-            inner.attrs.push(attr(key_str, ele));
-        }
-        Ok(())
+        self.with_inner_mut(|inner| -> PyResult<()> {
+            for (key, value) in attrs_dict.iter() {
+                let key_str = key.extract::<String>()?;
+                let ele = python_to_ele(&value)?;
+                inner.attrs.push(attr(key_str, ele));
+            }
+            Ok(())
+        })
     }
 
     /// Adds an event to the span.
@@ -205,75 +208,34 @@ impl Span {
         attributes: Option<Vec<Py<PyAny>>>,
         py: Python,
     ) -> PyResult<()> {
-        let attrs = if let Some(attrs) = attributes {
-            let mut converted = Vec::new();
-            for attr_obj in attrs {
-                // Try to convert attribute object
-                if let Ok(dict) = attr_obj.bind(py).cast::<PyDict>() {
-                    for (k, v) in dict.iter() {
-                        let key = k.extract::<String>()?;
-                        let ele = python_to_ele(&v)?;
-                        converted.push(attr(key, ele));
-                    }
-                } else if let Ok(list) = attr_obj.bind(py).cast::<PyList>() {
-                    if list.len() == 2 {
-                        let key = list.get_item(0)?.extract::<String>()?;
-                        let value = list.get_item(1)?;
-                        let ele = python_to_ele(&value)?;
-                        converted.push(attr(key, ele));
-                    }
-                }
-            }
-            Some(converted)
-        } else {
-            None
-        };
+        let attrs = attributes
+            .map(|attrs| parse_py_attributes(py, attrs))
+            .transpose()?;
 
-        self.inner
-            .lock()
-            .expect("Failed to acquire lock on span (lock poisoned)")
-            .add_event(name, attrs)
+        self.with_inner_mut(|inner| inner.add_event(name, attrs))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{:?}", e)))?;
         Ok(())
     }
 
     /// Ends the span.
     fn end(&mut self) {
-        self.inner
-            .lock()
-            .expect("Failed to acquire lock on span (lock poisoned)")
-            .end();
+        self.with_inner_mut(|inner| inner.end());
     }
 
     /// Ends the span with an error message.
     fn end_error(&mut self, error_message: Option<String>) {
-        self.inner
-            .lock()
-            .expect("Failed to acquire lock on span (lock poisoned)")
-            .end_error(error_message);
+        self.with_inner_mut(|inner| inner.end_error(error_message));
     }
 
     /// Gets all attributes as a dictionary.
     fn get_attributes(&self, py: Python) -> PyResult<Py<PyAny>> {
-        let dict = PyDict::new(py);
-        let inner = self
-            .inner
-            .lock()
-            .expect("Failed to acquire lock on span (lock poisoned)");
-        for attr in &inner.attrs {
-            let value = ele_to_python(py, &attr.1)?;
-            dict.set_item(&attr.0, value)?;
-        }
-        Ok(dict.into())
+        self.with_inner(|inner| attrs_to_dict(py, &inner.attrs))
     }
 
     /// Gets all events as a list.
     fn get_events(&self, py: Python) -> PyResult<Py<PyAny>> {
         let list = PyList::empty(py);
-        let inner = self
-            .inner
-            .lock()
-            .expect("Failed to acquire lock on span (lock poisoned)");
+        let inner = self.inner.lock().expect(SPAN_LOCK_POISONED);
         for event in &inner.events {
             let event_dict = PyDict::new(py);
             event_dict.set_item("name", &event.name)?;
@@ -294,47 +256,28 @@ impl Span {
         match name {
             "trace_id" => return Ok(self.trace_id().into_bound_py_any(py)?.into()),
             "span_id" => return Ok(self.span_id().into_bound_py_any(py)?.into()),
-            "parent_id" => {
-                if let Some(id) = self.parent_id() {
-                    return Ok(id.into_bound_py_any(py)?.into());
-                } else {
-                    return Ok(py.None());
-                }
-            }
+            "parent_id" => return optional_into_py(py, self.parent_id()),
             "thread_id" => return Ok(self.thread_id().into_bound_py_any(py)?.into()),
             "name" => return Ok(self.name().into_bound_py_any(py)?.into()),
-            "kind" => {
-                if let Some(k) = self.kind() {
-                    return Ok(k.into_bound_py_any(py)?.into());
-                } else {
-                    return Ok(py.None());
-                }
-            }
+            "kind" => return optional_into_py(py, self.kind()),
             "status" => return Ok(self.status().into_bound_py_any(py)?.into()),
             "is_ended" => return Ok(self.is_ended().into_bound_py_any(py)?.into()),
-            "duration" => {
-                if let Some(d) = self.duration() {
-                    return Ok(d.into_bound_py_any(py)?.into());
-                } else {
-                    return Ok(py.None());
-                }
-            }
+            "duration" => return optional_into_py(py, self.duration()),
             _ => {}
         }
 
-        let inner = self
-            .inner
-            .lock()
-            .expect("Failed to acquire lock on span (lock poisoned)");
-        for attr in &inner.attrs {
-            if attr.0 == name {
-                let value = ele_to_python(py, &attr.1)?;
-                return Ok(value);
-            }
+        if let Some(value) = self.with_inner(|inner| {
+            inner
+                .attrs
+                .iter()
+                .find(|attr| attr.0 == name)
+                .map(|attr| attr.1.clone())
+        }) {
+            return ele_to_python(py, &value);
         }
 
         Err(PyErr::new::<pyo3::exceptions::PyAttributeError, _>(
-            format!("'Span' object has no attribute '{}'", name),
+            format!("'Span' object has no attribute '{name}'"),
         ))
     }
 
@@ -355,10 +298,7 @@ impl Span {
         _exc_val: Option<&Bound<'_, PyAny>>,
         _exc_tb: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<bool> {
-        slf.inner
-            .lock()
-            .expect("Failed to acquire lock on span (lock poisoned)")
-            .end();
+        slf.inner.lock().expect(SPAN_LOCK_POISONED).end();
 
         SPAN_STACK.with(|stack| {
             let mut stack = stack.borrow_mut();
@@ -370,20 +310,18 @@ impl Span {
 
     /// Returns a string representation of the span.
     fn __repr__(&self) -> String {
-        let inner = self
-            .inner
-            .lock()
-            .expect("Failed to acquire lock on span (lock poisoned)");
-        format!(
-            "Span(name={}, trace_id={}, span_id={}, status={})",
-            inner.name,
-            inner.trace_id,
-            inner.span_id,
-            match inner.status() {
-                SpanStatus::Active => "Active",
-                SpanStatus::Completed => "Completed",
-            }
-        )
+        self.with_inner(|inner| {
+            format!(
+                "Span(name={}, trace_id={}, span_id={}, status={})",
+                inner.name,
+                inner.trace_id,
+                inner.span_id,
+                match inner.status() {
+                    SpanStatus::Active => "Active",
+                    SpanStatus::Completed => "Completed",
+                }
+            )
+        })
     }
 }
 
@@ -434,28 +372,10 @@ impl Event {
     #[new]
     #[pyo3(signature = (name, *, attributes=None))]
     fn new(name: String, attributes: Option<Vec<Py<PyAny>>>, py: Python) -> PyResult<Self> {
-        let attrs = if let Some(attrs) = attributes {
-            let mut converted = Vec::new();
-            for attr_obj in attrs {
-                if let Ok(dict) = attr_obj.bind(py).cast::<PyDict>() {
-                    for (k, v) in dict.iter() {
-                        let key = k.extract::<String>()?;
-                        let ele = python_to_ele(&v)?;
-                        converted.push(attr(key, ele));
-                    }
-                } else if let Ok(list) = attr_obj.bind(py).cast::<PyList>() {
-                    if list.len() == 2 {
-                        let key = list.get_item(0)?.extract::<String>()?;
-                        let value = list.get_item(1)?;
-                        let ele = python_to_ele(&value)?;
-                        converted.push(attr(key, ele));
-                    }
-                }
-            }
-            converted
-        } else {
-            Vec::new()
-        };
+        let attrs = attributes
+            .map(|attrs| parse_py_attributes(py, attrs))
+            .transpose()?
+            .unwrap_or_default();
 
         let event = RawEvent {
             name,
@@ -481,12 +401,7 @@ impl Event {
 
     /// Gets all attributes as a dictionary.
     fn get_attributes(&self, py: Python) -> PyResult<Py<PyAny>> {
-        let dict = PyDict::new(py);
-        for attr in &self.inner.attributes {
-            let value = ele_to_python(py, &attr.1)?;
-            dict.set_item(&attr.0, value)?;
-        }
-        Ok(dict.into())
+        attrs_to_dict(py, &self.inner.attributes)
     }
 
     /// Returns a string representation of the event.

@@ -23,14 +23,10 @@ use crate::features::stack_tracer::{SignalTracer, StackTracer};
 use crate::python::enable_crash_handler;
 use crate::python::enable_monitoring;
 use crate::python::CRASH_HANDLER;
-use crate::repl::PythonRepl;
 
-/// Define a static Mutex for the backtrace function
 mod exttbls;
-mod stack;
 mod tbls;
 
-pub use stack::get_python_stacks;
 pub use tbls::PythonNamespace;
 
 /// Collection of Python extensions loaded into the system
@@ -70,8 +66,6 @@ pub struct PythonExt {
     /// Disable Python extension by setting `python.disabled=<extension_statement>`
     #[option()]
     disabled: Maybe<String>,
-
-    tracer: Box<dyn StackTracer>,
 }
 
 impl Default for PythonExt {
@@ -81,7 +75,6 @@ impl Default for PythonExt {
             monitoring: Default::default(),
             enabled: Default::default(),
             disabled: Default::default(),
-            tracer: Box::new(SignalTracer),
         }
     }
 }
@@ -102,26 +95,7 @@ impl EngineCall for PythonExt {
         );
 
         let normalized_path = path.trim_start_matches('/');
-
-        // Try Python extension handlers first - router will handle routing automatically
-        if let Ok(result_bytes) = call_python_handler(&normalized_path, params) {
-            // Check if this is a "No handler found" error from Python router
-            if !is_no_handler_found_error(&result_bytes) {
-                return Ok(result_bytes);
-            }
-        }
-
-        // Handle non-Python extension endpoints
-        if normalized_path == "callstack" {
-            return self.handle_callstack(params);
-        }
-        if normalized_path == "eval" {
-            return self.handle_eval(body);
-        }
-        if normalized_path == "flamegraph" {
-            return Ok(crate::features::torch::flamegraph().into_bytes());
-        }
-        Ok("".as_bytes().to_vec())
+        call_python_handler(normalized_path, params, body)
     }
 }
 
@@ -137,58 +111,6 @@ impl EngineDatasource for PythonExt {
 }
 
 impl PythonExt {
-    /// Handle callstack request
-    fn handle_callstack(&self, params: &HashMap<String, String>) -> Result<Vec<u8>, EngineError> {
-        let tid = if params.contains_key("tid") {
-            params
-                .get("tid")
-                .and_then(|s| s.parse::<i32>().ok())
-                .unwrap_or_else(|| {
-                    log::warn!("Invalid tid parameter, using None");
-                    0
-                })
-        } else {
-            0
-        };
-
-        let frames = self
-            .tracer
-            .trace(if tid != 0 { Some(tid) } else { None })
-            .map_err(|e| {
-                log::error!("Failed to get call stack: {e}");
-                EngineError::PluginError(format!("Failed to get call stack: {e}"))
-            })?;
-
-        serde_json::to_vec(&frames).map_err(|e| {
-            log::error!("Failed to serialize call stack: {e}");
-            EngineError::PluginError(format!("Failed to serialize call stack: {e}"))
-        })
-    }
-
-    /// Handle eval request. Catches panics from REPL so a single bad request cannot crash the server.
-    fn handle_eval(&self, body: &[u8]) -> Result<Vec<u8>, EngineError> {
-        let code = String::from_utf8(body.to_vec()).map_err(|e| {
-            log::error!("Failed to convert body to UTF-8 string: {e}");
-            EngineError::PluginError(format!("Failed to convert body to UTF-8 string: {e}"))
-        })?;
-
-        log::debug!("Python eval code: {code}");
-
-        let mut repl = PythonRepl::default();
-        let out =
-            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| repl.process(code.as_str())));
-        match out {
-            Ok(Some(s)) => Ok(s.into_bytes()),
-            Ok(None) => Ok(Vec::new()),
-            Err(_) => {
-                log::error!("Python REPL process panicked; returning error response");
-                Ok(serde_json::json!({"error": "REPL execution panicked"})
-                    .to_string()
-                    .into_bytes())
-            }
-        }
-    }
-
     /// Set up a Python crash handler
     fn set_crash_handler(&mut self, crash_handler: Maybe<String>) -> Result<(), EngineError> {
         match self.crash_handler {
@@ -349,36 +271,11 @@ fn backtrace(tid: Option<i32>) -> Result<Vec<CallFrame>> {
     SignalTracer.trace(tid)
 }
 
-/// Check if the result bytes contain a "No handler found" error from Python router
-fn is_no_handler_found_error(result_bytes: &[u8]) -> bool {
-    let Ok(result_str) = String::from_utf8(result_bytes.to_vec()) else {
-        return false;
-    };
-
-    let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&result_str) else {
-        return false;
-    };
-
-    let Some(error) = parsed.get("error") else {
-        return false;
-    };
-
-    let Some(error_str) = error.as_str() else {
-        return false;
-    };
-
-    error_str.contains("No handler found")
-}
-
-/// Helper to convert String to PyObject
-fn str_to_py(py: Python, s: &str) -> Py<PyAny> {
-    PyString::new(py, s).to_owned().unbind().into()
-}
-
-/// Call Python handler through the router system
+/// Call Python handler through the router system.
 fn call_python_handler(
     path: &str,
     params: &HashMap<String, String>,
+    body: &[u8],
 ) -> Result<Vec<u8>, EngineError> {
     Python::attach(|py| {
         let router_module = py.import("probing.handlers.router").map_err(|e| {
@@ -398,8 +295,17 @@ fn call_python_handler(
                 })?;
         }
 
+        let body_arg = if body.is_empty() {
+            py.None().into()
+        } else {
+            let body_str = std::str::from_utf8(body).map_err(|e| {
+                EngineError::PluginError(format!("Request body is not valid UTF-8: {e}"))
+            })?;
+            str_to_py(py, body_str)
+        };
+
         let result = handle_func
-            .call1((str_to_py(py, path), params_dict))
+            .call1((str_to_py(py, path), params_dict, body_arg))
             .map_err(|e| EngineError::PluginError(format!("Failed to call handle_request: {e}")))?;
 
         let result_str: String = result
@@ -408,6 +314,10 @@ fn call_python_handler(
 
         Ok(result_str.into_bytes())
     })
+}
+
+fn str_to_py(py: Python, s: &str) -> Py<PyAny> {
+    PyString::new(py, s).to_owned().unbind().into()
 }
 
 #[cfg(test)]
@@ -429,33 +339,6 @@ mod tests {
 
         let display = list.to_string();
         assert!(display.contains("ext1") || display.contains("ext2"));
-    }
-
-    #[test]
-    fn test_is_no_handler_found_error() {
-        // Test with "No handler found" error
-        let error_json = r#"{"error": "No handler found for path: test/path"}"#;
-        assert!(is_no_handler_found_error(error_json.as_bytes()));
-
-        // Test with other error
-        let other_error = r#"{"error": "Some other error"}"#;
-        assert!(!is_no_handler_found_error(other_error.as_bytes()));
-
-        // Test with success response
-        let success = r#"{"result": "ok"}"#;
-        assert!(!is_no_handler_found_error(success.as_bytes()));
-
-        // Test with invalid JSON
-        let invalid = b"not json";
-        assert!(!is_no_handler_found_error(invalid));
-
-        // Test with invalid UTF-8
-        let invalid_utf8 = &[0xFF, 0xFE, 0xFD];
-        assert!(!is_no_handler_found_error(invalid_utf8));
-
-        // Test with error field but not a string
-        let error_not_string = r#"{"error": 123}"#;
-        assert!(!is_no_handler_found_error(error_not_string.as_bytes()));
     }
 
     #[test]

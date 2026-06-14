@@ -1,6 +1,6 @@
 use pyo3::ffi::c_str;
 use pyo3::{
-    types::{PyAnyMethods, PyDict},
+    types::{PyDict, PyDictMethods},
     Py, PyAny, Python,
 };
 
@@ -22,9 +22,15 @@ impl Default for NativePythonConsole {
                 return None;
             }
             match global.get_item("debug_console") {
-                Ok(ret) => Some(ret.unbind()),
+                Ok(Some(console)) => Some(console.unbind()),
+                Ok(None) => {
+                    log::warn!("debug_console not found after import; REPL will be unavailable");
+                    None
+                }
                 Err(e) => {
-                    log::warn!("error initializing console (debug_console not found or failed): {e}; REPL will be unavailable");
+                    log::warn!(
+                        "error initializing console (debug_console lookup failed): {e}; REPL will be unavailable"
+                    );
                     None
                 }
             }

@@ -13,6 +13,64 @@ use probing_proto::prelude::CallFrame;
 
 use crate::features::vm_tracer::get_python_stacks_raw;
 
+fn demangle_native_symbol(raw_name: &str) -> String {
+    if let Ok(d) = rustc_demangle::try_demangle(raw_name) {
+        return d.to_string();
+    }
+    // macOS C ABI adds a leading `_` to Rust v0 mangling (`_R...` -> `__R...`).
+    if raw_name.starts_with("__R") {
+        if let Ok(d) = rustc_demangle::try_demangle(&raw_name[1..]) {
+            return d.to_string();
+        }
+    }
+    cpp_demangle::Symbol::new(raw_name)
+        .ok()
+        .and_then(|sym| sym.demangle().ok())
+        .unwrap_or_else(|| raw_name.to_string())
+}
+
+lazy_static! {
+    static ref WHITELISTED_PREFIXES: HashSet<&'static str> = {
+        const PREFIXES: &[&str] = &[
+            "time",
+            "sys",
+            "gc",
+            "os",
+            "unicode",
+            "thread",
+            "stringio",
+            "sre",
+            "PyGilState",
+            "PyThread",
+            "lock",
+        ];
+        PREFIXES.iter().copied().collect()
+    };
+}
+
+#[derive(Copy, Clone)]
+enum MergeType {
+    Ignore,
+    MergeNativeFrame,
+    MergePythonFrame,
+}
+
+fn merge_strategy(frame: &CallFrame) -> MergeType {
+    let symbol = match frame {
+        CallFrame::CFrame { func, .. } => func,
+        CallFrame::PyFrame { func, .. } => func,
+    };
+    let mut tokens = symbol.split(['_', '.']).filter(|s| !s.is_empty());
+    match tokens.next() {
+        Some("PyEval") => match tokens.next() {
+            Some("EvalFrameDefault" | "EvalFrameEx") => MergeType::MergePythonFrame,
+            _ => MergeType::Ignore,
+        },
+        Some(prefix) if WHITELISTED_PREFIXES.contains(prefix) => MergeType::MergeNativeFrame,
+        _ => MergeType::MergeNativeFrame,
+    }
+}
+
 #[async_trait]
 pub trait StackTracer: Send + Sync + std::fmt::Debug {
     fn trace(&self, tid: Option<i32>) -> Result<Vec<CallFrame>>;
@@ -31,12 +89,7 @@ impl SignalTracer {
                 let func_name = symbol
                     .name()
                     .and_then(|name| name.as_str())
-                    .map(|raw_name| {
-                        cpp_demangle::Symbol::new(raw_name)
-                            .ok()
-                            .and_then(|sym| sym.demangle().ok())
-                            .unwrap_or_else(|| raw_name.to_string())
-                    })
+                    .map(demangle_native_symbol)
                     .unwrap_or_else(|| format!("unknown@{symbol_address:p}"));
 
                 let file_name = symbol
@@ -77,58 +130,15 @@ impl SignalTracer {
         let mut merged = vec![];
         let mut python_frame_index = 0;
 
-        enum MergeType {
-            Ignore,
-            MergeNativeFrame,
-            MergePythonFrame,
-        }
-
-        fn get_merge_strategy(frame: &CallFrame) -> MergeType {
-            lazy_static! {
-                static ref WHITELISTED_PREFIXES_SET: HashSet<&'static str> = {
-                    const PREFIXES: &[&str] = &[
-                        "time",
-                        "sys",
-                        "gc",
-                        "os",
-                        "unicode",
-                        "thread",
-                        "stringio",
-                        "sre",
-                        "PyGilState",
-                        "PyThread",
-                        "lock",
-                    ];
-                    PREFIXES.iter().cloned().collect()
-                };
-            }
-            let symbol = match frame {
-                CallFrame::CFrame { func, .. } => func,
-                CallFrame::PyFrame { func, .. } => func,
-            };
-            let mut tokens = symbol.split(['_', '.']).filter(|s| !s.is_empty());
-            match tokens.next() {
-                Some("PyEval") => match tokens.next() {
-                    Some("EvalFrameDefault" | "EvalFrameEx") => MergeType::MergePythonFrame,
-                    _ => MergeType::Ignore,
-                },
-                Some(prefix) if WHITELISTED_PREFIXES_SET.contains(prefix) => {
-                    MergeType::MergeNativeFrame
-                }
-                _ => MergeType::MergeNativeFrame,
-            }
-        }
-
         for frame in native_stacks {
-            // log::debug!("Processing native frame: {:?}", frame);
-            match get_merge_strategy(&frame) {
-                MergeType::Ignore => {} // Do nothing
+            match merge_strategy(&frame) {
+                MergeType::Ignore => {}
                 MergeType::MergeNativeFrame => merged.push(frame),
                 MergeType::MergePythonFrame => {
                     if let Some(py_frame) = python_stacks.get(python_frame_index) {
                         merged.push(py_frame.clone());
                     }
-                    python_frame_index += 1; // Advance index regardless of whether a Python frame was available
+                    python_frame_index += 1;
                 }
             }
         }

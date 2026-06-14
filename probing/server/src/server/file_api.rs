@@ -1,5 +1,5 @@
 use super::config::{get_max_file_size, ALLOWED_FILE_DIRS};
-use super::error::ApiResult;
+use crate::server::error::{ApiError, ApiResult};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -50,12 +50,12 @@ pub async fn read_file(
 ) -> ApiResult<String> {
     let path = params
         .get("path")
-        .ok_or_else(|| anyhow::anyhow!("Missing 'path' parameter"))?;
+        .ok_or_else(|| ApiError::bad_request("Missing 'path' parameter"))?;
 
     // Validate the path
     let safe_path = validate_path(path).map_err(|e| {
         log::warn!("Path validation failed for '{path}': {e}");
-        anyhow::anyhow!("Invalid path: {}", e)
+        ApiError::bad_request(format!("Invalid path: {e}"))
     })?;
 
     // Check file size before reading
@@ -66,7 +66,9 @@ pub async fn read_file(
 
     let max_file_size = get_max_file_size();
     if metadata.len() > max_file_size {
-        return Err(anyhow::anyhow!("File too large (max {} bytes allowed)", max_file_size).into());
+        return Err(ApiError::payload_too_large(format!(
+            "File too large (max {max_file_size} bytes allowed)"
+        )));
     }
 
     // Read file content asynchronously

@@ -138,11 +138,7 @@ pub(crate) fn can_push_filter_exact_for_schema(schema: &SchemaRef, expr: &Expr) 
     if has_unsupported_pushdown_subexpr(expr) {
         return false;
     }
-    let names: HashSet<String> = schema
-        .fields()
-        .iter()
-        .map(|f| f.name().clone())
-        .collect();
+    let names: HashSet<String> = schema.fields().iter().map(|f| f.name().clone()).collect();
     for c in expr.column_refs() {
         if !names.contains(c.name()) {
             return false;
@@ -271,11 +267,8 @@ mod tests {
     }
 
     fn batch_ids(schema: &SchemaRef, values: Vec<i32>) -> Result<RecordBatch> {
-        RecordBatch::try_new(
-            Arc::clone(schema),
-            vec![Arc::new(Int32Array::from(values))],
-        )
-        .map_err(|e| DataFusionError::ArrowError(Box::new(e), None))
+        RecordBatch::try_new(Arc::clone(schema), vec![Arc::new(Int32Array::from(values))])
+            .map_err(|e| DataFusionError::ArrowError(Box::new(e), None))
     }
 
     // --- construction ---
@@ -310,11 +303,7 @@ mod tests {
     #[test]
     fn try_new_partitions_validates_all_batches() {
         let schema = test_schema_id();
-        let wrong = Arc::new(Schema::new(vec![Field::new(
-            "x",
-            DataType::Int32,
-            false,
-        )]));
+        let wrong = Arc::new(Schema::new(vec![Field::new("x", DataType::Int32, false)]));
         let good = batch_ids(&schema, vec![1]).unwrap();
         let bad = batch_ids(&wrong, vec![2]).unwrap();
         let err = PluginAdvancedTable::try_new_partitions(
@@ -331,7 +320,8 @@ mod tests {
         let schema = test_schema_id();
         let p0 = batch_ids(&schema, vec![1, 2])?;
         let p1 = batch_ids(&schema, vec![3])?;
-        let t = PluginAdvancedTable::try_new_partitions("m", schema.clone(), vec![vec![p0], vec![p1]])?;
+        let t =
+            PluginAdvancedTable::try_new_partitions("m", schema.clone(), vec![vec![p0], vec![p1]])?;
         let s = t.statistics().expect("stats");
         assert_eq!(s.num_rows, Precision::Exact(3));
         Ok(())
@@ -481,11 +471,7 @@ mod tests {
         let out = &batches[0];
         assert_eq!(out.num_columns(), 1);
         assert_eq!(out.schema().field(0).name(), "b");
-        let arr = out
-            .column(0)
-            .as_any()
-            .downcast_ref::<Int64Array>()
-            .unwrap();
+        let arr = out.column(0).as_any().downcast_ref::<Int64Array>().unwrap();
         assert_eq!(arr.len(), 2);
         assert_eq!(arr.value(0), 20);
         assert_eq!(arr.value(1), 30);
@@ -522,7 +508,11 @@ mod tests {
     #[test]
     fn table_provider_as_any_and_table_type() -> Result<()> {
         let schema = test_schema_id();
-        let t = PluginAdvancedTable::try_new("t", schema, vec![batch_ids(&test_schema_id(), vec![1])?])?;
+        let t = PluginAdvancedTable::try_new(
+            "t",
+            schema,
+            vec![batch_ids(&test_schema_id(), vec![1])?],
+        )?;
         assert!(t.as_any().downcast_ref::<PluginAdvancedTable>().is_some());
         assert_eq!(t.table_type(), TableType::Base);
         Ok(())
@@ -531,7 +521,11 @@ mod tests {
     #[tokio::test]
     async fn table_provider_supports_filters_pushdown_delegates() -> Result<()> {
         let schema = test_schema_id();
-        let t = PluginAdvancedTable::try_new("t", schema, vec![batch_ids(&test_schema_id(), vec![1])?])?;
+        let t = PluginAdvancedTable::try_new(
+            "t",
+            schema,
+            vec![batch_ids(&test_schema_id(), vec![1])?],
+        )?;
         let f = col("id").gt(lit(0i32));
         let v = t.supports_filters_pushdown(&[&f])?;
         assert_eq!(v, vec![TableProviderFilterPushDown::Exact]);
@@ -540,16 +534,16 @@ mod tests {
 
     #[tokio::test]
     async fn filter_and_limit_pushdown_scan() -> Result<()> {
-        let schema = Arc::new(Schema::new(vec![Field::new(
-            "id",
-            DataType::Int32,
-            false,
-        )]));
+        let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
         let batch = RecordBatch::try_new(
             Arc::clone(&schema),
             vec![Arc::new(Int32Array::from(vec![1, 2, 3, 4, 5]))],
         )?;
-        let table = Arc::new(PluginAdvancedTable::try_new("t", Arc::clone(&schema), vec![batch])?);
+        let table = Arc::new(PluginAdvancedTable::try_new(
+            "t",
+            Arc::clone(&schema),
+            vec![batch],
+        )?);
         let ctx = SessionContext::new();
         ctx.register_table("t", table)?;
         let df = ctx.sql("SELECT id FROM t WHERE id > 2 LIMIT 2").await?;
@@ -568,11 +562,7 @@ mod tests {
 
     #[tokio::test]
     async fn statistics_reports_row_count() -> Result<()> {
-        let schema = Arc::new(Schema::new(vec![Field::new(
-            "id",
-            DataType::Int32,
-            false,
-        )]));
+        let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
         let batch = RecordBatch::try_new(
             Arc::clone(&schema),
             vec![Arc::new(Int32Array::from(vec![10, 20]))],

@@ -10,51 +10,12 @@ import traceback
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 # Global router state
-_handlers: Dict[str, Dict[str, Any]] = (
-    {}
-)  # path -> {function, required_params, param_types}
-_path_mappings: Dict[str, str] = {}  # alias -> canonical path
+_handlers: Dict[str, Dict[str, Any]] = {}
 
 
 def _normalize_path(path: str) -> str:
-    """Normalize path by removing leading slashes and resolving aliases.
-
-    >>> # Clean up and set up test data
-    >>> _handlers.clear()
-    >>> _path_mappings.clear()
-    >>> _handlers["test/path"] = {"function": lambda: None, "required_params": [], "param_types": {}}
-    >>> _path_mappings["test/alias"] = "test/path"
-    >>>
-    >>> # Test direct match
-    >>> _normalize_path("test/path")
-    'test/path'
-    >>>
-    >>> # Test alias resolution
-    >>> _normalize_path("test/alias")
-    'test/path'
-    >>>
-    >>> # Test leading slash removal
-    >>> _normalize_path("/test/path")
-    'test/path'
-    >>>
-    >>> # Test unknown path returns normalized
-    >>> _normalize_path("unknown/path")
-    'unknown/path'
-    """
-    normalized = path.strip("/")
-
-    if normalized in _handlers:
-        return normalized
-
-    if normalized in _path_mappings:
-        return _path_mappings[normalized]
-
-    # Check for suffix match
-    for canonical_path in _handlers:
-        if normalized.endswith(canonical_path) or canonical_path.endswith(normalized):
-            return canonical_path
-
-    return normalized
+    """Normalize path by removing leading slashes."""
+    return path.strip("/")
 
 
 def _parse_param(value: str, param_type: str) -> Any:
@@ -170,12 +131,15 @@ def _parse_params(
     return parsed, None
 
 
-def handle_request(path: str, params: Dict[str, str]) -> str:
+def handle_request(
+    path: str, params: Dict[str, str], body: Optional[str] = None
+) -> str:
     """Handle a request using the global router.
 
     Args:
         path: Request path
         params: Query parameters as string dictionary
+        body: Optional POST body (for ``uses_body`` handlers)
 
     Returns:
         JSON string response
@@ -183,7 +147,6 @@ def handle_request(path: str, params: Dict[str, str]) -> str:
     Example:
         >>> # Clean up and register a test handler
         >>> _handlers.clear()
-        >>> _path_mappings.clear()
         >>> @ext_handler("test", "test/example")
         ... def test_handler(name: str, age: int) -> str:
         ...     return json.dumps({"name": name, "age": age})
@@ -219,13 +182,18 @@ def handle_request(path: str, params: Dict[str, str]) -> str:
             )
 
         handler_info = _handlers[normalized_path]
-        parsed_params, error = _parse_params(params, handler_info)
-
-        if error:
-            return json.dumps({"error": error})
-
         try:
-            result = handler_info["function"](**parsed_params)
+            if handler_info.get("uses_body"):
+                if body is None or body == "":
+                    return json.dumps({"error": "Missing request body"})
+                result = handler_info["function"](body)
+            else:
+                parsed_params, error = _parse_params(params, handler_info)
+
+                if error:
+                    return json.dumps({"error": error})
+
+                result = handler_info["function"](**parsed_params)
             return result if isinstance(result, str) else json.dumps(result)
         except Exception as e:
             return json.dumps(
@@ -365,68 +333,28 @@ def _infer_required_params(func: Callable) -> List[str]:
 
 def ext_handler(
     ext_name: str,
-    paths: Union[str, List[str]],
+    path: str,
     required_params: Optional[List[str]] = None,
+    uses_body: bool = False,
 ):
-    """Decorator for registering extension handlers.
+    """Decorator for registering extension handlers (single canonical path).
 
     Usage:
         @ext_handler("pythonext", "trace/list")
         def list_trace(prefix: Optional[str] = None) -> str:
             ...
 
-        @ext_handler("pythonext", ["ray/timeline", "python/ray/timeline"])
-        def get_ray_timeline(...) -> str:
-            ...
-
     Args:
         ext_name: Extension name (e.g., "pythonext")
-        paths: Single path string or list of equivalent paths
+        path: Canonical local path (e.g., "trace/list")
         required_params: List of required parameter names (auto-inferred if not provided)
-
-    Example:
-        >>> # Clean up and register a simple handler
-        >>> _handlers.clear()
-        >>> _path_mappings.clear()
-        >>> @ext_handler("test", "test/simple")
-        ... def simple_handler() -> str:
-        ...     return json.dumps({"result": "ok"})
-        >>>
-        >>> # Check it's registered
-        >>> "test/simple" in _handlers
-        True
-        >>>
-        >>> # Register with path aliases
-        >>> @ext_handler("test", ["test/main", "test/alt"])
-        ... def aliased_handler() -> str:
-        ...     return json.dumps({"result": "aliased"})
-        >>>
-        >>> # Check aliases are registered
-        >>> "test/main" in _handlers
-        True
-        >>> "test/alt" in _path_mappings
-        True
-        >>> _path_mappings["test/alt"]
-        'test/main'
-        >>>
-        >>> # Register with required params
-        >>> @ext_handler("test", "test/required", required_params=["id"])
-        ... def required_handler(id: str) -> str:
-        ...     return json.dumps({"id": id})
-        >>>
-        >>> handler_info = _handlers["test/required"]
-        >>> "id" in handler_info["required_params"]
-        True
+        uses_body: When True, invoke handler with POST body as sole argument
     """
 
     def decorator(func: Callable) -> Callable:
-        path_list = [paths] if isinstance(paths, str) else paths
-
-        if not path_list:
-            raise ValueError("At least one path must be provided")
-
-        canonical_path = path_list[0]
-        path_aliases = path_list[1:] if len(path_list) > 1 else []
+        canonical_path = path.strip("/")
+        if not canonical_path:
+            raise ValueError("Handler path must not be empty")
 
         # Auto-infer parameter types and required params
         param_types = _infer_param_types(func)
@@ -437,11 +365,9 @@ def ext_handler(
             "function": func,
             "required_params": required,
             "param_types": param_types,
+            "uses_body": uses_body,
+            "ext_name": ext_name,
         }
-
-        # Register aliases
-        for alias in path_aliases:
-            _path_mappings[alias] = canonical_path
 
         return func
 

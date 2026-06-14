@@ -163,11 +163,7 @@ impl ColdStore {
     /// Either limit may be `None` to disable it. The newest segment is
     /// never evicted (it may be the one currently being appended). Returns
     /// the paths removed.
-    pub fn enforce_limits(
-        &self,
-        max_bytes: Option<u64>,
-        ttl: Option<Duration>,
-    ) -> Vec<PathBuf> {
+    pub fn enforce_limits(&self, max_bytes: Option<u64>, ttl: Option<Duration>) -> Vec<PathBuf> {
         let mut paths = self.segment_paths();
         if paths.len() <= 1 {
             return Vec::new();

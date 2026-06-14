@@ -165,7 +165,11 @@ impl RowGen {
         match self.spec.kind {
             SchemaKind::Metrics => {
                 let v = (self.next() % 1_000_000) as f64 * 0.001;
-                vec![Value::I64(ts), Value::F64(v), Value::U32((self.next() % 1024) as u32)]
+                vec![
+                    Value::I64(ts),
+                    Value::F64(v),
+                    Value::U32((self.next() % 1024) as u32),
+                ]
             }
             SchemaKind::Wide => {
                 scratch.clear();

@@ -228,10 +228,7 @@ impl ExternBacking {
         row.extend(owned.iter().map(owned_to_value));
 
         // ExposedTable::push_row validates schema and auto-advances chunks.
-        self.table
-            .as_mut()
-            .expect("ensured above")
-            .push_row(&row);
+        self.table.as_mut().expect("ensured above").push_row(&row);
         Ok(())
     }
 
@@ -259,7 +256,9 @@ impl ExternBacking {
                         DType::U64 => Ele::DataTime(cursor.next_u64()),
                         DType::U32 => Ele::I64(cursor.next_u32() as i64),
                         DType::Str => Ele::Text(cursor.next_str().to_string()),
-                        DType::Bytes => Ele::Text(String::from_utf8_lossy(cursor.next_bytes()).to_string()),
+                        DType::Bytes => {
+                            Ele::Text(String::from_utf8_lossy(cursor.next_bytes()).to_string())
+                        }
                     })
                     .collect();
                 out.push((ts, vals));
@@ -366,8 +365,7 @@ impl ExternalTable {
             Ok(ExternalTable(backing.clone(), ncolumn))
         } else {
             let ncolumn = columns.len();
-            let backing =
-                Self::create_backing(name, columns, discard_threshold, &discard_strategy);
+            let backing = Self::create_backing(name, columns, discard_threshold, &discard_strategy);
             binding.insert(name.to_string(), backing.clone());
             Ok(ExternalTable(backing, ncolumn))
         }

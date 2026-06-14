@@ -1,86 +1,59 @@
-mod apis;
+pub mod api;
 mod query_dto;
 mod repl;
+mod runtime;
+mod spa;
+
+pub use runtime::SERVER_RUNTIME;
 
 pub mod cluster;
 pub mod config;
 pub mod error;
-pub mod extension_handler;
 pub mod file_api;
-
 pub mod middleware;
 pub mod profiling;
 pub mod system;
 
+use crate::server::error::ApiError;
 use anyhow::Result;
-use apis::apis_route;
-use log::error;
-use once_cell::sync::Lazy;
-
-use crate::asset::{index, static_files};
-use crate::engine::{handle_query, initialize_engine};
-use crate::server::repl::ws_handler;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use middleware::{request_logging_middleware, request_size_limit_middleware};
+use log::error;
+
+use crate::asset::static_files;
+use crate::engine::{handle_query, initialize_engine};
+use crate::server::middleware::{request_logging_middleware, request_size_limit_middleware};
+use crate::server::repl::ws_handler;
 use probing_proto::prelude::Query;
+
+/// Top-level routes outside `/apis`. Keep in sync with `tests/spec/api_spec.json`.
+pub const TOP_LEVEL_ROUTES: &[(&str, &str)] = &[
+    ("POST", "/query"),
+    ("POST", "/query/dto"),
+    ("GET", "/config/{config_key}"),
+    ("GET", "/ws"),
+];
 
 async fn get_config_value_handler(
     axum::extract::Path(config_key): axum::extract::Path<String>,
 ) -> impl IntoResponse {
     match probing_core::config::get_str(&config_key).await {
         Some(value) => (StatusCode::OK, value).into_response(),
-        None => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Error retrieving config '{config_key}' not found"),
-        )
-            .into_response(),
+        None => ApiError::not_found(format!("Config key '{config_key}' not found")).into_response(),
     }
 }
 
-pub static SERVER_RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
-    let worker_threads = std::env::var("PROBING_SERVER_WORKER_THREADS")
-        .unwrap_or("4".to_string())
-        .parse::<usize>()
-        .unwrap_or(4);
-    tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .worker_threads(worker_threads)
-        .thread_name("server runtime")
-        .on_thread_start(|| {
-            log::debug!(
-                "start server runtime thread: {:?}",
-                std::thread::current().id()
-            );
-        })
-        .build()
-        .unwrap_or_else(|e| panic!("Failed to create server runtime: {e}"))
-});
-
 fn build_app(auth: bool) -> axum::Router {
-    let mut app = axum::Router::new()
-        .route("/", axum::routing::get(index))
-        .route("/overview", axum::routing::get(index))
-        .route("/cluster", axum::routing::get(index))
-        .route("/stacks", axum::routing::get(index))
-        .route("/profiling", axum::routing::get(index))
-        .route("/analytics", axum::routing::get(index))
-        .route("/python", axum::routing::get(index))
-        .route("/traces", axum::routing::get(index))
-        .route("/chrome-tracing", axum::routing::get(index))
-        .route("/pulsing", axum::routing::get(index))
-        .route("/index.html", axum::routing::get(index))
+    let mut app = spa::routes()
         .route("/query", axum::routing::post(query))
         .route("/query/dto", axum::routing::post(query_dto::query_dto))
         .route(
             "/config/{config_key}",
             axum::routing::get(get_config_value_handler),
         )
-        .nest_service("/apis", apis_route())
+        .nest("/apis", api::router())
         .route("/ws", axum::routing::get(ws_handler))
-        .fallback(static_files)
-        .layer(axum::middleware::from_fn(request_size_limit_middleware))
-        .layer(axum::middleware::from_fn(request_logging_middleware));
+        .fallback(static_files);
 
     if auth {
         app = app.layer(axum::middleware::from_fn(
@@ -88,10 +61,10 @@ fn build_app(auth: bool) -> axum::Router {
         ));
     }
 
-    app
+    app.layer(axum::middleware::from_fn(request_logging_middleware))
+        .layer(axum::middleware::from_fn(request_size_limit_middleware))
 }
 
-/// HTTP handler wrapper for query endpoint
 async fn query(body: String) -> impl IntoResponse {
     match crate::engine::query(body).await {
         Ok(response) => (StatusCode::OK, response).into_response(),
@@ -107,7 +80,6 @@ pub async fn local_server() -> Result<()> {
         let pid = std::process::id();
         let temp_dir = std::env::temp_dir();
         let path = temp_dir.join(format!("probing-{}.sock", pid));
-        // Clean up old socket file if it exists
         if path.exists() {
             let _ = std::fs::remove_file(&path);
         }
@@ -179,7 +151,6 @@ pub fn start_remote(addr: Option<String>) {
     spawn_pulsing_sync();
 }
 
-/// Spawn the Pulsing → probing cluster sync background task.
 fn spawn_pulsing_sync() {
     let interval_secs = std::env::var("PROBING_PULSING_SYNC_INTERVAL")
         .ok()
@@ -191,7 +162,6 @@ fn spawn_pulsing_sync() {
 }
 
 pub fn sync_env_settings() {
-    // Collect environment variables before spawning the async task
     let env_vars: Vec<(String, String)> = std::env::vars()
         .filter(|(k, _)| {
             k.starts_with("PROBING_")
@@ -200,34 +170,61 @@ pub fn sync_env_settings() {
                     "PROBING_LOGLEVEL",
                     "PROBING_ASSETS_ROOT",
                     "PROBING_SERVER_ADDRPATTERN",
-                    "PROBING_AUTH_TOKEN", // Skip syncing the auth token for security reasons
-                    "PROBING_BASE_PATH",  // Used by server at startup, not a runtime setting
+                    "PROBING_AUTH_TOKEN",
+                    "PROBING_BASE_PATH",
                 ]
                 .contains(&k.as_str())
         })
         .collect();
 
-    // Spawn the task onto the existing Tokio runtime
     SERVER_RUNTIME.spawn(async move {
         for (k, v) in env_vars {
             let k = k.replace("_", ".").to_lowercase();
             let setting = format!("set {k}={v}");
-            // Since handle_query might not be async itself, but interacts with
-            // components managed by the runtime, it's safer to run it within
-            // the runtime's context. If handle_query becomes async, add .await
             match handle_query(Query {
                 expr: setting,
                 opts: None,
             })
             .await
             {
-                Ok(_) => {
-                    log::debug!("Synced env setting: {k}");
-                }
-                Err(err) => {
-                    error!("Failed to sync env settings: set {k}={v}, {err}");
-                }
+                Ok(_) => log::debug!("Synced env setting: {k}"),
+                Err(err) => error!("Failed to sync env settings: set {k}={v}, {err}"),
             };
         }
     });
+}
+
+#[cfg(test)]
+mod spec_tests {
+    use super::TOP_LEVEL_ROUTES;
+
+    fn load_spec() -> serde_json::Value {
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/spec/api_spec.json");
+        let text = std::fs::read_to_string(path).expect("read api_spec.json");
+        serde_json::from_str(&text).expect("parse api_spec.json")
+    }
+
+    #[test]
+    fn top_level_routes_match_api_spec() {
+        let spec = load_spec();
+        let expected: Vec<(String, String)> = spec["top_level"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|entry| {
+                (
+                    entry["method"].as_str().unwrap().to_string(),
+                    entry["path"].as_str().unwrap().to_string(),
+                )
+            })
+            .collect();
+
+        let actual: Vec<(String, String)> = TOP_LEVEL_ROUTES
+            .iter()
+            .map(|(m, p)| (m.to_string(), p.to_string()))
+            .collect();
+
+        assert_eq!(actual, expected);
+    }
 }

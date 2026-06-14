@@ -9,9 +9,9 @@ use std::time::Instant;
 use anyhow::Result;
 use probing_memtable::{DType, MemTable};
 
+use super::common::{populate, scan_all};
 use crate::cli::bench::args::ScanArgs;
 use crate::cli::bench::metrics::Report;
-use super::common::{populate, scan_all};
 
 pub fn run(args: &ScanArgs, json: bool, seed: u64) -> Result<()> {
     let spec = args.schema.spec();

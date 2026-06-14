@@ -34,7 +34,6 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use once_cell::sync::Lazy;
 use datafusion::arrow::array::{
     ArrayRef, BinaryArray, BinaryBuilder, Float32Array, Float32Builder, Float64Array,
     Float64Builder, GenericStringBuilder, Int32Array, Int32Builder, Int64Array, Int64Builder,
@@ -51,9 +50,12 @@ use datafusion::error::Result as DfResult;
 use datafusion::logical_expr::{Expr, Operator, TableProviderFilterPushDown};
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::scalar::ScalarValue;
+use once_cell::sync::Lazy;
 
 use probing_memtable::discover::{default_dir, MappedFile};
-use probing_memtable::memc::{ColdStats, ColdStore, ColumnData, Compactor, CompactorConfig, SegmentReader};
+use probing_memtable::memc::{
+    ColdStats, ColdStore, ColumnData, Compactor, CompactorConfig, SegmentReader,
+};
 use probing_memtable::{detect_table, DType, MemTableView, MemhView, TableKind, TypedValue};
 
 use super::plugin_advanced::{scan_memory_partitions, supports_filters_pushdown_for_schema};
@@ -1606,11 +1608,7 @@ mod tests {
         let got: Vec<i32> = batches
             .iter()
             .flat_map(|b| {
-                let a = b
-                    .column(0)
-                    .as_any()
-                    .downcast_ref::<Int32Array>()
-                    .unwrap();
+                let a = b.column(0).as_any().downcast_ref::<Int32Array>().unwrap();
                 (0..a.len()).map(|i| a.value(i)).collect::<Vec<_>>()
             })
             .collect();
@@ -1984,11 +1982,7 @@ mod tests {
 
         // Static (inner) provider with one table
         let inner = Arc::new(MemorySchemaProvider::new());
-        let static_schema = Arc::new(Schema::new(vec![Field::new(
-            "x",
-            DataType::Int64,
-            false,
-        )]));
+        let static_schema = Arc::new(Schema::new(vec![Field::new("x", DataType::Int64, false)]));
         let static_batch = RecordBatch::try_new(
             static_schema.clone(),
             vec![Arc::new(Int64Array::from(vec![42i64]))],
@@ -2003,9 +1997,13 @@ mod tests {
 
         // Mmap table in schema "python"
         let mt_schema = MtSchema::new().col("v", DType::I64);
-        let mut ring =
-            ExposedTable::create(&mmap_filename_for("python", "extern_tbl"), &mt_schema, 4096, 2)
-                .unwrap();
+        let mut ring = ExposedTable::create(
+            &mmap_filename_for("python", "extern_tbl"),
+            &mt_schema,
+            4096,
+            2,
+        )
+        .unwrap();
         ring.push_row(&[Value::I64(7)]);
 
         let merged = MmapFileSchemaProvider::with_inner("python", Some(inner.clone() as _));

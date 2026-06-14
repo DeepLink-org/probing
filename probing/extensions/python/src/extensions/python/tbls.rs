@@ -5,7 +5,6 @@ use std::sync::Arc;
 use anyhow::Result;
 
 use log::error;
-use probing_core::core::LazyTableSource;
 use probing_core::core::{
     ArrayRef, CustomNamespace, DataType, Field, Float64Array, Int64Array, NamespacePluginHelper,
     RecordBatch, Schema, SchemaRef, StringArray,
@@ -159,7 +158,6 @@ impl PythonNamespace {
             Self::object_to_recordbatch(result)
         })
     }
-
 }
 
 impl CustomNamespace for PythonNamespace {
@@ -192,34 +190,6 @@ impl CustomNamespace for PythonNamespace {
                 }
             }
         }
-    }
-
-    fn make_lazy(expr: &str) -> Arc<LazyTableSource> {
-        if expr == "backtrace" {
-            let data = Self::get_backtrace_data().unwrap_or_default();
-            let schema = if data.is_empty() {
-                None
-            } else {
-                Some(data[0].schema().clone())
-            };
-            return Arc::new(LazyTableSource {
-                name: expr.to_string(),
-                schema,
-                data,
-            });
-        }
-
-        let data: Vec<RecordBatch> = Self::data_from_python(expr).unwrap_or_default();
-        let schema = if data.is_empty() {
-            None
-        } else {
-            Some(data[0].schema().clone())
-        };
-        Arc::new(LazyTableSource {
-            name: expr.to_string(),
-            schema,
-            data,
-        })
     }
 }
 

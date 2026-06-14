@@ -148,15 +148,7 @@ impl<T: CustomTable + Default + Debug + Send + Sync + 'static> TableProvider
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let batches = T::data();
         let partitions = vec![batches];
-        scan_memory_partitions(
-            state,
-            T::schema(),
-            &partitions,
-            projection,
-            filters,
-            limit,
-        )
-        .await
+        scan_memory_partitions(state, T::schema(), &partitions, projection, filters, limit).await
     }
 }
 
@@ -222,15 +214,7 @@ impl TableProvider for LazyTableSource {
         }
         let schema = data[0].schema();
         let partitions = vec![self.data.clone()];
-        scan_memory_partitions(
-            state,
-            schema,
-            &partitions,
-            projection,
-            filters,
-            limit,
-        )
-        .await
+        scan_memory_partitions(state, schema, &partitions, projection, filters, limit).await
     }
 }
 
@@ -245,21 +229,23 @@ pub trait CustomNamespace: Sync + Send {
     /// Returns a list of available table names in this namespace
     fn list() -> Vec<String>;
 
-    /// Generates data for a specific table expression
-    /// Default implementation returns empty data
+    /// Generates data for a specific table expression.
+    /// Override this in namespace implementations; [`Self::make_lazy`] materializes it.
     fn data(expr: &str) -> Vec<RecordBatch> {
         vec![]
     }
 
-    /// Creates a LazyTableSource for this namespace with the given expression
+    /// Creates a [`LazyTableSource`] by calling [`Self::data`] and inferring schema from batches.
     fn make_lazy(expr: &str) -> Arc<LazyTableSource>
     where
         Self: Sized,
     {
+        let data = Self::data(expr);
+        let schema = data.first().map(|batch| batch.schema());
         Arc::new(LazyTableSource {
             name: expr.to_string(),
-            schema: None,
-            data: Default::default(),
+            schema,
+            data,
         })
     }
 
@@ -269,11 +255,6 @@ pub trait CustomNamespace: Sync + Send {
     where
         Self: Default + Debug + Send + Sync + Sized + 'static,
     {
-        // let lazy = Arc::new(LazyTableSource::<Self> {
-        //     name: expr.clone(),
-        //     schema: None,
-        //     data: Default::default(),
-        // });
         let lazy = Self::make_lazy(expr.as_str());
         Ok(Some(lazy))
     }

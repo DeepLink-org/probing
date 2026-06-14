@@ -204,7 +204,6 @@ pub(crate) fn push_plain_row(buf: &mut [u8], values: &[Value]) {
     }
 }
 
-
 const MAX_DEDUP_COLS: usize = 64;
 
 fn append_row_dedup_bytes(buf: &mut [u8], state: &mut DedupState, values: &[Value]) -> bool {
@@ -391,14 +390,16 @@ impl MemTable {
         let mut buf = vec![0u8; size];
         init_buf(&mut buf, schema, chunk_size, num_chunks);
         Self {
-            backing: Backing::Heap(buf),        }
+            backing: Backing::Heap(buf),
+        }
     }
 
     /// Adopt an existing heap buffer (validates the MEMT layout).
     pub fn from_buf(buf: Vec<u8>) -> Result<Self, &'static str> {
         validate_buf(&buf)?;
         Ok(Self {
-            backing: Backing::Heap(buf),        })
+            backing: Backing::Heap(buf),
+        })
     }
 
     // ── POSIX shared memory (memory-only) ────────────────────────────
@@ -427,7 +428,8 @@ impl MemTable {
                 mmap,
                 name: cname.into_string().expect("validated utf-8"),
                 unlink_on_drop: true,
-            },        })
+            },
+        })
     }
 
     /// Attach to an existing POSIX shared-memory table created by
@@ -446,7 +448,8 @@ impl MemTable {
                 mmap,
                 name: cname.into_string().expect("validated utf-8"),
                 unlink_on_drop: false,
-            },        })
+            },
+        })
     }
 
     // ── mmap'd file (disk-backed, persistent) ────────────────────────
@@ -485,7 +488,8 @@ impl MemTable {
                 path,
                 dir: None,
                 unlink_on_drop: false,
-            },        })
+            },
+        })
     }
 
     /// Reopen an existing mmap'd-file table read-write (validates the
@@ -503,7 +507,8 @@ impl MemTable {
                 path,
                 dir: None,
                 unlink_on_drop: false,
-            },        })
+            },
+        })
     }
 
     // ── discoverable file (data-dir convention) ──────────────────────
@@ -563,7 +568,8 @@ impl MemTable {
                 path,
                 dir: Some(dir),
                 unlink_on_drop: true,
-            },        })
+            },
+        })
     }
 
     // ── backing introspection ─────────────────────────────────────────
@@ -1242,7 +1248,10 @@ mod tests {
     fn display_format() {
         let schema = Schema::new().col("a", DType::I32);
         let t = MemTable::new(&schema, 1024, 2);
-        assert_eq!(format!("{t}"), "MemTable(heap, 1 cols, 2 chunks × 1024 bytes)");
+        assert_eq!(
+            format!("{t}"),
+            "MemTable(heap, 1 cols, 2 chunks × 1024 bytes)"
+        );
     }
 
     #[test]
@@ -1762,7 +1771,9 @@ mod tests {
     #[test]
     fn ts_col_detection() {
         let t = MemTable::new(
-            &Schema::new().col("v", DType::F64).col("timestamp", DType::I64),
+            &Schema::new()
+                .col("v", DType::F64)
+                .col("timestamp", DType::I64),
             1024,
             1,
         );
@@ -1795,7 +1806,11 @@ mod tests {
         assert_eq!(t.chunk_ts_range(1), None);
         t.push_row(&[Value::I64(1000), Value::I32(4)]);
         assert_eq!(t.chunk_ts_range(1), Some((1000, 1000)));
-        assert_eq!(t.chunk_ts_range(0), Some((100, 900)), "old chunk keeps range");
+        assert_eq!(
+            t.chunk_ts_range(0),
+            Some((100, 900)),
+            "old chunk keeps range"
+        );
     }
 
     #[test]
@@ -1815,7 +1830,9 @@ mod tests {
 
     #[test]
     fn row_writer_maintains_ts_range() {
-        let schema = Schema::new().col("timestamp", DType::I64).col("m", DType::Str);
+        let schema = Schema::new()
+            .col("timestamp", DType::I64)
+            .col("m", DType::Str);
         let mut t = MemTable::new(&schema, 4096, 1);
         t.row_writer().put_i64(300).put_str("a").finish();
         t.row_writer().put_i64(100).put_str("b").finish();

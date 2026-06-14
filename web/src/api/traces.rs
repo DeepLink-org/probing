@@ -508,7 +508,7 @@ impl ApiClient {
             format!("?{}", query_params.join("&"))
         };
 
-        let path = format!("/apis/python/ray/timeline{}", query_string);
+        let path = format!("/apis/pythonext/ray/timeline{}", query_string);
         let response = self.get_request(&path).await?;
         Self::parse_json(&response)
     }
@@ -542,7 +542,7 @@ impl ApiClient {
             format!("?{}", query_params.join("&"))
         };
 
-        let path = format!("/apis/python/ray/timeline/chrome{}", query_string);
+        let path = format!("/apis/pythonext/ray/timeline/chrome{}", query_string);
         let response = self.get_request(&path).await?;
 
         // Check for error in the response JSON

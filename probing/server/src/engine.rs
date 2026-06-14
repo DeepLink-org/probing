@@ -5,7 +5,7 @@ use crate::extensions as se;
 use probing_cc::extensions as cc;
 use probing_python::extensions as py;
 
-use crate::server::error::ApiResult;
+use crate::server::error::{ApiError, ApiResult};
 
 pub use probing_core::ENGINE;
 
@@ -25,10 +25,10 @@ pub async fn initialize_engine() -> Result<()> {
         );
 
     #[cfg(target_os = "linux")]
-    let builder = builder.with_extension(cc::RdmaExtension::default(), "taskstats", None);
+    let builder = builder.with_extension(cc::RdmaExtension::default(), "rdma", Some("mlx_hca"));
 
     #[cfg(target_os = "linux")]
-    let builder = builder.with_extension(cc::TaskStatsExtension::default(), "rdma", Some("flow"));
+    let builder = builder.with_extension(cc::TaskStatsExtension::default(), "process", None);
 
     let result = probing_core::initialize_engine(builder).await;
     // Opt-in background hot→cold compaction (PROBING_COLD=on / SET memtable.cold_compaction).
@@ -59,12 +59,8 @@ pub async fn handle_query(request: Query) -> Result<QueryDataFormat> {
                     log::debug!("Successfully executed: {trimmed_q}");
                 }
                 Err(e) => {
-                    // Log the error and potentially return it
                     log::error!("Error executing SET statement '{trimmed_q}': {e}");
-                    // Depending on requirements, you might want to stop processing
-                    // or collect errors. For now, just log and continue.
-                    // Or return an error immediately:
-                    // return Err(anyhow::anyhow!("Failed SET query '{}': {}", trimmed_q, e));
+                    return Err(anyhow::anyhow!("Failed SET query '{trimmed_q}': {e}"));
                 }
             };
         }
@@ -92,7 +88,9 @@ pub async fn query(req: String) -> ApiResult<String> {
         Ok(request) => request.payload,
         Err(err) => {
             log::error!("Failed to deserialize query request: {err}");
-            return Err(anyhow::anyhow!("Invalid request format: {}", err).into());
+            return Err(ApiError::bad_request(format!(
+                "Invalid request format: {err}"
+            )));
         }
     };
 

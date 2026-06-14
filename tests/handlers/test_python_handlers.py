@@ -9,7 +9,6 @@ sys.path.insert(0, "python")
 from probing.handlers.pythonext import handle_api_request
 from probing.handlers.router import (
     _handlers,
-    _path_mappings,
     ext_handler,
     handle_request,
 )
@@ -21,7 +20,6 @@ class TestHandlerRouter:
     def setup_method(self):
         """Clear handlers before each test."""
         _handlers.clear()
-        _path_mappings.clear()
 
     def test_router_registration(self):
         """Test that handlers can be registered via decorator."""
@@ -45,12 +43,9 @@ class TestHandlerRouter:
             str_param: str,
             int_param: int,
             bool_param: bool,
-            list_param: List[str],  # Use List[str] for explicit type annotation
+            list_param: List[str],
         ) -> str:
-            # Verify that list_param is actually a list
-            assert isinstance(
-                list_param, list
-            ), f"Expected list, got {type(list_param)}: {list_param}"
+            assert isinstance(list_param, list)
             return json.dumps(
                 {
                     "str": str_param,
@@ -73,9 +68,6 @@ class TestHandlerRouter:
         assert parsed["str"] == "test"
         assert parsed["int"] == 42
         assert parsed["bool"] is True
-        assert isinstance(
-            parsed["list"], list
-        ), f"Expected list, got {type(parsed['list'])}: {parsed['list']}"
         assert parsed["list"] == ["a", "b", "c"]
 
     def test_missing_required_param(self):
@@ -91,27 +83,19 @@ class TestHandlerRouter:
         assert "error" in parsed
         assert "Missing required parameter" in parsed["error"]
 
-    def test_path_aliases(self):
-        """Test path alias resolution."""
+    def test_body_handler(self):
+        """Test POST body handlers."""
 
-        @ext_handler("test", ["test/canonical", "test/alias1", "test/alias2"])
-        def test_handler() -> str:
-            return json.dumps({"success": True})
+        @ext_handler("test", "test/eval", uses_body=True)
+        def test_eval(code: str) -> str:
+            return json.dumps({"code": code})
 
-        # Test canonical path
-        result1 = handle_request("test/canonical", {})
-        assert "error" not in json.loads(result1)
+        result = handle_request("test/eval", {}, body="print(1)")
+        parsed = json.loads(result)
+        assert parsed["code"] == "print(1)"
 
-        # Test aliases
-        result2 = handle_request("test/alias1", {})
-        assert "error" not in json.loads(result2)
-
-        result3 = handle_request("test/alias2", {})
-        assert "error" not in json.loads(result3)
-
-        # Verify alias mappings
-        assert "test/alias1" in _path_mappings
-        assert _path_mappings["test/alias1"] == "test/canonical"
+        missing = json.loads(handle_request("test/eval", {}))
+        assert "Missing request body" in missing["error"]
 
     def test_optional_parameters(self):
         """Test optional parameter handling."""
@@ -128,7 +112,6 @@ class TestHandlerRouter:
                 }
             )
 
-        # Test with optional parameter
         result1 = handle_request(
             "test/optional", {"required": "test", "optional": "value"}
         )
@@ -136,7 +119,6 @@ class TestHandlerRouter:
         assert parsed1["required"] == "test"
         assert parsed1["optional"] == "value"
 
-        # Test without optional parameter
         result2 = handle_request("test/optional", {"required": "test"})
         parsed2 = json.loads(result2)
         assert parsed2["required"] == "test"
@@ -147,95 +129,44 @@ class TestUnifiedEntryPoint:
     """Test the unified entry point."""
 
     def setup_method(self):
-        """Ensure handlers are registered by importing pythonext."""
-        # Import pythonext to trigger handler registration
         import probing.handlers.pythonext  # noqa: F401
 
     def test_handle_api_request(self):
-        """Test the unified handle_api_request function."""
-        # Test with a simple handler
         result = handle_api_request("trace/list", {})
-
-        # Should return valid JSON
         parsed = json.loads(result)
         assert isinstance(parsed, (dict, list))
 
     def test_handle_api_request_with_params(self):
-        """Test handle_api_request with parameters."""
         result = handle_api_request("trace/variables", {"limit": "10"})
-
         parsed = json.loads(result)
-        # Should return valid JSON (either data or error)
         assert isinstance(parsed, (dict, list))
 
     def test_handle_api_request_invalid_path(self):
-        """Test handle_api_request with invalid path."""
         result = handle_api_request("invalid/path", {})
-
         parsed = json.loads(result)
         assert "error" in parsed
         assert "No handler found" in parsed["error"]
 
-    def test_handle_api_request_missing_required_param(self):
-        """Test handle_api_request with missing required parameter."""
-        result = handle_api_request("trace/start", {"function": "test_func"})
-
-        # trace/start requires function parameter, but let's test with a handler that exists
-        # First verify the handler exists
-        from probing.handlers.router import _handlers
-
-        if "trace/start" in _handlers:
-            # Test with missing required parameter
-            result = handle_api_request("trace/start", {})
-            parsed = json.loads(result)
-            assert "error" in parsed
-            # Either missing parameter error or handler execution error
-            assert "error" in parsed
-        else:
-            # Handler not registered, skip this test
-            pass
-
 
 class TestHandlerRegistration:
-    """Test that all handlers are properly registered."""
+    """Handler registration is covered by tests/spec/test_api_spec.py."""
 
     def setup_method(self):
-        """Ensure handlers are registered by re-importing pythonext."""
-        # Clear any test handlers from previous tests
         _handlers.clear()
-        _path_mappings.clear()
-
-        # Re-import pythonext to trigger handler registration via decorators
         import importlib
 
         import probing.handlers.pythonext
 
         importlib.reload(probing.handlers.pythonext)
 
-    def test_all_handlers_registered(self):
-        """Test that all expected handlers are registered."""
-        expected_handlers = [
-            "ray/timeline",
-            "ray/timeline/chrome",
-            "trace/chrome-tracing",
-            "pytorch/timeline",
-            "pytorch/profile",
-            "trace/list",
-            "trace/show",
-            "trace/start",
-            "trace/stop",
-            "trace/variables",
-        ]
+    def test_reload_does_not_duplicate_handlers(self):
+        import importlib
 
-        # Debug: show current handlers if test fails
-        current_handlers = list(_handlers.keys())
+        import probing.handlers.pythonext
 
-        for handler_path in expected_handlers:
-            assert handler_path in _handlers, (
-                f"Handler {handler_path} not registered. "
-                f"Current handlers: {current_handlers}. "
-                f"Total handlers: {len(_handlers)}"
-            )
+        before = len(_handlers)
+        importlib.reload(probing.handlers.pythonext)
+        assert len(_handlers) == before
 
 
 if __name__ == "__main__":
@@ -244,7 +175,6 @@ if __name__ == "__main__":
 
         pytest.main([__file__, "-v"])
     except ImportError:
-        # Fallback to unittest if pytest is not available
         import unittest
 
         unittest.main()

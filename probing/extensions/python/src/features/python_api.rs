@@ -3,6 +3,9 @@ use pyo3::prelude::*;
 use probing_cli::cli_main as cli_main_impl;
 use probing_core::ENGINE;
 
+use crate::features::stack_tracer::{SignalTracer, StackTracer};
+use crate::repl::PythonRepl;
+
 #[pyfunction]
 pub fn should_enable_probing() -> bool {
     crate::python::should_enable_probing()
@@ -38,6 +41,31 @@ pub fn query_json(_py: Python, sql: String) -> PyResult<String> {
     let final_result = result.unwrap_or_default();
     serde_json::to_string(&final_result)
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+}
+
+/// HTTP `GET /apis/pythonext/callstack` backend.
+#[pyfunction]
+#[pyo3(signature = (tid=None))]
+pub fn api_callstack(tid: Option<i32>) -> PyResult<String> {
+    let tid = tid.filter(|&t| t != 0);
+    let frames = SignalTracer
+        .trace(tid)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    serde_json::to_string(&frames)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+}
+
+/// HTTP `POST /apis/pythonext/eval` backend.
+#[pyfunction]
+pub fn api_eval(code: &str) -> PyResult<String> {
+    log::debug!("Python eval code: {code}");
+    let mut repl = PythonRepl::default();
+    let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| repl.process(code)));
+    match out {
+        Ok(Some(s)) => Ok(s),
+        Ok(None) => Ok(String::new()),
+        Err(_) => Ok(serde_json::json!({"error": "REPL execution panicked"}).to_string()),
+    }
 }
 
 #[pyfunction]

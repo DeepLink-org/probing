@@ -31,6 +31,7 @@ html-escape = "0.2"
 include_dir = "=0.7.4"
 backtrace = { version = "0.3", features = ["cpp_demangle", "std"] }
 cpp_demangle = "0.5.1"
+rustc-demangle = "0.1.27"
 pyo3 = { version = "0.29.0", default-features = false, features = [
     "abi3",
     "abi3-py310",

@@ -205,6 +205,9 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(_get_python_stacks, m)?)?;
     m.add_function(wrap_pyfunction!(_get_python_frames, m)?)?;
     m.add_function(wrap_pyfunction!(cli_main, m)?)?;
+    use probing_python::features::python_api::{api_callstack, api_eval};
+    m.add_function(wrap_pyfunction!(api_callstack, m)?)?;
+    m.add_function(wrap_pyfunction!(api_eval, m)?)?;
 
     // Add is_enabled function to help tests check state
     use probing_python::features::python_api::{is_enabled, should_enable_probing};
