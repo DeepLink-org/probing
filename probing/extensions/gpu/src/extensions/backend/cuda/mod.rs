@@ -2,9 +2,7 @@ mod nvidia_smi;
 
 use std::sync::Arc;
 
-use super::traits::{
-    GpuBackend, GpuBackendKind, GpuDeviceInfo, GpuMemoryModel, GpuMemorySample,
-};
+use super::traits::{GpuBackend, GpuBackendKind, GpuDeviceInfo, GpuMemoryModel, GpuMemorySample};
 use cudarc::driver::safe::CudaContext;
 use cudarc::driver::sys::CUdevice_attribute;
 
@@ -20,7 +18,9 @@ impl CudaBackend {
         if count <= 0 {
             return None;
         }
-        Some(Self { device_count: count })
+        Some(Self {
+            device_count: count,
+        })
     }
 
     pub fn device_count(&self) -> i32 {

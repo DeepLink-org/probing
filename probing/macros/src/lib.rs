@@ -27,7 +27,10 @@ fn impl_probe_extension(ast: &DeriveInput) -> TokenStream {
     } else if namespace.ends_with("extension") {
         namespace = namespace.trim_end_matches("extension").to_string();
     }
-    let http_name = name.to_string().to_lowercase().replace("probeextension", "extension");
+    let http_name = name
+        .to_string()
+        .to_lowercase()
+        .replace("probeextension", "extension");
     let fields = match &ast.data {
         Data::Struct(data) => match &data.fields {
             Fields::Named(fields) => &fields.named,

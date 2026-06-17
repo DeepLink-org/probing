@@ -73,51 +73,48 @@ mod mach {
         pub fn mach_port_deallocate(task: task_t, name: mach_port_t) -> kern_return_t;
         pub fn vm_deallocate(target_task: task_t, address: u64, size: u64) -> kern_return_t;
         pub fn pthread_from_mach_thread_np(thread_port: thread_act_t) -> libc::pthread_t;
-        pub fn pthread_getname_np(
-            thread: libc::pthread_t,
-            name: *mut i8,
-            len: libc::size_t,
-        ) -> i32;
+        pub fn pthread_getname_np(thread: libc::pthread_t, name: *mut i8, len: libc::size_t)
+            -> i32;
     }
 
-        pub fn thread_id_for_port(port: thread_act_t) -> Option<u64> {
-            let mut ident: thread_identifier_info = unsafe { std::mem::zeroed() };
-            let mut ident_count =
-                (std::mem::size_of::<thread_identifier_info>() / std::mem::size_of::<i32>()) as u32;
-            let kr = unsafe {
-                thread_info(
-                    port,
-                    THREAD_IDENTIFIER_INFO,
-                    &mut ident as *mut _ as *mut i32,
-                    &mut ident_count,
-                )
-            };
-            if kr == KERN_SUCCESS {
-                Some(ident.thread_id)
-            } else {
-                None
+    pub fn thread_id_for_port(port: thread_act_t) -> Option<u64> {
+        let mut ident: thread_identifier_info = unsafe { std::mem::zeroed() };
+        let mut ident_count =
+            (std::mem::size_of::<thread_identifier_info>() / std::mem::size_of::<i32>()) as u32;
+        let kr = unsafe {
+            thread_info(
+                port,
+                THREAD_IDENTIFIER_INFO,
+                &mut ident as *mut _ as *mut i32,
+                &mut ident_count,
+            )
+        };
+        if kr == KERN_SUCCESS {
+            Some(ident.thread_id)
+        } else {
+            None
+        }
+    }
+
+    pub fn signal_sigusr2_on_port(port: thread_act_t) -> std::io::Result<()> {
+        extern "C" {
+            fn pthread_kill(thread: libc::pthread_t, sig: i32) -> i32;
+        }
+        unsafe {
+            let pthread = pthread_from_mach_thread_np(port);
+            if pthread == 0 {
+                return Err(std::io::Error::other(
+                    "pthread_from_mach_thread_np returned null",
+                ));
+            }
+            if pthread_kill(pthread, libc::SIGUSR2) != 0 {
+                return Err(std::io::Error::last_os_error());
             }
         }
+        Ok(())
+    }
 
-        pub fn signal_sigusr2_on_port(port: thread_act_t) -> std::io::Result<()> {
-            extern "C" {
-                fn pthread_kill(thread: libc::pthread_t, sig: i32) -> i32;
-            }
-            unsafe {
-                let pthread = pthread_from_mach_thread_np(port);
-                if pthread == 0 {
-                    return Err(std::io::Error::other(
-                        "pthread_from_mach_thread_np returned null",
-                    ));
-                }
-                if pthread_kill(pthread, libc::SIGUSR2) != 0 {
-                    return Err(std::io::Error::last_os_error());
-                }
-            }
-            Ok(())
-        }
-
-        pub fn pthread_name(port: thread_act_t) -> Option<String> {
+    pub fn pthread_name(port: thread_act_t) -> Option<String> {
         unsafe {
             let pthread = pthread_from_mach_thread_np(port);
             if pthread == 0 {
@@ -160,8 +157,8 @@ mod mach {
 }
 
 use mach::{
-    mach_port_deallocate, mach_task_self, thread_info, thread_act_t, thread_basic_info,
-    thread_extended_info, thread_identifier_info, time_value_t, KERN_SUCCESS, THREAD_BASIC_INFO,
+    mach_port_deallocate, mach_task_self, thread_act_t, thread_basic_info, thread_extended_info,
+    thread_identifier_info, thread_info, time_value_t, KERN_SUCCESS, THREAD_BASIC_INFO,
     THREAD_EXTENDED_INFO, THREAD_IDENTIFIER_INFO,
 };
 
@@ -351,10 +348,7 @@ mod tests {
         let _worker = thread::spawn(|| thread::sleep(Duration::from_millis(50)));
         let sampler = MacSampler;
         let threads = sampler.sample_threads(8).expect("sample_threads");
-        assert!(
-            !threads.is_empty(),
-            "expected Mach thread samples on macOS"
-        );
+        assert!(!threads.is_empty(), "expected Mach thread samples on macOS");
         let process = sampler.sample_process().expect("sample_process");
         assert!(process.thread_count >= 1);
     }

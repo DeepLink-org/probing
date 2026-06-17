@@ -30,7 +30,9 @@ async fn cluster_query(ctrl: ProbeEndpoint, expr: &str, cluster: bool) -> Result
         "expr": expr,
         "cluster": cluster,
     });
-    let reply = ctrl.post_json("/apis/cluster/query", &body.to_string()).await?;
+    let reply = ctrl
+        .post_json("/apis/cluster/query", &body.to_string())
+        .await?;
     let value: serde_json::Value = serde_json::from_str(&reply)?;
     if let Some(err) = value.get("error").and_then(|v| v.as_str()) {
         anyhow::bail!("{err}");
@@ -40,15 +42,16 @@ async fn cluster_query(ctrl: ProbeEndpoint, expr: &str, cluster: bool) -> Result
         .ok_or_else(|| anyhow::anyhow!("missing dataframe in response"))?;
     let dataframe: probing_proto::prelude::DataFrame = serde_json::from_value(df.clone())?;
     if let Some(meta) = value.get("meta") {
-        let nodes = meta.get("nodes_queried").and_then(|v| v.as_u64()).unwrap_or(0);
+        let nodes = meta
+            .get("nodes_queried")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
         let failed = meta
             .get("nodes_failed")
             .and_then(|v| v.as_array())
             .map(|a| a.len())
             .unwrap_or(0);
-        eprintln!(
-            "cluster query: cluster={cluster}, nodes_queried={nodes}, nodes_failed={failed}"
-        );
+        eprintln!("cluster query: cluster={cluster}, nodes_queried={nodes}, nodes_failed={failed}");
     }
     render_dataframe(&dataframe);
     Ok(())

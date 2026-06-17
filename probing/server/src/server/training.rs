@@ -76,7 +76,11 @@ pub async fn get_step_matrix(
     }))
 }
 
-fn parse_step_df(df: &DataFrame, default_host: &str, default_addr: &str) -> Vec<StepDurationSample> {
+fn parse_step_df(
+    df: &DataFrame,
+    default_host: &str,
+    default_addr: &str,
+) -> Vec<StepDurationSample> {
     if df.names.is_empty() || df.cols.is_empty() {
         return vec![];
     }
@@ -120,10 +124,7 @@ fn parse_attrs(raw: &str) -> (i32, i64) {
         return (-1, -1);
     };
     let rank = value.get("rank").and_then(json_i64).unwrap_or(-1) as i32;
-    let local_step = value
-        .get("local_step")
-        .and_then(json_i64)
-        .unwrap_or(-1);
+    let local_step = value.get("local_step").and_then(json_i64).unwrap_or(-1);
     (rank, local_step)
 }
 

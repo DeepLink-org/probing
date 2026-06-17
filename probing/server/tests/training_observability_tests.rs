@@ -12,8 +12,7 @@ fn tag_dataframe_adds_probe_columns_via_merge() {
     let mut base = df.clone();
     let rows = base.len();
     base.names.push("_probe_host".to_string());
-    base.cols
-        .push(Seq::SeqText(vec!["h".to_string(); rows]));
+    base.cols.push(Seq::SeqText(vec!["h".to_string(); rows]));
     assert_eq!(base.names.len(), 2);
     assert_eq!(base.len(), 1);
 }

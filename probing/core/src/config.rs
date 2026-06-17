@@ -115,7 +115,7 @@ pub async fn write(key: &str, value: &str) -> Result<(), EngineError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::{ProbeExtensionCall, ProbeExtension, ProbeExtensionOption};
+    use crate::core::{ProbeExtension, ProbeExtensionCall, ProbeExtensionOption};
     use crate::{create_engine, initialize_engine};
 
     async fn setup_test() {

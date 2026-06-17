@@ -21,14 +21,8 @@ pub fn is_enabled() -> bool {
 #[pyfunction]
 pub fn query_json(_py: Python, sql: String) -> PyResult<String> {
     with_detached_native(move || {
-        let result = block_on(async move {
-            ENGINE
-                .read()
-                .await
-                .async_query(sql.as_str())
-                .await
-        })
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()));
+        let result = block_on(async move { ENGINE.read().await.async_query(sql.as_str()).await })
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()));
 
         let final_result = result.unwrap_or_default();
         serde_json::to_string(&final_result)

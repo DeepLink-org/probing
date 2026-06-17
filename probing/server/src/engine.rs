@@ -5,16 +5,16 @@ use probing_proto::prelude::*;
 
 use crate::extensions as se;
 use probing_cc::extensions as cc;
-use probing_python::extensions as py;
 #[cfg(feature = "gpu")]
 use probing_gpu::extensions as gpu;
+use probing_python::extensions as py;
 
 use probing_core::config;
 
 use crate::server::error::{ApiError, ApiResult};
 
-pub use probing_core::ENGINE;
 use probing_core::core::UnifiedMemtableProbeDataSource;
+pub use probing_core::ENGINE;
 use probing_python::extensions::python::PythonProbeDataSource;
 
 pub async fn initialize_engine() -> Result<()> {

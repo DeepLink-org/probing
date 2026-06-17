@@ -2,9 +2,9 @@ use std::convert::Infallible;
 use std::fmt::Display;
 use std::str::FromStr;
 
-use probing_core::core::ProbeExtensionCall;
 use probing_core::core::EngineError;
 use probing_core::core::ProbeExtension;
+use probing_core::core::ProbeExtensionCall;
 use probing_core::core::ProbeExtensionOption;
 
 #[derive(Debug)]

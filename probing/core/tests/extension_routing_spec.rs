@@ -4,9 +4,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use probing_core::core::{
-    ProbeExtensionCall, EngineError, ProbeExtension, ProbeExtensionManager,
-};
+use probing_core::core::{EngineError, ProbeExtension, ProbeExtensionCall, ProbeExtensionManager};
 
 #[derive(Debug)]
 struct PythonextStub;

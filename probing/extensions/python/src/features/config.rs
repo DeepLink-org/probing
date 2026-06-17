@@ -45,7 +45,9 @@ fn set(_py: Python, key: String, value: Bound<'_, PyAny>) -> PyResult<()> {
 /// converted to string.
 #[pyfunction(name = "config_get_str")]
 fn get_str(_py: Python, key: String) -> PyResult<Option<String>> {
-    Ok(with_detached_native(move || block_on(async move { config::get_str(&key).await })))
+    Ok(with_detached_native(move || {
+        block_on(async move { config::get_str(&key).await })
+    }))
 }
 
 /// Check if a configuration key exists.

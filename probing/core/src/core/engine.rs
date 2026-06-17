@@ -177,7 +177,10 @@ impl Engine {
             let state: SessionState = self.context.state();
             data_source.register_table(schema, &state)?;
             let mut maps = self.data_sources.write().await;
-            maps.insert(format!("probe.{}.{}", namespace, data_source.name()), data_source);
+            maps.insert(
+                format!("probe.{}.{}", namespace, data_source.name()),
+                data_source,
+            );
         }
         Ok(())
     }
@@ -264,7 +267,7 @@ impl Default for EngineBuilder {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::{ProbeExtensionCall, ProbeExtension};
+    use crate::core::{ProbeExtension, ProbeExtensionCall};
 
     use super::*;
     use arrow::array::{Int32Array, StringArray};

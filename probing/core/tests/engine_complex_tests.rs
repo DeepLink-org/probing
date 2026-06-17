@@ -257,7 +257,10 @@ async fn test_empty_table_query() -> Result<()> {
     let engine = Engine::builder().build().await?;
 
     // Use helper to create empty table
-    let empty_plugin = Arc::new(GenericTableProbeDataSource::empty_table("empty_table", "test"));
+    let empty_plugin = Arc::new(GenericTableProbeDataSource::empty_table(
+        "empty_table",
+        "test",
+    ));
     engine.enable(empty_plugin).await?;
 
     // Query empty table

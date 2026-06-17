@@ -237,7 +237,9 @@ impl SignalTracer {
         {
             let _ = (pid, tid, tid_param);
             Self::clear_sender_slot();
-            return Err(anyhow::anyhow!("Stack tracing is not supported on this platform"));
+            return Err(anyhow::anyhow!(
+                "Stack tracing is not supported on this platform"
+            ));
         }
 
         let native_frames = match rx.recv_timeout(Duration::from_secs(2)) {
@@ -286,9 +288,7 @@ pub fn backtrace_signal_handler() {
     // Runs on the signaled thread: native unwind + thread-local eval-frame tracer stack.
     let native_stacks = SignalTracer::get_native_stacks().unwrap_or_default();
     if SignalTracer::send_frames(native_stacks).is_err() {
-        log::error!(
-            "Signal handler: failed to send native stacks (receiver may have timed out)"
-        );
+        log::error!("Signal handler: failed to send native stacks (receiver may have timed out)");
     }
     let python_stacks = get_python_stacks_raw();
     if SignalTracer::send_frames(python_stacks).is_err() {

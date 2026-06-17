@@ -105,11 +105,7 @@ pub struct FanoutQueryResponse {
 pub async fn fanout_query(sql: &str, cluster: bool) -> anyhow::Result<FanoutQueryResponse> {
     let host = local_host_label();
     let addr = local_addr_label();
-    let mut parts = vec![tag_dataframe(
-        query_local_df(sql).await?,
-        &host,
-        &addr,
-    )];
+    let mut parts = vec![tag_dataframe(query_local_df(sql).await?, &host, &addr)];
     let mut nodes_queried = 1usize;
     let mut nodes_failed = Vec::new();
 
@@ -157,10 +153,8 @@ fn tag_dataframe(mut df: DataFrame, host: &str, addr: &str) -> DataFrame {
     let rows = df.len();
     df.names.push("_probe_host".to_string());
     df.names.push("_probe_addr".to_string());
-    df.cols
-        .push(Seq::SeqText(vec![host.to_string(); rows]));
-    df.cols
-        .push(Seq::SeqText(vec![addr.to_string(); rows]));
+    df.cols.push(Seq::SeqText(vec![host.to_string(); rows]));
+    df.cols.push(Seq::SeqText(vec![addr.to_string(); rows]));
     df.size = df.len() as u64;
     df
 }
@@ -194,7 +188,8 @@ fn append_dataframe(base: &mut DataFrame, other: &DataFrame) {
     for name in &other.names {
         if !base.names.contains(name) {
             base.names.push(name.clone());
-            base.cols.push(Seq::SeqText(vec![String::new(); base.len()]));
+            base.cols
+                .push(Seq::SeqText(vec![String::new(); base.len()]));
         }
     }
     for (col_idx, name) in base.names.clone().iter().enumerate() {
@@ -243,24 +238,15 @@ mod tests {
             .iter()
             .position(|n| n == "_probe_host")
             .unwrap();
-        assert_eq!(
-            merged.cols[host_col].get_str(0).as_deref(),
-            Some("host-a")
-        );
-        assert_eq!(
-            merged.cols[host_col].get_str(1).as_deref(),
-            Some("host-b")
-        );
+        assert_eq!(merged.cols[host_col].get_str(0).as_deref(), Some("host-a"));
+        assert_eq!(merged.cols[host_col].get_str(1).as_deref(), Some("host-b"));
     }
 
     #[test]
     fn merge_aligns_missing_columns_with_empty_strings() {
         let a = DataFrame {
             names: vec!["x".into(), "extra".into()],
-            cols: vec![
-                Seq::SeqI32(vec![1]),
-                Seq::SeqText(vec!["a".into()]),
-            ],
+            cols: vec![Seq::SeqI32(vec![1]), Seq::SeqText(vec!["a".into()])],
             size: 1,
         };
         let b = DataFrame {

@@ -10,8 +10,7 @@ use super::apple::AppleSiliconBackend;
 #[cfg(feature = "cuda")]
 use super::cuda::CudaBackend;
 
-static BACKEND_FILTER: Lazy<Mutex<Option<Vec<GpuBackendKind>>>> =
-    Lazy::new(|| Mutex::new(None));
+static BACKEND_FILTER: Lazy<Mutex<Option<Vec<GpuBackendKind>>>> = Lazy::new(|| Mutex::new(None));
 
 /// Restrict which backends are active (`None` = auto-discover all available).
 pub fn set_backend_filter(kinds: Option<Vec<GpuBackendKind>>) {

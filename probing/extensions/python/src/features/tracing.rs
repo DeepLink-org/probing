@@ -353,9 +353,11 @@ fn active_span_for_events(py: Python) -> PyResult<Option<Py<PyAny>>> {
     SPAN_STACK.with(|stack| {
         let stack = stack.borrow();
         for obj in stack.iter().rev() {
-            let is_active = obj.bind(py).cast::<Span>().ok().is_some_and(|span| {
-                !span.borrow().is_ended()
-            });
+            let is_active = obj
+                .bind(py)
+                .cast::<Span>()
+                .ok()
+                .is_some_and(|span| !span.borrow().is_ended());
             if is_active {
                 return Ok(Some(obj.clone_ref(py)));
             }

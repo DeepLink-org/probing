@@ -1,5 +1,5 @@
 use probing_core::core::{
-    ProbeExtensionCall, EngineError, ProbeExtension, ProbeExtensionOption, Maybe,
+    EngineError, Maybe, ProbeExtension, ProbeExtensionCall, ProbeExtensionOption,
 };
 
 use crate::{start_remote, start_report_worker};

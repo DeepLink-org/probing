@@ -8,6 +8,4 @@ mod apple;
 mod cuda;
 
 pub use registry::{discover_backends, selected_backends};
-pub use traits::{
-    GpuBackend, GpuBackendKind, GpuDeviceInfo, GpuMemoryModel, GpuMemorySample,
-};
+pub use traits::{GpuBackend, GpuBackendKind, GpuDeviceInfo, GpuMemoryModel, GpuMemorySample};

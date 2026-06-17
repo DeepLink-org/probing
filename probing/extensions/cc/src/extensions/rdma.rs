@@ -1,7 +1,7 @@
 use probing_core::core::EngineError;
+use probing_core::core::Maybe;
 use probing_core::core::ProbeExtension;
 use probing_core::core::ProbeExtensionOption;
-use probing_core::core::Maybe;
 
 use datafusion::arrow::array::{GenericStringBuilder, RecordBatch};
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};

@@ -15,9 +15,7 @@ fn env_flag(name: &str) -> bool {
 }
 
 fn backtrace_enabled() -> bool {
-    cfg!(debug_assertions)
-        || env_flag("RUST_BACKTRACE")
-        || env_flag("PROBING_RUST_BACKTRACE")
+    cfg!(debug_assertions) || env_flag("RUST_BACKTRACE") || env_flag("PROBING_RUST_BACKTRACE")
 }
 
 /// Install a panic hook that prints thread context and (when enabled) a Rust backtrace.

@@ -4,11 +4,11 @@ use std::fmt::Display;
 use anyhow::Result;
 use async_trait::async_trait;
 
-use probing_core::core::ProbeExtensionCall;
 use probing_core::core::EngineError;
-use probing_core::core::ProbeExtension;
-use probing_core::core::ProbeExtensionOption;
 use probing_core::core::Maybe;
+use probing_core::core::ProbeExtension;
+use probing_core::core::ProbeExtensionCall;
+use probing_core::core::ProbeExtensionOption;
 use probing_core::run_on_native_thread;
 use probing_proto::prelude::CallFrame;
 use pyo3::prelude::*;
@@ -215,7 +215,8 @@ impl PythonExt {
                         Ok(())
                     }
                     Err(e) => {
-                        let error_msg = format!("Failed to call deinit method on '{ext_name}': {e}");
+                        let error_msg =
+                            format!("Failed to call deinit method on '{ext_name}': {e}");
                         log::error!("{error_msg}");
                         Err(EngineError::PluginError(error_msg))
                     }
@@ -309,9 +310,9 @@ fn call_python_handler(
                     EngineError::PluginError(format!("Failed to call handle_request: {e}"))
                 })?;
 
-            let result_str: String = result.extract().map_err(|e| {
-                EngineError::PluginError(format!("Failed to extract result: {e}"))
-            })?;
+            let result_str: String = result
+                .extract()
+                .map_err(|e| EngineError::PluginError(format!("Failed to extract result: {e}")))?;
 
             Ok(result_str.into_bytes())
         })

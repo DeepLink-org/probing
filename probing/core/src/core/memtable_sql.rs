@@ -60,8 +60,8 @@ use probing_memtable::{detect_table, DType, MemTableView, MemhView, TableKind, T
 
 use super::plugin_advanced::{scan_memory_partitions, supports_filters_pushdown_for_schema};
 use super::{
-    ProbeExtensionCall, EngineError, ProbeExtension, ProbeExtensionOption, Maybe,
-    ProbeDataSource, PluginAdvancedTable, ProbeDataSourceKind,
+    EngineError, Maybe, PluginAdvancedTable, ProbeDataSource, ProbeDataSourceKind, ProbeExtension,
+    ProbeExtensionCall, ProbeExtensionOption,
 };
 use probing_macros::ProbeExtension as ProbeExtensionDerive;
 

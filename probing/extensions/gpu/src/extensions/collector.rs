@@ -10,7 +10,9 @@ use probing_memtable::discover::ExposedTable;
 use probing_memtable::{DType, Schema, Value};
 use thiserror::Error;
 
-use super::backend::{discover_backends, selected_backends, GpuBackend, GpuBackendKind, GpuMemorySample};
+use super::backend::{
+    discover_backends, selected_backends, GpuBackend, GpuBackendKind, GpuMemorySample,
+};
 
 #[cfg(feature = "cuda")]
 use super::backend::cuda::read_utilization_by_index;
@@ -81,7 +83,9 @@ pub fn start_gpu_sampling_from_env() {
         return;
     };
     match start_gpu_sampling(interval_ms) {
-        Ok(()) => log::info!("GPU sampling started (interval={interval_ms}ms, auto-detected backend)"),
+        Ok(()) => {
+            log::info!("GPU sampling started (interval={interval_ms}ms, auto-detected backend)")
+        }
         Err(CollectorError::AlreadyRunning) => log::debug!("GPU sampling already running"),
         Err(CollectorError::NoBackend) => {
             log::info!(

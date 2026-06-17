@@ -34,7 +34,11 @@ pub fn autostart_interval_ms() -> Option<u64> {
         .ok()
         .and_then(|v| v.parse::<u64>().ok())
         .unwrap_or(DEFAULT_SAMPLE_INTERVAL_MS);
-    if ms == 0 { None } else { Some(ms) }
+    if ms == 0 {
+        None
+    } else {
+        Some(ms)
+    }
 }
 
 fn autostart_thread_top_n() -> usize {
@@ -327,8 +331,10 @@ impl CpuCollector {
                     Ok(curr) => {
                         if let Some(prev) = &state.last_process {
                             if wall_ns > 0 {
-                                let delta_user = curr.cputime_user_ns.saturating_sub(prev.cputime_user_ns);
-                                let delta_sys = curr.cputime_sys_ns.saturating_sub(prev.cputime_sys_ns);
+                                let delta_user =
+                                    curr.cputime_user_ns.saturating_sub(prev.cputime_user_ns);
+                                let delta_sys =
+                                    curr.cputime_sys_ns.saturating_sub(prev.cputime_sys_ns);
                                 let delta_vol = curr.vol_ctxt.saturating_sub(prev.vol_ctxt) as i64;
                                 let delta_invol =
                                     curr.invol_ctxt.saturating_sub(prev.invol_ctxt) as i64;
@@ -400,10 +406,7 @@ impl CpuCollector {
                                 );
                             }
                         }
-                        state.last_threads = threads
-                            .into_iter()
-                            .map(|t| (t.tid, t))
-                            .collect();
+                        state.last_threads = threads.into_iter().map(|t| (t.tid, t)).collect();
                     }
                     Err(e) => log::warn!("cpu thread sample failed: {e}"),
                 }

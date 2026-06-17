@@ -253,8 +253,8 @@ impl TableProvider for PluginAdvancedTable {
 mod tests {
     use super::*;
     use datafusion::arrow::array::Int32Array;
-    use datafusion::common::stats::Precision;
     use datafusion::catalog::TableProvider;
+    use datafusion::common::stats::Precision;
     use datafusion::execution::context::TaskContext;
     use datafusion::logical_expr::expr_fn::{out_ref_col, placeholder};
     use datafusion::logical_expr::TableProviderFilterPushDown;

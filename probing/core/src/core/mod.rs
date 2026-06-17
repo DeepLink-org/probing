@@ -1,17 +1,17 @@
 mod arrow_convert;
 pub mod cluster;
 pub mod cluster_model;
+mod data_source;
 mod engine;
 mod error;
-pub mod probe_extension;
 pub mod memtable_sql;
-mod data_source;
 mod plugin_advanced;
+pub mod probe_extension;
 
-pub use engine::Engine;
-pub use engine::EngineBuilder;
 pub use data_source::ProbeDataSource;
 pub use data_source::ProbeDataSourceKind;
+pub use engine::Engine;
+pub use engine::EngineBuilder;
 
 pub use error::EngineError;
 pub use error::Result;
@@ -27,11 +27,11 @@ pub use plugin_advanced::PluginAdvancedTable;
 pub use memtable_sql::MemTableProbeExtension;
 pub use memtable_sql::UnifiedMemtableProbeDataSource;
 
-pub use probe_extension::ProbeExtensionCall;
+pub use probe_extension::Maybe;
 pub use probe_extension::ProbeExtension;
+pub use probe_extension::ProbeExtensionCall;
 pub use probe_extension::ProbeExtensionManager;
 pub use probe_extension::ProbeExtensionOption;
-pub use probe_extension::Maybe;
 
 pub use probing_macros::ProbeExtension;
 

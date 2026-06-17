@@ -16,8 +16,8 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use once_cell::sync::Lazy;
 use crate::features::native_bridge::with_detached_native;
+use once_cell::sync::Lazy;
 use probing_memtable::discover::ExposedTable;
 use probing_memtable::{DType, Schema as MtSchema, Value};
 use probing_proto::prelude::Ele;
@@ -215,9 +215,7 @@ impl ExternBacking {
     fn row_count(&self) -> usize {
         self.table.as_ref().map_or(0, |t| {
             let view = t.view();
-            (0..view.num_chunks())
-                .map(|c| view.num_rows(c))
-                .sum()
+            (0..view.num_chunks()).map(|c| view.num_rows(c)).sum()
         })
     }
 
@@ -367,10 +365,7 @@ impl ExternalTable {
             let ncolumn = columns.len();
             let backing =
                 Self::create_backing(&name, columns, discard_threshold, &discard_strategy);
-            EXTERN_TABLES
-                .lock()
-                .unwrap()
-                .insert(name, backing.clone());
+            EXTERN_TABLES.lock().unwrap().insert(name, backing.clone());
             ExternalTable(backing, ncolumn)
         })
     }

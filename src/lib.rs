@@ -4,6 +4,7 @@ extern crate ctor;
 use anyhow::Result;
 use pyo3::prelude::*;
 
+use probing_core::{install_panic_hook, register_python_main_thread};
 use probing_python::extensions::python::ExternalTable;
 use probing_python::features::config;
 use probing_python::features::python_api::{cli_main, query_json};
@@ -11,7 +12,6 @@ use probing_python::features::tracing;
 use probing_python::features::vm_tracer::{
     _get_python_frames, _get_python_stacks, disable_tracer, enable_tracer, initialize_globals,
 };
-use probing_core::{install_panic_hook, register_python_main_thread};
 use probing_server::sync_env_settings;
 
 use probing_python::pkg::TCPStore;

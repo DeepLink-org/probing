@@ -1,9 +1,9 @@
 pub mod cpu;
-pub use cpu::start_cpu_sampling_from_env;
 pub use cpu::autostart_interval_ms;
-pub use cpu::CpuProbeExtension;
 #[cfg(target_os = "macos")]
 pub use cpu::send_sigusr2_to_thread_id;
+pub use cpu::start_cpu_sampling_from_env;
+pub use cpu::CpuProbeExtension;
 
 pub mod cluster;
 pub use cluster::ClusterProbeDataSource;

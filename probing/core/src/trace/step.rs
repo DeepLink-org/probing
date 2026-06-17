@@ -65,15 +65,11 @@ fn global_step_for(local_step: u64, bucket_size: u64) -> u64 {
 }
 
 fn read_env_u64(key: &str) -> Option<u64> {
-    std::env::var(key)
-        .ok()
-        .and_then(|v| v.trim().parse().ok())
+    std::env::var(key).ok().and_then(|v| v.trim().parse().ok())
 }
 
 fn read_env_i64(key: &str) -> Option<i64> {
-    std::env::var(key)
-        .ok()
-        .and_then(|v| v.trim().parse().ok())
+    std::env::var(key).ok().and_then(|v| v.trim().parse().ok())
 }
 
 fn read_bucket_size() -> u64 {
