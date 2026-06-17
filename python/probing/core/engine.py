@@ -4,92 +4,55 @@ Probing Core Engine Module.
 This module provides the core functionality for executing SQL queries and
 loading Rust extensions in the Probing library. It serves as the primary
 interface between Python code and the underlying Rust implementation.
-
-The module offers functions to:
-- Execute SQL queries against data sources
-- Load and initialize Rust extensions for extended functionality
-
-Examples:
-    >>> import probing  # doctest: +SKIP
-    >>> df = probing.query("SHOW TABLES")  # doctest: +SKIP
-    >>> type(df)  # doctest: +SKIP
-    >>> mod = probing.load_extension("probing.ext.example")  # doctest: +SKIP
-    >>> type(mod)  # doctest: +SKIP
 """
+
+from __future__ import annotations
+
+import json
+from typing import Any
+
+
+def _col_values(column: Any) -> list[Any]:
+    if isinstance(column, dict):
+        return next(iter(column.values()))
+    return column
+
+
+def _dataframe_from_proto(data: dict[str, Any]):
+    import pandas as pd
+
+    frame = {name: _col_values(col) for name, col in zip(data["names"], data["cols"])}
+    return pd.DataFrame(frame)
 
 
 def query(sql: str) -> "DataFrame":  # noqa: F821
-    """
-    Execute a SQL query and return the result as a pandas DataFrame.
-
-    This function sends the SQL query to the underlying Rust implementation and
-    processes the returned JSON data into a pandas DataFrame for easy manipulation
-    in Python. If the result cannot be converted to a DataFrame, the raw JSON
-    result is returned instead.
-
-    Args:
-        sql (str): The SQL query string to execute.
-
-    Returns:
-        pandas.DataFrame: The query results as a DataFrame. If conversion fails,
-                         the raw JSON string is returned instead.
-
-    Raises:
-        RuntimeError: If the query execution fails in the Rust layer.
-        ValueError: If the SQL statement is invalid.
-
-    Examples:
-        >>> import probing  # doctest: +SKIP
-        >>> df = probing.query("SELECT 1 AS a, 2 AS b")  # doctest: +SKIP
-        >>> print(df)  # doctest: +SKIP
-    """
-
-    # Import query_json from _core module
+    """Execute a SQL query and return the result as a pandas DataFrame."""
     from probing import _core
-    from probing._native import call_native
 
-    ret = call_native(_core.query_json, sql)
+    ret = _core.query_json(sql)
+    if not ret or ret == "null":
+        try:
+            import pandas as pd
+
+            return pd.DataFrame()
+        except ImportError:
+            return None  # type: ignore[return-value]
+
     try:
-        import json
-
         import pandas as pd
 
         data = json.loads(ret)
-
-        data = {k: list(v.values())[0] for k, v in zip(data["names"], data["cols"])}
-        return pd.DataFrame(data)
-    except:
-        import traceback
-
-        traceback.print_exc()
+        if data is None:
+            return pd.DataFrame()
+        if isinstance(data, dict) and "names" in data and "cols" in data:
+            return _dataframe_from_proto(data)
+        raise RuntimeError(f"unexpected query_json response: {ret[:500]}")
+    except ImportError:
         return ret
 
 
 def load_extension(statement: str):
-    """
-    Load a Rust extension into the probing library.
-
-    This function dynamically imports and initializes Rust extensions that enhance
-    the functionality of the probing library. Extensions are specified using Python
-    import path notation and must be compatible with the probing library's extension API.
-
-    Args:
-        statement (str): The Python import path to the extension, typically ending with an
-                         initialization function (e.g., "myextension.module.init").
-
-    Returns:
-        Any: The return value of the called extension function/statement.
-
-    Raises:
-        ImportError: If the extension module cannot be imported.
-        AttributeError: If the specified attribute doesn't exist in the module.
-
-    Examples:
-        >>> import probing  # doctest: +SKIP
-        >>> mod = probing.load_extension("probing.ext.example")  # doctest: +SKIP
-        >>> type(mod)  # doctest: +SKIP
-    """
-
+    """Load a Rust extension into the probing library."""
     import importlib
     import sys
 

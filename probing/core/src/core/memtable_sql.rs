@@ -1582,7 +1582,7 @@ mod tests {
         let mapped = MappedFile::open(&path).unwrap();
         let provider = mapped_file_to_table(mapped, "prune_demo");
         assert!(
-            provider.as_any().downcast_ref::<RingMmapTable>().is_some(),
+            provider.downcast_ref::<RingMmapTable>().is_some(),
             "ring files must get the lazy pruning provider"
         );
 
@@ -1885,10 +1885,7 @@ mod tests {
         assert!(mmap_table_exists(DEFAULT_UNDOTTED_SCHEMA, "test_metrics"));
 
         let provider = read_pushdown_from_mmap(DEFAULT_UNDOTTED_SCHEMA, "test_metrics");
-        assert!(provider
-            .as_any()
-            .downcast_ref::<PluginAdvancedTable>()
-            .is_some());
+        assert!(provider.downcast_ref::<PluginAdvancedTable>().is_some());
 
         let path = self_dir().join(mmap_filename_for(DEFAULT_UNDOTTED_SCHEMA, "test_metrics"));
         let mapped = MappedFile::open(&path).unwrap();
@@ -1947,10 +1944,7 @@ mod tests {
         );
 
         let provider = read_pushdown_from_mmap("acme", "metrics_demo");
-        assert!(provider
-            .as_any()
-            .downcast_ref::<PluginAdvancedTable>()
-            .is_some());
+        assert!(provider.downcast_ref::<PluginAdvancedTable>().is_some());
 
         drop(ring);
         match orig {

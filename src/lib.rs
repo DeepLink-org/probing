@@ -11,7 +11,7 @@ use probing_python::features::tracing;
 use probing_python::features::vm_tracer::{
     _get_python_frames, _get_python_stacks, disable_tracer, enable_tracer, initialize_globals,
 };
-use probing_core::register_python_main_thread;
+use probing_core::{install_panic_hook, register_python_main_thread};
 use probing_server::sync_env_settings;
 
 use probing_python::pkg::TCPStore;
@@ -149,6 +149,8 @@ const ENV_PROBING_CLI_MODE: &str = "PROBING_CLI_MODE";
 
 #[ctor]
 fn setup() {
+    install_panic_hook();
+
     // Skip initialization if running in CLI mode (e.g., probing ls)
     // CLI commands should not inject probes into themselves
     if std::env::var(ENV_PROBING_CLI_MODE).is_ok() {

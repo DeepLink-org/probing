@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::mpsc;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -8,10 +9,13 @@ use async_trait::async_trait;
 use lazy_static::lazy_static;
 use nix::libc;
 use once_cell::sync::Lazy;
+use pyo3::Python;
 
 use probing_proto::prelude::CallFrame;
 
-use crate::features::vm_tracer::get_python_stacks_raw;
+use probing_core::is_python_main_thread;
+
+use crate::features::vm_tracer::{get_python_frames_raw, get_python_stacks_raw};
 
 fn demangle_native_symbol(raw_name: &str) -> String {
     if let Ok(d) = rustc_demangle::try_demangle(raw_name) {
@@ -144,16 +148,40 @@ impl SignalTracer {
         }
         merged
     }
-}
 
-#[async_trait]
-impl StackTracer for SignalTracer {
-    fn trace(&self, tid: Option<i32>) -> Result<Vec<CallFrame>> {
-        log::debug!("Collecting backtrace for TID: {tid:?}");
+    /// Walk the current thread without signals (safe under any Python runtime layout).
+    pub fn trace_current_thread_merged() -> Result<Vec<CallFrame>> {
+        let native = Self::get_native_stacks().unwrap_or_default();
+        let python = Python::attach(|_py| {
+            let from_tracer = get_python_stacks_raw();
+            if !from_tracer.is_empty() {
+                from_tracer
+            } else {
+                get_python_frames_raw(None)
+            }
+        });
+        if python.is_empty() {
+            return Ok(native);
+        }
+        if native.is_empty() {
+            return Ok(python);
+        }
+        Ok(Self::merge_python_native_stacks(python, native))
+    }
 
-        let pid = nix::unistd::getpid().as_raw(); // PID of the current process (thread group ID)
-        let tid_param = tid;
-        let tid = tid.unwrap_or(pid); // Target thread ID, or current process's PID if tid_param is None (signals the main thread)
+    fn default_signal_tid() -> i32 {
+        nix::unistd::getpid().as_raw()
+    }
+
+    fn clear_sender_slot() {
+        if let Ok(mut guard) = NATIVE_CALLSTACK_SENDER_SLOT.try_lock() {
+            guard.take();
+        }
+    }
+
+    fn trace_thread_signal(tid: i32) -> Result<Vec<CallFrame>> {
+        let pid = nix::unistd::getpid().as_raw();
+        let tid_param = Some(tid);
 
         let _guard = BACKTRACE_MUTEX.try_lock().map_err(|e| {
             log::error!("Failed to acquire BACKTRACE_MUTEX: {e}");
@@ -176,11 +204,10 @@ impl StackTracer for SignalTracer {
             let ret = unsafe { libc::syscall(libc::SYS_tgkill, pid, tid, libc::SIGUSR2) };
             if ret != 0 {
                 let last_error = std::io::Error::last_os_error();
-                let error_msg = format!(
+                Self::clear_sender_slot();
+                return Err(anyhow::anyhow!(
                     "Failed to send SIGUSR2 to process {pid} (thread: {tid}): {last_error}"
-                );
-                log::error!("{error_msg}");
-                return Err(anyhow::anyhow!(error_msg));
+                ));
             }
         }
 
@@ -197,21 +224,29 @@ impl StackTracer for SignalTracer {
                 probing_cc::extensions::send_sigusr2_to_thread_id(tid)
             };
             if let Err(e) = signal_result {
-                let error_msg =
-                    format!("Failed to send SIGUSR2 to process {pid} (thread: {tid}): {e}");
-                log::error!("{error_msg}");
-                return Err(anyhow::anyhow!(error_msg));
+                Self::clear_sender_slot();
+                return Err(anyhow::anyhow!(
+                    "Failed to send SIGUSR2 to process {pid} (thread: {tid}): {e}"
+                ));
             }
         }
 
         #[cfg(not(any(target_os = "linux", target_os = "macos")))]
         {
             let _ = (pid, tid, tid_param);
+            Self::clear_sender_slot();
             return Err(anyhow::anyhow!("Stack tracing is not supported on this platform"));
         }
 
-        let native_frames = rx.recv_timeout(Duration::from_secs(2))?;
-        let python_frames = rx.recv_timeout(Duration::from_secs(2))?;
+        let native_frames = match rx.recv_timeout(Duration::from_secs(2)) {
+            Ok(frames) => frames,
+            Err(err) => {
+                Self::clear_sender_slot();
+                return Err(err.into());
+            }
+        };
+        let python_frames = rx.recv_timeout(Duration::from_secs(2)).unwrap_or_default();
+        Self::clear_sender_slot();
 
         Ok(Self::merge_python_native_stacks(
             python_frames,
@@ -220,14 +255,42 @@ impl StackTracer for SignalTracer {
     }
 }
 
-pub fn backtrace_signal_handler() {
-    let native_stacks = SignalTracer::get_native_stacks().unwrap_or_default();
-    let python_stacks = get_python_stacks_raw();
-    if SignalTracer::send_frames(native_stacks).is_err() {
-        log::error!("Signal handler: CRITICAL - Failed to send native stacks. Receiver might timeout or get incomplete data.");
+#[async_trait]
+impl StackTracer for SignalTracer {
+    fn trace(&self, tid: Option<i32>) -> Result<Vec<CallFrame>> {
+        log::debug!("Collecting backtrace for TID: {tid:?}");
+
+        if tid.is_none() && is_python_main_thread() {
+            return Self::trace_current_thread_merged();
+        }
+
+        let target = tid.unwrap_or_else(Self::default_signal_tid);
+        match catch_unwind(AssertUnwindSafe(|| Self::trace_thread_signal(target))) {
+            Ok(Ok(frames)) => Ok(frames),
+            Ok(Err(err)) => {
+                log::warn!("Cross-thread stack trace failed for tid {target}: {err}");
+                Ok(vec![])
+            }
+            Err(_) => {
+                log::warn!("Cross-thread stack trace panicked for tid {target}");
+                Self::clear_sender_slot();
+                Ok(vec![])
+            }
+        }
     }
+}
+
+pub fn backtrace_signal_handler() {
+    // Runs on the signaled thread: native unwind + thread-local eval-frame tracer stack.
+    let native_stacks = SignalTracer::get_native_stacks().unwrap_or_default();
+    if SignalTracer::send_frames(native_stacks).is_err() {
+        log::error!(
+            "Signal handler: failed to send native stacks (receiver may have timed out)"
+        );
+    }
+    let python_stacks = get_python_stacks_raw();
     if SignalTracer::send_frames(python_stacks).is_err() {
-        log::error!("Signal handler: CRITICAL - Failed to send Python stacks. Receiver might timeout or get incomplete data.");
+        log::error!("Signal handler: failed to send Python stacks from eval tracer");
     }
 }
 

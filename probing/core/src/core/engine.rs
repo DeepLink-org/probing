@@ -271,12 +271,13 @@ mod tests {
     use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
     use arrow::record_batch::RecordBatch;
     use datafusion::catalog::memory::{DataSourceExec, MemorySourceConfig};
-    use datafusion::datasource::TableProvider;
+    use datafusion::catalog::{
+        CatalogProvider, MemorySchemaProvider, SchemaProvider, TableProvider,
+    };
     use datafusion::execution::context::SessionState;
     use datafusion::logical_expr::{Expr, TableType};
     use datafusion::physical_plan::ExecutionPlan;
     use probing_proto::prelude::Seq;
-    use std::any::Any;
     use std::sync::Arc;
 
     #[derive(Debug, Clone)]
@@ -332,10 +333,6 @@ mod tests {
 
     #[async_trait::async_trait]
     impl TableProvider for TestTableProbeDataSource {
-        fn as_any(&self) -> &dyn Any {
-            self
-        }
-
         fn schema(&self) -> SchemaRef {
             self.schema.clone()
         }
@@ -901,10 +898,6 @@ mod tests {
     }
 
     impl CatalogProvider for DynCatalog {
-        fn as_any(&self) -> &dyn Any {
-            self
-        }
-
         fn schema_names(&self) -> Vec<String> {
             let mut names = self.inner.schema_names();
             if self.has_dynamic.load(std::sync::atomic::Ordering::Relaxed) {

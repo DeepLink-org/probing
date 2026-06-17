@@ -16,6 +16,8 @@ where
 fn setup() {
     use crate::python::{set_enabled, should_enable_probing};
 
+    probing_core::install_panic_hook();
+
     if should_enable_probing() {
         set_enabled(true);
     }

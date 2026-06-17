@@ -5,13 +5,11 @@ use arrow::array::{Int32Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::record_batch::RecordBatch;
 use datafusion::catalog::memory::{DataSourceExec, MemorySourceConfig};
-use datafusion::catalog::SchemaProvider;
-use datafusion::datasource::TableProvider;
+use datafusion::catalog::{SchemaProvider, TableProvider};
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
 use datafusion::physical_plan::ExecutionPlan;
 use probing_core::core::{ProbeDataSource, ProbeDataSourceKind};
-use std::any::Any;
 use std::sync::Arc;
 
 /// Generic test table plugin implementation
@@ -108,10 +106,6 @@ impl ProbeDataSource for GenericTableProbeDataSource {
 
 #[async_trait::async_trait]
 impl TableProvider for GenericTableProbeDataSource {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn schema(&self) -> SchemaRef {
         self.schema.clone()
     }

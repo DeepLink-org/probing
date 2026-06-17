@@ -6,13 +6,11 @@ use arrow::array::{Int32Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::record_batch::RecordBatch;
 use datafusion::catalog::memory::{DataSourceExec, MemorySourceConfig};
-use datafusion::catalog::SchemaProvider;
-use datafusion::datasource::TableProvider;
+use datafusion::catalog::{SchemaProvider, TableProvider};
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{Expr, TableType};
 use datafusion::physical_plan::ExecutionPlan;
 use probing_core::core::{Engine, ProbeDataSource, ProbeDataSourceKind};
-use std::any::Any;
 use std::sync::Arc;
 
 mod test_helpers;
@@ -48,9 +46,6 @@ impl ProbeDataSource for UsersProbeDataSource {
 
 #[async_trait::async_trait]
 impl TableProvider for UsersProbeDataSource {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn schema(&self) -> SchemaRef {
         self.schema.clone()
     }
@@ -101,9 +96,6 @@ impl ProbeDataSource for OrdersProbeDataSource {
 
 #[async_trait::async_trait]
 impl TableProvider for OrdersProbeDataSource {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
     fn schema(&self) -> SchemaRef {
         self.schema.clone()
     }

@@ -1,10 +1,15 @@
 pub mod config;
 pub mod core;
+pub mod diagnostics;
 pub mod runtime;
 pub mod storage;
 pub mod trace;
 
-pub use runtime::{block_on, register_python_main_thread, run_on_native_thread, CORE_RUNTIME};
+pub use diagnostics::install_panic_hook;
+pub use runtime::{
+    block_on, is_python_main_thread, register_python_main_thread, run_on_native_thread,
+    CORE_RUNTIME,
+};
 
 use self::core::Engine;
 use self::core::EngineBuilder;

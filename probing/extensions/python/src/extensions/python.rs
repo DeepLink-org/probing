@@ -9,6 +9,7 @@ use probing_core::core::EngineError;
 use probing_core::core::ProbeExtension;
 use probing_core::core::ProbeExtensionOption;
 use probing_core::core::Maybe;
+use probing_core::run_on_native_thread;
 use probing_proto::prelude::CallFrame;
 use pyo3::prelude::*;
 use pyo3::types::{PyAnyMethods, PyString};
@@ -205,17 +206,20 @@ impl PythonExt {
 
         if let Some(pyext) = self.enabled.0.remove(ext) {
             log::info!("Disabling Python extension: {ext}");
+            let ext_name = ext.clone();
 
-            Python::attach(|py| match pyext.call_method0(py, "deinit") {
-                Ok(_) => {
-                    log::debug!("Extension '{ext}' deinitialized successfully");
-                    Ok(())
-                }
-                Err(e) => {
-                    let error_msg = format!("Failed to call deinit method on '{ext}': {e}");
-                    log::error!("{error_msg}");
-                    Err(EngineError::PluginError(error_msg))
-                }
+            run_on_native_thread(move || {
+                Python::attach(|py| match pyext.call_method0(py, "deinit") {
+                    Ok(_) => {
+                        log::debug!("Extension '{ext_name}' deinitialized successfully");
+                        Ok(())
+                    }
+                    Err(e) => {
+                        let error_msg = format!("Failed to call deinit method on '{ext_name}': {e}");
+                        log::error!("{error_msg}");
+                        Err(EngineError::PluginError(error_msg))
+                    }
+                })
             })
         } else {
             log::debug!("Python extension '{ext}' was not enabled, nothing to disable");
@@ -227,31 +231,34 @@ impl PythonExt {
 /// Execute Python code and return the resulting object
 /// The code should return an object with init/deinit methods
 pub fn execute_python_code(code: &str) -> Result<pyo3::Py<pyo3::PyAny>, String> {
-    Python::attach(|py| {
-        let pkg = py.import("probing");
+    let code = code.to_string();
+    run_on_native_thread(move || {
+        Python::attach(|py| {
+            let pkg = py.import("probing");
 
-        if pkg.is_err() {
-            return Err(format!("Python import error: {}", pkg.err().unwrap()));
-        }
+            if pkg.is_err() {
+                return Err(format!("Python import error: {}", pkg.err().unwrap()));
+            }
 
-        let result = pkg
-            .unwrap()
-            .call_method1("load_extension", (code,))
-            .map_err(|e| format!("Error loading Python plugin: {e}"))?;
+            let result = pkg
+                .unwrap()
+                .call_method1("load_extension", (code.as_str(),))
+                .map_err(|e| format!("Error loading Python plugin: {e}"))?;
 
-        if !result
-            .hasattr("init")
-            .map_err(|e| format!("Unable to check `init` method: {e}"))?
-        {
-            return Err("Plugin must have an `init` method".to_string());
-        }
+            if !result
+                .hasattr("init")
+                .map_err(|e| format!("Unable to check `init` method: {e}"))?
+            {
+                return Err("Plugin must have an `init` method".to_string());
+            }
 
-        result
-            .call_method0("init")
-            .map_err(|e| format!("Error calling `init` method: {e}"))?;
+            result
+                .call_method0("init")
+                .map_err(|e| format!("Error calling `init` method: {e}"))?;
 
-        log::info!("Python extension loaded successfully: {code}");
-        Ok(result.unbind())
+            log::info!("Python extension loaded successfully: {code}");
+            Ok(result.unbind())
+        })
     })
 }
 
@@ -265,42 +272,49 @@ fn call_python_handler(
     params: &HashMap<String, String>,
     body: &[u8],
 ) -> Result<Vec<u8>, EngineError> {
-    Python::attach(|py| {
-        let router_module = py.import("probing.handlers.router").map_err(|e| {
-            EngineError::PluginError(format!("Failed to import router module: {e}"))
-        })?;
-
-        let handle_func = router_module.getattr("handle_request").map_err(|e| {
-            EngineError::PluginError(format!("Failed to get handle_request function: {e}"))
-        })?;
-
-        let params_dict = pyo3::types::PyDict::new(py);
-        for (key, value) in params {
-            params_dict
-                .set_item(key.as_str(), str_to_py(py, value))
-                .map_err(|e| {
-                    EngineError::PluginError(format!("Failed to set param '{key}': {e}"))
-                })?;
-        }
-
-        let body_arg = if body.is_empty() {
-            py.None().into()
-        } else {
-            let body_str = std::str::from_utf8(body).map_err(|e| {
-                EngineError::PluginError(format!("Request body is not valid UTF-8: {e}"))
+    let path = path.to_string();
+    let params = params.clone();
+    let body = body.to_vec();
+    run_on_native_thread(move || {
+        Python::attach(|py| {
+            let router_module = py.import("probing.handlers.router").map_err(|e| {
+                EngineError::PluginError(format!("Failed to import router module: {e}"))
             })?;
-            str_to_py(py, body_str)
-        };
 
-        let result = handle_func
-            .call1((str_to_py(py, path), params_dict, body_arg))
-            .map_err(|e| EngineError::PluginError(format!("Failed to call handle_request: {e}")))?;
+            let handle_func = router_module.getattr("handle_request").map_err(|e| {
+                EngineError::PluginError(format!("Failed to get handle_request function: {e}"))
+            })?;
 
-        let result_str: String = result
-            .extract()
-            .map_err(|e| EngineError::PluginError(format!("Failed to extract result: {e}")))?;
+            let params_dict = pyo3::types::PyDict::new(py);
+            for (key, value) in &params {
+                params_dict
+                    .set_item(key.as_str(), str_to_py(py, value))
+                    .map_err(|e| {
+                        EngineError::PluginError(format!("Failed to set param '{key}': {e}"))
+                    })?;
+            }
 
-        Ok(result_str.into_bytes())
+            let body_arg = if body.is_empty() {
+                py.None().into()
+            } else {
+                let body_str = std::str::from_utf8(&body).map_err(|e| {
+                    EngineError::PluginError(format!("Request body is not valid UTF-8: {e}"))
+                })?;
+                str_to_py(py, body_str)
+            };
+
+            let result = handle_func
+                .call1((str_to_py(py, &path), params_dict, body_arg))
+                .map_err(|e| {
+                    EngineError::PluginError(format!("Failed to call handle_request: {e}"))
+                })?;
+
+            let result_str: String = result.extract().map_err(|e| {
+                EngineError::PluginError(format!("Failed to extract result: {e}"))
+            })?;
+
+            Ok(result_str.into_bytes())
+        })
     })
 }
 

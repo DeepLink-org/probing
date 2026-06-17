@@ -19,22 +19,17 @@ def get_callstack(tid: Optional[int] = None, mode: Optional[str] = None) -> str:
     import sys
 
     import probing._core as core
-    from probing._native import call_native
 
     _ = mode  # reserved for future py/cpp/mixed filtering
-    # IPython/pydevd installs ptrace-unfriendly threads; stack walk can SIGSEGV on macOS.
-    if any(name in sys.modules for name in ("ipykernel", "IPython", "pydevd")):
-        return json.dumps([])
-    return call_native(core.api_callstack, tid)
+    return core.api_callstack(tid)
 
 
 @ext_handler("pythonext", "eval", uses_body=True)
 def eval_code(code: str) -> str:
     """Execute code in the target process REPL."""
     import probing._core as core
-    from probing._native import call_native
 
-    return call_native(core.api_eval, code)
+    return core.api_eval(code)
 
 
 @ext_handler("pythonext", "ray/timeline/chrome")

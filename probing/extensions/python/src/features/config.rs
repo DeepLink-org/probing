@@ -5,30 +5,38 @@ use probing_core::config;
 use probing_core::runtime::block_on;
 
 use crate::features::convert::{ele_to_python, python_to_ele};
+use crate::features::native_bridge::with_detached_native;
 
 /// Get a configuration value.
 ///
 /// Returns None if the key doesn't exist, otherwise returns the value
 /// converted to the appropriate Python type.
 #[pyfunction(name = "config_get")]
-fn get(py: Python, key: String) -> PyResult<Option<Py<PyAny>>> {
-    let key_clone = key.clone();
-    let ele = py.detach(|| block_on(async move { config::get(&key_clone).await }));
-    match ele {
-        Some(val) => Ok(Some(ele_to_python(py, &val)?)),
-        None => Ok(None),
-    }
+fn get(_py: Python, key: String) -> PyResult<Option<Py<PyAny>>> {
+    with_detached_native(move || {
+        Python::attach(|py| {
+            let ele = block_on(async move { config::get(&key).await });
+            match ele {
+                Some(val) => Ok(Some(ele_to_python(py, &val)?)),
+                None => Ok(None),
+            }
+        })
+    })
 }
 
 /// Set a configuration value.
 ///
 /// Supports str, int, float, bool, and None values.
 #[pyfunction(name = "config_set")]
-fn set(py: Python, key: String, value: &Bound<'_, PyAny>) -> PyResult<()> {
-    let ele = python_to_ele(value)?;
-    let key_clone = key.clone();
-    py.detach(|| block_on(async move { config::set(&key_clone, ele).await }));
-    Ok(())
+fn set(_py: Python, key: String, value: Bound<'_, PyAny>) -> PyResult<()> {
+    let value = value.unbind();
+    with_detached_native(move || {
+        Python::attach(|py| {
+            let ele = python_to_ele(value.bind(py))?;
+            block_on(async move { config::set(&key, ele).await });
+            Ok(())
+        })
+    })
 }
 
 /// Get a configuration value as string.
@@ -36,51 +44,52 @@ fn set(py: Python, key: String, value: &Bound<'_, PyAny>) -> PyResult<()> {
 /// Returns None if the key doesn't exist, otherwise returns the value
 /// converted to string.
 #[pyfunction(name = "config_get_str")]
-fn get_str(py: Python, key: String) -> PyResult<Option<String>> {
-    let key_clone = key.clone();
-    Ok(py.detach(|| block_on(async move { config::get_str(&key_clone).await })))
+fn get_str(_py: Python, key: String) -> PyResult<Option<String>> {
+    Ok(with_detached_native(move || block_on(async move { config::get_str(&key).await })))
 }
 
 /// Check if a configuration key exists.
 #[pyfunction(name = "config_contains_key")]
-fn contains_key(py: Python, key: String) -> bool {
-    let key_clone = key.clone();
-    py.detach(|| block_on(async move { config::contains_key(&key_clone).await }))
+fn contains_key(_py: Python, key: String) -> bool {
+    with_detached_native(move || block_on(async move { config::contains_key(&key).await }))
 }
 
 /// Remove a configuration key and return its value.
 #[pyfunction(name = "config_remove")]
-fn remove(py: Python, key: String) -> PyResult<Option<Py<PyAny>>> {
-    let key_clone = key.clone();
-    let ele = py.detach(|| block_on(async move { config::remove(&key_clone).await }));
-    match ele {
-        Some(val) => Ok(Some(ele_to_python(py, &val)?)),
-        None => Ok(None),
-    }
+fn remove(_py: Python, key: String) -> PyResult<Option<Py<PyAny>>> {
+    with_detached_native(move || {
+        Python::attach(|py| {
+            let ele = block_on(async move { config::remove(&key).await });
+            match ele {
+                Some(val) => Ok(Some(ele_to_python(py, &val)?)),
+                None => Ok(None),
+            }
+        })
+    })
 }
 
 /// Get all configuration keys.
 #[pyfunction(name = "config_keys")]
-fn keys(py: Python) -> Vec<String> {
-    py.detach(|| block_on(config::keys()))
+fn keys(_py: Python) -> Vec<String> {
+    with_detached_native(|| block_on(config::keys()))
 }
 
 /// Clear all configuration.
 #[pyfunction(name = "config_clear")]
-fn clear(py: Python) {
-    py.detach(|| block_on(config::clear()));
+fn clear(_py: Python) {
+    with_detached_native(|| block_on(config::clear()));
 }
 
 /// Get the number of configuration entries.
 #[pyfunction(name = "config_len")]
-fn len(py: Python) -> usize {
-    py.detach(|| block_on(config::len()))
+fn len(_py: Python) -> usize {
+    with_detached_native(|| block_on(config::len()))
 }
 
 /// Check if the configuration store is empty.
 #[pyfunction(name = "config_is_empty")]
-fn is_empty(py: Python) -> bool {
-    py.detach(|| block_on(config::is_empty()))
+fn is_empty(_py: Python) -> bool {
+    with_detached_native(|| block_on(config::is_empty()))
 }
 
 /// Register the config functions directly to the probing Python module.

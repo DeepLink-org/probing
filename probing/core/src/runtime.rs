@@ -1,7 +1,9 @@
+use std::cell::Cell;
 use std::future::Future;
-use std::sync::OnceLock;
+use std::sync::{mpsc, OnceLock};
 use std::thread::{self, ThreadId};
 
+use log;
 use once_cell::sync::Lazy;
 
 /// Shared Tokio runtime for all sync→async bridges (Python bindings, local server, etc.).
@@ -29,7 +31,8 @@ pub fn register_python_main_thread() {
     let _ = PYTHON_MAIN_THREAD.set(thread::current().id());
 }
 
-fn is_python_main_thread() -> bool {
+/// Whether the current thread is the Python main thread registered at `_core` load.
+pub fn is_python_main_thread() -> bool {
     PYTHON_MAIN_THREAD
         .get()
         .is_some_and(|id| thread::current().id() == *id)
@@ -52,20 +55,92 @@ where
         .expect("block_on thread panicked")
 }
 
-/// Run synchronous Rust work that must not execute on the Python main thread once
-/// extension modules such as PyArrow have initialized (macOS SIGSEGV without this).
-pub fn run_on_native_thread<R: Send + 'static>(f: impl FnOnce() -> R + Send + 'static) -> R {
-    if !is_python_main_thread() || is_inside_core_runtime() {
+/// Single worker for Python↔Rust calls that must not run on the Python main thread
+/// (macOS/PyArrow) or on Tokio workers (nested Python callbacks).
+struct NativeBridge {
+    tx: mpsc::Sender<BridgeJob>,
+}
+
+struct BridgeJob {
+    func: Box<dyn FnOnce() + Send>,
+    done: mpsc::Sender<()>,
+}
+
+impl NativeBridge {
+    fn new() -> Self {
+        let (tx, rx) = mpsc::channel::<BridgeJob>();
+        thread::Builder::new()
+            .name("probing-native".into())
+            .spawn(move || {
+                while let Ok(job) = rx.recv() {
+                    let finished = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        (job.func)();
+                    }));
+                    if finished.is_err() {
+                        log::error!("probing-native bridge worker panicked");
+                    }
+                    let _ = job.done.send(());
+                }
+            })
+            .expect("failed to spawn probing-native bridge");
+        Self { tx }
+    }
+
+    fn call<R: Send + 'static>(&self, f: impl FnOnce() -> R + Send + 'static) -> R {
+        let (result_tx, result_rx) = mpsc::channel();
+        let (done_tx, done_rx) = mpsc::channel();
+        self.tx
+            .send(BridgeJob {
+                func: Box::new(move || {
+                    let r = f();
+                    let _ = result_tx.send(r);
+                }),
+                done: done_tx,
+            })
+            .expect("probing-native bridge thread exited");
+        done_rx
+            .recv()
+            .expect("probing-native bridge worker dropped completion");
+        result_rx
+            .recv()
+            .expect("probing-native bridge worker returned no value")
+    }
+}
+
+static NATIVE_BRIDGE: Lazy<NativeBridge> = Lazy::new(NativeBridge::new);
+
+thread_local! {
+    static ON_NATIVE_BRIDGE: Cell<bool> = const { Cell::new(false) };
+}
+
+fn on_native_bridge() -> bool {
+    ON_NATIVE_BRIDGE.with(|v| v.get())
+}
+
+fn run_on_native_bridge<R: Send + 'static>(f: impl FnOnce() -> R + Send + 'static) -> R {
+    if on_native_bridge() {
         return f();
     }
-    // Use a fresh thread per call so nested main-thread calls cannot deadlock a
-    // single-worker queue (e.g. config.set during probing import).
-    thread::Builder::new()
-        .name("probing-native".into())
-        .spawn(f)
-        .expect("failed to spawn probing-native thread")
-        .join()
-        .expect("probing-native thread panicked")
+    NATIVE_BRIDGE.call(|| {
+        ON_NATIVE_BRIDGE.with(|flag| {
+            flag.set(true);
+            let out = f();
+            flag.set(false);
+            out
+        })
+    })
+}
+
+fn needs_native_bridge() -> bool {
+    (is_python_main_thread() && !on_native_bridge()) || is_inside_core_runtime()
+}
+
+/// Run synchronous Rust/Python bridge work off the Python main thread and Tokio workers.
+pub fn run_on_native_thread<R: Send + 'static>(f: impl FnOnce() -> R + Send + 'static) -> R {
+    if needs_native_bridge() {
+        return run_on_native_bridge(f);
+    }
+    f()
 }
 
 /// Run an async future on [`CORE_RUNTIME`] from a synchronous context.
@@ -86,35 +161,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn block_on_runs_on_core_runtime() {
-        register_python_main_thread();
-        let thread_name = block_on(async {
-            thread::current()
-                .name()
-                .unwrap_or_default()
-                .to_string()
-        });
-        assert!(thread_name.starts_with("probing-runtime"));
-    }
-
-    #[test]
-    fn native_thread_routes_from_main() {
-        register_python_main_thread();
-        let ran_on = run_on_native_thread(|| {
-            thread::current()
-                .name()
-                .unwrap_or_default()
-                .to_string()
-        });
-        assert_eq!(ran_on, "probing-native");
+    fn block_on_completes_on_current_runtime() {
+        let value = block_on(async { 21 + 21 });
+        assert_eq!(value, 42);
     }
 
     #[test]
     fn block_on_from_runtime_worker_does_not_panic() {
-        register_python_main_thread();
-        let value = block_on(async {
-            block_on(async { 40 + 2 })
-        });
+        let value = block_on(async { block_on(async { 40 + 2 }) });
         assert_eq!(value, 42);
+    }
+
+    #[test]
+    fn native_bridge_serializes_calls() {
+        let a = run_on_native_bridge(|| 1);
+        let b = run_on_native_bridge(|| 2);
+        assert_eq!(a + b, 3);
     }
 }

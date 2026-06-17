@@ -56,14 +56,32 @@ try:
     current_local_step = _core.py_current_local_step
 except AttributeError:
     Span = None
-    current_span = lambda: None
-    active_span_for_events = lambda: None
-    active_span_by_kind = lambda _kind: None
-    step_snapshot = lambda: None
-    sync_local_step = lambda _step: None
-    advance_local_step = lambda: None
-    set_step_bucket_size = lambda _bucket: None
-    current_local_step = lambda: 0
+
+    def current_span():
+        return None
+
+    def active_span_for_events():
+        return None
+
+    def active_span_by_kind(_kind: str):
+        return None
+
+    def step_snapshot():
+        return None
+
+    def sync_local_step(_step: int):
+        return None
+
+    def advance_local_step():
+        return None
+
+    def set_step_bucket_size(_bucket: int):
+        return None
+
+    def current_local_step() -> int:
+        return 0
+
+
 from probing.core.table import table
 
 TRAIN_STEP_KIND = "train.step"

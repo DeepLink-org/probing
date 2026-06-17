@@ -81,7 +81,7 @@ extension-module = [
 ]
 gpu = ["probing-server/gpu"]
 gpu-cuda = ["probing-server/gpu-cuda"]
-default = ["extension-module", "use-mimalloc", "gpu"]
+default = ["extension-module", "gpu"] # "use-mimalloc",
 
 [dependencies]
 probing-core = { path = "probing/core" }

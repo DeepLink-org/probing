@@ -254,7 +254,7 @@ mod tests {
     use super::*;
     use datafusion::arrow::array::Int32Array;
     use datafusion::common::stats::Precision;
-    use datafusion::datasource::TableProvider;
+    use datafusion::catalog::TableProvider;
     use datafusion::execution::context::TaskContext;
     use datafusion::logical_expr::expr_fn::{out_ref_col, placeholder};
     use datafusion::logical_expr::TableProviderFilterPushDown;
@@ -513,7 +513,9 @@ mod tests {
             schema,
             vec![batch_ids(&test_schema_id(), vec![1])?],
         )?;
-        assert!(t.as_any().downcast_ref::<PluginAdvancedTable>().is_some());
+        assert!((&t as &dyn TableProvider)
+            .downcast_ref::<PluginAdvancedTable>()
+            .is_some());
         assert_eq!(t.table_type(), TableType::Base);
         Ok(())
     }

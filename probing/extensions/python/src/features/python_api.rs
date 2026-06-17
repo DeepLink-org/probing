@@ -4,6 +4,7 @@ use probing_cli::cli_main as cli_main_impl;
 use probing_core::runtime::block_on;
 use probing_core::ENGINE;
 
+use crate::features::native_bridge::with_detached_native;
 use crate::features::stack_tracer::{SignalTracer, StackTracer};
 use crate::repl::PythonRepl;
 
@@ -18,22 +19,21 @@ pub fn is_enabled() -> bool {
 }
 
 #[pyfunction]
-pub fn query_json(py: Python, sql: String) -> PyResult<String> {
-    let result = py
-        .detach(|| {
-            block_on(async move {
-                ENGINE
-                    .read()
-                    .await
-                    .async_query(sql.as_str())
-                    .await
-            })
+pub fn query_json(_py: Python, sql: String) -> PyResult<String> {
+    with_detached_native(move || {
+        let result = block_on(async move {
+            ENGINE
+                .read()
+                .await
+                .async_query(sql.as_str())
+                .await
         })
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()));
 
-    let final_result = result.unwrap_or_default();
-    serde_json::to_string(&final_result)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+        let final_result = result.unwrap_or_default();
+        serde_json::to_string(&final_result)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    })
 }
 
 /// HTTP `GET /apis/pythonext/callstack` backend.
