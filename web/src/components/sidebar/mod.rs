@@ -82,9 +82,9 @@ pub fn Sidebar() -> Element {
                         }
                         SidebarNavItem {
                             to: Route::StackPage {},
-                            icon: &icondata::AiThunderboltOutlined,
+                            icon: &icondata::AiApartmentOutlined,
                             label: "Stacks",
-                            is_active: route == Route::StackPage {},
+                            is_active: matches!(route, Route::StackPage {} | Route::StackWithTidPage { .. }),
                         }
                         ProfilingSidebarItem {
                             show_dropdown: show_profiling_dropdown,

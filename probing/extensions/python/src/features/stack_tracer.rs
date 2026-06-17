@@ -17,20 +17,23 @@ use probing_core::is_python_main_thread;
 
 use crate::features::vm_tracer::{get_python_frames_raw, get_python_stacks_raw};
 
-fn demangle_native_symbol(raw_name: &str) -> String {
+fn demangle_native_symbol(raw_name: &str) -> (String, Option<&'static str>) {
     if let Ok(d) = rustc_demangle::try_demangle(raw_name) {
-        return d.to_string();
+        return (d.to_string(), Some("rust"));
     }
     // macOS C ABI adds a leading `_` to Rust v0 mangling (`_R...` -> `__R...`).
     if raw_name.starts_with("__R") {
         if let Ok(d) = rustc_demangle::try_demangle(&raw_name[1..]) {
-            return d.to_string();
+            return (d.to_string(), Some("rust"));
         }
     }
-    cpp_demangle::Symbol::new(raw_name)
+    if let Some(demangled) = cpp_demangle::Symbol::new(raw_name)
         .ok()
         .and_then(|sym| sym.demangle().ok())
-        .unwrap_or_else(|| raw_name.to_string())
+    {
+        return (demangled, Some("cpp"));
+    }
+    (raw_name.to_string(), None)
 }
 
 lazy_static! {
@@ -88,24 +91,23 @@ impl SignalTracer {
         let mut frames = vec![];
         backtrace::trace(|frame| {
             let ip = frame.ip();
-            let symbol_address = frame.symbol_address(); // Keep as *mut c_void for formatting
             backtrace::resolve_frame(frame, |symbol| {
-                let func_name = symbol
+                let symbol_address = symbol.addr().unwrap_or(ip);
+                let (func_name, lang) = symbol
                     .name()
                     .and_then(|name| name.as_str())
                     .map(demangle_native_symbol)
-                    .unwrap_or_else(|| format!("unknown@{symbol_address:p}"));
-
+                    .unwrap_or_else(|| (format!("unknown@{symbol_address:p}"), None));
                 let file_name = symbol
                     .filename()
                     .map(|path| path.to_string_lossy().into_owned())
                     .unwrap_or_default();
-
                 frames.push(CallFrame::CFrame {
                     ip: format!("{ip:p}"),
                     file: file_name,
                     func: func_name,
                     lineno: symbol.lineno().unwrap_or(0) as i64,
+                    lang: lang.map(str::to_string),
                 });
             });
             true

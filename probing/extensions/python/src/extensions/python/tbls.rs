@@ -47,13 +47,19 @@ impl PythonNamespace {
                     file,
                     func,
                     lineno,
+                    lang,
                 } => {
                     ips.push(Some(ip));
                     files.push(Some(file));
                     funcs.push(Some(func));
                     linenos.push(Some(lineno));
-                    depth.push(Some(current_depth_val)); // Use new variable name
-                    frame_types.push(Some("Native".to_string())); // Add frame type
+                    depth.push(Some(current_depth_val));
+                    let type_label = match lang.as_deref() {
+                        Some("rust") => "Rust",
+                        Some("cpp") => "Native",
+                        _ => "Native",
+                    };
+                    frame_types.push(Some(type_label.to_string()));
                     current_depth_val += 1;
                 }
                 CallFrame::PyFrame {
