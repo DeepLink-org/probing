@@ -11,6 +11,11 @@ def set(key, value):
     return _core.config_set(key, value)
 
 
+def write(key, value):
+    """Set a config key through the engine (e.g. ``probing.server.address``)."""
+    return _core.config_write(key, value)
+
+
 def get_str(key):
     return _core.config_get_str(key)
 

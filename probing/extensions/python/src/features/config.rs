@@ -24,6 +24,18 @@ fn get(_py: Python, key: String) -> PyResult<Option<Py<PyAny>>> {
     })
 }
 
+/// Set a configuration option through the engine extension system (starts servers, etc.).
+#[pyfunction(name = "config_write")]
+fn write(_py: Python, key: String, value: String) -> PyResult<()> {
+    with_detached_native(move || {
+        block_on(async move {
+            config::write(&key, &value)
+                .await
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        })
+    })
+}
+
 /// Set a configuration value.
 ///
 /// Supports str, int, float, bool, and None values.
@@ -98,6 +110,7 @@ fn is_empty(_py: Python) -> bool {
 pub fn register_config_functions(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(get, module)?)?;
     module.add_function(wrap_pyfunction!(set, module)?)?;
+    module.add_function(wrap_pyfunction!(write, module)?)?;
     module.add_function(wrap_pyfunction!(get_str, module)?)?;
     module.add_function(wrap_pyfunction!(contains_key, module)?)?;
     module.add_function(wrap_pyfunction!(remove, module)?)?;

@@ -11,17 +11,16 @@ pub struct NvidiaDeviceStats {
 
 /// Batch-read utilization for all visible GPUs (one subprocess per sample tick).
 pub fn read_utilization_by_index() -> HashMap<i32, NvidiaDeviceStats> {
-    let output = Command::new("nvidia-smi")
+    let output = match Command::new("nvidia-smi")
         .args([
             "--query-gpu=index,utilization.gpu,utilization.memory",
             "--format=csv,noheader,nounits",
         ])
         .output()
-        .ok()?;
-
-    if !output.status.success() {
-        return HashMap::new();
-    }
+    {
+        Ok(output) if output.status.success() => output,
+        _ => return HashMap::new(),
+    };
 
     let mut map = HashMap::new();
     for line in String::from_utf8_lossy(&output.stdout).lines() {
@@ -30,9 +29,22 @@ pub fn read_utilization_by_index() -> HashMap<i32, NvidiaDeviceStats> {
             continue;
         }
         let mut parts = line.split(',').map(str::trim);
-        let index: i32 = parts.next()?.parse().ok()?;
-        let gpu_util: f32 = parts.next()?.parse().ok()?;
-        let mem_util: f32 = parts.next()?.parse().unwrap_or(0.0);
+        let Some(index_str) = parts.next() else {
+            continue;
+        };
+        let Ok(index) = index_str.parse::<i32>() else {
+            continue;
+        };
+        let Some(gpu_str) = parts.next() else {
+            continue;
+        };
+        let Ok(gpu_util) = gpu_str.parse::<f32>() else {
+            continue;
+        };
+        let mem_util = parts
+            .next()
+            .and_then(|s| s.parse::<f32>().ok())
+            .unwrap_or(0.0);
         map.insert(
             index,
             NvidiaDeviceStats {

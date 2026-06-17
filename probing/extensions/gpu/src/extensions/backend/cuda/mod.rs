@@ -6,7 +6,7 @@ use super::traits::{GpuBackend, GpuBackendKind, GpuDeviceInfo, GpuMemoryModel, G
 use cudarc::driver::safe::CudaContext;
 use cudarc::driver::sys::CUdevice_attribute;
 
-pub use nvidia_smi::{read_utilization_by_index, NvidiaDeviceStats};
+pub use nvidia_smi::read_utilization_by_index;
 
 pub struct CudaBackend {
     device_count: i32,

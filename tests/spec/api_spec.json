@@ -16,7 +16,6 @@
     { "method": "GET", "path": "/apis/files" },
     { "method": "GET", "path": "/apis/nodes" },
     { "method": "PUT", "path": "/apis/nodes" },
-    { "method": "POST", "path": "/apis/nodes/sync" },
     { "method": "GET", "path": "/apis/flamegraph/torch" },
     { "method": "GET", "path": "/apis/flamegraph/pprof" },
     { "method": "GET", "path": "/apis/training/step_matrix" },

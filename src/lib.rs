@@ -69,9 +69,21 @@ fn get_network_interfaces() -> Result<Vec<String>> {
     Ok(ips)
 }
 
-/// Setup environment variables for server configuration
+/// Setup environment variables for server configuration (single-process only).
+///
+/// Multi-process torchrun jobs defer HTTP bind and master discovery to
+/// ``probing.torchrun_cluster`` after ``init_process_group``.
 fn setup_env_settings() {
-    let mut report_port_basis: Option<u16> = None;
+    let world_size: i32 = std::env::var("WORLD_SIZE")
+        .unwrap_or_else(|_| "1".to_string())
+        .parse()
+        .unwrap_or(1);
+    if world_size > 1 {
+        log::debug!(
+            "WORLD_SIZE={world_size}: defer probing HTTP bind to torchrun_cluster (Python)"
+        );
+        return;
+    }
 
     match std::env::var(ENV_PROBING_PORT) {
         Ok(port_env_val) => {
@@ -80,67 +92,22 @@ fn setup_env_settings() {
                     "ENV_PROBING_PORT is RANDOM. PROBING_SERVER_ADDR set to 0.0.0.0:0 for random port binding."
                 );
                 std::env::set_var("PROBING_SERVER_ADDR", "'0.0.0.0:0'");
-                // report_port_basis remains None for RANDOM
+            } else if let Ok(port_number) = port_env_val.parse::<u16>() {
+                log::debug!(
+                    "ENV_PROBING_PORT specifies port: {port_number}. PROBING_SERVER_ADDR will be set."
+                );
+                std::env::set_var(
+                    "PROBING_SERVER_ADDR",
+                    format!("'0.0.0.0:{port_number}'"),
+                );
             } else {
-                // Not "RANDOM", try to parse as a specific port number
-                match port_env_val.parse::<u16>() {
-                    Ok(port_number) => {
-                        log::debug!(
-                            "ENV_PROBING_PORT specifies port: {port_number}. PROBING_SERVER_ADDR will be set."
-                        );
-                        report_port_basis = Some(port_number);
-
-                        let local_rank: u16 = std::env::var("LOCAL_RANK")
-                            .unwrap_or_else(|_| "0".to_string())
-                            .parse()
-                            .unwrap_or(0);
-                        let serving_port = port_number.saturating_add(local_rank);
-
-                        let hostname =
-                            if std::env::var("RANK").unwrap_or_else(|_| "0".to_string()) == "0" {
-                                "0.0.0.0".to_string()
-                            } else {
-                                get_hostname().unwrap_or_else(|err| {
-                                    log::warn!(
-                                        "Failed to get hostname: {err}, defaulting to localhost"
-                                    );
-                                    "localhost".to_string()
-                                })
-                            };
-                        std::env::set_var(
-                            "PROBING_SERVER_ADDR",
-                            format!("'{hostname}:{serving_port}'"),
-                        );
-                        log::debug!(
-                            "PROBING_SERVER_ADDR set to {hostname}:{serving_port} (base: {port_number}, local_rank: {local_rank})."
-                        );
-                    }
-                    Err(_) => {
-                        log::warn!(
-                            "ENV_PROBING_PORT value '{port_env_val}' is not 'RANDOM' and not a valid port number. PROBING_SERVER_ADDR will not be set. Remote server not started by sync_env_settings."
-                        );
-                        // PROBING_SERVER_ADDR is not set
-                    }
-                }
+                log::warn!(
+                    "ENV_PROBING_PORT value '{port_env_val}' is not 'RANDOM' and not a valid port number."
+                );
             }
         }
         Err(_) => {
-            log::debug!("ENV_PROBING_PORT not set. PROBING_SERVER_ADDR will not be set. Remote server not started by sync_env_settings.");
-            // PROBING_SERVER_ADDR is not set
-        }
-    }
-
-    // Setup reporting address only if a base port was determined (specific port, not RANDOM)
-    if let Some(base_port_for_reporting) = report_port_basis {
-        if let Ok(master_addr) = std::env::var("MASTER_ADDR") {
-            if !master_addr.is_empty() {
-                // Ensure MASTER_ADDR is not empty
-                log::debug!("Configuring PROBING_SERVER_REPORT_ADDR to {master_addr}:{base_port_for_reporting} based on MASTER_ADDR and base port");
-                std::env::set_var(
-                    "PROBING_SERVER_REPORT_ADDR",
-                    format!("'{master_addr}:{base_port_for_reporting}'"),
-                );
-            }
+            log::debug!("ENV_PROBING_PORT not set. PROBING_SERVER_ADDR will not be set.");
         }
     }
 }

@@ -108,7 +108,6 @@ pub fn start_local() {
     SERVER_RUNTIME.spawn(async move {
         let _ = local_server().await;
     });
-    spawn_pulsing_sync();
 }
 
 pub async fn remote_server(addr: Option<String>) -> Result<()> {
@@ -151,17 +150,6 @@ pub fn start_remote(addr: Option<String>) {
     SERVER_RUNTIME.spawn(async move {
         let _ = remote_server(addr).await;
     });
-    spawn_pulsing_sync();
-}
-
-fn spawn_pulsing_sync() {
-    let interval_secs = std::env::var("PROBING_PULSING_SYNC_INTERVAL")
-        .ok()
-        .and_then(|s| s.parse::<u64>().ok())
-        .unwrap_or(10);
-    SERVER_RUNTIME.spawn(crate::pulsing_sync::sync_loop(
-        std::time::Duration::from_secs(interval_secs),
-    ));
 }
 
 pub fn sync_env_settings() {

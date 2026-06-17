@@ -4,6 +4,7 @@ pub mod cluster_model;
 mod data_source;
 mod engine;
 mod error;
+pub mod federation;
 pub mod memtable_sql;
 mod plugin_advanced;
 pub mod probe_extension;

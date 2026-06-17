@@ -17,6 +17,7 @@ use super::probe_extension::ProbeExtension;
 use super::probe_extension::ProbeExtensionManager;
 
 use super::data_source::{ProbeDataSource, ProbeDataSourceKind};
+use super::federation;
 
 /// Core query engine for the Probing system
 ///
@@ -103,7 +104,7 @@ impl Engine {
         &self,
         query: T,
     ) -> Result<Option<probing_proto::prelude::DataFrame>> {
-        let query: String = query.into();
+        let query: String = federation::prepare_global_query(&query.into());
         let batches = self.sql(query.as_str()).await?.collect().await?;
         if batches.is_empty() {
             return Ok(None);
@@ -254,6 +255,7 @@ impl EngineBuilder {
         for data_source in self.data_sources {
             engine.enable(data_source).await?;
         }
+        federation::install_global_catalog(&engine.context)?;
 
         Ok(engine)
     }

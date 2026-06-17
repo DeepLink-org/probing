@@ -19,7 +19,6 @@ pub const PUBLIC_API_ROUTES: &[(&str, &str)] = &[
     ("GET", "/files"),
     ("GET", "/nodes"),
     ("PUT", "/nodes"),
-    ("POST", "/nodes/sync"),
     ("GET", "/flamegraph/torch"),
     ("GET", "/flamegraph/pprof"),
     ("GET", "/training/step_matrix"),
@@ -37,7 +36,6 @@ fn public_routes() -> Router {
         .route("/overview", get(system::get_overview_json))
         .route("/files", get(file_api::read_file))
         .route("/nodes", get(cluster::get_nodes).put(cluster::put_node))
-        .route("/nodes/sync", post(cluster::post_sync_nodes))
         .route("/flamegraph/torch", get(profiling::get_torch_flamegraph))
         .route("/flamegraph/pprof", get(profiling::get_pprof_flamegraph))
         .route("/training/step_matrix", get(training::get_step_matrix))

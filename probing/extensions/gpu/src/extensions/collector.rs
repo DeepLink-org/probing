@@ -15,7 +15,7 @@ use super::backend::{
 };
 
 #[cfg(feature = "cuda")]
-use super::backend::cuda::read_utilization_by_index;
+use super::backend::read_utilization_by_index;
 
 const CHUNK_SIZE: u32 = 4096;
 const NUM_CHUNKS: u32 = 8;

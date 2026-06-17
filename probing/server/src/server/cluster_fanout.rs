@@ -2,10 +2,17 @@
 //!
 //! Training agents write locally; cross-node aggregation runs only when a control-plane
 //! caller explicitly requests `cluster=true`.
+//!
+//! Single-table queries route through the `global` catalog (DataFusion federation).
+//! JOIN / multi-statement SQL still uses the legacy per-node broadcast path.
 
 use std::time::Duration;
 
 use probing_core::core::cluster::get_nodes;
+use probing_core::core::federation::{
+    can_fanout_via_global_catalog, reset_fanout_stats, rewrite_sql_for_global_fanout,
+    take_fanout_stats,
+};
 use probing_proto::prelude::*;
 
 use crate::engine::handle_query;
@@ -101,37 +108,75 @@ pub struct FanoutQueryResponse {
     pub meta: FanoutMeta,
 }
 
-/// Run `sql` locally, optionally fanning out to peer nodes discovered via Pulsing.
+/// Run `sql` locally, optionally fanning out to peer nodes in the cluster view.
 pub async fn fanout_query(sql: &str, cluster: bool) -> anyhow::Result<FanoutQueryResponse> {
+    if !cluster {
+        return Ok(FanoutQueryResponse {
+            dataframe: query_local_df(sql).await?,
+            meta: FanoutMeta {
+                cluster: false,
+                nodes_queried: 1,
+                nodes_failed: Vec::new(),
+            },
+        });
+    }
+
+    if can_fanout_via_global_catalog(sql) {
+        return fanout_via_global_catalog(sql).await;
+    }
+
+    broadcast_fanout_query(sql).await
+}
+
+/// Single-table cluster query via `global.*` catalog (coordinator-side federation).
+async fn fanout_via_global_catalog(sql: &str) -> anyhow::Result<FanoutQueryResponse> {
+    reset_fanout_stats();
+    let global_sql = rewrite_sql_for_global_fanout(sql);
+    log::debug!("cluster fan-out via global catalog: {global_sql}");
+    let dataframe = query_local_df(&global_sql).await?;
+    let stats = take_fanout_stats();
+    Ok(FanoutQueryResponse {
+        dataframe,
+        meta: FanoutMeta {
+            cluster: true,
+            nodes_queried: 1 + stats.nodes_succeeded,
+            nodes_failed: stats.nodes_failed,
+        },
+    })
+}
+
+/// Legacy path: broadcast the full SQL to each peer (required for JOINs and other
+/// multi-table queries that must execute entirely on each node).
+async fn broadcast_fanout_query(sql: &str) -> anyhow::Result<FanoutQueryResponse> {
     let host = local_host_label();
     let addr = local_addr_label();
-    let mut parts = vec![tag_dataframe(query_local_df(sql).await?, &host, &addr)];
+    let local_rank = probing_core::core::federation::cluster_rank_for_endpoint(&host, &addr);
+    let mut parts = vec![tag_dataframe(query_local_df(sql).await?, &host, &addr, local_rank)];
     let mut nodes_queried = 1usize;
     let mut nodes_failed = Vec::new();
 
-    if cluster {
-        let local_addrs = local_listen_addrs();
-        for node in get_nodes() {
-            if local_addrs.contains(&node.addr) {
-                continue;
+    let local_addrs = local_listen_addrs();
+    for node in get_nodes() {
+        if local_addrs.contains(&node.addr) {
+            continue;
+        }
+        match remote_query_df(&node.addr, sql).await {
+            Ok(df) => {
+                parts.push(tag_dataframe(
+                    df,
+                    if node.host.is_empty() {
+                        &node.addr
+                    } else {
+                        &node.host
+                    },
+                    &node.addr,
+                    node.rank,
+                ));
+                nodes_queried += 1;
             }
-            match remote_query_df(&node.addr, sql).await {
-                Ok(df) => {
-                    parts.push(tag_dataframe(
-                        df,
-                        if node.host.is_empty() {
-                            &node.addr
-                        } else {
-                            &node.host
-                        },
-                        &node.addr,
-                    ));
-                    nodes_queried += 1;
-                }
-                Err(err) => {
-                    log::debug!("cluster fan-out {} failed: {err}", node.addr);
-                    nodes_failed.push(node.addr.clone());
-                }
+            Err(err) => {
+                log::debug!("cluster fan-out {} failed: {err}", node.addr);
+                nodes_failed.push(node.addr.clone());
             }
         }
     }
@@ -139,22 +184,24 @@ pub async fn fanout_query(sql: &str, cluster: bool) -> anyhow::Result<FanoutQuer
     Ok(FanoutQueryResponse {
         dataframe: merge_tagged_dataframes(&parts),
         meta: FanoutMeta {
-            cluster,
+            cluster: true,
             nodes_queried,
             nodes_failed,
         },
     })
 }
 
-fn tag_dataframe(mut df: DataFrame, host: &str, addr: &str) -> DataFrame {
+fn tag_dataframe(mut df: DataFrame, host: &str, addr: &str, rank: Option<i32>) -> DataFrame {
     if df.is_empty() {
         return df;
     }
     let rows = df.len();
-    df.names.push("_probe_host".to_string());
-    df.names.push("_probe_addr".to_string());
+    df.names.push("_host".to_string());
+    df.names.push("_addr".to_string());
+    df.names.push("_rank".to_string());
     df.cols.push(Seq::SeqText(vec![host.to_string(); rows]));
     df.cols.push(Seq::SeqText(vec![addr.to_string(); rows]));
+    df.cols.push(Seq::SeqI32(vec![rank.unwrap_or(-1); rows]));
     df.size = df.len() as u64;
     df
 }
@@ -220,6 +267,7 @@ mod tests {
             },
             "host-a",
             "10.0.0.1:8080",
+            Some(0),
         );
         let remote = tag_dataframe(
             DataFrame {
@@ -229,14 +277,15 @@ mod tests {
             },
             "host-b",
             "10.0.0.2:8080",
+            Some(1),
         );
         let merged = merge_tagged_dataframes(&[local, remote]);
         assert_eq!(merged.len(), 2);
-        assert_eq!(merged.names.len(), 3);
+        assert_eq!(merged.names.len(), 4);
         let host_col = merged
             .names
             .iter()
-            .position(|n| n == "_probe_host")
+            .position(|n| n == "_host")
             .unwrap();
         assert_eq!(merged.cols[host_col].get_str(0).as_deref(), Some("host-a"));
         assert_eq!(merged.cols[host_col].get_str(1).as_deref(), Some("host-b"));

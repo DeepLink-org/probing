@@ -134,7 +134,7 @@ pub(crate) fn has_unsupported_pushdown_subexpr(expr: &Expr) -> bool {
 }
 
 /// Structural gate for [`TableProvider::supports_filters_pushdown`] without a [`Session`].
-pub(crate) fn can_push_filter_exact_for_schema(schema: &SchemaRef, expr: &Expr) -> bool {
+pub fn can_push_filter_exact_for_schema(schema: &SchemaRef, expr: &Expr) -> bool {
     if has_unsupported_pushdown_subexpr(expr) {
         return false;
     }

@@ -91,8 +91,8 @@ fn parse_step_df(
         .iter()
         .position(|n| n == "duration_us")
         .unwrap_or(1);
-    let host_idx = df.names.iter().position(|n| n == "_probe_host");
-    let addr_idx = df.names.iter().position(|n| n == "_probe_addr");
+    let host_idx = df.names.iter().position(|n| n == "_host");
+    let addr_idx = df.names.iter().position(|n| n == "_addr");
     let rows = df.cols.first().map(|c| c.len()).unwrap_or(0);
 
     let mut out = Vec::with_capacity(rows);

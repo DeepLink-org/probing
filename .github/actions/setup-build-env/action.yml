@@ -13,6 +13,10 @@ inputs:
     description: 'Whether to install Python build dependencies'
     required: false
     default: 'false'
+  dx-version:
+    description: 'dioxus-cli (dx) version — keep in sync with web/Cargo.toml'
+    required: false
+    default: '0.7.9'
 
 runs:
   using: 'composite'
@@ -58,15 +62,21 @@ runs:
           ~/zig
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-    - name: Install cargo tools
+    # Prebuilt dx from GitHub Releases (no API rate limits). Official alternative:
+    # DioxusLabs/dioxus-ci/actions/install-dioxus-cli (uses cargo-binstall internally).
+    - name: Install dioxus CLI (dx)
+      if: inputs.install-cargo-tools == 'true'
+      uses: taiki-e/install-action@v2
+      with:
+        tool: dioxus-cli@${{ inputs.dx-version }}
+
+    - name: Install other cargo tools
       if: inputs.install-cargo-tools == 'true'
       shell: bash
       run: |
         test -e ~/.cargo/bin/cargo-zigbuild || cargo install cargo-zigbuild
         test -e ~/.cargo/bin/rnr || cargo install rnr
         test -e ~/.cargo/bin/cargo-nextest || cargo install --locked cargo-nextest
-        test -e ~/.cargo/bin/cargo-binstall || cargo install cargo-binstall
-        test -e ~/.cargo/bin/dx || cargo binstall dioxus-cli@0.7.9 -y
         test -e ~/.cargo/bin/trunk || cargo install trunk --locked
 
     - name: Install Python Build Dependencies

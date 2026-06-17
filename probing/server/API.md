@@ -21,7 +21,6 @@ Registered in `server/api/mod.rs`:
 | GET | `/apis/overview` | System overview |
 | GET | `/apis/files?path=…` | Read workspace file |
 | GET/PUT | `/apis/nodes` | Cluster node list / register |
-| POST | `/apis/nodes/sync` | Merge nodes from Pulsing |
 | GET | `/apis/flamegraph/torch` | PyTorch CPU flamegraph (SVG) |
 | GET | `/apis/flamegraph/pprof` | pprof flamegraph (SVG) |
 | GET | `/apis/training/step_matrix` | Cross-rank train.step samples (`cluster=false` default; set `cluster=true` for on-demand fan-out) |
@@ -32,7 +31,7 @@ Registered in `server/api/mod.rs`:
 Training agents write to **local memtable only**. Cross-node aggregation is explicit:
 
 - **Local** (default): `GET /apis/training/step_matrix?cluster=false` or `POST /apis/cluster/query` with `"cluster": false`
-- **Cluster scan**: `cluster=true` fans out the same SQL to peer nodes from the Pulsing cluster view, merges rows, and tags `_probe_host` / `_probe_addr`
+- **Cluster scan**: `cluster=true` fans out the same SQL to peer nodes from the in-memory cluster view (torchrun report / `PUT /apis/nodes`), merges rows, and tags `_probe_host` / `_probe_addr`
 
 CLI:
 

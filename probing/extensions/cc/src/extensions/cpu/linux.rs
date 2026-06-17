@@ -1,6 +1,7 @@
 use std::io;
 
 use procfs::process::Process;
+use procfs::WithCurrentSystemInfo;
 
 use super::sample::{ProcessSample, ThreadSample};
 use super::sampler::CpuHostSampler;
@@ -45,7 +46,7 @@ impl CpuHostSampler for LinuxSampler {
         Ok(ProcessSample {
             cputime_user_ns: self.ticks_to_ns(stat.utime),
             cputime_sys_ns: self.ticks_to_ns(stat.stime),
-            rss_bytes: stat.rss_bytes(),
+            rss_bytes: stat.rss_bytes().get(),
             thread_count,
             vol_ctxt,
             invol_ctxt,
