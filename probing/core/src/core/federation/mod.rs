@@ -1,3 +1,4 @@
+mod aggregate_pushdown;
 mod cluster_executor;
 mod convert;
 mod global_catalog;
@@ -5,6 +6,9 @@ mod global_table;
 mod rewrite;
 mod sql_gen;
 
+pub use aggregate_pushdown::{
+    plan_federated_aggregate_pushdown, try_execute_aggregate_pushdown, FederatedAggregatePlan,
+};
 pub use cluster_executor::{reset_fanout_stats, take_fanout_stats, FanoutStats, ProbeClusterExecutor};
 pub use global_catalog::{install_global_catalog, GLOBAL_CATALOG};
 pub use convert::{

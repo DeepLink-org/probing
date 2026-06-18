@@ -104,7 +104,11 @@ impl Engine {
         &self,
         query: T,
     ) -> Result<Option<probing_proto::prelude::DataFrame>> {
-        let query: String = federation::prepare_global_query(&query.into());
+        let original: String = query.into();
+        if let Some(df) = federation::try_execute_aggregate_pushdown(self, &original).await? {
+            return Ok(Some(df));
+        }
+        let query: String = federation::prepare_global_query(&original);
         let batches = self.sql(query.as_str()).await?.collect().await?;
         if batches.is_empty() {
             return Ok(None);
