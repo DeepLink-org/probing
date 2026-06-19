@@ -1,14 +1,10 @@
 use std::sync::{LazyLock, Mutex};
 use std::time::Duration;
 
-use datafusion::arrow::datatypes::SchemaRef;
-use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::error::{DataFusionError, Result};
 use probing_proto::prelude::{DataFrame, Message, Node, Query, QueryDataFormat};
 
 use crate::core::cluster::get_nodes;
-
-use super::convert::{align_batch_to_schema, dataframe_to_record_batch};
 
 /// Default per-node timeout for remote federated queries (seconds).
 const DEFAULT_REMOTE_QUERY_TIMEOUT_SECS: u64 = 2;
@@ -152,32 +148,6 @@ impl ProbeClusterExecutor {
                 })
                 .collect()
         })
-    }
-
-    pub fn collect_remote_batches(
-        sql: &str,
-        output_schema: &SchemaRef,
-    ) -> Result<Vec<RecordBatch>> {
-        let mut stats = FanoutStats::default();
-        let mut batches = Vec::new();
-        for outcome in Self::fanout_query_to_peers(sql) {
-            match outcome.result {
-                Ok(df) => {
-                    stats.nodes_succeeded += 1;
-                    let batch =
-                        dataframe_to_record_batch(&df, &outcome.host, &outcome.addr, outcome.rank)?;
-                    if batch.num_rows() > 0 {
-                        batches.push(align_batch_to_schema(batch, output_schema.as_ref())?);
-                    }
-                }
-                Err(err) => {
-                    log::debug!("federated query skipped {}: {err}", outcome.addr);
-                    stats.nodes_failed.push(outcome.addr);
-                }
-            }
-        }
-        *LAST_FANOUT_STATS.lock().unwrap() = stats;
-        Ok(batches)
     }
 
     pub fn execute_remote_query(addr: &str, sql: &str) -> Result<DataFrame> {

@@ -145,18 +145,6 @@ pub fn dataframe_to_record_batch(
         .map_err(|e| DataFusionError::Execution(format!("dataframe conversion failed: {e}")))
 }
 
-pub fn tag_record_batches(
-    batches: Vec<RecordBatch>,
-    host: &str,
-    addr: &str,
-    rank: Option<i32>,
-) -> Result<Vec<RecordBatch>> {
-    batches
-        .into_iter()
-        .map(|batch| tag_record_batch(batch, host, addr, rank))
-        .collect()
-}
-
 pub fn tag_record_batch(
     batch: RecordBatch,
     host: &str,

@@ -10,9 +10,15 @@ pub enum AppError {
 
     #[error("API error: {0}")]
     Api(String),
+    #[error("Cancelled")]
+    Cancelled,
 }
 
 impl AppError {
+    pub fn is_cancelled(&self) -> bool {
+        matches!(self, AppError::Cancelled)
+    }
+
     /// User-facing message for display in the UI (enables future i18n).
     pub fn display_message(&self) -> String {
         self.to_string()

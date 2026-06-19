@@ -9,21 +9,11 @@ use crate::components::colors::colors;
 use crate::components::icon::Icon;
 
 /// One style for all sidebar items (nav link, Profiling button, sub-items). Single source of truth.
-pub fn sidebar_item_class(is_active: bool) -> String {
+pub fn sidebar_item_class(is_active: bool) -> &'static str {
     if is_active {
-        format!(
-            "flex items-center gap-2 px-2 py-1.5 text-sm font-medium rounded-md bg-{} text-{} border-l-2 border-{}",
-            colors::PRIMARY_BG,
-            colors::PRIMARY_TEXT,
-            colors::PRIMARY_BORDER
-        )
+        colors::SIDEBAR_ITEM_ACTIVE
     } else {
-        format!(
-            "flex items-center gap-2 px-2 py-1.5 text-sm font-medium rounded-md text-{} hover:bg-{} hover:text-{} transition-colors",
-            colors::SIDEBAR_TEXT_SECONDARY,
-            colors::SIDEBAR_HOVER_BG,
-            colors::PRIMARY_TEXT
-        )
+        colors::SIDEBAR_ITEM_INACTIVE
     }
 }
 

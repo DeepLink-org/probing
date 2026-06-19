@@ -99,7 +99,8 @@ where
 }
 
 /// Periodic tick signal for polling APIs (e.g. dashboard metrics).
-/// When `gate` is `Some`, ticks only advance while the gate signal is true (e.g. tab visible).
+/// Prefer [`use_poll_tick_gated`] when the page can be hidden.
+#[allow(dead_code)]
 pub fn use_poll_tick(interval_ms: u32) -> Signal<u32> {
     use_poll_tick_gated(interval_ms, None)
 }

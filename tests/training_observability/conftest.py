@@ -26,12 +26,14 @@ import pytest
 STEP_MATRIX_SQL = """
 SELECT
     s.attributes,
-    CAST((e.timestamp - s.timestamp) / 1000 AS DOUBLE) AS duration_us
+    s.name,
+    s.time AS start_time,
+    CAST((e.time - s.time) / 1000 AS DOUBLE) AS duration_us
 FROM python.trace_event s
 JOIN python.trace_event e
   ON s.span_id = e.span_id AND e.record_type = 'span_end'
 WHERE s.record_type = 'span_start' AND s.kind = 'train.step'
-ORDER BY s.timestamp DESC
+ORDER BY s.time ASC
 """
 
 COMM_COLLECTIVE_RECENT_SQL = """

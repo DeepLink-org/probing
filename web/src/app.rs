@@ -6,10 +6,12 @@
 use dioxus::prelude::*;
 use dioxus_router::{Routable, Router};
 
+use crate::components::source_viewer::SourceViewerOverlay;
+
 use crate::components::common::LoadingState;
 use crate::components::layout::AppLayout;
 use crate::pages::{
-    analytics::Analytics, cluster::Cluster, dashboard::Dashboard, profiling::Profiling,
+    agent::Agent, analytics::Analytics, cluster::Cluster, dashboard::Dashboard, profiling::Profiling,
     pulsing::Pulsing, python::Python, stack::Stack, traces::Traces, training::Training,
 };
 use crate::state::profiling::normalize_profiling_view;
@@ -20,6 +22,8 @@ use crate::state::profiling::normalize_profiling_view;
 pub enum Route {
     #[route("/")]
     DashboardPage {},
+    #[route("/agent")]
+    AgentPage {},
     #[route("/cluster")]
     ClusterPage {},
     #[route("/stacks")]
@@ -36,6 +40,8 @@ pub enum Route {
     PythonPage {},
     #[route("/traces")]
     TracesPage {},
+    #[route("/spans")]
+    SpansPage {},
     #[route("/chrome-tracing")]
     ChromeTracingRedirect {},
     #[route("/pulsing")]
@@ -49,6 +55,11 @@ pub enum Route {
 #[component]
 pub fn DashboardPage() -> Element {
     rsx! { AppLayout { Dashboard {} } }
+}
+
+#[component]
+pub fn AgentPage() -> Element {
+    rsx! { AppLayout { Agent {} } }
 }
 
 #[component]
@@ -150,6 +161,16 @@ pub fn TracesPage() -> Element {
 }
 
 #[component]
+pub fn SpansPage() -> Element {
+    rsx! {
+        AppLayout {
+            fullscreen: true,
+            Traces {}
+        }
+    }
+}
+
+#[component]
 pub fn PulsingPage() -> Element {
     rsx! { AppLayout { Pulsing {} } }
 }
@@ -162,6 +183,7 @@ pub fn TrainingPage() -> Element {
 #[component]
 pub fn App() -> Element {
     rsx! {
+        SourceViewerOverlay {}
         Router::<Route> {}
     }
 }

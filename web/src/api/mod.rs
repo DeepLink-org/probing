@@ -79,6 +79,7 @@ impl ApiClient {
 
 // Export all API modules
 mod analytics;
+mod files;
 mod cluster;
 mod cpu;
 mod dashboard;

@@ -1,0 +1,76 @@
+# Workspace pages → suggested playbooks (Investigate page awareness).
+apiVersion: probing.dev/v1
+kind: PageCatalog
+
+pages:
+  dashboard:
+    title: Dashboard
+    path: /
+    description: "Live CPU/GPU metrics, process overview, thread ranking."
+    playbooks: [health_overview]
+
+  agent:
+    title: Investigate
+    path: /agent
+    description: "Playbook-driven investigation; optional LLM diagnostic agent summarizes SQL evidence."
+    playbooks: [health_overview]
+
+  cluster:
+    title: Cluster
+    path: /cluster
+    description: "Distributed training cluster nodes and rank status."
+    playbooks: [slow_rank, comm_bottleneck]
+
+  stacks:
+    title: Stacks
+    path: /stacks
+    description: "Live mixed Python + native call stacks."
+    playbooks: [training_hang]
+
+  profiling/pprof:
+    title: "Profiling · pprof"
+    path: /profiling/pprof
+    description: "CPU SIGPROF sampling flamegraph."
+    playbooks: [training_hang, module_bottleneck]
+
+  profiling/torch:
+    title: "Profiling · torch"
+    path: /profiling/torch
+    description: "PyTorch module hook flamegraph (python.torch_trace)."
+    playbooks: [module_bottleneck, memory_leak]
+
+  profiling/trace:
+    title: "Profiling · trace"
+    path: /profiling/trace
+    description: "Chrome trace event timeline."
+    playbooks: [module_bottleneck]
+
+  analytics:
+    title: Analytics
+    path: /analytics
+    description: "Ad-hoc SQL analytics and time-series charts."
+    playbooks: [health_overview, comm_bottleneck, slow_rank]
+
+  spans:
+    title: Distributed Spans
+    path: /spans
+    description: "Hierarchical spans from python.trace_event."
+    playbooks: [training_hang, comm_bottleneck]
+
+  training:
+    title: Training
+    path: /training
+    description: "Training step metrics and collective communication latency."
+    playbooks: [slow_rank, comm_bottleneck, module_bottleneck]
+
+  pulsing:
+    title: Pulsing
+    path: /pulsing
+    description: "Ray/Pulsing actors and span capture."
+    playbooks: []
+
+  python:
+    title: Python
+    path: /python
+    description: "Live Python variable tracing on functions."
+    playbooks: []

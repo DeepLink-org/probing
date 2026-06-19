@@ -9,7 +9,10 @@ use crate::components::global_command_panel::{CommandBar, FloatingResultToast, G
 use crate::components::icon::Icon;
 use crate::components::investigation_context_bar::InvestigationContextBar;
 use crate::components::keyboard_shortcuts::{GlobalShortcutInstaller, ShortcutsHelpOverlay};
+use crate::components::page_context_sync::PageContextSync;
 use crate::components::sidebar::Sidebar;
+use crate::components::ui_task_runtime::UiTaskRuntime;
+use crate::state::agent::load_agent_panel_width;
 use crate::state::commands::{FloatingResult, COMMAND_PANEL_OPEN};
 use crate::state::investigation::load_investigation_context;
 use crate::state::investigation_url::InvestigationUrlSync;
@@ -31,11 +34,14 @@ pub fn AppLayout(
     use_effect(move || {
         load_investigation_context();
         load_llm_config();
+        load_agent_panel_width();
     });
 
     rsx! {
         GlobalShortcutInstaller {}
+        UiTaskRuntime {}
         InvestigationUrlSync {}
+        PageContextSync {}
         if *COMMAND_PANEL_OPEN.read() {
             GlobalCommandPanel {}
         }
@@ -71,10 +77,13 @@ pub fn AppLayout(
                 }
                 InvestigationContextBar {}
                 div {
-                    class: "flex flex-1 min-h-0 overflow-hidden",
+                    class: "flex-1 min-h-0 relative overflow-hidden",
                     main {
-                        class: "flex-1 overflow-y-auto p-4 sm:p-6 bg-gray-50 min-w-0",
-                        style: if *sidebar_hidden { "width: 100%;" } else { "" },
+                        class: if fullscreen {
+                            "absolute inset-0 overflow-y-auto p-4 sm:p-6 bg-gray-50 min-w-0"
+                        } else {
+                            "absolute inset-0 overflow-y-auto p-4 sm:p-6 bg-gray-50 min-w-0"
+                        },
                         if fullscreen {
                             div { class: "w-full h-full min-h-0", {children} }
                         } else {

@@ -11,33 +11,26 @@ use crate::state::sidebar::{load_sidebar_state, save_sidebar_state, SIDEBAR_HIDD
 
 mod nav_item;
 mod profiling;
+mod correlate;
+mod stack;
+mod tasks;
 mod resize;
 
 use nav_item::{SidebarNavItem, SidebarSectionLabel};
 use profiling::ProfilingSidebarItem;
+use correlate::SidebarCorrelatePanel;
 use resize::ResizeHandle;
+use stack::StackSidebarItem;
+use tasks::SidebarTaskQueue;
 
-fn sidebar_classes() -> (String, String, String, String, String, String) {
+fn sidebar_classes() -> (&'static str, &'static str, &'static str, &'static str, &'static str, &'static str) {
     (
-        format!(
-            "bg-gradient-to-b from-{} via-{} to-{} border-r border-{} h-screen flex flex-col flex-shrink-0 shadow-xl",
-            colors::SIDEBAR_BG,
-            colors::SIDEBAR_BG_VIA,
-            colors::SIDEBAR_BG,
-            colors::SIDEBAR_BORDER
-        ),
-        format!("px-4 py-3 border-b border-{}", colors::SIDEBAR_BORDER),
-        format!("text-base font-semibold text-{}", colors::SIDEBAR_TEXT_PRIMARY),
-        format!("px-4 py-3 border-t border-{}", colors::SIDEBAR_BORDER),
-        format!(
-            "flex items-center gap-2 text-xs text-{} hover:text-{} transition-colors",
-            colors::SIDEBAR_TEXT_MUTED,
-            colors::PRIMARY_TEXT_DARK
-        ),
-        format!(
-            "absolute top-4 -right-3 w-6 h-6 bg-{} border border-slate-700 rounded-full shadow-lg flex items-center justify-center hover:bg-slate-600 z-30 transition-colors",
-            colors::SIDEBAR_ACTIVE_BG
-        ),
+        colors::SIDEBAR_ASIDE,
+        colors::SIDEBAR_LOGO_BORDER,
+        colors::SIDEBAR_BRAND,
+        colors::SIDEBAR_FOOTER,
+        colors::SIDEBAR_FOOTER_LINK,
+        colors::SIDEBAR_HIDE_BTN,
     )
 }
 
@@ -45,6 +38,7 @@ fn sidebar_classes() -> (String, String, String, String, String, String) {
 pub fn Sidebar() -> Element {
     let route = use_route::<Route>();
     let mut show_profiling_dropdown = use_signal(|| false);
+    let mut show_stack_dropdown = use_signal(|| false);
 
     use_effect(move || {
         load_sidebar_state();
@@ -54,6 +48,13 @@ pub fn Sidebar() -> Element {
     use_effect(move || {
         if matches!(route_for_profiling, Route::ProfilingViewPage { .. }) {
             *show_profiling_dropdown.write() = true;
+        }
+    });
+
+    let route_for_stack = route.clone();
+    use_effect(move || {
+        if matches!(route_for_stack, Route::StackPage {} | Route::StackWithTidPage { .. }) {
+            *show_stack_dropdown.write() = true;
         }
     });
 
@@ -89,10 +90,14 @@ pub fn Sidebar() -> Element {
                             is_active: route == Route::DashboardPage {},
                         }
                         SidebarNavItem {
-                            to: Route::StackPage {},
-                            icon: &icondata::AiApartmentOutlined,
-                            label: "Stacks",
-                            is_active: matches!(route, Route::StackPage {} | Route::StackWithTidPage { .. }),
+                            to: Route::AgentPage {},
+                            icon: &icondata::AiRobotOutlined,
+                            label: "Investigate",
+                            title: "Playbook-driven investigation (diagnostic agent)",
+                            is_active: route == Route::AgentPage {},
+                        }
+                        StackSidebarItem {
+                            show_dropdown: show_stack_dropdown,
                         }
 
                         SidebarSectionLabel { label: "Analysis" }
@@ -106,11 +111,11 @@ pub fn Sidebar() -> Element {
                             is_active: route == Route::AnalyticsPage {},
                         }
                         SidebarNavItem {
-                            to: Route::TracesPage {},
+                            to: Route::SpansPage {},
                             icon: &icondata::AiApiOutlined,
                             label: "Distributed Spans",
                             title: "Hierarchical spans from python.trace_event (not Profiling chrome trace)",
-                            is_active: route == Route::TracesPage {},
+                            is_active: matches!(route, Route::TracesPage {} | Route::SpansPage {}),
                         }
                         SidebarNavItem {
                             to: Route::TrainingPage {},
@@ -139,8 +144,12 @@ pub fn Sidebar() -> Element {
                             title: "Live variable tracing on functions (not distributed spans)",
                             is_active: route == Route::PythonPage {},
                         }
+
+                        SidebarCorrelatePanel {}
                     }
                 }
+
+                SidebarTaskQueue {}
 
                 div { class: "{footer}",
                     a {

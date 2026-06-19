@@ -1,76 +1,79 @@
 use dioxus::prelude::*;
+use dioxus_router::Link;
 
 use crate::api::{ApiClient, EventInfo, SpanInfo};
+use crate::app::Route;
 use crate::components::card::Card;
 use crate::components::colors::colors;
-use crate::components::common::{query_result, AsyncBoundary, EmptyState, ErrorState};
+use crate::components::common::{query_result, AsyncBoundary, EmptyState};
 use crate::components::icon::Icon;
 use crate::components::page::{PageContainer, PageTitle};
-use crate::components::timeline_viewer::TimelineViewer;
+use crate::components::poll_status::{ManualRefreshStatus, RefreshButton};
 use crate::hooks::use_app_resource;
-use crate::state::investigation::{set_trace_context, INVESTIGATION_CONTEXT};
+use crate::state::investigation::{
+    investigation_context_key, set_trace_context, sync_spans_filters_to_context,
+    InvestigationContext, INVESTIGATION_CONTEXT,
+};
+use crate::state::profiling::PROFILING_CHROME_LIMIT;
 
-const DEFAULT_LIMIT: usize = 400;
-const MIN_LIMIT: usize = 100;
-const MAX_LIMIT: usize = 2000;
-const LIMIT_STEP: usize = 100;
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum TraceDisplayMode {
-    Tree,
-    Timeline,
-}
+const CHROME_LIMIT_MIN: usize = 100;
+const CHROME_LIMIT_MAX: usize = 5000;
+const CHROME_LIMIT_STEP: usize = 100;
 
 #[component]
 pub fn Traces() -> Element {
-    let limit = use_signal(|| DEFAULT_LIMIT);
-    let filter = use_signal(String::new);
+    let mut refresh = use_signal(|| 0u32);
+    let refresh_tick = refresh();
+    let mut filter = use_signal(String::new);
     let expand_all = use_signal(|| 0u32);
     let collapse_all = use_signal(|| 0u32);
-    let display_mode = use_signal(|| TraceDisplayMode::Tree);
     let mut trace_id_filter = use_signal(String::new);
     let mut thread_filter = use_signal(String::new);
     let min_ms_filter = use_signal(String::new);
     let active_only = use_signal(|| false);
-    let show_advanced = use_signal(|| false);
+    let mut show_advanced = use_signal(|| false);
+    let mut last_applied_ctx = use_signal(String::new);
 
     use_effect(move || {
-        let ctx = INVESTIGATION_CONTEXT.read();
-        if let Some(tid) = ctx.tid {
-            thread_filter.set(tid.to_string());
+        let ctx = INVESTIGATION_CONTEXT.read().clone();
+        let key = investigation_context_key(&ctx);
+        if key == last_applied_ctx() {
+            return;
         }
-        if let Some(trace_id) = ctx.trace_id {
-            trace_id_filter.set(trace_id.to_string());
+        last_applied_ctx.set(key);
+        thread_filter.set(ctx.tid.map(|t| t.to_string()).unwrap_or_default());
+        trace_id_filter.set(ctx.trace_id.map(|t| t.to_string()).unwrap_or_default());
+        filter.set(ctx.span_name.unwrap_or_default());
+        if ctx.tid.is_some() || ctx.trace_id.is_some() {
+            show_advanced.set(true);
         }
     });
-
-    let mode = display_mode();
-    let card_title = if mode == TraceDisplayMode::Timeline {
-        "Span Timeline"
-    } else {
-        "Span Tree"
-    };
 
     rsx! {
         PageContainer {
             PageTitle {
                 title: "Distributed Spans".to_string(),
                 subtitle: Some(
-                    "Hierarchical spans and timeline from python.trace_event — not Profiling chrome trace or Python variable tracing".to_string(),
+                    "Hierarchical span tree from python.trace_event. For chrome trace event timelines, use Profiling → Chrome trace.".to_string(),
                 ),
                 icon: Some(&icondata::AiApiOutlined),
+                header_right: Some(rsx! {
+                    ManualRefreshStatus { refresh_tick }
+                    RefreshButton {
+                        onclick: move |_| refresh.set(refresh() + 1),
+                    }
+                }),
             }
 
             Card {
-                title: card_title,
+                title: "Span Tree",
                 content_class: Some("p-0"),
                 header_right: Some(rsx! {
                     TraceToolbar {
-                        limit,
+                        refresh,
                         filter,
                         expand_all,
                         collapse_all,
-                        display_mode,
                         trace_id_filter,
                         thread_filter,
                         min_ms_filter,
@@ -78,24 +81,17 @@ pub fn Traces() -> Element {
                         show_advanced,
                     }
                 }),
-                if mode == TraceDisplayMode::Timeline {
-                    AsyncBoundary {
-                        message: Some("Loading timeline…".to_string()),
-                        TraceTimelinePanel { limit }
-                    }
-                } else {
-                    AsyncBoundary {
-                        message: Some("Loading trace data…".to_string()),
-                        TraceTreePanel {
-                            limit,
-                            filter,
-                            trace_id_filter,
-                            thread_filter,
-                            min_ms_filter,
-                            active_only,
-                            expand_all,
-                            collapse_all,
-                        }
+                AsyncBoundary {
+                    message: Some("Loading trace data…".to_string()),
+                    TraceTreePanel {
+                        refresh,
+                        filter,
+                        trace_id_filter,
+                        thread_filter,
+                        min_ms_filter,
+                        active_only,
+                        expand_all,
+                        collapse_all,
                     }
                 }
             }
@@ -105,42 +101,20 @@ pub fn Traces() -> Element {
 
 #[component]
 fn TraceToolbar(
-    limit: Signal<usize>,
+    refresh: Signal<u32>,
     filter: Signal<String>,
     expand_all: Signal<u32>,
     collapse_all: Signal<u32>,
-    display_mode: Signal<TraceDisplayMode>,
     trace_id_filter: Signal<String>,
     thread_filter: Signal<String>,
     min_ms_filter: Signal<String>,
     active_only: Signal<bool>,
     show_advanced: Signal<bool>,
 ) -> Element {
-    let mode = display_mode();
+    let limit = *PROFILING_CHROME_LIMIT.read();
     rsx! {
         div { class: "flex flex-col gap-2 max-w-3xl w-full",
             div { class: "flex flex-wrap items-center gap-2",
-            div { class: "flex rounded-md border border-gray-300 bg-white p-0.5",
-                button {
-                    class: if mode == TraceDisplayMode::Tree {
-                        "px-2.5 py-1 text-xs rounded bg-blue-50 text-blue-700 font-medium"
-                    } else {
-                        "px-2.5 py-1 text-xs rounded text-gray-600 hover:bg-gray-50"
-                    },
-                    onclick: move |_| display_mode.set(TraceDisplayMode::Tree),
-                    "Tree"
-                }
-                button {
-                    class: if mode == TraceDisplayMode::Timeline {
-                        "px-2.5 py-1 text-xs rounded bg-blue-50 text-blue-700 font-medium"
-                    } else {
-                        "px-2.5 py-1 text-xs rounded text-gray-600 hover:bg-gray-50"
-                    },
-                    onclick: move |_| display_mode.set(TraceDisplayMode::Timeline),
-                    "Timeline"
-                }
-            }
-            if mode == TraceDisplayMode::Tree {
                 div { class: "relative min-w-[140px] flex-1",
                     span { class: "absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none",
                         Icon { icon: &icondata::AiSearchOutlined, class: "w-3.5 h-3.5" }
@@ -150,7 +124,15 @@ fn TraceToolbar(
                         class: "w-full pl-7 pr-2 py-1.5 text-xs rounded-md border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500",
                         placeholder: "Filter spans…",
                         value: "{filter}",
-                        oninput: move |ev| filter.set(ev.value()),
+                        oninput: move |ev| {
+                            let value = ev.value();
+                            filter.set(value.clone());
+                            sync_spans_filters_to_context(
+                                &value,
+                                &thread_filter.read(),
+                                &trace_id_filter.read(),
+                            );
+                        },
                     }
                 }
                 button {
@@ -174,39 +156,67 @@ fn TraceToolbar(
                     onclick: move |_| show_advanced.set(!show_advanced()),
                     "Filters"
                 }
-            }
-            div { class: "flex items-center gap-2 pl-1 border-l border-gray-200",
-                span { class: "text-xs text-gray-500 whitespace-nowrap font-mono", "{limit()} evt" }
-                input {
-                    r#type: "range",
-                    min: "{MIN_LIMIT}",
-                    max: "{MAX_LIMIT}",
-                    step: "{LIMIT_STEP}",
-                    value: "{limit}",
-                    class: "w-24 accent-blue-600",
-                    oninput: move |ev| {
-                        if let Ok(val) = ev.value().parse::<usize>() {
-                            limit.set(val);
-                        }
-                    },
+                Link {
+                    to: Route::ProfilingViewPage { view: "trace".to_string() },
+                    class: format!(
+                        "px-2 py-1.5 text-xs rounded-md border border-{} bg-{} text-{} hover:opacity-90 whitespace-nowrap",
+                        colors::CONTENT_ACCENT_BORDER,
+                        colors::CONTENT_ACCENT_BG,
+                        colors::CONTENT_ACCENT_TEXT,
+                    ),
+                    title: "Open chrome trace event timeline under Profiling (not this span tree)",
+                    "Chrome trace →"
+                }
+                div { class: "flex items-center gap-2 pl-1 border-l border-gray-200",
+                    span { class: "text-xs text-gray-500 whitespace-nowrap font-mono", "{limit} evt" }
+                    input {
+                        r#type: "range",
+                        min: "{CHROME_LIMIT_MIN}",
+                        max: "{CHROME_LIMIT_MAX}",
+                        step: "{CHROME_LIMIT_STEP}",
+                        value: "{limit}",
+                        class: "w-24 accent-blue-600",
+                        title: "Shared with Profiling → Chrome trace event limit",
+                        oninput: move |ev| {
+                            if let Ok(val) = ev.value().parse::<usize>() {
+                                *PROFILING_CHROME_LIMIT.write() = val;
+                                refresh.set(refresh() + 1);
+                            }
+                        },
+                    }
                 }
             }
-            }
-            if mode == TraceDisplayMode::Tree && show_advanced() {
+            if show_advanced() {
                 div { class: "flex flex-wrap items-center gap-2",
                     input {
                         r#type: "text",
                         class: "w-28 px-2 py-1.5 text-xs rounded-md border border-gray-300 bg-white font-mono",
                         placeholder: "trace id",
                         value: "{trace_id_filter}",
-                        oninput: move |ev| trace_id_filter.set(ev.value()),
+                        oninput: move |ev| {
+                            let value = ev.value();
+                            trace_id_filter.set(value.clone());
+                            sync_spans_filters_to_context(
+                                &filter.read(),
+                                &thread_filter.read(),
+                                &value,
+                            );
+                        },
                     }
                     input {
                         r#type: "text",
                         class: "w-24 px-2 py-1.5 text-xs rounded-md border border-gray-300 bg-white font-mono",
                         placeholder: "thread",
                         value: "{thread_filter}",
-                        oninput: move |ev| thread_filter.set(ev.value()),
+                        oninput: move |ev| {
+                            let value = ev.value();
+                            thread_filter.set(value.clone());
+                            sync_spans_filters_to_context(
+                                &filter.read(),
+                                &value,
+                                &trace_id_filter.read(),
+                            );
+                        },
                     }
                     input {
                         r#type: "text",
@@ -231,38 +241,8 @@ fn TraceToolbar(
 }
 
 #[component]
-fn TraceTimelinePanel(limit: Signal<usize>) -> Element {
-    let trace_json = use_app_resource(move || {
-        let limit_val = limit();
-        async move { ApiClient::new().get_chrome_tracing_json(Some(limit_val)).await }
-    });
-    let json = trace_json.suspend()?();
-
-    match json {
-        Ok(body) => rsx! {
-            div { class: "min-h-[calc(100vh-11rem)]",
-                TimelineViewer {
-                    trace_json: body,
-                    empty_message: Some(
-                        "No trace data available. Start tracing with probing.tracing.span() or TorchProbe spans.".to_string(),
-                    ),
-                }
-            }
-        },
-        Err(err) => rsx! {
-            div { class: "p-6",
-                ErrorState {
-                    title: Some("Timeline Error".to_string()),
-                    error: err.display_message(),
-                }
-            }
-        },
-    }
-}
-
-#[component]
 fn TraceTreePanel(
-    limit: Signal<usize>,
+    refresh: Signal<u32>,
     filter: Signal<String>,
     trace_id_filter: Signal<String>,
     thread_filter: Signal<String>,
@@ -272,7 +252,8 @@ fn TraceTreePanel(
     collapse_all: Signal<u32>,
 ) -> Element {
     let spans = use_app_resource(move || {
-        let limit_val = limit();
+        let _ = refresh();
+        let limit_val = *PROFILING_CHROME_LIMIT.read();
         async move { ApiClient::new().get_span_tree(Some(limit_val)).await }
     });
     let tree = spans.suspend()?();
@@ -282,6 +263,8 @@ fn TraceTreePanel(
         |spans| spans.is_empty(),
         "No trace data available. Start tracing with probing.tracing.span() or TorchProbe spans.",
         move |spans| {
+            let ctx = INVESTIGATION_CONTEXT.read().clone();
+            let highlight = SpanHighlight::from_context(&ctx);
             let advanced = TraceAdvancedFilters {
                 trace_id: trace_id_filter().trim().parse().ok(),
                 thread_id: thread_filter().trim().parse().ok(),
@@ -292,13 +275,22 @@ fn TraceTreePanel(
             let total = count_spans(&spans);
             let roots = spans.len();
             let shown = count_spans(&filtered);
+            let limit_display = *PROFILING_CHROME_LIMIT.read();
             rsx! {
                 div { class: "border-b border-gray-200 px-4 py-2 bg-gray-50/80 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-600",
                     span { class: "font-medium text-gray-800", "{roots} roots" }
                     span { "·" }
                     span { "{total} spans" }
                     span { "·" }
-                    span { "limit {limit()}" }
+                    span { "limit {limit_display}" }
+                    if !ctx.is_empty() {
+                        span { "·" }
+                        span {
+                            class: "text-blue-700",
+                            title: "Filters sync with investigation context and URL",
+                            "Context linked"
+                        }
+                    }
                     if !filter.read().trim().is_empty() {
                         span { "·" }
                         span { class: "text-blue-700", "{shown} matched" }
@@ -315,6 +307,7 @@ fn TraceTreePanel(
                                 key: "{span.span_id}",
                                 span: span.clone(),
                                 depth: 0,
+                                highlight: highlight.clone(),
                                 expand_all,
                                 collapse_all,
                             }
@@ -410,10 +403,58 @@ fn duration_label(duration: f64) -> String {
     }
 }
 
+fn span_is_primary_selection(span: &SpanInfo, highlight: &SpanHighlight) -> bool {
+    if let Some(trace_id) = highlight.trace_id {
+        if span.trace_id != trace_id {
+            return false;
+        }
+        return highlight
+            .span_name
+            .as_ref()
+            .map(|n| n == &span.name)
+            .unwrap_or(true);
+    }
+    false
+}
+
+fn span_matches_thread_only(span: &SpanInfo, highlight: &SpanHighlight) -> bool {
+    highlight.trace_id.is_none() && highlight.tid == Some(span.thread_id as i32)
+}
+
+fn span_row_class(span: &SpanInfo, highlight: &SpanHighlight) -> String {
+    let base =
+        "group flex flex-wrap items-center gap-x-2 gap-y-0.5 py-0.5 px-1 rounded cursor-pointer";
+    if span_is_primary_selection(span, highlight) {
+        format!("{base} bg-blue-100 ring-1 ring-inset ring-blue-300 hover:bg-blue-100")
+    } else if span_matches_thread_only(span, highlight) {
+        format!("{base} bg-blue-50/70 hover:bg-blue-50")
+    } else {
+        format!("{base} hover:bg-gray-50/90")
+    }
+}
+
+#[derive(Clone, PartialEq)]
+struct SpanHighlight {
+    trace_id: Option<i64>,
+    tid: Option<i32>,
+    span_name: Option<String>,
+}
+
+impl SpanHighlight {
+    fn from_context(ctx: &InvestigationContext) -> Self {
+        Self {
+            trace_id: ctx.trace_id,
+            tid: ctx.tid,
+            span_name: ctx.span_name.clone(),
+        }
+    }
+}
+
 #[component]
 fn SpanView(
     span: SpanInfo,
     depth: usize,
+    highlight: SpanHighlight,
     expand_all: Signal<u32>,
     collapse_all: Signal<u32>,
 ) -> Element {
@@ -430,6 +471,7 @@ fn SpanView(
     let trace_id = span.trace_id;
     let thread_id = span.thread_id as i32;
     let span_name = span.name.clone();
+    let row_class = span_row_class(&span, &highlight);
 
     use_effect(move || {
         if expand_all() > 0 {
@@ -445,7 +487,7 @@ fn SpanView(
     rsx! {
         div { class: "min-w-0",
             div {
-                class: "group flex flex-wrap items-center gap-x-2 gap-y-0.5 py-0.5 px-1 rounded hover:bg-gray-50/90 cursor-pointer",
+                class: "{row_class}",
                 style: if indent > 0 { format!("padding-left: {indent}px") } else { String::new() },
                 onclick: move |_| {
                     set_trace_context(trace_id, Some(&span_name), Some(thread_id));
@@ -518,6 +560,7 @@ fn SpanView(
                                 key: "{child.span_id}",
                                 span: child.clone(),
                                 depth: depth + 1,
+                                highlight: highlight.clone(),
                                 expand_all,
                                 collapse_all,
                             }

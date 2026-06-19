@@ -1,7 +1,5 @@
 //! Map playbook `ui.view` targets to app routes (shared with sidebar navigation).
 
-use dioxus_router::Navigator;
-
 use crate::app::Route;
 use crate::state::profiling::{normalize_profiling_view, profiling_view_label};
 
@@ -15,7 +13,7 @@ pub fn agent_view_to_route(view: &str) -> Route {
         "torch" => Route::ProfilingViewPage {
             view: "torch".to_string(),
         },
-        "traces" | "spans" => Route::TracesPage {},
+        "traces" | "spans" => Route::SpansPage {},
         "trace" | "chrome-trace" => Route::ProfilingViewPage {
             view: "trace".to_string(),
         },
@@ -42,8 +40,4 @@ pub fn agent_view_label(view: &str) -> String {
         "cluster" => "Cluster".to_string(),
         other => profiling_view_label(other).to_string(),
     }
-}
-
-pub fn navigate_to_agent_view(nav: &Navigator, view: &str) {
-    let _ = nav.push(agent_view_to_route(view));
 }

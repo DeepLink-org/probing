@@ -1,6 +1,12 @@
 [application]
 name = "probing-web"
-default_platform = "web"
+# dx autodetects tailwind.config.js (v3) and compiles on build/serve.
+tailwind_input = "tailwind.css"
+tailwind_output = "assets/tailwind.css"
+
+[web]
+# Release builds emit *.wasm.br / *.js.br companions for static serving.
+pre_compress = true
 
 [web.app]
 title = "Probing Web Interface"

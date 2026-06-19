@@ -10,7 +10,6 @@
 //! Downstream operators (e.g. `LIMIT`) can therefore consume incrementally and
 //! short-circuit without forcing every peer's rows to be materialized at once.
 
-use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
 
@@ -225,10 +224,6 @@ impl DisplayAs for FederatedScanExec {
 impl ExecutionPlan for FederatedScanExec {
     fn name(&self) -> &str {
         "FederatedScanExec"
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
     }
 
     fn properties(&self) -> &Arc<PlanProperties> {

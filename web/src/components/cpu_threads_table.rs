@@ -63,14 +63,10 @@ pub fn CpuThreadsTable(threads: Vec<CpuThreadRow>) -> Element {
                                                     "text-xs font-medium text-{} hover:underline whitespace-nowrap",
                                                     colors::PRIMARY
                                                 ),
-                                                onclick: {
-                                                    let name = name.clone();
-                                                    move |_| {
-                                                        set_thread_context(tid, Some(&name), pid);
-                                                        navigator.push(Route::StackWithTidPage {
-                                                            tid: tid_for_stack.clone(),
-                                                        });
-                                                    }
+                                                onclick: move |_| {
+                                                    navigator.push(Route::StackWithTidPage {
+                                                        tid: tid_for_stack.clone(),
+                                                    });
                                                 },
                                                 "Stack"
                                             }
@@ -80,7 +76,7 @@ pub fn CpuThreadsTable(threads: Vec<CpuThreadRow>) -> Element {
                                                     let name = name.clone();
                                                     move |_| {
                                                         set_thread_context(tid, Some(&name), pid);
-                                                        navigator.push(Route::TracesPage {});
+                                                        navigator.push(Route::SpansPage {});
                                                     }
                                                 },
                                                 "Spans"

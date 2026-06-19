@@ -97,6 +97,163 @@ pub fn update_investigation_context(mutator: impl FnOnce(&mut InvestigationConte
 pub fn clear_investigation_context() {
     *INVESTIGATION_CONTEXT.write() = InvestigationContext::default();
     save_investigation_context(&InvestigationContext::default());
+    crate::state::investigation_url::sync_investigation_context_to_url();
+}
+
+/// Stable key for detecting external investigation context changes.
+pub fn investigation_context_key(ctx: &InvestigationContext) -> String {
+    format!(
+        "{}:{}:{}:{}",
+        ctx.pid.unwrap_or(-1),
+        ctx.tid.unwrap_or(-1),
+        ctx.trace_id.unwrap_or(-1),
+        ctx.span_name.as_deref().unwrap_or("")
+    )
+}
+
+/// Write Distributed Spans page filters back into global context (and URL).
+pub fn sync_spans_filters_to_context(
+    name_filter: &str,
+    thread_filter: &str,
+    trace_id_filter: &str,
+) {
+    update_investigation_context(|ctx| {
+        let name = name_filter.trim();
+        ctx.span_name = if name.is_empty() {
+            None
+        } else {
+            Some(name.to_string())
+        };
+
+        let thread = thread_filter.trim();
+        if thread.is_empty() {
+            ctx.tid = None;
+        } else if let Ok(tid) = thread.parse::<i32>() {
+            ctx.tid = Some(tid);
+        }
+
+        let trace = trace_id_filter.trim();
+        if trace.is_empty() {
+            ctx.trace_id = None;
+        } else if let Ok(trace_id) = trace.parse::<i64>() {
+            ctx.trace_id = Some(trace_id);
+        }
+
+        ctx.label = if ctx.is_empty() {
+            None
+        } else {
+            Some(ctx.summary())
+        };
+    });
+}
+
+fn column_index(names: &[String], candidates: &[&str]) -> Option<usize> {
+    names.iter().position(|name| {
+        let lower = name.to_lowercase();
+        candidates
+            .iter()
+            .any(|c| lower == *c || lower.ends_with(&format!("_{c}")))
+    })
+}
+
+fn cell_i32(df: &probing_proto::prelude::DataFrame, row: usize, col: usize) -> Option<i32> {
+    use probing_proto::prelude::Ele;
+    match df.cols.get(col)?.get(row) {
+        Ele::I32(v) => Some(v),
+        Ele::I64(v) => i32::try_from(v).ok(),
+        Ele::Text(s) => s.parse().ok(),
+        _ => None,
+    }
+}
+
+fn cell_i64(df: &probing_proto::prelude::DataFrame, row: usize, col: usize) -> Option<i64> {
+    use probing_proto::prelude::Ele;
+    match df.cols.get(col)?.get(row) {
+        Ele::I64(v) => Some(v),
+        Ele::I32(v) => Some(v as i64),
+        Ele::Text(s) => s.parse().ok(),
+        _ => None,
+    }
+}
+
+fn cell_text(df: &probing_proto::prelude::DataFrame, row: usize, col: usize) -> Option<String> {
+    use probing_proto::prelude::Ele;
+    match df.cols.get(col)?.get(row) {
+        Ele::Text(s) if !s.is_empty() => Some(s.clone()),
+        Ele::I32(v) => Some(v.to_string()),
+        Ele::I64(v) => Some(v.to_string()),
+        _ => None,
+    }
+}
+
+/// Apply investigation context from an Agent/SQL result row (tid, trace_id, span name columns).
+pub fn apply_context_from_dataframe_row(df: &probing_proto::prelude::DataFrame, row: usize) {
+    let tid = column_index(&df.names, &["tid", "thread_id", "thread"])
+        .and_then(|c| cell_i32(df, row, c));
+    let trace_id = column_index(&df.names, &["trace_id", "trace"])
+        .and_then(|c| cell_i64(df, row, c));
+    let span_name = column_index(
+        &df.names,
+        &["span_name", "span", "name", "operation", "op"],
+    )
+    .and_then(|c| cell_text(df, row, c));
+    let pid = column_index(&df.names, &["pid", "process_id"]).and_then(|c| cell_i32(df, row, c));
+    let rank = column_index(&df.names, &["rank", "_rank"]).and_then(|c| cell_i32(df, row, c));
+    let local_step = column_index(&df.names, &["local_step", "step"])
+        .and_then(|c| cell_i64(df, row, c));
+
+    if tid.is_none()
+        && trace_id.is_none()
+        && span_name.is_none()
+        && pid.is_none()
+        && rank.is_none()
+    {
+        return;
+    }
+
+    update_investigation_context(|ctx| {
+        if let Some(p) = pid {
+            ctx.pid = Some(p);
+        }
+        if let Some(t) = tid {
+            ctx.tid = Some(t);
+        }
+        if let Some(id) = trace_id {
+            ctx.trace_id = Some(id);
+        }
+        if let Some(name) = span_name {
+            ctx.span_name = Some(name);
+        }
+        if let Some(r) = rank {
+            let mut label = format!("rank {r}");
+            if let Some(step) = local_step {
+                label.push_str(&format!(" · step {step}"));
+            }
+            if let Some(ref op) = ctx.span_name {
+                label.push_str(&format!(" · {op}"));
+            }
+            ctx.label = Some(label);
+        } else {
+            ctx.label = Some(ctx.summary());
+        }
+    });
+}
+
+/// Pin investigation context to a train.step heatmap cell (rank + optional step).
+pub fn set_training_step_context(rank: i32, local_step: Option<i64>, host: Option<&str>) {
+    let mut label = format!("rank {rank}");
+    if let Some(step) = local_step {
+        label.push_str(&format!(" · step {step}"));
+    }
+    if let Some(h) = host {
+        if !h.is_empty() {
+            label.push_str(&format!(" · {h}"));
+        }
+    }
+    update_investigation_context(|ctx| {
+        ctx.span_name = Some("train.step".to_string());
+        ctx.label = Some(label);
+    });
 }
 
 pub fn set_thread_context(tid: i32, thread_name: Option<&str>, pid: Option<i32>) {
@@ -124,6 +281,7 @@ pub fn set_trace_context(trace_id: i64, span_name: Option<&str>, tid: Option<i32
     });
 }
 
+#[allow(dead_code)]
 pub fn set_process_context(pid: i32, label: Option<&str>) {
     update_investigation_context(|ctx| {
         ctx.pid = Some(pid);

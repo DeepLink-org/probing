@@ -4,12 +4,19 @@ use std::collections::{HashMap, HashSet};
 
 use dioxus::prelude::*;
 
+use crate::agent::load_playbook;
 use crate::api::{ApiClient, ClusterQueryResponse, StepDurationSample, StepMatrixResponse};
 use crate::components::card::Card;
 use crate::components::common::{AppErrorDisplay, AsyncBoundary, EmptyState, LoadingState};
+use crate::components::dataframe_view::DataFrameView;
 use crate::components::page::{PageContainer, PageTitle};
-use crate::components::poll_status::PollStatusBar;
+use crate::components::poll_status::{PollStatusBar, RefreshButton};
+use crate::components::stat_card::StatCard;
+use crate::components::workspace::ChipButton;
 use crate::hooks::{use_app_resource, use_page_visible, use_poll_tick_gated};
+use crate::state::agent::{AGENT_INPUT, AGENT_PANEL_OPEN};
+use crate::state::ui_tasks::ui_agent_busy;
+use crate::state::investigation::{apply_context_from_dataframe_row, set_training_step_context};
 use crate::utils::error::AppError;
 
 const POLL_MS: u32 = 5000;
@@ -18,6 +25,34 @@ const COMM_LIMIT: usize = 30;
 
 const COMM_SQL: &str = "SELECT local_step, rank, op, group_size, duration_ms, bytes, tp_rank, pp_rank, dp_rank \
      FROM python.comm_collective ORDER BY timestamp DESC LIMIT ";
+
+const COMM_SUMMARY_SQL: &str = "SELECT op, count(*) AS n, \
+     round(avg(duration_ms), 2) AS avg_ms, round(max(duration_ms), 2) AS max_ms, \
+     sum(bytes) AS total_bytes \
+     FROM python.comm_collective GROUP BY op ORDER BY avg_ms DESC LIMIT 10";
+
+const MODULE_HOTSPOTS_SQL: &str = "SELECT module, stage, count(DISTINCT step) AS steps, \
+     count(*) AS hooks, round(avg(duration), 4) AS avg_sec, round(sum(duration), 4) AS total_sec \
+     FROM python.torch_trace \
+     WHERE step >= GREATEST(COALESCE((SELECT max(step) FROM python.torch_trace), 0) - 9, 1) \
+       AND stage LIKE 'post %' AND duration > 0 \
+       AND module IS NOT NULL AND module != '' AND module != 'None' \
+     GROUP BY module, stage ORDER BY total_sec DESC LIMIT 12";
+
+const STEP_PHASE_SQL: &str = "SELECT step, \
+     round(sum(CASE WHEN stage = 'post forward' THEN duration ELSE 0 END), 4) AS forward_sec, \
+     round(sum(CASE WHEN stage = 'post step' THEN duration ELSE 0 END), 4) AS optim_sec \
+     FROM python.torch_trace \
+     WHERE step >= GREATEST(COALESCE((SELECT max(step) FROM python.torch_trace), 0) - 15, 1) \
+       AND stage LIKE 'post %' AND duration > 0 \
+       AND module IS NOT NULL AND module != '' AND module != 'None' \
+     GROUP BY step ORDER BY step";
+
+const QUICK_PLAYBOOKS: &[(&str, &str)] = &[
+    ("slow_rank", "Slow rank"),
+    ("comm_bottleneck", "Comm"),
+    ("module_bottleneck", "Bottleneck"),
+];
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum DataScope {
@@ -42,7 +77,9 @@ struct HeatCell {
 pub fn Training() -> Element {
     let visible = use_page_visible();
     let poll = use_poll_tick_gated(POLL_MS, Some(visible));
-    let poll_tick = poll();
+    let mut manual_refresh = use_signal(|| 0u32);
+    let local_tick = poll().wrapping_add(manual_refresh());
+
     let mut scope = use_signal(|| DataScope::Local);
     let nodes = use_app_resource(|| async move { ApiClient::new().get_nodes().await });
     let mut cluster_scan = use_action(|| async move {
@@ -76,29 +113,46 @@ pub fn Training() -> Element {
 
     let current_scope = scope();
     let scan_pending = cluster_scan.pending();
-    let scan_value = cluster_scan.value();
-    let scan_output = scan_value
-        .as_ref()
-        .and_then(|r| r.as_ref().ok())
-        .map(|signal| signal());
-    let scan_error = scan_value
-        .as_ref()
-        .and_then(|r| r.as_ref().err())
-        .map(|err| err.to_string());
 
     rsx! {
         PageContainer {
             PageTitle {
                 title: "Training".to_string(),
-                subtitle: Some("Local train.step and collective traces refresh automatically; cluster-wide views run on demand.".to_string()),
+                subtitle: Some("Per-step timing, module hotspots, and collective latency — local auto-refresh; cluster scan when distributed.".to_string()),
                 icon: Some(&icondata::AiRadarChartOutlined),
                 header_right: Some(rsx! {
-                    PollStatusBar {
-                        interval_secs: POLL_MS / 1000,
-                        poll_tick,
+                    if current_scope == DataScope::Local {
+                        PollStatusBar {
+                            interval_secs: POLL_MS / 1000,
+                            poll_tick: local_tick,
+                        }
+                    }
+                    RefreshButton {
+                        onclick: move |_| {
+                            if current_scope == DataScope::Cluster {
+                                cluster_scan.call();
+                            } else {
+                                manual_refresh.set(manual_refresh() + 1);
+                            }
+                        },
                     }
                 }),
             }
+
+            div { class: "flex flex-wrap items-center gap-2 mb-3",
+                for (id, label) in QUICK_PLAYBOOKS {
+                    ChipButton {
+                        label: (*label).to_string(),
+                        disabled: ui_agent_busy(),
+                        onclick: {
+                            let pid = (*id).to_string();
+                            move |_| queue_investigate_playbook(pid.clone())
+                        },
+                    }
+                }
+                span { class: "text-[10px] text-gray-400", "Opens Investigate with playbook" }
+            }
+
             div { class: "flex flex-wrap items-center gap-3 mb-4",
                 {scope_badge(current_scope)}
                 button {
@@ -125,87 +179,133 @@ pub fn Training() -> Element {
                     }
                 }
                 p { class: "text-xs text-gray-500",
-                    "Agents write locally only. Fan-out runs when you click Scan cluster or use probing cluster query."
+                    "Click a heatmap cell to set investigation context · comm rows are clickable"
                 }
             }
+
             if current_scope == DataScope::Cluster {
-                if let Some(ref output) = scan_output {
-                    {cluster_nodes_failed_banner(&output.nodes_failed)}
+                if let Some(Ok(output)) = cluster_scan.value() {
+                    {cluster_nodes_failed_banner(&output().nodes_failed)}
                 }
             }
+
             if current_scope == DataScope::Local {
                 AsyncBoundary {
                     message: Some("Loading train.step matrix…".to_string()),
-                    LocalStepMatrixPanel { poll }
+                    LocalStepMatrixPanel { refresh_tick: local_tick }
                 }
-            } else if scan_pending {
-                Card {
-                    title: "Step Straggler Heatmap",
-                    LoadingState { message: Some("Loading train.step matrix…".to_string()) }
+                AsyncBoundary {
+                    message: Some("Loading module hotspots…".to_string()),
+                    LocalModuleHotspotsPanel { refresh_tick: local_tick }
                 }
-            } else if let Some(ref err_msg) = scan_error {
-                Card {
-                    title: "Step Straggler Heatmap",
-                    AppErrorDisplay { error: AppError::Api(err_msg.clone()), title: Some("Cluster scan failed".to_string()) }
-                }
-            } else if let Some(ref output) = scan_output {
-                {render_step_matrix_result(&output.matrix)}
-            } else {
-                Card {
-                    title: "Step Straggler Heatmap",
-                    EmptyState { message: "Click Scan cluster to load cross-node step matrix.".to_string() }
-                }
-            }
-            if current_scope == DataScope::Local {
                 AsyncBoundary {
                     message: Some("Loading comm.collective (local)…".to_string()),
-                    LocalCommPanel { poll }
+                    LocalCommPanel { refresh_tick: local_tick }
                 }
-            } else if scan_pending {
-                Card {
-                    title: "Collective Communications",
-                    content_class: Some("p-4"),
-                    LoadingState { message: Some("Scanning cluster for comm.collective…".to_string()) }
-                }
-            } else if let Some(ref err_msg) = scan_error {
-                Card {
-                    title: "Collective Communications",
-                    content_class: Some("p-4"),
-                    AppErrorDisplay { error: AppError::Api(err_msg.clone()), title: Some("Cluster scan failed".to_string()) }
-                }
-            } else if let Some(ref output) = scan_output {
-                {render_comm_cluster_result(&output.comm)}
             } else {
-                Card {
-                    title: "Collective Communications",
-                    content_class: Some("p-4"),
-                    EmptyState { message: "Click Scan cluster to load cross-node collective rows.".to_string() }
+                if scan_pending {
+                    Card {
+                        title: "Step Straggler Heatmap",
+                        LoadingState { message: Some("Loading train.step matrix…".to_string()) }
+                    }
+                } else if let Some(Err(err)) = cluster_scan.value() {
+                    Card {
+                        title: "Step Straggler Heatmap",
+                        AppErrorDisplay {
+                            error: AppError::Api(err.to_string()),
+                            title: Some("Cluster scan failed".to_string()),
+                        }
+                    }
+                } else if let Some(Ok(output)) = cluster_scan.value() {
+                    {render_step_matrix_result(&output().matrix)}
+                } else {
+                    Card {
+                        title: "Step Straggler Heatmap",
+                        EmptyState { message: "Click Scan cluster to load cross-node step matrix.".to_string() }
+                    }
+                }
+
+                if scan_pending {
+                    Card {
+                        title: "Collective Communications",
+                        content_class: Some("p-4"),
+                        LoadingState { message: Some("Scanning cluster for comm.collective…".to_string()) }
+                    }
+                } else if let Some(Err(err)) = cluster_scan.value() {
+                    Card {
+                        title: "Collective Communications",
+                        content_class: Some("p-4"),
+                        AppErrorDisplay {
+                            error: AppError::Api(err.to_string()),
+                            title: Some("Cluster scan failed".to_string()),
+                        }
+                    }
+                } else if let Some(Ok(output)) = cluster_scan.value() {
+                    {render_comm_cluster_result(&output().comm)}
+                } else {
+                    Card {
+                        title: "Collective Communications",
+                        content_class: Some("p-4"),
+                        EmptyState { message: "Click Scan cluster to load cross-node collective rows.".to_string() }
+                    }
                 }
             }
         }
     }
 }
 
+fn queue_investigate_playbook(playbook_id: String) {
+    if !load_playbook(&playbook_id).is_some() {
+        return;
+    }
+    *AGENT_PANEL_OPEN.write() = true;
+    *AGENT_INPUT.write() = format!("/{playbook_id}");
+}
+
 #[component]
-fn LocalStepMatrixPanel(poll: Signal<u32>) -> Element {
+fn LocalStepMatrixPanel(refresh_tick: u32) -> Element {
     let matrix = use_app_resource(move || {
-        let _ = poll();
+        let _ = refresh_tick;
         async move { ApiClient::new().fetch_step_matrix(STEP_LIMIT, false).await }
     });
     render_step_matrix_result(&matrix.suspend()?())
 }
 
 #[component]
-fn LocalCommPanel(poll: Signal<u32>) -> Element {
+fn LocalModuleHotspotsPanel(refresh_tick: u32) -> Element {
+    let modules = use_app_resource(move || {
+        let _ = refresh_tick;
+        async move { ApiClient::new().execute_query(MODULE_HOTSPOTS_SQL).await }
+    });
+    let phases = use_app_resource(move || {
+        let _ = refresh_tick;
+        async move { ApiClient::new().execute_query(STEP_PHASE_SQL).await }
+    });
+
+    let modules_res = modules.suspend()?();
+    let phases_res = phases.suspend()?();
+
+    render_module_hotspots(&modules_res, &phases_res)
+}
+
+#[component]
+fn LocalCommPanel(refresh_tick: u32) -> Element {
     let comm = use_app_resource(move || {
-        let _ = poll();
+        let _ = refresh_tick;
         async move {
             ApiClient::new()
                 .execute_query(&format!("{COMM_SQL}{COMM_LIMIT}"))
                 .await
         }
     });
-    render_comm_local_result(&comm.suspend()?())
+    let summary = use_app_resource(move || {
+        let _ = refresh_tick;
+        async move { ApiClient::new().execute_query(COMM_SUMMARY_SQL).await }
+    });
+
+    let comm_res = comm.suspend()?();
+    let summary_res = summary.suspend()?();
+    render_comm_local_result(&comm_res, &summary_res)
 }
 
 fn scope_badge(scope: DataScope) -> Element {
@@ -240,6 +340,137 @@ fn cluster_nodes_failed_banner(nodes: &[String]) -> Element {
     }
 }
 
+fn step_summary_stats(samples: &[StepDurationSample], single_rank: bool) -> Vec<(String, String, Option<String>)> {
+    if samples.is_empty() {
+        return Vec::new();
+    }
+    if single_rank {
+        return single_rank_summary_stats(&build_step_series(samples));
+    }
+    let rank_count = samples.iter().map(|s| s.rank).collect::<HashSet<_>>().len();
+    let step_count = samples.iter().map(|s| s.local_step).collect::<HashSet<_>>().len();
+    let max_ms = samples
+        .iter()
+        .map(|s| s.duration_ms)
+        .fold(0.0f64, f64::max);
+    let outliers = count_outlier_cells(samples);
+    vec![
+        ("Ranks".to_string(), rank_count.to_string(), None),
+        ("Steps".to_string(), step_count.to_string(), None),
+        (
+            "Max step".to_string(),
+            if max_ms > 0.0 {
+                format!("{max_ms:.0} ms")
+            } else {
+                "—".to_string()
+            },
+            None,
+        ),
+        ("Outliers".to_string(), outliers.to_string(), None),
+    ]
+}
+
+fn build_step_series(samples: &[StepDurationSample]) -> Vec<(i64, f64)> {
+    let mut series: Vec<(i64, f64)> = samples
+        .iter()
+        .filter(|s| s.local_step >= 0)
+        .map(|s| (s.local_step, s.duration_ms))
+        .collect();
+    series.sort_by_key(|(step, _)| *step);
+    if series.len() > STEP_LIMIT {
+        series = series[series.len().saturating_sub(STEP_LIMIT)..].to_vec();
+    }
+    series
+}
+
+fn percentile(values: &[f64], p: f64) -> f64 {
+    if values.is_empty() {
+        return 0.0;
+    }
+    let mut v = values.to_vec();
+    v.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let idx = ((v.len() as f64 - 1.0) * p).round() as usize;
+    v.get(idx).copied().unwrap_or(0.0)
+}
+
+fn format_step_ms(ms: f64) -> String {
+    if ms >= 100.0 {
+        format!("{ms:.0} ms")
+    } else if ms >= 1.0 {
+        format!("{ms:.1} ms")
+    } else if ms > 0.0 {
+        format!("{ms:.2} ms")
+    } else {
+        "0 ms".to_string()
+    }
+}
+
+fn single_rank_summary_stats(series: &[(i64, f64)]) -> Vec<(String, String, Option<String>)> {
+    if series.is_empty() {
+        return Vec::new();
+    }
+    let durations: Vec<f64> = series.iter().map(|(_, d)| *d).collect();
+    let avg = durations.iter().sum::<f64>() / durations.len() as f64;
+    let min = durations.iter().copied().fold(f64::INFINITY, f64::min);
+    let max = durations.iter().copied().fold(0.0f64, f64::max);
+    let p95 = percentile(&durations, 0.95);
+    let (latest_step, latest_ms) = series.last().copied().unwrap_or((-1, 0.0));
+
+    let (trend_value, trend_hint) = if series.len() >= 6 {
+        let mid = series.len() / 2;
+        let first_half =
+            series[..mid].iter().map(|(_, d)| d).sum::<f64>() / mid.max(1) as f64;
+        let second_half = series[mid..].iter().map(|(_, d)| d).sum::<f64>()
+            / (series.len() - mid).max(1) as f64;
+        let pct = (second_half - first_half) / first_half.max(1.0) * 100.0;
+        if pct.abs() < 3.0 {
+            ("Stable".to_string(), Some("Second half vs first half of window".to_string()))
+        } else if pct > 0.0 {
+            (
+                format!("+{pct:.0}% slower"),
+                Some("Second half vs first half of window".to_string()),
+            )
+        } else {
+            (
+                format!("{pct:.0}% faster"),
+                Some("Second half vs first half of window".to_string()),
+            )
+        }
+    } else {
+        ("—".to_string(), None)
+    };
+
+    vec![
+        (
+            "Latest step".to_string(),
+            latest_step.to_string(),
+            Some(format_step_ms(latest_ms)),
+        ),
+        ("Avg step".to_string(), format_step_ms(avg), None),
+        (
+            "Min / Max".to_string(),
+            format!("{} / {}", format_step_ms(min), format_step_ms(max)),
+            None,
+        ),
+        ("P95".to_string(), format_step_ms(p95), None),
+        ("Trend".to_string(), trend_value, trend_hint),
+    ]
+}
+
+fn primary_rank(samples: &[StepDurationSample]) -> i32 {
+    samples
+        .iter()
+        .map(|s| s.rank)
+        .filter(|r| *r >= 0)
+        .next()
+        .unwrap_or(0)
+}
+
+fn count_outlier_cells(samples: &[StepDurationSample]) -> usize {
+    let (_, _, cells, _) = build_heatmap(samples);
+    cells.values().filter(|c| c.outlier).count()
+}
+
 fn render_step_matrix_result(result: &Result<StepMatrixResponse, AppError>) -> Element {
     match result {
         Ok(resp) if resp.samples.is_empty() => rsx! {
@@ -252,6 +483,7 @@ fn render_step_matrix_result(result: &Result<StepMatrixResponse, AppError>) -> E
         },
         Ok(resp) => {
             let (ranks, steps, cells, max_ms) = build_heatmap(&resp.samples);
+            let single_rank = ranks.len() <= 1;
             let scope_note = if resp.cluster {
                 let mut note = format!("cluster scan · {} nodes queried", resp.nodes_queried);
                 if !resp.nodes_failed.is_empty() {
@@ -261,27 +493,50 @@ fn render_step_matrix_result(result: &Result<StepMatrixResponse, AppError>) -> E
             } else {
                 "local node · auto-refresh".to_string()
             };
+            let stats = step_summary_stats(&resp.samples, single_rank);
+            let title = if single_rank {
+                "Step Duration"
+            } else {
+                "Step Straggler Heatmap"
+            };
+            let legend = if single_rank {
+                "Bar height = train.step duration · red = >1.2× window avg · click for investigation context"
+            } else {
+                "Darker = slower · red ring = outlier (>1.2× step median) · click cell for context"
+            };
             rsx! {
                 Card {
-                    title: "Step Straggler Heatmap",
+                    title: title,
                     content_class: Some("p-4"),
                     div { class: "space-y-4",
-                        div { class: "flex flex-wrap items-center gap-4 text-sm text-gray-600",
-                            span { "{scope_note}" }
-                            span { "·" }
-                            span { "{resp.rank_count} ranks" }
-                            span { "·" }
-                            span { "{resp.step_count} steps sampled" }
-                            span { "·" }
-                            span { class: "text-xs text-gray-500",
-                                "Darker = slower · red ring = outlier (>1.2× step median)"
+                        div { class: "grid grid-cols-2 sm:grid-cols-5 gap-3",
+                            for (label, value, hint) in stats {
+                                StatCard { label, value, hint }
                             }
                         }
-                        StepHeatmap {
-                            ranks: ranks.clone(),
-                            steps: steps.clone(),
-                            cells: cells.clone(),
-                            max_ms,
+                        div { class: "flex flex-wrap items-center gap-4 text-sm text-gray-600",
+                            span { "{scope_note}" }
+                            if single_rank {
+                                span { "·" }
+                                span { class: "text-xs font-mono text-violet-700 bg-violet-50 px-2 py-0.5 rounded",
+                                    "rank {primary_rank(&resp.samples)} · single-process view"
+                                }
+                            }
+                            span { "·" }
+                            span { class: "text-xs text-gray-500", "{legend}" }
+                        }
+                        if single_rank {
+                            StepDurationTimeline {
+                                rank: primary_rank(&resp.samples),
+                                series: build_step_series(&resp.samples),
+                            }
+                        } else {
+                            StepHeatmap {
+                                ranks: ranks.clone(),
+                                steps: steps.clone(),
+                                cells: cells.clone(),
+                                max_ms,
+                            }
                         }
                     }
                 }
@@ -296,9 +551,12 @@ fn render_step_matrix_result(result: &Result<StepMatrixResponse, AppError>) -> E
     }
 }
 
-fn render_comm_local_result(result: &Result<probing_proto::prelude::DataFrame, AppError>) -> Element {
+fn render_comm_local_result(
+    result: &Result<probing_proto::prelude::DataFrame, AppError>,
+    summary: &Result<probing_proto::prelude::DataFrame, AppError>,
+) -> Element {
     match result {
-        Ok(df) if df.cols.is_empty() => rsx! {
+        Ok(df) if df.cols.is_empty() || dataframe_rows(df) == 0 => rsx! {
             Card {
                 title: "Collective Communications",
                 content_class: Some("p-4"),
@@ -307,7 +565,10 @@ fn render_comm_local_result(result: &Result<probing_proto::prelude::DataFrame, A
                 }
             }
         },
-        Ok(df) => comm_table(&df, "local node · auto-refresh"),
+        Ok(df) => {
+            let summary_df = summary.as_ref().ok().filter(|s| dataframe_rows(s) > 0);
+            comm_table(df, summary_df, "local node · auto-refresh")
+        }
         Err(err) => rsx! {
             Card {
                 title: "Collective Communications",
@@ -320,7 +581,7 @@ fn render_comm_local_result(result: &Result<probing_proto::prelude::DataFrame, A
 
 fn render_comm_cluster_result(result: &Result<ClusterQueryResponse, AppError>) -> Element {
     match result {
-        Ok(resp) if !resp.dataframe.cols.is_empty() => {
+        Ok(resp) if dataframe_rows(&resp.dataframe) > 0 => {
             let mut note = format!(
                 "cluster scan · {} nodes queried",
                 resp.meta.nodes_queried
@@ -331,7 +592,7 @@ fn render_comm_cluster_result(result: &Result<ClusterQueryResponse, AppError>) -
                     resp.meta.nodes_failed.len()
                 ));
             }
-            comm_table(&resp.dataframe, &note)
+            comm_table(&resp.dataframe, None, &note)
         }
         Ok(_) => rsx! {
             Card {
@@ -348,6 +609,10 @@ fn render_comm_cluster_result(result: &Result<ClusterQueryResponse, AppError>) -
             }
         },
     }
+}
+
+fn dataframe_rows(df: &probing_proto::prelude::DataFrame) -> usize {
+    df.cols.first().map(|c| c.len()).unwrap_or(0)
 }
 
 fn build_heatmap(samples: &[StepDurationSample]) -> (Vec<i32>, Vec<i64>, HashMap<(i32, i64), HeatCell>, f64) {
@@ -443,7 +708,7 @@ fn StepHeatmap(
                                 };
                                 (
                                     format!("background-color: rgba(109, 40, 217, {alpha});"),
-                                    format!("rank {rank} step {step}: {:.1} ms", c.duration_ms),
+                                    format!("rank {rank} step {step}: {:.1} ms — click to set context", c.duration_ms),
                                     ring.to_string(),
                                 )
                             } else {
@@ -453,11 +718,22 @@ fn StepHeatmap(
                                     String::new(),
                                 )
                             };
+                            let rank_val = *rank;
+                            let step_val = *step;
+                            let clickable = cell.is_some();
                             rsx! {
-                                div {
-                                    class: "rounded-sm {cell_min} {cell_h} {ring}",
+                                button {
+                                    r#type: "button",
+                                    disabled: !clickable,
+                                    class: "rounded-sm {cell_min} {cell_h} {ring} disabled:cursor-default",
+                                    class: if clickable { "cursor-pointer hover:ring-2 hover:ring-blue-300 hover:ring-offset-1" } else { "" },
                                     style: "{bg}",
                                     title: "{title}",
+                                    onclick: move |_| {
+                                        if clickable {
+                                            set_training_step_context(rank_val, Some(step_val), None);
+                                        }
+                                    },
                                 }
                             }
                         }
@@ -468,28 +744,67 @@ fn StepHeatmap(
     }
 }
 
-fn comm_table(df: &probing_proto::prelude::DataFrame, scope_note: &str) -> Element {
-    let rows = df.cols.first().map(|c| c.len()).unwrap_or(0);
+#[component]
+fn StepDurationTimeline(rank: i32, series: Vec<(i64, f64)>) -> Element {
+    if series.is_empty() {
+        return rsx! { div {} };
+    }
+
+    let max_ms = series
+        .iter()
+        .map(|(_, d)| *d)
+        .fold(0.0f64, f64::max)
+        .max(1.0);
+    let avg_ms = series.iter().map(|(_, d)| d).sum::<f64>() / series.len() as f64;
+    let latest_idx = series.len().saturating_sub(1);
+    let detail_rows: Vec<_> = series.iter().rev().take(12).cloned().collect();
+
     rsx! {
-        Card {
-            title: "Collective Communications",
-            content_class: Some("p-4"),
-            p { class: "text-xs text-gray-500 mb-3", "{scope_note}" }
-            div { class: "overflow-x-auto border border-gray-200 rounded-lg",
-                table { class: "min-w-full text-sm",
-                    thead { class: "bg-gray-50 text-left text-xs uppercase text-gray-500",
-                        tr {
-                            for name in df.names.iter() {
-                                th { class: "px-3 py-2", "{name}" }
-                            }
-                        }
-                    }
-                    tbody {
-                        for r in 0..rows {
-                            tr { class: "border-t border-gray-100",
-                                for (col_idx, _name) in df.names.iter().enumerate() {
-                                    td { class: "px-3 py-2 font-mono text-xs",
-                                        {cell_text(df, col_idx, r)}
+        div { class: "space-y-4",
+            div { class: "overflow-x-auto pb-1",
+                div { class: "flex items-end gap-1 min-w-max h-36 px-1",
+                    for (i, (step, dur)) in series.iter().enumerate() {
+                        {
+                            let is_latest = i == latest_idx;
+                            let pct = (dur / max_ms).clamp(0.08, 1.0);
+                            let slow = *dur > avg_ms * 1.2;
+                            let bar_color = if slow {
+                                "bg-red-500/90 hover:bg-red-600"
+                            } else {
+                                "bg-violet-500/85 hover:bg-violet-600"
+                            };
+                            let ring = if is_latest {
+                                "ring-2 ring-blue-400 ring-offset-1"
+                            } else if slow {
+                                "ring-1 ring-red-300"
+                            } else {
+                                ""
+                            };
+                            let step_val = *step;
+                            let title = format!("step {step}: {dur:.1} ms — click to set context");
+                            rsx! {
+                                button {
+                                    r#type: "button",
+                                    class: "flex flex-col items-center justify-end gap-1 min-w-[36px] h-full group",
+                                    title: "{title}",
+                                    onclick: move |_| {
+                                        set_training_step_context(rank, Some(step_val), None);
+                                    },
+                                    span {
+                                        class: "text-[9px] font-mono text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity",
+                                        "{dur:.0}"
+                                    }
+                                    div {
+                                        class: "w-7 rounded-t-sm {bar_color} {ring} transition-colors",
+                                        style: "height: {pct * 100.0}%",
+                                    }
+                                    span {
+                                        class: if is_latest {
+                                            "text-[10px] font-mono font-semibold text-blue-700"
+                                        } else {
+                                            "text-[10px] font-mono text-gray-500"
+                                        },
+                                        "{step}"
                                     }
                                 }
                             }
@@ -497,21 +812,166 @@ fn comm_table(df: &probing_proto::prelude::DataFrame, scope_note: &str) -> Eleme
                     }
                 }
             }
-            p { class: "text-xs text-gray-400 mt-3",
-                "Lite mode: timing + context in python.comm_collective · full spans: SET probing.torch.collective.mode=full"
+
+            div { class: "border border-gray-200 rounded-lg overflow-hidden",
+                table { class: "w-full text-xs",
+                    thead {
+                        tr { class: "bg-gray-50 text-gray-500",
+                            th { class: "px-3 py-2 text-left font-medium", "Step" }
+                            th { class: "px-3 py-2 text-right font-medium", "Duration" }
+                            th { class: "px-3 py-2 text-right font-medium", "vs avg" }
+                        }
+                    }
+                    tbody {
+                        for (step, dur) in detail_rows {
+                            {
+                                let delta_pct = (dur - avg_ms) / avg_ms.max(1.0) * 100.0;
+                                let delta_label = if delta_pct.abs() < 1.0 {
+                                    "±0%".to_string()
+                                } else if delta_pct > 0.0 {
+                                    format!("+{delta_pct:.0}%")
+                                } else {
+                                    format!("{delta_pct:.0}%")
+                                };
+                                let delta_class = if delta_pct > 10.0 {
+                                    "text-red-600 font-medium"
+                                } else if delta_pct < -10.0 {
+                                    "text-emerald-600 font-medium"
+                                } else {
+                                    "text-gray-500"
+                                };
+                                let step_val = step;
+                                rsx! {
+                                    tr {
+                                        class: "border-t border-gray-100 hover:bg-gray-50 cursor-pointer",
+                                        onclick: move |_| {
+                                            set_training_step_context(rank, Some(step_val), None);
+                                        },
+                                        td { class: "px-3 py-1.5 font-mono text-gray-800", "{step}" }
+                                        td { class: "px-3 py-1.5 text-right font-mono text-gray-800", "{dur:.1} ms" }
+                                        td { class: "px-3 py-1.5 text-right font-mono {delta_class}", "{delta_label}" }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 }
 
-fn cell_text(df: &probing_proto::prelude::DataFrame, col: usize, row: usize) -> String {
-    use probing_proto::prelude::Ele;
-    match df.cols.get(col).map(|c| c.get(row)) {
-        Some(Ele::Text(s)) => s.clone(),
-        Some(Ele::I64(v)) => v.to_string(),
-        Some(Ele::I32(v)) => v.to_string(),
-        Some(Ele::F64(v)) => format!("{v:.2}"),
-        Some(Ele::F32(v)) => format!("{v:.2}"),
-        _ => "—".to_string(),
+fn render_module_hotspots(
+    modules: &Result<probing_proto::prelude::DataFrame, AppError>,
+    phases: &Result<probing_proto::prelude::DataFrame, AppError>,
+) -> Element {
+    let has_modules = modules
+        .as_ref()
+        .ok()
+        .map(|df| dataframe_rows(df) > 0)
+        .unwrap_or(false);
+    let has_phases = phases
+        .as_ref()
+        .ok()
+        .map(|df| dataframe_rows(df) > 0)
+        .unwrap_or(false);
+
+    if !has_modules && !has_phases {
+        return rsx! {
+            Card {
+                title: "Module Hotspots",
+                content_class: Some("p-4"),
+                EmptyState {
+                    message: "No python.torch_trace data — SET probing.torch.profiling=on for module-level step breakdown.".to_string()
+                }
+            }
+        };
+    }
+
+    if let Err(err) = modules {
+        return rsx! {
+            Card {
+                title: "Module Hotspots",
+                content_class: Some("p-4"),
+                AppErrorDisplay { error: err.clone(), title: None }
+            }
+        };
+    }
+
+    rsx! {
+        Card {
+            title: "Module Hotspots",
+            content_class: Some("p-4"),
+            div { class: "space-y-4",
+                p { class: "text-xs text-gray-500",
+                    "Top modules by post-hook time in the last 10 training steps · steps = distinct training steps seen · hooks = raw hook records (ordered mode samples ~1 module/step)"
+                }
+                if has_modules {
+                    if let Ok(df) = modules {
+                        div { class: "overflow-x-auto border border-gray-200 rounded-lg max-h-72",
+                            DataFrameView { df: df.clone() }
+                        }
+                    }
+                }
+                if has_phases {
+                    div { class: "space-y-2",
+                        p { class: "text-xs font-medium text-gray-700", "Forward vs optimizer (recent steps)" }
+                        if let Ok(df) = phases {
+                            div { class: "overflow-x-auto border border-gray-200 rounded-lg max-h-48",
+                                DataFrameView { df: df.clone() }
+                            }
+                        }
+                    }
+                }
+                p { class: "text-xs text-gray-400",
+                    "Use Investigate → Bottleneck playbook for deeper module regression analysis."
+                }
+            }
+        }
+    }
+}
+
+fn comm_table(
+    df: &probing_proto::prelude::DataFrame,
+    summary: Option<&probing_proto::prelude::DataFrame>,
+    scope_note: &str,
+) -> Element {
+    let rows = dataframe_rows(df);
+    let df_for_click = df.clone();
+    rsx! {
+        Card {
+            title: "Collective Communications",
+            content_class: Some("p-4"),
+            div { class: "flex flex-wrap items-center gap-3 mb-3",
+                p { class: "text-xs text-gray-500", "{scope_note}" }
+                StatCard {
+                    label: "Rows".to_string(),
+                    value: rows.to_string(),
+                    hint: None,
+                }
+            }
+            if let Some(summary_df) = summary {
+                div { class: "mb-4 space-y-2",
+                    p { class: "text-xs font-medium text-gray-700", "By collective op (aggregated)" }
+                    div { class: "overflow-x-auto border border-gray-200 rounded-lg",
+                        DataFrameView { df: summary_df.clone() }
+                    }
+                }
+            }
+            p { class: "text-[10px] text-gray-500 mb-2",
+                "Click a row to set investigation context (rank / op columns)."
+            }
+            div { class: "overflow-x-auto border border-gray-200 rounded-lg max-h-96",
+                DataFrameView {
+                    df: df.clone(),
+                    on_row_click: EventHandler::new(move |row: usize| {
+                        apply_context_from_dataframe_row(&df_for_click, row);
+                    }),
+                }
+            }
+            p { class: "text-xs text-gray-400 mt-3",
+                "Lite mode: timing + context in python.comm_collective · full spans: SET probing.torch.collective.mode=full"
+            }
+        }
     }
 }

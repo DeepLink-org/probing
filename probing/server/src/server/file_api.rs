@@ -1,4 +1,4 @@
-use super::config::{get_max_file_size, ALLOWED_FILE_DIRS};
+use super::config::{allowed_file_base_dirs, get_max_file_size};
 use crate::server::error::{ApiError, ApiResult};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -25,10 +25,10 @@ pub fn validate_path(path: &str) -> Result<PathBuf, String> {
 
     // Check if the canonical path is within any allowed base directory
     let mut is_allowed = false;
-    for base_dir in ALLOWED_FILE_DIRS {
-        let base_path = match Path::new(base_dir).canonicalize() {
+    for base_dir in allowed_file_base_dirs() {
+        let base_path = match base_dir.canonicalize() {
             Ok(path) => path,
-            Err(_) => continue, // Skip non-existent base directories
+            Err(_) => continue,
         };
 
         if canonical_path.starts_with(&base_path) {

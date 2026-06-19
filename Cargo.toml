@@ -81,7 +81,8 @@ extension-module = [
 ]
 gpu = ["probing-server/gpu"]
 gpu-cuda = ["probing-server/gpu-cuda"]
-default = ["extension-module", "gpu"] # "use-mimalloc",
+kmsg = ["probing-server/kmsg"]
+default = ["extension-module", "gpu", "kmsg"] # "use-mimalloc",
 
 [dependencies]
 probing-core = { path = "probing/core" }
@@ -122,5 +123,5 @@ tokio = { workspace = true }
 opt-level = "z"    # Optimize for size.
 panic = "unwind"
 strip = false      # Automatically strip symbols from the binary.
-lto = "thin"
+# lto = "thin"
 codegen-units = 16

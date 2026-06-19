@@ -9,6 +9,7 @@ use wasm_bindgen::JsCast;
 use crate::components::icon::Icon;
 use crate::state::agent::AGENT_PANEL_OPEN;
 use crate::state::commands::{COMMAND_PANEL_OPEN, SHORTCUTS_HELP_OPEN};
+use crate::state::source_viewer::{close_source_viewer, SOURCE_VIEWER_OPEN};
 
 #[component]
 pub fn GlobalShortcutInstaller() -> Element {
@@ -66,6 +67,10 @@ fn handle_global_key(e: &web_sys::KeyboardEvent) -> bool {
         }
         if *AGENT_PANEL_OPEN.read() {
             *AGENT_PANEL_OPEN.write() = false;
+            return true;
+        }
+        if *SOURCE_VIEWER_OPEN.read() {
+            close_source_viewer();
             return true;
         }
         return false;
@@ -134,9 +139,9 @@ pub fn ShortcutsHelpOverlay() -> Element {
                         title: "Global",
                         items: &[
                             ("⌘K / Ctrl+K", "Open command palette"),
-                            ("⌘J / Ctrl+J", "Toggle Investigation Agent"),
+                            ("⌘J / Ctrl+J", "Toggle Investigate overlay (diagnostic agent)"),
                             ("?", "Toggle this help"),
-                            ("Esc", "Close palette / agent / help"),
+                            ("Esc", "Close palette / investigate / help / source preview"),
                         ],
                     }
                     ShortcutSection {

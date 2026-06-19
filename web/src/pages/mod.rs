@@ -1,3 +1,4 @@
+pub mod agent;
 pub mod analytics;
 pub mod cluster;
 pub mod dashboard;

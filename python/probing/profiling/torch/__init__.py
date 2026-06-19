@@ -20,7 +20,7 @@ Public Interfaces:
 import torch
 
 from ..types import BaseTracer
-from .module_utils import module_analysis, module_get_fullname
+from .module_utils import module_analysis, module_get_fullname, module_name
 from .step import next_step, step
 
 __all__ = ["next_step", "step", "install_hooks", "uninstall_hooks"]
@@ -47,8 +47,8 @@ def install_hooks(
         module_analysis(m)
         h1 = m.register_forward_pre_hook(tracer.pre_forward_hook)
         h2 = m.register_forward_hook(tracer.post_forward_hook)
-        module_name = module_get_fullname(m)
-        if backward and not module_name.endswith("FusedScaleMaskSoftmax"):
+        module_fullname = module_get_fullname(m)
+        if backward and not module_fullname.endswith("FusedScaleMaskSoftmax"):
             h3 = m.register_full_backward_pre_hook(tracer.pre_backward_hook)
             h4 = m.register_full_backward_hook(tracer.post_backward_hook)
             HOOK_CACHE[id(m)] = (h1, h2, h3, h4)
@@ -58,6 +58,7 @@ def install_hooks(
             install_hooks(s, tracer=tracer)
 
     if opt is not None:
+        module_name(opt, opt.__class__.__name__)
         h1 = opt.register_step_pre_hook(tracer.pre_step_hook)
         h2 = opt.register_step_post_hook(tracer.post_step_hook)
         HOOK_CACHE[opt] = (h1, h2)

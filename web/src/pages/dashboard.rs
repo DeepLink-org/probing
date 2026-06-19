@@ -14,6 +14,7 @@ use crate::api::{
     GpuSnapshot,
 };
 use crate::components::card::Card;
+use crate::components::colors::colors;
 use crate::components::common::{EmptyState, ErrorState, LoadingState};
 use crate::components::cpu_threads_table::CpuThreadsTable;
 use crate::components::data::KeyValueList;
@@ -287,8 +288,13 @@ fn cpu_trend_panel(
                     "Kernel"
                 }
             }
-            CpuTimeSparkline { samples }
-            p { class: "text-xs text-gray-400", "Updates every {CPU_POLL_MS / 1000}s · samples every 1s · values are CPU time per interval" }
+            CpuTimeSparkline { samples: samples.clone() }
+            div { class: "flex flex-wrap items-center justify-between gap-2",
+                p { class: "text-xs text-gray-400",
+                    "Updates every {CPU_POLL_MS / 1000}s · click the latest bar to open profile for this interval"
+                }
+                ProfileExemplarButton {}
+            }
         }
     }
 }
@@ -302,7 +308,7 @@ fn cpu_threads_panel(state: &crate::hooks::ApiState<Vec<CpuThreadRow>>) -> Eleme
             rsx! {
                 div { class: "space-y-3",
                     p { class: "text-xs text-gray-500",
-                        "Ranked by CPU time in the latest sample. Use Stack / Traces / Profile to investigate."
+                        "Ranked by CPU time in the latest sample. Use Stack / Spans / Profile to investigate."
                     }
                     CpuThreadsTable { threads: rows.clone() }
                 }
@@ -320,28 +326,71 @@ fn cpu_threads_panel(state: &crate::hooks::ApiState<Vec<CpuThreadRow>>) -> Eleme
 }
 
 #[component]
+fn ProfileExemplarButton() -> Element {
+    let nav = use_navigator();
+    rsx! {
+        button {
+            class: "text-xs font-medium text-blue-700 hover:underline whitespace-nowrap",
+            title: "Open CPU profile (pprof) for the current sampling window",
+            onclick: move |_| {
+                nav.push(Route::ProfilingViewPage {
+                    view: "pprof".to_string(),
+                });
+            },
+            "Profile latest interval →"
+        }
+    }
+}
+
+#[component]
 fn CpuTimeSparkline(samples: Vec<CpuHistorySample>) -> Element {
+    let nav = use_navigator();
     let max = samples
         .iter()
         .map(|s| s.total_ms)
         .fold(0.0f32, f32::max)
         .max(1.0);
+    let latest_idx = samples.len().saturating_sub(1);
 
     rsx! {
         div {
             class: "flex items-end gap-0.5 h-20 w-full",
             for (i, s) in samples.iter().enumerate() {
-                div {
-                    key: "{i}",
-                    class: "flex-1 flex flex-col justify-end min-w-[3px] h-full gap-px",
-                    title: format!("user {:.1} ms · sys {:.1} ms", s.user_ms, s.sys_ms),
-                    div {
-                        class: "w-full rounded-sm bg-amber-500/85 hover:bg-amber-600 transition-colors",
-                        style: "height: {(s.sys_ms / max * 100.0).max(0.0)}%",
-                    }
-                    div {
-                        class: "w-full rounded-sm bg-blue-500/85 hover:bg-blue-600 transition-colors",
-                        style: "height: {(s.user_ms / max * 100.0).max(0.0)}%",
+                {
+                    let is_latest = i == latest_idx;
+                    let bar_class = if is_latest {
+                        "flex-1 flex flex-col justify-end min-w-[3px] h-full gap-px cursor-pointer ring-1 ring-blue-400/50 rounded-sm"
+                    } else {
+                        "flex-1 flex flex-col justify-end min-w-[3px] h-full gap-px"
+                    };
+                    rsx! {
+                        div {
+                            key: "{i}",
+                            class: "{bar_class}",
+                            title: if is_latest {
+                                format!(
+                                    "Latest: user {:.1} ms · sys {:.1} ms — click to open profile",
+                                    s.user_ms, s.sys_ms
+                                )
+                            } else {
+                                format!("user {:.1} ms · sys {:.1} ms", s.user_ms, s.sys_ms)
+                            },
+                            onclick: move |_| {
+                                if is_latest {
+                                    nav.push(Route::ProfilingViewPage {
+                                        view: "pprof".to_string(),
+                                    });
+                                }
+                            },
+                            div {
+                                class: "w-full rounded-sm bg-amber-500/85 hover:bg-amber-600 transition-colors",
+                                style: "height: {(s.sys_ms / max * 100.0).max(0.0)}%",
+                            }
+                            div {
+                                class: "w-full rounded-sm bg-blue-500/85 hover:bg-blue-600 transition-colors",
+                                style: "height: {(s.user_ms / max * 100.0).max(0.0)}%",
+                            }
+                        }
                     }
                 }
             }
@@ -846,21 +895,57 @@ fn ThreadsPreview(threads: Vec<u64>, pid: i32) -> Element {
                     {
                         let tid_i32 = *tid as i32;
                         let tid_str = tid.to_string();
+                        let tid_for_stack = tid_str.clone();
                         rsx! {
-                            button {
-                                class: "px-3 py-1 text-sm bg-blue-100 text-blue-800 hover:bg-blue-200 rounded-md transition-colors font-mono",
-                                title: "Open stack for this thread and set investigation context",
-                                onclick: move |_| {
-                                    crate::state::investigation::set_thread_context(
-                                        tid_i32,
-                                        None,
-                                        Some(pid),
-                                    );
-                                    navigator.push(Route::StackWithTidPage {
-                                        tid: tid_str.clone(),
-                                    });
-                                },
-                                "{tid}"
+                            div {
+                                class: "inline-flex items-center gap-1.5 pl-2 pr-1 py-1 text-sm bg-blue-50 border border-blue-100 rounded-md font-mono",
+                                span {
+                                    class: "text-blue-900 font-medium",
+                                    title: "Thread id",
+                                    "{tid}"
+                                }
+                                span { class: "text-blue-200", "|" }
+                                button {
+                                    class: format!(
+                                        "text-xs font-medium text-{} hover:underline whitespace-nowrap",
+                                        colors::PRIMARY
+                                    ),
+                                    onclick: move |_| {
+                                        navigator.push(Route::StackWithTidPage {
+                                            tid: tid_for_stack.clone(),
+                                        });
+                                    },
+                                    "Stack"
+                                }
+                                button {
+                                    class: "text-xs font-medium text-gray-600 hover:underline whitespace-nowrap",
+                                    onclick: move |_| {
+                                        crate::state::investigation::set_thread_context(
+                                            tid_i32,
+                                            None,
+                                            Some(pid),
+                                        );
+                                        navigator.push(Route::SpansPage {});
+                                    },
+                                    "Spans"
+                                }
+                                button {
+                                    class: format!(
+                                        "text-xs font-medium text-{} hover:underline whitespace-nowrap",
+                                        colors::CONTENT_ACCENT_TEXT
+                                    ),
+                                    onclick: move |_| {
+                                        crate::state::investigation::set_thread_context(
+                                            tid_i32,
+                                            None,
+                                            Some(pid),
+                                        );
+                                        navigator.push(Route::ProfilingViewPage {
+                                            view: "pprof".to_string(),
+                                        });
+                                    },
+                                    "Profile"
+                                }
                             }
                         }
                     }

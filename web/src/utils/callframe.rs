@@ -11,22 +11,6 @@ pub enum FrameKind {
 }
 
 impl FrameKind {
-    pub fn label(self) -> &'static str {
-        match self {
-            FrameKind::Python => "Python",
-            FrameKind::Rust => "Rust",
-            FrameKind::Cpp => "Native",
-        }
-    }
-
-    pub fn badge_classes(self) -> &'static str {
-        match self {
-            FrameKind::Python => "bg-emerald-50 text-emerald-700 border-emerald-200",
-            FrameKind::Rust => "bg-orange-50 text-orange-800 border-orange-200",
-            FrameKind::Cpp => "bg-blue-50 text-blue-700 border-blue-200",
-        }
-    }
-
     pub fn accent_border(self) -> &'static str {
         match self {
             FrameKind::Python => "border-l-emerald-500",
@@ -40,6 +24,30 @@ impl FrameKind {
             FrameKind::Python => "w-4 h-4 text-emerald-600",
             FrameKind::Rust => "w-4 h-4 text-orange-600",
             FrameKind::Cpp => "w-4 h-4 text-blue-600",
+        }
+    }
+
+    pub fn timeline_dot(self) -> &'static str {
+        match self {
+            FrameKind::Python => "bg-emerald-500",
+            FrameKind::Rust => "bg-orange-500",
+            FrameKind::Cpp => "bg-blue-500",
+        }
+    }
+
+    pub fn timeline_ring(self) -> &'static str {
+        match self {
+            FrameKind::Python => "ring-emerald-100",
+            FrameKind::Rust => "ring-orange-100",
+            FrameKind::Cpp => "ring-blue-100",
+        }
+    }
+
+    pub fn status_badge(self) -> (&'static str, &'static str) {
+        match self {
+            FrameKind::Python => ("PY", "bg-emerald-50 text-emerald-700 border-emerald-200"),
+            FrameKind::Rust => ("RUST", "bg-orange-50 text-orange-800 border-orange-200"),
+            FrameKind::Cpp => ("NAT", "bg-blue-50 text-blue-700 border-blue-200"),
         }
     }
 }

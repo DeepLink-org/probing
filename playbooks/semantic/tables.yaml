@@ -90,24 +90,3 @@ tables:
       host: "Hostname"
       addr: "probing HTTP address"
       status: "Node status"
-
-intents:
-  training_slow:
-    keywords: [慢, slow, bottleneck, 瓶颈, 变慢]
-    playbooks: [module_bottleneck, slow_rank, comm_bottleneck]
-
-  training_hung:
-    keywords: [卡住, hang, stall, 不动, deadlock]
-    playbooks: [training_hang, slow_rank]
-
-  memory_growing:
-    keywords: [OOM, leak, 泄漏, 显存涨, memory grow]
-    playbooks: [memory_leak, gpu_pressure]
-
-  which_rank:
-    keywords: [straggler, 慢 rank, 拖后腿, rank 慢]
-    playbooks: [slow_rank, comm_bottleneck]
-
-  health_check:
-    keywords: [健康, overview, status, 怎么样, doctor]
-    playbooks: [health_overview]

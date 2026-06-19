@@ -9,15 +9,14 @@ pub fn ResizeHandle() -> Element {
     let mut drag_start_x = use_signal(|| 0.0);
     let mut drag_start_width = use_signal(|| 256.0);
 
-    let hover_class = format!("hover:bg-{}/50", colors::PRIMARY);
     let active_class = if *is_resizing.read() {
-        format!("bg-{}", colors::PRIMARY)
+        colors::SIDEBAR_RESIZE_ACTIVE
     } else {
-        "bg-transparent".to_string()
+        "bg-transparent"
     };
     let drag_handle_class = format!(
         "absolute top-0 right-0 w-1 h-full cursor-col-resize {} transition-colors group z-20 {}",
-        hover_class, active_class
+        colors::SIDEBAR_RESIZE_HOVER, active_class
     );
 
     rsx! {

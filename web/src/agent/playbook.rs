@@ -107,6 +107,8 @@ struct PlaybookStepRaw {
     empty_message: Option<String>,
     #[serde(default)]
     when: Option<String>,
+    #[serde(default)]
+    cluster: Option<bool>,
 }
 
 fn default_step_type() -> String {
@@ -123,13 +125,16 @@ pub struct PlaybookStep {
     pub title: String,
     pub step_type: String,
     pub sql: Option<String>,
+    #[allow(dead_code)]
     pub method: Option<String>,
     pub path: Option<String>,
+    #[allow(dead_code)]
     pub action: Option<String>,
     pub view: Option<String>,
     pub on_empty: String,
     pub empty_message: Option<String>,
     pub when: Option<String>,
+    pub cluster: Option<bool>,
 }
 
 #[derive(Debug, Clone)]
@@ -137,6 +142,7 @@ pub struct Playbook {
     pub id: String,
     pub title: String,
     pub category: String,
+    #[allow(dead_code)]
     pub tags: Vec<String>,
     pub docs: String,
     pub parameters: Vec<PlaybookParameter>,
@@ -147,7 +153,21 @@ pub struct Playbook {
 }
 
 pub fn list_playbook_ids() -> Vec<&'static str> {
-    PLAYBOOK_BLOBS.iter().map(|(id, _)| *id).collect()
+    let catalog_ids = super::routing::catalog_playbook_ids();
+    let mut ordered: Vec<&'static str> = Vec::new();
+    for id in catalog_ids {
+        if PLAYBOOK_BLOBS.iter().any(|(pid, _)| *pid == id.as_str()) {
+            if let Some((pid, _)) = PLAYBOOK_BLOBS.iter().find(|(pid, _)| *pid == id.as_str()) {
+                ordered.push(pid);
+            }
+        }
+    }
+    for (id, _) in PLAYBOOK_BLOBS {
+        if !ordered.contains(id) {
+            ordered.push(id);
+        }
+    }
+    ordered
 }
 
 pub fn load_playbook(id: &str) -> Option<Playbook> {
@@ -186,6 +206,7 @@ pub fn load_playbook(id: &str) -> Option<Playbook> {
             on_empty: s.on_empty,
             empty_message: s.empty_message,
             when: s.when,
+            cluster: s.cluster,
         })
         .collect();
     Some(Playbook {
@@ -259,20 +280,39 @@ pub fn build_context(pb: &Playbook, overrides: &HashMap<String, String>) -> Hash
 }
 
 pub fn match_playbooks(query: &str, limit: usize) -> Vec<String> {
+    use std::collections::HashMap;
+
     let q = query.to_lowercase();
-    let mut scored: Vec<(usize, String)> = Vec::new();
+    let mut scored: HashMap<String, usize> = HashMap::new();
+
+    for (rank, id) in super::routing::match_intents(query, 10)
+        .into_iter()
+        .enumerate()
+    {
+        *scored.entry(id).or_insert(0) += 3usize.saturating_mul(10 - rank);
+    }
+
     for id in list_playbook_ids() {
         let Some(pb) = load_playbook(id) else {
             continue;
         };
-        let score = pb.keywords.iter().filter(|kw| q.contains(kw.as_str())).count();
-        if score > 0 || q.contains(&pb.id.replace('_', " ")) || q.contains(&pb.id) {
-            scored.push((score.max(1), pb.id));
+        let keyword_hits = pb
+            .keywords
+            .iter()
+            .filter(|kw| q.contains(kw.as_str()))
+            .count();
+        let id_hit = q.contains(&pb.id.replace('_', " ")) || q.contains(&pb.id);
+        if keyword_hits > 0 || id_hit {
+            *scored.entry(pb.id).or_insert(0) += keyword_hits.max(1);
         }
     }
-    scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
-    scored.dedup_by(|a, b| a.1 == b.1);
-    scored.into_iter().take(limit).map(|(_, id)| id).collect()
+
+    let mut ranked: Vec<(usize, String)> = scored
+        .into_iter()
+        .map(|(id, score)| (score, id))
+        .collect();
+    ranked.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+    ranked.into_iter().take(limit).map(|(_, id)| id).collect()
 }
 
 pub fn resolve_playbook_id(input: &str) -> Option<String> {

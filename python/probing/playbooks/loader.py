@@ -158,6 +158,18 @@ def load_semantic_catalog(root: Optional[Path] = None) -> Dict[str, Any]:
     return _yaml_load(path.read_text(encoding="utf-8"))
 
 
+def load_intents(root: Optional[Path] = None) -> Dict[str, Any]:
+    root = root or playbooks_root()
+    path = root / "semantic" / "intents.yaml"
+    return _yaml_load(path.read_text(encoding="utf-8"))
+
+
+def load_pages(root: Optional[Path] = None) -> Dict[str, Any]:
+    root = root or playbooks_root()
+    path = root / "semantic" / "pages.yaml"
+    return _yaml_load(path.read_text(encoding="utf-8"))
+
+
 def default_parameters(playbook: Playbook) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     for p in playbook.parameters:
@@ -234,22 +246,51 @@ def _collect_keywords(playbook: Playbook) -> List[str]:
     return words
 
 
+def _match_intents(
+    query: str, root: Optional[Path] = None, limit: int = 10
+) -> List[str]:
+    q = query.lower()
+    data = load_intents(root)
+    scored: List[tuple[int, str]] = []
+    for intent in (data.get("intents") or {}).values():
+        keywords = intent.get("keywords") or []
+        hits = sum(1 for kw in keywords if str(kw).lower() in q)
+        if hits:
+            for pb_id in intent.get("playbooks") or []:
+                scored.append((hits, str(pb_id)))
+    scored.sort(key=lambda x: (-x[0], x[1]))
+    seen: set[str] = set()
+    out: List[str] = []
+    for _, pid in scored:
+        if pid not in seen:
+            seen.add(pid)
+            out.append(pid)
+        if len(out) >= limit:
+            break
+    return out
+
+
 def match_playbooks(
     query: str,
     root: Optional[Path] = None,
     limit: int = 3,
 ) -> List[str]:
-    """Rank playbook ids by keyword overlap with *query* (for agent routing)."""
+    """Rank playbook ids by intent + keyword overlap with *query*."""
     q = query.lower()
     catalog = load_catalog(root)
-    scored: List[tuple[int, str]] = []
+    scores: Dict[str, int] = {}
+
+    for rank, pid in enumerate(_match_intents(query, root, limit=10)):
+        scores[pid] = scores.get(pid, 0) + 3 * (10 - rank)
+
     for entry in catalog.playbooks:
         pb = load_playbook(entry.id, root)
-        score = sum(1 for kw in _collect_keywords(pb) if kw in q)
-        if score:
-            scored.append((score, entry.id))
-    scored.sort(key=lambda x: (-x[0], x[1]))
-    return [pid for _, pid in scored[:limit]]
+        kw_score = sum(1 for kw in _collect_keywords(pb) if kw in q)
+        if kw_score:
+            scores[entry.id] = scores.get(entry.id, 0) + kw_score
+
+    ranked = sorted(scores.items(), key=lambda x: (-x[1], x[0]))
+    return [pid for pid, _ in ranked[:limit]]
 
 
 def validate_playbook(playbook: Playbook) -> List[str]:

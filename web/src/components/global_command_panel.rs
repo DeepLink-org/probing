@@ -280,12 +280,12 @@ pub fn CommandBar(on_execute_done: EventHandler<FloatingResult>) -> Element {
                 } else {
                     "shrink-0 px-2.5 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 border border-gray-300"
                 },
-                title: "Investigation Agent (⌘J)",
+                title: "Investigate (⌘J) — playbook diagnostic agent overlay",
                 onclick: move |_| {
                     let open = *AGENT_PANEL_OPEN.read();
                     *AGENT_PANEL_OPEN.write() = !open;
                 },
-                "Agent"
+                "Investigate"
             }
             button {
                 class: "shrink-0 px-2.5 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 border border-gray-300",

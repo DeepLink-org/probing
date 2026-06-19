@@ -7,15 +7,17 @@ use probing_proto::prelude::Node;
 use crate::api::ApiClient;
 use crate::components::card::Card;
 use crate::components::colors::colors;
-use crate::components::common::{AsyncBoundary, EmptyState};
+use crate::components::common::{AsyncBoundary, EmptyState, ErrorState};
 use crate::components::icon::Icon;
 use crate::components::page::{PageContainer, PageTitle};
+use crate::components::poll_status::{ManualRefreshStatus, RefreshButton};
 use crate::components::stat_card::StatCard;
 use crate::hooks::use_app_resource;
 
 #[component]
 pub fn Cluster() -> Element {
-    let refresh = use_signal(|| 0u32);
+    let mut refresh = use_signal(|| 0u32);
+    let refresh_tick = refresh();
     let nodes = use_app_resource(move || {
         let _ = refresh();
         async move { ApiClient::new().get_nodes().await }
@@ -27,6 +29,12 @@ pub fn Cluster() -> Element {
                 title: "Cluster".to_string(),
                 subtitle: Some("Distributed training nodes and health".to_string()),
                 icon: Some(&icondata::AiClusterOutlined),
+                header_right: Some(rsx! {
+                    ManualRefreshStatus { refresh_tick }
+                    RefreshButton {
+                        onclick: move |_| refresh.set(refresh() + 1),
+                    }
+                }),
             }
             AsyncBoundary {
                 message: Some("Loading cluster nodes…".to_string()),
@@ -49,7 +57,10 @@ fn ClusterBody(
         Err(err) => rsx! {
             Card {
                 title: "Nodes",
-                div { class: "p-6 text-sm text-red-700", "{err.display_message()}" }
+                ErrorState {
+                    title: Some("Failed to load nodes".to_string()),
+                    error: err.display_message(),
+                }
             }
         },
         Ok(nodes) if nodes.is_empty() => rsx! {
@@ -103,7 +114,7 @@ fn ClusterBody(
                             ),
                             onclick: move |_| refresh.set(refresh() + 1),
                             Icon { icon: &icondata::AiReloadOutlined, class: "w-3.5 h-3.5" }
-                            "Refresh"
+                            "Refresh nodes"
                         }
                     }
                     Card {

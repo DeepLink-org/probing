@@ -91,7 +91,7 @@ fn ProfilingSubItem(
 ) -> Element {
     let is_selected = current_view == view;
     let button_class = format!("w-full {}", sidebar_item_class(is_selected));
-    let check_class = format!("ml-auto text-{} font-semibold", colors::PRIMARY_TEXT_DARK);
+    let check_class = "ml-auto text-blue-400 font-semibold";
 
     rsx! {
         Link {
@@ -109,26 +109,13 @@ fn ProfilingSubItem(
 
 #[component]
 fn ProfilingControlsPanel(current_view: String) -> Element {
-    let panel_border_class = format!("mt-4 pt-4 border-t border-{}", colors::SIDEBAR_BORDER);
-    let control_title_class =
-        format!("text-xs font-semibold text-{}", colors::SIDEBAR_TEXT_SECONDARY);
-    let control_value_class = format!("text-xs text-{}", colors::SIDEBAR_TEXT_MUTED);
-    let toggle_enabled_class = format!(
-        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors bg-{}",
-        colors::PRIMARY
-    );
-    let toggle_disabled_class = format!(
-        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors bg-{}",
-        colors::SIDEBAR_ACTIVE_BG
-    );
-    let toggle_label_class = format!("text-xs text-{}", colors::SIDEBAR_TEXT_SECONDARY);
-    let input_class = format!(
-        "w-full px-2 py-1 border border-{} bg-{} text-{} rounded text-xs focus:border-{} focus:outline-none",
-        colors::SIDEBAR_INPUT_BORDER,
-        colors::SIDEBAR_INPUT_BG,
-        colors::SIDEBAR_TEXT_SECONDARY,
-        colors::PRIMARY_BORDER
-    );
+    let panel_border_class = colors::SIDEBAR_PANEL_BORDER;
+    let control_title_class = colors::SIDEBAR_CONTROL_TITLE;
+    let control_value_class = colors::SIDEBAR_CONTROL_VALUE;
+    let toggle_enabled_class = colors::SIDEBAR_TOGGLE_ON;
+    let toggle_disabled_class = colors::SIDEBAR_TOGGLE_OFF;
+    let toggle_label_class = colors::SIDEBAR_TOGGLE_LABEL;
+    let input_class = colors::SIDEBAR_INPUT;
 
     rsx! {
         div {
@@ -142,34 +129,34 @@ fn ProfilingControlsPanel(current_view: String) -> Element {
                 match current_view.as_str() {
                     "pprof" => rsx! {
                         PprofControls {
-                            control_title_class: control_title_class.clone(),
-                            control_value_class: control_value_class.clone(),
+                            control_title_class: control_title_class,
+                            control_value_class: control_value_class,
                         }
                     },
                     "torch" => rsx! {
                         TorchControls {
-                            control_title_class: control_title_class.clone(),
-                            toggle_enabled_class: toggle_enabled_class.clone(),
-                            toggle_disabled_class: toggle_disabled_class.clone(),
-                            toggle_label_class: toggle_label_class.clone(),
+                            control_title_class: control_title_class,
+                            toggle_enabled_class: toggle_enabled_class,
+                            toggle_disabled_class: toggle_disabled_class,
+                            toggle_label_class: toggle_label_class,
                         }
                     },
                     "trace" => rsx! {
                         TraceTimelineControls {
-                            control_title_class: control_title_class.clone(),
-                            control_value_class: control_value_class.clone(),
-                            input_class: input_class.clone(),
+                            control_title_class: control_title_class,
+                            control_value_class: control_value_class,
+                            input_class: input_class,
                         }
                     },
                     "pytorch" => rsx! {
                         PyTorchTimelineControls {
-                            control_title_class: control_title_class.clone(),
-                            input_class: input_class.clone(),
+                            control_title_class: control_title_class,
+                            input_class: input_class,
                         }
                     },
                     "ray" => rsx! {
                         RayTimelineControls {
-                            control_title_class: control_title_class.clone(),
+                            control_title_class: control_title_class,
                         }
                     },
                     _ => rsx! { div {} },

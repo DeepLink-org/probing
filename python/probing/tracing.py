@@ -87,6 +87,7 @@ from probing.core.table import table
 TRAIN_STEP_KIND = "train.step"
 
 # Materialized span rows derived from ``python.trace_event`` (start/end join).
+# Use span ``time`` (ns since epoch), not the memtable ingestion ``timestamp``.
 SPANS_SQL = """
 SELECT
     s.trace_id,
@@ -94,9 +95,9 @@ SELECT
     COALESCE(s.parent_id, -1) AS parent_span_id,
     s.name,
     s.kind,
-    CAST(s.timestamp / 1000 AS BIGINT) AS start_us,
-    CAST(e.timestamp / 1000 AS BIGINT) AS end_us,
-    CAST((e.timestamp - s.timestamp) / 1000 AS BIGINT) AS duration_us,
+    CAST(s.time / 1000 AS BIGINT) AS start_us,
+    CAST(e.time / 1000 AS BIGINT) AS end_us,
+    CAST((e.time - s.time) / 1000 AS BIGINT) AS duration_us,
     s.thread_id,
     s.location,
     s.attributes

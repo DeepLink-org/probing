@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 pub struct StepDurationSample {
     pub rank: i32,
     pub local_step: i64,
+    #[serde(default)]
+    pub coord_step: i64,
     pub duration_ms: f64,
     pub host: String,
     pub addr: String,

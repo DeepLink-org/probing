@@ -3,7 +3,8 @@ use dioxus::prelude::*;
 use crate::api::ApiClient;
 use crate::components::common::AsyncBoundary;
 use crate::components::flamegraph::{FlamegraphPayload, FlamegraphView};
-use crate::components::page::{PageContainer, PageTitle};
+use crate::components::profiling_sidebar_hint::ProfilingSidebarHint;
+use crate::components::page::PageTitle;
 use crate::components::profile_snapshot_bar::ProfileSnapshotBar;
 use crate::components::profiling::{
     ProfilerDisabledNotice, ProfilingContentPanel, ProfilingErrorPanel, ProfilingFeedbackToast,
@@ -26,16 +27,20 @@ pub fn Profiling(view: String) -> Element {
 
     rsx! {
         ProfilingFeedbackToast {}
-        PageContainer {
+        div {
+            class: "flex flex-col flex-1 min-h-0 h-full gap-4",
             PageTitle {
                 title,
                 subtitle: Some(subtitle),
                 icon: Some(view_icon(&current_view)),
             }
-            ProfilingContentPanel {
-                AsyncBoundary {
-                    message: Some("Loading profiler configuration…".to_string()),
-                    ProfilerConfigGate { key: "{current_view}", view: current_view }
+            ProfilingSidebarHint {}
+            div { class: "flex flex-col flex-1 min-h-0 min-w-0",
+                ProfilingContentPanel {
+                    AsyncBoundary {
+                        message: Some("Loading profiler configuration…".to_string()),
+                        ProfilerConfigGate { key: "{current_view}", view: current_view }
+                    }
                 }
             }
         }
@@ -165,7 +170,7 @@ fn FlamegraphData(profiler_name: String) -> Element {
 
     match payload.suspend()?() {
         Ok(data) => rsx! {
-            div { class: "flex flex-col min-h-[600px]",
+            div { class: "flex flex-col flex-1 min-h-[600px]",
                 ProfileSnapshotBar {
                     key: "{profiler_name}-{metric()}",
                     profiler: profiler_name.clone(),

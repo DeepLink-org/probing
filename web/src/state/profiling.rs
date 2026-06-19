@@ -23,14 +23,6 @@ pub fn profiling_view_label(view: &str) -> &'static str {
     profiling_view_spec(view).label
 }
 
-pub fn profiling_view_sidebar_label(view: &str) -> &'static str {
-    profiling_view_spec(view).sidebar_label
-}
-
-pub fn profiling_view_tooltip(view: &str) -> &'static str {
-    profiling_view_spec(view).tooltip
-}
-
 /// Apply server `df_settings` rows to global profiling UI state.
 pub fn apply_profiler_config(config: &[(String, String)]) {
     *PROFILING_PPROF_FREQ.write() = 0;

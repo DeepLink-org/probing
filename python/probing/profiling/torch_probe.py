@@ -447,15 +447,25 @@ class Sampler:
 
         super().__init__(**kwargs)
 
+    def _module_display_name(self, mod) -> str:
+        import torch
+
+        mid = id(mod)
+        cached = self.mod_names.get(mid)
+        if cached and cached not in ("None", ""):
+            return cached
+        name = module_name(mod)
+        if name:
+            return name
+        if isinstance(mod, torch.optim.Optimizer):
+            return mod.__class__.__name__
+        return mod.__class__.__name__
+
     def register_mod(self, mod) -> None:
         if self.finalized:
             return
 
-        import torch
-
-        self.mod_names[id(mod)] = module_name(mod) or (
-            mod.__class__.__name__ if isinstance(mod, torch.optim.Optimizer) else "None"
-        )
+        self.mod_names[id(mod)] = self._module_display_name(mod)
 
     def finalize_discovery(self):
         self.finalized = True
@@ -641,12 +651,10 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
 
         self.config = config
         self.enabled = config.enabled
-        self.curr_step = 0
+        self.curr_step = current_local_step()
         self.pending = []
         self._open_spans = {}
         self._train_step_cm = None
-
-        sync_local_step(0)
 
         super().__init__(
             tracepy=config.tracepy,
@@ -659,7 +667,8 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
     def _begin_train_step_span(self) -> None:
         if self._train_step_cm is not None:
             return
-        sync_local_step(self.curr_step)
+        # Do not sync_local_step here — curr_step is often stale and would reset
+        # the global coordinate back to 0/1 across batches.
         self._train_step_cm = recorded_span(
             "step", kind=TRAIN_STEP_KIND, source="torch_probe"
         )
@@ -688,7 +697,7 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
         record = mem_stats()
         record.step = current_local_step()
         record.seq = self.offset()
-        module_name_str = self.mod_names.get(id(mod), "None")
+        module_name_str = self._module_display_name(mod)
         record.module = module_name_str
         record.stage = post_stage
 
@@ -752,7 +761,7 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
         record = mem_stats()
         record.step = current_local_step()
         record.seq = self.offset()
-        module_name_str = self.mod_names.get(id(mod), "None")
+        module_name_str = self._module_display_name(mod)
         record.module = module_name_str
         record.stage = stage
         span_kind = module_stage_kind(stage)
@@ -785,14 +794,13 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
             return
         if not self.finalized:
             self.finalize_discovery()
-            sync_local_step(0)
-            self.curr_step = 0
+            self.curr_step = current_local_step()
             self._begin_train_step_span()
         else:
             self._end_train_step_span()
             self.next_mod()
-            self._begin_train_step_span()
             self.curr_step = current_local_step()
+            self._begin_train_step_span()
 
         # Ensure backend operations are complete before processing traces
         if self.has_backend and self.pending:

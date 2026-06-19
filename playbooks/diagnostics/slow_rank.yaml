@@ -76,6 +76,7 @@ spec:
     - id: rank_latency_global
       title: "跨节点 rank 延迟 (_host 标签)"
       type: sql
+      cluster: true
       when: "{use_global}"
       sql: |
         SELECT
@@ -125,6 +126,13 @@ spec:
         LIMIT 10
       on_empty: skip
 
+    - id: open_analytics
+      title: "打开 Analytics 查看 collective"
+      type: ui
+      action: navigate
+      view: analytics
+      when: "always"
+
   variables:
     table_comm: "{comm_table}"
 
@@ -150,8 +158,3 @@ spec:
     - "某 rank 持续最慢 → 检查该节点 GPU/网络/数据: playbook: gpu_pressure"
     - "栈卡在 collective → playbook: training_hang"
     - "模块级热点 → playbook: module_bottleneck (在慢 rank 上 inject)"
-
-  ui:
-    - action: navigate
-      view: analytics
-      hint: "Run global.python.comm_collective preview"

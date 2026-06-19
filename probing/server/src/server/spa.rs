@@ -1,6 +1,6 @@
 //! Dioxus SPA shell: serve `index.html` for client-side routes, static files otherwise.
 
-use axum::http::{StatusCode, Uri};
+use axum::http::{HeaderMap, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use axum::{routing::get, Router};
 
@@ -23,7 +23,7 @@ pub fn routes() -> Router {
 }
 
 /// SPA fallback: static asset if it exists, otherwise `index.html` for client routing.
-pub async fn fallback(uri: Uri) -> Response {
+pub async fn fallback(uri: Uri, headers: HeaderMap) -> Response {
     let path = uri.path();
 
     if is_api_path(path) {
@@ -31,7 +31,7 @@ pub async fn fallback(uri: Uri) -> Response {
     }
 
     if contains(path) {
-        if let Ok(resp) = static_files(uri).await {
+        if let Ok(resp) = static_files(uri, headers).await {
             return resp.into_response();
         }
     }
@@ -61,5 +61,7 @@ mod tests {
         assert!(!is_api_path("/profiling/pytorch"));
         assert!(!is_api_path("/profiling/ray"));
         assert!(!is_api_path("/stacks/12345"));
+        assert!(!is_api_path("/spans"));
+        assert!(!is_api_path("/traces"));
     }
 }

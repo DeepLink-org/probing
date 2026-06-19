@@ -8,8 +8,7 @@ use crate::components::common::{EmptyState, ErrorState};
 pub fn ProfilingContentPanel(children: Element) -> Element {
     rsx! {
         div {
-            class: "bg-white rounded-lg border border-gray-200 overflow-hidden",
-            style: "min-height: calc(100vh - 12rem);",
+            class: "flex flex-col flex-1 min-h-0 bg-white rounded-lg border border-gray-200 overflow-hidden",
             {children}
         }
     }
@@ -65,6 +64,6 @@ pub fn TimelinePlaceholder(title: &'static str, hint: String) -> Element {
 #[component]
 pub fn TimelinePanel(children: Element) -> Element {
     rsx! {
-        div { class: "relative min-h-[600px]", {children} }
+        div { class: "relative flex-1 min-h-0", {children} }
     }
 }

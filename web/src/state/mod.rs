@@ -6,3 +6,7 @@ pub mod llm_config;
 pub mod profile_snapshots;
 pub mod profiling;
 pub mod sidebar;
+pub mod stack;
+pub mod page_context;
+pub mod source_viewer;
+pub mod ui_tasks;

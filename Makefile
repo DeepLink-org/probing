@@ -18,7 +18,7 @@ else
 endif
 MATURIN_FLAGS += --features $(MATURIN_GPU_FEATURES)
 
-# Frontend framework: dioxus
+# Frontend framework: dioxus (Tailwind compiled by `dx build` / `dx serve`)
 
 # OS-specific library extension
 ifeq ($(shell uname -s), Darwin)
@@ -67,7 +67,7 @@ help:
 	@echo "  bootstrap       Install Python versions for testing."
 	@echo "  clean           Remove build artifacts."
 	@echo "  frontend        Build Dioxus frontend."
-	@echo "  web/dist        Build the web app (Dioxus)."
+	@echo "  web/dist        Build the web app (Dioxus; Tailwind via dx)."
 	@echo "  docs            Build Sphinx documentation."
 	@echo "  docs-serve      Start live preview server for documentation."
 	@echo ""
@@ -104,20 +104,36 @@ develop:
 
 # Ensure frontend assets exist before packaging
 web/dist/index.html:
-	@echo "Ensuring frontend assets..."
-	@$(MAKE) --no-print-directory frontend
+	@$(MAKE) --no-print-directory web/dist
 
 .PHONY: web/dist
+DX_PUBLIC := web/target/dx/web/release/web/public
 web/dist:
-	@echo "Building Dioxus web app..."
-	@mkdir -p web/dist
-	cd web && dx build --release
-	@echo "Copying Dioxus build output to web/dist..."
-	cp -r web/target/dx/web/release/web/public/* web/dist/
-	@echo "Copying static assets..."
+	@echo "Building Dioxus web app (dx compiles Tailwind automatically)..."
+	@rm -rf web/dist
 	@mkdir -p web/dist/assets
-	@cp -f web/assets/*.svg web/dist/assets/ 2>/dev/null || true
-	cd ..
+	@echo "Pruning stale dx assets (avoids compressing 150+ old wasm/js bundles)..."
+	@rm -rf $(DX_PUBLIC)/assets $(DX_PUBLIC)/wasm
+	cd web && dx build --release
+	@echo "Copying active bundle to web/dist..."
+	@cp -f $(DX_PUBLIC)/index.html web/dist/
+	@JS=$$(grep -oE 'web-dxh[a-f0-9]+\.js' web/dist/index.html | head -1); \
+	WASM=$$(grep -oE 'web_bg-dxh[a-f0-9]+\.wasm' $(DX_PUBLIC)/assets/$$JS); \
+	for f in "$$JS" "$$WASM" "$$JS.br" "$$WASM.br"; do \
+		[ -n "$$f" ] && [ -f "$(DX_PUBLIC)/assets/$$f" ] && cp "$(DX_PUBLIC)/assets/$$f" web/dist/assets/; \
+	done; \
+	if [ -z "$$JS" ] || [ -z "$$WASM" ]; then \
+		echo "error: could not resolve js/wasm bundle from index.html"; exit 1; \
+	fi
+	@echo "Copying static assets..."
+	@cp -f web/assets/tailwind.css web/assets/*.svg web/dist/assets/ 2>/dev/null || true
+	@cp -f web/assets/logo.svg web/dist/logo.svg 2>/dev/null || true
+	@if command -v brotli >/dev/null 2>&1; then \
+		for f in web/dist/assets/tailwind.css web/dist/logo.svg; do \
+			[ -f "$$f" ] && [ ! -f "$$f.br" ] && brotli -kf "$$f"; \
+		done; \
+	fi
+	@echo "web/dist size: $$(du -sh web/dist | cut -f1)"
 
 # Convenience targets for frontend builds
 .PHONY: frontend

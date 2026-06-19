@@ -1,46 +1,85 @@
-# Playbook catalog — single index for CLI doctor and Web agent.
+# Playbook catalog — single index for CLI, Python loader, and Web Agent.
 apiVersion: probing.dev/v1
 kind: Catalog
+
+categories:
+  triage:
+    label: "分诊 / Triage"
+    description: "First look when unsure where to start."
+  reliability:
+    label: "可靠性 / Reliability"
+    description: "Stalls, hangs, deadlocks."
+  distributed:
+    label: "分布式 / Distributed"
+    description: "Ranks, collectives, stragglers."
+  performance:
+    label: "性能 / Performance"
+    description: "Module hotspots and step regressions."
+  memory:
+    label: "内存 / Memory"
+    description: "GPU/VRAM pressure and leaks."
 
 playbooks:
   - id: health_overview
     file: diagnostics/health_overview.yaml
     category: triage
     priority: 0
+    entry: true
     description: "One-shot health check: CPU, GPU, tables, recent training activity"
+    tables: [cpu.utilization, gpu.utilization, python.torch_trace, cluster.nodes]
+    pages: [dashboard, agent, analytics]
+    related: [module_bottleneck, training_hang, memory_leak]
 
   - id: training_hang
     file: diagnostics/training_hang.yaml
     category: reliability
     priority: 1
     description: "Training stalled — capture stacks and thread/blocking hints"
+    tables: [python.backtrace, cpu.utilization, python.trace_event, python.comm_collective]
+    pages: [stacks, spans]
+    related: [slow_rank, module_bottleneck]
 
   - id: slow_rank
     file: diagnostics/slow_rank.yaml
     category: distributed
     priority: 2
     description: "Find straggler ranks via collective latency imbalance"
+    tables: [python.comm_collective, global.python.comm_collective]
+    pages: [training, cluster, analytics]
+    related: [comm_bottleneck, gpu_pressure, training_hang]
 
   - id: memory_leak
     file: diagnostics/memory_leak.yaml
     category: memory
     priority: 3
     description: "Detect monotonic GPU memory growth across training steps"
+    tables: [python.torch_trace, gpu.utilization]
+    pages: [profiling/torch]
+    related: [gpu_pressure, module_bottleneck]
 
   - id: module_bottleneck
     file: diagnostics/module_bottleneck.yaml
     category: performance
     priority: 4
     description: "Find slowest PyTorch modules in recent steps"
+    tables: [python.torch_trace]
+    pages: [profiling/torch, training]
+    related: [slow_rank, comm_bottleneck, memory_leak]
 
   - id: comm_bottleneck
     file: diagnostics/comm_bottleneck.yaml
     category: distributed
     priority: 5
     description: "Rank collective ops by total and p99 latency"
+    tables: [python.comm_collective, rdma.mlx_hca]
+    pages: [training, cluster, analytics, spans]
+    related: [slow_rank, module_bottleneck]
 
   - id: gpu_pressure
     file: diagnostics/gpu_pressure.yaml
     category: memory
     priority: 6
     description: "GPU memory and utilization headroom"
+    tables: [gpu.utilization, gpu.devices, python.torch_trace]
+    pages: [dashboard]
+    related: [memory_leak, slow_rank]
