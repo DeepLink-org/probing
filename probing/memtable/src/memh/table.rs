@@ -550,6 +550,7 @@ impl<'a> MemhWriter<'a> {
     }
 
     /// Update an existing key's slot (key already probed and confirmed).
+    #[allow(clippy::too_many_arguments)]
     fn write_update(
         &mut self,
         slot_idx: usize,

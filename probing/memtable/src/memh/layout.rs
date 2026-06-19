@@ -217,6 +217,7 @@ pub fn read_slot_tag_acquire(buf: &[u8], data_offset: usize, idx: usize) -> u8 {
 /// Write all slot fields, fence(Release), then atomically publish `tag`.
 ///
 /// Used for the **initial insert** of a new key (at an EMPTY or TOMBSTONE slot).
+#[allow(clippy::too_many_arguments)]
 pub fn commit_slot(
     buf: &mut [u8],
     data_offset: usize,

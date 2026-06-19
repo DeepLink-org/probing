@@ -24,6 +24,7 @@ fn df_col_i32(df: &probing_proto::prelude::DataFrame, name: &str) -> Vec<i32> {
     }
 }
 
+#[allow(dead_code)]
 fn df_col_str(df: &probing_proto::prelude::DataFrame, name: &str) -> Vec<String> {
     let idx = df
         .names

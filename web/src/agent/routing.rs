@@ -166,7 +166,7 @@ pub fn describe_route(route: &Route) -> PageDescriptor {
 pub fn match_intents(query: &str, limit: usize) -> Vec<String> {
     let q = query.to_lowercase();
     let mut scored: Vec<(usize, String)> = Vec::new();
-    for (_id, intent) in &intent_file().intents {
+    for intent in intent_file().intents.values() {
         let hits = intent
             .keywords
             .iter()

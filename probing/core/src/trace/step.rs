@@ -80,11 +80,11 @@ fn read_bucket_size() -> u64 {
 }
 
 fn read_rank() -> i64 {
-    read_env_i64("RANK").unwrap_or(-1)
+    read_env_i64("RANK").unwrap_or(0)
 }
 
 fn read_world_size() -> i64 {
-    read_env_i64("WORLD_SIZE").unwrap_or(-1)
+    read_env_i64("WORLD_SIZE").unwrap_or(1)
 }
 
 fn with_ctx<R>(f: impl FnOnce(&mut StepContext) -> R) -> R {

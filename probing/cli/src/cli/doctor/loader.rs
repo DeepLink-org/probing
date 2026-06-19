@@ -1,11 +1,13 @@
-//! Playbook definitions loaded at compile time from ``playbooks/diagnostics/*.yaml``.
+//! Load diagnostic playbooks embedded at compile time from ``playbooks/``.
 
-use include_dir::{include_dir, Dir};
-use serde::Deserialize;
 use std::collections::HashMap;
 
-static DIAGNOSTICS_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../playbooks/diagnostics");
-const CATALOG_YAML: &str = include_str!("../../../playbooks/catalog.yaml");
+use anyhow::{anyhow, Result};
+use include_dir::{include_dir, Dir};
+use serde::Deserialize;
+
+static DIAGNOSTICS: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../playbooks/diagnostics");
+const CATALOG_YAML: &str = include_str!("../../../../../playbooks/catalog.yaml");
 
 #[derive(Debug, Clone, Deserialize)]
 struct CatalogFile {
@@ -14,9 +16,9 @@ struct CatalogFile {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-struct CatalogEntry {
-    id: String,
-    file: String,
+pub(crate) struct CatalogEntry {
+    pub id: String,
+    pub file: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -29,26 +31,10 @@ struct PlaybookFile {
 struct PlaybookMeta {
     id: String,
     title: String,
+    #[serde(default)]
     category: String,
     #[serde(default)]
-    tags: Vec<String>,
-    #[serde(default)]
-    triggers: Triggers,
-    #[serde(default)]
     docs: String,
-}
-
-#[derive(Debug, Clone, Default, Deserialize)]
-struct Triggers {
-    keywords: KeywordsMap,
-}
-
-#[derive(Debug, Clone, Default, Deserialize)]
-struct KeywordsMap {
-    #[serde(default)]
-    zh: Vec<String>,
-    #[serde(default)]
-    en: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -63,25 +49,6 @@ struct PlaybookSpec {
     summary_template: String,
     #[serde(default)]
     next_steps: Vec<String>,
-}
-
-#[derive(Debug, Clone, Default, Deserialize)]
-struct InterpretationSpec {
-    #[serde(default)]
-    rules: Vec<InterpretRuleRaw>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct InterpretRuleRaw {
-    pub id: String,
-    pub when: String,
-    #[serde(default = "default_severity")]
-    pub severity: String,
-    pub message: String,
-}
-
-fn default_severity() -> String {
-    "info".to_string()
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -99,12 +66,10 @@ struct PlaybookStepRaw {
     step_type: String,
     #[serde(default)]
     sql: Option<String>,
-    #[serde(default)]
-    method: Option<String>,
+    #[serde(default, rename = "method")]
+    _method: Option<String>,
     #[serde(default)]
     path: Option<String>,
-    #[serde(default)]
-    action: Option<String>,
     #[serde(default)]
     view: Option<String>,
     #[serde(default = "default_on_empty")]
@@ -115,6 +80,25 @@ struct PlaybookStepRaw {
     when: Option<String>,
     #[serde(default)]
     cluster: Option<bool>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+struct InterpretationSpec {
+    #[serde(default)]
+    rules: Vec<InterpretRule>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct InterpretRule {
+    pub id: String,
+    pub when: String,
+    #[serde(default = "default_severity")]
+    pub severity: String,
+    pub message: String,
+}
+
+fn default_severity() -> String {
+    "info".to_string()
 }
 
 fn default_step_type() -> String {
@@ -131,11 +115,7 @@ pub struct PlaybookStep {
     pub title: String,
     pub step_type: String,
     pub sql: Option<String>,
-    #[allow(dead_code)]
-    pub method: Option<String>,
     pub path: Option<String>,
-    #[allow(dead_code)]
-    pub action: Option<String>,
     pub view: Option<String>,
     pub on_empty: String,
     pub empty_message: Option<String>,
@@ -148,63 +128,35 @@ pub struct Playbook {
     pub id: String,
     pub title: String,
     pub category: String,
-    #[allow(dead_code)]
-    pub tags: Vec<String>,
     pub docs: String,
     pub parameters: Vec<PlaybookParameter>,
     pub steps: Vec<PlaybookStep>,
-    pub interpretation: Vec<InterpretRuleRaw>,
+    pub interpretation: Vec<InterpretRule>,
     pub summary_template: String,
     pub next_steps: Vec<String>,
-    keywords: Vec<String>,
 }
 
-fn catalog_entries() -> Vec<CatalogEntry> {
+pub fn catalog_entries() -> Vec<CatalogEntry> {
     serde_yaml::from_str::<CatalogFile>(CATALOG_YAML)
         .map(|c| c.playbooks)
         .unwrap_or_default()
 }
 
-fn diagnostics_yaml_for_id(id: &str) -> Option<&'static str> {
+pub fn list_playbook_ids() -> Vec<String> {
+    catalog_entries().into_iter().map(|e| e.id).collect()
+}
+
+fn diagnostics_yaml(id: &str) -> Option<&'static str> {
     let entry = catalog_entries().into_iter().find(|e| e.id == id)?;
     let file_name = entry.file.rsplit('/').next().unwrap_or(&entry.file);
-    DIAGNOSTICS_DIR
+    DIAGNOSTICS
         .get_file(file_name)
         .and_then(|f| f.contents_utf8())
 }
 
-pub fn list_playbook_ids() -> Vec<&'static str> {
-    catalog_entries()
-        .into_iter()
-        .filter(|e| diagnostics_yaml_for_id(&e.id).is_some())
-        .map(|e| leak_str(&e.id))
-        .collect()
-}
-
-fn leak_str(s: &str) -> &'static str {
-    Box::leak(s.to_string().into_boxed_str())
-}
-
-pub fn load_playbook(id: &str) -> Option<Playbook> {
-    let yaml = diagnostics_yaml_for_id(id)?;
-    let file: PlaybookFile = serde_yaml::from_str(yaml).ok()?;
-    let mut keywords: Vec<String> = file.metadata.tags.iter().map(|t| t.to_lowercase()).collect();
-    keywords.extend(
-        file.metadata
-            .triggers
-            .keywords
-            .zh
-            .iter()
-            .map(|s| s.to_lowercase()),
-    );
-    keywords.extend(
-        file.metadata
-            .triggers
-            .keywords
-            .en
-            .iter()
-            .map(|s| s.to_lowercase()),
-    );
+pub fn load_playbook(id: &str) -> Result<Playbook> {
+    let yaml = diagnostics_yaml(id).ok_or_else(|| anyhow!("Unknown playbook: {id}"))?;
+    let file: PlaybookFile = serde_yaml::from_str(yaml)?;
     let steps = file
         .spec
         .steps
@@ -214,9 +166,7 @@ pub fn load_playbook(id: &str) -> Option<Playbook> {
             title: s.title,
             step_type: s.step_type,
             sql: s.sql,
-            method: s.method,
             path: s.path,
-            action: s.action,
             view: s.view,
             on_empty: s.on_empty,
             empty_message: s.empty_message,
@@ -224,18 +174,16 @@ pub fn load_playbook(id: &str) -> Option<Playbook> {
             cluster: s.cluster,
         })
         .collect();
-    Some(Playbook {
+    Ok(Playbook {
         id: file.metadata.id,
         title: file.metadata.title,
         category: file.metadata.category,
-        tags: file.metadata.tags,
         docs: file.metadata.docs.trim().to_string(),
         parameters: file.spec.parameters,
         steps,
         interpretation: file.spec.interpretation.rules,
         summary_template: file.spec.summary_template.trim().to_string(),
         next_steps: file.spec.next_steps,
-        keywords,
     })
 }
 
@@ -277,14 +225,6 @@ pub fn derive_variables(params: &HashMap<String, String>) -> HashMap<String, Str
     out
 }
 
-pub fn expand_sql(template: &str, ctx: &HashMap<String, String>) -> String {
-    let mut out = template.to_string();
-    for (key, val) in ctx {
-        out = out.replace(&format!("{{{key}}}"), val);
-    }
-    out
-}
-
 pub fn build_context(pb: &Playbook, overrides: &HashMap<String, String>) -> HashMap<String, String> {
     let mut ctx = default_parameters(pb);
     ctx.extend(derive_variables(&ctx));
@@ -295,53 +235,10 @@ pub fn build_context(pb: &Playbook, overrides: &HashMap<String, String>) -> Hash
     ctx
 }
 
-pub fn match_playbooks(query: &str, limit: usize) -> Vec<String> {
-    use std::collections::HashMap;
-
-    let q = query.to_lowercase();
-    let mut scored: HashMap<String, usize> = HashMap::new();
-
-    for (rank, id) in super::routing::match_intents(query, 10)
-        .into_iter()
-        .enumerate()
-    {
-        *scored.entry(id).or_insert(0) += 3usize.saturating_mul(10 - rank);
+pub fn expand_template(template: &str, ctx: &HashMap<String, String>) -> String {
+    let mut out = template.to_string();
+    for (key, val) in ctx {
+        out = out.replace(&format!("{{{key}}}"), val);
     }
-
-    for id in list_playbook_ids() {
-        let Some(pb) = load_playbook(id) else {
-            continue;
-        };
-        let keyword_hits = pb
-            .keywords
-            .iter()
-            .filter(|kw| q.contains(kw.as_str()))
-            .count();
-        let id_hit = q.contains(&pb.id.replace('_', " ")) || q.contains(&pb.id);
-        if keyword_hits > 0 || id_hit {
-            *scored.entry(pb.id).or_insert(0) += keyword_hits.max(1);
-        }
-    }
-
-    let mut ranked: Vec<(usize, String)> = scored
-        .into_iter()
-        .map(|(id, score)| (score, id))
-        .collect();
-    ranked.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
-    ranked.into_iter().take(limit).map(|(_, id)| id).collect()
-}
-
-pub fn resolve_playbook_id(input: &str) -> Option<String> {
-    let trimmed = input.trim();
-    if trimmed.starts_with('/') {
-        return load_playbook(trimmed.trim_start_matches('/')).map(|p| p.id);
-    }
-    if let Some(rest) = trimmed.strip_prefix("run ") {
-        return load_playbook(rest.trim()).map(|p| p.id);
-    }
-    if load_playbook(trimmed).is_some() {
-        return Some(trimmed.to_string());
-    }
-    let matched = match_playbooks(trimmed, 1);
-    matched.into_iter().next()
+    out
 }

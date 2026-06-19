@@ -21,8 +21,8 @@ Registered in `server/api/mod.rs`:
 | GET | `/apis/overview` | System overview |
 | GET | `/apis/files?path=…` | Read workspace file |
 | GET/PUT | `/apis/nodes` | Cluster node list / register |
-| GET | `/apis/flamegraph/torch` | PyTorch CPU flamegraph (SVG) |
-| GET | `/apis/flamegraph/pprof` | pprof flamegraph (SVG) |
+| GET | `/apis/flamegraph/torch` | PyTorch module flamegraph (interactive HTML; `?format=json` for native UI) |
+| GET | `/apis/flamegraph/pprof` | CPU sampling flamegraph (interactive HTML; `?format=json` for native UI) |
 | GET | `/apis/training/step_matrix` | Cross-rank train.step samples (`cluster=false` default; set `cluster=true` for on-demand fan-out) |
 | POST | `/apis/cluster/query` | On-demand SQL fan-out (`{"expr":"…","cluster":true}`) |
 

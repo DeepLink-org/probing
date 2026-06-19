@@ -1,3 +1,5 @@
+#![cfg_attr(test, allow(clippy::approx_constant, clippy::await_holding_lock))]
+
 pub mod config;
 pub mod core;
 pub mod diagnostics;

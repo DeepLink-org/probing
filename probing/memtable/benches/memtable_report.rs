@@ -239,7 +239,7 @@ fn bench_raw_append_fixed(encoded_rows: &[u8], dst: &mut [u8], chunk_size: usize
 }
 
 fn bench_scan_fixed_cursor(table: &MemTable) -> u64 {
-    let rows = sum_rows(&table) as u64;
+    let rows = sum_rows(table) as u64;
     let mut checksum = 0i64;
     for chunk in 0..table.num_chunks() {
         for row in table.rows(chunk) {

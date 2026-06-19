@@ -48,6 +48,8 @@ pub fn apply_profiler_config(config: &[(String, String)]) {
 }
 
 pub static PROFILING_CHROME_LIMIT: GlobalSignal<usize> = Signal::global(|| 1000);
+/// Row cap for the Spans page tree (`python.trace_event`); independent of Profiling chrome trace.
+pub static SPANS_TREE_LIMIT: GlobalSignal<usize> = Signal::global(|| 1000);
 pub static PROFILING_PYTORCH_STEPS: GlobalSignal<i32> = Signal::global(|| 5);
 pub static PROFILING_PYTORCH_TIMELINE_RELOAD: GlobalSignal<i32> = Signal::global(|| 0);
 pub static PROFILING_RAY_TIMELINE_RELOAD: GlobalSignal<i32> = Signal::global(|| 0);

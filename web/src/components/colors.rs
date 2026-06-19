@@ -73,24 +73,6 @@ pub mod colors {
 
     pub const SIDEBAR_PANEL_BORDER: &str = "mt-4 pt-4 border-t border-slate-700/30";
 
-    /// Correlate panel — visually distinct from primary sidebar nav (amber accent).
-    pub const CORRELATE_PANEL: &str =
-        "mx-0.5 rounded-lg border border-amber-500/30 bg-slate-950/40 shadow-inner overflow-hidden";
-    pub const CORRELATE_PANEL_HEADER: &str =
-        "px-2.5 py-2 border-b border-amber-500/20 bg-gradient-to-r from-amber-500/10 to-transparent";
-    pub const CORRELATE_PANEL_TITLE: &str =
-        "text-[10px] font-semibold uppercase tracking-wider text-amber-400/90";
-    pub const CORRELATE_PANEL_SUBTITLE: &str = "text-[10px] text-slate-500 leading-tight mt-0.5";
-    pub const CORRELATE_CHIP: &str =
-        "inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono bg-amber-500/15 text-amber-200/90 border border-amber-500/25";
-    pub const CORRELATE_LINK: &str =
-        "group flex items-center gap-2 w-full px-2.5 py-2 text-left text-[11px] text-slate-400 hover:bg-amber-500/8 hover:text-slate-200 transition-colors border-t border-slate-700/40 first:border-t-0";
-    pub const CORRELATE_LINK_HERE: &str =
-        "group flex items-center gap-2 w-full px-2.5 py-2 text-left text-[11px] bg-amber-500/12 text-amber-100 border-t border-amber-500/20 first:border-t-0";
-    pub const CORRELATE_LINK_HINT: &str = "text-[9px] text-slate-500 group-hover:text-slate-400 truncate";
-    pub const CORRELATE_CLEAR_BTN: &str =
-        "mt-2 w-full px-2 py-1 text-[10px] rounded border border-slate-600/80 text-slate-500 hover:text-slate-300 hover:border-slate-500 transition-colors";
-
     pub const SIDEBAR_CONTROL_TITLE: &str = "text-xs font-semibold text-slate-300";
     pub const SIDEBAR_CONTROL_VALUE: &str = "text-xs text-slate-400";
     pub const SIDEBAR_TOGGLE_ON: &str =

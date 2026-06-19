@@ -20,6 +20,7 @@ pub fn FlamegraphView(
     payload: FlamegraphPayload,
     #[props(optional)] torch_metric: Option<Signal<String>>,
     #[props(optional)] on_torch_metric: Option<EventHandler<String>>,
+    #[props(optional)] thread_tid: Option<i32>,
 ) -> Element {
     if payload.frames.is_empty() {
         let message = payload
@@ -79,6 +80,7 @@ pub fn FlamegraphView(
                     payload,
                     torch_metric,
                     on_torch_metric,
+                    thread_tid,
                 }
             }
         }

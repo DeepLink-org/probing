@@ -333,6 +333,7 @@ fn ProfileExemplarButton() -> Element {
             class: "text-xs font-medium text-blue-700 hover:underline whitespace-nowrap",
             title: "Open CPU profile (pprof) for the current sampling window",
             onclick: move |_| {
+                crate::state::investigation::clear_profiling_thread_filter();
                 nav.push(Route::ProfilingViewPage {
                     view: "pprof".to_string(),
                 });
@@ -377,6 +378,7 @@ fn CpuTimeSparkline(samples: Vec<CpuHistorySample>) -> Element {
                             },
                             onclick: move |_| {
                                 if is_latest {
+                                    crate::state::investigation::clear_profiling_thread_filter();
                                     nav.push(Route::ProfilingViewPage {
                                         view: "pprof".to_string(),
                                     });

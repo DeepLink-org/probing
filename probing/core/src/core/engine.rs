@@ -124,7 +124,7 @@ impl Engine {
         let columns = batch
             .columns()
             .iter()
-            .map(|col| arrow_array_to_seq(col))
+            .map(arrow_array_to_seq)
             .collect::<Vec<_>>();
         Ok(Some(probing_proto::prelude::DataFrame::new(names, columns)))
     }
@@ -235,7 +235,7 @@ impl EngineBuilder {
 
     // Build the Engine with the specified configurations
     pub async fn build(mut self) -> Result<Engine> {
-        let mut eem = ProbeExtensionManager::default();
+        let mut eem = ProbeExtensionManager;
         for (name, extension) in self.probe_extensions.iter() {
             eem.register(name.clone(), extension.clone()).await;
         }
@@ -767,12 +767,10 @@ mod tests {
         engine.enable(plugin).await?;
 
         // Run multiple queries concurrently
-        let queries = vec![
-            "SELECT * FROM test_namespace.test_table WHERE id = 1",
+        let queries = ["SELECT * FROM test_namespace.test_table WHERE id = 1",
             "SELECT * FROM test_namespace.test_table WHERE id = 2",
             "SELECT * FROM test_namespace.test_table WHERE id = 3",
-            "SELECT COUNT(*) FROM test_namespace.test_table",
-        ];
+            "SELECT COUNT(*) FROM test_namespace.test_table"];
 
         let handles: Vec<_> = queries
             .iter()
@@ -909,11 +907,10 @@ mod tests {
     impl CatalogProvider for DynCatalog {
         fn schema_names(&self) -> Vec<String> {
             let mut names = self.inner.schema_names();
-            if self.has_dynamic.load(std::sync::atomic::Ordering::Relaxed) {
-                if !names.contains(&"dynamic_sch".to_string()) {
+            if self.has_dynamic.load(std::sync::atomic::Ordering::Relaxed)
+                && !names.contains(&"dynamic_sch".to_string()) {
                     names.push("dynamic_sch".to_string());
                 }
-            }
             names
         }
 

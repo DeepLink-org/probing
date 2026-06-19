@@ -6,6 +6,7 @@ pub mod bench;
 pub mod cluster;
 pub mod commands;
 pub mod ctrl;
+pub mod doctor;
 pub mod repl;
 
 pub mod store;
@@ -81,6 +82,9 @@ impl Cli {
             Some(Commands::Bench(cmd)) => {
                 return cmd.run();
             }
+            Some(Commands::Doctor(doctor::DoctorCommand::List)) => {
+                return doctor::list_playbooks_sync();
+            }
             _ => {}
         }
 
@@ -148,7 +152,7 @@ impl Cli {
         );
         let mut printed = false;
         match ctrl.query(Query::new(cpu_expr)).await {
-            Ok(df) if df.cols.iter().any(|c| c.len() > 0) => {
+            Ok(df) if df.cols.iter().any(|c| !c.is_empty()) => {
                 println!("Host memory (cpu.utilization):");
                 crate::table::render(&df, format);
                 printed = true;
@@ -162,7 +166,7 @@ impl Cli {
              from gpu.utilization order by ts desc limit {limit}"
         );
         match ctrl.query(Query::new(gpu_expr)).await {
-            Ok(df) if df.cols.iter().any(|c| c.len() > 0) => {
+            Ok(df) if df.cols.iter().any(|c| !c.is_empty()) => {
                 if printed {
                     println!();
                 }
@@ -272,6 +276,7 @@ impl Cli {
                 json,
             } => self.handle_flamegraph_command(ctrl, *kind, output.clone(), *json).await,
             Commands::Cluster(cmd) => cluster::run(ctrl, cmd.clone()).await,
+            Commands::Doctor(cmd) => doctor::run(ctrl, cmd.clone()).await,
             Commands::Repl => repl::start_repl(ctrl).await,
             // These commands are handled in run() method and don't need a target
             Commands::Launch { .. }

@@ -240,4 +240,8 @@ pub enum Commands {
     /// Stress and benchmark the in-process data layer
     #[command(hide = true)]
     Bench(super::bench::BenchCommand),
+
+    /// Run structured diagnostic playbooks (shared YAML with Web Agent)
+    #[command(subcommand, visible_aliases = ["doc", "dr"])]
+    Doctor(super::doctor::DoctorCommand),
 }

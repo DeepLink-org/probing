@@ -3,6 +3,9 @@ use crate::utils::error::Result;
 use probing_proto::prelude::Ele;
 use serde::{Deserialize, Serialize};
 
+type SpanStartInfo = (i64, String, Option<String>, i64);
+type SpanStartMap = std::collections::HashMap<(i64, i64), SpanStartInfo>;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TraceEvent {
     pub record_type: String,
@@ -235,7 +238,7 @@ impl ApiClient {
         let mut spans_to_process: Vec<(i64, usize)> = span_map.keys()
             .map(|&id| (id, depth_map.get(&id).copied().unwrap_or(0)))
             .collect();
-        spans_to_process.sort_by(|a, b| b.1.cmp(&a.1)); // Sort by depth descending
+        spans_to_process.sort_by_key(|b| std::cmp::Reverse(b.1)); // Sort by depth descending
 
         // Process spans from deepest to shallowest
         // This ensures that when we add a child to its parent, the child's children
@@ -298,11 +301,11 @@ impl ApiClient {
 
         // Use (span_id, thread_id) as key to track span start time, supports multi-threaded scenarios
         // Value contains: (start timestamp in microseconds, span name, kind, trace_id)
-        let mut span_starts: std::collections::HashMap<(i64, i64), (i64, String, Option<String>, i64)> = std::collections::HashMap::new();
+        let mut span_starts: SpanStartMap = std::collections::HashMap::new();
 
         // First pass: collect all span_start events, build lookup table
         // This helps match span_end events, even if trace_id in span_end is 0
-        let mut span_start_lookup: std::collections::HashMap<(i64, i64), (i64, String, Option<String>, i64)> = std::collections::HashMap::new();
+        let mut span_start_lookup: SpanStartMap = std::collections::HashMap::new();
         // Build span_id to parent_id mapping, used to find top-level spans
         let mut span_to_parent: std::collections::HashMap<i64, Option<i64>> = std::collections::HashMap::new();
         // Find first (earliest) top-level span's trace_id, use as unified pid

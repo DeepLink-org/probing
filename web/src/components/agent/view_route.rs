@@ -33,7 +33,7 @@ pub fn agent_view_label(view: &str) -> String {
     let v = view.trim().trim_start_matches("profiling/");
     match v {
         "analytics" => "Analytics".to_string(),
-        "traces" | "spans" => "Distributed Spans".to_string(),
+        "traces" | "spans" => "Spans".to_string(),
         "trace" | "chrome-trace" => "Chrome trace".to_string(),
         "python" => "Python".to_string(),
         "training" => "Training".to_string(),

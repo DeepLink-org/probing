@@ -27,7 +27,6 @@ pub mod common;
 pub mod dataframe_view;
 pub mod data;
 pub mod flamegraph;
-pub mod investigation_context_bar;
 pub mod investigation_context_hint;
 pub mod icon;
 pub mod keyboard_shortcuts;

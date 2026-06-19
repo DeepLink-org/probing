@@ -12,6 +12,9 @@ use crate::components::profiling::{
     TraceChromeTimelineLoader,
 };
 use crate::hooks::use_app_resource;
+use crate::state::investigation::{
+    clear_profiling_thread_filter, INVESTIGATION_CONTEXT, PROFILING_THREAD_FILTER,
+};
 use crate::state::profiling::{
     apply_profiler_config, normalize_profiling_view, profiling_view_spec, PROFILING_CHROME_LIMIT,
     PROFILING_CONFIG_LOADED, PROFILING_PPROF_FREQ, PROFILING_PYTORCH_TIMELINE_RELOAD,
@@ -147,8 +150,15 @@ fn FlamegraphLoader(view: String) -> Element {
 #[component]
 fn FlamegraphData(profiler_name: String) -> Element {
     let is_torch = profiler_name == "torch";
+    let is_pprof = profiler_name == "pprof";
     let mut metric = use_signal(|| "duration".to_string());
     let fetch_name = profiler_name.clone();
+    let thread_tid = if is_pprof {
+        *PROFILING_THREAD_FILTER.read()
+    } else {
+        None
+    };
+    let thread_label = INVESTIGATION_CONTEXT.read().label.clone();
 
     let payload = use_app_resource(move || {
         let name = fetch_name.clone();
@@ -171,6 +181,24 @@ fn FlamegraphData(profiler_name: String) -> Element {
     match payload.suspend()?() {
         Ok(data) => rsx! {
             div { class: "flex flex-col flex-1 min-h-[600px]",
+                if let Some(tid) = thread_tid {
+                    div {
+                        class: "px-4 py-2 text-xs bg-blue-50 border-b border-blue-100 flex flex-wrap items-center gap-2",
+                        span { class: "text-blue-900",
+                            "Thread filter: "
+                            if let Some(label) = thread_label {
+                                "{label}"
+                            } else {
+                                "tid {tid}"
+                            }
+                        }
+                        button {
+                            class: "text-blue-700 hover:underline font-medium",
+                            onclick: move |_| clear_profiling_thread_filter(),
+                            "Clear filter"
+                        }
+                    }
+                }
                 ProfileSnapshotBar {
                     key: "{profiler_name}-{metric()}",
                     profiler: profiler_name.clone(),
@@ -178,8 +206,9 @@ fn FlamegraphData(profiler_name: String) -> Element {
                     payload: data.clone(),
                 }
                 FlamegraphView {
-                    key: "{profiler_name}-{metric()}",
+                    key: "{profiler_name}-{metric()}-thread-{thread_tid.unwrap_or(-1)}",
                     payload: data,
+                    thread_tid,
                     torch_metric: if is_torch { Some(metric) } else { None },
                     on_torch_metric: if is_torch {
                         Some(EventHandler::new(move |m: String| metric.set(m)))

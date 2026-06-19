@@ -12,8 +12,8 @@ Probing Web 是 **训练/推理现场的 live 诊断工作台**，不是 experim
 
 ```text
 现象（Dashboard / Training / Spans）
-  → Investigation 上下文（step / trace / pid）
-  → Correlate 跨页跳转 / Profiling 证据
+  → Investigation 上下文（step / trace / pid，URL 同步 + 页内 hint）
+  → Profiling / SQL 证据
   → Investigate Agent + Playbook 结构化诊断
 ```
 
@@ -34,8 +34,7 @@ Probing Web 是 **训练/推理现场的 live 诊断工作台**，不是 experim
 |------|----------------|------|
 | `CommandBar` + `GlobalCommandPanel` | ⌘K | SQL / eval REPL |
 | `AgentPanel` | ⌘J（`/agent` 全页时禁用浮层） | 右侧浮层 Agent |
-| `InvestigationContextBar` | — | 顶栏上下文摘要 + Clear |
-| `SidebarCorrelatePanel` | — | 有上下文时侧栏跨页入口 |
+| `InvestigationContextHint` | 页内（有上下文时） | 轻量提示条 + 跳转 Distributed Spans |
 | `SidebarTaskQueue` | — | 全局异步任务队列（可取消） |
 | `SourceViewerOverlay` | 点击 `file:line` | 源码预览 modal |
 | `LlmSettingsOverlay` | Agent ⚙ | LLM API 配置（localStorage） |

@@ -206,3 +206,55 @@ pub fn list_phases(frames: &[FlameFrame]) -> Vec<String> {
     }
     phases
 }
+
+/// Whether a pprof depth-1 frame name matches an OS thread id (`thread-{tid}` or `thread-{tid} (name)`).
+pub fn frame_matches_thread_tid(name: &str, tid: i32) -> bool {
+    let prefix = format!("thread-{tid}");
+    if !name.starts_with(&prefix) {
+        return false;
+    }
+    name.len() == prefix.len()
+        || name.as_bytes().get(prefix.len()) == Some(&b' ')
+        || name.as_bytes().get(prefix.len()) == Some(&b'(')
+}
+
+pub fn thread_root_for_frame(by_id: &HashMap<usize, FlameFrame>, id: usize) -> Option<usize> {
+    let mut cur = Some(id);
+    while let Some(frame_id) = cur {
+        let frame = by_id.get(&frame_id)?;
+        if frame.depth == 1 {
+            return Some(frame_id);
+        }
+        if frame.depth == 0 {
+            return None;
+        }
+        cur = frame.parent;
+    }
+    None
+}
+
+pub fn frame_visible_for_thread(
+    by_id: &HashMap<usize, FlameFrame>,
+    frame: &FlameFrame,
+    tid: i32,
+) -> bool {
+    if frame.depth == 0 {
+        return true;
+    }
+    thread_root_for_frame(by_id, frame.id)
+        .and_then(|root_id| by_id.get(&root_id))
+        .is_some_and(|root| frame_matches_thread_tid(&root.name, tid))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn thread_tid_frame_names() {
+        assert!(frame_matches_thread_tid("thread-42", 42));
+        assert!(frame_matches_thread_tid("thread-42 (main)", 42));
+        assert!(!frame_matches_thread_tid("thread-420", 42));
+        assert!(!frame_matches_thread_tid("thread-4", 42));
+    }
+}

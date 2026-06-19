@@ -81,7 +81,7 @@ fn chaos_producer_consumer_wrap_stress_for_over_a_minute() {
             barrier.wait();
             let buf = unsafe { std::slice::from_raw_parts_mut(addr as *mut u8, buf_len) };
             let mut writer = MemTableWriter::new(buf).unwrap().dedup();
-            let mut seeds = [0xA5A5_5A5A_D3C3_B1B1u64 ^ 0, 0xA5A5_5A5A_D3C3_B1B1u64 ^ 1];
+            let mut seeds = [0xA5A5_5A5A_D3C3_B1B1u64, 0xA5A5_5A5A_D3C3_B1B1u64 ^ 1];
             let mut seqs = [0i64, 1_000_000i64];
             while start.elapsed() < duration {
                 for tid in 0..2usize {
@@ -113,7 +113,7 @@ fn chaos_producer_consumer_wrap_stress_for_over_a_minute() {
                         manual_advances.fetch_add(1, Ordering::Relaxed);
                     }
                 }
-                if next_u64(&mut seeds[0]) % 8 == 0 {
+                if next_u64(&mut seeds[0]).is_multiple_of(8) {
                     thread::yield_now();
                 }
             }
@@ -141,7 +141,7 @@ fn chaos_producer_consumer_wrap_stress_for_over_a_minute() {
                             return 0usize;
                         }
                         for row in iter {
-                            if next_u64(&mut seed) % 2 == 0 {
+                            if next_u64(&mut seed).is_multiple_of(2) {
                                 let topic = row.col_str(0);
                                 let msg = row.col_str(1);
                                 let seq = row.col_i64(2);
@@ -161,7 +161,7 @@ fn chaos_producer_consumer_wrap_stress_for_over_a_minute() {
                                 assert!(seq >= 0, "bad seq: {seq}");
                             }
                             local_reads += 1;
-                            if next_u64(&mut seed) % 16 == 0 {
+                            if next_u64(&mut seed).is_multiple_of(16) {
                                 thread::yield_now();
                             }
                         }

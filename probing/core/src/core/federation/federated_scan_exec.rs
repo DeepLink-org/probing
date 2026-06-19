@@ -54,6 +54,7 @@ pub struct FederatedScanExec {
 }
 
 impl FederatedScanExec {
+    #[allow(clippy::too_many_arguments)]
     pub fn try_new(
         local: Arc<dyn ExecutionPlan>,
         output_schema: SchemaRef,

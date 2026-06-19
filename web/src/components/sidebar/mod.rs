@@ -11,14 +11,12 @@ use crate::state::sidebar::{load_sidebar_state, save_sidebar_state, SIDEBAR_HIDD
 
 mod nav_item;
 mod profiling;
-mod correlate;
 mod stack;
 mod tasks;
 mod resize;
 
 use nav_item::{SidebarNavItem, SidebarSectionLabel};
 use profiling::ProfilingSidebarItem;
-use correlate::SidebarCorrelatePanel;
 use resize::ResizeHandle;
 use stack::StackSidebarItem;
 use tasks::SidebarTaskQueue;
@@ -113,8 +111,8 @@ pub fn Sidebar() -> Element {
                         SidebarNavItem {
                             to: Route::SpansPage {},
                             icon: &icondata::AiApiOutlined,
-                            label: "Distributed Spans",
-                            title: "Hierarchical spans from python.trace_event (not Profiling chrome trace)",
+                            label: "Spans",
+                            title: "Hierarchical tracing spans from python.trace_event",
                             is_active: matches!(route, Route::TracesPage {} | Route::SpansPage {}),
                         }
                         SidebarNavItem {
@@ -144,8 +142,6 @@ pub fn Sidebar() -> Element {
                             title: "Live variable tracing on functions (not distributed spans)",
                             is_active: route == Route::PythonPage {},
                         }
-
-                        SidebarCorrelatePanel {}
                     }
                 }
 

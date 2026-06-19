@@ -7,7 +7,6 @@ use dioxus::prelude::*;
 use crate::components::agent::{AgentPanel, LlmSettingsOverlay};
 use crate::components::global_command_panel::{CommandBar, FloatingResultToast, GlobalCommandPanel};
 use crate::components::icon::Icon;
-use crate::components::investigation_context_bar::InvestigationContextBar;
 use crate::components::keyboard_shortcuts::{GlobalShortcutInstaller, ShortcutsHelpOverlay};
 use crate::components::page_context_sync::PageContextSync;
 use crate::components::sidebar::Sidebar;
@@ -75,7 +74,6 @@ pub fn AppLayout(
                 CommandBar {
                     on_execute_done: move |r| *floating_result.write() = Some(r),
                 }
-                InvestigationContextBar {}
                 div {
                     class: "flex-1 min-h-0 relative overflow-hidden",
                     main {

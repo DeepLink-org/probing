@@ -303,7 +303,9 @@ re-validates).
 - **No per-page `fsync`** — a `SIGKILL` may lose the open segment's not-yet-flushed tail.
 - **No segment-level manifest** — multi-segment queries open each segment header to prune.
 - **Pco level is fixed (8)** — not adapted per column.
-- **Runtime is single-process** — cross-process / cluster aggregation is not yet wired.
+- **Runtime is single-process per agent** — each training process owns local memtables. Cross-node
+  aggregation is explicit via the `global` federated catalog (`global.schema.table`), HTTP
+  `/apis/cluster/query`, and aggregate pushdown in `probing-core::federation`.
 
 ## Testing
 

@@ -1,61 +1,181 @@
-//! Sidebar task queue — running and recent background work.
+//! Sidebar task queue — compact summary row + click-to-open popover.
 
 use dioxus::prelude::*;
+use wasm_bindgen::JsCast;
+use web_sys::Element as DomElement;
 
 use crate::components::icon::Icon;
 use crate::components::sidebar::nav_item::SidebarSectionLabel;
+use crate::state::sidebar::SIDEBAR_WIDTH;
 use crate::state::ui_tasks::{
     cancel_all_running_ui_tasks, cancel_ui_task, clear_finished_ui_tasks, ui_tasks_snapshot,
     UiTask, UiTaskStatus, UI_TASK_TICK,
 };
 
+const TASK_TRIGGER_ID: &str = "sidebar-task-trigger";
+const PANEL_GAP_PX: f64 = 6.0;
+
+/// Anchor the popover above the trigger using viewport coordinates (avoids sidebar overflow clipping).
+fn task_panel_style(trigger_id: &str) -> String {
+    let Some(window) = web_sys::window() else {
+        return String::new();
+    };
+    let Some(document) = window.document() else {
+        return String::new();
+    };
+    let Some(el) = document.get_element_by_id(trigger_id) else {
+        return String::new();
+    };
+    let Ok(html_el) = el.dyn_into::<DomElement>() else {
+        return String::new();
+    };
+    let rect = html_el.get_bounding_client_rect();
+    let top = rect.top();
+    let left = rect.left();
+    let width = rect.width();
+    let vh = document
+        .document_element()
+        .map(|el| el.client_height() as f64)
+        .unwrap_or(top + 200.0);
+    // `bottom` = distance from viewport bottom to the panel's bottom edge (just above the button).
+    let bottom = (vh - top + PANEL_GAP_PX).max(PANEL_GAP_PX);
+    let max_h = (top - PANEL_GAP_PX - 8.0).max(120.0);
+    format!(
+        "position:fixed;bottom:{bottom}px;left:{left}px;width:{width}px;max-height:{max_h}px;z-index:50;",
+    )
+}
+
 #[component]
 pub fn SidebarTaskQueue() -> Element {
+    let mut show_panel = use_signal(|| false);
+    let mut panel_style = use_signal(|| String::new());
     let _tick = UI_TASK_TICK.read();
+    let sidebar_width = *SIDEBAR_WIDTH.read();
     let tasks = ui_tasks_snapshot();
     let now_ms = js_sys::Date::now() as u64;
     let running = tasks.iter().filter(|t| t.is_running()).count();
+    let has_finished = tasks.iter().any(|t| !t.is_running());
+    let (summary_label, summary_running) = task_summary_line(&tasks);
+
+    use_effect(move || {
+        let _ = sidebar_width;
+        if show_panel() {
+            panel_style.set(task_panel_style(TASK_TRIGGER_ID));
+        }
+    });
 
     rsx! {
         div {
-            class: "shrink-0 border-t border-slate-700/30 px-2 py-2 max-h-48 flex flex-col min-h-0",
-            div { class: "flex items-center justify-between gap-2 mb-1",
-                SidebarSectionLabel { label: "Tasks" }
-                div { class: "flex items-center gap-2",
-                    if running > 0 {
-                        span {
-                            class: "text-[10px] font-medium text-blue-300 tabular-nums",
-                            "{running} active"
-                        }
-                        button {
-                            class: "text-[10px] text-slate-500 hover:text-red-300 transition-colors",
-                            title: "Cancel all running tasks",
-                            onclick: move |_| cancel_all_running_ui_tasks(),
-                            "Cancel all"
-                        }
+            class: "shrink-0 border-t border-slate-700/30 px-2 py-1.5 relative",
+            SidebarSectionLabel { label: "Tasks" }
+            button {
+                id: TASK_TRIGGER_ID,
+                class: "mt-1 w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md border border-slate-700/50 \
+                         bg-slate-800/30 hover:bg-slate-800/60 hover:border-slate-600/70 transition-colors \
+                         text-left min-w-0",
+                title: "Show task list",
+                aria_expanded: if show_panel() { "true" } else { "false" },
+                onclick: move |e| {
+                    e.stop_propagation();
+                    let opening = !show_panel();
+                    show_panel.set(opening);
+                    if opening {
+                        panel_style.set(task_panel_style(TASK_TRIGGER_ID));
                     }
+                },
+                if summary_running {
+                    span {
+                        class: "inline-block w-2 h-2 border border-blue-400 border-t-transparent rounded-full animate-spin shrink-0"
+                    }
+                } else if tasks.is_empty() {
+                    Icon { icon: &icondata::AiUnorderedListOutlined, class: "w-3 h-3 text-slate-500 shrink-0" }
+                } else {
+                    Icon { icon: &icondata::AiCheckOutlined, class: "w-3 h-3 text-slate-500 shrink-0" }
+                }
+                span {
+                    class: "flex-1 min-w-0 text-[10px] text-slate-200 truncate font-medium",
+                    "{summary_label}"
+                }
+                if running > 0 {
+                    span {
+                        class: "shrink-0 text-[10px] tabular-nums text-blue-300 font-medium",
+                        "{running}"
+                    }
+                }
+                Icon {
+                    icon: if show_panel() { &icondata::AiUpOutlined } else { &icondata::AiDownOutlined },
+                    class: "w-3 h-3 text-slate-500 shrink-0"
                 }
             }
-            if tasks.is_empty() {
-                p { class: "px-2 py-1 text-[10px] text-slate-500",
-                    "No background tasks"
+
+            if show_panel() {
+                div {
+                    class: "fixed inset-0 z-40",
+                    onclick: move |_| show_panel.set(false),
                 }
-            } else {
-                div { class: "space-y-0.5 overflow-y-auto min-h-0 flex-1",
-                    for task in tasks.iter().rev() {
-                        TaskRow { key: "{task.id}", task: task.clone(), now_ms: now_ms }
+                div {
+                    class: "flex flex-col rounded-lg border border-slate-600/80 bg-slate-900 shadow-2xl overflow-hidden",
+                    style: "{panel_style()}",
+                    role: "dialog",
+                    aria_label: "Background tasks",
+                    onclick: move |e| e.stop_propagation(),
+                    div {
+                        class: "flex items-center justify-between gap-2 px-2.5 py-2 border-b border-slate-700/60 bg-slate-800/80",
+                        span { class: "text-[10px] font-medium text-slate-300",
+                            if running > 0 {
+                                "{running} active · {tasks.len()} total"
+                            } else {
+                                "{tasks.len()} tasks"
+                            }
+                        }
+                        div { class: "flex items-center gap-2 shrink-0",
+                            if running > 0 {
+                                button {
+                                    class: "text-[10px] text-slate-500 hover:text-red-300 transition-colors",
+                                    title: "Cancel all running tasks",
+                                    onclick: move |_| cancel_all_running_ui_tasks(),
+                                    "Cancel all"
+                                }
+                            }
+                            if has_finished {
+                                button {
+                                    class: "text-[10px] text-slate-500 hover:text-slate-300 transition-colors",
+                                    onclick: move |_| clear_finished_ui_tasks(),
+                                    "Clear"
+                                }
+                            }
+                        }
                     }
-                }
-                if tasks.iter().any(|t| !t.is_running()) {
-                    button {
-                        class: "mt-1.5 w-full px-2 py-0.5 text-[10px] rounded border border-slate-600 text-slate-500 hover:text-slate-300 hover:border-slate-500 transition-colors",
-                        onclick: move |_| clear_finished_ui_tasks(),
-                        "Clear finished"
+                    if tasks.is_empty() {
+                        p { class: "px-3 py-4 text-[10px] text-slate-500 text-center",
+                            "No background tasks"
+                        }
+                    } else {
+                        div { class: "overflow-y-auto min-h-0 p-1 space-y-0.5",
+                            for task in tasks.iter().rev() {
+                                TaskRow { key: "{task.id}", task: task.clone(), now_ms: now_ms }
+                            }
+                        }
                     }
                 }
             }
         }
     }
+}
+
+fn task_summary_line(tasks: &[UiTask]) -> (String, bool) {
+    if let Some(task) = tasks.iter().find(|t| t.is_running()) {
+        return (task.label.clone(), true);
+    }
+    if let Some(task) = tasks.last() {
+        let suffix = match task.status {
+            UiTaskStatus::Failed => " (failed)",
+            UiTaskStatus::Cancelled => " (cancelled)",
+            _ => "",
+        };
+        return (format!("{}{suffix}", task.label), false);
+    }
+    ("No background tasks".to_string(), false)
 }
 
 #[component]

@@ -186,6 +186,7 @@ pub fn decode_value_payload<'a>(dtype: DType, payload: &'a [u8]) -> Option<Typed
 
 // ── Arena record encode ───────────────────────────────────
 
+#[allow(clippy::too_many_arguments)]
 fn write_hdr(
     out: &mut Vec<u8>,
     record_len: u32,

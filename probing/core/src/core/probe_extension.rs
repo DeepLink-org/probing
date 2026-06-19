@@ -14,12 +14,15 @@ use tokio::sync::{Mutex, RwLock};
 use super::error::EngineError;
 use crate::config;
 
+/// Shared probe extension instances keyed by extension name.
+pub type ProbeExtensionMap =
+    BTreeMap<String, Arc<Mutex<dyn ProbeExtension + Send + Sync>>>;
+
 /// Global probe extension registry.
 ///
 /// Shared storage for [`ProbeExtension`] instances; [`ProbeExtensionManager`] operates on this map.
-pub static PROBE_EXTENSIONS: Lazy<
-    RwLock<BTreeMap<String, Arc<Mutex<dyn ProbeExtension + Send + Sync>>>>,
-> = Lazy::new(|| RwLock::new(BTreeMap::new()));
+pub static PROBE_EXTENSIONS: Lazy<RwLock<ProbeExtensionMap>> =
+    Lazy::new(|| RwLock::new(BTreeMap::new()));
 
 #[derive(Clone, Debug, Default)]
 pub enum Maybe<T> {
@@ -513,7 +516,7 @@ mod tests {
     async fn test_set_option_syncs_to_config_store() {
         setup_test().await;
 
-        let mut manager = ProbeExtensionManager::default();
+        let mut manager = ProbeExtensionManager;
         let extension = Arc::new(Mutex::new(TestExtension::default()));
         manager.register("test".to_string(), extension).await;
 
@@ -545,7 +548,7 @@ mod tests {
         // Pre-populate ConfigStore
         config::set("test.option", "old_value").await;
 
-        let mut manager = ProbeExtensionManager::default();
+        let mut manager = ProbeExtensionManager;
         let extension = Arc::new(Mutex::new(TestExtension::default()));
         manager.register("test".to_string(), extension).await;
 
@@ -566,7 +569,7 @@ mod tests {
     async fn test_set_option_unsupported_key() {
         setup_test().await;
 
-        let mut manager = ProbeExtensionManager::default();
+        let mut manager = ProbeExtensionManager;
         let extension = Arc::new(Mutex::new(TestExtension::default()));
         manager.register("test".to_string(), extension).await;
 

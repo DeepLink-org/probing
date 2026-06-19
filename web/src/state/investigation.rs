@@ -7,6 +7,8 @@ pub struct InvestigationContext {
     pub tid: Option<i32>,
     pub trace_id: Option<i64>,
     pub span_name: Option<String>,
+    /// Training coordinate from step matrix / heatmap (filters span attributes on Spans page).
+    pub local_step: Option<i64>,
     pub label: Option<String>,
 }
 
@@ -16,6 +18,7 @@ impl InvestigationContext {
             && self.tid.is_none()
             && self.trace_id.is_none()
             && self.span_name.is_none()
+            && self.local_step.is_none()
             && self.label.is_none()
     }
 
@@ -46,6 +49,9 @@ impl InvestigationContext {
 
 pub static INVESTIGATION_CONTEXT: GlobalSignal<InvestigationContext> =
     Signal::global(InvestigationContext::default);
+
+/// Thread id to filter pprof flamegraph (set from Dashboard CPU thread actions).
+pub static PROFILING_THREAD_FILTER: GlobalSignal<Option<i32>> = Signal::global(|| None);
 
 const STORAGE_KEY: &str = "probing_investigation_context";
 
@@ -98,20 +104,38 @@ pub fn clear_investigation_context() {
     *INVESTIGATION_CONTEXT.write() = InvestigationContext::default();
     save_investigation_context(&InvestigationContext::default());
     crate::state::investigation_url::sync_investigation_context_to_url();
+    clear_profiling_thread_filter();
+}
+
+pub fn clear_profiling_thread_filter() {
+    *PROFILING_THREAD_FILTER.write() = None;
+}
+
+/// Clear span-tree filters while keeping process context (pid).
+pub fn clear_spans_investigation_filters() {
+    let pid = INVESTIGATION_CONTEXT.read().pid;
+    clear_investigation_context();
+    if let Some(pid) = pid {
+        update_investigation_context(|ctx| {
+            ctx.pid = Some(pid);
+            ctx.label = Some(format!("pid {pid}"));
+        });
+    }
 }
 
 /// Stable key for detecting external investigation context changes.
 pub fn investigation_context_key(ctx: &InvestigationContext) -> String {
     format!(
-        "{}:{}:{}:{}",
+        "{}:{}:{}:{}:{}",
         ctx.pid.unwrap_or(-1),
         ctx.tid.unwrap_or(-1),
         ctx.trace_id.unwrap_or(-1),
-        ctx.span_name.as_deref().unwrap_or("")
+        ctx.span_name.as_deref().unwrap_or(""),
+        ctx.local_step.unwrap_or(-1),
     )
 }
 
-/// Write Distributed Spans page filters back into global context (and URL).
+/// Write Spans page filters back into global context (and URL).
 pub fn sync_spans_filters_to_context(
     name_filter: &str,
     thread_filter: &str,
@@ -251,9 +275,13 @@ pub fn set_training_step_context(rank: i32, local_step: Option<i64>, host: Optio
         }
     }
     update_investigation_context(|ctx| {
+        ctx.tid = None;
+        ctx.trace_id = None;
         ctx.span_name = Some("train.step".to_string());
+        ctx.local_step = local_step;
         ctx.label = Some(label);
     });
+    clear_profiling_thread_filter();
 }
 
 pub fn set_thread_context(tid: i32, thread_name: Option<&str>, pid: Option<i32>) {
@@ -264,8 +292,12 @@ pub fn set_thread_context(tid: i32, thread_name: Option<&str>, pid: Option<i32>)
     update_investigation_context(|ctx| {
         ctx.tid = Some(tid);
         ctx.pid = pid.or(ctx.pid);
+        ctx.trace_id = None;
+        ctx.span_name = None;
+        ctx.local_step = None;
         ctx.label = Some(label);
     });
+    *PROFILING_THREAD_FILTER.write() = Some(tid);
 }
 
 pub fn set_trace_context(trace_id: i64, span_name: Option<&str>, tid: Option<i32>) {
@@ -277,6 +309,7 @@ pub fn set_trace_context(trace_id: i64, span_name: Option<&str>, tid: Option<i32
         ctx.trace_id = Some(trace_id);
         ctx.span_name = span_name.map(str::to_string);
         ctx.tid = tid.or(ctx.tid);
+        ctx.local_step = None;
         ctx.label = Some(label);
     });
 }

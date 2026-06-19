@@ -254,7 +254,7 @@ fn parse_cpu_top_threads(df: &DataFrame, limit: usize) -> Vec<CpuThreadRow> {
         })
         .collect();
 
-    out.sort_by(|a, b| b.delta_total_ns.cmp(&a.delta_total_ns));
+    out.sort_by_key(|b| std::cmp::Reverse(b.delta_total_ns));
     out.truncate(limit);
     out
 }

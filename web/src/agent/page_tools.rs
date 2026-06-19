@@ -5,6 +5,7 @@ use probing_proto::prelude::{DataFrame, Ele};
 
 use crate::api::ApiClient;
 use crate::app::Route;
+use crate::components::flamegraph::FlamegraphPayload;
 use crate::state::profiling::{normalize_profiling_view, PROFILING_PPROF_FREQ, PROFILING_TORCH_ENABLED};
 use crate::state::ui_tasks::{begin_snapshot_task, end_snapshot_task};
 use crate::utils::error::Result;
@@ -163,14 +164,35 @@ pub async fn fetch_page_snapshot(route: &Route) -> Result<String> {
                     }
                 }
                 "pprof" => {
-                    if let Some(p) = query_preview(
-                        &client,
-                        "SELECT count(*) AS samples FROM pprof.samples",
-                        1,
-                    )
-                    .await
-                    {
-                        parts.push(format!("[pprof.samples]\n{p}"));
+                    let freq = *PROFILING_PPROF_FREQ.read();
+                    parts.push(format!("[pprof] probing.pprof.sample_freq={freq}"));
+                    if freq > 0 {
+                        match client.get_flamegraph_json("pprof").await {
+                            Ok(json) => {
+                                if let Ok(payload) =
+                                    serde_json::from_str::<FlamegraphPayload>(&json)
+                                {
+                                    parts.push(format!(
+                                        "[pprof flamegraph] total_samples={} dropped={}",
+                                        payload.total, payload.dropped
+                                    ));
+                                } else {
+                                    parts.push(
+                                        "[pprof] sampling enabled; flamegraph JSON not ready yet"
+                                            .into(),
+                                    );
+                                }
+                            }
+                            Err(_) => parts.push(
+                                "[pprof] sampling enabled but no CPU stacks collected yet"
+                                    .into(),
+                            ),
+                        }
+                    } else {
+                        parts.push(
+                            "[pprof] CPU sampling off — enable sample_freq in Profiling sidebar"
+                                .into(),
+                        );
                     }
                 }
                 _ => {}

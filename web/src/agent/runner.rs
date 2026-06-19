@@ -269,7 +269,7 @@ pub async fn run_playbook(
     playbook_id: &str,
     overrides: HashMap<String, String>,
     session: Option<&UiTaskSession>,
-) -> Result<(Playbook, Vec<StepOutcome>)> {
+) -> Result<(Playbook, Vec<StepOutcome>, HashMap<String, String>)> {
     if session.is_some_and(|s| s.is_cancelled()) {
         return Err(AppError::Cancelled);
     }
@@ -315,5 +315,5 @@ pub async fn run_playbook(
             break;
         }
     }
-    Ok((pb, outcomes))
+    Ok((pb, outcomes, ctx))
 }

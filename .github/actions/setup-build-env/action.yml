@@ -77,7 +77,6 @@ runs:
         test -e ~/.cargo/bin/cargo-zigbuild || cargo install cargo-zigbuild
         test -e ~/.cargo/bin/rnr || cargo install rnr
         test -e ~/.cargo/bin/cargo-nextest || cargo install --locked cargo-nextest
-        test -e ~/.cargo/bin/trunk || cargo install trunk --locked
 
     - name: Install Python Build Dependencies
       if: inputs.install-python-deps == 'true'

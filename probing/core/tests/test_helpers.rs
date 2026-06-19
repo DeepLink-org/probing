@@ -33,6 +33,7 @@ impl GenericTableProbeDataSource {
     }
 
     /// Create a simple test table with id and name columns
+    #[allow(dead_code)]
     pub fn simple_table(name: &str, namespace: &str) -> Self {
         let schema = Arc::new(Schema::new(vec![
             Field::new("id", DataType::Int32, false),
@@ -71,6 +72,7 @@ impl GenericTableProbeDataSource {
     }
 
     /// Create an empty table
+    #[allow(dead_code)]
     pub fn empty_table(name: &str, namespace: &str) -> Self {
         let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
 

@@ -25,7 +25,7 @@ pub fn InvestigationContextHint(
                 Link {
                     to: Route::SpansPage {},
                     class: "shrink-0 px-2 py-0.5 rounded border border-blue-200 bg-white text-blue-700 hover:bg-blue-50",
-                    "Distributed Spans"
+                    "Spans"
                 }
             }
             span { class: "text-blue-700/90", "{note}" }

@@ -5,8 +5,9 @@ use std::collections::HashMap;
 use dioxus::prelude::*;
 
 use crate::agent::{
-    list_playbook_ids, load_playbook, refresh_page_snapshot_for_route, resolve_playbook_id,
-    run_playbook, select_playbook, summarize_run,
+    evaluate_rules, evidence_from_outcomes, format_findings, list_playbook_ids, load_playbook,
+    refresh_page_snapshot_for_route, resolve_playbook_id, run_playbook, select_playbook,
+    summarize_run,
 };
 use crate::app::Route;
 use dioxus_router::use_route;
@@ -562,13 +563,19 @@ async fn run_playbook_flow(
         overrides
     };
     match run_playbook(playbook_id, overrides, Some(session)).await {
-        Ok((pb, outcomes)) => {
+        Ok((pb, outcomes, ctx)) => {
             if session.is_cancelled() {
                 return;
             }
+            let evidence = evidence_from_outcomes(&outcomes);
+            let findings = evaluate_rules(&pb.interpretation, &evidence, &ctx);
             let evidence = crate::agent::outcomes_to_evidence(&outcomes);
             for outcome in outcomes {
                 push_agent_message(AgentMessage::step_card(step_outcome_to_card(outcome)));
+            }
+            let findings_text = format_findings(&findings);
+            if !findings_text.is_empty() {
+                push_agent_message(AgentMessage::assistant(findings_text));
             }
 
             if let Some((config, user_msg)) = llm_followup {

@@ -16,7 +16,7 @@ static NEXT_SPAN_ID: AtomicU64 = AtomicU64::new(1);
 fn current_thread_id() -> u64 {
     #[cfg(target_os = "macos")]
     unsafe {
-        return libc::pthread_self() as u64;
+        libc::pthread_self() as u64
     }
     #[cfg(target_os = "linux")]
     unsafe {

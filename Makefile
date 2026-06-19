@@ -56,13 +56,17 @@ help:
 	@echo "  all             Build the wheel (default)."
 	@echo "  setup           Install dev tools and environment (pre-commit, etc.)."
 	@echo "  wheel           Build the Python wheel using maturin."
+	@echo "  wheel-ci        Build wheel for CI (Linux: ZIG=1 cross-build)."
+	@echo "  install-wheel   pip install dist/probing-*.whl and verify _core."
 	@echo "  develop         Install the package in editable mode."
 	@echo "  test            Run all tests (Rust + Python)."
 	@echo "  test-rust       Run Rust tests."
-	@echo "  test-python     Run Python tests."
+	@echo "  test-python     Run Python tests (PYTHONPATH only, no wheel)."
+	@echo "  test-python-wheel  Run Python tests against installed wheel."
 	@echo "  test-doctest    Run python/probing module doctests (optional)."
 	@echo "  coverage-rust   Run Rust coverage (cargo llvm-cov)."
 	@echo "  coverage-python Generate Python coverage (pytest-cov)."
+	@echo "  coverage-python-wheel  Python coverage via installed wheel."
 	@echo "  coverage        Run both Rust and Python coverage and aggregate report."
 	@echo "  bootstrap       Install Python versions for testing."
 	@echo "  clean           Remove build artifacts."
@@ -101,6 +105,39 @@ wheel: web/dist/index.html
 develop:
 	@echo "Installing in editable mode..."
 	maturin develop $(MATURIN_FLAGS)
+
+# CI: Linux cross-builds manylinux wheels; macOS uses native maturin.
+.PHONY: wheel-ci
+wheel-ci:
+ifeq ($(shell uname -s),Linux)
+	$(MAKE) ZIG=1 wheel
+else
+	$(MAKE) wheel
+endif
+	@ls -la dist/probing-*.whl
+
+.PHONY: install-wheel
+install-wheel:
+	@WH=$$(ls -1 dist/probing-*.whl 2>/dev/null | head -1); \
+	test -n "$$WH" || { echo "error: no wheel in dist/ — run 'make wheel' first"; exit 1; }; \
+	$(PYTHON) -m pip install --upgrade pip; \
+	$(PYTHON) -m pip install --force-reinstall "$$WH"; \
+	$(PYTHON) -c "import probing; from probing import _core; print('probing', probing.VERSION, '_core ok')"
+
+# Test deps for wheel-based CI (extension from wheel, pure Python from checkout).
+PYTEST_WHEEL_DEPS := pytest pytest-cov coverage pyyaml websockets pandas torch ipykernel
+PYTEST_WHEEL_ARGS := tests python/probing
+PYTEST_WHEEL_EXTRA ?=
+
+.PHONY: test-python-wheel
+test-python-wheel:
+	$(PYTHON) -m pip install --upgrade pip
+	$(PYTHON) -m pip install $(PYTEST_WHEEL_DEPS)
+	PROBING=1 PYTHONPATH=python/ $(PYTHON) -m pytest $(PYTEST_WHEEL_EXTRA) $(PYTEST_WHEEL_ARGS)
+
+.PHONY: coverage-python-wheel
+coverage-python-wheel:
+	$(MAKE) test-python-wheel PYTEST_WHEEL_EXTRA="--cov=python/probing --cov=tests --cov-report=xml:coverage.xml"
 
 # Ensure frontend assets exist before packaging
 web/dist/index.html:

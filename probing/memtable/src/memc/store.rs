@@ -131,7 +131,7 @@ impl ColdStore {
                 segs.push((mtime, path));
             }
         }
-        segs.sort_by(|a, b| a.0.cmp(&b.0));
+        segs.sort_by_key(|a| a.0);
         segs.into_iter().map(|(_, p)| p).collect()
     }
 

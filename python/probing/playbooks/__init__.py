@@ -14,11 +14,22 @@ from probing.playbooks.loader import (
     playbooks_root,
     validate_all,
 )
+from probing.playbooks.interpret import (
+    InterpretFinding,
+    StepEvidence,
+    evaluate_rules,
+    evidence_from_dataframe,
+    rule_matches,
+)
 
 __all__ = [
     "Playbook",
     "PlaybookCatalog",
     "PlaybookStep",
+    "InterpretFinding",
+    "StepEvidence",
+    "evaluate_rules",
+    "evidence_from_dataframe",
     "expand_playbook",
     "load_catalog",
     "load_intents",
@@ -27,5 +38,6 @@ __all__ = [
     "load_semantic_catalog",
     "match_playbooks",
     "playbooks_root",
+    "rule_matches",
     "validate_all",
 ]

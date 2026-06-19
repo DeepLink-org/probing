@@ -52,9 +52,9 @@ pages:
     playbooks: [health_overview, comm_bottleneck, slow_rank]
 
   spans:
-    title: Distributed Spans
+    title: Spans
     path: /spans
-    description: "Hierarchical spans from python.trace_event."
+    description: "Hierarchical tracing spans from python.trace_event."
     playbooks: [training_hang, comm_bottleneck]
 
   training:

@@ -194,7 +194,7 @@ fn aggregate_step_samples(rows: &[RawStepRow], window: usize) -> Vec<StepDuratio
         for (idx, &row_idx) in collapsed[start..].iter().enumerate() {
             let row = &rows[row_idx];
             out.push(StepDurationSample {
-                rank,
+                rank: normalize_rank(row.rank),
                 local_step: (start + idx) as i64,
                 coord_step: row.coord_step,
                 duration_ms: row.duration_ms,
@@ -236,11 +236,16 @@ fn collapse_coord_duplicates(rows: &[RawStepRow], picked: &[usize]) -> Vec<usize
     out
 }
 
+/// Single-process spans often carry ``rank: -1`` when ``RANK`` was unset; treat as 0.
+fn normalize_rank(rank: i32) -> i32 {
+    if rank < 0 { 0 } else { rank }
+}
+
 fn parse_attrs(raw: &str) -> (i32, i64, String) {
     let Ok(value) = serde_json::from_str::<serde_json::Value>(raw) else {
         return (-1, -1, String::new());
     };
-    let rank = value.get("rank").and_then(json_i64).unwrap_or(-1) as i32;
+    let rank = normalize_rank(value.get("rank").and_then(json_i64).unwrap_or(-1) as i32);
     let local_step = value.get("local_step").and_then(json_i64).unwrap_or(-1);
     let source = value
         .get("source")
@@ -292,6 +297,34 @@ fn ele_as_f64(v: Option<Ele>) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn aggregate_normalizes_legacy_single_process_rank() {
+        let rows = vec![RawStepRow {
+            rank: -1,
+            coord_step: 2,
+            duration_ms: 88.0,
+            span_name: "step".into(),
+            source: "torch_probe".into(),
+            host: "h".into(),
+            addr: "a".into(),
+            start_time: 10,
+        }];
+        let out = aggregate_step_samples(&rows, 120);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].rank, 0);
+        assert_eq!(out[0].local_step, 0);
+        assert!((out[0].duration_ms - 88.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn parse_legacy_rank_minus_one_as_zero() {
+        let (rank, step, source) =
+            parse_attrs(r#"{"rank":-1,"local_step":3,"source":"torch_probe"}"#);
+        assert_eq!(rank, 0);
+        assert_eq!(step, 3);
+        assert_eq!(source, "torch_probe");
+    }
 
     #[test]
     fn parse_train_step_attributes() {

@@ -107,7 +107,7 @@ impl ProbeEndpoint {
                         print!("{}", output);
                         // If output doesn't end with newline, add one
                         if !output.ends_with('\n') {
-                            print!("\n");
+                            println!();
                         }
                     }
                 }
@@ -131,7 +131,7 @@ impl ProbeEndpoint {
                 // If not JSON, display raw response
                 print!("{}", reply_str);
                 if !reply_str.ends_with('\n') {
-                    print!("\n");
+                    println!();
                 }
                 std::io::stdout().flush().unwrap();
             }

@@ -53,7 +53,7 @@ pub fn Python() -> Element {
             PageTitle {
                 title: "Python variable tracing".to_string(),
                 subtitle: Some(format!(
-                    "Watch live function variables — not Distributed Spans or Profiling chrome trace · auto refresh every {}s while tab is visible",
+                    "Watch live function variables — not Spans or Profiling chrome trace · auto refresh every {}s while tab is visible",
                     POLL_MS / 1000
                 )),
                 icon: Some(&icondata::SiPython),

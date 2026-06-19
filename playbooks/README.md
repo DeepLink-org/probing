@@ -98,7 +98,7 @@ interpretation:
       message: "最慢 rank 的平均 collective 延迟是中位数的 1.5 倍以上"
 ```
 
-> Web 端 v1 尚未执行 rules，仅展示 SQL 证据；CLI/Python `interpret.py` 可扩展。
+> Web Agent 与 CLI `probing doctor` 均执行 `interpretation.rules`（Rust + Python `interpret.py`）。
 
 ## 现有 Playbook 一览
 
@@ -121,7 +121,7 @@ interpretation:
 3. 如有新数据源，更新 `semantic/tables.yaml` 同义词
 4. 如有常见用户说法，在 `semantic/intents.yaml` 增加 intent
 5. 如在特定页面常用，更新 `semantic/pages.yaml`
-6. Web：在 `web/src/agent/playbook.rs` 的 `PLAYBOOK_BLOBS` 增加 `include_str!`
+6. Web：在 `web/src/agent/playbook.rs` 通过 `include_dir!` 自动嵌入 `playbooks/diagnostics/`（无需手写列表）
 7. 校验：`python -m probing.playbooks validate`
 
 ## 消费者集成
@@ -164,9 +164,18 @@ from probing.playbooks.loader import (
 - SQL 含 `global.*` 或步骤 `cluster: true` 时走 `/apis/cluster/query` fan-out
 - 步骤卡片显示 `cluster fan-out · N nodes queried`
 
-### CLI（计划）
+### CLI
 
-`probing doctor <playbook-id>` — 与 Web 共用 YAML，仅执行 sql/api/config 步骤（无 `ui`）。
+```bash
+# List playbooks
+probing -t <pid> doctor list
+
+# Run a playbook (sql + api steps; ui steps skipped)
+probing -t <pid> doctor run health_overview
+probing -t <pid> doctor run slow_rank --set step_window=30 --global
+```
+
+与 Web 共用 YAML；执行 `sql` / `api` / `config` 步骤（`ui` 仅在 Web 中运行）。`interpretation.rules` 在终端以 `[SEVERITY]` 行输出。
 
 ## 设计原则
 

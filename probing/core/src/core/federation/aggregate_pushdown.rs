@@ -238,7 +238,7 @@ fn select_mentions_tags(select: &Select) -> bool {
     });
     let in_group = group_by_expressions(select)
         .iter()
-        .any(|expr| expr_mentions_tag(expr));
+        .any(expr_mentions_tag);
     in_projection || in_group
 }
 
@@ -469,7 +469,7 @@ fn batches_to_dataframe(batches: Vec<RecordBatch>) -> Result<probing_proto::prel
     let cols = batch
         .columns()
         .iter()
-        .map(|col| arrow_array_to_seq(col))
+        .map(arrow_array_to_seq)
         .collect();
     Ok(probing_proto::prelude::DataFrame::new(names, cols))
 }

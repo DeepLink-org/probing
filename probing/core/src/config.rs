@@ -82,8 +82,8 @@ pub async fn write(key: &str, value: &str) -> Result<(), EngineError> {
             .extensions
             .get_mut::<ProbeExtensionManager>()
         {
-            let extension_key = if key.starts_with("probing.") {
-                &key[8..]
+            let extension_key = if let Some(stripped) = key.strip_prefix("probing.") {
+                stripped
             } else {
                 key
             };
