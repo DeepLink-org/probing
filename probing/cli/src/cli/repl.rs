@@ -78,7 +78,7 @@ pub async fn start_repl(ctrl: ProbeEndpoint) -> Result<()> {
                                         print!("{}", output);
                                         // 如果输出不以换行结尾，添加换行
                                         if !output.ends_with('\n') {
-                                            print!("\n");
+                                            println!();
                                         }
                                     }
                                 }
@@ -104,7 +104,7 @@ pub async fn start_repl(ctrl: ProbeEndpoint) -> Result<()> {
                                 // 如果不是 JSON，直接显示原始响应
                                 print!("{}", response);
                                 if !response.ends_with('\n') {
-                                    print!("\n");
+                                    println!();
                                 }
                                 std::io::stdout().flush().unwrap();
                             }

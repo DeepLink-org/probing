@@ -13,14 +13,26 @@ from typing import Dict, List, Optional
 from probing.handlers.router import ext_handler, handle_request
 
 
-@ext_handler(
-    "pythonext",
-    [
-        "ray/timeline/chrome",
-        "python/ray/timeline/chrome",
-        "pythonext/ray/timeline/chrome",
-    ],
-)
+@ext_handler("pythonext", "callstack")
+def get_callstack(tid: Optional[int] = None, mode: Optional[str] = None) -> str:
+    """Return merged native/Python call stack as JSON."""
+    import sys
+
+    import probing._core as core
+
+    _ = mode  # reserved for future py/cpp/mixed filtering
+    return core.api_callstack(tid)
+
+
+@ext_handler("pythonext", "eval", uses_body=True)
+def eval_code(code: str) -> str:
+    """Execute code in the target process REPL."""
+    import probing._core as core
+
+    return core.api_eval(code)
+
+
+@ext_handler("pythonext", "ray/timeline/chrome")
 def get_ray_timeline_chrome_format(
     task_filter: Optional[str] = None,
     actor_filter: Optional[str] = None,
@@ -55,14 +67,7 @@ def get_ray_timeline_chrome_format(
         return json.dumps({"error": error_msg, "traceback": error_trace})
 
 
-@ext_handler(
-    "pythonext",
-    [
-        "ray/timeline",
-        "python/ray/timeline",
-        "pythonext/ray/timeline",
-    ],
-)
+@ext_handler("pythonext", "ray/timeline")
 def get_ray_timeline(
     task_filter: Optional[str] = None,
     actor_filter: Optional[str] = None,
@@ -521,10 +526,7 @@ def stop_trace(function: str) -> str:
         return json.dumps({"success": False, "error": str(e)})
 
 
-@ext_handler(
-    "pythonext",
-    ["magics", "pythonext/magics", "python/magics"],
-)
+@ext_handler("pythonext", "magics")
 def get_magics_list() -> str:
     """Get magic commands as JSON for UI quick actions.
 
@@ -594,7 +596,9 @@ def get_trace_variables(function: Optional[str] = None, limit: int = 100) -> str
 
 
 # Unified entry point for all handlers
-def handle_api_request(path: str, params: Dict[str, str]) -> str:
+def handle_api_request(
+    path: str, params: Dict[str, str], body: Optional[str] = None
+) -> str:
     """Unified entry point for handling API requests.
 
     This function routes requests to the appropriate handler based on the path.
@@ -609,4 +613,4 @@ def handle_api_request(path: str, params: Dict[str, str]) -> str:
     Returns:
         JSON string response
     """
-    return handle_request(path, params)
+    return handle_request(path, params, body)

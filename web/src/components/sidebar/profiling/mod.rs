@@ -1,14 +1,14 @@
-//! Profiling submenu and view switcher. Uses [nav_item::sidebar_item_class](crate::components::sidebar::nav_item::sidebar_item_class) for style.
+//! Profiling submenu, view switcher, and embedded controls in the sidebar.
 
 use dioxus::prelude::*;
-use dioxus_router::{use_navigator, use_route};
+use dioxus_router::{use_route, Link};
 use icondata::Icon as IconData;
 
 use crate::app::Route;
 use crate::components::colors::colors;
 use crate::components::icon::Icon;
 use crate::components::sidebar::nav_item::sidebar_item_class;
-use crate::state::profiling::PROFILING_VIEW;
+use crate::state::profiling::{normalize_profiling_view, profiling_view_label, PROFILING_VIEWS};
 
 mod controls;
 use controls::{
@@ -16,12 +16,31 @@ use controls::{
     TraceTimelineControls,
 };
 
+fn profiling_view_icon(id: &str) -> &'static IconData {
+    match id {
+        "pprof" => &icondata::CgPerformance,
+        "torch" => &icondata::AiFireOutlined,
+        "trace" => &icondata::AiThunderboltOutlined,
+        "pytorch" => &icondata::SiPytorch,
+        "ray" => &icondata::AiClockCircleOutlined,
+        _ => &icondata::AiSearchOutlined,
+    }
+}
+
 #[component]
 pub fn ProfilingSidebarItem(show_dropdown: Signal<bool>) -> Element {
     let route = use_route::<Route>();
-    let is_active = route == Route::ProfilingPage {};
+    let is_active = matches!(route, Route::ProfilingViewPage { .. });
     let expanded = *show_dropdown.read();
-    let button_class = format!("w-full {} focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-900", sidebar_item_class(is_active));
+    let button_class = format!(
+        "w-full focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-900 {}",
+        sidebar_item_class(is_active)
+    );
+
+    let current_view = match route {
+        Route::ProfilingViewPage { view } => normalize_profiling_view(&view).to_string(),
+        _ => String::new(),
+    };
 
     rsx! {
         div {
@@ -29,6 +48,7 @@ pub fn ProfilingSidebarItem(show_dropdown: Signal<bool>) -> Element {
                 class: "{button_class}",
                 aria_expanded: if expanded { "true" } else { "false" },
                 aria_label: "Profiling menu",
+                title: "CPU/torch flamegraphs and chrome trace timelines",
                 onclick: move |_| {
                     let current = *show_dropdown.read();
                     *show_dropdown.write() = !current;
@@ -40,34 +60,18 @@ pub fn ProfilingSidebarItem(show_dropdown: Signal<bool>) -> Element {
             if expanded {
                 div {
                     class: "ml-4 mt-0.5 space-y-0.5",
-                    ProfilingSubItem {
-                        view: "pprof".to_string(),
-                        label: "pprof".to_string(),
-                        icon: &icondata::CgPerformance,
-                    }
-                    ProfilingSubItem {
-                        view: "torch".to_string(),
-                        label: "torch".to_string(),
-                        icon: &icondata::SiPytorch,
-                    }
-                    ProfilingSubItem {
-                        view: "trace-timeline".to_string(),
-                        label: "Trace".to_string(),
-                        icon: &icondata::AiThunderboltOutlined,
-                    }
-                    ProfilingSubItem {
-                        view: "pytorch-timeline".to_string(),
-                        label: "PyTorch".to_string(),
-                        icon: &icondata::SiPytorch,
-                    }
-                    ProfilingSubItem {
-                        view: "ray-timeline".to_string(),
-                        label: "Ray".to_string(),
-                        icon: &icondata::AiClockCircleOutlined,
+                    for spec in PROFILING_VIEWS {
+                        ProfilingSubItem {
+                            view: spec.id.to_string(),
+                            label: spec.sidebar_label.to_string(),
+                            tooltip: spec.tooltip.to_string(),
+                            icon: profiling_view_icon(spec.id),
+                            current_view: current_view.clone(),
+                        }
                     }
 
                     if is_active {
-                        ProfilingControlsPanel {}
+                        ProfilingControlsPanel { key: "{current_view}", current_view }
                     }
                 }
             }
@@ -76,28 +80,22 @@ pub fn ProfilingSidebarItem(show_dropdown: Signal<bool>) -> Element {
 }
 
 #[component]
-pub fn ProfilingSubItem(view: String, label: String, icon: &'static IconData) -> Element {
-    let route = use_route::<Route>();
-    let navigator = use_navigator();
-    let is_selected = *PROFILING_VIEW.read() == view;
-    let is_on_profiling_page = route == Route::ProfilingPage {};
+fn ProfilingSubItem(
+    view: String,
+    label: String,
+    tooltip: String,
+    icon: &'static IconData,
+    current_view: String,
+) -> Element {
+    let is_selected = current_view == view;
     let button_class = format!("w-full {}", sidebar_item_class(is_selected));
-    let check_class = format!("ml-auto text-{} font-semibold", colors::PRIMARY_TEXT_DARK);
+    let check_class = "ml-auto text-blue-400 font-semibold";
 
     rsx! {
-        button {
+        Link {
+            to: Route::ProfilingViewPage { view: view.clone() },
             class: "{button_class}",
-            onclick: {
-                let v = view.clone();
-                let nav = navigator.clone();
-                let on_page = is_on_profiling_page;
-                move |_| {
-                    *PROFILING_VIEW.write() = v.clone();
-                    if !on_page {
-                        nav.push(Route::ProfilingPage {});
-                    }
-                }
-            },
+            title: "{tooltip}",
             Icon { icon, class: "w-4 h-4" }
             span { "{label}" }
             if is_selected {
@@ -108,74 +106,58 @@ pub fn ProfilingSubItem(view: String, label: String, icon: &'static IconData) ->
 }
 
 #[component]
-pub fn ProfilingControlsPanel() -> Element {
-    let current_view = PROFILING_VIEW.read();
-    let panel_border_class = format!("mt-4 pt-4 border-t border-{}", colors::SIDEBAR_BORDER);
-    let control_title_class =
-        format!("text-xs font-semibold text-{}", colors::SIDEBAR_TEXT_SECONDARY);
-    let control_value_class = format!("text-xs text-{}", colors::SIDEBAR_TEXT_MUTED);
-    let toggle_enabled_class = format!(
-        "relative inline-flex h-6 w-11 items-center rounded-full transition-colors w-full bg-{}",
-        colors::PRIMARY
-    );
-    let toggle_disabled_class = format!(
-        "relative inline-flex h-6 w-11 items-center rounded-full transition-colors w-full bg-{}",
-        colors::SIDEBAR_ACTIVE_BG
-    );
-    let toggle_label_class =
-        format!("ml-2 text-xs text-{}", colors::SIDEBAR_TEXT_SECONDARY);
-    let input_class = format!(
-        "w-full px-2 py-1 border border-{} bg-{} text-{} rounded text-xs focus:border-{} focus:outline-none",
-        colors::SIDEBAR_INPUT_BORDER,
-        colors::SIDEBAR_INPUT_BG,
-        colors::SIDEBAR_TEXT_SECONDARY,
-        colors::PRIMARY_BORDER
-    );
+fn ProfilingControlsPanel(current_view: String) -> Element {
+    let panel_border_class = colors::SIDEBAR_PANEL_BORDER;
+    let control_title_class = colors::SIDEBAR_CONTROL_TITLE;
+    let control_value_class = colors::SIDEBAR_CONTROL_VALUE;
+    let toggle_enabled_class = colors::SIDEBAR_TOGGLE_ON;
+    let toggle_disabled_class = colors::SIDEBAR_TOGGLE_OFF;
+    let toggle_label_class = colors::SIDEBAR_TOGGLE_LABEL;
+    let input_class = colors::SIDEBAR_INPUT;
 
     rsx! {
         div {
             class: "{panel_border_class}",
             div {
-                class: "px-3 space-y-4",
-                {
-                    let view = (*current_view).clone();
-                    let content: Element = match view.as_str() {
-                        "pprof" => rsx! {
-                            PprofControls {
-                                control_title_class: control_title_class.clone(),
-                                control_value_class: control_value_class.clone(),
-                            }
-                        },
-                        "torch" => rsx! {
-                            TorchControls {
-                                control_title_class: control_title_class.clone(),
-                                toggle_enabled_class: toggle_enabled_class.clone(),
-                                toggle_disabled_class: toggle_disabled_class.clone(),
-                                toggle_label_class: toggle_label_class.clone(),
-                            }
-                        },
-                        "trace-timeline" => rsx! {
-                            TraceTimelineControls {
-                                control_title_class: control_title_class.clone(),
-                                control_value_class: control_value_class.clone(),
-                                input_class: input_class.clone(),
-                            }
-                        },
-                        "pytorch-timeline" => rsx! {
-                            PyTorchTimelineControls {
-                                control_title_class: control_title_class.clone(),
-                                input_class: input_class.clone(),
-                            }
-                        },
-                        "ray-timeline" => rsx! {
-                            RayTimelineControls {
-                                control_title_class: control_title_class.clone(),
-                                input_class: input_class.clone(),
-                            }
-                        },
-                        _ => rsx! { div {} },
-                    };
-                    content
+                class: "px-1 space-y-4",
+                p {
+                    class: "text-[10px] uppercase tracking-wide text-slate-500 mb-2",
+                    "{profiling_view_label(&current_view)} controls"
+                }
+                match current_view.as_str() {
+                    "pprof" => rsx! {
+                        PprofControls {
+                            control_title_class: control_title_class,
+                            control_value_class: control_value_class,
+                        }
+                    },
+                    "torch" => rsx! {
+                        TorchControls {
+                            control_title_class: control_title_class,
+                            toggle_enabled_class: toggle_enabled_class,
+                            toggle_disabled_class: toggle_disabled_class,
+                            toggle_label_class: toggle_label_class,
+                        }
+                    },
+                    "trace" => rsx! {
+                        TraceTimelineControls {
+                            control_title_class: control_title_class,
+                            control_value_class: control_value_class,
+                            input_class: input_class,
+                        }
+                    },
+                    "pytorch" => rsx! {
+                        PyTorchTimelineControls {
+                            control_title_class: control_title_class,
+                            input_class: input_class,
+                        }
+                    },
+                    "ray" => rsx! {
+                        RayTimelineControls {
+                            control_title_class: control_title_class,
+                        }
+                    },
+                    _ => rsx! { div {} },
                 }
             }
         }

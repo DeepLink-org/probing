@@ -4,12 +4,12 @@ use std::fmt::Display;
 use anyhow::Result;
 use async_trait::async_trait;
 
-use probing_core::core::EngineCall;
-use probing_core::core::EngineDatasource;
 use probing_core::core::EngineError;
-use probing_core::core::EngineExtension;
-use probing_core::core::EngineExtensionOption;
 use probing_core::core::Maybe;
+use probing_core::core::ProbeExtension;
+use probing_core::core::ProbeExtensionCall;
+use probing_core::core::ProbeExtensionOption;
+use probing_core::run_on_native_thread;
 use probing_proto::prelude::CallFrame;
 use pyo3::prelude::*;
 use pyo3::types::{PyAnyMethods, PyString};
@@ -17,20 +17,16 @@ use pyo3::Python;
 
 pub use exttbls::ExternalTable;
 pub use exttbls::PyExternalTableConfig;
-pub use tbls::PythonPlugin;
+pub use tbls::PythonProbeDataSource;
 
 use crate::features::stack_tracer::{SignalTracer, StackTracer};
 use crate::python::enable_crash_handler;
 use crate::python::enable_monitoring;
 use crate::python::CRASH_HANDLER;
-use crate::repl::PythonRepl;
 
-/// Define a static Mutex for the backtrace function
 mod exttbls;
-mod stack;
 mod tbls;
 
-pub use stack::get_python_stacks;
 pub use tbls::PythonNamespace;
 
 /// Collection of Python extensions loaded into the system
@@ -53,7 +49,7 @@ impl Display for PyExtList {
 }
 
 /// Python integration with the probing system
-#[derive(Debug, EngineExtension)]
+#[derive(Debug, ProbeExtension)]
 pub struct PythonExt {
     /// Path to Python crash handler script (executed when interpreter crashes)
     #[option(aliases = ["crash.handler"])]
@@ -70,8 +66,6 @@ pub struct PythonExt {
     /// Disable Python extension by setting `python.disabled=<extension_statement>`
     #[option()]
     disabled: Maybe<String>,
-
-    tracer: Box<dyn StackTracer>,
 }
 
 impl Default for PythonExt {
@@ -81,13 +75,12 @@ impl Default for PythonExt {
             monitoring: Default::default(),
             enabled: Default::default(),
             disabled: Default::default(),
-            tracer: Box::new(SignalTracer),
         }
     }
 }
 
 #[async_trait]
-impl EngineCall for PythonExt {
+impl ProbeExtensionCall for PythonExt {
     async fn call(
         &self,
         path: &str,
@@ -102,93 +95,11 @@ impl EngineCall for PythonExt {
         );
 
         let normalized_path = path.trim_start_matches('/');
-
-        // Try Python extension handlers first - router will handle routing automatically
-        if let Ok(result_bytes) = call_python_handler(&normalized_path, params) {
-            // Check if this is a "No handler found" error from Python router
-            if !is_no_handler_found_error(&result_bytes) {
-                return Ok(result_bytes);
-            }
-        }
-
-        // Handle non-Python extension endpoints
-        if normalized_path == "callstack" {
-            return self.handle_callstack(params);
-        }
-        if normalized_path == "eval" {
-            return self.handle_eval(body);
-        }
-        if normalized_path == "flamegraph" {
-            return Ok(crate::features::torch::flamegraph().into_bytes());
-        }
-        Ok("".as_bytes().to_vec())
-    }
-}
-
-impl EngineDatasource for PythonExt {
-    /// Create a plugin instance for the specified namespace
-    fn datasrc(
-        &self,
-        namespace: &str,
-        _name: Option<&str>,
-    ) -> Option<std::sync::Arc<dyn probing_core::core::Plugin + Sync + Send>> {
-        Some(PythonPlugin::create(namespace))
+        call_python_handler(normalized_path, params, body)
     }
 }
 
 impl PythonExt {
-    /// Handle callstack request
-    fn handle_callstack(&self, params: &HashMap<String, String>) -> Result<Vec<u8>, EngineError> {
-        let tid = if params.contains_key("tid") {
-            params
-                .get("tid")
-                .and_then(|s| s.parse::<i32>().ok())
-                .unwrap_or_else(|| {
-                    log::warn!("Invalid tid parameter, using None");
-                    0
-                })
-        } else {
-            0
-        };
-
-        let frames = self
-            .tracer
-            .trace(if tid != 0 { Some(tid) } else { None })
-            .map_err(|e| {
-                log::error!("Failed to get call stack: {e}");
-                EngineError::PluginError(format!("Failed to get call stack: {e}"))
-            })?;
-
-        serde_json::to_vec(&frames).map_err(|e| {
-            log::error!("Failed to serialize call stack: {e}");
-            EngineError::PluginError(format!("Failed to serialize call stack: {e}"))
-        })
-    }
-
-    /// Handle eval request. Catches panics from REPL so a single bad request cannot crash the server.
-    fn handle_eval(&self, body: &[u8]) -> Result<Vec<u8>, EngineError> {
-        let code = String::from_utf8(body.to_vec()).map_err(|e| {
-            log::error!("Failed to convert body to UTF-8 string: {e}");
-            EngineError::PluginError(format!("Failed to convert body to UTF-8 string: {e}"))
-        })?;
-
-        log::debug!("Python eval code: {code}");
-
-        let mut repl = PythonRepl::default();
-        let out =
-            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| repl.process(code.as_str())));
-        match out {
-            Ok(Some(s)) => Ok(s.into_bytes()),
-            Ok(None) => Ok(Vec::new()),
-            Err(_) => {
-                log::error!("Python REPL process panicked; returning error response");
-                Ok(serde_json::json!({"error": "REPL execution panicked"})
-                    .to_string()
-                    .into_bytes())
-            }
-        }
-    }
-
     /// Set up a Python crash handler
     fn set_crash_handler(&mut self, crash_handler: Maybe<String>) -> Result<(), EngineError> {
         match self.crash_handler {
@@ -295,17 +206,21 @@ impl PythonExt {
 
         if let Some(pyext) = self.enabled.0.remove(ext) {
             log::info!("Disabling Python extension: {ext}");
+            let ext_name = ext.clone();
 
-            Python::with_gil(|py| match pyext.call_method0(py, "deinit") {
-                Ok(_) => {
-                    log::debug!("Extension '{ext}' deinitialized successfully");
-                    Ok(())
-                }
-                Err(e) => {
-                    let error_msg = format!("Failed to call deinit method on '{ext}': {e}");
-                    log::error!("{error_msg}");
-                    Err(EngineError::PluginError(error_msg))
-                }
+            run_on_native_thread(move || {
+                Python::attach(|py| match pyext.call_method0(py, "deinit") {
+                    Ok(_) => {
+                        log::debug!("Extension '{ext_name}' deinitialized successfully");
+                        Ok(())
+                    }
+                    Err(e) => {
+                        let error_msg =
+                            format!("Failed to call deinit method on '{ext_name}': {e}");
+                        log::error!("{error_msg}");
+                        Err(EngineError::PluginError(error_msg))
+                    }
+                })
             })
         } else {
             log::debug!("Python extension '{ext}' was not enabled, nothing to disable");
@@ -317,31 +232,34 @@ impl PythonExt {
 /// Execute Python code and return the resulting object
 /// The code should return an object with init/deinit methods
 pub fn execute_python_code(code: &str) -> Result<pyo3::Py<pyo3::PyAny>, String> {
-    Python::with_gil(|py| {
-        let pkg = py.import("probing");
+    let code = code.to_string();
+    run_on_native_thread(move || {
+        Python::attach(|py| {
+            let pkg = py.import("probing");
 
-        if pkg.is_err() {
-            return Err(format!("Python import error: {}", pkg.err().unwrap()));
-        }
+            if pkg.is_err() {
+                return Err(format!("Python import error: {}", pkg.err().unwrap()));
+            }
 
-        let result = pkg
-            .unwrap()
-            .call_method1("load_extension", (code,))
-            .map_err(|e| format!("Error loading Python plugin: {e}"))?;
+            let result = pkg
+                .unwrap()
+                .call_method1("load_extension", (code.as_str(),))
+                .map_err(|e| format!("Error loading Python plugin: {e}"))?;
 
-        if !result
-            .hasattr("init")
-            .map_err(|e| format!("Unable to check `init` method: {e}"))?
-        {
-            return Err("Plugin must have an `init` method".to_string());
-        }
+            if !result
+                .hasattr("init")
+                .map_err(|e| format!("Unable to check `init` method: {e}"))?
+            {
+                return Err("Plugin must have an `init` method".to_string());
+            }
 
-        result
-            .call_method0("init")
-            .map_err(|e| format!("Error calling `init` method: {e}"))?;
+            result
+                .call_method0("init")
+                .map_err(|e| format!("Error calling `init` method: {e}"))?;
 
-        log::info!("Python extension loaded successfully: {code}");
-        Ok(result.unbind())
+            log::info!("Python extension loaded successfully: {code}");
+            Ok(result.unbind())
+        })
     })
 }
 
@@ -349,65 +267,60 @@ fn backtrace(tid: Option<i32>) -> Result<Vec<CallFrame>> {
     SignalTracer.trace(tid)
 }
 
-/// Check if the result bytes contain a "No handler found" error from Python router
-fn is_no_handler_found_error(result_bytes: &[u8]) -> bool {
-    let Ok(result_str) = String::from_utf8(result_bytes.to_vec()) else {
-        return false;
-    };
-
-    let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&result_str) else {
-        return false;
-    };
-
-    let Some(error) = parsed.get("error") else {
-        return false;
-    };
-
-    let Some(error_str) = error.as_str() else {
-        return false;
-    };
-
-    error_str.contains("No handler found")
-}
-
-/// Helper to convert String to PyObject
-fn str_to_py(py: Python, s: &str) -> PyObject {
-    PyString::new(py, s).to_owned().unbind().into()
-}
-
-/// Call Python handler through the router system
+/// Call Python handler through the router system.
 fn call_python_handler(
     path: &str,
     params: &HashMap<String, String>,
+    body: &[u8],
 ) -> Result<Vec<u8>, EngineError> {
-    Python::with_gil(|py| {
-        let router_module = py.import("probing.handlers.router").map_err(|e| {
-            EngineError::PluginError(format!("Failed to import router module: {e}"))
-        })?;
+    let path = path.to_string();
+    let params = params.clone();
+    let body = body.to_vec();
+    run_on_native_thread(move || {
+        Python::attach(|py| {
+            let router_module = py.import("probing.handlers.router").map_err(|e| {
+                EngineError::PluginError(format!("Failed to import router module: {e}"))
+            })?;
 
-        let handle_func = router_module.getattr("handle_request").map_err(|e| {
-            EngineError::PluginError(format!("Failed to get handle_request function: {e}"))
-        })?;
+            let handle_func = router_module.getattr("handle_request").map_err(|e| {
+                EngineError::PluginError(format!("Failed to get handle_request function: {e}"))
+            })?;
 
-        let params_dict = pyo3::types::PyDict::new(py);
-        for (key, value) in params {
-            params_dict
-                .set_item(key.as_str(), str_to_py(py, value))
-                .map_err(|e| {
-                    EngineError::PluginError(format!("Failed to set param '{key}': {e}"))
+            let params_dict = pyo3::types::PyDict::new(py);
+            for (key, value) in &params {
+                params_dict
+                    .set_item(key.as_str(), str_to_py(py, value))
+                    .map_err(|e| {
+                        EngineError::PluginError(format!("Failed to set param '{key}': {e}"))
+                    })?;
+            }
+
+            let body_arg = if body.is_empty() {
+                py.None().into()
+            } else {
+                let body_str = std::str::from_utf8(&body).map_err(|e| {
+                    EngineError::PluginError(format!("Request body is not valid UTF-8: {e}"))
                 })?;
-        }
+                str_to_py(py, body_str)
+            };
 
-        let result = handle_func
-            .call1((str_to_py(py, path), params_dict))
-            .map_err(|e| EngineError::PluginError(format!("Failed to call handle_request: {e}")))?;
+            let result = handle_func
+                .call1((str_to_py(py, &path), params_dict, body_arg))
+                .map_err(|e| {
+                    EngineError::PluginError(format!("Failed to call handle_request: {e}"))
+                })?;
 
-        let result_str: String = result
-            .extract()
-            .map_err(|e| EngineError::PluginError(format!("Failed to extract result: {e}")))?;
+            let result_str: String = result
+                .extract()
+                .map_err(|e| EngineError::PluginError(format!("Failed to extract result: {e}")))?;
 
-        Ok(result_str.into_bytes())
+            Ok(result_str.into_bytes())
+        })
     })
+}
+
+fn str_to_py(py: Python, s: &str) -> Py<PyAny> {
+    PyString::new(py, s).to_owned().unbind().into()
 }
 
 #[cfg(test)]
@@ -420,7 +333,7 @@ mod tests {
         assert_eq!(list.to_string(), "");
 
         // Add extensions
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let ext1 = py.None();
             let ext2 = py.None();
             list.0.insert("ext1".to_string(), ext1);
@@ -432,35 +345,8 @@ mod tests {
     }
 
     #[test]
-    fn test_is_no_handler_found_error() {
-        // Test with "No handler found" error
-        let error_json = r#"{"error": "No handler found for path: test/path"}"#;
-        assert!(is_no_handler_found_error(error_json.as_bytes()));
-
-        // Test with other error
-        let other_error = r#"{"error": "Some other error"}"#;
-        assert!(!is_no_handler_found_error(other_error.as_bytes()));
-
-        // Test with success response
-        let success = r#"{"result": "ok"}"#;
-        assert!(!is_no_handler_found_error(success.as_bytes()));
-
-        // Test with invalid JSON
-        let invalid = b"not json";
-        assert!(!is_no_handler_found_error(invalid));
-
-        // Test with invalid UTF-8
-        let invalid_utf8 = &[0xFF, 0xFE, 0xFD];
-        assert!(!is_no_handler_found_error(invalid_utf8));
-
-        // Test with error field but not a string
-        let error_not_string = r#"{"error": 123}"#;
-        assert!(!is_no_handler_found_error(error_not_string.as_bytes()));
-    }
-
-    #[test]
     fn test_str_to_py() {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let py_obj = str_to_py(py, "test_string");
             let extracted: String = py_obj.extract(py).unwrap();
             assert_eq!(extracted, "test_string");

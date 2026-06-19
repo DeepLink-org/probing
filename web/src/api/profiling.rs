@@ -28,8 +28,28 @@ impl ApiClient {
         Ok(result)
     }
 
-    /// Get flamegraph data
-    pub async fn get_flamegraph(&self, profiler_type: &str) -> Result<String> {
-        self.get_request(&format!("/apis/flamegraph/{}", profiler_type)).await
+    /// Get flamegraph JSON for native web UI rendering.
+    pub async fn get_flamegraph_json(&self, profiler_type: &str) -> Result<String> {
+        self.get_flamegraph_json_with_metric(profiler_type, None)
+            .await
+    }
+
+    /// Get flamegraph JSON with optional torch metric (`duration`, `delta_mb`, `peak_mb`).
+    pub async fn get_flamegraph_json_with_metric(
+        &self,
+        profiler_type: &str,
+        metric: Option<&str>,
+    ) -> Result<String> {
+        let path = match metric {
+            Some(m) if !m.is_empty() => {
+                format!(
+                    "/apis/flamegraph/{}?format=json&metric={}",
+                    profiler_type,
+                    urlencoding::encode(m)
+                )
+            }
+            _ => format!("/apis/flamegraph/{}?format=json", profiler_type),
+        };
+        self.get_request(&path).await
     }
 }

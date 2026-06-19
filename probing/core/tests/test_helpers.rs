@@ -5,25 +5,23 @@ use arrow::array::{Int32Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::record_batch::RecordBatch;
 use datafusion::catalog::memory::{DataSourceExec, MemorySourceConfig};
-use datafusion::catalog::SchemaProvider;
-use datafusion::datasource::TableProvider;
+use datafusion::catalog::{SchemaProvider, TableProvider};
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
 use datafusion::physical_plan::ExecutionPlan;
-use probing_core::core::{Plugin, PluginType};
-use std::any::Any;
+use probing_core::core::{ProbeDataSource, ProbeDataSourceKind};
 use std::sync::Arc;
 
 /// Generic test table plugin implementation
 #[derive(Debug, Clone)]
-pub struct GenericTablePlugin {
+pub struct GenericTableProbeDataSource {
     pub name: String,
     pub namespace: String,
     pub schema: SchemaRef,
     pub batches: Vec<RecordBatch>,
 }
 
-impl GenericTablePlugin {
+impl GenericTableProbeDataSource {
     /// Create a simple test table plugin
     pub fn new(name: &str, namespace: &str, schema: SchemaRef, batches: Vec<RecordBatch>) -> Self {
         Self {
@@ -35,6 +33,7 @@ impl GenericTablePlugin {
     }
 
     /// Create a simple test table with id and name columns
+    #[allow(dead_code)]
     pub fn simple_table(name: &str, namespace: &str) -> Self {
         let schema = Arc::new(Schema::new(vec![
             Field::new("id", DataType::Int32, false),
@@ -73,6 +72,7 @@ impl GenericTablePlugin {
     }
 
     /// Create an empty table
+    #[allow(dead_code)]
     pub fn empty_table(name: &str, namespace: &str) -> Self {
         let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
 
@@ -83,13 +83,13 @@ impl GenericTablePlugin {
     }
 }
 
-impl Plugin for GenericTablePlugin {
+impl ProbeDataSource for GenericTableProbeDataSource {
     fn name(&self) -> String {
         self.name.clone()
     }
 
-    fn kind(&self) -> PluginType {
-        PluginType::Table
+    fn kind(&self) -> ProbeDataSourceKind {
+        ProbeDataSourceKind::Table
     }
 
     fn namespace(&self) -> String {
@@ -107,11 +107,7 @@ impl Plugin for GenericTablePlugin {
 }
 
 #[async_trait::async_trait]
-impl TableProvider for GenericTablePlugin {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
+impl TableProvider for GenericTableProbeDataSource {
     fn schema(&self) -> SchemaRef {
         self.schema.clone()
     }

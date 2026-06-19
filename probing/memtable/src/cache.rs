@@ -274,8 +274,8 @@ mod tests {
             let mut dw = MemTableWriter::init(&mut buf, &schema, 65536, 1).dedup();
             for i in 0..100 {
                 let tag = format!("tag_{i}");
-                dw.push_row(&[Value::Str(&tag), Value::I32(i as i32)]);
-                dw.push_row(&[Value::Str(&tag), Value::I32(i as i32 + 1000)]);
+                dw.push_row(&[Value::Str(&tag), Value::I32(i)]);
+                dw.push_row(&[Value::Str(&tag), Value::I32(i + 1000)]);
             }
         }
 

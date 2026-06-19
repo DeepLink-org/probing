@@ -202,7 +202,7 @@ async fn test_read_file_size_limit() {
 
     let result: ApiResult<String> = read_file(Query(params)).await;
     assert!(result.is_err());
-    let error_msg = format!("{}", result.unwrap_err().0);
+    let error_msg = result.unwrap_err().to_string();
     assert!(error_msg.contains("too large"));
 
     // Restore original directory

@@ -154,3 +154,57 @@ def test_add_event_no_active_span():
 
     with pytest.raises(RuntimeError, match="No active span"):
         probing.event("should_fail")
+
+
+def test_event_inside_train_step_with_nested_spans():
+    """Regression: batch train.step + nested spans + event (imagenet pattern)."""
+    from probing.tracing import TRAIN_STEP_KIND
+
+    with probing.span("batch", kind=TRAIN_STEP_KIND):
+        with probing.span("forward", kind="nn.forward"):
+            pass
+        with probing.span("loss", kind="compute"):
+            pass
+        with probing.span("backward", kind="nn.backward"):
+            pass
+        with probing.span("step", kind="optim.step"):
+            pass
+        probing.event(
+            "batch.stats",
+            attributes=[{"i": 0}, {"loss": 1.0}],
+        )
+
+
+def test_train_step_reentrant_torch_probe_does_not_close_manual_span():
+    """TorchProbe reentrant train.step must not end the outer span on step hook."""
+    from probing.profiling.torch_probe import TorchProbe, TorchProbeConfig
+    from probing.tracing import TRAIN_STEP_KIND
+
+    tracer = TorchProbe(config=TorchProbeConfig(enabled=True))
+    with probing.span("batch", kind=TRAIN_STEP_KIND) as outer:
+        tracer._begin_train_step_span()
+        assert not outer.is_ended
+        tracer._end_train_step_span()
+        assert not outer.is_ended
+        probing.event("still.open")
+    assert outer.is_ended
+
+
+def test_post_step_hook_does_not_reset_local_step_across_batches():
+    """Regression: stale curr_step must not sync_local_step back to 0/1."""
+    from probing.profiling.torch_probe import TorchProbe, TorchProbeConfig
+    from probing.tracing import TRAIN_STEP_KIND, current_local_step, sync_local_step
+
+    sync_local_step(0)
+    tracer = TorchProbe(config=TorchProbeConfig(enabled=True))
+    tracer.finalized = True
+
+    class FakeOpt:
+        pass
+
+    opt = FakeOpt()
+
+    for expected in range(1, 6):
+        with probing.span("batch", kind=TRAIN_STEP_KIND):
+            tracer.post_step_hook(opt, (), {})
+        assert current_local_step() == expected

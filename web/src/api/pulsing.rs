@@ -23,10 +23,8 @@ impl ApiClient {
     }
 
     pub async fn fetch_pulsing_metrics(&self) -> Result<DataFrame> {
-        self.execute_query(
-            "SELECT * FROM pulsing.metrics ORDER BY timestamp_us DESC LIMIT 100",
-        )
-        .await
+        self.execute_query("SELECT * FROM pulsing.metrics ORDER BY timestamp_us DESC LIMIT 100")
+            .await
     }
 
     pub async fn fetch_pulsing_members(&self) -> Result<DataFrame> {

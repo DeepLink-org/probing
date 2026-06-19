@@ -18,8 +18,6 @@ def optimizer_step_post_hook(optimizer, *args, **kwargs):
         from probing.profiling.torch.module_utils import get_toplevel_module
         from probing.profiling.torch_probe import TorchProbe, TorchProbeConfig
 
-        # Get config directly from probing.config
-        # Rust sync_env_settings() converts PROBING_TORCH_PROFILING to probing.torch.profiling
         spec = probing.config.get_str("probing.torch.profiling")
 
         config = TorchProbeConfig.parse(spec)
@@ -53,19 +51,40 @@ def optimizer_step_post_hook(optimizer, *args, **kwargs):
 
 
 def collective_hook():
-    """Initialize collective profiling if enabled."""
-    # Get config directly from probing.config
-    # Rust sync_env_settings() converts PROBING_* env vars to probing.* config keys
-    enable = probing.config.get_str("probing.torch.collective.enable")
-    trace_verbose = probing.config.get_str("probing.torch.collective.verbose")
+    """Autostart low-overhead collective tracing for distributed torch jobs."""
+    from probing.profiling.collective import maybe_start_collective_tracing
 
-    if is_true(enable):
-        from probing.profiling.collective import trace_all_collectives
-
-        trace_all_collectives(verbose=is_true(trace_verbose))
+    maybe_start_collective_tracing()
 
 
 _hook_registered = False
+_dist_init_patched = False
+
+
+def _patch_dist_init_process_group() -> None:
+    global _dist_init_patched
+    if _dist_init_patched:
+        return
+    try:
+        import torch.distributed as dist
+    except ImportError:
+        return
+
+    _dist_init_patched = True
+    original = dist.init_process_group
+
+    def init_process_group(*args, **kwargs):
+        original(*args, **kwargs)
+        try:
+            from probing.torchrun_cluster import maybe_setup_torchrun_cluster
+
+            maybe_setup_torchrun_cluster()
+        except Exception as exc:
+            logging.getLogger(__name__).debug(
+                "probing torchrun cluster setup skipped: %s", exc
+            )
+
+    dist.init_process_group = init_process_group  # type: ignore[assignment]
 
 
 def init():
@@ -78,6 +97,7 @@ def init():
 
     register_optimizer_step_post_hook(optimizer_step_post_hook)
 
+    _patch_dist_init_process_group()
     collective_hook()
 
 

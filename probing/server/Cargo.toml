@@ -8,10 +8,14 @@ license.workspace = true
 
 [features]
 extension-module = ["probing-python/extension-module"]
-default = ["extension-module"]
+gpu = ["dep:probing-gpu"]
+gpu-cuda = ["gpu", "probing-gpu/cuda"]
+kmsg = ["probing-cc/kmsg"]
+default = ["extension-module", "kmsg"]
 
 [dependencies]
-probing-cc = { path = "../extensions/cc" }
+probing-cc = { path = "../extensions/cc", default-features = false }
+probing-gpu = { path = "../extensions/gpu", optional = true }
 probing-memtable = { path = "../memtable" }
 probing-python = { path = "../extensions/python", default-features = false }
 probing-proto = { path = "../proto" }

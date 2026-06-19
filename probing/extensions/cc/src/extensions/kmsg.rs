@@ -6,7 +6,7 @@ use rmesg::entry::{LogFacility, LogLevel};
 use rmesg::log_entries;
 use rmesg::Backend;
 
-use probing_core::core::{CustomTable, EngineCall, EngineDatasource, TablePluginHelper};
+use probing_core::core::{CustomTable, TableProbeDataSource};
 
 #[derive(Default, Debug)]
 pub struct KMsgTable {}
@@ -36,17 +36,9 @@ impl CustomTable for KMsgTable {
         let mut level = GenericStringBuilder::<i32>::new();
         let mut message = GenericStringBuilder::<i32>::new();
 
-        // let boot_time = match procfs::boot_time() {
-        //     Ok(time) => time,
-        //     Err(_) => return vec![],
-        // };
-        // let boot_time_micro = boot_time.timestamp_micros();
-
         for entry in entries {
             let ts = entry.timestamp_from_system_start;
-            timestamp.append_value(
-                ts.unwrap_or_default().as_micros() as i64, /* + boot_time_micro*/
-            );
+            timestamp.append_value(ts.unwrap_or_default().as_micros() as i64);
             facility.append_value(entry.facility.unwrap_or(LogFacility::User).to_string());
             level.append_value(entry.level.unwrap_or(LogLevel::Info).to_string());
             message.append_value(entry.message);
@@ -69,26 +61,4 @@ impl CustomTable for KMsgTable {
     }
 }
 
-pub type KMsgPlugin = TablePluginHelper<KMsgTable>;
-
-use probing_core::core::EngineError;
-use probing_core::core::EngineExtension;
-use probing_core::core::EngineExtensionOption;
-
-#[derive(Debug, Default, EngineExtension)]
-pub struct KMsgExtension {}
-
-impl EngineCall for KMsgExtension {}
-
-impl EngineDatasource for KMsgExtension {
-    fn datasrc(
-        &self,
-        namespace: &str,
-        name: Option<&str>,
-    ) -> Option<std::sync::Arc<dyn probing_core::core::Plugin + Sync + Send>> {
-        match name {
-            Some(name) => Some(KMsgPlugin::create(namespace, name)),
-            None => None,
-        }
-    }
-}
+pub type KMsgProbeDataSource = TableProbeDataSource<KMsgTable>;

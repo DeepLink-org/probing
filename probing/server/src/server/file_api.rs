@@ -1,5 +1,5 @@
-use super::config::{get_max_file_size, ALLOWED_FILE_DIRS};
-use super::error::ApiResult;
+use super::config::{allowed_file_base_dirs, get_max_file_size};
+use crate::server::error::{ApiError, ApiResult};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -25,10 +25,10 @@ pub fn validate_path(path: &str) -> Result<PathBuf, String> {
 
     // Check if the canonical path is within any allowed base directory
     let mut is_allowed = false;
-    for base_dir in ALLOWED_FILE_DIRS {
-        let base_path = match Path::new(base_dir).canonicalize() {
+    for base_dir in allowed_file_base_dirs() {
+        let base_path = match base_dir.canonicalize() {
             Ok(path) => path,
-            Err(_) => continue, // Skip non-existent base directories
+            Err(_) => continue,
         };
 
         if canonical_path.starts_with(&base_path) {
@@ -50,12 +50,12 @@ pub async fn read_file(
 ) -> ApiResult<String> {
     let path = params
         .get("path")
-        .ok_or_else(|| anyhow::anyhow!("Missing 'path' parameter"))?;
+        .ok_or_else(|| ApiError::bad_request("Missing 'path' parameter"))?;
 
     // Validate the path
     let safe_path = validate_path(path).map_err(|e| {
         log::warn!("Path validation failed for '{path}': {e}");
-        anyhow::anyhow!("Invalid path: {}", e)
+        ApiError::bad_request(format!("Invalid path: {e}"))
     })?;
 
     // Check file size before reading
@@ -66,7 +66,9 @@ pub async fn read_file(
 
     let max_file_size = get_max_file_size();
     if metadata.len() > max_file_size {
-        return Err(anyhow::anyhow!("File too large (max {} bytes allowed)", max_file_size).into());
+        return Err(ApiError::payload_too_large(format!(
+            "File too large (max {max_file_size} bytes allowed)"
+        )));
     }
 
     // Read file content asynchronously

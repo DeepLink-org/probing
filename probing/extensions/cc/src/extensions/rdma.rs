@@ -1,12 +1,12 @@
 use probing_core::core::EngineError;
-use probing_core::core::EngineExtension;
-use probing_core::core::EngineExtensionOption;
 use probing_core::core::Maybe;
+use probing_core::core::ProbeExtension;
+use probing_core::core::ProbeExtensionOption;
 
 use datafusion::arrow::array::{GenericStringBuilder, RecordBatch};
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 
-use probing_core::core::{CustomTable, EngineCall, EngineDatasource, TablePluginHelper};
+use probing_core::core::{CustomTable, ProbeExtensionCall, TableProbeDataSource};
 
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
@@ -110,23 +110,10 @@ impl CustomTable for RdmaTable {
     }
 }
 
-pub type RdmaPlugin = TablePluginHelper<RdmaTable>;
+pub type RdmaProbeDataSource = TableProbeDataSource<RdmaTable>;
 
-impl EngineDatasource for RdmaExtension {
-    fn datasrc(
-        &self,
-        namespace: &str,
-        name: Option<&str>,
-    ) -> Option<std::sync::Arc<dyn probing_core::core::Plugin + Sync + Send>> {
-        match name {
-            Some(name) => Some(RdmaPlugin::create(namespace, name)),
-            None => None,
-        }
-    }
-}
-
-#[derive(Debug, Default, EngineExtension)]
-pub struct RdmaExtension {
+#[derive(Debug, Default, ProbeExtension)]
+pub struct RdmaProbeExtension {
     #[option(aliases=["sample.rate"])]
     sample_rate: Maybe<f64>,
 
@@ -135,7 +122,7 @@ pub struct RdmaExtension {
 }
 
 #[async_trait]
-impl EngineCall for RdmaExtension {
+impl ProbeExtensionCall for RdmaProbeExtension {
     async fn call(
         &self,
         path: &str,
@@ -163,7 +150,7 @@ impl EngineCall for RdmaExtension {
     }
 }
 
-impl RdmaExtension {
+impl RdmaProbeExtension {
     fn set_sample_rate(&mut self, sample_rate: Maybe<f64>) -> Result<(), EngineError> {
         if let Maybe::Just(rate) = sample_rate {
             if !(0.0..=20.0).contains(&rate) {

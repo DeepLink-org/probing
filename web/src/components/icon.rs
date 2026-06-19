@@ -14,3 +14,11 @@ pub fn Icon(icon: &'static IconData, #[props(default = "w-5 h-5")] class: &'stat
         }
     }
 }
+
+/// Rust logo — used for demangled Rust native frames in call stacks.
+#[component]
+pub fn RustIcon(#[props(default = "w-4 h-4")] class: &'static str) -> Element {
+    rsx! {
+        Icon { icon: &icondata::SiRust, class: class }
+    }
+}

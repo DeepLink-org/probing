@@ -1,5 +1,8 @@
+#![allow(clippy::suspicious_else_formatting, clippy::useless_format)]
+
 use dioxus::prelude::*;
 
+mod agent;
 mod api;
 mod app;
 mod components;

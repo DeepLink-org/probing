@@ -1,0 +1,78 @@
+//! `/apis` routing: public endpoints first, extension fallback for everything else.
+//!
+//! See `probing/server/API.md` for the routing policy.
+
+pub mod extension;
+pub mod response;
+
+use axum::{
+    routing::{get, post},
+    Router,
+};
+
+use super::{cluster, cluster_query, file_api, profiling, system, training};
+
+/// Canonical public `/apis` routes (method, path suffix under `/apis`).
+/// Keep in sync with `tests/spec/api_spec.json` — verified by `spec_tests`.
+pub const PUBLIC_API_ROUTES: &[(&str, &str)] = &[
+    ("GET", "/overview"),
+    ("GET", "/files"),
+    ("GET", "/nodes"),
+    ("PUT", "/nodes"),
+    ("GET", "/flamegraph/torch"),
+    ("GET", "/flamegraph/pprof"),
+    ("GET", "/training/step_matrix"),
+    ("POST", "/cluster/query"),
+];
+
+/// Build the `/apis` router mounted by the root application.
+pub fn router() -> Router {
+    public_routes().fallback(extension::handle)
+}
+
+/// Stable platform endpoints with explicit Axum handlers.
+fn public_routes() -> Router {
+    Router::new()
+        .route("/overview", get(system::get_overview_json))
+        .route("/files", get(file_api::read_file))
+        .route("/nodes", get(cluster::get_nodes).put(cluster::put_node))
+        .route("/flamegraph/torch", get(profiling::get_torch_flamegraph))
+        .route("/flamegraph/pprof", get(profiling::get_pprof_flamegraph))
+        .route("/training/step_matrix", get(training::get_step_matrix))
+        .route("/cluster/query", post(cluster_query::post_cluster_query))
+}
+
+#[cfg(test)]
+mod spec_tests {
+    use super::PUBLIC_API_ROUTES;
+
+    fn load_spec() -> serde_json::Value {
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/spec/api_spec.json");
+        let text = std::fs::read_to_string(path).expect("read api_spec.json");
+        serde_json::from_str(&text).expect("parse api_spec.json")
+    }
+
+    #[test]
+    fn public_routes_match_api_spec() {
+        let spec = load_spec();
+        let expected: Vec<(String, String)> = spec["server_public"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|entry| {
+                let method = entry["method"].as_str().unwrap().to_string();
+                let full = entry["path"].as_str().unwrap();
+                let suffix = full.strip_prefix("/apis").unwrap();
+                (method, suffix.to_string())
+            })
+            .collect();
+
+        let actual: Vec<(String, String)> = PUBLIC_API_ROUTES
+            .iter()
+            .map(|(m, p)| (m.to_string(), p.to_string()))
+            .collect();
+
+        assert_eq!(actual, expected);
+    }
+}

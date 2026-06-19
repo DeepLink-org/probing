@@ -24,6 +24,9 @@ pub enum CallFrame {
         file: String,
         func: String,
         lineno: i64,
+        /// Native language hint from the demangler: `"rust"` or `"cpp"`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        lang: Option<String>,
     },
     PyFrame {
         file: String,
@@ -41,6 +44,7 @@ impl Display for CallFrame {
                 file,
                 func,
                 lineno,
+                ..
             } => {
                 write!(f, "[C/C++] {ip}, file: {file}:{lineno}\n\t{func}\n")
             }

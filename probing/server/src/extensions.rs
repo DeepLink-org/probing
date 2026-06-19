@@ -1,11 +1,11 @@
 use probing_core::core::{
-    EngineCall, EngineDatasource, EngineError, EngineExtension, EngineExtensionOption, Maybe,
+    EngineError, Maybe, ProbeExtension, ProbeExtensionCall, ProbeExtensionOption,
 };
 
 use crate::{start_remote, start_report_worker};
 
-#[derive(Debug, EngineExtension)]
-pub struct ServerExtension {
+#[derive(Debug, ProbeExtension)]
+pub struct ServerProbeExtension {
     /// Server bind address (e.g. 127.0.0.1:8080)
     #[option(aliases=["addr"])]
     address: Maybe<String>,
@@ -44,11 +44,9 @@ pub struct ServerExtension {
     assets_root: Maybe<String>,
 }
 
-impl EngineCall for ServerExtension {}
+impl ProbeExtensionCall for ServerProbeExtension {}
 
-impl EngineDatasource for ServerExtension {}
-
-impl Default for ServerExtension {
+impl Default for ServerProbeExtension {
     fn default() -> Self {
         Self {
             address: Maybe::Nothing,
@@ -64,7 +62,7 @@ impl Default for ServerExtension {
     }
 }
 
-impl ServerExtension {
+impl ServerProbeExtension {
     fn set_address(&mut self, address: Maybe<String>) -> Result<(), EngineError> {
         let address_string: String = address.clone().into();
 
@@ -147,13 +145,13 @@ impl ServerExtension {
 
 #[cfg(test)]
 mod test {
-    use probing_core::core::EngineExtension;
+    use probing_core::core::ProbeExtension;
 
-    use crate::extensions::ServerExtension;
+    use crate::extensions::ServerProbeExtension;
 
     #[test]
     fn test_server_extension() {
-        let mut ext = ServerExtension::default();
+        let mut ext = ServerProbeExtension::default();
 
         // Test setting and getting addr
         assert!(ext.set("addr", "127.0.0.1:8080").is_ok());

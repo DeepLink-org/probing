@@ -3,8 +3,10 @@ use clap::Parser;
 use probing_proto::prelude::Query;
 
 pub mod bench;
+pub mod cluster;
 pub mod commands;
 pub mod ctrl;
+pub mod doctor;
 pub mod repl;
 
 pub mod store;
@@ -21,7 +23,8 @@ use process_monitor::ProcessMonitor;
 mod ptree;
 
 use crate::cli::ctrl::ProbeEndpoint;
-use commands::Commands;
+use crate::table::OutputFormat;
+use commands::{Commands, FlamegraphKind};
 use once_cell::sync::Lazy;
 
 fn get_build_info() -> String {
@@ -79,6 +82,9 @@ impl Cli {
             Some(Commands::Bench(cmd)) => {
                 return cmd.run();
             }
+            Some(Commands::Doctor(doctor::DoctorCommand::List)) => {
+                return doctor::list_playbooks_sync();
+            }
             _ => {}
         }
 
@@ -109,6 +115,94 @@ impl Cli {
             }
             Err(e) => {
                 eprintln!("Error listing processes: {e}");
+            }
+        }
+        Ok(())
+    }
+
+    async fn handle_tables_command(
+        &self,
+        ctrl: ProbeEndpoint,
+        all: bool,
+        format: OutputFormat,
+    ) -> Result<()> {
+        let expr = if all {
+            "select table_catalog, table_schema, table_name, table_type \
+             from information_schema.tables order by table_schema, table_name"
+                .to_string()
+        } else {
+            "select table_schema, table_name, table_type \
+             from information_schema.tables \
+             where table_schema not in ('information_schema') \
+             order by table_schema, table_name"
+                .to_string()
+        };
+        ctrl::query_with_format(ctrl, Query::new(expr), format).await
+    }
+
+    async fn handle_memory_command(
+        &self,
+        ctrl: ProbeEndpoint,
+        limit: usize,
+        format: OutputFormat,
+    ) -> Result<()> {
+        let cpu_expr = format!(
+            "select ts, comm, rss_kb, thread_count from cpu.utilization \
+             where scope = 'process' order by ts desc limit {limit}"
+        );
+        let mut printed = false;
+        match ctrl.query(Query::new(cpu_expr)).await {
+            Ok(df) if df.cols.iter().any(|c| !c.is_empty()) => {
+                println!("Host memory (cpu.utilization):");
+                crate::table::render(&df, format);
+                printed = true;
+            }
+            Ok(_) => {}
+            Err(e) => eprintln!("host memory unavailable: {e}"),
+        }
+
+        let gpu_expr = format!(
+            "select ts, device_id, name, used_bytes, total_bytes, mem_used_pct \
+             from gpu.utilization order by ts desc limit {limit}"
+        );
+        match ctrl.query(Query::new(gpu_expr)).await {
+            Ok(df) if df.cols.iter().any(|c| !c.is_empty()) => {
+                if printed {
+                    println!();
+                }
+                println!("GPU memory (gpu.utilization):");
+                crate::table::render(&df, format);
+                printed = true;
+            }
+            Ok(_) => {}
+            Err(e) => log::debug!("gpu memory unavailable: {e}"),
+        }
+
+        if !printed {
+            println!(
+                "No memory samples available. Ensure CPU/GPU sampling is enabled in the target process."
+            );
+        }
+        Ok(())
+    }
+
+    async fn handle_flamegraph_command(
+        &self,
+        ctrl: ProbeEndpoint,
+        kind: FlamegraphKind,
+        output: Option<String>,
+        json: bool,
+    ) -> Result<()> {
+        let bytes = ctrl.flamegraph(kind.as_str(), json).await?;
+        match output {
+            Some(path) => {
+                std::fs::write(&path, &bytes)?;
+                eprintln!("flamegraph ({}) written to {path}", kind.as_str());
+            }
+            None => {
+                use std::io::Write;
+                std::io::stdout().write_all(&bytes)?;
+                std::io::stdout().flush()?;
             }
         }
         Ok(())
@@ -168,7 +262,21 @@ impl Cli {
                 ctrl.rdma(hca_name).await
             }
             Commands::Eval { code } => ctrl.eval(code.clone()).await,
-            Commands::Query { query } => ctrl::query(ctrl, Query::new(query.clone())).await,
+            Commands::Query { query, format } => {
+                ctrl::query_with_format(ctrl, Query::new(query.clone()), *format).await
+            }
+            Commands::Tables { all, format } => {
+                self.handle_tables_command(ctrl, *all, *format).await
+            }
+            Commands::Memory { limit, format } => {
+                self.handle_memory_command(ctrl, *limit, *format).await
+            }
+            Commands::Flamegraph { kind, output, json } => {
+                self.handle_flamegraph_command(ctrl, *kind, output.clone(), *json)
+                    .await
+            }
+            Commands::Cluster(cmd) => cluster::run(ctrl, cmd.clone()).await,
+            Commands::Doctor(cmd) => doctor::run(ctrl, cmd.clone()).await,
             Commands::Repl => repl::start_repl(ctrl).await,
             // These commands are handled in run() method and don't need a target
             Commands::Launch { .. }

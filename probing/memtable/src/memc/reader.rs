@@ -143,9 +143,10 @@ impl SegmentReader {
 
             match bh.magic {
                 MAGIC_TABLE_BLOCK => {
-                    if let Ok(def) =
-                        super::layout::decode_table_payload(bh.table_id, &mmap[payload_start..payload_end])
-                    {
+                    if let Ok(def) = super::layout::decode_table_payload(
+                        bh.table_id,
+                        &mmap[payload_start..payload_end],
+                    ) {
                         tables.insert(bh.table_id, def);
                     }
                 }
@@ -195,10 +196,7 @@ impl SegmentReader {
     }
 
     pub fn table_id_by_name(&self, name: &str) -> Option<u32> {
-        self.tables
-            .values()
-            .find(|d| d.name == name)
-            .map(|d| d.id)
+        self.tables.values().find(|d| d.name == name).map(|d| d.id)
     }
 
     pub fn pages(&self) -> &[PageMeta] {
@@ -208,12 +206,7 @@ impl SegmentReader {
     /// Pages for `table_id` whose `[ts_min, ts_max]` overlaps `[lo, hi]`
     /// (either bound `None` = unbounded). Pages without a ts range
     /// (`ts_min > ts_max`) are always included.
-    pub fn pages_in_range(
-        &self,
-        table_id: u32,
-        lo: Option<i64>,
-        hi: Option<i64>,
-    ) -> Vec<usize> {
+    pub fn pages_in_range(&self, table_id: u32, lo: Option<i64>, hi: Option<i64>) -> Vec<usize> {
         self.pages
             .iter()
             .enumerate()

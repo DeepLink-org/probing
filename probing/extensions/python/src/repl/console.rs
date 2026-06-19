@@ -1,6 +1,6 @@
 use pyo3::ffi::c_str;
 use pyo3::{
-    types::{PyAnyMethods, PyDict},
+    types::{PyDict, PyDictMethods},
     Py, PyAny, Python,
 };
 
@@ -14,7 +14,7 @@ pub struct NativePythonConsole {
 impl Default for NativePythonConsole {
     #[inline(never)]
     fn default() -> Self {
-        let console = Python::with_gil(|py| {
+        let console = Python::attach(|py| {
             let global = PyDict::new(py);
             let code = c_str!("from probing.repl import debug_console");
             if py.run(code, Some(&global), Some(&global)).is_err() {
@@ -22,9 +22,15 @@ impl Default for NativePythonConsole {
                 return None;
             }
             match global.get_item("debug_console") {
-                Ok(ret) => Some(ret.unbind()),
+                Ok(Some(console)) => Some(console.unbind()),
+                Ok(None) => {
+                    log::warn!("debug_console not found after import; REPL will be unavailable");
+                    None
+                }
                 Err(e) => {
-                    log::warn!("error initializing console (debug_console not found or failed): {e}; REPL will be unavailable");
+                    log::warn!(
+                        "error initializing console (debug_console lookup failed): {e}; REPL will be unavailable"
+                    );
                     None
                 }
             }
@@ -36,7 +42,7 @@ impl Default for NativePythonConsole {
 impl PythonConsole for NativePythonConsole {
     fn try_execute(&mut self, cmd: String) -> Option<String> {
         let console = self.console.as_ref()?;
-        Python::with_gil(|py| match console.call_method1(py, "push", (cmd,)) {
+        Python::attach(|py| match console.call_method1(py, "push", (cmd,)) {
             Ok(obj) => {
                 if obj.is_none(py) {
                     None

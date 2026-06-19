@@ -22,7 +22,7 @@ fn var_field_size(buf: &[u8], off: usize) -> usize {
     }
 }
 
-fn resolve_var<'a>(buf: &'a [u8], off: usize, chunk_start: usize) -> &'a [u8] {
+fn resolve_var(buf: &[u8], off: usize, chunk_start: usize) -> &[u8] {
     if off + 4 > buf.len() {
         panic_stale("resolve_var offset");
     }

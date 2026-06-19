@@ -1,6 +1,6 @@
+use crate::app::Route;
 use dioxus::prelude::*;
 use dioxus_router::Link;
-use crate::app::Route;
 
 #[component]
 pub fn ThreadsCard(threads: Vec<u64>) -> Element {

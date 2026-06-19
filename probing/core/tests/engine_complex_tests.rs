@@ -6,32 +6,30 @@ use arrow::array::{Int32Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::record_batch::RecordBatch;
 use datafusion::catalog::memory::{DataSourceExec, MemorySourceConfig};
-use datafusion::catalog::SchemaProvider;
-use datafusion::datasource::TableProvider;
+use datafusion::catalog::{SchemaProvider, TableProvider};
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::{Expr, TableType};
 use datafusion::physical_plan::ExecutionPlan;
-use probing_core::core::{Engine, Plugin, PluginType};
-use std::any::Any;
+use probing_core::core::{Engine, ProbeDataSource, ProbeDataSourceKind};
 use std::sync::Arc;
 
 mod test_helpers;
-use test_helpers::GenericTablePlugin;
+use test_helpers::GenericTableProbeDataSource;
 
 // ========== JOIN查询测试 ==========
 
 #[derive(Debug, Clone)]
-struct UsersPlugin {
+struct UsersProbeDataSource {
     schema: SchemaRef,
     batches: Vec<RecordBatch>,
 }
 
-impl Plugin for UsersPlugin {
+impl ProbeDataSource for UsersProbeDataSource {
     fn name(&self) -> String {
         "users".to_string()
     }
-    fn kind(&self) -> PluginType {
-        PluginType::Table
+    fn kind(&self) -> ProbeDataSourceKind {
+        ProbeDataSourceKind::Table
     }
     fn namespace(&self) -> String {
         "test".to_string()
@@ -47,10 +45,7 @@ impl Plugin for UsersPlugin {
 }
 
 #[async_trait::async_trait]
-impl TableProvider for UsersPlugin {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
+impl TableProvider for UsersProbeDataSource {
     fn schema(&self) -> SchemaRef {
         self.schema.clone()
     }
@@ -74,17 +69,17 @@ impl TableProvider for UsersPlugin {
 }
 
 #[derive(Debug, Clone)]
-struct OrdersPlugin {
+struct OrdersProbeDataSource {
     schema: SchemaRef,
     batches: Vec<RecordBatch>,
 }
 
-impl Plugin for OrdersPlugin {
+impl ProbeDataSource for OrdersProbeDataSource {
     fn name(&self) -> String {
         "orders".to_string()
     }
-    fn kind(&self) -> PluginType {
-        PluginType::Table
+    fn kind(&self) -> ProbeDataSourceKind {
+        ProbeDataSourceKind::Table
     }
     fn namespace(&self) -> String {
         "test".to_string()
@@ -100,10 +95,7 @@ impl Plugin for OrdersPlugin {
 }
 
 #[async_trait::async_trait]
-impl TableProvider for OrdersPlugin {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
+impl TableProvider for OrdersProbeDataSource {
     fn schema(&self) -> SchemaRef {
         self.schema.clone()
     }
@@ -144,7 +136,7 @@ async fn test_join_queries() -> Result<()> {
         ],
     )?;
 
-    let users_plugin = Arc::new(UsersPlugin {
+    let users_plugin = Arc::new(UsersProbeDataSource {
         schema: users_schema,
         batches: vec![users_batch],
     });
@@ -165,7 +157,7 @@ async fn test_join_queries() -> Result<()> {
         ],
     )?;
 
-    let orders_plugin = Arc::new(OrdersPlugin {
+    let orders_plugin = Arc::new(OrdersProbeDataSource {
         schema: orders_schema,
         batches: vec![orders_batch],
     });
@@ -191,13 +183,13 @@ async fn test_multiple_namespaces() -> Result<()> {
     let engine = Engine::builder().build().await?;
 
     // Register plugins in different namespaces using helper
-    let plugin1 = Arc::new(GenericTablePlugin::simple_table(
+    let plugin1 = Arc::new(GenericTableProbeDataSource::simple_table(
         "test_table",
         "test_namespace",
     ));
     engine.enable(plugin1).await?;
 
-    let plugin2 = Arc::new(GenericTablePlugin::single_column_table(
+    let plugin2 = Arc::new(GenericTableProbeDataSource::single_column_table(
         "another_table",
         "another_namespace",
         "value",
@@ -230,7 +222,7 @@ async fn test_concurrent_plugin_registration() -> Result<()> {
     // Try to register multiple plugins concurrently using helper
     let plugins: Vec<_> = (0..5)
         .map(|i| {
-            Arc::new(GenericTablePlugin::single_column_table(
+            Arc::new(GenericTableProbeDataSource::single_column_table(
                 &format!("table_{}", i),
                 "concurrent",
                 "id",
@@ -265,7 +257,10 @@ async fn test_empty_table_query() -> Result<()> {
     let engine = Engine::builder().build().await?;
 
     // Use helper to create empty table
-    let empty_plugin = Arc::new(GenericTablePlugin::empty_table("empty_table", "test"));
+    let empty_plugin = Arc::new(GenericTableProbeDataSource::empty_table(
+        "empty_table",
+        "test",
+    ));
     engine.enable(empty_plugin).await?;
 
     // Query empty table

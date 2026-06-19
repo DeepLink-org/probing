@@ -20,6 +20,13 @@ pub(crate) static mut PYVERSION: Version = Version {
 #[thread_local]
 pub(crate) static mut PYSTACKS: Vec<RawCallLocation> = Vec::new();
 
+/// Set by `rust_eval_frame` while it mutates `PYSTACKS` (push/pop). The SIGPROF
+/// sampler reads this from the signal handler to avoid snapshotting `PYSTACKS`
+/// mid-`Vec`-reallocation; if it is `true`, the handler discards the Python part
+/// of the sample. Same-thread only, so plain `bool` + `compiler_fence` suffices.
+#[thread_local]
+pub(crate) static mut PYSTACK_WRITING: bool = false;
+
 #[thread_local]
 pub(crate) static mut PYFRAMEEVAL: ffi::_PyFrameEvalFunction = ffi::_PyEval_EvalFrameDefault;
 

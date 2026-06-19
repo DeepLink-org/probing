@@ -11,9 +11,9 @@ use anyhow::{bail, Result};
 use probing_memtable::memc::{ColdStore, Compactor, CompactorConfig};
 use probing_memtable::{DType, MemTable};
 
+use super::common::{scan_all, shm_name, temp_dir, temp_path, unique_token, Attach};
 use crate::cli::bench::args::{Backend, MixedArgs};
 use crate::cli::bench::metrics::Report;
-use super::common::{scan_all, shm_name, temp_dir, temp_path, unique_token, Attach};
 use crate::cli::bench::workload::RowGen;
 
 pub fn run(args: &MixedArgs, json: bool, seed: u64) -> Result<()> {
@@ -31,21 +31,33 @@ pub fn run(args: &MixedArgs, json: bool, seed: u64) -> Result<()> {
         Backend::Heap => bail!("mixed requires a shared backend (shm/file/shared), not heap"),
         Backend::Shm => {
             let name = shm_name();
-            let creator =
-                MemTable::shm(&name, &spec.schema(), args.ring.chunk_size, args.ring.chunks)?;
+            let creator = MemTable::shm(
+                &name,
+                &spec.schema(),
+                args.ring.chunk_size,
+                args.ring.chunks,
+            )?;
             (Attach::Shm(name), creator)
         }
         Backend::File => {
             let path = temp_path("mixed");
             cleanup_file = Some(path.clone());
-            let creator =
-                MemTable::file_at(&path, &spec.schema(), args.ring.chunk_size, args.ring.chunks)?;
+            let creator = MemTable::file_at(
+                &path,
+                &spec.schema(),
+                args.ring.chunk_size,
+                args.ring.chunks,
+            )?;
             (Attach::File(path), creator)
         }
         Backend::Shared => {
             let name = format!("bench-{}", unique_token());
-            let creator =
-                MemTable::shared(&name, &spec.schema(), args.ring.chunk_size, args.ring.chunks)?;
+            let creator = MemTable::shared(
+                &name,
+                &spec.schema(),
+                args.ring.chunk_size,
+                args.ring.chunks,
+            )?;
             let path = creator.path().expect("shared path").to_path_buf();
             (Attach::File(path), creator)
         }
@@ -148,7 +160,10 @@ pub fn run(args: &MixedArgs, json: bool, seed: u64) -> Result<()> {
         ColdStore::open(&cold_dir).ok().map(|s| s.stats())
     };
 
-    let mut report = Report::new(format!("mixed · {:?} · {:?}", args.backend, args.schema.schema));
+    let mut report = Report::new(format!(
+        "mixed · {:?} · {:?}",
+        args.backend, args.schema.schema
+    ));
     report
         .text("backend", format!("{:?}", args.backend))
         .text("schema", format!("{:?}", args.schema.schema))

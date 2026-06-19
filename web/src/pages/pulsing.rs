@@ -5,10 +5,10 @@ use probing_proto::prelude::{DataFrame, Ele};
 
 use crate::api::ApiClient;
 use crate::components::card::Card;
-use crate::components::colors::colors;
 use crate::components::common::{EmptyState, ErrorState, LoadingState};
 use crate::components::dataframe_view::DataFrameView;
 use crate::components::page::{PageContainer, PageTitle};
+use crate::components::stat_card::StatCard;
 use crate::hooks::use_api;
 
 #[component]
@@ -34,9 +34,7 @@ pub fn Pulsing() -> Element {
         async move { c.fetch_pulsing_members().await }
     });
 
-    let expanded_traces = use_signal(|| -> HashSet<usize> {
-        (0..3).collect()
-    });
+    let expanded_traces = use_signal(|| -> HashSet<usize> { (0..3).collect() });
 
     rsx! {
         PageContainer {
@@ -156,17 +154,6 @@ fn summary_row(
     }
 }
 
-#[component]
-fn StatCard(label: &'static str, value: String) -> Element {
-    rsx! {
-        div {
-            class: "bg-white border border-gray-200 rounded-lg px-5 py-4 shadow-sm",
-            p { class: "text-xs font-medium text-gray-500 uppercase tracking-wide", "{label}" }
-            p { class: format!("text-2xl font-bold text-{} mt-1", colors::PRIMARY), "{value}" }
-        }
-    }
-}
-
 fn query_result(state: &crate::hooks::ApiState<DataFrame>, empty_msg: &str) -> Element {
     if state.is_loading() {
         return rsx! { LoadingState { message: Some("Loading…".to_string()) } };
@@ -212,16 +199,30 @@ fn parse_spans(df: &DataFrame) -> Vec<SpanRow> {
     let nrows = df.cols.first().map(|c| c.len()).unwrap_or(0);
     (0..nrows)
         .map(|i| SpanRow {
-            trace_id: ci_tid.map(|c| ele_str(&df.cols[c].get(i))).unwrap_or_default(),
-            span_id: ci_sid.map(|c| ele_str(&df.cols[c].get(i))).unwrap_or_default(),
-            parent_span_id: ci_pid.map(|c| ele_str(&df.cols[c].get(i))).unwrap_or_default(),
-            name: ci_name.map(|c| ele_str(&df.cols[c].get(i))).unwrap_or_default(),
-            kind: ci_kind.map(|c| ele_str(&df.cols[c].get(i))).unwrap_or_default(),
+            trace_id: ci_tid
+                .map(|c| ele_str(&df.cols[c].get(i)))
+                .unwrap_or_default(),
+            span_id: ci_sid
+                .map(|c| ele_str(&df.cols[c].get(i)))
+                .unwrap_or_default(),
+            parent_span_id: ci_pid
+                .map(|c| ele_str(&df.cols[c].get(i)))
+                .unwrap_or_default(),
+            name: ci_name
+                .map(|c| ele_str(&df.cols[c].get(i)))
+                .unwrap_or_default(),
+            kind: ci_kind
+                .map(|c| ele_str(&df.cols[c].get(i)))
+                .unwrap_or_default(),
             start_us: ci_start.map(|c| ele_i64(&df.cols[c].get(i))).unwrap_or(0),
             end_us: ci_end.map(|c| ele_i64(&df.cols[c].get(i))).unwrap_or(0),
             duration_us: ci_dur.map(|c| ele_i64(&df.cols[c].get(i))).unwrap_or(0),
-            status: ci_status.map(|c| ele_str(&df.cols[c].get(i))).unwrap_or_default(),
-            actor: ci_actor.map(|c| ele_str(&df.cols[c].get(i))).unwrap_or_default(),
+            status: ci_status
+                .map(|c| ele_str(&df.cols[c].get(i)))
+                .unwrap_or_default(),
+            actor: ci_actor
+                .map(|c| ele_str(&df.cols[c].get(i)))
+                .unwrap_or_default(),
         })
         .collect()
 }
@@ -258,8 +259,7 @@ fn flatten_traces(spans: &[SpanRow]) -> Vec<(String, Vec<FlatSpan>)> {
         let mut roots: Vec<&&SpanRow> = group
             .iter()
             .filter(|s| {
-                s.parent_span_id.is_empty()
-                    || !span_ids.contains(s.parent_span_id.as_str())
+                s.parent_span_id.is_empty() || !span_ids.contains(s.parent_span_id.as_str())
             })
             .collect();
         roots.sort_by_key(|s| s.start_us);
@@ -371,7 +371,11 @@ fn trace_block(
     }
 
     let is_open = expanded.read().contains(&idx);
-    let trace_start = flat_spans.iter().map(|f| f.span.start_us).min().unwrap_or(0);
+    let trace_start = flat_spans
+        .iter()
+        .map(|f| f.span.start_us)
+        .min()
+        .unwrap_or(0);
     let trace_end = flat_spans.iter().map(|f| f.span.end_us).max().unwrap_or(1);
     let trace_range = (trace_end - trace_start).max(1) as f64;
     let trace_dur_label = format_duration_us(trace_range);
@@ -389,11 +393,7 @@ fn trace_block(
         String::new()
     };
 
-    let chevron_class = if is_open {
-        "rotate-90"
-    } else {
-        "rotate-0"
-    };
+    let chevron_class = if is_open { "rotate-90" } else { "rotate-0" };
 
     let mut sig = expanded;
 
@@ -506,7 +506,11 @@ fn span_row(fs: &FlatSpan, trace_start: i64, trace_range: f64, idx: usize) -> El
         "error" => ("bg-red-200", "bg-red-500"),
         _ => ("bg-blue-200", "bg-blue-500"),
     };
-    let row_bg = if idx % 2 == 0 { "bg-white" } else { "bg-gray-50/30" };
+    let row_bg = if idx.is_multiple_of(2) {
+        "bg-white"
+    } else {
+        "bg-gray-50/30"
+    };
 
     let label = row_label(fs);
     let tooltip = span_tooltip(s, &fs.caller, fs.self_time_us);

@@ -1,0 +1,145 @@
+apiVersion: probing.dev/v1
+kind: Playbook
+
+metadata:
+  id: memory_leak
+  title: "显存泄漏 / 阶梯上涨"
+  title_en: "GPU memory leak detection"
+  category: memory
+  tags: [memory, leak, OOM, 显存, 泄漏]
+  triggers:
+    keywords:
+      zh: ["泄漏", "OOM", "显存涨", "内存涨", "out of memory", "阶梯"]
+      en: ["memory leak", "OOM", "memory growing", "out of memory"]
+  docs: |
+    检测 python.torch_trace 中 allocated 是否随 step 单调上涨，
+    并结合 gpu.utilization 看设备级显存趋势。
+
+spec:
+  parameters:
+    - name: min_steps
+      type: integer
+      default: 10
+      description: "Minimum steps required for trend analysis"
+    - name: step_skip
+      type: integer
+      default: 2
+      description: "Skip first N steps (discovery / warmup)"
+
+  steps:
+    - id: memory_by_step
+      title: "每 step 峰值显存 (torch_trace)"
+      type: sql
+      sql: |
+        SELECT
+          step,
+          max(allocated) AS peak_mb,
+          max(max_allocated) AS peak_max_mb,
+          max(allocated_delta) AS max_delta_mb
+        FROM python.torch_trace
+        WHERE step > {step_skip}
+        GROUP BY step
+        ORDER BY step
+      on_empty: abort
+      empty_message: "python.torch_trace 无数据 — 开启 probing.torch.profiling=on"
+
+    - id: memory_trend
+      title: "step 间显存增长"
+      type: sql
+      sql: |
+        WITH per_step AS (
+          SELECT step, max(allocated) AS peak_mb
+          FROM python.torch_trace
+          WHERE step > {step_skip}
+          GROUP BY step
+        ),
+        deltas AS (
+          SELECT
+            step,
+            peak_mb,
+            peak_mb - lag(peak_mb) OVER (ORDER BY step) AS growth_mb
+          FROM per_step
+        )
+        SELECT step, peak_mb, growth_mb
+        FROM deltas
+        WHERE growth_mb IS NOT NULL
+        ORDER BY step
+      on_empty: skip
+
+    - id: monotonic_growth_steps
+      title: "连续上涨的 step"
+      type: sql
+      sql: |
+        WITH per_step AS (
+          SELECT step, max(allocated) AS peak_mb
+          FROM python.torch_trace
+          WHERE step > {step_skip}
+          GROUP BY step
+        ),
+        flagged AS (
+          SELECT
+            step,
+            peak_mb,
+            CASE
+              WHEN peak_mb > lag(peak_mb) OVER (ORDER BY step) THEN 1
+              ELSE 0
+            END AS increased
+          FROM per_step
+        )
+        SELECT step, peak_mb, increased
+        FROM flagged
+        WHERE increased = 1
+        ORDER BY step
+      on_empty: skip
+
+    - id: top_memory_modules
+      title: "显存增量最大的模块"
+      type: sql
+      sql: |
+        SELECT
+          module,
+          stage,
+          avg(allocated_delta) AS avg_delta_mb,
+          max(allocated_delta) AS max_delta_mb,
+          count(*) AS samples
+        FROM python.torch_trace
+        WHERE step > {step_skip}
+          AND allocated_delta > 0
+        GROUP BY module, stage
+        ORDER BY avg_delta_mb DESC
+        LIMIT 15
+      on_empty: skip
+
+    - id: gpu_device_trend
+      title: "GPU 设备级显存趋势"
+      type: sql
+      sql: |
+        SELECT ts, used_bytes, total_bytes, mem_used_pct
+        FROM gpu.utilization
+        ORDER BY ts DESC
+        LIMIT 30
+      on_empty: skip
+      empty_message: "gpu.utilization 不可用"
+
+  interpretation:
+    rules:
+      - id: sustained_growth
+        when: "step:monotonic_growth_steps | rows > {min_steps} * 0.7"
+        severity: warning
+        message: "超过 70% 的 step 显存在上涨 — 可能存在泄漏"
+
+      - id: large_delta_module
+        when: "step:top_memory_modules | column:avg_delta_mb | max > 50"
+        severity: warning
+        message: "存在模块平均 allocated_delta > 50MB — 检查 {top_module}"
+
+  summary_template: |
+    ## 显存泄漏诊断
+    - **memory_trend**: 逐步 growth_mb
+    - **top_memory_modules**: 哪个 module/stage 在涨
+    - **gpu_device_trend**: 设备级是否同步上涨
+
+  next_steps:
+    - "某模块 delta 大 → 检查是否 cache 了 tensor / 未 detach"
+    - "仅 torch_trace 涨而 gpu.utilization 平稳 → 可能是统计口径问题"
+    - "Linux OOM → SELECT * FROM process.kmsg WHERE message LIKE '%oom%'"

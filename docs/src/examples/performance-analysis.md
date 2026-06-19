@@ -28,14 +28,15 @@ LIMIT 15"
 probing $ENDPOINT query "
 SELECT
     step,
-    SUM(CASE WHEN stage = 'forward' THEN duration ELSE 0 END) as forward_time,
-    SUM(CASE WHEN stage = 'backward' THEN duration ELSE 0 END) as backward_time,
-    SUM(CASE WHEN stage = 'step' THEN duration ELSE 0 END) as optimizer_time
+    SUM(CASE WHEN stage = 'post forward' THEN duration ELSE 0 END) as forward_time,
+    SUM(CASE WHEN stage = 'post step' THEN duration ELSE 0 END) as optimizer_time
 FROM python.torch_trace
 WHERE step > (SELECT MAX(step) - 5 FROM python.torch_trace)
 GROUP BY step
 ORDER BY step"
 ```
+
+Backward is not collected by default (no backward hooks). Use tracing spans or `torch.profiler` for backward/kernel detail.
 
 ## GPU Utilization
 

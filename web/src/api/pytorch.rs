@@ -38,9 +38,14 @@ impl ApiClient {
         // Validate if response is valid Chrome tracing format
         if let Ok(trace_data) = serde_json::from_str::<serde_json::Value>(&response) {
             if let Some(trace_events) = trace_data.get("traceEvents") {
-                if trace_events.as_array().map(|arr| arr.is_empty()).unwrap_or(true) {
+                if trace_events
+                    .as_array()
+                    .map(|arr| arr.is_empty())
+                    .unwrap_or(true)
+                {
                     return Err(crate::utils::error::AppError::Api(
-                        "Timeline data is empty. Make sure the profiler has been executed.".to_string()
+                        "Timeline data is empty. Make sure the profiler has been executed."
+                            .to_string(),
                     ));
                 }
             }

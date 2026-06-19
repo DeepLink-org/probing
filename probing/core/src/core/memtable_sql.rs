@@ -26,7 +26,6 @@
 //!   `[min_ts, max_ts]` range cannot satisfy the query's time predicates are
 //!   **pruned** before materialisation ([`RingMmapTable`]).
 
-use std::any::Any;
 use std::collections::{BTreeSet, HashSet};
 use std::panic::AssertUnwindSafe;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -35,7 +34,6 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use once_cell::sync::Lazy;
 use datafusion::arrow::array::{
     ArrayRef, BinaryArray, BinaryBuilder, Float32Array, Float32Builder, Float64Array,
     Float64Builder, GenericStringBuilder, Int32Array, Int32Builder, Int64Array, Int64Builder,
@@ -52,17 +50,20 @@ use datafusion::error::Result as DfResult;
 use datafusion::logical_expr::{Expr, Operator, TableProviderFilterPushDown};
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::scalar::ScalarValue;
+use once_cell::sync::Lazy;
 
 use probing_memtable::discover::{default_dir, MappedFile};
-use probing_memtable::memc::{ColdStats, ColdStore, ColumnData, Compactor, CompactorConfig, SegmentReader};
+use probing_memtable::memc::{
+    ColdStats, ColdStore, ColumnData, Compactor, CompactorConfig, SegmentReader,
+};
 use probing_memtable::{detect_table, DType, MemTableView, MemhView, TableKind, TypedValue};
 
 use super::plugin_advanced::{scan_memory_partitions, supports_filters_pushdown_for_schema};
 use super::{
-    EngineCall, EngineDatasource, EngineError, EngineExtension, EngineExtensionOption, Maybe,
-    Plugin, PluginAdvancedTable, PluginType,
+    EngineError, Maybe, PluginAdvancedTable, ProbeDataSource, ProbeDataSourceKind, ProbeExtension,
+    ProbeExtensionCall, ProbeExtensionOption,
 };
-use probing_macros::EngineExtension as EngineExtensionDerive;
+use probing_macros::ProbeExtension as ProbeExtensionDerive;
 
 /// SQL schema used for mmap files whose basename contains no `.`.
 pub const DEFAULT_UNDOTTED_SCHEMA: &str = "memtable";
@@ -573,10 +574,6 @@ impl RingMmapTable {
 
 #[async_trait]
 impl TableProvider for RingMmapTable {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn schema(&self) -> SchemaRef {
         Arc::clone(&self.schema)
     }
@@ -725,10 +722,6 @@ impl HotColdTable {
 
 #[async_trait]
 impl TableProvider for HotColdTable {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn schema(&self) -> SchemaRef {
         Arc::clone(&self.schema)
     }
@@ -878,10 +871,6 @@ impl MmapFileSchemaProvider {
 
 #[async_trait]
 impl SchemaProvider for MmapFileSchemaProvider {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn table_names(&self) -> Vec<String> {
         let mut names = tables_in_schema(&self.schema);
         if let Some(inner) = &self.inner {
@@ -959,10 +948,6 @@ struct DynamicMmapCatalog {
 }
 
 impl CatalogProvider for DynamicMmapCatalog {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
     fn schema_names(&self) -> Vec<String> {
         let mut names: BTreeSet<String> = self.inner.schema_names().into_iter().collect();
         for sch in discover_all_schemas() {
@@ -993,14 +978,14 @@ impl CatalogProvider for DynamicMmapCatalog {
 /// Namespace plugin that wraps the `probe` catalog with [`DynamicMmapCatalog`]
 /// for dynamic schema discovery from mmap files at query time.
 #[derive(Debug, Default)]
-pub struct UnifiedMemtablePlugin;
+pub struct UnifiedMemtableProbeDataSource;
 
-impl Plugin for UnifiedMemtablePlugin {
+impl ProbeDataSource for UnifiedMemtableProbeDataSource {
     fn name(&self) -> String {
         "mmap_memtables".into()
     }
-    fn kind(&self) -> PluginType {
-        PluginType::Namespace
+    fn kind(&self) -> ProbeDataSourceKind {
+        ProbeDataSourceKind::Namespace
     }
     fn namespace(&self) -> String {
         "memtable".into()
@@ -1223,7 +1208,7 @@ pub fn start_cold_compaction_from_env() {
     ColdCompactor::instance().apply(ColdRuntimeConfig::from_env());
 }
 
-// ── EngineExtension ────────────────────────────────────────────────────
+// ── ProbeExtension ────────────────────────────────────────────────────
 
 /// Exposes mmap memtables to SQL and owns the cold-compaction config surface.
 ///
@@ -1231,8 +1216,8 @@ pub fn start_cold_compaction_from_env() {
 /// - `cold_compaction` (`on`/`off`) — run the background compactor.
 /// - `cold_max_total_mb` — cold-store byte budget in MiB.
 /// - `cold_ttl_secs` — evict cold segments older than this.
-#[derive(Debug, Default, EngineExtensionDerive)]
-pub struct MemTableExtension {
+#[derive(Debug, Default, ProbeExtensionDerive)]
+pub struct MemTableProbeExtension {
     /// Background hot→cold compaction switch: "on" or "off".
     #[option(aliases = ["cold.compaction"])]
     cold_compaction: Maybe<String>,
@@ -1244,7 +1229,7 @@ pub struct MemTableExtension {
     cold_ttl_secs: Maybe<i64>,
 }
 
-impl MemTableExtension {
+impl MemTableProbeExtension {
     fn cold_enabled(&self) -> bool {
         matches!(
             self.cold_compaction,
@@ -1288,17 +1273,7 @@ impl MemTableExtension {
     }
 }
 
-impl EngineCall for MemTableExtension {}
-
-impl EngineDatasource for MemTableExtension {
-    fn datasrc(
-        &self,
-        _namespace: &str,
-        _name: Option<&str>,
-    ) -> Option<Arc<dyn Plugin + Sync + Send>> {
-        Some(Arc::new(UnifiedMemtablePlugin))
-    }
-}
+impl ProbeExtensionCall for MemTableProbeExtension {}
 
 #[cfg(test)]
 mod tests {
@@ -1607,7 +1582,7 @@ mod tests {
         let mapped = MappedFile::open(&path).unwrap();
         let provider = mapped_file_to_table(mapped, "prune_demo");
         assert!(
-            provider.as_any().downcast_ref::<RingMmapTable>().is_some(),
+            provider.downcast_ref::<RingMmapTable>().is_some(),
             "ring files must get the lazy pruning provider"
         );
 
@@ -1623,11 +1598,7 @@ mod tests {
         let got: Vec<i32> = batches
             .iter()
             .flat_map(|b| {
-                let a = b
-                    .column(0)
-                    .as_any()
-                    .downcast_ref::<Int32Array>()
-                    .unwrap();
+                let a = b.column(0).as_any().downcast_ref::<Int32Array>().unwrap();
                 (0..a.len()).map(|i| a.value(i)).collect::<Vec<_>>()
             })
             .collect();
@@ -1914,10 +1885,7 @@ mod tests {
         assert!(mmap_table_exists(DEFAULT_UNDOTTED_SCHEMA, "test_metrics"));
 
         let provider = read_pushdown_from_mmap(DEFAULT_UNDOTTED_SCHEMA, "test_metrics");
-        assert!(provider
-            .as_any()
-            .downcast_ref::<PluginAdvancedTable>()
-            .is_some());
+        assert!(provider.downcast_ref::<PluginAdvancedTable>().is_some());
 
         let path = self_dir().join(mmap_filename_for(DEFAULT_UNDOTTED_SCHEMA, "test_metrics"));
         let mapped = MappedFile::open(&path).unwrap();
@@ -1976,10 +1944,7 @@ mod tests {
         );
 
         let provider = read_pushdown_from_mmap("acme", "metrics_demo");
-        assert!(provider
-            .as_any()
-            .downcast_ref::<PluginAdvancedTable>()
-            .is_some());
+        assert!(provider.downcast_ref::<PluginAdvancedTable>().is_some());
 
         drop(ring);
         match orig {
@@ -2001,11 +1966,7 @@ mod tests {
 
         // Static (inner) provider with one table
         let inner = Arc::new(MemorySchemaProvider::new());
-        let static_schema = Arc::new(Schema::new(vec![Field::new(
-            "x",
-            DataType::Int64,
-            false,
-        )]));
+        let static_schema = Arc::new(Schema::new(vec![Field::new("x", DataType::Int64, false)]));
         let static_batch = RecordBatch::try_new(
             static_schema.clone(),
             vec![Arc::new(Int64Array::from(vec![42i64]))],
@@ -2020,9 +1981,13 @@ mod tests {
 
         // Mmap table in schema "python"
         let mt_schema = MtSchema::new().col("v", DType::I64);
-        let mut ring =
-            ExposedTable::create(&mmap_filename_for("python", "extern_tbl"), &mt_schema, 4096, 2)
-                .unwrap();
+        let mut ring = ExposedTable::create(
+            &mmap_filename_for("python", "extern_tbl"),
+            &mt_schema,
+            4096,
+            2,
+        )
+        .unwrap();
         ring.push_row(&[Value::I64(7)]);
 
         let merged = MmapFileSchemaProvider::with_inner("python", Some(inner.clone() as _));

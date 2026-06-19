@@ -244,7 +244,11 @@ mod tests {
             "".into(),
             "δοκιμή".into(),
         ]));
-        roundtrip(ColumnData::Bytes(vec![vec![1, 2, 3], vec![], vec![0xFF; 10]]));
+        roundtrip(ColumnData::Bytes(vec![
+            vec![1, 2, 3],
+            vec![],
+            vec![0xFF; 10],
+        ]));
     }
 
     #[test]

@@ -52,20 +52,32 @@ fn orchestrate(args: &MpArgs, json: bool, seed: u64) -> Result<()> {
         Backend::Heap => bail!("mp requires a shared backend (shm/file/shared), not heap"),
         Backend::Shm => {
             let name = shm_name();
-            let creator =
-                MemTable::shm(&name, &spec.schema(), args.ring.chunk_size, args.ring.chunks)?;
+            let creator = MemTable::shm(
+                &name,
+                &spec.schema(),
+                args.ring.chunk_size,
+                args.ring.chunks,
+            )?;
             (Attach::Shm(name), creator)
         }
         Backend::File => {
             let path = temp_path("mp");
-            let creator =
-                MemTable::file_at(&path, &spec.schema(), args.ring.chunk_size, args.ring.chunks)?;
+            let creator = MemTable::file_at(
+                &path,
+                &spec.schema(),
+                args.ring.chunk_size,
+                args.ring.chunks,
+            )?;
             (Attach::File(path), creator)
         }
         Backend::Shared => {
             let name = format!("mp-{}", unique_token());
-            let creator =
-                MemTable::shared(&name, &spec.schema(), args.ring.chunk_size, args.ring.chunks)?;
+            let creator = MemTable::shared(
+                &name,
+                &spec.schema(),
+                args.ring.chunk_size,
+                args.ring.chunks,
+            )?;
             let path = creator.path().expect("shared path").to_path_buf();
             (Attach::File(path), creator)
         }
@@ -80,13 +92,27 @@ fn orchestrate(args: &MpArgs, json: bool, seed: u64) -> Result<()> {
     for i in 0..writers {
         children.push((
             "writer".into(),
-            spawn_worker(&exe, &passthrough, "writer", &attach, start_ms, seed ^ (i as u64 + 1))?,
+            spawn_worker(
+                &exe,
+                &passthrough,
+                "writer",
+                &attach,
+                start_ms,
+                seed ^ (i as u64 + 1),
+            )?,
         ));
     }
     for i in 0..readers {
         children.push((
             "reader".into(),
-            spawn_worker(&exe, &passthrough, "reader", &attach, start_ms, seed ^ (0x100 + i as u64))?,
+            spawn_worker(
+                &exe,
+                &passthrough,
+                "reader",
+                &attach,
+                start_ms,
+                seed ^ (0x100 + i as u64),
+            )?,
         ));
     }
 
@@ -111,8 +137,8 @@ fn orchestrate(args: &MpArgs, json: bool, seed: u64) -> Result<()> {
             failures += 1;
             continue;
         };
-        let v: serde_json::Value =
-            serde_json::from_str(line.trim()).with_context(|| format!("parse worker output: {line}"))?;
+        let v: serde_json::Value = serde_json::from_str(line.trim())
+            .with_context(|| format!("parse worker output: {line}"))?;
         let rows = v.get("rows").and_then(|x| x.as_u64()).unwrap_or(0);
         let passes = v.get("passes").and_then(|x| x.as_u64()).unwrap_or(0);
         let elapsed = v.get("elapsed_s").and_then(|x| x.as_f64()).unwrap_or(0.0);
@@ -131,7 +157,10 @@ fn orchestrate(args: &MpArgs, json: bool, seed: u64) -> Result<()> {
     }
 
     let window = Duration::from_secs_f64(max_elapsed.max(1e-9));
-    let mut report = Report::new(format!("mp · {:?} · {:?}", args.backend, args.schema.schema));
+    let mut report = Report::new(format!(
+        "mp · {:?} · {:?}",
+        args.backend, args.schema.schema
+    ));
     report
         .text("backend", format!("{:?}", args.backend))
         .text("schema", format!("{:?}", args.schema.schema))

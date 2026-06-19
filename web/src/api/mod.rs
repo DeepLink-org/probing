@@ -1,3 +1,8 @@
+//! HTTP client and typed endpoints.
+//!
+//! Naming: `trace` = Python live variable tracing (`/python` page);
+//! `traces` = distributed span trees and Chrome/Ray timelines.
+
 use crate::utils::error::{AppError, Result};
 
 /// Base API client
@@ -19,7 +24,11 @@ impl ApiClient {
 
     /// Build API URL
     fn build_url(path: &str) -> Result<String> {
-        Ok(format!("{}{}", Self::get_origin()?, crate::utils::base_path::with_base(path)))
+        Ok(format!(
+            "{}{}",
+            Self::get_origin()?,
+            crate::utils::base_path::with_base(path)
+        ))
     }
 
     /// Send GET request
@@ -27,11 +36,22 @@ impl ApiClient {
         let url = Self::build_url(path)?;
         let response = reqwest::get(&url).await?;
 
-        if !response.status().is_success() {
-            return Err(AppError::Api(format!("HTTP error: {}", response.status())));
+        let status = response.status();
+        let body = response
+            .text()
+            .await
+            .map_err(|e| AppError::Api(e.to_string()))?;
+
+        if !status.is_success() {
+            if let Ok(value) = serde_json::from_str::<serde_json::Value>(&body) {
+                if let Some(err) = value.get("error").and_then(|v| v.as_str()) {
+                    return Err(AppError::Api(err.to_string()));
+                }
+            }
+            return Err(AppError::Api(format!("HTTP error: {status}")));
         }
 
-        response.text().await.map_err(|e| AppError::Api(e.to_string()))
+        Ok(body)
     }
 
     /// Send POST request (custom Content-Type)
@@ -49,11 +69,19 @@ impl ApiClient {
             return Err(AppError::Api(format!("HTTP error: {}", response.status())));
         }
 
-        response.text().await.map_err(|e| AppError::Api(e.to_string()))
+        response
+            .text()
+            .await
+            .map_err(|e| AppError::Api(e.to_string()))
+    }
+
+    /// Send GET request (public wrapper for agent / extensions).
+    pub async fn get_raw(&self, path: &str) -> Result<String> {
+        self.get_request(path).await
     }
 
     /// Parse JSON response
-    fn parse_json<T: serde::de::DeserializeOwned>(response: &str) -> Result<T> {
+    pub fn parse_json<T: serde::de::DeserializeOwned>(response: &str) -> Result<T> {
         serde_json::from_str(response)
             .map_err(|e| AppError::Api(format!("JSON parse error: {}", e)))
     }
@@ -62,7 +90,10 @@ impl ApiClient {
 // Export all API modules
 mod analytics;
 mod cluster;
+mod cpu;
 mod dashboard;
+mod files;
+mod gpu;
 mod profiling;
 mod pulsing;
 mod pytorch;
@@ -70,13 +101,18 @@ mod repl;
 mod stack;
 mod trace;
 mod traces;
+mod training;
 
 #[allow(unused_imports)]
 pub use analytics::*;
 #[allow(unused_imports)]
 pub use cluster::*;
 #[allow(unused_imports)]
+pub use cpu::*;
+#[allow(unused_imports)]
 pub use dashboard::*;
+#[allow(unused_imports)]
+pub use gpu::*;
 #[allow(unused_imports)]
 pub use profiling::*;
 #[allow(unused_imports)]
@@ -91,3 +127,5 @@ pub use stack::*;
 pub use trace::*;
 #[allow(unused_imports)]
 pub use traces::*;
+#[allow(unused_imports)]
+pub use training::*;

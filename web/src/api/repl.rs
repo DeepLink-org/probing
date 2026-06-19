@@ -34,9 +34,8 @@ impl ApiClient {
     pub async fn get_magics(&self) -> Result<Vec<MagicGroup>> {
         let path = "/apis/pythonext/magics";
         let text = self.get_request(path).await?;
-        serde_json::from_str(&text).map_err(|e| {
-            crate::utils::error::AppError::Api(format!("JSON parse error: {e}"))
-        })
+        serde_json::from_str(&text)
+            .map_err(|e| crate::utils::error::AppError::Api(format!("JSON parse error: {e}")))
     }
 
     /// Execute Python code or magic command in the target process REPL.

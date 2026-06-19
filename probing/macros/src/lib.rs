@@ -13,18 +13,24 @@ struct OptionMetadata {
     managed: bool,
 }
 
-#[proc_macro_derive(EngineExtension, attributes(option))]
-pub fn derive_engine_extension(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(ProbeExtension, attributes(option))]
+pub fn derive_probe_extension(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
-    impl_engine_extension(&ast)
+    impl_probe_extension(&ast)
 }
 
-fn impl_engine_extension(ast: &DeriveInput) -> TokenStream {
+fn impl_probe_extension(ast: &DeriveInput) -> TokenStream {
     let name = &ast.ident;
     let mut namespace = name.to_string().to_lowercase();
-    if namespace.ends_with("extension") {
+    if namespace.ends_with("probeextension") {
+        namespace = namespace.trim_end_matches("probeextension").to_string();
+    } else if namespace.ends_with("extension") {
         namespace = namespace.trim_end_matches("extension").to_string();
     }
+    let http_name = name
+        .to_string()
+        .to_lowercase()
+        .replace("probeextension", "extension");
     let fields = match &ast.data {
         Data::Struct(data) => match &data.fields {
             Fields::Named(fields) => &fields.named,
@@ -85,7 +91,7 @@ fn impl_engine_extension(ast: &DeriveInput) -> TokenStream {
         let field_ident = format_ident!("{}", meta.field);
 
         quote! {
-            EngineExtensionOption {
+            ProbeExtensionOption {
                 key: #name.to_string(),
                 value: Some(self.#field_ident.to_string()),
                 help: #desc,
@@ -104,9 +110,9 @@ fn impl_engine_extension(ast: &DeriveInput) -> TokenStream {
     });
 
     let expanded = quote! {
-        impl EngineExtension for #name {
+        impl ProbeExtension for #name {
             fn name(&self) -> String {
-                stringify!(#name).to_lowercase()
+                #http_name.to_string()
             }
 
             fn get(&self, key: &str) -> Result<String, EngineError> {
@@ -123,13 +129,13 @@ fn impl_engine_extension(ast: &DeriveInput) -> TokenStream {
                 }
             }
 
-            fn options(&self) -> Vec<EngineExtensionOption> {
+            fn options(&self) -> Vec<ProbeExtensionOption> {
                 vec![
                     #(#options,)*
                 ]
             }
 
-            // fn datasrc(&self, namespace: &str, name: Option<&str>) -> Option<std::sync::Arc<dyn probing_core::core::Plugin + Sync + Send>> {
+            // fn datasrc(&self, namespace: &str, name: Option<&str>) -> Option<std::sync::Arc<dyn probing_core::core::ProbeDataSource + Sync + Send>> {
             //     self.plugin(namespace, name)
             // }
         }

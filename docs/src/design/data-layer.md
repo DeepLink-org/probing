@@ -232,7 +232,7 @@ compactor a single lifecycle home:
 - on startup it calls `prime_from_cold()`; on stop it flushes (seals the open segment).
 
 It is **opt-in** (off by default) to avoid spawning a compaction thread in every forked worker.
-Configuration is applied via the `MemTableExtension` option surface or environment variables; the
+Configuration is applied via the `MemTableProbeExtension` option surface or environment variables; the
 server calls `start_cold_compaction_from_env()` at engine init.
 
 ## SQL Integration
@@ -303,7 +303,9 @@ re-validates).
 - **No per-page `fsync`** — a `SIGKILL` may lose the open segment's not-yet-flushed tail.
 - **No segment-level manifest** — multi-segment queries open each segment header to prune.
 - **Pco level is fixed (8)** — not adapted per column.
-- **Runtime is single-process** — cross-process / cluster aggregation is not yet wired.
+- **Runtime is single-process per agent** — each training process owns local memtables. Cross-node
+  aggregation is explicit via the `global` federated catalog (`global.schema.table`), HTTP
+  `/apis/cluster/query`, and aggregate pushdown in `probing-core::federation`.
 
 ## Testing
 

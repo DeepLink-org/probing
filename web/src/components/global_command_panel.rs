@@ -8,8 +8,10 @@ use dioxus::prelude::*;
 use crate::api::{ApiClient, MagicGroup, MagicItem};
 use crate::components::colors::colors;
 use crate::hooks::use_api;
+use crate::state::agent::AGENT_PANEL_OPEN;
 use crate::state::commands::{
     Cell, EvalState, FloatingResult, COMMAND_INPUT, COMMAND_PANEL_OPEN, EVAL_HISTORY,
+    SHORTCUTS_HELP_OPEN,
 };
 
 /// Flatten groups into searchable items
@@ -104,7 +106,7 @@ fn fill_input_and_close(command: String) {
 /// Global Command Panel overlay. On select: fill input, close. Arrow keys to navigate, Enter to confirm.
 #[component]
 pub fn GlobalCommandPanel() -> Element {
-    let mut panel_query = use_signal(|| String::new());
+    let mut panel_query = use_signal(String::new);
     let mut highlight_idx = use_signal(|| 0usize);
 
     let magics_state = use_api(move || {
@@ -234,7 +236,7 @@ pub fn CommandBar(on_execute_done: EventHandler<FloatingResult>) -> Element {
                 Ok(resp) => {
                     let mut text = resp.output;
                     if !resp.traceback.is_empty() {
-                        text.push_str("\n");
+                        text.push('\n');
                         text.push_str(&resp.traceback.join("\n"));
                     }
                     EvalState {
@@ -268,9 +270,28 @@ pub fn CommandBar(on_execute_done: EventHandler<FloatingResult>) -> Element {
             class: "flex items-center gap-2 px-4 py-2 bg-white border-b border-gray-200",
             button {
                 class: format!("shrink-0 px-3 py-2 rounded-lg text-sm font-medium bg-{} text-white hover:opacity-90", colors::PRIMARY),
-                title: "Open command palette",
+                title: "Open command palette (⌘K)",
                 onclick: move |_| *COMMAND_PANEL_OPEN.write() = true,
-                "Commands"
+                "⌘K"
+            }
+            button {
+                class: if *AGENT_PANEL_OPEN.read() {
+                    "shrink-0 px-2.5 py-2 rounded-lg text-sm font-medium bg-blue-100 text-blue-800 border border-blue-300"
+                } else {
+                    "shrink-0 px-2.5 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 border border-gray-300"
+                },
+                title: "Investigate (⌘J) — playbook diagnostic agent overlay",
+                onclick: move |_| {
+                    let open = *AGENT_PANEL_OPEN.read();
+                    *AGENT_PANEL_OPEN.write() = !open;
+                },
+                "Investigate"
+            }
+            button {
+                class: "shrink-0 px-2.5 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 border border-gray-300",
+                title: "Keyboard shortcuts",
+                onclick: move |_| *SHORTCUTS_HELP_OPEN.write() = true,
+                "?"
             }
             input {
                 class: "flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",

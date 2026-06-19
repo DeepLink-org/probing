@@ -91,7 +91,7 @@ fn fresh_buf() -> Vec<u8> {
     buf
 }
 
-fn populate_scalar(buf: &mut Vec<u8>, keys: &[String]) {
+fn populate_scalar(buf: &mut [u8], keys: &[String]) {
     init_buf(buf, NUM_BUCKETS, ARENA_CAP, 0).unwrap();
     let mut w = writer_from_buf(buf).unwrap();
     for (i, k) in keys.iter().enumerate() {
@@ -99,7 +99,7 @@ fn populate_scalar(buf: &mut Vec<u8>, keys: &[String]) {
     }
 }
 
-fn populate_str(buf: &mut Vec<u8>, keys: &[String], vals: &[String]) {
+fn populate_str(buf: &mut [u8], keys: &[String], vals: &[String]) {
     init_buf(buf, NUM_BUCKETS, ARENA_CAP, 0).unwrap();
     let mut w = writer_from_buf(buf).unwrap();
     for (k, v) in keys.iter().zip(vals.iter()) {

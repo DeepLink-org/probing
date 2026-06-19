@@ -1,7 +1,7 @@
 use super::ApiClient;
 use crate::utils::error::Result;
-use serde::{Deserialize, Serialize};
 use probing_proto::prelude::DataFrame;
+use serde::{Deserialize, Serialize};
 
 /// Trace API response structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,7 +21,6 @@ pub struct TraceInfo {
 }
 
 /// Variable change record
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VariableRecord {
     pub function_name: String,
@@ -50,7 +49,10 @@ impl ApiClient {
     pub async fn get_traceable_functions(&self, prefix: Option<&str>) -> Result<Vec<String>> {
         let items = self.get_traceable_items(prefix).await?;
         // Convert to old format for backward compatibility
-        Ok(items.iter().map(|item| format!("[{}] {}", item.item_type, item.name)).collect())
+        Ok(items
+            .iter()
+            .map(|item| format!("[{}] {}", item.item_type, item.name))
+            .collect())
     }
 
     /// Get list of traceable items (always includes variable information)
@@ -71,24 +73,27 @@ impl ApiClient {
 
         // Fallback to old format (list of strings)
         let strings: Vec<String> = Self::parse_json(&response)?;
-        Ok(strings.iter().map(|s| {
-            // Parse "[TYPE] name" format
-            if let Some(bracket_end) = s.find(']') {
-                let item_type = s[1..bracket_end].to_string();
-                let name = s[bracket_end + 2..].to_string();
-                TraceableItem {
-                    name,
-                    item_type,
-                    variables: vec![],
+        Ok(strings
+            .iter()
+            .map(|s| {
+                // Parse "[TYPE] name" format
+                if let Some(bracket_end) = s.find(']') {
+                    let item_type = s[1..bracket_end].to_string();
+                    let name = s[bracket_end + 2..].to_string();
+                    TraceableItem {
+                        name,
+                        item_type,
+                        variables: vec![],
+                    }
+                } else {
+                    TraceableItem {
+                        name: s.clone(),
+                        item_type: "".to_string(),
+                        variables: vec![],
+                    }
                 }
-            } else {
-                TraceableItem {
-                    name: s.clone(),
-                    item_type: "".to_string(),
-                    variables: vec![],
-                }
-            }
-        }).collect())
+            })
+            .collect())
     }
 
     /// Get current trace status (returns list of traced function names)
@@ -137,6 +142,27 @@ impl ApiClient {
         Ok(result)
     }
 
+    /// Get variable change records via the trace/variables HTTP handler.
+    pub async fn get_trace_variables(
+        &self,
+        function: Option<&str>,
+        limit: Option<usize>,
+    ) -> Result<Vec<VariableRecord>> {
+        let limit = limit.unwrap_or(100);
+        let mut path = format!("/apis/pythonext/trace/variables?limit={limit}");
+        if let Some(func) = function {
+            path.push_str(&format!("&function={}", urlencoding::encode(func)));
+        }
+
+        let response = self.get_request(&path).await?;
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(&response) {
+            if let Some(err) = value.get("error").and_then(|v| v.as_str()) {
+                return Err(crate::utils::error::AppError::Api(err.to_string()));
+            }
+        }
+        Self::parse_json(&response)
+    }
+
     /// Get variable change records (via SQL query)
     /// Returns DataFrame directly, uses SQL AS to control column name display
     pub async fn get_variable_records(
@@ -154,14 +180,14 @@ impl ApiClient {
             String::new()
         };
 
-        // SQL query uses AS to rename columns for display
-        let queries = vec![
+        // Use snake_case column names (DataFusion lowercases unquoted aliases).
+        let queries = [
             format!(
-                "SELECT filename AS File, lineno AS Line, variable_name AS Variable, value AS Value, value_type AS Type, timestamp AS Time FROM python.trace_variables{} ORDER BY timestamp DESC{}",
+                "SELECT function_name, filename, lineno, variable_name, value, value_type, timestamp FROM python.trace_variables{} ORDER BY timestamp DESC{}",
                 where_clause, limit_clause
             ),
             format!(
-                "SELECT filename AS File, lineno AS Line, variable_name AS Variable, value AS Value, value_type AS Type, timestamp AS Time FROM trace_variables{} ORDER BY timestamp DESC{}",
+                "SELECT function_name, filename, lineno, variable_name, value, value_type, timestamp FROM trace_variables{} ORDER BY timestamp DESC{}",
                 where_clause, limit_clause
             ),
         ];
@@ -182,8 +208,9 @@ impl ApiClient {
 
         // If all queries failed, return error
         Err(last_err.unwrap_or_else(|| {
-            crate::utils::error::AppError::Api("Failed to query python.trace_variables table".to_string())
+            crate::utils::error::AppError::Api(
+                "Failed to query python.trace_variables table".to_string(),
+            )
         }))
     }
-
 }

@@ -12,11 +12,12 @@ use super::spy::python_bindings;
 use crate::features::spy::ffi;
 use crate::features::spy::PYFRAMEEVAL;
 use crate::features::spy::PYSTACKS;
+use crate::features::spy::PYSTACK_WRITING;
 use crate::features::spy::PYVERSION;
 
 #[allow(static_mut_refs)]
 pub fn initialize_globals() -> bool {
-    Python::with_gil(|py| {
+    Python::attach(|py| {
         let ver = py.version_info();
         unsafe {
             if PYVERSION.major == 0 {
@@ -45,9 +46,35 @@ unsafe extern "C" fn rust_eval_frame(
     frame: *mut pyo3::ffi::PyFrameObject,
     extra: c_int,
 ) -> *mut pyo3::ffi::PyObject {
-    PYSTACKS.push(RawCallLocation::from(frame as usize, Some(ts as usize)));
+    use std::sync::atomic::{compiler_fence, Ordering};
+
+    // Mark this thread as a Python thread once; lets the SIGPROF sampler know its
+    // thread-local `PYSTACKS` is allocated and safe to read from a signal handler.
+    crate::features::pprof::register_python_thread();
+
+    // Resolve this frame's callee symbol *now*, while the code object is alive
+    // under the GIL, and cache it by pointer. The SIGPROF consumer later looks
+    // the label up by integer key instead of dereferencing a possibly-freed
+    // `PyCodeObject` off the signal path.
+    let loc = RawCallLocation::from(frame as usize, Some(ts as usize));
+    crate::features::pprof::intern_py_frame(&loc);
+
+    // Bracket the `PYSTACKS` mutation so a SIGPROF sample taken mid-realloc is
+    // discarded instead of reading a torn `Vec`.
+    PYSTACK_WRITING = true;
+    compiler_fence(Ordering::SeqCst);
+    PYSTACKS.push(loc);
+    compiler_fence(Ordering::SeqCst);
+    PYSTACK_WRITING = false;
+
     let ret = PYFRAMEEVAL(ts, frame, extra);
+
+    PYSTACK_WRITING = true;
+    compiler_fence(Ordering::SeqCst);
     PYSTACKS.pop();
+    compiler_fence(Ordering::SeqCst);
+    PYSTACK_WRITING = false;
+
     ret
 }
 
@@ -72,6 +99,16 @@ pub fn enable_tracer() -> PyResult<()> {
     Ok(())
 }
 
+/// Whether the eval-frame hook is currently installed. Requires the GIL.
+#[allow(static_mut_refs)]
+pub fn is_tracer_enabled() -> bool {
+    unsafe {
+        let interp = ffi::PyInterpreterState_Get();
+        let cur = ffi::_PyInterpreterState_GetEvalFrameFunc(interp);
+        cur as usize == rust_eval_frame as *const () as usize
+    }
+}
+
 #[allow(static_mut_refs)]
 #[pyfunction]
 pub fn disable_tracer() -> PyResult<()> {
@@ -84,11 +121,12 @@ pub fn disable_tracer() -> PyResult<()> {
         PYSTACKS.clear();
         PYSTACKS.shrink_to_fit();
     }
+    crate::features::pprof::clear_py_symbols();
     Ok(())
 }
 
 #[pyfunction]
-pub fn _get_python_stacks(py: Python) -> PyResult<PyObject> {
+pub fn _get_python_stacks(py: Python) -> PyResult<Py<PyAny>> {
     use pyo3::types::{PyDict, PyList};
 
     let py_list = PyList::empty(py);
@@ -109,7 +147,7 @@ pub fn _get_python_stacks(py: Python) -> PyResult<PyObject> {
 
 #[allow(static_mut_refs)]
 #[pyfunction]
-pub fn _get_python_frames(py: Python) -> PyResult<PyObject> {
+pub fn _get_python_frames(py: Python) -> PyResult<Py<PyAny>> {
     use pyo3::types::{PyDict, PyList};
 
     let py_list = PyList::empty(py);

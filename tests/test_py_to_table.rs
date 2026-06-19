@@ -7,7 +7,7 @@ use arrow::csv::Writer;
 
 #[test]
 fn test_int_to_table() {
-    let rb = Python::with_gil(|py| {
+    let rb = Python::attach(|py| {
         let value = py.eval(c_str!("1"), None, None).unwrap();
         PythonNamespace::object_to_recordbatch(value).unwrap()
     });
@@ -21,7 +21,7 @@ fn test_int_to_table() {
 
 #[test]
 fn test_float_to_table() {
-    let rb = Python::with_gil(|py| {
+    let rb = Python::attach(|py| {
         let value = py.eval(c_str!("2.0"), None, None).unwrap();
         PythonNamespace::object_to_recordbatch(value).unwrap()
     });
@@ -35,7 +35,7 @@ fn test_float_to_table() {
 
 #[test]
 fn test_string_to_table() {
-    let rb = Python::with_gil(|py| {
+    let rb = Python::attach(|py| {
         let value = py.eval(c_str!("'str'"), None, None).unwrap();
         PythonNamespace::object_to_recordbatch(value).unwrap()
     });
@@ -49,7 +49,7 @@ fn test_string_to_table() {
 
 #[test]
 fn test_dict_to_table() {
-    let rb = Python::with_gil(|py| {
+    let rb = Python::attach(|py| {
         let value = py.eval(c_str!("{'a':1, 'b':2}"), None, None).unwrap();
         PythonNamespace::object_to_recordbatch(value).unwrap()
     });
@@ -64,7 +64,7 @@ fn test_dict_to_table() {
 
 #[test]
 fn test_object_to_table() {
-    let rb = Python::with_gil(|py| {
+    let rb = Python::attach(|py| {
         let value = py.eval(c_str!("lambda x: x*2"), None, None).unwrap();
         PythonNamespace::object_to_recordbatch(value).unwrap()
     });

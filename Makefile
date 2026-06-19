@@ -10,7 +10,15 @@ else
 	CARGO_FLAGS :=
 endif
 
-# Frontend framework: dioxus
+# GPU: always compiled in; Linux wheels also enable CUDA (dlopen, no link-time driver).
+ifeq ($(shell uname -s),Linux)
+	MATURIN_GPU_FEATURES := gpu,gpu-cuda
+else
+	MATURIN_GPU_FEATURES := gpu
+endif
+MATURIN_FLAGS += --features $(MATURIN_GPU_FEATURES)
+
+# Frontend framework: dioxus (Tailwind compiled by `dx build` / `dx serve`)
 
 # OS-specific library extension
 ifeq ($(shell uname -s), Darwin)
@@ -32,6 +40,7 @@ PYTHON ?= python3
 # Pytest runner command
 # Lightweight version without uv
 PYTEST_RUN := PROBING=1 PYTHONPATH=python/ $(PYTHON) -m pytest
+PYTEST_ARGS := tests
 
 # ==============================================================================
 # Standard Targets
@@ -47,17 +56,22 @@ help:
 	@echo "  all             Build the wheel (default)."
 	@echo "  setup           Install dev tools and environment (pre-commit, etc.)."
 	@echo "  wheel           Build the Python wheel using maturin."
+	@echo "  wheel-ci        Build wheel for CI (Linux: ZIG=1 cross-build)."
+	@echo "  install-wheel   pip install dist/probing-*.whl and verify _core."
 	@echo "  develop         Install the package in editable mode."
 	@echo "  test            Run all tests (Rust + Python)."
 	@echo "  test-rust       Run Rust tests."
-	@echo "  test-python     Run Python tests."
+	@echo "  test-python     Run Python tests (PYTHONPATH only, no wheel)."
+	@echo "  test-python-wheel  Run Python tests against installed wheel."
+	@echo "  test-doctest    Run python/probing module doctests (optional)."
 	@echo "  coverage-rust   Run Rust coverage (cargo llvm-cov)."
 	@echo "  coverage-python Generate Python coverage (pytest-cov)."
+	@echo "  coverage-python-wheel  Python coverage via installed wheel."
 	@echo "  coverage        Run both Rust and Python coverage and aggregate report."
 	@echo "  bootstrap       Install Python versions for testing."
 	@echo "  clean           Remove build artifacts."
 	@echo "  frontend        Build Dioxus frontend."
-	@echo "  web/dist        Build the web app (Dioxus)."
+	@echo "  web/dist        Build the web app (Dioxus; Tailwind via dx)."
 	@echo "  docs            Build Sphinx documentation."
 	@echo "  docs-serve      Start live preview server for documentation."
 	@echo ""
@@ -92,22 +106,71 @@ develop:
 	@echo "Installing in editable mode..."
 	maturin develop $(MATURIN_FLAGS)
 
+# CI: Linux cross-builds manylinux wheels; macOS uses native maturin.
+.PHONY: wheel-ci
+wheel-ci:
+ifeq ($(shell uname -s),Linux)
+	$(MAKE) ZIG=1 wheel
+else
+	$(MAKE) wheel
+endif
+	@ls -la dist/probing-*.whl
+
+.PHONY: install-wheel
+install-wheel:
+	@WH=$$(ls -1 dist/probing-*.whl 2>/dev/null | head -1); \
+	test -n "$$WH" || { echo "error: no wheel in dist/ — run 'make wheel' first"; exit 1; }; \
+	$(PYTHON) -m pip install --upgrade pip; \
+	$(PYTHON) -m pip install --force-reinstall "$$WH"; \
+	$(PYTHON) -c "import probing; from probing import _core; print('probing', probing.VERSION, '_core ok')"
+
+# Test deps for wheel-based CI (extension from wheel, pure Python from checkout).
+PYTEST_WHEEL_DEPS := pytest pytest-cov coverage pyyaml websockets pandas torch ipykernel
+PYTEST_WHEEL_ARGS := tests python/probing
+PYTEST_WHEEL_EXTRA ?=
+
+.PHONY: test-python-wheel
+test-python-wheel:
+	$(PYTHON) -m pip install --upgrade pip
+	$(PYTHON) -m pip install $(PYTEST_WHEEL_DEPS)
+	PROBING=1 PYTHONPATH=python/ $(PYTHON) -m pytest $(PYTEST_WHEEL_EXTRA) $(PYTEST_WHEEL_ARGS)
+
+.PHONY: coverage-python-wheel
+coverage-python-wheel:
+	$(MAKE) test-python-wheel PYTEST_WHEEL_EXTRA="--cov=python/probing --cov=tests --cov-report=xml:coverage.xml"
+
 # Ensure frontend assets exist before packaging
 web/dist/index.html:
-	@echo "Ensuring frontend assets..."
-	@$(MAKE) --no-print-directory frontend
+	@$(MAKE) --no-print-directory web/dist
 
 .PHONY: web/dist
+DX_PUBLIC := web/target/dx/web/release/web/public
 web/dist:
-	@echo "Building Dioxus web app..."
-	@mkdir -p web/dist
-	cd web && dx build --release
-	@echo "Copying Dioxus build output to web/dist..."
-	cp -r web/target/dx/web/release/web/public/* web/dist/
-	@echo "Copying static assets..."
+	@echo "Building Dioxus web app (dx compiles Tailwind automatically)..."
+	@rm -rf web/dist
 	@mkdir -p web/dist/assets
-	@cp -f web/assets/*.svg web/dist/assets/ 2>/dev/null || true
-	cd ..
+	@echo "Pruning stale dx assets (avoids compressing 150+ old wasm/js bundles)..."
+	@rm -rf $(DX_PUBLIC)/assets $(DX_PUBLIC)/wasm
+	cd web && dx build --release
+	@echo "Copying active bundle to web/dist..."
+	@cp -f $(DX_PUBLIC)/index.html web/dist/
+	@JS=$$(grep -oE 'web-dxh[a-f0-9]+\.js' web/dist/index.html | head -1); \
+	WASM=$$(grep -oE 'web_bg-dxh[a-f0-9]+\.wasm' $(DX_PUBLIC)/assets/$$JS); \
+	for f in "$$JS" "$$WASM" "$$JS.br" "$$WASM.br"; do \
+		[ -n "$$f" ] && [ -f "$(DX_PUBLIC)/assets/$$f" ] && cp "$(DX_PUBLIC)/assets/$$f" web/dist/assets/; \
+	done; \
+	if [ -z "$$JS" ] || [ -z "$$WASM" ]; then \
+		echo "error: could not resolve js/wasm bundle from index.html"; exit 1; \
+	fi
+	@echo "Copying static assets..."
+	@cp -f web/assets/tailwind.css web/assets/*.svg web/dist/assets/ 2>/dev/null || true
+	@cp -f web/assets/logo.svg web/dist/logo.svg 2>/dev/null || true
+	@if command -v brotli >/dev/null 2>&1; then \
+		for f in web/dist/assets/tailwind.css web/dist/logo.svg; do \
+			[ -f "$$f" ] && [ ! -f "$$f.br" ] && brotli -kf "$$f"; \
+		done; \
+	fi
+	@echo "web/dist size: $$(du -sh web/dist | cut -f1)"
 
 # Convenience targets for frontend builds
 .PHONY: frontend
@@ -140,8 +203,12 @@ test-rust:
 .PHONY: test-python
 test-python:
 	@echo "Running pytest for probing package..."
-	# Note: We rely on pyproject.toml/pytest.ini for configuration options like --doctest-modules
-	${PYTEST_RUN} python/probing tests
+	${PYTEST_RUN} $(PYTEST_ARGS)
+
+.PHONY: test-doctest
+test-doctest:
+	@echo "Running module doctests (may require PROBING=0; Rust examples are +SKIP)..."
+	${PYTEST_RUN} --doctest-modules python/probing --ignore=python/probing/cli/__main__.py
 
 .PHONY: pytest
 pytest: test-python
@@ -160,7 +227,7 @@ coverage-python:
 	@echo "Running Python coverage..."
 	# Matches CI workflow step "Run Python tests and collect coverage"
 	# Uses coverage.xml as output to match CI artifact naming
-	${PYTEST_RUN} --cov=python/probing --cov=tests --cov-report=xml:coverage.xml --cov-report=term python/probing tests || echo "Install pytest-cov via: uv add pytest-cov"
+	${PYTEST_RUN} --cov=python/probing --cov=tests --cov-report=xml:coverage.xml --cov-report=term $(PYTEST_ARGS) || echo "Install pytest-cov via: uv add pytest-cov"
 
 .PHONY: coverage
 coverage: coverage-rust coverage-python

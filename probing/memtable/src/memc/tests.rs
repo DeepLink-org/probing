@@ -67,7 +67,10 @@ fn segment_roundtrip_sealed() {
 
     let cols = r.read_page(0).unwrap();
     assert_eq!(cols[0], ColumnData::I64(vec![100, 200, 300]));
-    assert_eq!(cols[2], ColumnData::Str(vec!["a".into(), "b".into(), "c".into()]));
+    assert_eq!(
+        cols[2],
+        ColumnData::Str(vec!["a".into(), "b".into(), "c".into()])
+    );
 
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -106,7 +109,10 @@ fn multi_table_segment() {
     let events = w
         .register_table(
             "events",
-            &[("ts".to_string(), DType::I64), ("code".to_string(), DType::I32)],
+            &[
+                ("ts".to_string(), DType::I64),
+                ("code".to_string(), DType::I32),
+            ],
         )
         .unwrap();
 
@@ -135,7 +141,10 @@ fn multi_table_segment() {
     let epages = r.pages_in_range(events, None, None);
     assert_eq!(mpages.len(), 1);
     assert_eq!(epages.len(), 1);
-    assert_eq!(r.read_page(epages[0]).unwrap()[1], ColumnData::I32(vec![42]));
+    assert_eq!(
+        r.read_page(epages[0]).unwrap()[1],
+        ColumnData::I32(vec![42])
+    );
 
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -146,7 +155,9 @@ fn page_pruning_by_time_range() {
     let path = dir.join("seg.memc");
 
     let mut w = SegmentWriter::create(&path).unwrap();
-    let tid = w.register_table("m", &[("timestamp".to_string(), DType::I64)]).unwrap();
+    let tid = w
+        .register_table("m", &[("timestamp".to_string(), DType::I64)])
+        .unwrap();
     w.append_page(tid, &[ColumnData::I64(vec![0, 10, 20])], 0, 0)
         .unwrap();
     w.append_page(tid, &[ColumnData::I64(vec![100, 110, 120])], 0, 1)
@@ -159,7 +170,10 @@ fn page_pruning_by_time_range() {
     // Window [105, 130] overlaps only the middle page.
     let hit = r.pages_in_range(tid, Some(105), Some(130));
     assert_eq!(hit.len(), 1);
-    assert_eq!(r.read_page(hit[0]).unwrap()[0], ColumnData::I64(vec![100, 110, 120]));
+    assert_eq!(
+        r.read_page(hit[0]).unwrap()[0],
+        ColumnData::I64(vec![100, 110, 120])
+    );
 
     // Lower bound past everything → no pages.
     assert!(r.pages_in_range(tid, Some(1000), None).is_empty());
@@ -176,7 +190,9 @@ fn unsealed_segment_recovers_via_forward_scan() {
 
     {
         let mut w = SegmentWriter::create(&path).unwrap();
-        let tid = w.register_table("m", &[("timestamp".to_string(), DType::I64)]).unwrap();
+        let tid = w
+            .register_table("m", &[("timestamp".to_string(), DType::I64)])
+            .unwrap();
         w.append_page(tid, &[ColumnData::I64(vec![1, 2, 3])], 0, 0)
             .unwrap();
         w.append_page(tid, &[ColumnData::I64(vec![4, 5, 6])], 0, 1)
@@ -201,7 +217,9 @@ fn torn_tail_block_is_dropped() {
 
     {
         let mut w = SegmentWriter::create(&path).unwrap();
-        let tid = w.register_table("m", &[("timestamp".to_string(), DType::I64)]).unwrap();
+        let tid = w
+            .register_table("m", &[("timestamp".to_string(), DType::I64)])
+            .unwrap();
         w.append_page(tid, &[ColumnData::I64(vec![1, 2, 3])], 0, 0)
             .unwrap();
         w.append_page(tid, &[ColumnData::I64(vec![4, 5, 6])], 0, 1)
@@ -236,7 +254,9 @@ fn cold_store_segment_creation_and_listing() {
 
     for batch in 0..3 {
         let mut w = store.create_segment().unwrap();
-        let tid = w.register_table("m", &[("timestamp".to_string(), DType::I64)]).unwrap();
+        let tid = w
+            .register_table("m", &[("timestamp".to_string(), DType::I64)])
+            .unwrap();
         w.append_page(tid, &[ColumnData::I64(vec![batch, batch + 1])], 0, 0)
             .unwrap();
         w.seal().unwrap();
@@ -264,7 +284,9 @@ fn eviction_respects_byte_budget_and_keeps_newest() {
     let mut sizes = Vec::new();
     for i in 0..5i64 {
         let mut w = store.create_segment().unwrap();
-        let tid = w.register_table("m", &[("timestamp".to_string(), DType::I64)]).unwrap();
+        let tid = w
+            .register_table("m", &[("timestamp".to_string(), DType::I64)])
+            .unwrap();
         w.append_page(
             tid,
             &[ColumnData::I64((0..100).map(|x| x + i * 1000).collect())],
@@ -303,7 +325,9 @@ fn eviction_by_ttl() {
     let mut store = ColdStore::open(&dir).unwrap();
     for _ in 0..3 {
         let mut w = store.create_segment().unwrap();
-        let tid = w.register_table("m", &[("timestamp".to_string(), DType::I64)]).unwrap();
+        let tid = w
+            .register_table("m", &[("timestamp".to_string(), DType::I64)])
+            .unwrap();
         w.append_page(tid, &[ColumnData::I64(vec![1, 2])], 0, 0)
             .unwrap();
         w.seal().unwrap();
@@ -327,7 +351,10 @@ fn pco_compresses_large_numeric_segment() {
     let tid = w
         .register_table(
             "metrics",
-            &[("timestamp".to_string(), DType::I64), ("value".to_string(), DType::F64)],
+            &[
+                ("timestamp".to_string(), DType::I64),
+                ("value".to_string(), DType::F64),
+            ],
         )
         .unwrap();
     w.append_page(
@@ -375,7 +402,10 @@ fn cold_row_count(dir: &std::path::Path) -> usize {
         .iter()
         .map(|p| {
             let r = SegmentReader::open(p).unwrap();
-            r.pages().iter().map(|pg| pg.row_count as usize).sum::<usize>()
+            r.pages()
+                .iter()
+                .map(|pg| pg.row_count as usize)
+                .sum::<usize>()
         })
         .sum()
 }
@@ -393,7 +423,7 @@ fn compactor_drains_only_sealed_chunks() {
         t.push_row(&[Value::I64(200 + i), Value::F64(i as f64), Value::Str("b")]);
     }
     t.advance_chunk(); // seal chunk 1 (2 rows)
-    // chunk 2 stays Writing — must NOT be drained
+                       // chunk 2 stays Writing — must NOT be drained
     t.push_row(&[Value::I64(999), Value::F64(9.0), Value::Str("c")]);
 
     let store = ColdStore::open(&dir).unwrap();
@@ -416,7 +446,10 @@ fn compactor_drains_only_sealed_chunks() {
 
     let id = r.table_id_by_name("metrics").unwrap();
     assert_eq!(r.table_def(id).unwrap().ts_col, Some(0));
-    assert_eq!(r.read_page(0).unwrap()[0], ColumnData::I64(vec![100, 101, 102]));
+    assert_eq!(
+        r.read_page(0).unwrap()[0],
+        ColumnData::I64(vec![100, 101, 102])
+    );
 
     assert_eq!(cold_row_count(&dir), 5);
     let _ = std::fs::remove_dir_all(&dir);
@@ -446,7 +479,10 @@ fn compactor_rolls_by_size_and_reregisters_table() {
     let mut c = Compactor::new(store, cfg);
     let rows = c.drain_view("metrics", &t.view()).unwrap();
     assert_eq!(rows, 6);
-    assert!(c.flush().unwrap().is_none(), "no open segment after size rolls");
+    assert!(
+        c.flush().unwrap().is_none(),
+        "no open segment after size rolls"
+    );
 
     // Three sealed chunks → three one-page segments, each independently
     // carrying the table definition (re-registered on every roll).
@@ -555,7 +591,7 @@ fn compactor_enforce_evicts_oldest_segments() {
     let mut c = Compactor::new(
         store,
         CompactorConfig {
-            target_segment_bytes: 1, // one segment per page
+            target_segment_bytes: 1,  // one segment per page
             max_total_bytes: Some(1), // keep only the protected newest
             ..Default::default()
         },

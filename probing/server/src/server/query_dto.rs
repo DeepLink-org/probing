@@ -82,7 +82,7 @@ async fn convert_engine_error_to_dto(
     // Convert ApiError to DTO error response
     let error_response = probing_proto::dto::query::QueryResponseDto::error(
         "INTERNAL_ERROR".to_string(),
-        format!("Engine error: {}", api_error.0),
+        format!("Engine error: {api_error}"),
     );
     match serde_json::to_string(&error_response) {
         Ok(error_json) => (StatusCode::INTERNAL_SERVER_ERROR, error_json).into_response(),

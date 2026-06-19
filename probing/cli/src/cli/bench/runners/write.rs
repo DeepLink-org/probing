@@ -33,7 +33,9 @@ pub fn run(args: &WriteArgs, json: bool, seed: u64) -> Result<()> {
     let threads = args.threads.max(1);
 
     if args.writer == WriterMode::Streaming && threads > 1 {
-        bail!("--writer streaming requires --threads 1 (advance-on-overflow is not concurrency-safe)");
+        bail!(
+            "--writer streaming requires --threads 1 (advance-on-overflow is not concurrency-safe)"
+        );
     }
     // MEMT is single-writer. Multiple threads writing the SAME mapping is
     // unsupported, so shared backends are capped to one writer. The heap
@@ -58,7 +60,12 @@ pub fn run(args: &WriteArgs, json: bool, seed: u64) -> Result<()> {
         Backend::Heap => (Source::Heap, None),
         Backend::Shm => {
             let name = common::shm_name();
-            let creator = MemTable::shm(&name, &spec.schema(), args.ring.chunk_size, args.ring.chunks)?;
+            let creator = MemTable::shm(
+                &name,
+                &spec.schema(),
+                args.ring.chunk_size,
+                args.ring.chunks,
+            )?;
             (Source::Shm(name), Some(creator))
         }
         Backend::File => {
@@ -69,14 +76,22 @@ pub fn run(args: &WriteArgs, json: bool, seed: u64) -> Result<()> {
             if args.path.is_none() {
                 cleanup_file = Some(path.clone());
             }
-            let creator =
-                MemTable::file_at(&path, &spec.schema(), args.ring.chunk_size, args.ring.chunks)?;
+            let creator = MemTable::file_at(
+                &path,
+                &spec.schema(),
+                args.ring.chunk_size,
+                args.ring.chunks,
+            )?;
             (Source::File(path), Some(creator))
         }
         Backend::Shared => {
             let name = format!("bench-{}", common::unique_token());
-            let creator =
-                MemTable::shared(&name, &spec.schema(), args.ring.chunk_size, args.ring.chunks)?;
+            let creator = MemTable::shared(
+                &name,
+                &spec.schema(),
+                args.ring.chunk_size,
+                args.ring.chunks,
+            )?;
             let path = creator
                 .path()
                 .expect("shared table has a path")
@@ -143,7 +158,10 @@ pub fn run(args: &WriteArgs, json: bool, seed: u64) -> Result<()> {
         let _ = std::fs::remove_file(p);
     }
 
-    let mut report = Report::new(format!("write · {:?} · {:?}", args.backend, args.schema.schema));
+    let mut report = Report::new(format!(
+        "write · {:?} · {:?}",
+        args.backend, args.schema.schema
+    ));
     report
         .text("backend", format!("{:?}", args.backend))
         .text("schema", format!("{:?}", args.schema.schema))

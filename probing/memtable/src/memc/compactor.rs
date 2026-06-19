@@ -225,10 +225,12 @@ impl Compactor {
 
             self.ensure_segment()?;
             let table_id = self.register_if_needed(name, &cols)?;
-            self.current
-                .as_mut()
-                .expect("segment open")
-                .append_page(table_id, &columns, gen_read, chunk as u32)?;
+            self.current.as_mut().expect("segment open").append_page(
+                table_id,
+                &columns,
+                gen_read,
+                chunk as u32,
+            )?;
             self.tables.get_mut(name).unwrap().drained_gen[chunk] = gen_read;
             total_rows += rows;
 
@@ -417,5 +419,8 @@ fn transpose_chunk(
     if view.chunk_generation(chunk) != gen_before {
         return None; // ring overwrote the chunk mid-transpose
     }
-    Some((gen_before, builders.into_iter().map(|b| b.finish()).collect()))
+    Some((
+        gen_before,
+        builders.into_iter().map(|b| b.finish()).collect(),
+    ))
 }

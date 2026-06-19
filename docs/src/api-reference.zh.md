@@ -170,18 +170,20 @@ PyTorch 执行跟踪。
 | step | int | 训练步骤 |
 | seq | int | 序列号 |
 | module | string | 模块名 |
-| stage | string | forward/backward/step |
+| stage | string | 钩子标签：`pre forward`、`post forward`、`pre step`、`post step`（时长在 post 行；默认不采 backward） |
 | allocated | float | GPU 内存 (MB) |
-| duration | float | 执行时间 (秒) |
+| max_allocated | float | GPU 峰值内存 (MB) |
+| cached | float | GPU 预留内存 (MB) |
+| max_cached | float | 峰值预留 (MB) |
+| time_offset | float | 相对 step 时间锚点（秒） |
+| duration | float | 执行时间 (秒)；post 行有效 |
 
 ## 配置选项
 
 | 键 | 默认值 | 描述 |
 |----|--------|------|
-| `probing.sample_rate` | 1.0 | 采样率 (0.0-1.0) |
-| `probing.buffer_size` | 10000 | 环形缓冲区大小 |
-| `probing.server.port` | 0 | TCP 端口 (0=仅 Unix socket) |
-| `probing.torch.enabled` | true | 启用 PyTorch 追踪 |
+| `probing.torch.profiling` | — | TorchProbe 配置（`on`、`ordered:0.5`、`random:0.1` 等） |
+| `probing.pprof.sample_freq` | — | CPU pprof 采样频率 (Hz) |
 
 ## 环境变量
 
@@ -189,6 +191,6 @@ PyTorch 执行跟踪。
 |------|------|
 | `PROBING` | 启用 probing (1=开启) |
 | `PROBING_PORT` | TCP 服务器端口 |
-| `PROBING_TORCH_PROFILING` | PyTorch 分析 (on/off) |
-| `PROBING_SAMPLE_RATE` | 默认采样率 |
+| `PROBING_TORCH_PROFILING` | TorchProbe（`on`、`ordered:0.5`、`random:0.1`、`tracepy=on` 等） |
+| `PROBING_PPROF_SAMPLE_FREQ` | 同步为 `probing.pprof.sample_freq`（CPU pprof Hz） |
 | `PROBING_AUTH_TOKEN` | 认证令牌 |

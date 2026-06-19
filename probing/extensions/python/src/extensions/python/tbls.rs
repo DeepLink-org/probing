@@ -5,9 +5,8 @@ use std::sync::Arc;
 use anyhow::Result;
 
 use log::error;
-use probing_core::core::LazyTableSource;
 use probing_core::core::{
-    ArrayRef, CustomNamespace, DataType, Field, Float64Array, Int64Array, NamespacePluginHelper,
+    ArrayRef, CustomNamespace, DataType, Field, Float64Array, Int64Array, NamespaceProbeDataSource,
     RecordBatch, Schema, SchemaRef, StringArray,
 };
 use probing_proto::prelude::CallFrame;
@@ -48,13 +47,19 @@ impl PythonNamespace {
                     file,
                     func,
                     lineno,
+                    lang,
                 } => {
                     ips.push(Some(ip));
                     files.push(Some(file));
                     funcs.push(Some(func));
                     linenos.push(Some(lineno));
-                    depth.push(Some(current_depth_val)); // Use new variable name
-                    frame_types.push(Some("Native".to_string())); // Add frame type
+                    depth.push(Some(current_depth_val));
+                    let type_label = match lang.as_deref() {
+                        Some("rust") => "Rust",
+                        Some("cpp") => "Native",
+                        _ => "Native",
+                    };
+                    frame_types.push(Some(type_label.to_string()));
                     current_depth_val += 1;
                 }
                 CallFrame::PyFrame {
@@ -96,7 +101,7 @@ impl PythonNamespace {
     }
 
     fn data_from_python(expr: &str) -> Result<Vec<RecordBatch>> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let import_path = expr.split(|c| c == '(' || c == '[').next().unwrap_or(expr);
 
             let parts: Vec<&str> = import_path
@@ -147,11 +152,11 @@ impl PythonNamespace {
                 .map_err(|e| anyhow::anyhow!("Failed to evaluate Python expression: {:?}", e))?;
 
             // Handle different Python types
-            if let Ok(list) = result.downcast::<PyList>() {
+            if let Ok(list) = result.cast::<PyList>() {
                 return Self::list_to_recordbatch(list);
             }
 
-            if let Ok(dict) = result.downcast::<PyDict>() {
+            if let Ok(dict) = result.cast::<PyDict>() {
                 return Self::dict_to_recordbatch(dict);
             }
 
@@ -159,7 +164,6 @@ impl PythonNamespace {
             Self::object_to_recordbatch(result)
         })
     }
-
 }
 
 impl CustomNamespace for PythonNamespace {
@@ -193,34 +197,6 @@ impl CustomNamespace for PythonNamespace {
             }
         }
     }
-
-    fn make_lazy(expr: &str) -> Arc<LazyTableSource> {
-        if expr == "backtrace" {
-            let data = Self::get_backtrace_data().unwrap_or_default();
-            let schema = if data.is_empty() {
-                None
-            } else {
-                Some(data[0].schema().clone())
-            };
-            return Arc::new(LazyTableSource {
-                name: expr.to_string(),
-                schema,
-                data,
-            });
-        }
-
-        let data: Vec<RecordBatch> = Self::data_from_python(expr).unwrap_or_default();
-        let schema = if data.is_empty() {
-            None
-        } else {
-            Some(data[0].schema().clone())
-        };
-        Arc::new(LazyTableSource {
-            name: expr.to_string(),
-            schema,
-            data,
-        })
-    }
 }
 
 impl PythonNamespace {
@@ -229,7 +205,7 @@ impl PythonNamespace {
         let mut columns: Vec<ArrayRef> = vec![];
 
         if obj.is_instance_of::<PyDict>() {
-            let item = obj.downcast::<PyDict>().unwrap();
+            let item = obj.cast::<PyDict>().unwrap();
             for (key, value) in item.iter() {
                 let key_str = key.extract::<String>()?;
                 Self::add_field_and_array(&mut fields, &mut columns, key_str, value)?;
@@ -298,11 +274,11 @@ impl PythonNamespace {
 
         for (index, item) in list.try_iter()?.enumerate() {
             let item = item?;
-            let item = if let Ok(dict) = item.downcast::<PyDict>() {
+            let item = if let Ok(dict) = item.cast::<PyDict>() {
                 Some(dict.clone())
             } else {
                 match item.getattr("__dict__") {
-                    Ok(dict) => Some(dict.downcast::<PyDict>().unwrap().clone()),
+                    Ok(dict) => Some(dict.cast::<PyDict>().unwrap().clone()),
                     Err(_) => {
                         let dict = PyDict::new(item.py());
                         dict.set_item("value", item).unwrap();
@@ -368,7 +344,7 @@ impl PythonNamespace {
     }
 }
 
-pub type PythonPlugin = NamespacePluginHelper<PythonNamespace>;
+pub type PythonProbeDataSource = NamespaceProbeDataSource<PythonNamespace>;
 
 #[cfg(test)]
 mod tests {

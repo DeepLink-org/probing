@@ -5,7 +5,6 @@ use tokio::sync::RwLock;
 use arrow::compute::concat_batches;
 use datafusion::catalog::MemoryCatalogProvider;
 use datafusion::catalog::MemorySchemaProvider;
-use datafusion::catalog::{CatalogProvider, SchemaProvider};
 use datafusion::config::ConfigExtension;
 use datafusion::error::DataFusionError;
 use datafusion::error::Result;
@@ -14,123 +13,11 @@ use datafusion::prelude::{DataFrame, SessionConfig, SessionContext};
 use futures;
 
 use super::arrow_convert::arrow_array_to_seq;
-use super::extension::EngineExtension;
-use super::extension::EngineExtensionManager;
+use super::probe_extension::ProbeExtension;
+use super::probe_extension::ProbeExtensionManager;
 
-/// Defines the types of plugins supported by the Probing query engine.
-/// These plugin types determine how data sources are registered with the engine.
-#[derive(PartialEq, Eq)]
-pub enum PluginType {
-    /// Provides a single table with fixed structure.
-    /// Suitable for hardware metrics, process stats, and performance counter data.
-    /// Tables are accessible via SQL as "namespace.name".
-    Table,
-
-    /// Provides an entire namespace (collection of tables).
-    /// Suitable for file system monitoring, Python module tracking, or dynamically
-    /// generated performance data.
-    /// Tables in a namespace are accessible via SQL as "namespace.table_name".
-    Namespace,
-}
-
-/// Low-level interface for extending engine functionality through plugins
-///
-/// Plugins can register either namespaces (collections of tables) or
-/// individual tables to the query engine. Implementations should
-/// handle specific data sources or analysis capabilities.
-///
-/// # Naming Convention
-///
-/// Data in the engine is organized hierarchically:
-///
-/// - Catalog (default is "probe")
-///   - Schema (provided by plugin's "namespace")
-///     - Table (provided by plugin's "name" or dynamically by NamespaceProvider)
-///
-/// ## For Table Plugins
-///
-/// A table plugin must provide both a namespace and a name. The table will be
-/// accessible in SQL queries as:
-///
-/// ```sql
-/// SELECT * FROM namespace.name
-/// ```
-///
-/// ## For Namespace Plugins
-///
-/// A namespace plugin only needs to provide a namespace. The tables within the namespace
-/// will be accessible in SQL queries as:
-///
-/// ```sql
-/// SELECT * FROM namespace.some_table_name
-/// ```
-///
-/// where `some_table_name` is any table provided by the namespace plugin.
-pub trait Plugin {
-    /// Returns the unique name of the plugin.
-    ///
-    /// For Table plugins, this is the table name.
-    /// For Namespace plugins, this is the namespace.
-    fn name(&self) -> String;
-
-    /// Returns the type of this plugin, determining how it integrates with the engine.
-    /// This controls which registration method will be called (register_table or register_namespace).
-    fn kind(&self) -> PluginType;
-
-    /// Returns the namespace for this plugin, used for organizing related tables.
-    ///
-    /// - For Table plugins, this defines the namespace under which the table is registered.
-    ///   The table will be accessible as "namespace.name".
-    ///
-    /// - For Namespace plugins, this defines the name of the namespace being provided.
-    ///   Tables in this namespace will be accessible as "namespace.table_name".
-    fn namespace(&self) -> String;
-
-    /// Registers a table with the provided namespace.
-    ///
-    /// Implemented by Table plugins to register their data source
-    /// with the query engine. The default implementation does nothing.
-    ///
-    /// # Arguments
-    /// * `namespace` - The namespace provider to register the table with
-    /// * `state` - The current session state
-    #[allow(unused)]
-    fn register_table(
-        &self,
-        namespace: Arc<dyn SchemaProvider>,
-        state: &SessionState,
-    ) -> Result<()> {
-        Ok(())
-    }
-
-    /// Registers a namespace with the provided catalog.
-    ///
-    /// Implemented by Namespace plugins to register their namespace
-    /// with the query engine. The default implementation does nothing.
-    ///
-    /// # Arguments
-    /// * `catalog` - The catalog provider to register the namespace with
-    /// * `state` - The current session state
-    #[allow(unused)]
-    fn register_namespace(
-        &self,
-        catalog: Arc<dyn CatalogProvider>,
-        state: &SessionState,
-    ) -> Result<()> {
-        Ok(())
-    }
-
-    /// Optionally wrap the catalog with a dynamic provider.
-    ///
-    /// Called by the engine after [`register_namespace`](Self::register_namespace).
-    /// If `Some(wrapper)` is returned, the engine replaces the default catalog
-    /// with `wrapper` via `SessionContext::register_catalog`, enabling dynamic
-    /// schema discovery at query time.
-    #[allow(unused)]
-    fn provide_catalog(&self, inner: Arc<dyn CatalogProvider>) -> Option<Arc<dyn CatalogProvider>> {
-        None
-    }
-}
+use super::data_source::{ProbeDataSource, ProbeDataSourceKind};
+use super::federation;
 
 /// Core query engine for the Probing system
 ///
@@ -161,7 +48,7 @@ pub struct Engine {
     /// DataFusion session context for executing SQL queries
     pub context: SessionContext,
     /// Registry of enabled plugins, mapped by their fully qualified names
-    plugins: RwLock<HashMap<String, Arc<dyn Plugin + Sync + Send>>>,
+    data_sources: RwLock<HashMap<String, Arc<dyn ProbeDataSource + Sync + Send>>>,
 }
 
 impl Clone for Engine {
@@ -169,10 +56,10 @@ impl Clone for Engine {
         // Note: This is a synchronous clone, so we need to block on the async lock
         // In practice, this should be avoided in async contexts
         use futures::executor::block_on;
-        let plugins_clone = block_on(async { self.plugins.read().await.clone() });
+        let plugins_clone = block_on(async { self.data_sources.read().await.clone() });
         Self {
             context: self.context.clone(),
-            plugins: RwLock::new(plugins_clone),
+            data_sources: RwLock::new(plugins_clone),
         }
     }
 }
@@ -190,7 +77,7 @@ impl Default for Engine {
             .with_default_catalog_and_schema("probe", "probe");
         Engine {
             context: SessionContext::new_with_config(config),
-            plugins: Default::default(),
+            data_sources: Default::default(),
         }
     }
 }
@@ -217,7 +104,11 @@ impl Engine {
         &self,
         query: T,
     ) -> Result<Option<probing_proto::prelude::DataFrame>> {
-        let query: String = query.into();
+        let original: String = query.into();
+        if let Some(df) = federation::try_execute_aggregate_pushdown(self, &original).await? {
+            return Ok(Some(df));
+        }
+        let query: String = federation::prepare_global_query(&original);
         let batches = self.sql(query.as_str()).await?.collect().await?;
         if batches.is_empty() {
             return Ok(None);
@@ -233,7 +124,7 @@ impl Engine {
         let columns = batch
             .columns()
             .iter()
-            .map(|col| arrow_array_to_seq(col))
+            .map(arrow_array_to_seq)
             .collect::<Vec<_>>();
         Ok(Some(probing_proto::prelude::DataFrame::new(names, columns)))
     }
@@ -255,8 +146,8 @@ impl Engine {
             .clone()
     }
 
-    pub async fn enable(&self, plugin: Arc<dyn Plugin + Sync + Send>) -> Result<()> {
-        let namespace = plugin.namespace();
+    pub async fn enable(&self, data_source: Arc<dyn ProbeDataSource + Sync + Send>) -> Result<()> {
+        let namespace = data_source.namespace();
 
         let catalog = if let Some(catalog) = self.context.catalog("probe") {
             catalog
@@ -268,15 +159,15 @@ impl Engine {
                 .ok_or_else(|| DataFusionError::Internal("no catalog `probe`".to_string()))?
         };
 
-        if plugin.kind() == PluginType::Namespace {
+        if data_source.kind() == ProbeDataSourceKind::Namespace {
             let state: SessionState = self.context.state();
-            plugin.register_namespace(catalog.clone(), &state)?;
-            if let Some(wrapper) = plugin.provide_catalog(catalog) {
+            data_source.register_namespace(catalog.clone(), &state)?;
+            if let Some(wrapper) = data_source.provide_catalog(catalog) {
                 self.context.register_catalog("probe", wrapper);
             }
-            let mut maps = self.plugins.write().await;
-            maps.insert(format!("probe.{namespace}"), plugin);
-        } else if plugin.kind() == PluginType::Table {
+            let mut maps = self.data_sources.write().await;
+            maps.insert(format!("probe.{namespace}"), data_source);
+        } else if data_source.kind() == ProbeDataSourceKind::Table {
             // In DataFusion, schemas are used to implement namespaces
             let schema = if catalog.schema_names().contains(&namespace) {
                 catalog.schema(namespace.as_str())
@@ -289,9 +180,12 @@ impl Engine {
                 DataFusionError::Internal(format!("namespace `{namespace}` not found"))
             })?;
             let state: SessionState = self.context.state();
-            plugin.register_table(schema, &state)?;
-            let mut maps = self.plugins.write().await;
-            maps.insert(format!("probe.{}.{}", namespace, plugin.name()), plugin);
+            data_source.register_table(schema, &state)?;
+            let mut maps = self.data_sources.write().await;
+            maps.insert(
+                format!("probe.{}.{}", namespace, data_source.name()),
+                data_source,
+            );
         }
         Ok(())
     }
@@ -301,8 +195,8 @@ impl Engine {
 pub struct EngineBuilder {
     config: SessionConfig,
     default_namespace: Option<String>,
-    plugins: Vec<Arc<dyn Plugin + Sync + Send>>,
-    extensions: HashMap<String, Arc<tokio::sync::Mutex<dyn EngineExtension + Send + Sync>>>,
+    data_sources: Vec<Arc<dyn ProbeDataSource + Sync + Send>>,
+    probe_extensions: HashMap<String, Arc<tokio::sync::Mutex<dyn ProbeExtension + Send + Sync>>>,
 }
 
 impl EngineBuilder {
@@ -311,8 +205,8 @@ impl EngineBuilder {
         EngineBuilder {
             config: SessionConfig::default(),
             default_namespace: None,
-            plugins: Vec::new(),
-            extensions: Default::default(),
+            data_sources: Vec::new(),
+            probe_extensions: Default::default(),
         }
     }
 
@@ -323,29 +217,26 @@ impl EngineBuilder {
     }
 
     // Add a plugin to the builder
-    pub fn with_plugin(mut self, plugin: Arc<dyn Plugin + Sync + Send>) -> Self {
-        self.plugins.push(plugin);
+    pub fn with_data_source(mut self, plugin: Arc<dyn ProbeDataSource + Sync + Send>) -> Self {
+        self.data_sources.push(plugin);
         self
     }
 
-    pub fn with_extension<T>(mut self, ext: T, namespace: &str, name: Option<&str>) -> Self
+    pub fn with_extension<T>(mut self, ext: T) -> Self
     where
-        T: EngineExtension + Send + Sync + 'static,
+        T: ProbeExtension + Send + Sync + 'static,
     {
-        if let Some(datasrc) = ext.datasrc(namespace, name) {
-            self.plugins.push(datasrc)
-        };
         let name = ext.name();
         let ext = Arc::new(tokio::sync::Mutex::new(ext));
 
-        self.extensions.insert(name, ext);
+        self.probe_extensions.insert(name, ext);
         self
     }
 
     // Build the Engine with the specified configurations
     pub async fn build(mut self) -> Result<Engine> {
-        let mut eem = EngineExtensionManager::default();
-        for (name, extension) in self.extensions.iter() {
+        let mut eem = ProbeExtensionManager;
+        for (name, extension) in self.probe_extensions.iter() {
             eem.register(name.clone(), extension.clone()).await;
         }
         self.config.options_mut().extensions.insert(eem);
@@ -363,11 +254,12 @@ impl EngineBuilder {
         let context = SessionContext::new_with_config(self.config);
         let engine = Engine {
             context,
-            plugins: Default::default(),
+            data_sources: Default::default(),
         };
-        for plugin in self.plugins {
-            engine.enable(plugin).await?;
+        for data_source in self.data_sources {
+            engine.enable(data_source).await?;
         }
+        federation::install_global_catalog(&engine.context)?;
 
         Ok(engine)
     }
@@ -381,28 +273,29 @@ impl Default for EngineBuilder {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::{EngineCall, EngineDatasource};
+    use crate::core::{ProbeExtension, ProbeExtensionCall};
 
     use super::*;
     use arrow::array::{Int32Array, StringArray};
     use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
     use arrow::record_batch::RecordBatch;
     use datafusion::catalog::memory::{DataSourceExec, MemorySourceConfig};
-    use datafusion::datasource::TableProvider;
+    use datafusion::catalog::{
+        CatalogProvider, MemorySchemaProvider, SchemaProvider, TableProvider,
+    };
     use datafusion::execution::context::SessionState;
     use datafusion::logical_expr::{Expr, TableType};
     use datafusion::physical_plan::ExecutionPlan;
     use probing_proto::prelude::Seq;
-    use std::any::Any;
     use std::sync::Arc;
 
     #[derive(Debug, Clone)]
-    struct TestTablePlugin {
+    struct TestTableProbeDataSource {
         schema: SchemaRef,
         batches: Vec<RecordBatch>,
     }
 
-    impl Default for TestTablePlugin {
+    impl Default for TestTableProbeDataSource {
         fn default() -> Self {
             let schema = Arc::new(Schema::new(vec![
                 Field::new("id", DataType::Int32, false),
@@ -424,13 +317,13 @@ mod tests {
         }
     }
 
-    impl Plugin for TestTablePlugin {
+    impl ProbeDataSource for TestTableProbeDataSource {
         fn name(&self) -> String {
             "test_table".to_string()
         }
 
-        fn kind(&self) -> PluginType {
-            PluginType::Table
+        fn kind(&self) -> ProbeDataSourceKind {
+            ProbeDataSourceKind::Table
         }
 
         fn namespace(&self) -> String {
@@ -448,11 +341,7 @@ mod tests {
     }
 
     #[async_trait::async_trait]
-    impl TableProvider for TestTablePlugin {
-        fn as_any(&self) -> &dyn Any {
-            self
-        }
-
+    impl TableProvider for TestTableProbeDataSource {
         fn schema(&self) -> SchemaRef {
             self.schema.clone()
         }
@@ -480,15 +369,15 @@ mod tests {
     }
 
     #[derive(Default)]
-    struct TestNamespacePlugin {}
+    struct TestNamespaceProbeDataSource {}
 
-    impl Plugin for TestNamespacePlugin {
+    impl ProbeDataSource for TestNamespaceProbeDataSource {
         fn name(&self) -> String {
             "test_namespace".to_string()
         }
 
-        fn kind(&self) -> PluginType {
-            PluginType::Namespace
+        fn kind(&self) -> ProbeDataSourceKind {
+            ProbeDataSourceKind::Namespace
         }
 
         fn namespace(&self) -> String {
@@ -513,7 +402,7 @@ mod tests {
     async fn test_plugin_with_data() -> Result<()> {
         let engine = Engine::builder().build().await?;
 
-        let plugin = Arc::new(TestTablePlugin::default());
+        let plugin = Arc::new(TestTableProbeDataSource::default());
         engine.enable(plugin).await?;
 
         let result = engine
@@ -542,24 +431,18 @@ mod tests {
         #[derive(Debug)]
         struct TestExtension;
 
-        impl EngineExtension for TestExtension {
+        impl ProbeExtension for TestExtension {
             fn name(&self) -> String {
                 "test_extension".to_string()
             }
         }
 
-        impl EngineCall for TestExtension {}
+        impl ProbeExtensionCall for TestExtension {}
 
-        impl EngineDatasource for TestExtension {
-            fn datasrc(&self, _: &str, _: Option<&str>) -> Option<Arc<dyn Plugin + Send + Sync>> {
-                Some(Arc::new(TestTablePlugin::default()))
-            }
-        }
-
-        // register extension
         let engine = Engine::builder()
             .with_default_namespace("probe")
-            .with_extension(TestExtension, "test_namespace", Some("test_table"))
+            .with_extension(TestExtension)
+            .with_data_source(Arc::new(TestTableProbeDataSource::default()))
             .build()
             .await
             .unwrap();
@@ -576,10 +459,10 @@ mod tests {
     async fn test_plugin_registration() {
         let engine = Engine::builder().build().await.unwrap();
 
-        let table_plugin = Arc::new(TestTablePlugin::default());
+        let table_plugin = Arc::new(TestTableProbeDataSource::default());
         assert!(engine.enable(table_plugin).await.is_ok());
 
-        let namespace_plugin = Arc::new(TestNamespacePlugin::default());
+        let namespace_plugin = Arc::new(TestNamespaceProbeDataSource::default());
         assert!(engine.enable(namespace_plugin).await.is_ok());
     }
 
@@ -672,7 +555,7 @@ mod tests {
     #[tokio::test]
     async fn test_aggregate_queries() -> Result<()> {
         let engine = Engine::builder().build().await?;
-        let plugin = Arc::new(TestTablePlugin::default());
+        let plugin = Arc::new(TestTableProbeDataSource::default());
         engine.enable(plugin).await?;
 
         // Test COUNT
@@ -704,7 +587,7 @@ mod tests {
     #[tokio::test]
     async fn test_subquery() -> Result<()> {
         let engine = Engine::builder().build().await?;
-        let plugin = Arc::new(TestTablePlugin::default());
+        let plugin = Arc::new(TestTableProbeDataSource::default());
         engine.enable(plugin).await?;
 
         // Test scalar subquery
@@ -732,7 +615,7 @@ mod tests {
     #[tokio::test]
     async fn test_window_functions() -> Result<()> {
         let engine = Engine::builder().build().await?;
-        let plugin = Arc::new(TestTablePlugin::default());
+        let plugin = Arc::new(TestTableProbeDataSource::default());
         engine.enable(plugin).await?;
 
         // Test ROW_NUMBER()
@@ -759,7 +642,7 @@ mod tests {
     #[tokio::test]
     async fn test_having_clause() -> Result<()> {
         let engine = Engine::builder().build().await?;
-        let plugin = Arc::new(TestTablePlugin::default());
+        let plugin = Arc::new(TestTableProbeDataSource::default());
         engine.enable(plugin).await?;
 
         // Test HAVING with GROUP BY
@@ -784,7 +667,7 @@ mod tests {
         let engine = Engine::builder().build().await?;
 
         // Register the same plugin twice
-        let plugin1 = Arc::new(TestTablePlugin::default());
+        let plugin1 = Arc::new(TestTableProbeDataSource::default());
         engine.enable(plugin1.clone()).await?;
 
         // Registering the same plugin again should either succeed (replace) or fail gracefully
@@ -829,7 +712,7 @@ mod tests {
     #[tokio::test]
     async fn test_nonexistent_column() -> Result<()> {
         let engine = Engine::builder().build().await?;
-        let plugin = Arc::new(TestTablePlugin::default());
+        let plugin = Arc::new(TestTableProbeDataSource::default());
         engine.enable(plugin).await?;
 
         // Query non-existent column
@@ -844,7 +727,7 @@ mod tests {
     #[tokio::test]
     async fn test_type_conversion_errors() -> Result<()> {
         let engine = Engine::builder().build().await?;
-        let plugin = Arc::new(TestTablePlugin::default());
+        let plugin = Arc::new(TestTableProbeDataSource::default());
         engine.enable(plugin).await?;
 
         // Try to compare incompatible types
@@ -861,7 +744,7 @@ mod tests {
     #[tokio::test]
     async fn test_invalid_where_clause() -> Result<()> {
         let engine = Engine::builder().build().await?;
-        let plugin = Arc::new(TestTablePlugin::default());
+        let plugin = Arc::new(TestTableProbeDataSource::default());
         engine.enable(plugin).await?;
 
         // Invalid WHERE clause
@@ -880,11 +763,11 @@ mod tests {
         use futures::future::join_all;
 
         let engine = Engine::builder().build().await?;
-        let plugin = Arc::new(TestTablePlugin::default());
+        let plugin = Arc::new(TestTableProbeDataSource::default());
         engine.enable(plugin).await?;
 
         // Run multiple queries concurrently
-        let queries = vec![
+        let queries = [
             "SELECT * FROM test_namespace.test_table WHERE id = 1",
             "SELECT * FROM test_namespace.test_table WHERE id = 2",
             "SELECT * FROM test_namespace.test_table WHERE id = 3",
@@ -912,7 +795,7 @@ mod tests {
     #[tokio::test]
     async fn test_query_result_isolation() -> Result<()> {
         let engine = Engine::builder().build().await?;
-        let plugin = Arc::new(TestTablePlugin::default());
+        let plugin = Arc::new(TestTableProbeDataSource::default());
         engine.enable(plugin).await?;
 
         // Run two queries that should return different results
@@ -942,7 +825,7 @@ mod tests {
     #[tokio::test]
     async fn test_order_by() -> Result<()> {
         let engine = Engine::builder().build().await?;
-        let plugin = Arc::new(TestTablePlugin::default());
+        let plugin = Arc::new(TestTableProbeDataSource::default());
         engine.enable(plugin).await?;
 
         // Test ORDER BY
@@ -964,7 +847,7 @@ mod tests {
     #[tokio::test]
     async fn test_limit_clause() -> Result<()> {
         let engine = Engine::builder().build().await?;
-        let plugin = Arc::new(TestTablePlugin::default());
+        let plugin = Arc::new(TestTableProbeDataSource::default());
         engine.enable(plugin).await?;
 
         // Test LIMIT
@@ -984,7 +867,7 @@ mod tests {
     #[tokio::test]
     async fn test_where_with_multiple_conditions() -> Result<()> {
         let engine = Engine::builder().build().await?;
-        let plugin = Arc::new(TestTablePlugin::default());
+        let plugin = Arc::new(TestTableProbeDataSource::default());
         engine.enable(plugin).await?;
 
         // Test WHERE with AND
@@ -1024,16 +907,12 @@ mod tests {
     }
 
     impl CatalogProvider for DynCatalog {
-        fn as_any(&self) -> &dyn Any {
-            self
-        }
-
         fn schema_names(&self) -> Vec<String> {
             let mut names = self.inner.schema_names();
-            if self.has_dynamic.load(std::sync::atomic::Ordering::Relaxed) {
-                if !names.contains(&"dynamic_sch".to_string()) {
-                    names.push("dynamic_sch".to_string());
-                }
+            if self.has_dynamic.load(std::sync::atomic::Ordering::Relaxed)
+                && !names.contains(&"dynamic_sch".to_string())
+            {
+                names.push("dynamic_sch".to_string());
             }
             names
         }
@@ -1067,16 +946,16 @@ mod tests {
     }
 
     /// A Namespace plugin that returns a DynCatalog wrapper via provide_catalog.
-    struct DynPlugin {
+    struct DynProbeDataSource {
         catalog: std::sync::Mutex<Option<Arc<DynCatalog>>>,
     }
 
-    impl Plugin for DynPlugin {
+    impl ProbeDataSource for DynProbeDataSource {
         fn name(&self) -> String {
             "dyn".into()
         }
-        fn kind(&self) -> PluginType {
-            PluginType::Namespace
+        fn kind(&self) -> ProbeDataSourceKind {
+            ProbeDataSourceKind::Namespace
         }
         fn namespace(&self) -> String {
             "dyn".into()
@@ -1097,13 +976,13 @@ mod tests {
 
     #[tokio::test]
     async fn provide_catalog_enables_dynamic_schema() -> Result<()> {
-        let plugin = Arc::new(DynPlugin {
+        let plugin = Arc::new(DynProbeDataSource {
             catalog: std::sync::Mutex::new(None),
         });
 
         let engine = Engine::builder()
             .with_default_namespace("probe")
-            .with_plugin(plugin.clone())
+            .with_data_source(plugin.clone())
             .build()
             .await?;
 

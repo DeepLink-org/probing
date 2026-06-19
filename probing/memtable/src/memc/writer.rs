@@ -125,11 +125,7 @@ impl SegmentWriter {
     }
 
     /// Register a table, write its `MCTB` definition block, return its id.
-    pub fn register_table(
-        &mut self,
-        name: &str,
-        cols: &[(String, DType)],
-    ) -> io::Result<u32> {
+    pub fn register_table(&mut self, name: &str, cols: &[(String, DType)]) -> io::Result<u32> {
         let id = self.next_table_id;
         self.next_table_id += 1;
 
@@ -148,9 +144,9 @@ impl SegmentWriter {
         };
         self.write_block(&header, &payload)?;
 
-        let ts_col = cols
-            .iter()
-            .position(|(n, dt)| *dt == DType::I64 && crate::raw::TS_COL_NAMES.contains(&n.as_str()));
+        let ts_col = cols.iter().position(|(n, dt)| {
+            *dt == DType::I64 && crate::raw::TS_COL_NAMES.contains(&n.as_str())
+        });
         self.tables.insert(
             id,
             TableInfo {
@@ -206,11 +202,9 @@ impl SegmentWriter {
 
         let (ts_min, ts_max) = match info.ts_col {
             Some(ci) => match &columns[ci] {
-                ColumnData::I64(v) => v
-                    .iter()
-                    .fold((TS_MIN_INIT, TS_MAX_INIT), |(lo, hi), &t| {
-                        (lo.min(t), hi.max(t))
-                    }),
+                ColumnData::I64(v) => v.iter().fold((TS_MIN_INIT, TS_MAX_INIT), |(lo, hi), &t| {
+                    (lo.min(t), hi.max(t))
+                }),
                 _ => (TS_MIN_INIT, TS_MAX_INIT),
             },
             None => (TS_MIN_INIT, TS_MAX_INIT),

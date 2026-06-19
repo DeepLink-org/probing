@@ -9,15 +9,15 @@ pub fn ResizeHandle() -> Element {
     let mut drag_start_x = use_signal(|| 0.0);
     let mut drag_start_width = use_signal(|| 256.0);
 
-    let hover_class = format!("hover:bg-{}/50", colors::PRIMARY);
     let active_class = if *is_resizing.read() {
-        format!("bg-{}", colors::PRIMARY)
+        colors::SIDEBAR_RESIZE_ACTIVE
     } else {
-        "bg-transparent".to_string()
+        "bg-transparent"
     };
     let drag_handle_class = format!(
         "absolute top-0 right-0 w-1 h-full cursor-col-resize {} transition-colors group z-20 {}",
-        hover_class, active_class
+        colors::SIDEBAR_RESIZE_HOVER,
+        active_class
     );
 
     rsx! {
@@ -25,16 +25,15 @@ pub fn ResizeHandle() -> Element {
             class: "{drag_handle_class}",
             onmousedown: move |ev| {
                 *is_resizing.write() = true;
-                *drag_start_x.write() = ev.element_coordinates().x as f64;
+                *drag_start_x.write() = ev.element_coordinates().x;
                 *drag_start_width.write() = *SIDEBAR_WIDTH.read();
                 ev.prevent_default();
             },
             onmousemove: move |ev| {
                 if *is_resizing.read() {
-                    let current_x = ev.element_coordinates().x as f64;
+                    let current_x = ev.element_coordinates().x;
                     let delta_x = current_x - *drag_start_x.read();
-                    let new_width =
-                        (*drag_start_width.read() + delta_x).max(200.0).min(600.0);
+                    let new_width = (*drag_start_width.read() + delta_x).clamp(200.0, 600.0);
                     *SIDEBAR_WIDTH.write() = new_width;
                 }
             },

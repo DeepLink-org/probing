@@ -149,11 +149,7 @@ impl Report {
     }
 
     pub fn count(&mut self, key: &str, n: u64) -> &mut Self {
-        self.push(
-            key,
-            group_thousands(n),
-            serde_json::Value::from(n),
-        )
+        self.push(key, group_thousands(n), serde_json::Value::from(n))
     }
 
     pub fn float(&mut self, key: &str, v: f64, suffix: &str) -> &mut Self {
@@ -184,11 +180,7 @@ impl Report {
     /// Throughput in ops/second, displayed with an SI suffix.
     pub fn rate(&mut self, key: &str, ops: u64, elapsed: Duration, unit: &str) -> &mut Self {
         let per_sec = rate_per_sec(ops, elapsed);
-        self.push(
-            key,
-            format!("{} {unit}/s", si(per_sec)),
-            json_f64(per_sec),
-        )
+        self.push(key, format!("{} {unit}/s", si(per_sec)), json_f64(per_sec))
     }
 
     /// Throughput in bytes/second, displayed as MiB/s.
@@ -210,18 +202,17 @@ impl Report {
         self.float(&format!("{prefix} mean"), lat.mean_ns(), "ns");
         self.float(&format!("{prefix} p50"), lat.quantile_ns(0.50) as f64, "ns");
         self.float(&format!("{prefix} p99"), lat.quantile_ns(0.99) as f64, "ns");
-        self.float(&format!("{prefix} p999"), lat.quantile_ns(0.999) as f64, "ns");
+        self.float(
+            &format!("{prefix} p999"),
+            lat.quantile_ns(0.999) as f64,
+            "ns",
+        );
         self.float(&format!("{prefix} max"), lat.max_ns() as f64, "ns");
         self
     }
 
     pub fn print_table(&self) {
-        let width = self
-            .entries
-            .iter()
-            .map(|e| e.key.len())
-            .max()
-            .unwrap_or(0);
+        let width = self.entries.iter().map(|e| e.key.len()).max().unwrap_or(0);
         println!("\n  {}", self.title);
         println!("  {}", "─".repeat(self.title.len().max(20)));
         for e in &self.entries {
@@ -242,8 +233,7 @@ impl Report {
         if json {
             println!(
                 "{}",
-                serde_json::to_string_pretty(&self.to_json())
-                    .unwrap_or_else(|_| "{}".to_string())
+                serde_json::to_string_pretty(&self.to_json()).unwrap_or_else(|_| "{}".to_string())
             );
         } else {
             self.print_table();

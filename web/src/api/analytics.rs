@@ -20,9 +20,15 @@ impl ApiClient {
 
         match msg.payload {
             QueryDataFormat::DataFrame(dataframe) => Ok(dataframe),
-            QueryDataFormat::Nil => Ok(DataFrame { names: vec![], cols: vec![], size: 0 }),
+            QueryDataFormat::Nil => Ok(DataFrame {
+                names: vec![],
+                cols: vec![],
+                size: 0,
+            }),
             QueryDataFormat::Error(err) => Err(AppError::Api(err.message)),
-            QueryDataFormat::TimeSeries(_) => Err(AppError::Api("TimeSeries format not supported".to_string())),
+            QueryDataFormat::TimeSeries(_) => {
+                Err(AppError::Api("TimeSeries format not supported".to_string()))
+            }
         }
     }
 

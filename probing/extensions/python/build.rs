@@ -15,7 +15,7 @@ fn main() {
 fn find_pyenv_python() -> Option<String> {
     // First, try to use pyenv which command
     if let Ok(output) = std::process::Command::new("pyenv")
-        .args(&["which", "python3"])
+        .args(["which", "python3"])
         .output()
     {
         if output.status.success() {

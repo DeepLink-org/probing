@@ -1,9 +1,18 @@
+import logging
+import os
 import time
 from functools import wraps
 from typing import List, Optional, Tuple
 
 import torch
 import torch.distributed as dist
+
+from .record import (
+    CommRecordMode,
+    begin_comm_span,
+    finish_comm_span,
+    record_comm_lite,
+)
 
 function_names = [
     "all_reduce",
@@ -16,13 +25,7 @@ function_names = [
     "all_gather_into_tensor",
 ]
 
-# 'batch_isend_irecv'
-
-# Store the group ranks for each function in a dictionary
 GROUP_RANKS_CACHE = {}
-
-"""
-This function returns a list of participating ranks within a given process group."""
 
 
 def get_participating_ranks(
@@ -42,7 +45,6 @@ def get_participating_ranks(
     if group_id in GROUP_RANKS_CACHE:
         return group_rank, group_size, GROUP_RANKS_CACHE[group_id]
 
-    # Method 1: Use all_gather_object to collect all ranks
     try:
         ranks_list = [None] * group_size
         global_rank = dist.get_rank()
@@ -56,7 +58,6 @@ def get_participating_ranks(
             f"[Rank {dist.get_rank()}] all_gather_object failed: {e}. Using fallback method."
         )
 
-    # Method 2: Use TCPStore to collect all ranks
     try:
         rank = dist.get_rank()
         world_size = dist.get_world_size()
@@ -74,7 +75,6 @@ def get_participating_ranks(
         store_key = f"rank_in_group_{group_id}"
         store.set(store_key, str(rank))
 
-        # If rank is 0, collect all ranks from the store
         if rank == 0:
             ranks = []
             for i in range(group_size):
@@ -84,11 +84,9 @@ def get_participating_ranks(
         else:
             ranks_tensor = torch.zeros(group_size, dtype=torch.int32)
 
-        # Broadcast the ranks_tensor to all ranks in the group
         dist.broadcast(ranks_tensor, src=0, group=group)
         ranks = ranks_tensor.tolist()
 
-        # Clean up the store
         if rank == 0:
             store.delete_key(store_key)
 
@@ -97,23 +95,27 @@ def get_participating_ranks(
 
     except Exception as e:
         print(f"[Rank {rank}] Failed to get ranks via TCPStore: {e}")
-        # If all methods fail, return a list of all ranks in the group
         return group_rank, group_size, [dist.get_rank() for _ in range(group_size)]
 
 
 class CollectiveTracer:
-    """
-    Trace collective operations for distributed training.
-    """
+    """Trace collective operations for distributed training."""
 
-    def __init__(self, trace_file=None, verbose=True):
-        """
-        Args:
-            trace_file: Log file to store trace data, if None, no file will be created
-            verbose: Whether to print messages or not
-        """
+    def __init__(
+        self,
+        trace_file=None,
+        verbose=False,
+        cuda_sync=False,
+        mode: CommRecordMode = CommRecordMode.LITE,
+        resolve_group_ranks: bool = False,
+        trace_event: bool = True,
+    ):
         self.trace_file = trace_file
         self.verbose = verbose
+        self.cuda_sync = cuda_sync
+        self.mode = mode
+        self.resolve_group_ranks = resolve_group_ranks
+        self.trace_event = trace_event
         self.trace_data = []
         self.original_functions = {}
         self.hooked_functions = {}
@@ -130,14 +132,32 @@ class CollectiveTracer:
             print("!!! WARNING !!! No functions found to trace")
 
         self.call_counts = {fn: 0 for fn in self.hooked_functions}
-        self.my_rank = 0  # partly rank in group
+        self.my_rank = 0
         self.my_size = 1
         self.participate_ranks = []
-
         self.global_rank = 0
+        self._logged_active = False
+
+    def _should_trace(self) -> bool:
+        """Skip overhead on single-rank jobs unless dist reports world_size > 1."""
+        if dist.is_initialized():
+            return dist.get_world_size() > 1
+        raw = os.environ.get("WORLD_SIZE", "1").strip()
+        try:
+            return int(raw) > 1
+        except ValueError:
+            return False
+
+    def _maybe_sync(self) -> None:
+        if self.cuda_sync and self.has_cuda:
+            _cuda_sync()
 
     def _log(self, message):
-        """Log a message to console and/or file."""
+        if not self._logged_active and self._should_trace():
+            self._logged_active = True
+            logging.getLogger(__name__).debug(
+                "CollectiveTracer active (distributed job)"
+            )
         if self.verbose:
             print(message)
         if self.trace_file:
@@ -146,7 +166,6 @@ class CollectiveTracer:
                 f.write(message + "\n")
 
     def create_trace_entry(self, func_name, start_time, duration, tensor_info):
-        """Create a trace entry."""
         return {
             "function": func_name,
             "timestamp": start_time,
@@ -156,53 +175,137 @@ class CollectiveTracer:
             "tensor_size": tensor_info["size"],
         }
 
-    def _trace_wrapper(self, func_name, orig_func):
-        """Create a wrapper for the original function to trace its execution."""
+    def _extract_group(self, args, kwargs):
+        return kwargs.get("group") or (args[2] if len(args) > 2 else None)
 
+    def _group_info(self, group):
+        """Cheap group rank/size; optional full participant list."""
+        if self.resolve_group_ranks:
+            return get_participating_ranks(group)
+        if dist.is_initialized():
+            return dist.get_rank(group=group), dist.get_world_size(group=group), []
+        try:
+            ws = int(os.environ.get("WORLD_SIZE", "1"))
+        except ValueError:
+            ws = 1
+        return 0, ws, []
+
+    def _tensor_nbytes(self, args, kwargs) -> int:
+        for arg in args:
+            if isinstance(arg, torch.Tensor):
+                return arg.element_size() * arg.numel()
+        for value in kwargs.values():
+            if isinstance(value, torch.Tensor):
+                return value.element_size() * value.numel()
+        return 0
+
+    def _tensor_details(self, args, kwargs):
+        if self.mode != CommRecordMode.FULL:
+            return "", "", self._tensor_nbytes(args, kwargs)
+        info = self._extract_tensor_info(args, kwargs)
+        return str(info["shape"]), str(info["dtype"]), int(info["size"])
+
+    def _finalize_collective(
+        self,
+        func_name,
+        start_time,
+        args,
+        kwargs,
+        *,
+        cm=None,
+        meta=None,
+    ):
+        duration_ms = (time.perf_counter() - start_time) * 1e3
+        group = self._extract_group(args, kwargs)
+        group_rank, group_size, participate_ranks = self._group_info(group)
+        self.my_rank, self.my_size, self.participate_ranks = (
+            group_rank,
+            group_size,
+            participate_ranks,
+        )
+        self.global_rank = dist.get_rank() if dist.is_initialized() else 0
+        async_op = bool(kwargs.get("async_op", False))
+        tensor_shape, tensor_dtype, nbytes = self._tensor_details(args, kwargs)
+
+        if self.mode == CommRecordMode.LITE:
+            record_comm_lite(
+                op=func_name,
+                duration_ms=duration_ms,
+                group_rank=group_rank,
+                group_size=group_size,
+                participate_ranks=(
+                    participate_ranks if self.resolve_group_ranks else None
+                ),
+                tensor_shape=tensor_shape,
+                tensor_dtype=tensor_dtype,
+                nbytes=nbytes,
+                async_op=async_op,
+                write_trace_event=self.trace_event,
+            )
+        else:
+            if meta is None:
+                cm, meta = begin_comm_span(
+                    func_name,
+                    group_rank=group_rank,
+                    group_size=group_size,
+                    participate_ranks=participate_ranks,
+                    tensor_shape=tensor_shape,
+                    tensor_dtype=tensor_dtype,
+                    nbytes=nbytes,
+                    async_op=async_op,
+                )
+            finish_comm_span(
+                cm,
+                meta,
+                op=func_name,
+                duration_ms=duration_ms,
+                group_rank=group_rank,
+                group_size=group_size,
+            )
+
+        if self.trace_file:
+            self.trace_data.append(
+                self.create_trace_entry(
+                    func_name,
+                    start_time,
+                    duration_ms / 1e3,
+                    {
+                        "shape": tensor_shape or "unknown",
+                        "dtype": tensor_dtype or "unknown",
+                        "size": nbytes,
+                    },
+                )
+            )
+        self._log(
+            f"[TRACE] rank={self.global_rank} {func_name} "
+            f"duration={duration_ms:.3f}ms group_size={group_size}"
+        )
+
+    def _trace_wrapper(self, func_name, orig_func):
         class TimedWork:
             def __init__(
-                self,
-                work,
-                start_time,
-                func_name,
-                data_size,
-                tensor_info=None,
-                Tracer=None,
+                self, work, start_time, tracer, func_name, args, kwargs, cm, meta
             ):
                 self.work = work
                 self.start_time = start_time
+                self.tracer = tracer
                 self.func_name = func_name
-                self.data_size = data_size
-                self.tensor_info = (
-                    tensor_info
-                    if tensor_info
-                    else {"shape": "unknown", "dtype": "unknown", "size": 0}
-                )
-                self.tracer = Tracer
+                self.args = args
+                self.kwargs = kwargs
+                self.cm = cm
+                self.meta = meta
 
             def wait(self):
                 result = self.work.wait()
-
-                if self.tracer.has_cuda:
-                    _cuda_sync()
-
-                end_time = time.perf_counter()
-                duration = end_time - self.start_time
-
-                # Create a trace entry
-                trace_entry = self.tracer.create_trace_entry(
-                    func_name, self.start_time, duration, self.tensor_info
+                self.tracer._maybe_sync()
+                self.tracer._finalize_collective(
+                    self.func_name,
+                    self.start_time,
+                    self.args,
+                    self.kwargs,
+                    cm=self.cm,
+                    meta=self.meta,
                 )
-                self.tracer.trace_data.append(trace_entry)
-
-                # Print trace information
-                self.tracer._log(
-                    f"[TRACE] I am {self.tracer.my_rank} && in GROUP_{self.tracer.participate_ranks} - {func_name} - Shape: {self.tensor_info['shape']}, "
-                    f"Dtype: {self.tensor_info['dtype']}, Size: {self.tensor_info['size']/1024/1024:.2f} MB, "
-                    f"Duration: {duration*1e3:.3f} ms, "
-                    f"size of coll is {self.tracer.my_size}  where the global rank is {self.tracer.global_rank}"
-                )
-
                 return result
 
             def is_completed(self):
@@ -210,80 +313,58 @@ class CollectiveTracer:
 
         @wraps(orig_func)
         def wrapper(*args, **kwargs):
-            # ------------ Collective Counts +1 ------------
+            if not self._should_trace():
+                return orig_func(*args, **kwargs)
+
             self.call_counts[func_name] += 1
-            # --------------------------------
-
-            tensor_info = self._extract_tensor_info(args, kwargs)
-
-            if self.has_cuda:
-                _cuda_sync()
+            self._maybe_sync()
             start_time = time.perf_counter()
-            tensor = args[0] if args else None
-            print(
-                f"tensor.numel={tensor.numel()}   tensor.element_size={tensor.element_size()}\n"
-            )
-            data_size = (
-                tensor.numel() * tensor.element_size() if tensor is not None else 0
-            )
 
-            group = kwargs.get("group") or (args[2] if len(args) > 2 else None)
-            self.my_rank, self.my_size, self.participate_ranks = (
-                get_participating_ranks(group)
-            )
+            cm, meta = None, None
+            if self.mode == CommRecordMode.FULL:
+                group = self._extract_group(args, kwargs)
+                group_rank, group_size, participate_ranks = self._group_info(group)
+                tensor_shape, tensor_dtype, nbytes = self._tensor_details(args, kwargs)
+                cm, meta = begin_comm_span(
+                    func_name,
+                    group_rank=group_rank,
+                    group_size=group_size,
+                    participate_ranks=participate_ranks,
+                    tensor_shape=tensor_shape,
+                    tensor_dtype=tensor_dtype,
+                    nbytes=nbytes,
+                    async_op=bool(kwargs.get("async_op", False)),
+                )
 
-            self.global_rank = dist.get_rank()
-
-            is_async = kwargs.get("async_op", False)
-            if is_async:
+            if kwargs.get("async_op", False):
                 work = orig_func(*args, **kwargs)
-
                 return TimedWork(
-                    work, start_time, func_name, data_size, tensor_info, self
+                    work, start_time, self, func_name, args, kwargs, cm, meta
                 )
-            else:
-                work = orig_func(*args, **kwargs)
 
-                if self.has_cuda:
-                    _cuda_sync()
-
-                end_time = time.perf_counter()
-                duration = end_time - start_time
-
-                trace_entry = self.create_trace_entry(
-                    func_name, start_time, duration, tensor_info
-                )
-                self.trace_data.append(trace_entry)
-
-                # Print trace information
-                self._log(
-                    f"[TRACE] I am {self.my_rank} && in GROUP_{self.participate_ranks} - {func_name} - Shape: {tensor_info['shape']}, "
-                    f"Dtype: {tensor_info['dtype']}, Size: {tensor_info['size']/1024/1024:.2f} MB, "
-                    f"Duration: {duration*1e3:.3f} ms, "
-                    f"size of coll is {self.my_size}  where the global rank is {self.global_rank}"
-                )
-                return work
+            work = orig_func(*args, **kwargs)
+            self._maybe_sync()
+            self._finalize_collective(
+                func_name, start_time, args, kwargs, cm=cm, meta=meta
+            )
+            return work
 
         return wrapper
 
     def _extract_tensor_info(self, args, kwargs):
-        """sub function to extract tensor information from arguments."""
         tensor = None
 
-        # Try to find a tensor in positional arguments
         for arg in args:
             if isinstance(arg, torch.Tensor):
                 tensor = arg
                 break
 
-        # If not found, try to find a tensor in keyword arguments
         if tensor is None:
-            for key, value in kwargs.items():
+            for value in kwargs.values():
                 if isinstance(value, torch.Tensor):
                     tensor = value
                     break
 
-        # If still not found, check if the first argument is an object with a tensor attribute
         if tensor is None and args:
             first_arg = args[0]
             for attr in dir(first_arg):
@@ -292,7 +373,7 @@ class CollectiveTracer:
                     if isinstance(value, torch.Tensor):
                         tensor = value
                         break
-                except:
+                except Exception:
                     continue
 
         if tensor is None:

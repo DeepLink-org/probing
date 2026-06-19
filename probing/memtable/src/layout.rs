@@ -218,7 +218,7 @@ pub(crate) fn col_desc_mut(buf: &mut [u8], col: usize) -> &mut ColumnDesc {
 // ── chunk header accessor ───────────────────────────────────────────
 
 pub(crate) fn chunk_header(buf: &[u8], cs: usize) -> &ChunkHeader {
-    debug_assert!(cs % 8 == 0 && buf.len() >= cs + CHUNK_HEADER_SIZE);
+    debug_assert!(cs.is_multiple_of(8) && buf.len() >= cs + CHUNK_HEADER_SIZE);
     unsafe { &*(buf[cs..].as_ptr() as *const ChunkHeader) }
 }
 
