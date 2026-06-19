@@ -67,7 +67,7 @@ pub fn compute_frame_deltas(
         .filter(|d| d.delta != 0)
         .collect();
 
-    deltas.sort_by(|a, b| b.delta.unsigned_abs().cmp(&a.delta.unsigned_abs()));
+    deltas.sort_by_key(|b| std::cmp::Reverse(b.delta.unsigned_abs()));
     deltas.truncate(30);
     deltas
 }

@@ -48,7 +48,7 @@ fn task_panel_style(trigger_id: &str) -> String {
 #[component]
 pub fn SidebarTaskQueue() -> Element {
     let mut show_panel = use_signal(|| false);
-    let mut panel_style = use_signal(|| String::new());
+    let mut panel_style = use_signal(String::new);
     let _tick = UI_TASK_TICK.read();
     let sidebar_width = *SIDEBAR_WIDTH.read();
     let tasks = ui_tasks_snapshot();

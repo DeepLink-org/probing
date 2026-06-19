@@ -26,5 +26,5 @@ pub struct FloatingResult {
 
 pub static COMMAND_PANEL_OPEN: GlobalSignal<bool> = Signal::global(|| false);
 pub static SHORTCUTS_HELP_OPEN: GlobalSignal<bool> = Signal::global(|| false);
-pub static COMMAND_INPUT: GlobalSignal<String> = Signal::global(|| String::new());
+pub static COMMAND_INPUT: GlobalSignal<String> = Signal::global(String::new);
 pub static EVAL_HISTORY: GlobalSignal<Vec<Cell>> = Signal::global(Vec::new);

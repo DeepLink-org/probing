@@ -173,7 +173,7 @@ fn aggregate_step_samples(rows: &[RawStepRow], window: usize) -> Vec<StepDuratio
     }
 
     let mut out = Vec::new();
-    for (rank, mut indices) in by_rank {
+    for (_rank, mut indices) in by_rank {
         indices.sort_by_key(|&i| rows[i].start_time);
 
         let preferred: Vec<usize> = indices

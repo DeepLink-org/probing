@@ -171,17 +171,17 @@ pub fn zoom_fracs(model: &TimelineModel, range: &TimeRange) -> (f64, f64) {
     (lo, hi)
 }
 
-pub fn find_slice_in_model<'a>(
-    model: &'a TimelineModel,
+pub fn find_slice_in_model(
+    model: &TimelineModel,
     key: SliceKey,
-) -> Option<&'a TimelineSlice> {
+) -> Option<&TimelineSlice> {
     model
         .tracks
         .iter()
         .find_map(|track| find_slice_in_list(&track.slices, key))
 }
 
-fn find_slice_in_list<'a>(slices: &'a [TimelineSlice], key: SliceKey) -> Option<&'a TimelineSlice> {
+fn find_slice_in_list(slices: &[TimelineSlice], key: SliceKey) -> Option<&TimelineSlice> {
     for slice in slices {
         if SliceKey::from_slice(slice) == key {
             return Some(slice);

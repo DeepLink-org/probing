@@ -181,7 +181,7 @@ impl ApiClient {
         };
 
         // Use snake_case column names (DataFusion lowercases unquoted aliases).
-        let queries = vec![
+        let queries = [
             format!(
                 "SELECT function_name, filename, lineno, variable_name, value, value_type, timestamp FROM python.trace_variables{} ORDER BY timestamp DESC{}",
                 where_clause, limit_clause

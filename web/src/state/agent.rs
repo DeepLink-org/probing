@@ -153,18 +153,13 @@ pub fn clear_agent_messages() {
 }
 
 /// Agent side panel width relative to the main workspace (when open).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum AgentPanelWidth {
     #[serde(rename = "third")]
+    #[default]
     Third,
     #[serde(rename = "two_thirds")]
     TwoThirds,
-}
-
-impl Default for AgentPanelWidth {
-    fn default() -> Self {
-        Self::Third
-    }
 }
 
 impl AgentPanelWidth {

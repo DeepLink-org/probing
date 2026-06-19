@@ -106,7 +106,7 @@ fn fill_input_and_close(command: String) {
 /// Global Command Panel overlay. On select: fill input, close. Arrow keys to navigate, Enter to confirm.
 #[component]
 pub fn GlobalCommandPanel() -> Element {
-    let mut panel_query = use_signal(|| String::new());
+    let mut panel_query = use_signal(String::new);
     let mut highlight_idx = use_signal(|| 0usize);
 
     let magics_state = use_api(move || {
@@ -236,7 +236,7 @@ pub fn CommandBar(on_execute_done: EventHandler<FloatingResult>) -> Element {
                 Ok(resp) => {
                     let mut text = resp.output;
                     if !resp.traceback.is_empty() {
-                        text.push_str("\n");
+                        text.push('\n');
                         text.push_str(&resp.traceback.join("\n"));
                     }
                     EvalState {

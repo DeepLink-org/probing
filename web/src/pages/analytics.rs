@@ -66,9 +66,9 @@ fn example_sql(global_mode: bool) -> &'static str {
 #[component]
 pub fn Analytics() -> Element {
     let global_mode = use_signal(|| false);
-    let mut sql = use_signal(|| String::new());
+    let mut sql = use_signal(String::new);
     let mut selected_table = use_signal(|| None::<String>);
-    let mut preview_title = use_signal(|| String::new());
+    let mut preview_title = use_signal(String::new);
     let mut preview_open = use_signal(|| false);
     let mut preview =
         use_action(

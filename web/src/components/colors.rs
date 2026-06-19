@@ -7,6 +7,7 @@
 // - Accent color: blue (consistent with sidebar, maintains visual unity)
 
 #[allow(dead_code)]
+#[allow(clippy::module_inception)]
 pub mod colors {
     pub const PRIMARY: &str = "blue-600";
     pub const PRIMARY_HOVER: &str = "blue-700";

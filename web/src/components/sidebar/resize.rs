@@ -25,16 +25,15 @@ pub fn ResizeHandle() -> Element {
             class: "{drag_handle_class}",
             onmousedown: move |ev| {
                 *is_resizing.write() = true;
-                *drag_start_x.write() = ev.element_coordinates().x as f64;
+                *drag_start_x.write() = ev.element_coordinates().x;
                 *drag_start_width.write() = *SIDEBAR_WIDTH.read();
                 ev.prevent_default();
             },
             onmousemove: move |ev| {
                 if *is_resizing.read() {
-                    let current_x = ev.element_coordinates().x as f64;
+                    let current_x = ev.element_coordinates().x;
                     let delta_x = current_x - *drag_start_x.read();
-                    let new_width =
-                        (*drag_start_width.read() + delta_x).max(200.0).min(600.0);
+                    let new_width = (*drag_start_width.read() + delta_x).clamp(200.0, 600.0);
                     *SIDEBAR_WIDTH.write() = new_width;
                 }
             },

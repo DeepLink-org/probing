@@ -506,7 +506,7 @@ fn span_row(fs: &FlatSpan, trace_start: i64, trace_range: f64, idx: usize) -> El
         "error" => ("bg-red-200", "bg-red-500"),
         _ => ("bg-blue-200", "bg-blue-500"),
     };
-    let row_bg = if idx % 2 == 0 {
+    let row_bg = if idx.is_multiple_of(2) {
         "bg-white"
     } else {
         "bg-gray-50/30"

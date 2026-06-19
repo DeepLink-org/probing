@@ -18,6 +18,7 @@ pub fn StartTraceDialog(
     on_close: EventHandler<()>,
     on_started: EventHandler<()>,
 ) -> Element {
+    #[allow(clippy::redundant_closure)]
     let mut local = use_signal(|| draft());
     let mut start_trace = use_action(
         move |(function, watch, print_to_terminal): (String, String, bool)| async move {

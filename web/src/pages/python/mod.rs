@@ -31,7 +31,7 @@ pub fn Python() -> Element {
         print_to_terminal: false,
     });
     let mut records_open = use_signal(|| false);
-    let mut records_function = use_signal(|| String::new());
+    let mut records_function = use_signal(String::new);
 
     let open_records = EventHandler::new(move |func: String| {
         records_function.set(func);

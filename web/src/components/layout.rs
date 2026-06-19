@@ -76,11 +76,7 @@ pub fn AppLayout(children: Element, #[props(default = false)] fullscreen: bool) 
                 div {
                     class: "flex-1 min-h-0 relative overflow-hidden",
                     main {
-                        class: if fullscreen {
-                            "absolute inset-0 overflow-y-auto p-4 sm:p-6 bg-gray-50 min-w-0"
-                        } else {
-                            "absolute inset-0 overflow-y-auto p-4 sm:p-6 bg-gray-50 min-w-0"
-                        },
+                        class: "absolute inset-0 overflow-y-auto p-4 sm:p-6 bg-gray-50 min-w-0",
                         if fullscreen {
                             div { class: "w-full h-full min-h-0", {children} }
                         } else {

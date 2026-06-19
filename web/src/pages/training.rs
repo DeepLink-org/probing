@@ -916,9 +916,11 @@ fn dataframe_rows(df: &probing_proto::prelude::DataFrame) -> usize {
     df.cols.first().map(|c| c.len()).unwrap_or(0)
 }
 
+type HeatmapData = (Vec<i32>, Vec<i64>, HashMap<(i32, i64), HeatCell>, f64);
+
 fn build_heatmap(
     samples: &[StepDurationSample],
-) -> (Vec<i32>, Vec<i64>, HashMap<(i32, i64), HeatCell>, f64) {
+) -> HeatmapData {
     let mut rank_set = HashSet::new();
     let mut step_set = HashSet::new();
     let mut raw: HashMap<(i32, i64), f64> = HashMap::new();
@@ -1280,7 +1282,7 @@ fn render_module_hotspots(
     let row_count = modules
         .as_ref()
         .ok()
-        .map(|df| dataframe_rows(df))
+        .map(dataframe_rows)
         .unwrap_or(0);
 
     rsx! {

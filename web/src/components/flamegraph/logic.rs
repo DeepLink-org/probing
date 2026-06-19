@@ -43,7 +43,7 @@ pub fn ancestor_ids(by_id: &HashMap<usize, FlameFrame>, id: usize) -> Vec<usize>
 pub fn classic_color(name: &str, depth: usize) -> String {
     let mut h = 0u32;
     for b in name.bytes() {
-        h = (h * 37 + b as u32) >> 0;
+        h = h.wrapping_mul(37).wrapping_add(b as u32);
     }
     let r = (205 + (h % 55)) % 256;
     let g = (40 + ((h >> 8) % 120)) % 256;
