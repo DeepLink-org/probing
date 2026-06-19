@@ -1764,8 +1764,9 @@
 </span></code></pre></div></p>
 </li>
 <li>
-<p><strong>等待数据收集</strong>：
-   表在操作发生时填充。先运行一些训练步骤。</p>
+<p><strong>等待数据写入</strong>：
+   表在训练进行时填充。先运行若干训练 step。
+   TorchProbe 第一个 step 为 discovery（无行）；必要时使用 <code>WHERE step &gt; 1</code>。</p>
 </li>
 </ol>
 <h3 id="_7">结果为空<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h3>
@@ -1819,18 +1820,25 @@
 <p><strong>解决方案</strong>：</p>
 <ol>
 <li>
-<p><strong>降低采样率</strong>：
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>config<span class="w"> </span>probing.sample_rate<span class="o">=</span><span class="m">0</span>.01
+<p><strong>降低 TorchProbe 采样</strong>（无全局 sample_rate 开关）：
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span>ordered:0.1<span class="w"> </span>python<span class="w"> </span>your_script.py
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="c1"># 或运行时：set probing.torch.profiling=ordered:0.1;</span>
 </span></code></pre></div></p>
 </li>
 <li>
-<p><strong>禁用未使用的功能</strong>：
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span>off<span class="w"> </span>python<span class="w"> </span>your_script.py
+<p><strong>降低 CPU pprof 频率</strong>：
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>config<span class="w"> </span>probing.pprof.sample_freq<span class="o">=</span><span class="m">50</span>
 </span></code></pre></div></p>
 </li>
 <li>
-<p><strong>使用针对性分析</strong>：
-   只为特定模块或操作启用分析。</p>
+<p><strong>不需要时关闭 torch profiling</strong>：
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span>off<span class="w"> </span>python<span class="w"> </span>your_script.py
+</span></code></pre></div></p>
+</li>
+<li>
+<p><strong>用 SQL 过滤 step</strong>，而非 warmup schedule：
+   <div class="language-sql highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
+</span></code></pre></div></p>
 </li>
 </ol>
 <h3 id="_11">查询超时<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h3>
@@ -1839,17 +1847,17 @@
 <ol>
 <li>
 <p><strong>添加 LIMIT 子句</strong>：
-   <div class="language-sql highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">100</span><span class="p">;</span>
+   <div class="language-sql highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">100</span><span class="p">;</span>
 </span></code></pre></div></p>
 </li>
 <li>
 <p><strong>使用步骤过滤</strong>：
-   <div class="language-sql highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="k">MAX</span><span class="p">(</span><span class="n">step</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">10</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span><span class="p">)</span>
+   <div class="language-sql highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="k">MAX</span><span class="p">(</span><span class="n">step</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">10</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span><span class="p">)</span>
 </span></code></pre></div></p>
 </li>
 <li>
 <p><strong>聚合数据</strong>：
-   <div class="language-sql highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">step</span><span class="p">,</span><span class="w"> </span><span class="k">AVG</span><span class="p">(</span><span class="n">duration</span><span class="p">)</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span><span class="w"> </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">step</span><span class="p">;</span>
+   <div class="language-sql highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">step</span><span class="p">,</span><span class="w"> </span><span class="k">AVG</span><span class="p">(</span><span class="n">duration</span><span class="p">)</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span><span class="w"> </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">step</span><span class="p">;</span>
 </span></code></pre></div></p>
 </li>
 </ol>
@@ -1858,9 +1866,9 @@
 <ol>
 <li>
 <p><strong>检查日志</strong>：
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="s2">import logging</span>
-</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="s2">logging.basicConfig(level=logging.DEBUG)&quot;</span>
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
+</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="s2">import logging</span>
+</span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="s2">logging.basicConfig(level=logging.DEBUG)&quot;</span>
 </span></code></pre></div></p>
 </li>
 <li>
@@ -1869,9 +1877,9 @@
 </li>
 <li>
 <p><strong>包含诊断信息</strong>：
-   <div class="language-bash highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>probing<span class="w"> </span>--version
-</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>python<span class="w"> </span>--version
-</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>uname<span class="w"> </span>-a
+   <div class="language-bash highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>probing<span class="w"> </span>--version
+</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>python<span class="w"> </span>--version
+</span><span id="__span-22-3"><a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>uname<span class="w"> </span>-a
 </span></code></pre></div></p>
 </li>
 </ol>

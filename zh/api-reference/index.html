@@ -1930,7 +1930,7 @@
 <tr>
 <td>stage</td>
 <td>string</td>
-<td>forward/backward/step</td>
+<td>钩子标签：<code>pre forward</code>、<code>post forward</code>、<code>pre step</code>、<code>post step</code>（时长在 post 行；默认不采 backward）</td>
 </tr>
 <tr>
 <td>allocated</td>
@@ -1938,9 +1938,29 @@
 <td>GPU 内存 (MB)</td>
 </tr>
 <tr>
+<td>max_allocated</td>
+<td>float</td>
+<td>GPU 峰值内存 (MB)</td>
+</tr>
+<tr>
+<td>cached</td>
+<td>float</td>
+<td>GPU 预留内存 (MB)</td>
+</tr>
+<tr>
+<td>max_cached</td>
+<td>float</td>
+<td>峰值预留 (MB)</td>
+</tr>
+<tr>
+<td>time_offset</td>
+<td>float</td>
+<td>相对 step 时间锚点（秒）</td>
+</tr>
+<tr>
 <td>duration</td>
 <td>float</td>
-<td>执行时间 (秒)</td>
+<td>执行时间 (秒)；post 行有效</td>
 </tr>
 </tbody>
 </table>
@@ -1955,24 +1975,14 @@
 </thead>
 <tbody>
 <tr>
-<td><code>probing.sample_rate</code></td>
-<td>1.0</td>
-<td>采样率 (0.0-1.0)</td>
+<td><code>probing.torch.profiling</code></td>
+<td>—</td>
+<td>TorchProbe 配置（<code>on</code>、<code>ordered:0.5</code>、<code>random:0.1</code> 等）</td>
 </tr>
 <tr>
-<td><code>probing.buffer_size</code></td>
-<td>10000</td>
-<td>环形缓冲区大小</td>
-</tr>
-<tr>
-<td><code>probing.server.port</code></td>
-<td>0</td>
-<td>TCP 端口 (0=仅 Unix socket)</td>
-</tr>
-<tr>
-<td><code>probing.torch.enabled</code></td>
-<td>true</td>
-<td>启用 PyTorch 追踪</td>
+<td><code>probing.pprof.sample_freq</code></td>
+<td>—</td>
+<td>CPU pprof 采样频率 (Hz)</td>
 </tr>
 </tbody>
 </table>
@@ -1995,11 +2005,11 @@
 </tr>
 <tr>
 <td><code>PROBING_TORCH_PROFILING</code></td>
-<td>PyTorch 分析 (on/off)</td>
+<td>TorchProbe（<code>on</code>、<code>ordered:0.5</code>、<code>random:0.1</code>、<code>tracepy=on</code> 等）</td>
 </tr>
 <tr>
-<td><code>PROBING_SAMPLE_RATE</code></td>
-<td>默认采样率</td>
+<td><code>PROBING_PPROF_SAMPLE_FREQ</code></td>
+<td>同步为 <code>probing.pprof.sample_freq</code>（CPU pprof Hz）</td>
 </tr>
 <tr>
 <td><code>PROBING_AUTH_TOKEN</code></td>
