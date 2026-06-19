@@ -3,7 +3,8 @@ use dioxus::prelude::*;
 use crate::components::flamegraph::diff::{compute_frame_deltas, FrameDelta};
 use crate::components::flamegraph::FlamegraphPayload;
 use crate::state::profile_snapshots::{
-    push_profile_snapshot, snapshot_label, ProfileSnapshot, PROFILE_DIFF_BASELINE, PROFILE_SNAPSHOTS,
+    push_profile_snapshot, snapshot_label, ProfileSnapshot, PROFILE_DIFF_BASELINE,
+    PROFILE_SNAPSHOTS,
 };
 
 #[component]

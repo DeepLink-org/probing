@@ -160,8 +160,8 @@ impl ProbeClusterExecutor {
             expr: sql.to_string(),
             ..Default::default()
         });
-        let body = serde_json::to_string(&request)
-            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+        let body =
+            serde_json::to_string(&request).map_err(|e| DataFusionError::External(Box::new(e)))?;
         let addr_owned = addr.to_string();
         let response = ureq::post(&url)
             .config()
@@ -181,8 +181,8 @@ impl ProbeClusterExecutor {
             )));
         }
 
-        let msg: Message<QueryDataFormat> = serde_json::from_str(&text)
-            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+        let msg: Message<QueryDataFormat> =
+            serde_json::from_str(&text).map_err(|e| DataFusionError::External(Box::new(e)))?;
         match msg.payload {
             QueryDataFormat::DataFrame(df) => Ok(df),
             QueryDataFormat::Nil => Ok(DataFrame::default()),

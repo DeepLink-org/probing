@@ -1,5 +1,11 @@
 use std::sync::Arc;
 
+use super::cluster_executor::{reset_fanout_stats, ProbeClusterExecutor};
+use super::convert::{
+    cluster_rank_for_endpoint, extend_projection_with_probe_tags, federated_output_schema,
+};
+use super::federated_scan_exec::FederatedScanExec;
+use super::sql_gen::build_remote_table_sql;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::catalog::Session;
@@ -9,12 +15,6 @@ use datafusion::error::Result;
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown};
 use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
 use datafusion::physical_plan::ExecutionPlan;
-use super::cluster_executor::{reset_fanout_stats, ProbeClusterExecutor};
-use super::convert::{
-    cluster_rank_for_endpoint, extend_projection_with_probe_tags, federated_output_schema,
-};
-use super::federated_scan_exec::FederatedScanExec;
-use super::sql_gen::build_remote_table_sql;
 
 /// Ensure federated scans always expose node tag columns (`_addr`, `_rank`, …).
 fn federated_scan_projection(
@@ -101,8 +101,7 @@ impl TableProvider for GlobalFederatedTable {
             .local
             .scan(state, local_projection.as_ref(), filters, limit)
             .await?;
-        let local_plan: Arc<dyn ExecutionPlan> =
-            Arc::new(CoalescePartitionsExec::new(local_plan));
+        let local_plan: Arc<dyn ExecutionPlan> = Arc::new(CoalescePartitionsExec::new(local_plan));
 
         let host = ProbeClusterExecutor::local_host_label();
         let addr = ProbeClusterExecutor::local_addr_label();

@@ -1,5 +1,8 @@
 //! Self-describing row-oriented memory table with chunked ring buffer.
-#![cfg_attr(test, allow(clippy::approx_constant, clippy::unnecessary_cast, clippy::identity_op))]
+#![cfg_attr(
+    test,
+    allow(clippy::approx_constant, clippy::unnecessary_cast, clippy::identity_op)
+)]
 //!
 //! Rows are **variable-length** with `u32` length prefixes for fast scanning.
 //! Chunks are fixed-size byte blocks; rows are packed sequentially within each chunk.

@@ -27,9 +27,7 @@ use datafusion::physical_plan::{
 use futures::StreamExt;
 use probing_proto::prelude::{DataFrame, Node};
 
-use super::cluster_executor::{
-    record_fanout_failure, record_fanout_success, ProbeClusterExecutor,
-};
+use super::cluster_executor::{record_fanout_failure, record_fanout_success, ProbeClusterExecutor};
 use super::convert::{align_batch_to_schema, dataframe_to_record_batch, tag_record_batch};
 
 /// Federated scan plan combining the local table with lazily fetched peers.
@@ -110,10 +108,7 @@ impl FederatedScanExec {
         )))
     }
 
-    fn execute_remote(
-        &self,
-        node_index: usize,
-    ) -> Result<SendableRecordBatchStream> {
+    fn execute_remote(&self, node_index: usize) -> Result<SendableRecordBatchStream> {
         let node = self.remote_nodes.get(node_index).ok_or_else(|| {
             DataFusionError::Internal(format!(
                 "FederatedScanExec: no peer node at index {node_index}"
@@ -208,7 +203,11 @@ fn finalize_remote_dataframe(
     if batch.num_rows() == 0 {
         return Ok(None);
     }
-    Ok(Some(finalize_aligned_batch(batch, full_schema, projection)?))
+    Ok(Some(finalize_aligned_batch(
+        batch,
+        full_schema,
+        projection,
+    )?))
 }
 
 impl DisplayAs for FederatedScanExec {

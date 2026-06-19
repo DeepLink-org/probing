@@ -10,11 +10,11 @@ use crate::api::ApiClient;
 use crate::components::icon::Icon;
 use crate::components::workspace::{AccentSurface, ChipButton, SurfaceCardBody, SurfaceIconHeader};
 use crate::hooks::use_app_resource;
-use crate::state::ui_tasks::ui_agent_busy;
 use crate::state::source_viewer::{
     close_source_viewer, open_source_viewer, unlock_body_scroll, SOURCE_VIEWER_OPEN,
     SOURCE_VIEWER_TARGET,
 };
+use crate::state::ui_tasks::ui_agent_busy;
 use crate::utils::source_ref::{
     file_display_name, language_class, slice_source, SourceSlice, DEFAULT_SOURCE_CONTEXT,
 };
@@ -477,6 +477,5 @@ fn slice_range_label(slice: &SourceSlice) -> String {
 }
 
 fn line_label(line: Option<u32>) -> String {
-    line.map(|l| format!(":{l}"))
-        .unwrap_or_default()
+    line.map(|l| format!(":{l}")).unwrap_or_default()
 }

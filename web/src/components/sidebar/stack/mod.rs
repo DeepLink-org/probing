@@ -1,7 +1,7 @@
 //! Stack controls in the left sidebar — collapsible like Profiling.
 
 use dioxus::prelude::*;
-use dioxus_router::{Link, use_route};
+use dioxus_router::{use_route, Link};
 
 use crate::app::Route;
 use crate::components::colors::colors;

@@ -5,7 +5,11 @@ use probing_proto::prelude::*;
 /// Activity analysis API
 impl ApiClient {
     /// Get call stack with mode: mode = py | cpp | mixed
-    pub async fn get_callstack_with_mode(&self, tid: Option<String>, mode: &str) -> Result<Vec<CallFrame>> {
+    pub async fn get_callstack_with_mode(
+        &self,
+        tid: Option<String>,
+        mode: &str,
+    ) -> Result<Vec<CallFrame>> {
         let mode = match mode {
             "py" | "cpp" | "mixed" => mode,
             _ => "mixed",

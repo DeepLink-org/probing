@@ -61,8 +61,7 @@ pub struct ProfilingFeedback {
     pub is_error: bool,
 }
 
-pub static PROFILING_FEEDBACK: GlobalSignal<Option<ProfilingFeedback>> =
-    Signal::global(|| None);
+pub static PROFILING_FEEDBACK: GlobalSignal<Option<ProfilingFeedback>> = Signal::global(|| None);
 
 pub fn show_profiling_feedback(message: impl Into<String>, is_error: bool) {
     *PROFILING_FEEDBACK.write() = Some(ProfilingFeedback {

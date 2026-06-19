@@ -767,10 +767,12 @@ mod tests {
         engine.enable(plugin).await?;
 
         // Run multiple queries concurrently
-        let queries = ["SELECT * FROM test_namespace.test_table WHERE id = 1",
+        let queries = [
+            "SELECT * FROM test_namespace.test_table WHERE id = 1",
             "SELECT * FROM test_namespace.test_table WHERE id = 2",
             "SELECT * FROM test_namespace.test_table WHERE id = 3",
-            "SELECT COUNT(*) FROM test_namespace.test_table"];
+            "SELECT COUNT(*) FROM test_namespace.test_table",
+        ];
 
         let handles: Vec<_> = queries
             .iter()
@@ -908,9 +910,10 @@ mod tests {
         fn schema_names(&self) -> Vec<String> {
             let mut names = self.inner.schema_names();
             if self.has_dynamic.load(std::sync::atomic::Ordering::Relaxed)
-                && !names.contains(&"dynamic_sch".to_string()) {
-                    names.push("dynamic_sch".to_string());
-                }
+                && !names.contains(&"dynamic_sch".to_string())
+            {
+                names.push("dynamic_sch".to_string());
+            }
             names
         }
 

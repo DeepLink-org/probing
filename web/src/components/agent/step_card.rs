@@ -10,10 +10,10 @@ use crate::components::colors::colors;
 use crate::components::dataframe_view::DataFrameView;
 use crate::components::markdown_view::MarkdownView;
 use crate::components::source_viewer::SourceRefChip;
+use crate::components::stat_card::StatCard;
 use crate::components::workspace::{
     AccentSurface, StatusBadge, SurfaceCardBody, SurfaceIconHeader,
 };
-use crate::components::stat_card::StatCard;
 use crate::state::agent::{AgentStepCardData, AgentStepKind, AgentStepStatus};
 use crate::state::investigation::apply_context_from_dataframe_row;
 use crate::utils::source_ref::{extract_source_refs, parse_files_api_path};
@@ -241,14 +241,9 @@ pub fn AgentStepCard(step: AgentStepCardData) -> Element {
         .as_ref()
         .map(|v| agent_view_label(v))
         .unwrap_or_default();
-    let nav_route = navigate_view
-        .as_ref()
-        .map(|v| agent_view_to_route(v));
+    let nav_route = navigate_view.as_ref().map(|v| agent_view_to_route(v));
 
-    let files_api_path = step
-        .api_path
-        .as_ref()
-        .and_then(|p| parse_files_api_path(p));
+    let files_api_path = step.api_path.as_ref().and_then(|p| parse_files_api_path(p));
     let body_source_refs = extract_source_refs(&step.body_text);
 
     rsx! {

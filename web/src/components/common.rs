@@ -59,10 +59,7 @@ pub fn EmptyState(message: String) -> Element {
 
 /// Wraps [`SuspenseBoundary`] with the shared [`LoadingState`] spinner.
 #[component]
-pub fn AsyncBoundary(
-    #[props(optional)] message: Option<String>,
-    children: Element,
-) -> Element {
+pub fn AsyncBoundary(#[props(optional)] message: Option<String>, children: Element) -> Element {
     let msg = message;
     rsx! {
         SuspenseBoundary {

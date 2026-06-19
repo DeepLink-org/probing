@@ -1,7 +1,7 @@
 use super::ApiClient;
 use crate::utils::error::Result;
-use serde::{Deserialize, Serialize};
 use probing_proto::prelude::DataFrame;
+use serde::{Deserialize, Serialize};
 
 /// Trace API response structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,7 +49,10 @@ impl ApiClient {
     pub async fn get_traceable_functions(&self, prefix: Option<&str>) -> Result<Vec<String>> {
         let items = self.get_traceable_items(prefix).await?;
         // Convert to old format for backward compatibility
-        Ok(items.iter().map(|item| format!("[{}] {}", item.item_type, item.name)).collect())
+        Ok(items
+            .iter()
+            .map(|item| format!("[{}] {}", item.item_type, item.name))
+            .collect())
     }
 
     /// Get list of traceable items (always includes variable information)
@@ -70,24 +73,27 @@ impl ApiClient {
 
         // Fallback to old format (list of strings)
         let strings: Vec<String> = Self::parse_json(&response)?;
-        Ok(strings.iter().map(|s| {
-            // Parse "[TYPE] name" format
-            if let Some(bracket_end) = s.find(']') {
-                let item_type = s[1..bracket_end].to_string();
-                let name = s[bracket_end + 2..].to_string();
-                TraceableItem {
-                    name,
-                    item_type,
-                    variables: vec![],
+        Ok(strings
+            .iter()
+            .map(|s| {
+                // Parse "[TYPE] name" format
+                if let Some(bracket_end) = s.find(']') {
+                    let item_type = s[1..bracket_end].to_string();
+                    let name = s[bracket_end + 2..].to_string();
+                    TraceableItem {
+                        name,
+                        item_type,
+                        variables: vec![],
+                    }
+                } else {
+                    TraceableItem {
+                        name: s.clone(),
+                        item_type: "".to_string(),
+                        variables: vec![],
+                    }
                 }
-            } else {
-                TraceableItem {
-                    name: s.clone(),
-                    item_type: "".to_string(),
-                    variables: vec![],
-                }
-            }
-        }).collect())
+            })
+            .collect())
     }
 
     /// Get current trace status (returns list of traced function names)
@@ -202,8 +208,9 @@ impl ApiClient {
 
         // If all queries failed, return error
         Err(last_err.unwrap_or_else(|| {
-            crate::utils::error::AppError::Api("Failed to query python.trace_variables table".to_string())
+            crate::utils::error::AppError::Api(
+                "Failed to query python.trace_variables table".to_string(),
+            )
         }))
     }
-
 }

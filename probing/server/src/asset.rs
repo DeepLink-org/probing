@@ -194,10 +194,7 @@ fn rewrite_html_paths(html: &str, base_path: &str) -> String {
 }
 
 /// Handler for serving static files
-pub async fn static_files(
-    uri: Uri,
-    headers: HeaderMap,
-) -> Result<Response, StatusCode> {
+pub async fn static_files(uri: Uri, headers: HeaderMap) -> Result<Response, StatusCode> {
     let path = uri.path();
     if !contains(path) {
         return Err(StatusCode::NOT_FOUND);
@@ -229,16 +226,12 @@ pub async fn static_files(
 #[cfg(test)]
 mod tests {
     use super::{
-        accepts_brotli, cache_control, get_content_type, is_content_hashed,
-        normalize_asset_path,
+        accepts_brotli, cache_control, get_content_type, is_content_hashed, normalize_asset_path,
     };
 
     #[test]
     fn normalize_dioxus_asset_paths() {
-        assert_eq!(
-            normalize_asset_path("/./assets/web.js"),
-            "assets/web.js"
-        );
+        assert_eq!(normalize_asset_path("/./assets/web.js"), "assets/web.js");
         assert_eq!(
             normalize_asset_path("/assets/web_bg.wasm"),
             "assets/web_bg.wasm"

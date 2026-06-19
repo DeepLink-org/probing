@@ -185,7 +185,10 @@ async fn fetch_trace_preview(function: &str) -> Result<Vec<VariableRecord>, AppE
     Ok(filter_records_for_function(all, function))
 }
 
-fn filter_records_for_function(records: Vec<VariableRecord>, function: &str) -> Vec<VariableRecord> {
+fn filter_records_for_function(
+    records: Vec<VariableRecord>,
+    function: &str,
+) -> Vec<VariableRecord> {
     let short = function.rsplit('.').next().unwrap_or(function);
     records
         .into_iter()

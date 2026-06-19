@@ -147,7 +147,12 @@ async fn broadcast_fanout_query(sql: &str) -> anyhow::Result<FanoutQueryResponse
     let host = local_host_label();
     let addr = local_addr_label();
     let local_rank = probing_core::core::federation::cluster_rank_for_endpoint(&host, &addr);
-    let mut parts = vec![tag_dataframe(query_local_df(sql).await?, &host, &addr, local_rank)];
+    let mut parts = vec![tag_dataframe(
+        query_local_df(sql).await?,
+        &host,
+        &addr,
+        local_rank,
+    )];
     let mut nodes_queried = 1usize;
     let mut nodes_failed = Vec::new();
 
@@ -288,11 +293,7 @@ mod tests {
         let merged = merge_tagged_dataframes(&[local, remote]);
         assert_eq!(merged.len(), 2);
         assert_eq!(merged.names.len(), 4);
-        let host_col = merged
-            .names
-            .iter()
-            .position(|n| n == "_host")
-            .unwrap();
+        let host_col = merged.names.iter().position(|n| n == "_host").unwrap();
         assert_eq!(merged.cols[host_col].get_str(0).as_deref(), Some("host-a"));
         assert_eq!(merged.cols[host_col].get_str(1).as_deref(), Some("host-b"));
     }

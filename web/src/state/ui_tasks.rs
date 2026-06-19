@@ -130,7 +130,11 @@ fn trim_tasks(state: &mut UiTaskState) {
 
 fn settle_task(id: u64, status: UiTaskStatus, error: Option<String>) {
     let mut state = UI_TASKS.write();
-    if let Some(task) = state.tasks.iter_mut().find(|t| t.id == id && t.is_running()) {
+    if let Some(task) = state
+        .tasks
+        .iter_mut()
+        .find(|t| t.id == id && t.is_running())
+    {
         task.status = status;
         task.finished_ms = Some(now_ms());
         task.error = error;
@@ -222,7 +226,13 @@ impl UiTaskSession {
         label: impl Into<String>,
         detail: Option<String>,
     ) -> UiTaskHandle {
-        open_ui_task_inner(kind, label, detail, Some(self.group_id), Some(self.cancel.clone()))
+        open_ui_task_inner(
+            kind,
+            label,
+            detail,
+            Some(self.group_id),
+            Some(self.cancel.clone()),
+        )
     }
 }
 
@@ -354,7 +364,12 @@ pub fn clear_finished_ui_tasks() {
 }
 
 pub fn running_ui_task_count() -> usize {
-    UI_TASKS.read().tasks.iter().filter(|t| t.is_running()).count()
+    UI_TASKS
+        .read()
+        .tasks
+        .iter()
+        .filter(|t| t.is_running())
+        .count()
 }
 
 pub fn any_ui_task_running() -> bool {

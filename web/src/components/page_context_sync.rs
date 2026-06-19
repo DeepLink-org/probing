@@ -3,10 +3,12 @@
 use dioxus::prelude::*;
 use dioxus_router::use_route;
 
-use crate::agent::page_tools::{describe_route, refresh_page_snapshot_for_route, refresh_page_snapshot_quiet};
+use crate::agent::page_tools::{
+    describe_route, refresh_page_snapshot_for_route, refresh_page_snapshot_quiet,
+};
 use crate::app::Route;
 use crate::state::investigation::INVESTIGATION_CONTEXT;
-use crate::state::page_context::{apply_page_descriptor, PAGE_CONTEXT, CURRENT_ROUTE};
+use crate::state::page_context::{apply_page_descriptor, CURRENT_ROUTE, PAGE_CONTEXT};
 
 #[component]
 pub fn PageContextSync() -> Element {

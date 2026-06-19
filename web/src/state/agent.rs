@@ -125,8 +125,7 @@ pub enum AgentPendingAction {
     RunPlaybook(String),
 }
 
-pub static AGENT_PENDING_ACTION: GlobalSignal<Option<AgentPendingAction>> =
-    Signal::global(|| None);
+pub static AGENT_PENDING_ACTION: GlobalSignal<Option<AgentPendingAction>> = Signal::global(|| None);
 
 pub static AGENT_ACTION_TICK: GlobalSignal<u32> = Signal::global(|| 0);
 

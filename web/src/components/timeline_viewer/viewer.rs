@@ -11,8 +11,8 @@ use crate::utils::tracing_viewer;
 
 use super::model::{SliceKey, TimelineModel, TimelineSlice, TimelineTrack};
 use super::overview::{
-    build_track_bars, find_slice_in_model, zoom_fracs, TimelineBarItem, TimelineViewState,
-    TimeRange,
+    build_track_bars, find_slice_in_model, zoom_fracs, TimeRange, TimelineBarItem,
+    TimelineViewState,
 };
 use super::parse::parse_chrome_trace;
 
@@ -118,10 +118,7 @@ pub fn TimelineViewer(
     let trace_for_shortcuts = trace_json.clone();
     let key_listener = use_hook(|| {
         Rc::new(RefCell::new(
-            None::<(
-                web_sys::Window,
-                Closure<dyn FnMut(web_sys::KeyboardEvent)>,
-            )>,
+            None::<(web_sys::Window, Closure<dyn FnMut(web_sys::KeyboardEvent)>)>,
         ))
     });
 
@@ -550,8 +547,8 @@ fn TimelineTrackRow(
 ) -> Element {
     let track_label = track.label.clone();
     let bars = build_track_bars(&track, &view_state(), &model, force_detail);
-    let is_track_selected = selected()
-        .is_some_and(|s| s.key.pid == track.pid && s.key.tid == track.tid);
+    let is_track_selected =
+        selected().is_some_and(|s| s.key.pid == track.pid && s.key.tid == track.tid);
 
     rsx! {
         div {
@@ -586,7 +583,9 @@ fn TimelineTrackRow(
 
 fn bar_key(item: &TimelineBarItem) -> String {
     match item {
-        TimelineBarItem::OverviewBucket { start_us, end_us, .. } => {
+        TimelineBarItem::OverviewBucket {
+            start_us, end_us, ..
+        } => {
             format!("bucket-{start_us}-{end_us}")
         }
         TimelineBarItem::Slice { slice, .. } => {

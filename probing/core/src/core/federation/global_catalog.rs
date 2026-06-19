@@ -66,10 +66,7 @@ impl CatalogProvider for DynamicGlobalCatalog {
         }
         let probe = self.probe_catalog()?;
         let inner = probe.schema(name)?;
-        Some(Arc::new(GlobalSchemaProvider::new(
-            name.to_string(),
-            inner,
-        )))
+        Some(Arc::new(GlobalSchemaProvider::new(name.to_string(), inner)))
     }
 }
 
@@ -82,10 +79,7 @@ struct GlobalSchemaProvider {
 
 impl GlobalSchemaProvider {
     fn new(schema_name: String, inner: Arc<dyn SchemaProvider>) -> Self {
-        Self {
-            schema_name,
-            inner,
-        }
+        Self { schema_name, inner }
     }
 }
 

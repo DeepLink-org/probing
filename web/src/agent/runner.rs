@@ -3,8 +3,8 @@
 use std::collections::HashMap;
 
 use crate::agent::cluster::{
-    default_use_global, execute_sql_for_agent, format_cluster_meta, sql_needs_cluster_fanout,
-    fetch_cluster_snapshot,
+    default_use_global, execute_sql_for_agent, fetch_cluster_snapshot, format_cluster_meta,
+    sql_needs_cluster_fanout,
 };
 use crate::agent::playbook::{build_context, expand_sql, load_playbook, Playbook, PlaybookStep};
 use crate::api::ClusterQueryMeta;

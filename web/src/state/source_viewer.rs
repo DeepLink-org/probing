@@ -9,8 +9,7 @@ pub struct SourceViewerTarget {
 }
 
 pub static SOURCE_VIEWER_OPEN: GlobalSignal<bool> = Signal::global(|| false);
-pub static SOURCE_VIEWER_TARGET: GlobalSignal<Option<SourceViewerTarget>> =
-    Signal::global(|| None);
+pub static SOURCE_VIEWER_TARGET: GlobalSignal<Option<SourceViewerTarget>> = Signal::global(|| None);
 
 pub fn open_source_viewer(path: String, line: Option<i64>) {
     *SOURCE_VIEWER_TARGET.write() = Some(SourceViewerTarget { path, line });
@@ -25,7 +24,10 @@ pub fn close_source_viewer() {
 }
 
 fn lock_body_scroll() {
-    let Some(body) = web_sys::window().and_then(|w| w.document()).and_then(|d| d.body()) else {
+    let Some(body) = web_sys::window()
+        .and_then(|w| w.document())
+        .and_then(|d| d.body())
+    else {
         return;
     };
     let _ = body.set_attribute("data-probing-scroll-lock", "1");
@@ -33,7 +35,10 @@ fn lock_body_scroll() {
 }
 
 pub fn unlock_body_scroll() {
-    let Some(body) = web_sys::window().and_then(|w| w.document()).and_then(|d| d.body()) else {
+    let Some(body) = web_sys::window()
+        .and_then(|w| w.document())
+        .and_then(|d| d.body())
+    else {
         return;
     };
     if body.get_attribute("data-probing-scroll-lock").is_some() {

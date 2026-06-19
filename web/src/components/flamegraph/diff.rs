@@ -34,12 +34,17 @@ pub fn value_map(payload: &FlamegraphPayload) -> HashMap<String, u64> {
         .filter(|f| f.depth > 0)
         .map(|f| (frame_path(f, &by_id), f.value))
         .fold(HashMap::new(), |mut acc, (path, value)| {
-            acc.entry(path).and_modify(|v| *v = v.saturating_add(value)).or_insert(value);
+            acc.entry(path)
+                .and_modify(|v| *v = v.saturating_add(value))
+                .or_insert(value);
             acc
         })
 }
 
-pub fn compute_frame_deltas(current: &FlamegraphPayload, baseline: &FlamegraphPayload) -> Vec<FrameDelta> {
+pub fn compute_frame_deltas(
+    current: &FlamegraphPayload,
+    baseline: &FlamegraphPayload,
+) -> Vec<FrameDelta> {
     let cur = value_map(current);
     let base = value_map(baseline);
     let mut keys: HashMap<String, ()> = HashMap::new();

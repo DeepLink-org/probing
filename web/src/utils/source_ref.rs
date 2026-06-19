@@ -102,9 +102,7 @@ pub fn parse_files_api_path(api_path: &str) -> Option<String> {
     let query = api_path.split('?').nth(1)?;
     for part in query.split('&') {
         if let Some(value) = part.strip_prefix("path=") {
-            return urlencoding::decode(value)
-                .ok()
-                .map(|s| s.into_owned());
+            return urlencoding::decode(value).ok().map(|s| s.into_owned());
         }
     }
     None
@@ -195,7 +193,8 @@ mod tests {
 
     #[test]
     fn extract_refs_from_text() {
-        let refs = extract_source_refs("See train.py:142 and /opt/project/model.py:88 for details.");
+        let refs =
+            extract_source_refs("See train.py:142 and /opt/project/model.py:88 for details.");
         assert_eq!(refs.len(), 2);
         assert_eq!(refs[0].path, "train.py");
         assert_eq!(refs[0].line, Some(142));
@@ -203,7 +202,10 @@ mod tests {
 
     #[test]
     fn slice_around_line() {
-        let src = (1..=100).map(|n| format!("line {n}")).collect::<Vec<_>>().join("\n");
+        let src = (1..=100)
+            .map(|n| format!("line {n}"))
+            .collect::<Vec<_>>()
+            .join("\n");
         let slice = slice_source(&src, Some(50), 10);
         assert_eq!(slice.start_line, 40);
         assert_eq!(slice.end_line, 61);

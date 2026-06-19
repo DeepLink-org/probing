@@ -7,25 +7,26 @@ use dioxus::prelude::*;
 use crate::agent::load_playbook;
 use crate::api::{ApiClient, ClusterQueryResponse, StepDurationSample, StepMatrixResponse};
 use crate::components::card::Card;
+use crate::components::collapsible_card::CollapsibleCardWithIcon;
 use crate::components::common::{AppErrorDisplay, AsyncBoundary, EmptyState, LoadingState};
 use crate::components::dataframe_view::DataFrameView;
+use crate::components::icon::Icon;
 use crate::components::page::{PageContainer, PageTitle};
 use crate::components::poll_status::{PollStatusBar, RefreshButton};
 use crate::components::stat_card::StatCard;
-use crate::components::collapsible_card::CollapsibleCardWithIcon;
-use crate::components::icon::Icon;
 use crate::components::workspace::{ChipButton, WidthSegment};
 use crate::hooks::{use_app_resource, use_page_visible, use_poll_tick_gated};
 use crate::state::agent::{AGENT_INPUT, AGENT_PANEL_OPEN};
-use crate::state::ui_tasks::ui_agent_busy;
 use crate::state::investigation::{apply_context_from_dataframe_row, set_training_step_context};
+use crate::state::ui_tasks::ui_agent_busy;
 use crate::utils::error::AppError;
 
 const POLL_MS: u32 = 5000;
 const STEP_LIMIT: usize = 120;
 const COMM_LIMIT: usize = 30;
 
-const COMM_SQL: &str = "SELECT local_step, rank, op, group_size, duration_ms, bytes, tp_rank, pp_rank, dp_rank \
+const COMM_SQL: &str =
+    "SELECT local_step, rank, op, group_size, duration_ms, bytes, tp_rank, pp_rank, dp_rank \
      FROM python.comm_collective ORDER BY timestamp DESC LIMIT ";
 
 const COMM_SUMMARY_SQL: &str = "SELECT op, count(*) AS n, \
@@ -92,7 +93,11 @@ struct StepPoint {
 }
 
 fn trace_step(coord: i64, display: i64) -> i64 {
-    if coord >= 0 { coord } else { display }
+    if coord >= 0 {
+        coord
+    } else {
+        display
+    }
 }
 
 fn step_module_sql(coord_step: i64) -> String {
@@ -523,15 +528,9 @@ fn CollapsibleCommPlaceholder() -> Element {
 fn render_comm_cluster_collapsible(result: &Result<ClusterQueryResponse, AppError>) -> Element {
     match result {
         Ok(resp) if dataframe_rows(&resp.dataframe) > 0 => {
-            let mut note = format!(
-                "cluster scan · {} nodes queried",
-                resp.meta.nodes_queried
-            );
+            let mut note = format!("cluster scan · {} nodes queried", resp.meta.nodes_queried);
             if !resp.meta.nodes_failed.is_empty() {
-                note.push_str(&format!(
-                    " · {} failed",
-                    resp.meta.nodes_failed.len()
-                ));
+                note.push_str(&format!(" · {} failed", resp.meta.nodes_failed.len()));
             }
             let df = resp.dataframe.clone();
             let rows = dataframe_rows(&df);
@@ -613,7 +612,10 @@ fn cluster_nodes_failed_banner(nodes: &[String]) -> Element {
     }
 }
 
-fn step_summary_stats(samples: &[StepDurationSample], single_rank: bool) -> Vec<(String, String, Option<String>)> {
+fn step_summary_stats(
+    samples: &[StepDurationSample],
+    single_rank: bool,
+) -> Vec<(String, String, Option<String>)> {
     if samples.is_empty() {
         return Vec::new();
     }
@@ -621,11 +623,12 @@ fn step_summary_stats(samples: &[StepDurationSample], single_rank: bool) -> Vec<
         return single_rank_summary_stats(&build_step_series(samples));
     }
     let rank_count = samples.iter().map(|s| s.rank).collect::<HashSet<_>>().len();
-    let step_count = samples.iter().map(|s| s.local_step).collect::<HashSet<_>>().len();
-    let max_ms = samples
+    let step_count = samples
         .iter()
-        .map(|s| s.duration_ms)
-        .fold(0.0f64, f64::max);
+        .map(|s| s.local_step)
+        .collect::<HashSet<_>>()
+        .len();
+    let max_ms = samples.iter().map(|s| s.duration_ms).fold(0.0f64, f64::max);
     let outliers = count_outlier_cells(samples);
     vec![
         ("Ranks".to_string(), rank_count.to_string(), None),
@@ -722,13 +725,15 @@ fn single_rank_summary_stats(series: &[(i64, f64)]) -> Vec<(String, String, Opti
 
     let (trend_value, trend_hint) = if series.len() >= 6 {
         let mid = series.len() / 2;
-        let first_half =
-            series[..mid].iter().map(|(_, d)| d).sum::<f64>() / mid.max(1) as f64;
-        let second_half = series[mid..].iter().map(|(_, d)| d).sum::<f64>()
-            / (series.len() - mid).max(1) as f64;
+        let first_half = series[..mid].iter().map(|(_, d)| d).sum::<f64>() / mid.max(1) as f64;
+        let second_half =
+            series[mid..].iter().map(|(_, d)| d).sum::<f64>() / (series.len() - mid).max(1) as f64;
         let pct = (second_half - first_half) / first_half.max(1.0) * 100.0;
         if pct.abs() < 3.0 {
-            ("Stable".to_string(), Some("Second half vs first half of window".to_string()))
+            (
+                "Stable".to_string(),
+                Some("Second half vs first half of window".to_string()),
+            )
         } else if pct > 0.0 {
             (
                 format!("+{pct:.0}% slower"),
@@ -763,7 +768,11 @@ fn single_rank_summary_stats(series: &[(i64, f64)]) -> Vec<(String, String, Opti
 
 /// Single-process spans may carry ``rank: -1`` when ``RANK`` was unset; treat as 0.
 fn display_rank(rank: i32) -> i32 {
-    if rank < 0 { 0 } else { rank }
+    if rank < 0 {
+        0
+    } else {
+        rank
+    }
 }
 
 fn primary_rank(samples: &[StepDurationSample]) -> i32 {
@@ -907,7 +916,9 @@ fn dataframe_rows(df: &probing_proto::prelude::DataFrame) -> usize {
     df.cols.first().map(|c| c.len()).unwrap_or(0)
 }
 
-fn build_heatmap(samples: &[StepDurationSample]) -> (Vec<i32>, Vec<i64>, HashMap<(i32, i64), HeatCell>, f64) {
+fn build_heatmap(
+    samples: &[StepDurationSample],
+) -> (Vec<i32>, Vec<i64>, HashMap<(i32, i64), HeatCell>, f64) {
     let mut rank_set = HashSet::new();
     let mut step_set = HashSet::new();
     let mut raw: HashMap<(i32, i64), f64> = HashMap::new();
@@ -954,7 +965,13 @@ fn build_heatmap(samples: &[StepDurationSample]) -> (Vec<i32>, Vec<i64>, HashMap
         }
         let median = step_medians.get(&step).copied().unwrap_or(dur);
         let outlier = dur > median * 1.2 && ranks.len() > 1;
-        cells.insert((rank, step), HeatCell { duration_ms: dur, outlier });
+        cells.insert(
+            (rank, step),
+            HeatCell {
+                duration_ms: dur,
+                outlier,
+            },
+        );
     }
 
     (ranks, steps, cells, max_ms)
@@ -970,7 +987,11 @@ fn StepHeatmap(
     selected_step: Signal<Option<SelectedStep>>,
 ) -> Element {
     let featured = ranks.len() <= 1;
-    let cell_min = if featured { "min-w-[48px]" } else { "min-w-[28px]" };
+    let cell_min = if featured {
+        "min-w-[48px]"
+    } else {
+        "min-w-[28px]"
+    };
     let cell_h = if featured { "h-10" } else { "h-7" };
 
     rsx! {

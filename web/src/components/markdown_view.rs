@@ -5,10 +5,7 @@ use dioxus::prelude::*;
 use crate::utils::markdown::markdown_to_html;
 
 #[component]
-pub fn MarkdownView(
-    content: String,
-    #[props(default = String::new())] class: String,
-) -> Element {
+pub fn MarkdownView(content: String, #[props(default = String::new())] class: String) -> Element {
     let html = markdown_to_html(&content);
     if html.is_empty() {
         return rsx! {};

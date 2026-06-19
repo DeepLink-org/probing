@@ -10,8 +10,9 @@ use crate::agent::{
     summarize_run,
 };
 use crate::app::Route;
-use dioxus_router::use_route;
-use crate::components::agent::step_card::{step_outcome_to_card, AgentPlaybookRunCard, AgentStepCard};
+use crate::components::agent::step_card::{
+    step_outcome_to_card, AgentPlaybookRunCard, AgentStepCard,
+};
 use crate::components::colors::colors;
 use crate::components::icon::Icon;
 use crate::components::markdown_view::MarkdownView;
@@ -28,6 +29,7 @@ use crate::state::investigation::INVESTIGATION_CONTEXT;
 use crate::state::llm_config::{LlmConfig, LLM_CONFIG, LLM_SETTINGS_OPEN};
 use crate::state::page_context::PAGE_CONTEXT;
 use crate::state::ui_tasks::{ui_agent_busy, UiTaskKind, UiTaskSession, UI_TASK_TICK};
+use dioxus_router::use_route;
 
 const QUICK_PLAYBOOKS: &[(&str, &str)] = &[
     ("health_overview", "Health"),
@@ -311,7 +313,7 @@ fn AgentMessageView(message: AgentMessage) -> Element {
             } else {
                 rsx! { div {} }
             }
-        },
+        }
         AgentMessageKind::Error => rsx! {
             SurfaceCard {
                 SurfaceCardBody {
@@ -478,8 +480,13 @@ fn spawn_llm_flow(user_message: String, config: LlmConfig) {
                 }
                 match sel.playbook_id {
                     Some(id) if load_playbook(&id).is_some() => {
-                        run_playbook_flow(&session, &id, sel.parameters, Some((config, user_message)))
-                            .await;
+                        run_playbook_flow(
+                            &session,
+                            &id,
+                            sel.parameters,
+                            Some((config, user_message)),
+                        )
+                        .await;
                     }
                     Some(id) => {
                         push_agent_message(AgentMessage::error(format!(
@@ -489,7 +496,8 @@ fn spawn_llm_flow(user_message: String, config: LlmConfig) {
                     None => {
                         if sel.reply.is_empty() {
                             push_agent_message(AgentMessage::assistant(
-                                "No suitable playbook — try rephrasing or pick a quick chip.".to_string(),
+                                "No suitable playbook — try rephrasing or pick a quick chip."
+                                    .to_string(),
                             ));
                         }
                     }
@@ -535,7 +543,9 @@ async fn run_playbook_flow(
     }
 
     let Some(meta) = load_playbook(playbook_id) else {
-        push_agent_message(AgentMessage::error(format!("Unknown playbook: {playbook_id}")));
+        push_agent_message(AgentMessage::error(format!(
+            "Unknown playbook: {playbook_id}"
+        )));
         return;
     };
 

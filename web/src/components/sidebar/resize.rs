@@ -16,7 +16,8 @@ pub fn ResizeHandle() -> Element {
     };
     let drag_handle_class = format!(
         "absolute top-0 right-0 w-1 h-full cursor-col-resize {} transition-colors group z-20 {}",
-        colors::SIDEBAR_RESIZE_HOVER, active_class
+        colors::SIDEBAR_RESIZE_HOVER,
+        active_class
     );
 
     rsx! {

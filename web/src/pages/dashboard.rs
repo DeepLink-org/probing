@@ -21,7 +21,9 @@ use crate::components::data::KeyValueList;
 use crate::components::page::{PageContainer, PageTitle};
 use crate::components::poll_status::PollStatusBar;
 use crate::components::stat_card::StatCard;
-use crate::hooks::{use_api, use_api_with_options, use_page_visible, use_poll_tick_gated, ApiFetchOptions};
+use crate::hooks::{
+    use_api, use_api_with_options, use_page_visible, use_poll_tick_gated, ApiFetchOptions,
+};
 use crate::state::investigation::sync_overview_process_context;
 
 const CPU_POLL_MS: u32 = 2000;
@@ -887,7 +889,11 @@ fn ThreadsPreview(threads: Vec<u64>, pid: i32) -> Element {
     let navigator = use_navigator();
     let mut expanded = use_signal(|| false);
     let total = threads.len();
-    let limit = if expanded() { total } else { THREADS_PREVIEW.min(total) };
+    let limit = if expanded() {
+        total
+    } else {
+        THREADS_PREVIEW.min(total)
+    };
     let hidden = total.saturating_sub(limit);
 
     rsx! {
@@ -985,7 +991,11 @@ fn EnvVars(env: std::collections::HashMap<String, String>) -> Element {
     let mut expanded = use_signal(|| false);
     let total = env.len();
     let show_all = expanded();
-    let preview_limit = if show_all { total } else { ENV_VARS_PREVIEW.min(total) };
+    let preview_limit = if show_all {
+        total
+    } else {
+        ENV_VARS_PREVIEW.min(total)
+    };
     let mut entries: Vec<_> = env.into_iter().collect();
     entries.sort_by(|a, b| a.0.cmp(&b.0));
     let hidden = total.saturating_sub(preview_limit);

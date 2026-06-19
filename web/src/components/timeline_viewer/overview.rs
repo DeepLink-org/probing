@@ -62,7 +62,12 @@ pub fn build_track_bars(
 ) -> Vec<TimelineBarItem> {
     let level = visible_level_slices(track, &state.drill_path);
     if !force_detail && state.is_overview() {
-        return bucket_slices(level, model.min_ts_us, model.max_ts_us, OVERVIEW_BUCKET_COUNT);
+        return bucket_slices(
+            level,
+            model.min_ts_us,
+            model.max_ts_us,
+            OVERVIEW_BUCKET_COUNT,
+        );
     }
 
     let filtered: Vec<TimelineSlice> = if let Some(range) = &state.expanded_range {
@@ -84,7 +89,10 @@ pub fn build_track_bars(
         .collect()
 }
 
-fn visible_level_slices<'a>(track: &'a TimelineTrack, drill_path: &[SliceKey]) -> &'a [TimelineSlice] {
+fn visible_level_slices<'a>(
+    track: &'a TimelineTrack,
+    drill_path: &[SliceKey],
+) -> &'a [TimelineSlice] {
     let mut level = track.slices.as_slice();
     for key in drill_path {
         let Some(slice) = level.iter().find(|s| SliceKey::from_slice(s) == *key) else {
@@ -134,7 +142,11 @@ fn bucket_slices(
             let dominant = items
                 .iter()
                 .copied()
-                .max_by(|a, b| a.dur_us.partial_cmp(&b.dur_us).unwrap_or(std::cmp::Ordering::Equal))
+                .max_by(|a, b| {
+                    a.dur_us
+                        .partial_cmp(&b.dur_us)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
                 .unwrap_or(items[0]);
             let label = if count == 1 {
                 dominant.name.clone()
@@ -159,7 +171,10 @@ pub fn zoom_fracs(model: &TimelineModel, range: &TimeRange) -> (f64, f64) {
     (lo, hi)
 }
 
-pub fn find_slice_in_model<'a>(model: &'a TimelineModel, key: SliceKey) -> Option<&'a TimelineSlice> {
+pub fn find_slice_in_model<'a>(
+    model: &'a TimelineModel,
+    key: SliceKey,
+) -> Option<&'a TimelineSlice> {
     model
         .tracks
         .iter()

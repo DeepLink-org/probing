@@ -33,8 +33,7 @@ pub fn SidebarNavItem(
     icon: &'static IconData,
     label: &'static str,
     is_active: bool,
-    #[props(default = "")]
-    title: &'static str,
+    #[props(default = "")] title: &'static str,
 ) -> Element {
     rsx! {
         Link {

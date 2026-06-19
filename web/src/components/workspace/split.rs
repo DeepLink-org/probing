@@ -8,21 +8,15 @@ pub fn WorkspaceSplit(
     #[props(optional)] side: Option<Element>,
     main_flex: u8,
     side_flex: u8,
-    #[props(default = true)]
-    main_scroll: bool,
-    #[props(default = false)]
-    main_fullscreen: bool,
+    #[props(default = true)] main_scroll: bool,
+    #[props(default = false)] main_fullscreen: bool,
 ) -> Element {
     let main_overflow = if main_scroll {
         "overflow-y-auto"
     } else {
         "overflow-hidden"
     };
-    let main_height = if main_fullscreen {
-        "h-full"
-    } else {
-        ""
-    };
+    let main_height = if main_fullscreen { "h-full" } else { "" };
     rsx! {
         div { class: "flex flex-1 min-h-0 overflow-hidden w-full",
             main {

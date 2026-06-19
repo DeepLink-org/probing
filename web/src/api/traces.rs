@@ -85,7 +85,11 @@ impl ApiClient {
         }
 
         // Find column indices
-        let record_type_idx = df.names.iter().position(|c| c == "record_type").unwrap_or(0);
+        let record_type_idx = df
+            .names
+            .iter()
+            .position(|c| c == "record_type")
+            .unwrap_or(0);
         let trace_id_idx = df.names.iter().position(|c| c == "trace_id").unwrap_or(1);
         let span_id_idx = df.names.iter().position(|c| c == "span_id").unwrap_or(2);
         let parent_id_idx = df.names.iter().position(|c| c == "parent_id").unwrap_or(3);
@@ -95,7 +99,11 @@ impl ApiClient {
         let kind_idx = df.names.iter().position(|c| c == "kind").unwrap_or(7);
         let location_idx = df.names.iter().position(|c| c == "location").unwrap_or(8);
         let attributes_idx = df.names.iter().position(|c| c == "attributes").unwrap_or(9);
-        let event_attributes_idx = df.names.iter().position(|c| c == "event_attributes").unwrap_or(10);
+        let event_attributes_idx = df
+            .names
+            .iter()
+            .position(|c| c == "event_attributes")
+            .unwrap_or(10);
 
         // Get number of rows
         let nrows = df.cols.iter().map(|col| col.len()).max().unwrap_or(0);
@@ -162,7 +170,8 @@ impl ApiClient {
         let events = self.get_trace_events(limit).await?;
 
         // Build span map from span_start events
-        let mut span_map: std::collections::HashMap<i64, SpanInfo> = std::collections::HashMap::new();
+        let mut span_map: std::collections::HashMap<i64, SpanInfo> =
+            std::collections::HashMap::new();
         let mut root_spans: Vec<i64> = Vec::new();
 
         for event in &events {
@@ -235,7 +244,8 @@ impl ApiClient {
         }
 
         // Sort spans by depth (deepest first) so we process children before parents
-        let mut spans_to_process: Vec<(i64, usize)> = span_map.keys()
+        let mut spans_to_process: Vec<(i64, usize)> = span_map
+            .keys()
             .map(|&id| (id, depth_map.get(&id).copied().unwrap_or(0)))
             .collect();
         spans_to_process.sort_by_key(|b| std::cmp::Reverse(b.1)); // Sort by depth descending
@@ -244,7 +254,8 @@ impl ApiClient {
         // This ensures that when we add a child to its parent, the child's children
         // have already been added to the child
         for (span_id, _depth) in spans_to_process {
-            let parent_id = span_map.get(&span_id)
+            let parent_id = span_map
+                .get(&span_id)
                 .and_then(|span| span.parent_id)
                 .filter(|&pid| pid != -1);
 
@@ -291,10 +302,7 @@ impl ApiClient {
         events.sort_by_key(|e| e.timestamp);
 
         // Find minimum timestamp as baseline
-        let min_timestamp = events.iter()
-            .map(|e| e.timestamp)
-            .min()
-            .unwrap_or(0);
+        let min_timestamp = events.iter().map(|e| e.timestamp).min().unwrap_or(0);
 
         // Convert to Chrome tracing format
         let mut trace_events: Vec<serde_json::Value> = Vec::new();
@@ -307,26 +315,32 @@ impl ApiClient {
         // This helps match span_end events, even if trace_id in span_end is 0
         let mut span_start_lookup: SpanStartMap = std::collections::HashMap::new();
         // Build span_id to parent_id mapping, used to find top-level spans
-        let mut span_to_parent: std::collections::HashMap<i64, Option<i64>> = std::collections::HashMap::new();
+        let mut span_to_parent: std::collections::HashMap<i64, Option<i64>> =
+            std::collections::HashMap::new();
         // Find first (earliest) top-level span's trace_id, use as unified pid
         let mut unified_pid: Option<i64> = None;
 
         for event in &events {
             if event.record_type == "span_start" {
                 let key = (event.span_id, event.thread_id);
-                span_start_lookup.insert(key, (
-                    event.timestamp,
-                    event.name.clone(),
-                    event.kind.clone(),
-                    event.trace_id,
-                ));
+                span_start_lookup.insert(
+                    key,
+                    (
+                        event.timestamp,
+                        event.name.clone(),
+                        event.kind.clone(),
+                        event.trace_id,
+                    ),
+                );
 
                 // Record parent_id mapping
                 span_to_parent.insert(event.span_id, event.parent_id);
 
                 // If it's a top-level span (no parent_id or parent_id = -1), and unified_pid not set yet
                 // Use first top-level span's trace_id as unified pid
-                if unified_pid.is_none() && (event.parent_id.is_none() || event.parent_id == Some(-1)) {
+                if unified_pid.is_none()
+                    && (event.parent_id.is_none() || event.parent_id == Some(-1))
+                {
                     unified_pid = Some(event.trace_id);
                 }
             }
@@ -334,7 +348,8 @@ impl ApiClient {
 
         // If no top-level span found, use first span_start's trace_id
         let unified_pid = unified_pid.unwrap_or_else(|| {
-            events.iter()
+            events
+                .iter()
                 .find(|e| e.record_type == "span_start")
                 .map(|e| e.trace_id)
                 .unwrap_or(1)
@@ -354,7 +369,15 @@ impl ApiClient {
                     // Use (span_id, thread_id) as key
                     let key = (event.span_id, event.thread_id);
                     // Store using unified pid
-                    span_starts.insert(key, (ts_micros, event.name.clone(), event.kind.clone(), unified_pid));
+                    span_starts.insert(
+                        key,
+                        (
+                            ts_micros,
+                            event.name.clone(),
+                            event.kind.clone(),
+                            unified_pid,
+                        ),
+                    );
 
                     // Create 'B' (Begin) event
                     let mut chrome_event = serde_json::json!({
@@ -370,7 +393,10 @@ impl ApiClient {
                     let mut args = serde_json::Map::new();
                     if let Some(ref location) = event.location {
                         if !location.is_empty() {
-                            args.insert("location".to_string(), serde_json::Value::String(location.clone()));
+                            args.insert(
+                                "location".to_string(),
+                                serde_json::Value::String(location.clone()),
+                            );
                         }
                     }
                     if let Some(ref attrs) = event.attributes {
@@ -391,7 +417,9 @@ impl ApiClient {
                     let key = (event.span_id, event.thread_id);
 
                     // First try to find from already processed events
-                    if let Some((start_ts, start_name, start_kind, start_pid)) = span_starts.get(&key) {
+                    if let Some((start_ts, start_name, start_kind, start_pid)) =
+                        span_starts.get(&key)
+                    {
                         // Found matching span_start, create 'E' (End) event
                         let mut chrome_event = serde_json::json!({
                             "name": start_name,
@@ -411,7 +439,9 @@ impl ApiClient {
                         trace_events.push(chrome_event);
                         // Remove from span_starts to avoid duplicate matching
                         span_starts.remove(&key);
-                    } else if let Some((start_timestamp, start_name, start_kind, _)) = span_start_lookup.get(&key) {
+                    } else if let Some((start_timestamp, start_name, start_kind, _)) =
+                        span_start_lookup.get(&key)
+                    {
                         // Find span_start information from lookup table
                         let start_ts_micros = (start_timestamp - min_timestamp) / 1000;
                         // Use unified pid to ensure all spans are in the same process

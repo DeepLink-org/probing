@@ -188,10 +188,7 @@ pub fn BreadcrumbSeparator() -> Element {
 }
 
 #[component]
-pub fn ChartPanel(
-    onclick: Option<EventHandler<()>>,
-    children: Element,
-) -> Element {
+pub fn ChartPanel(onclick: Option<EventHandler<()>>, children: Element) -> Element {
     rsx! {
         div {
             class: "flex-1 overflow-auto p-4 bg-slate-950 rounded-b-lg",
@@ -206,11 +203,7 @@ pub fn ChartPanel(
 }
 
 #[component]
-pub fn FlamegraphSvg(
-    width: f64,
-    height: f64,
-    children: Element,
-) -> Element {
+pub fn FlamegraphSvg(width: f64, height: f64, children: Element) -> Element {
     rsx! {
         svg {
             class: "w-full",

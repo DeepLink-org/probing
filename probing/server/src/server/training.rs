@@ -66,10 +66,8 @@ pub async fn get_step_matrix(
     let fanout = cluster_fanout::fanout_query(&sql, cluster).await?;
     let host = cluster_fanout::local_host_label();
     let addr = cluster_fanout::local_addr_label();
-    let samples = aggregate_step_samples(
-        &parse_step_df(&fanout.dataframe, &host, &addr),
-        step_window,
-    );
+    let samples =
+        aggregate_step_samples(&parse_step_df(&fanout.dataframe, &host, &addr), step_window);
 
     let rank_count = samples.iter().map(|s| s.rank).collect::<HashSet<_>>().len();
     let step_count = samples
@@ -238,7 +236,11 @@ fn collapse_coord_duplicates(rows: &[RawStepRow], picked: &[usize]) -> Vec<usize
 
 /// Single-process spans often carry ``rank: -1`` when ``RANK`` was unset; treat as 0.
 fn normalize_rank(rank: i32) -> i32 {
-    if rank < 0 { 0 } else { rank }
+    if rank < 0 {
+        0
+    } else {
+        rank
+    }
 }
 
 fn parse_attrs(raw: &str) -> (i32, i64, String) {

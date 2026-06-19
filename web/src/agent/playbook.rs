@@ -188,7 +188,12 @@ fn leak_str(s: &str) -> &'static str {
 pub fn load_playbook(id: &str) -> Option<Playbook> {
     let yaml = diagnostics_yaml_for_id(id)?;
     let file: PlaybookFile = serde_yaml::from_str(yaml).ok()?;
-    let mut keywords: Vec<String> = file.metadata.tags.iter().map(|t| t.to_lowercase()).collect();
+    let mut keywords: Vec<String> = file
+        .metadata
+        .tags
+        .iter()
+        .map(|t| t.to_lowercase())
+        .collect();
     keywords.extend(
         file.metadata
             .triggers
@@ -285,7 +290,10 @@ pub fn expand_sql(template: &str, ctx: &HashMap<String, String>) -> String {
     out
 }
 
-pub fn build_context(pb: &Playbook, overrides: &HashMap<String, String>) -> HashMap<String, String> {
+pub fn build_context(
+    pb: &Playbook,
+    overrides: &HashMap<String, String>,
+) -> HashMap<String, String> {
     let mut ctx = default_parameters(pb);
     ctx.extend(derive_variables(&ctx));
     for (k, v) in overrides {
@@ -323,10 +331,8 @@ pub fn match_playbooks(query: &str, limit: usize) -> Vec<String> {
         }
     }
 
-    let mut ranked: Vec<(usize, String)> = scored
-        .into_iter()
-        .map(|(id, score)| (score, id))
-        .collect();
+    let mut ranked: Vec<(usize, String)> =
+        scored.into_iter().map(|(id, score)| (score, id)).collect();
     ranked.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
     ranked.into_iter().take(limit).map(|(_, id)| id).collect()
 }

@@ -225,7 +225,10 @@ pub fn derive_variables(params: &HashMap<String, String>) -> HashMap<String, Str
     out
 }
 
-pub fn build_context(pb: &Playbook, overrides: &HashMap<String, String>) -> HashMap<String, String> {
+pub fn build_context(
+    pb: &Playbook,
+    overrides: &HashMap<String, String>,
+) -> HashMap<String, String> {
     let mut ctx = default_parameters(pb);
     ctx.extend(derive_variables(&ctx));
     for (k, v) in overrides {

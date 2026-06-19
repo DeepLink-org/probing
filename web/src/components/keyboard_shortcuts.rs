@@ -15,10 +15,7 @@ use crate::state::source_viewer::{close_source_viewer, SOURCE_VIEWER_OPEN};
 pub fn GlobalShortcutInstaller() -> Element {
     let slot = use_hook(|| {
         Rc::new(RefCell::new(
-            None::<(
-                web_sys::Window,
-                Closure<dyn FnMut(web_sys::KeyboardEvent)>,
-            )>,
+            None::<(web_sys::Window, Closure<dyn FnMut(web_sys::KeyboardEvent)>)>,
         ))
     });
 

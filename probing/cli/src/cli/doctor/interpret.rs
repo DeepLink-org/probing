@@ -70,7 +70,11 @@ fn step_by_id<'a>(steps: &'a [StepEvidence], id: &str) -> Option<&'a StepEvidenc
 }
 
 fn rule_matches(when: &str, steps: &[StepEvidence], params: &HashMap<String, String>) -> bool {
-    let parts: Vec<&str> = when.split('|').map(|p| p.trim()).filter(|p| !p.is_empty()).collect();
+    let parts: Vec<&str> = when
+        .split('|')
+        .map(|p| p.trim())
+        .filter(|p| !p.is_empty())
+        .collect();
     if parts.is_empty() {
         return false;
     }
@@ -241,9 +245,7 @@ fn column_str(df: &DataFrame, name: &str) -> Vec<String> {
         None => return Vec::new(),
     };
     let col = &df.cols[idx];
-    (0..col.len())
-        .map(|i| ele_str(&col.get(i)))
-        .collect()
+    (0..col.len()).map(|i| ele_str(&col.get(i))).collect()
 }
 
 fn ele_f64(ele: &Ele) -> Option<f64> {

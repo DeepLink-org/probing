@@ -81,7 +81,10 @@ impl ApiClient {
     }
 
     /// Recent history for all devices (`limit` rows total, grouped client-side by device_id).
-    pub async fn fetch_gpu_history(&self, limit: usize) -> Result<HashMap<i32, Vec<GpuHistorySample>>> {
+    pub async fn fetch_gpu_history(
+        &self,
+        limit: usize,
+    ) -> Result<HashMap<i32, Vec<GpuHistorySample>>> {
         let cap = limit.saturating_mul(16).max(limit);
         match self
             .execute_query(&format!(
@@ -139,7 +142,11 @@ fn ele_text(e: Ele) -> String {
 }
 
 fn opt_pct(v: f32) -> Option<f32> {
-    if v < 0.0 { None } else { Some(v) }
+    if v < 0.0 {
+        None
+    } else {
+        Some(v)
+    }
 }
 
 fn parse_gpu_devices(df: &DataFrame) -> Vec<GpuDeviceRow> {
@@ -185,7 +192,9 @@ fn parse_gpu_snapshots(df: &DataFrame) -> Vec<GpuSnapshot> {
                 .and_then(|c| cell(df, r, c).map(ele_text))
                 .filter(|s| !s.trim().is_empty());
             GpuSnapshot {
-                ts: idx("ts").and_then(|c| cell(df, r, c).map(ele_i64)).unwrap_or(0),
+                ts: idx("ts")
+                    .and_then(|c| cell(df, r, c).map(ele_i64))
+                    .unwrap_or(0),
                 device_id: idx("device_id")
                     .and_then(|c| cell(df, r, c).map(ele_i32))
                     .unwrap_or(0),
@@ -228,7 +237,10 @@ fn parse_gpu_snapshots(df: &DataFrame) -> Vec<GpuSnapshot> {
         .collect()
 }
 
-fn parse_gpu_history(df: &DataFrame, per_device_limit: usize) -> HashMap<i32, Vec<GpuHistorySample>> {
+fn parse_gpu_history(
+    df: &DataFrame,
+    per_device_limit: usize,
+) -> HashMap<i32, Vec<GpuHistorySample>> {
     let rows = df.cols.first().map(|c| c.len()).unwrap_or(0);
     let idx = |n: &str| col_index(df, n);
     let mut map: HashMap<i32, Vec<GpuHistorySample>> = HashMap::new();

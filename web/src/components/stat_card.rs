@@ -5,11 +5,7 @@ use dioxus::prelude::*;
 use crate::components::colors::colors;
 
 #[component]
-pub fn StatCard(
-    label: String,
-    value: String,
-    #[props(optional)] hint: Option<String>,
-) -> Element {
+pub fn StatCard(label: String, value: String, #[props(optional)] hint: Option<String>) -> Element {
     rsx! {
         div {
             class: "bg-white border border-gray-200 rounded-lg px-5 py-4 shadow-sm",

@@ -27,8 +27,7 @@ pub fn SurfaceCardHeader(
     #[props(optional)] subtitle: Option<String>,
     #[props(optional)] icon: Option<Element>,
     #[props(optional)] header_right: Option<Element>,
-    #[props(default = "bg-gray-50/80")]
-    header_class: &'static str,
+    #[props(default = "bg-gray-50/80")] header_class: &'static str,
 ) -> Element {
     rsx! {
         div { class: "px-3 py-2.5 border-b border-gray-100 {header_class}",
@@ -55,8 +54,7 @@ pub fn SurfaceCardHeader(
 #[component]
 pub fn SurfaceCardBody(
     children: Element,
-    #[props(default = "px-3 py-2")]
-    class: &'static str,
+    #[props(default = "px-3 py-2")] class: &'static str,
 ) -> Element {
     rsx! {
         div { class: "{class}", {children} }

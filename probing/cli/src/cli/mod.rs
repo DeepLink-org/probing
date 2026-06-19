@@ -265,16 +265,16 @@ impl Cli {
             Commands::Query { query, format } => {
                 ctrl::query_with_format(ctrl, Query::new(query.clone()), *format).await
             }
-            Commands::Tables { all, format } => self.handle_tables_command(ctrl, *all, *format).await,
-            Commands::Memory {
-                limit,
-                format,
-            } => self.handle_memory_command(ctrl, *limit, *format).await,
-            Commands::Flamegraph {
-                kind,
-                output,
-                json,
-            } => self.handle_flamegraph_command(ctrl, *kind, output.clone(), *json).await,
+            Commands::Tables { all, format } => {
+                self.handle_tables_command(ctrl, *all, *format).await
+            }
+            Commands::Memory { limit, format } => {
+                self.handle_memory_command(ctrl, *limit, *format).await
+            }
+            Commands::Flamegraph { kind, output, json } => {
+                self.handle_flamegraph_command(ctrl, *kind, output.clone(), *json)
+                    .await
+            }
             Commands::Cluster(cmd) => cluster::run(ctrl, cmd.clone()).await,
             Commands::Doctor(cmd) => doctor::run(ctrl, cmd.clone()).await,
             Commands::Repl => repl::start_repl(ctrl).await,

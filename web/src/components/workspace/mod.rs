@@ -5,4 +5,7 @@ mod split;
 mod surface;
 
 pub use panel_shell::WorkspacePanelShell;
-pub use surface::{AccentSurface, ChipButton, StatusBadge, SurfaceCard, SurfaceCardBody, SurfaceIconHeader, WidthSegment};
+pub use surface::{
+    AccentSurface, ChipButton, StatusBadge, SurfaceCard, SurfaceCardBody, SurfaceIconHeader,
+    WidthSegment,
+};

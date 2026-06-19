@@ -100,7 +100,10 @@ fn is_rust_native(func: &str, file: &str) -> bool {
         if func.starts_with("std::") {
             return false;
         }
-        if file.ends_with(".h") || file.ends_with(".hpp") || file.ends_with(".cc") || file.ends_with(".cpp")
+        if file.ends_with(".h")
+            || file.ends_with(".hpp")
+            || file.ends_with(".cc")
+            || file.ends_with(".cpp")
         {
             return false;
         }
@@ -134,9 +137,7 @@ pub fn frame_title(frame: &CallFrame) -> String {
 
 pub fn frame_location(frame: &CallFrame) -> Option<(String, i64)> {
     match frame {
-        CallFrame::CFrame { file, lineno, .. } if !file.is_empty() => {
-            Some((file.clone(), *lineno))
-        }
+        CallFrame::CFrame { file, lineno, .. } if !file.is_empty() => Some((file.clone(), *lineno)),
         CallFrame::PyFrame { file, lineno, .. } => Some((file.clone(), *lineno)),
         _ => None,
     }

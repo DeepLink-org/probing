@@ -1,12 +1,12 @@
-pub mod commands;
 pub mod agent;
+pub mod commands;
 pub mod investigation;
 pub mod investigation_url;
 pub mod llm_config;
+pub mod page_context;
 pub mod profile_snapshots;
 pub mod profiling;
 pub mod sidebar;
-pub mod stack;
-pub mod page_context;
 pub mod source_viewer;
+pub mod stack;
 pub mod ui_tasks;

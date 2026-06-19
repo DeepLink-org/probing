@@ -30,7 +30,8 @@ impl ApiClient {
 
     /// Get flamegraph JSON for native web UI rendering.
     pub async fn get_flamegraph_json(&self, profiler_type: &str) -> Result<String> {
-        self.get_flamegraph_json_with_metric(profiler_type, None).await
+        self.get_flamegraph_json_with_metric(profiler_type, None)
+            .await
     }
 
     /// Get flamegraph JSON with optional torch metric (`duration`, `delta_mb`, `peak_mb`).

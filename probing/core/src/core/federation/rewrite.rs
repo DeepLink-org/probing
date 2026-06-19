@@ -315,7 +315,8 @@ mod tests {
 
     #[test]
     fn skips_select_star_wildcard_when_tags_already_present() {
-        let sql = "SELECT * EXCLUDE (_host, _addr, _rank), _host, _addr, _rank FROM global.process.envs";
+        let sql =
+            "SELECT * EXCLUDE (_host, _addr, _rank), _host, _addr, _rank FROM global.process.envs";
         assert_eq!(ensure_global_node_columns(sql), sql);
     }
 

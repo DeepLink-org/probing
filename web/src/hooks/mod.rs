@@ -3,13 +3,13 @@
 //! **New code** should prefer [`use_app_resource`] (auto-fetch) and Dioxus [`use_action`](dioxus::prelude::use_action)
 //! (user-triggered). Legacy [`use_api`] / [`ApiState`] remain for pages not yet migrated.
 
+use crate::utils::error::AppError;
 use dioxus::prelude::*;
 use gloo_timers::callback::Interval;
 use std::cell::RefCell;
 use std::future::Future;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
-use crate::utils::error::AppError;
 
 /// API call state
 #[derive(Clone)]
@@ -58,10 +58,7 @@ pub struct ApiFetchOptions {
 }
 
 /// Like [`use_api`] with refresh behavior controls (for polled dashboards).
-pub fn use_api_with_options<T, F, Fut>(
-    mut fetch_fn: F,
-    options: ApiFetchOptions,
-) -> ApiState<T>
+pub fn use_api_with_options<T, F, Fut>(mut fetch_fn: F, options: ApiFetchOptions) -> ApiState<T>
 where
     T: Clone + 'static,
     F: FnMut() -> Fut + 'static,
@@ -72,8 +69,7 @@ where
     use_effect(move || {
         let mut loading = state.loading;
         let mut data = state.data;
-        let show_loading =
-            !options.keep_previous_while_refreshing || data.read().is_none();
+        let show_loading = !options.keep_previous_while_refreshing || data.read().is_none();
         let result_future = fetch_fn();
         spawn(async move {
             if show_loading {
@@ -161,7 +157,8 @@ pub fn use_page_visible() -> Signal<bool> {
                     visible.set(!document.hidden());
                 }
             }
-        }) as Box<dyn FnMut(web_sys::Event)>);
+        })
+            as Box<dyn FnMut(web_sys::Event)>);
         let listener = handler.as_ref().unchecked_ref();
         let _ = document.add_event_listener_with_callback("visibilitychange", listener);
         *slot_for_effect.borrow_mut() = Some((document, handler));

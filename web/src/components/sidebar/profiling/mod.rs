@@ -1,16 +1,14 @@
 //! Profiling submenu, view switcher, and embedded controls in the sidebar.
 
 use dioxus::prelude::*;
-use dioxus_router::{Link, use_route};
+use dioxus_router::{use_route, Link};
 use icondata::Icon as IconData;
 
 use crate::app::Route;
 use crate::components::colors::colors;
 use crate::components::icon::Icon;
 use crate::components::sidebar::nav_item::sidebar_item_class;
-use crate::state::profiling::{
-    normalize_profiling_view, profiling_view_label, PROFILING_VIEWS,
-};
+use crate::state::profiling::{normalize_profiling_view, profiling_view_label, PROFILING_VIEWS};
 
 mod controls;
 use controls::{

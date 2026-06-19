@@ -2,18 +2,20 @@
 //! Uses [colors](crate::components::colors). Width/visibility in [state::sidebar](crate::state::sidebar).
 
 use dioxus::prelude::*;
-use dioxus_router::{Link, use_route};
+use dioxus_router::{use_route, Link};
 
 use crate::app::Route;
 use crate::components::colors::colors;
 use crate::components::icon::Icon;
-use crate::state::sidebar::{load_sidebar_state, save_sidebar_state, SIDEBAR_HIDDEN, SIDEBAR_WIDTH};
+use crate::state::sidebar::{
+    load_sidebar_state, save_sidebar_state, SIDEBAR_HIDDEN, SIDEBAR_WIDTH,
+};
 
 mod nav_item;
 mod profiling;
+mod resize;
 mod stack;
 mod tasks;
-mod resize;
 
 use nav_item::{SidebarNavItem, SidebarSectionLabel};
 use profiling::ProfilingSidebarItem;
@@ -21,7 +23,14 @@ use resize::ResizeHandle;
 use stack::StackSidebarItem;
 use tasks::SidebarTaskQueue;
 
-fn sidebar_classes() -> (&'static str, &'static str, &'static str, &'static str, &'static str, &'static str) {
+fn sidebar_classes() -> (
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+) {
     (
         colors::SIDEBAR_ASIDE,
         colors::SIDEBAR_LOGO_BORDER,
@@ -51,7 +60,10 @@ pub fn Sidebar() -> Element {
 
     let route_for_stack = route.clone();
     use_effect(move || {
-        if matches!(route_for_stack, Route::StackPage {} | Route::StackWithTidPage { .. }) {
+        if matches!(
+            route_for_stack,
+            Route::StackPage {} | Route::StackWithTidPage { .. }
+        ) {
             *show_stack_dropdown.write() = true;
         }
     });

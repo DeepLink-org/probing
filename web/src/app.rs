@@ -11,8 +11,9 @@ use crate::components::source_viewer::SourceViewerOverlay;
 use crate::components::common::LoadingState;
 use crate::components::layout::AppLayout;
 use crate::pages::{
-    agent::Agent, analytics::Analytics, cluster::Cluster, dashboard::Dashboard, profiling::Profiling,
-    pulsing::Pulsing, python::Python, stack::Stack, traces::Traces, training::Training,
+    agent::Agent, analytics::Analytics, cluster::Cluster, dashboard::Dashboard,
+    profiling::Profiling, pulsing::Pulsing, python::Python, stack::Stack, traces::Traces,
+    training::Training,
 };
 use crate::state::profiling::normalize_profiling_view;
 
@@ -130,7 +131,9 @@ pub fn ProfilingViewPage(view: String) -> Element {
 fn ProfilingSlugRedirect(target: String) -> Element {
     let nav = dioxus_router::use_navigator();
     use_effect(move || {
-        nav.replace(Route::ProfilingViewPage { view: target.clone() });
+        nav.replace(Route::ProfilingViewPage {
+            view: target.clone(),
+        });
     });
     rsx! {
         AppLayout {

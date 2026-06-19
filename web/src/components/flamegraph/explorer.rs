@@ -4,15 +4,15 @@ use dioxus::prelude::*;
 
 use super::logic::{
     ancestor_ids, child_map, descendants, format_frame_value, format_pct, frame_fill_color,
-    frame_visible_for_thread, index_frames, is_torch_profile, label_for_frame, leaf_count_label,
-    list_phases, matches_search, metric_value_label, phase_label, search_placeholder,
-    frame_matches_thread_tid, TORCH_METRICS,
+    frame_matches_thread_tid, frame_visible_for_thread, index_frames, is_torch_profile,
+    label_for_frame, leaf_count_label, list_phases, matches_search, metric_value_label,
+    phase_label, search_placeholder, TORCH_METRICS,
 };
 use super::model::{FlameFrame, FlamegraphPayload};
 use super::widgets::{
-    BreadcrumbBar, BreadcrumbLink, BreadcrumbSeparator, ChartPanel, FlamegraphShell,
-    FlamegraphSvg, FlamegraphToolbar, FloatingTooltip, MetricPill, MetricPillRow, PhasePill,
-    PhasePillRow, PhasePillTone, StackSearchInput, StatChip, StatChipRow, TooltipState,
+    BreadcrumbBar, BreadcrumbLink, BreadcrumbSeparator, ChartPanel, FlamegraphShell, FlamegraphSvg,
+    FlamegraphToolbar, FloatingTooltip, MetricPill, MetricPillRow, PhasePill, PhasePillRow,
+    PhasePillTone, StackSearchInput, StatChip, StatChipRow, TooltipState,
 };
 
 #[component]
@@ -87,9 +87,7 @@ pub fn StackExplorerView(
                 f.depth <= 1 || f.phase.as_deref() == Some(phase_active.as_str())
             }
         })
-        .filter(|f| {
-            thread_tid.is_none_or(|tid| frame_visible_for_thread(&by_id, f, tid))
-        })
+        .filter(|f| thread_tid.is_none_or(|tid| frame_visible_for_thread(&by_id, f, tid)))
         .cloned()
         .collect();
 

@@ -283,15 +283,17 @@ mod tests {
 
     #[test]
     fn detects_missing_cpu_table_error() {
-        let err = AppError::Api(
-            "Error during planning: table 'probe.cpu.utilization' not found".into(),
-        );
+        let err =
+            AppError::Api("Error during planning: table 'probe.cpu.utilization' not found".into());
         assert!(is_cpu_table_missing(&err));
     }
 
     #[test]
     fn thread_display_name_prefers_comm() {
-        assert_eq!(thread_display_name("tokio-runtime-worker", 42), "tokio-runtime-worker");
+        assert_eq!(
+            thread_display_name("tokio-runtime-worker", 42),
+            "tokio-runtime-worker"
+        );
         assert_eq!(thread_display_name("  ", 7), "thread-7");
     }
 }

@@ -27,7 +27,10 @@ impl PageContext {
             self.description.clone(),
         ];
         if !self.investigation_summary.is_empty() && self.investigation_summary != "No context" {
-            lines.push(format!("Investigation context: {}", self.investigation_summary));
+            lines.push(format!(
+                "Investigation context: {}",
+                self.investigation_summary
+            ));
         }
         if !self.local_hints.is_empty() {
             lines.push(format!("Page hints: {}", self.local_hints.join("; ")));

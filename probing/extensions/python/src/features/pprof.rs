@@ -27,9 +27,7 @@
 
 use std::cell::UnsafeCell;
 use std::collections::HashMap;
-use std::sync::atomic::{
-    compiler_fence, AtomicBool, AtomicPtr, AtomicU64, AtomicUsize, Ordering,
-};
+use std::sync::atomic::{compiler_fence, AtomicBool, AtomicPtr, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Mutex, RwLock};
 use std::thread;
 use std::time::Duration;
@@ -230,8 +228,7 @@ fn slot_hash(tid: u64) -> usize {
 
 /// OS-thread names captured at registration (normal context), keyed by tid, so
 /// the consumer can label thread root frames readably.
-static THREAD_NAMES: Lazy<RwLock<HashMap<u64, String>>> =
-    Lazy::new(|| RwLock::new(HashMap::new()));
+static THREAD_NAMES: Lazy<RwLock<HashMap<u64, String>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
 /// Read the calling thread's name via `pthread_getname_np`. Normal context only.
 fn current_thread_name() -> Option<String> {
@@ -472,7 +469,8 @@ unsafe fn regs_from_uctx(uctx: *mut c_void) -> (usize, usize) {
 /// alignment / monotonicity / canonical-range heuristics only.
 unsafe fn walk_frame_pointers(start_fp: usize, out: &mut [usize], lo: usize, hi: usize) -> usize {
     let bounded = hi != 0 && lo < hi;
-    let in_stack = |fp: usize| !bounded || (fp >= lo && fp + 2 * std::mem::size_of::<usize>() <= hi);
+    let in_stack =
+        |fp: usize| !bounded || (fp >= lo && fp + 2 * std::mem::size_of::<usize>() <= hi);
 
     let mut fp = start_fp;
     let mut count = 0usize;
@@ -637,8 +635,7 @@ fn symbolize_native(addr: usize, cache: &mut HashMap<usize, String>) -> String {
 /// *looks up* labels here by integer pointer key — it never dereferences a
 /// Python object — so a frame whose code object has since been freed (e.g.
 /// `torch.compile` churn) can no longer cause a use-after-free.
-static PY_SYMBOLS: Lazy<RwLock<HashMap<usize, String>>> =
-    Lazy::new(|| RwLock::new(HashMap::new()));
+static PY_SYMBOLS: Lazy<RwLock<HashMap<usize, String>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
 /// Soft cap so heavy dynamic-codegen workloads can't grow the interner forever.
 const PY_SYMBOLS_CAP: usize = 1 << 18;
@@ -697,7 +694,10 @@ fn resolve_py_frame(key: usize) -> String {
 fn is_eval_frame(name: &str) -> bool {
     let mut tokens = name.split(['_', '.']).filter(|s| !s.is_empty());
     matches!(tokens.next(), Some("PyEval"))
-        && matches!(tokens.next(), Some("EvalFrameDefault") | Some("EvalFrameEx"))
+        && matches!(
+            tokens.next(),
+            Some("EvalFrameDefault") | Some("EvalFrameEx")
+        )
 }
 
 /// Our own eval-frame hook trampoline; dropped from mixed stacks as noise.

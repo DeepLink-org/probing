@@ -75,9 +75,7 @@ pub struct PageDescriptor {
 fn catalog_file() -> &'static CatalogFile {
     static CACHE: OnceLock<CatalogFile> = OnceLock::new();
     CACHE.get_or_init(|| {
-        serde_yaml::from_str(CATALOG_YAML).unwrap_or(CatalogFile {
-            playbooks: vec![],
-        })
+        serde_yaml::from_str(CATALOG_YAML).unwrap_or(CatalogFile { playbooks: vec![] })
     })
 }
 

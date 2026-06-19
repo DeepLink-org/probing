@@ -142,7 +142,12 @@ fn frame_location_link(
 #[component]
 fn FrameDetails(kind: FrameKind, callstack: CallFrame, ip: Option<String>) -> Element {
     match callstack {
-        CallFrame::PyFrame { file, lineno, locals, .. } => {
+        CallFrame::PyFrame {
+            file,
+            lineno,
+            locals,
+            ..
+        } => {
             rsx! {
                 if !locals.is_empty() {
                     CompactLocals { locals: locals }

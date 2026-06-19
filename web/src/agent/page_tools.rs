@@ -6,7 +6,9 @@ use probing_proto::prelude::{DataFrame, Ele};
 use crate::api::ApiClient;
 use crate::app::Route;
 use crate::components::flamegraph::FlamegraphPayload;
-use crate::state::profiling::{normalize_profiling_view, PROFILING_PPROF_FREQ, PROFILING_TORCH_ENABLED};
+use crate::state::profiling::{
+    normalize_profiling_view, PROFILING_PPROF_FREQ, PROFILING_TORCH_ENABLED,
+};
 use crate::state::ui_tasks::{begin_snapshot_task, end_snapshot_task};
 use crate::utils::error::Result;
 
@@ -34,11 +36,7 @@ pub fn dataframe_preview(df: &DataFrame, max_rows: usize) -> String {
     let take = nrows.min(max_rows);
     let mut lines = vec![df.names.join("\t")];
     for row in 0..take {
-        let cells: Vec<String> = df
-            .cols
-            .iter()
-            .map(|col| ele_str(&col.get(row)))
-            .collect();
+        let cells: Vec<String> = df.cols.iter().map(|col| ele_str(&col.get(row))).collect();
         lines.push(cells.join("\t"));
     }
     if nrows > take {
@@ -281,7 +279,10 @@ pub async fn refresh_page_snapshot_quiet(route: Route) {
 }
 
 async fn refresh_page_snapshot(route: Route, show_loading: bool) {
-    let had_snapshot = !crate::state::page_context::PAGE_CONTEXT.read().snapshot.is_empty();
+    let had_snapshot = !crate::state::page_context::PAGE_CONTEXT
+        .read()
+        .snapshot
+        .is_empty();
     if show_loading && !had_snapshot {
         crate::state::page_context::set_page_snapshot_loading(true);
     }

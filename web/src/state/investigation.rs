@@ -212,25 +212,18 @@ fn cell_text(df: &probing_proto::prelude::DataFrame, row: usize, col: usize) -> 
 
 /// Apply investigation context from an Agent/SQL result row (tid, trace_id, span name columns).
 pub fn apply_context_from_dataframe_row(df: &probing_proto::prelude::DataFrame, row: usize) {
-    let tid = column_index(&df.names, &["tid", "thread_id", "thread"])
-        .and_then(|c| cell_i32(df, row, c));
-    let trace_id = column_index(&df.names, &["trace_id", "trace"])
-        .and_then(|c| cell_i64(df, row, c));
-    let span_name = column_index(
-        &df.names,
-        &["span_name", "span", "name", "operation", "op"],
-    )
-    .and_then(|c| cell_text(df, row, c));
+    let tid =
+        column_index(&df.names, &["tid", "thread_id", "thread"]).and_then(|c| cell_i32(df, row, c));
+    let trace_id =
+        column_index(&df.names, &["trace_id", "trace"]).and_then(|c| cell_i64(df, row, c));
+    let span_name = column_index(&df.names, &["span_name", "span", "name", "operation", "op"])
+        .and_then(|c| cell_text(df, row, c));
     let pid = column_index(&df.names, &["pid", "process_id"]).and_then(|c| cell_i32(df, row, c));
     let rank = column_index(&df.names, &["rank", "_rank"]).and_then(|c| cell_i32(df, row, c));
-    let local_step = column_index(&df.names, &["local_step", "step"])
-        .and_then(|c| cell_i64(df, row, c));
+    let local_step =
+        column_index(&df.names, &["local_step", "step"]).and_then(|c| cell_i64(df, row, c));
 
-    if tid.is_none()
-        && trace_id.is_none()
-        && span_name.is_none()
-        && pid.is_none()
-        && rank.is_none()
+    if tid.is_none() && trace_id.is_none() && span_name.is_none() && pid.is_none() && rank.is_none()
     {
         return;
     }

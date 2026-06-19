@@ -134,11 +134,7 @@ async fn resolve_use_global(
     overrides.insert("use_global".to_string(), use_global.to_string());
 }
 
-async fn run_sql_step(
-    ctrl: &ProbeEndpoint,
-    step: &PlaybookStep,
-    sql: &str,
-) -> StepOutcome {
+async fn run_sql_step(ctrl: &ProbeEndpoint, step: &PlaybookStep, sql: &str) -> StepOutcome {
     if let Err(e) = ensure_read_only_sql(sql) {
         return StepOutcome::Error {
             step_id: step.id.clone(),
@@ -148,7 +144,9 @@ async fn run_sql_step(
     }
     let cluster = sql_needs_cluster(sql, step.cluster.unwrap_or(false));
     let result = if cluster {
-        cluster_query(ctrl, sql).await.map(|(df, note)| (df, Some(note)))
+        cluster_query(ctrl, sql)
+            .await
+            .map(|(df, note)| (df, Some(note)))
     } else {
         ctrl.query(Query::new(sql.to_string()))
             .await
@@ -328,7 +326,12 @@ fn print_findings(findings: &[InterpretFinding]) {
     }
     println!("\n### Interpretation");
     for f in findings {
-        println!("[{}] {} — {}", f.severity.to_uppercase(), f.rule_id, f.message);
+        println!(
+            "[{}] {} — {}",
+            f.severity.to_uppercase(),
+            f.rule_id,
+            f.message
+        );
     }
 }
 

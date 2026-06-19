@@ -9,7 +9,8 @@ use crate::hooks::use_app_resource;
 #[component]
 pub fn TraceableCatalog(on_start: EventHandler<(String, Vec<String>)>) -> Element {
     let mut filter = use_signal(String::new);
-    let items = use_app_resource(|| async move { ApiClient::new().get_traceable_items(None).await });
+    let items =
+        use_app_resource(|| async move { ApiClient::new().get_traceable_items(None).await });
     let list = items.suspend()?();
 
     query_result(
@@ -65,20 +66,14 @@ fn filter_traceables(items: &[TraceableItem], query: &str) -> Vec<TraceableItem>
         .iter()
         .filter(|item| {
             item.name.to_lowercase().contains(&q)
-                || item
-                    .variables
-                    .iter()
-                    .any(|v| v.to_lowercase().contains(&q))
+                || item.variables.iter().any(|v| v.to_lowercase().contains(&q))
         })
         .cloned()
         .collect()
 }
 
 #[component]
-fn TraceableRow(
-    item: TraceableItem,
-    on_start: EventHandler<(String, Vec<String>)>,
-) -> Element {
+fn TraceableRow(item: TraceableItem, on_start: EventHandler<(String, Vec<String>)>) -> Element {
     let is_module = item.item_type == "M";
     let mut expanded = use_signal(|| false);
 
@@ -156,10 +151,7 @@ fn TraceableRow(
 }
 
 #[component]
-fn ModuleChildren(
-    prefix: String,
-    on_start: EventHandler<(String, Vec<String>)>,
-) -> Element {
+fn ModuleChildren(prefix: String, on_start: EventHandler<(String, Vec<String>)>) -> Element {
     let children = use_app_resource(move || {
         let p = prefix.clone();
         async move { ApiClient::new().get_traceable_items(Some(&p)).await }

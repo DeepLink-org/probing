@@ -14,9 +14,11 @@ use async_openai::{
 use dioxus::prelude::ReadableExt;
 use serde::Deserialize;
 
-use crate::agent::{fetch_cluster_snapshot, list_playbook_ids, load_playbook, routing_context_for_llm};
 use crate::agent::cluster::cluster_context_for_llm;
 use crate::agent::runner::StepOutcome;
+use crate::agent::{
+    fetch_cluster_snapshot, list_playbook_ids, load_playbook, routing_context_for_llm,
+};
 use crate::state::llm_config::LlmConfig;
 use crate::state::page_context::PAGE_CONTEXT;
 use crate::utils::error::{AppError, Result};
@@ -73,14 +75,10 @@ fn system_prompt_select() -> String {
     )
 }
 
-
 async fn workspace_context_block_with_cluster() -> String {
     let page = PAGE_CONTEXT.read().llm_block();
     let cluster = fetch_cluster_snapshot().await;
-    format!(
-        "{page}\n\n{}",
-        cluster_context_for_llm(&cluster)
-    )
+    format!("{page}\n\n{}", cluster_context_for_llm(&cluster))
 }
 
 fn extract_json_object(text: &str) -> &str {
@@ -130,9 +128,7 @@ async fn chat_completion(
         builder.response_format(ResponseFormat::JsonObject);
     }
 
-    let request = builder
-        .build()
-        .map_err(|e| AppError::Api(e.to_string()))?;
+    let request = builder.build().map_err(|e| AppError::Api(e.to_string()))?;
 
     let response = client
         .chat()
@@ -162,9 +158,8 @@ pub async fn select_playbook(config: &LlmConfig, user_message: &str) -> Result<P
     .await?;
 
     let json_str = extract_json_object(&text);
-    serde_json::from_str(json_str).map_err(|e| {
-        AppError::Api(format!("LLM returned invalid JSON: {e}\nRaw: {text}"))
-    })
+    serde_json::from_str(json_str)
+        .map_err(|e| AppError::Api(format!("LLM returned invalid JSON: {e}\nRaw: {text}")))
 }
 
 pub async fn summarize_run(

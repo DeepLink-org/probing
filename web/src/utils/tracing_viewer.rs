@@ -14,8 +14,7 @@ pub fn open_perfetto_window(trace_json: &str) -> Result<(), String> {
     bag.set_type("text/html");
     let blob = Blob::new_with_str_sequence_and_options(&parts, &bag)
         .map_err(|_| "Failed to create trace blob")?;
-    let url = Url::create_object_url_with_blob(&blob)
-        .map_err(|_| "Failed to create object URL")?;
+    let url = Url::create_object_url_with_blob(&blob).map_err(|_| "Failed to create object URL")?;
 
     window
         .open_with_url_and_target(&url, "_blank")
@@ -33,7 +32,8 @@ pub fn get_tracing_viewer_html(trace_json: &str) -> String {
         .replace('`', "\\`")
         .replace('$', "\\$");
 
-    format!(r#"
+    format!(
+        r#"
 <!DOCTYPE html>
 <html>
 <head>
@@ -228,5 +228,6 @@ pub fn get_tracing_viewer_html(trace_json: &str) -> String {
     </script>
 </body>
 </html>
-    "#)
+    "#
+    )
 }

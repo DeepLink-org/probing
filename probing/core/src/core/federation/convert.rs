@@ -246,7 +246,11 @@ mod tests {
 
     #[test]
     fn federated_schema_includes_tag_columns() {
-        let local = Arc::new(Schema::new(vec![Field::new("rank", DataType::Int32, false)]));
+        let local = Arc::new(Schema::new(vec![Field::new(
+            "rank",
+            DataType::Int32,
+            false,
+        )]));
         let schema = federated_output_schema(local);
         assert!(schema.index_of(PROBE_HOST_COL).is_ok());
         assert!(schema.index_of(PROBE_ADDR_COL).is_ok());
@@ -256,12 +260,12 @@ mod tests {
 
     #[test]
     fn tag_record_batch_adds_probe_columns() {
-        let local = Arc::new(Schema::new(vec![Field::new("rank", DataType::Int32, false)]));
-        let batch = RecordBatch::try_new(
-            local,
-            vec![Arc::new(Int32Array::from(vec![7]))],
-        )
-        .unwrap();
+        let local = Arc::new(Schema::new(vec![Field::new(
+            "rank",
+            DataType::Int32,
+            false,
+        )]));
+        let batch = RecordBatch::try_new(local, vec![Arc::new(Int32Array::from(vec![7]))]).unwrap();
         let tagged = tag_record_batch(batch, "host-a", "10.0.0.1:8080", Some(3)).unwrap();
         assert_eq!(tagged.num_columns(), 4);
         assert_eq!(
@@ -295,7 +299,11 @@ mod tests {
 
     #[test]
     fn extend_projection_honors_explicit_selection() {
-        let local = Arc::new(Schema::new(vec![Field::new("rank", DataType::Int32, false)]));
+        let local = Arc::new(Schema::new(vec![Field::new(
+            "rank",
+            DataType::Int32,
+            false,
+        )]));
         let schema = federated_output_schema(local);
         let extended = extend_projection_with_probe_tags(Some(&vec![0]), &schema).unwrap();
         assert_eq!(extended, vec![0]);
@@ -303,11 +311,14 @@ mod tests {
 
     #[test]
     fn extend_projection_honors_tag_only_selection() {
-        let local = Arc::new(Schema::new(vec![Field::new("rank", DataType::Int32, false)]));
+        let local = Arc::new(Schema::new(vec![Field::new(
+            "rank",
+            DataType::Int32,
+            false,
+        )]));
         let schema = federated_output_schema(local);
         let rank_idx = schema.index_of(PROBE_RANK_COL).unwrap();
-        let extended =
-            extend_projection_with_probe_tags(Some(&vec![rank_idx]), &schema).unwrap();
+        let extended = extend_projection_with_probe_tags(Some(&vec![rank_idx]), &schema).unwrap();
         assert_eq!(extended, vec![rank_idx]);
     }
 }

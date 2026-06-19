@@ -13,8 +13,7 @@ pub fn WorkspacePanelShell(
     #[props(optional)] toolbar: Option<Element>,
     footer: Element,
     children: Element,
-    #[props(default = false)]
-    embedded: bool,
+    #[props(default = false)] embedded: bool,
 ) -> Element {
     let shell_class = if embedded {
         "h-full min-h-0 flex flex-col rounded-lg border border-gray-200 bg-white shadow-sm"

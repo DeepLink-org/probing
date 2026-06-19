@@ -158,7 +158,8 @@ pub fn InvestigationUrlSync() -> Element {
 
         let handler = wasm_bindgen::closure::Closure::wrap(Box::new(move |_e: web_sys::Event| {
             apply_investigation_context_from_url();
-        }) as Box<dyn FnMut(web_sys::Event)>);
+        })
+            as Box<dyn FnMut(web_sys::Event)>);
         let listener = handler.as_ref().unchecked_ref();
         let _ = window.add_event_listener_with_callback("popstate", listener);
         *slot_for_effect.borrow_mut() = Some((window, handler));

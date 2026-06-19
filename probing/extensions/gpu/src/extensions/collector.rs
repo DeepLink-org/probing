@@ -10,9 +10,7 @@ use probing_memtable::discover::ExposedTable;
 use probing_memtable::{DType, Schema, Value};
 use thiserror::Error;
 
-use super::backend::{
-    discover_backends, selected_backends, GpuBackend, GpuMemorySample,
-};
+use super::backend::{discover_backends, selected_backends, GpuBackend, GpuMemorySample};
 
 #[cfg(feature = "cuda")]
 use super::backend::read_utilization_by_index;

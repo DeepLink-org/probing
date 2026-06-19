@@ -3,7 +3,6 @@ use dioxus::prelude::*;
 use crate::api::ApiClient;
 use crate::components::common::AsyncBoundary;
 use crate::components::flamegraph::{FlamegraphPayload, FlamegraphView};
-use crate::components::profiling_sidebar_hint::ProfilingSidebarHint;
 use crate::components::page::PageTitle;
 use crate::components::profile_snapshot_bar::ProfileSnapshotBar;
 use crate::components::profiling::{
@@ -11,6 +10,7 @@ use crate::components::profiling::{
     PytorchChromeTimelineLoader, RayChromeTimelineLoader, TimelinePlaceholder,
     TraceChromeTimelineLoader,
 };
+use crate::components::profiling_sidebar_hint::ProfilingSidebarHint;
 use crate::hooks::use_app_resource;
 use crate::state::investigation::{
     clear_profiling_thread_filter, INVESTIGATION_CONTEXT, PROFILING_THREAD_FILTER,
@@ -172,8 +172,9 @@ fn FlamegraphData(profiler_name: String) -> Element {
             } else {
                 client.get_flamegraph_json(&name).await?
             };
-            let parsed: FlamegraphPayload = serde_json::from_str(&body)
-                .map_err(|e| crate::utils::error::AppError::Api(format!("Invalid flamegraph JSON: {e}")))?;
+            let parsed: FlamegraphPayload = serde_json::from_str(&body).map_err(|e| {
+                crate::utils::error::AppError::Api(format!("Invalid flamegraph JSON: {e}"))
+            })?;
             Ok(parsed)
         }
     });

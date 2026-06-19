@@ -24,7 +24,11 @@ impl ApiClient {
 
     /// Build API URL
     fn build_url(path: &str) -> Result<String> {
-        Ok(format!("{}{}", Self::get_origin()?, crate::utils::base_path::with_base(path)))
+        Ok(format!(
+            "{}{}",
+            Self::get_origin()?,
+            crate::utils::base_path::with_base(path)
+        ))
     }
 
     /// Send GET request
@@ -33,7 +37,10 @@ impl ApiClient {
         let response = reqwest::get(&url).await?;
 
         let status = response.status();
-        let body = response.text().await.map_err(|e| AppError::Api(e.to_string()))?;
+        let body = response
+            .text()
+            .await
+            .map_err(|e| AppError::Api(e.to_string()))?;
 
         if !status.is_success() {
             if let Ok(value) = serde_json::from_str::<serde_json::Value>(&body) {
@@ -62,7 +69,10 @@ impl ApiClient {
             return Err(AppError::Api(format!("HTTP error: {}", response.status())));
         }
 
-        response.text().await.map_err(|e| AppError::Api(e.to_string()))
+        response
+            .text()
+            .await
+            .map_err(|e| AppError::Api(e.to_string()))
     }
 
     /// Send GET request (public wrapper for agent / extensions).
@@ -79,10 +89,10 @@ impl ApiClient {
 
 // Export all API modules
 mod analytics;
-mod files;
 mod cluster;
 mod cpu;
 mod dashboard;
+mod files;
 mod gpu;
 mod profiling;
 mod pulsing;
@@ -100,9 +110,9 @@ pub use cluster::*;
 #[allow(unused_imports)]
 pub use cpu::*;
 #[allow(unused_imports)]
-pub use gpu::*;
-#[allow(unused_imports)]
 pub use dashboard::*;
+#[allow(unused_imports)]
+pub use gpu::*;
 #[allow(unused_imports)]
 pub use profiling::*;
 #[allow(unused_imports)]

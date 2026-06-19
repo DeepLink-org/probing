@@ -7,7 +7,9 @@ use serde_json::json;
 use probing_core::runtime::block_on;
 
 use crate::extensions::python::PythonProbeDataSource;
-use crate::features::flamegraph::{empty_torch_html, Flamegraph, FlamegraphKind, FlamegraphOptions};
+use crate::features::flamegraph::{
+    empty_torch_html, Flamegraph, FlamegraphKind, FlamegraphOptions,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum TorchMetric {
@@ -43,8 +45,12 @@ impl TorchMetric {
     fn subtitle(self) -> &'static str {
         match self {
             Self::Duration => "Median post-hook duration · statistical sampling",
-            Self::DeltaMb => "Median pre→post allocated delta · CUDA global memory · statistical sampling",
-            Self::PeakMb => "Median pre→post peak allocated delta · CUDA global memory · statistical sampling",
+            Self::DeltaMb => {
+                "Median pre→post allocated delta · CUDA global memory · statistical sampling"
+            }
+            Self::PeakMb => {
+                "Median pre→post peak allocated delta · CUDA global memory · statistical sampling"
+            }
         }
     }
 }
@@ -361,7 +367,10 @@ fn lines_from_agg_query(query: &str) -> Vec<String> {
     }
 }
 
-fn build_lines_from_memory_pairs(data: &probing_proto::types::DataFrame, use_peak: bool) -> Vec<String> {
+fn build_lines_from_memory_pairs(
+    data: &probing_proto::types::DataFrame,
+    use_peak: bool,
+) -> Vec<String> {
     let mut pre_rows: HashMap<(i64, String, String), (f64, f64)> = HashMap::new();
     let mut deltas: Vec<(String, String, f64)> = Vec::new();
 
@@ -395,10 +404,7 @@ fn build_lines_from_memory_pairs(data: &probing_proto::types::DataFrame, use_pea
 
     let mut grouped: HashMap<(String, String), Vec<f64>> = HashMap::new();
     for (module, stage, delta) in deltas {
-        grouped
-            .entry((module, stage))
-            .or_default()
-            .push(delta);
+        grouped.entry((module, stage)).or_default().push(delta);
     }
 
     let rows = grouped
@@ -499,9 +505,10 @@ pub fn flamegraph() -> String {
             }
 
             match Flamegraph::from_folded_lines(&result.lines) {
-                Some(fg) => fg.render_html(
-                    &torch_flamegraph_options(TorchMetric::Duration, &result.subtitle),
-                ),
+                Some(fg) => fg.render_html(&torch_flamegraph_options(
+                    TorchMetric::Duration,
+                    &result.subtitle,
+                )),
                 None => empty_torch_html("No torch profiling samples collected"),
             }
         }
@@ -569,16 +576,28 @@ mod tests {
     fn build_folded_lines_uses_phase_and_module_hierarchy() {
         let lines = build_folded_lines(
             [
-                ("model.features.conv1".to_string(), "post forward".to_string(), 0.005),
-                ("model.features".to_string(), "post forward".to_string(), 0.008),
+                (
+                    "model.features.conv1".to_string(),
+                    "post forward".to_string(),
+                    0.005,
+                ),
+                (
+                    "model.features".to_string(),
+                    "post forward".to_string(),
+                    0.008,
+                ),
             ],
             value_to_ns,
             false,
         );
 
         assert_eq!(lines.len(), 2);
-        assert!(lines.iter().any(|l| l.starts_with("forward;model;features;conv1 5000000")));
-        assert!(lines.iter().any(|l| l.starts_with("forward;model;features 3000000")));
+        assert!(lines
+            .iter()
+            .any(|l| l.starts_with("forward;model;features;conv1 5000000")));
+        assert!(lines
+            .iter()
+            .any(|l| l.starts_with("forward;model;features 3000000")));
     }
 
     #[test]
@@ -604,7 +623,9 @@ mod tests {
             value_to_ns,
             false,
         );
-        assert!(lines.iter().any(|l| l.starts_with("forward;layer 10000000")));
+        assert!(lines
+            .iter()
+            .any(|l| l.starts_with("forward;layer 10000000")));
         assert!(lines.iter().any(|l| l.starts_with("step;Adam 2000000")));
     }
 
@@ -662,8 +683,6 @@ mod tests {
         ];
 
         let lines = build_lines_from_memory_pairs(&df, false);
-        assert!(lines
-            .iter()
-            .any(|l| l.starts_with("forward;layer 2500000")));
+        assert!(lines.iter().any(|l| l.starts_with("forward;layer 2500000")));
     }
 }

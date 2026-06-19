@@ -8,8 +8,7 @@ use crate::state::investigation::INVESTIGATION_CONTEXT;
 
 #[component]
 pub fn InvestigationContextHint(
-    #[props(default = "Process-wide view.")]
-    note: &'static str,
+    #[props(default = "Process-wide view.")] note: &'static str,
 ) -> Element {
     let ctx = INVESTIGATION_CONTEXT.read().clone();
     if ctx.trace_id.is_none() && ctx.span_name.is_none() && ctx.pid.is_none() {

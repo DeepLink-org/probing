@@ -15,8 +15,7 @@ use super::error::EngineError;
 use crate::config;
 
 /// Shared probe extension instances keyed by extension name.
-pub type ProbeExtensionMap =
-    BTreeMap<String, Arc<Mutex<dyn ProbeExtension + Send + Sync>>>;
+pub type ProbeExtensionMap = BTreeMap<String, Arc<Mutex<dyn ProbeExtension + Send + Sync>>>;
 
 /// Global probe extension registry.
 ///

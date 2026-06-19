@@ -1,8 +1,8 @@
 //! Push `GROUP BY` / aggregate queries to each probing node, then merge partial
 //! results at the coordinator instead of fanning out raw rows.
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 use arrow::compute::concat_batches;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -10,8 +10,8 @@ use datafusion::catalog::MemTable;
 use datafusion::error::{DataFusionError, Result};
 use datafusion::prelude::SessionContext;
 use datafusion::sql::sqlparser::ast::{
-    DuplicateTreatment, Expr, Function, FunctionArguments, GroupByExpr, Ident, ObjectNamePart, Query,
-    Select, SelectItem, SetExpr, Statement, TableFactor,
+    DuplicateTreatment, Expr, Function, FunctionArguments, GroupByExpr, Ident, ObjectNamePart,
+    Query, Select, SelectItem, SetExpr, Statement, TableFactor,
 };
 use datafusion::sql::sqlparser::dialect::GenericDialect;
 use datafusion::sql::sqlparser::parser::Parser;
@@ -19,7 +19,9 @@ use datafusion::sql::sqlparser::parser::Parser;
 use crate::core::arrow_convert::arrow_array_to_seq;
 use crate::core::Engine;
 
-use super::cluster_executor::{reset_fanout_stats, set_fanout_stats, FanoutStats, ProbeClusterExecutor};
+use super::cluster_executor::{
+    reset_fanout_stats, set_fanout_stats, FanoutStats, ProbeClusterExecutor,
+};
 use super::convert::{
     cluster_rank_for_endpoint, is_federation_tag_column, proto_dataframe_to_record_batch,
     tag_proto_dataframe,
@@ -236,9 +238,7 @@ fn select_mentions_tags(select: &Select) -> bool {
         }
         _ => false,
     });
-    let in_group = group_by_expressions(select)
-        .iter()
-        .any(expr_mentions_tag);
+    let in_group = group_by_expressions(select).iter().any(expr_mentions_tag);
     in_projection || in_group
 }
 
@@ -286,7 +286,10 @@ fn function_is_distinct(func: &Function) -> bool {
     }
 }
 
-fn plan_aggregates(select: &Select, data_group: &[String]) -> Option<(Vec<PlannedAggregate>, bool)> {
+fn plan_aggregates(
+    select: &Select,
+    data_group: &[String],
+) -> Option<(Vec<PlannedAggregate>, bool)> {
     let mut aggregates = Vec::new();
     let mut has_unsafe_distinct = false;
     for item in &select.projection {
@@ -390,11 +393,7 @@ fn build_global_merge_sql(
     tag_group: &[String],
     aggregates: &[PlannedAggregate],
 ) -> String {
-    let group_cols: Vec<String> = data_group
-        .iter()
-        .chain(tag_group.iter())
-        .cloned()
-        .collect();
+    let group_cols: Vec<String> = data_group.iter().chain(tag_group.iter()).cloned().collect();
     let mut select_parts: Vec<String> = group_cols.iter().map(|c| quote_ident(c)).collect();
     for agg in aggregates {
         let merge_fn = agg.merge_fn.unwrap_or("sum");
@@ -420,9 +419,7 @@ fn build_global_merge_sql(
 }
 
 fn quote_ident(name: &str) -> String {
-    if name
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '_')
+    if name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
         && !name.is_empty()
         && !name.chars().next().unwrap().is_ascii_digit()
     {
@@ -466,11 +463,7 @@ fn batches_to_dataframe(batches: Vec<RecordBatch>) -> Result<probing_proto::prel
         .iter()
         .map(|f| f.name().clone())
         .collect();
-    let cols = batch
-        .columns()
-        .iter()
-        .map(arrow_array_to_seq)
-        .collect();
+    let cols = batch.columns().iter().map(arrow_array_to_seq).collect();
     Ok(probing_proto::prelude::DataFrame::new(names, cols))
 }
 
@@ -557,8 +550,7 @@ mod tests {
 
     #[test]
     fn rejects_count_distinct_grouped_by_data_column() {
-        let sql =
-            "SELECT name, count(distinct value) AS n FROM global.process.envs GROUP BY name";
+        let sql = "SELECT name, count(distinct value) AS n FROM global.process.envs GROUP BY name";
         assert!(plan_federated_aggregate_pushdown(sql).is_none());
     }
 }

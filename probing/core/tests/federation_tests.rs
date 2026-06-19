@@ -38,20 +38,16 @@ fn df_col_str(df: &probing_proto::prelude::DataFrame, name: &str) -> Vec<String>
 }
 
 async fn build_demo_engine() -> Engine {
-  std::env::set_var("PROBING_ADDRESS", "127.0.0.1:19999");
-  std::env::set_var("HOSTNAME", "federation-test-host");
+    std::env::set_var("PROBING_ADDRESS", "127.0.0.1:19999");
+    std::env::set_var("HOSTNAME", "federation-test-host");
 
-  let metrics = GenericTableProbeDataSource::single_column_table(
-      "metrics",
-      "demo",
-      "rank",
-      vec![0, 1, 2],
-  );
-  Engine::builder()
-      .with_data_source(Arc::new(metrics) as Arc<dyn ProbeDataSource + Send + Sync>)
-      .build()
-      .await
-      .expect("engine build")
+    let metrics =
+        GenericTableProbeDataSource::single_column_table("metrics", "demo", "rank", vec![0, 1, 2]);
+    Engine::builder()
+        .with_data_source(Arc::new(metrics) as Arc<dyn ProbeDataSource + Send + Sync>)
+        .build()
+        .await
+        .expect("engine build")
 }
 
 #[tokio::test]
@@ -72,12 +68,7 @@ async fn global_catalog_discovers_tables_registered_after_build() {
     std::env::set_var("HOSTNAME", "federation-test-host");
 
     let engine = Engine::builder().build().await.expect("engine build");
-    let late = GenericTableProbeDataSource::single_column_table(
-        "late",
-        "demo",
-        "v",
-        vec![42],
-    );
+    let late = GenericTableProbeDataSource::single_column_table("late", "demo", "v", vec![42]);
     engine
         .enable(Arc::new(late) as Arc<dyn ProbeDataSource + Send + Sync>)
         .await
@@ -148,7 +139,10 @@ async fn global_and_probe_return_same_ranks_without_peers() {
         .await
         .expect("global query")
         .expect("global dataframe");
-    assert_eq!(df_col_i32(&probe_df, "rank"), df_col_i32(&global_df, "rank"));
+    assert_eq!(
+        df_col_i32(&probe_df, "rank"),
+        df_col_i32(&global_df, "rank")
+    );
 }
 
 #[tokio::test]

@@ -372,18 +372,20 @@ fn TraceTreePanel(
 }
 
 fn count_spans(spans: &[SpanInfo]) -> usize {
-    spans
-        .iter()
-        .map(|s| 1 + count_spans(&s.children))
-        .sum()
+    spans.iter().map(|s| 1 + count_spans(&s.children)).sum()
 }
 
-fn filter_span_tree(spans: &[SpanInfo], query: &str, advanced: &TraceAdvancedFilters) -> Vec<SpanInfo> {
+fn filter_span_tree(
+    spans: &[SpanInfo],
+    query: &str,
+    advanced: &TraceAdvancedFilters,
+) -> Vec<SpanInfo> {
     spans
         .iter()
         .filter_map(|span| {
             let children = filter_span_tree(&span.children, query, advanced);
-            let self_matches = span_matches_text(span, query) && span_matches_advanced(span, advanced);
+            let self_matches =
+                span_matches_text(span, query) && span_matches_advanced(span, advanced);
             if self_matches || !children.is_empty() {
                 Some(SpanInfo {
                     children,
@@ -490,7 +492,8 @@ fn span_matches_advanced(span: &SpanInfo, filters: &TraceAdvancedFilters) -> boo
 }
 
 fn span_duration_secs(span: &SpanInfo) -> Option<f64> {
-    span.end_timestamp.map(|end| (end - span.start_timestamp) as f64 / 1_000_000_000.0)
+    span.end_timestamp
+        .map(|end| (end - span.start_timestamp) as f64 / 1_000_000_000.0)
 }
 
 fn duration_label(duration: f64) -> String {

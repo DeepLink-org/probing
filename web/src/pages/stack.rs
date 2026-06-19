@@ -6,7 +6,9 @@ use crate::components::callstack_view::CallStackView;
 use crate::components::common::{AsyncBoundary, EmptyState, ErrorState};
 use crate::components::page::{PageContainer, PageTitle};
 use crate::hooks::use_app_resource;
-use crate::state::stack::{stack_tid_label, StackSnapshot, STACK_MODE, STACK_REFRESH, STACK_SNAPSHOT};
+use crate::state::stack::{
+    stack_tid_label, StackSnapshot, STACK_MODE, STACK_REFRESH, STACK_SNAPSHOT,
+};
 use crate::utils::callframe::{count_by_kind, matches_mode};
 use crate::utils::error::AppError;
 
@@ -57,7 +59,12 @@ fn StackLoaded(tid: Option<String>, tid_label: String, refresh_tick: u32) -> Ele
     let stack_peek = stack.read().clone();
     let tid_for_effect = tid_label.clone();
 
-    use_effect(use_reactive!(|(mode, refresh_tick, stack_peek, tid_for_effect)| {
+    use_effect(use_reactive!(|(
+        mode,
+        refresh_tick,
+        stack_peek,
+        tid_for_effect,
+    )| {
         let _ = refresh_tick;
         let Some(result) = stack_peek.as_ref() else {
             return;
@@ -130,10 +137,7 @@ fn stack_snapshot_for(
         },
         Ok(frames) => {
             let (py_count, rust_count, cpp_count) = count_by_kind(frames);
-            let shown = frames
-                .iter()
-                .filter(|cf| matches_mode(cf, mode))
-                .count();
+            let shown = frames.iter().filter(|cf| matches_mode(cf, mode)).count();
             StackSnapshot {
                 tid_label: tid_label.to_string(),
                 total: frames.len(),

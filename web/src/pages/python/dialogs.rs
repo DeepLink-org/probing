@@ -139,11 +139,7 @@ pub fn StartTraceDialog(
 }
 
 #[component]
-pub fn RecordsModal(
-    function: String,
-    poll: Signal<u32>,
-    on_close: EventHandler<()>,
-) -> Element {
+pub fn RecordsModal(function: String, poll: Signal<u32>, on_close: EventHandler<()>) -> Element {
     let function_label = function.clone();
     let records = use_app_resource({
         let function = function.clone();

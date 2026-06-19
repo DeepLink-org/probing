@@ -7,7 +7,8 @@ use crate::state::agent::{open_agent_prefill, queue_agent_action, AgentPendingAc
 use crate::state::page_context::{set_page_local_hints, PAGE_CONTEXT};
 use crate::utils::source_ref::{language_class, SourceSlice};
 
-const DEFAULT_SOURCE_PLAYBOOKS: &[&str] = &["training_hang", "health_overview", "module_bottleneck"];
+const DEFAULT_SOURCE_PLAYBOOKS: &[&str] =
+    &["training_hang", "health_overview", "module_bottleneck"];
 
 /// Attach the visible source slice to page hints so LLM / playbooks see it.
 pub fn attach_source_focus(path: &str, line: Option<i64>, slice: &SourceSlice) {
@@ -47,7 +48,12 @@ pub fn ask_and_run_agent_about_source(path: &str, line: Option<i64>, slice: &Sou
 }
 
 /// Run a playbook with the current source slice attached as page context.
-pub fn run_playbook_with_source(playbook_id: &str, path: &str, line: Option<i64>, slice: &SourceSlice) {
+pub fn run_playbook_with_source(
+    playbook_id: &str,
+    path: &str,
+    line: Option<i64>,
+    slice: &SourceSlice,
+) {
     if load_playbook(playbook_id).is_none() {
         return;
     }

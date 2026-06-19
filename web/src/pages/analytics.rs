@@ -70,9 +70,10 @@ pub fn Analytics() -> Element {
     let mut selected_table = use_signal(|| None::<String>);
     let mut preview_title = use_signal(|| String::new());
     let mut preview_open = use_signal(|| false);
-    let mut preview = use_action(|fqtn: String| async move {
-        ApiClient::new().execute_preview_last10(&fqtn).await
-    });
+    let mut preview =
+        use_action(
+            |fqtn: String| async move { ApiClient::new().execute_preview_last10(&fqtn).await },
+        );
 
     let select_for_query = move |entry: TableEntry| {
         let global = global_mode();
@@ -202,10 +203,7 @@ fn filter_tables(entries: &[TableEntry], query: &str, global_mode: bool) -> Vec<
 }
 
 #[component]
-fn GlobalModeToggle(
-    mut global_mode: Signal<bool>,
-    on_change: EventHandler<()>,
-) -> Element {
+fn GlobalModeToggle(mut global_mode: Signal<bool>, on_change: EventHandler<()>) -> Element {
     let active = global_mode();
     rsx! {
         div {

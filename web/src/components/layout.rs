@@ -5,7 +5,9 @@
 use dioxus::prelude::*;
 
 use crate::components::agent::{AgentPanel, LlmSettingsOverlay};
-use crate::components::global_command_panel::{CommandBar, FloatingResultToast, GlobalCommandPanel};
+use crate::components::global_command_panel::{
+    CommandBar, FloatingResultToast, GlobalCommandPanel,
+};
 use crate::components::icon::Icon;
 use crate::components::keyboard_shortcuts::{GlobalShortcutInstaller, ShortcutsHelpOverlay};
 use crate::components::page_context_sync::PageContextSync;
@@ -22,10 +24,7 @@ use crate::state::sidebar::{save_sidebar_state, SIDEBAR_HIDDEN, SIDEBAR_WIDTH};
 const SHOW_SIDEBAR_BUTTON_CLASS: &str = "fixed top-4 left-4 z-50 w-10 h-10 bg-white border border-gray-300 rounded-lg shadow-sm flex items-center justify-center hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2";
 
 #[component]
-pub fn AppLayout(
-    children: Element,
-    #[props(default = false)] fullscreen: bool,
-) -> Element {
+pub fn AppLayout(children: Element, #[props(default = false)] fullscreen: bool) -> Element {
     let _sidebar_width = SIDEBAR_WIDTH.read();
     let sidebar_hidden = SIDEBAR_HIDDEN.read();
     let mut floating_result = use_signal(|| Option::<FloatingResult>::None);

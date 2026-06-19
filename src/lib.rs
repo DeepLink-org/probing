@@ -96,10 +96,7 @@ fn setup_env_settings() {
                 log::debug!(
                     "ENV_PROBING_PORT specifies port: {port_number}. PROBING_SERVER_ADDR will be set."
                 );
-                std::env::set_var(
-                    "PROBING_SERVER_ADDR",
-                    format!("'0.0.0.0:{port_number}'"),
-                );
+                std::env::set_var("PROBING_SERVER_ADDR", format!("'0.0.0.0:{port_number}'"));
             } else {
                 log::warn!(
                     "ENV_PROBING_PORT value '{port_env_val}' is not 'RANDOM' and not a valid port number."

@@ -26,8 +26,7 @@ struct OpenSlice {
 }
 
 pub fn parse_chrome_trace(json: &str) -> Result<TimelineModel, String> {
-    let root: Value =
-        serde_json::from_str(json).map_err(|e| format!("Invalid trace JSON: {e}"))?;
+    let root: Value = serde_json::from_str(json).map_err(|e| format!("Invalid trace JSON: {e}"))?;
     let events = extract_trace_events(&root)?;
     if events.is_empty() {
         return Ok(TimelineModel::default());
@@ -77,8 +76,7 @@ pub fn parse_chrome_trace(json: &str) -> Result<TimelineModel, String> {
     }
 
     raw.sort_by(|a, b| {
-        a.ts
-            .partial_cmp(&b.ts)
+        a.ts.partial_cmp(&b.ts)
             .unwrap_or(std::cmp::Ordering::Equal)
             .then_with(|| a.ph.cmp(&b.ph))
     });
@@ -255,9 +253,7 @@ fn json_str(obj: &serde_json::Map<String, Value>, key: &str) -> String {
 }
 
 fn json_u32(obj: &serde_json::Map<String, Value>, key: &str) -> u32 {
-    obj.get(key)
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as u32
+    obj.get(key).and_then(|v| v.as_u64()).unwrap_or(0) as u32
 }
 
 fn json_f64(obj: &serde_json::Map<String, Value>, key: &str) -> f64 {
