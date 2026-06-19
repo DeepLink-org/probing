@@ -6,7 +6,7 @@ use crate::components::colors::colors;
 
 #[component]
 pub fn StatCard(
-    label: &'static str,
+    label: String,
     value: String,
     #[props(optional)] hint: Option<String>,
 ) -> Element {

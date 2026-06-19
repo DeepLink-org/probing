@@ -12,25 +12,31 @@ pub fn PageTitle(
     title: String,
     subtitle: Option<String>,
     #[props(optional)] icon: Option<&'static IconData>,
+    #[props(optional)] header_right: Option<Element>,
 ) -> Element {
     rsx! {
         div {
-            class: "mb-4",
+            class: "mb-4 flex flex-wrap items-start justify-between gap-x-4 gap-y-1",
             div {
-                class: "flex items-center gap-2",
-                if let Some(icon_data) = icon {
-                    Icon { icon: icon_data, class: "w-5 h-5 text-blue-600" }
+                div {
+                    class: "flex items-center gap-2",
+                    if let Some(icon_data) = icon {
+                        Icon { icon: icon_data, class: "w-5 h-5 text-blue-600" }
+                    }
+                    h1 {
+                        class: "text-xl font-semibold text-gray-900",
+                        "{title}"
+                    }
                 }
-                h1 {
-                    class: "text-xl font-semibold text-gray-900",
-                    "{title}"
+                if let Some(subtitle) = subtitle {
+                    p {
+                        class: "text-sm text-gray-500 mt-0.5",
+                        "{subtitle}"
+                    }
                 }
             }
-            if let Some(subtitle) = subtitle {
-                p {
-                    class: "text-sm text-gray-500 mt-0.5",
-                    "{subtitle}"
-                }
+            if let Some(right) = header_right {
+                div { class: "shrink-0 pt-1", {right} }
             }
         }
     }

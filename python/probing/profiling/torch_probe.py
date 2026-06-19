@@ -284,7 +284,6 @@ def mem_stats() -> TorchTrace:
             max_cached=0.0,
         )
 
-    # Only CUDA supports memory statistics
     if backend == torch.cuda:
         return TorchTrace(
             allocated=backend.memory_allocated() / MB,
@@ -292,14 +291,34 @@ def mem_stats() -> TorchTrace:
             max_allocated=backend.max_memory_allocated() / MB,
             max_cached=backend.max_memory_reserved() / MB,
         )
-    else:
-        # MPS and other backends don't have memory statistics yet
-        return TorchTrace(
-            allocated=0.0,
-            cached=0.0,
-            max_allocated=0.0,
-            max_cached=0.0,
-        )
+
+    # MPS / Apple GPU (and other backends): memory APIs differ across PyTorch
+    # versions, so probe each function defensively. Unknown backends without
+    # any of these functions degrade gracefully to 0.0.
+    def _mem_mb(*names: str) -> float:
+        for name in names:
+            fn = getattr(backend, name, None)
+            if fn is None:
+                continue
+            try:
+                return float(fn()) / MB
+            except Exception:
+                continue
+        return 0.0
+
+    # current_allocated_memory: bytes held by live MPS tensors.
+    allocated = _mem_mb("current_allocated_memory", "memory_allocated")
+    # driver_allocated_memory: total memory the Metal driver holds (~reserved/cache).
+    cached = _mem_mb("driver_allocated_memory", "memory_reserved")
+    # Peak counters are not tracked on older PyTorch; fall back to current values.
+    max_allocated = _mem_mb("max_memory_allocated") or allocated
+    max_cached = _mem_mb("max_memory_reserved") or cached
+    return TorchTrace(
+        allocated=allocated,
+        cached=cached,
+        max_allocated=max_allocated,
+        max_cached=max_cached,
+    )
 
 
 STAGEMAP = {

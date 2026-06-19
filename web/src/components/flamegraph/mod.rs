@@ -1,3 +1,4 @@
+pub mod diff;
 pub mod explorer;
 pub mod logic;
 pub mod model;
@@ -65,12 +66,21 @@ pub fn FlamegraphView(
                 message: "Unsupported flamegraph profile. Reload the page.".to_string(),
             }
         },
-        _ => rsx! {
-            StackExplorerView {
-                payload,
-                torch_metric,
-                on_torch_metric,
+        _ => {
+            let dropped = payload.dropped;
+            rsx! {
+                if dropped > 0 {
+                    div {
+                        class: "px-4 py-2 text-xs text-amber-800 bg-amber-50 border-b border-amber-200",
+                        "Warning: {dropped} samples dropped (ring full or cardinality cap); results may undercount. Lower the sampling frequency or let the buffer drain."
+                    }
+                }
+                StackExplorerView {
+                    payload,
+                    torch_metric,
+                    on_torch_metric,
+                }
             }
-        },
+        }
     }
 }

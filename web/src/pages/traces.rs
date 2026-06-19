@@ -3,15 +3,23 @@ use dioxus::prelude::*;
 use crate::api::{ApiClient, EventInfo, SpanInfo};
 use crate::components::card::Card;
 use crate::components::colors::colors;
-use crate::components::common::{query_result, AsyncBoundary, EmptyState};
+use crate::components::common::{query_result, AsyncBoundary, EmptyState, ErrorState};
 use crate::components::icon::Icon;
 use crate::components::page::{PageContainer, PageTitle};
+use crate::components::timeline_viewer::TimelineViewer;
 use crate::hooks::use_app_resource;
+use crate::state::investigation::{set_trace_context, INVESTIGATION_CONTEXT};
 
 const DEFAULT_LIMIT: usize = 400;
 const MIN_LIMIT: usize = 100;
 const MAX_LIMIT: usize = 2000;
 const LIMIT_STEP: usize = 100;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TraceDisplayMode {
+    Tree,
+    Timeline,
+}
 
 #[component]
 pub fn Traces() -> Element {
@@ -19,17 +27,42 @@ pub fn Traces() -> Element {
     let filter = use_signal(String::new);
     let expand_all = use_signal(|| 0u32);
     let collapse_all = use_signal(|| 0u32);
+    let display_mode = use_signal(|| TraceDisplayMode::Tree);
+    let mut trace_id_filter = use_signal(String::new);
+    let mut thread_filter = use_signal(String::new);
+    let min_ms_filter = use_signal(String::new);
+    let active_only = use_signal(|| false);
+    let show_advanced = use_signal(|| false);
+
+    use_effect(move || {
+        let ctx = INVESTIGATION_CONTEXT.read();
+        if let Some(tid) = ctx.tid {
+            thread_filter.set(tid.to_string());
+        }
+        if let Some(trace_id) = ctx.trace_id {
+            trace_id_filter.set(trace_id.to_string());
+        }
+    });
+
+    let mode = display_mode();
+    let card_title = if mode == TraceDisplayMode::Timeline {
+        "Span Timeline"
+    } else {
+        "Span Tree"
+    };
 
     rsx! {
         PageContainer {
             PageTitle {
-                title: "Traces".to_string(),
-                subtitle: Some("Hierarchical span tree from python.trace_event".to_string()),
+                title: "Distributed Spans".to_string(),
+                subtitle: Some(
+                    "Hierarchical spans and timeline from python.trace_event — not Profiling chrome trace or Python variable tracing".to_string(),
+                ),
                 icon: Some(&icondata::AiApiOutlined),
             }
 
             Card {
-                title: "Span Tree",
+                title: card_title,
                 content_class: Some("p-0"),
                 header_right: Some(rsx! {
                     TraceToolbar {
@@ -37,15 +70,32 @@ pub fn Traces() -> Element {
                         filter,
                         expand_all,
                         collapse_all,
+                        display_mode,
+                        trace_id_filter,
+                        thread_filter,
+                        min_ms_filter,
+                        active_only,
+                        show_advanced,
                     }
                 }),
-                AsyncBoundary {
-                    message: Some("Loading trace data…".to_string()),
-                    TraceTreePanel {
-                        limit,
-                        filter,
-                        expand_all,
-                        collapse_all,
+                if mode == TraceDisplayMode::Timeline {
+                    AsyncBoundary {
+                        message: Some("Loading timeline…".to_string()),
+                        TraceTimelinePanel { limit }
+                    }
+                } else {
+                    AsyncBoundary {
+                        message: Some("Loading trace data…".to_string()),
+                        TraceTreePanel {
+                            limit,
+                            filter,
+                            trace_id_filter,
+                            thread_filter,
+                            min_ms_filter,
+                            active_only,
+                            expand_all,
+                            collapse_all,
+                        }
                     }
                 }
             }
@@ -59,32 +109,71 @@ fn TraceToolbar(
     filter: Signal<String>,
     expand_all: Signal<u32>,
     collapse_all: Signal<u32>,
+    display_mode: Signal<TraceDisplayMode>,
+    trace_id_filter: Signal<String>,
+    thread_filter: Signal<String>,
+    min_ms_filter: Signal<String>,
+    active_only: Signal<bool>,
+    show_advanced: Signal<bool>,
 ) -> Element {
+    let mode = display_mode();
     rsx! {
-        div { class: "flex flex-wrap items-center gap-2 max-w-xl",
-            div { class: "relative min-w-[140px] flex-1",
-                span { class: "absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none",
-                    Icon { icon: &icondata::AiSearchOutlined, class: "w-3.5 h-3.5" }
+        div { class: "flex flex-col gap-2 max-w-3xl w-full",
+            div { class: "flex flex-wrap items-center gap-2",
+            div { class: "flex rounded-md border border-gray-300 bg-white p-0.5",
+                button {
+                    class: if mode == TraceDisplayMode::Tree {
+                        "px-2.5 py-1 text-xs rounded bg-blue-50 text-blue-700 font-medium"
+                    } else {
+                        "px-2.5 py-1 text-xs rounded text-gray-600 hover:bg-gray-50"
+                    },
+                    onclick: move |_| display_mode.set(TraceDisplayMode::Tree),
+                    "Tree"
                 }
-                input {
-                    r#type: "text",
-                    class: "w-full pl-7 pr-2 py-1.5 text-xs rounded-md border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500",
-                    placeholder: "Filter spans…",
-                    value: "{filter}",
-                    oninput: move |ev| filter.set(ev.value()),
+                button {
+                    class: if mode == TraceDisplayMode::Timeline {
+                        "px-2.5 py-1 text-xs rounded bg-blue-50 text-blue-700 font-medium"
+                    } else {
+                        "px-2.5 py-1 text-xs rounded text-gray-600 hover:bg-gray-50"
+                    },
+                    onclick: move |_| display_mode.set(TraceDisplayMode::Timeline),
+                    "Timeline"
                 }
             }
-            button {
-                class: "px-2 py-1.5 text-xs rounded-md border border-gray-300 bg-white hover:bg-gray-50",
-                title: "Expand all spans",
-                onclick: move |_| expand_all.set(expand_all() + 1),
-                "Expand"
-            }
-            button {
-                class: "px-2 py-1.5 text-xs rounded-md border border-gray-300 bg-white hover:bg-gray-50",
-                title: "Collapse all spans",
-                onclick: move |_| collapse_all.set(collapse_all() + 1),
-                "Collapse"
+            if mode == TraceDisplayMode::Tree {
+                div { class: "relative min-w-[140px] flex-1",
+                    span { class: "absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none",
+                        Icon { icon: &icondata::AiSearchOutlined, class: "w-3.5 h-3.5" }
+                    }
+                    input {
+                        r#type: "text",
+                        class: "w-full pl-7 pr-2 py-1.5 text-xs rounded-md border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500",
+                        placeholder: "Filter spans…",
+                        value: "{filter}",
+                        oninput: move |ev| filter.set(ev.value()),
+                    }
+                }
+                button {
+                    class: "px-2 py-1.5 text-xs rounded-md border border-gray-300 bg-white hover:bg-gray-50",
+                    title: "Expand all spans",
+                    onclick: move |_| expand_all.set(expand_all() + 1),
+                    "Expand"
+                }
+                button {
+                    class: "px-2 py-1.5 text-xs rounded-md border border-gray-300 bg-white hover:bg-gray-50",
+                    title: "Collapse all spans",
+                    onclick: move |_| collapse_all.set(collapse_all() + 1),
+                    "Collapse"
+                }
+                button {
+                    class: if show_advanced() {
+                        "px-2 py-1.5 text-xs rounded-md border border-blue-300 bg-blue-50 text-blue-700"
+                    } else {
+                        "px-2 py-1.5 text-xs rounded-md border border-gray-300 bg-white hover:bg-gray-50"
+                    },
+                    onclick: move |_| show_advanced.set(!show_advanced()),
+                    "Filters"
+                }
             }
             div { class: "flex items-center gap-2 pl-1 border-l border-gray-200",
                 span { class: "text-xs text-gray-500 whitespace-nowrap font-mono", "{limit()} evt" }
@@ -102,7 +191,72 @@ fn TraceToolbar(
                     },
                 }
             }
+            }
+            if mode == TraceDisplayMode::Tree && show_advanced() {
+                div { class: "flex flex-wrap items-center gap-2",
+                    input {
+                        r#type: "text",
+                        class: "w-28 px-2 py-1.5 text-xs rounded-md border border-gray-300 bg-white font-mono",
+                        placeholder: "trace id",
+                        value: "{trace_id_filter}",
+                        oninput: move |ev| trace_id_filter.set(ev.value()),
+                    }
+                    input {
+                        r#type: "text",
+                        class: "w-24 px-2 py-1.5 text-xs rounded-md border border-gray-300 bg-white font-mono",
+                        placeholder: "thread",
+                        value: "{thread_filter}",
+                        oninput: move |ev| thread_filter.set(ev.value()),
+                    }
+                    input {
+                        r#type: "text",
+                        class: "w-24 px-2 py-1.5 text-xs rounded-md border border-gray-300 bg-white font-mono",
+                        placeholder: "min ms",
+                        value: "{min_ms_filter}",
+                        oninput: move |ev| min_ms_filter.set(ev.value()),
+                    }
+                    label { class: "inline-flex items-center gap-1.5 text-xs text-gray-600",
+                        input {
+                            r#type: "checkbox",
+                            class: "rounded border-gray-300",
+                            checked: active_only(),
+                            onchange: move |ev| active_only.set(ev.checked()),
+                        }
+                        "Active only"
+                    }
+                }
+            }
         }
+    }
+}
+
+#[component]
+fn TraceTimelinePanel(limit: Signal<usize>) -> Element {
+    let trace_json = use_app_resource(move || {
+        let limit_val = limit();
+        async move { ApiClient::new().get_chrome_tracing_json(Some(limit_val)).await }
+    });
+    let json = trace_json.suspend()?();
+
+    match json {
+        Ok(body) => rsx! {
+            div { class: "min-h-[calc(100vh-11rem)]",
+                TimelineViewer {
+                    trace_json: body,
+                    empty_message: Some(
+                        "No trace data available. Start tracing with probing.tracing.span() or TorchProbe spans.".to_string(),
+                    ),
+                }
+            }
+        },
+        Err(err) => rsx! {
+            div { class: "p-6",
+                ErrorState {
+                    title: Some("Timeline Error".to_string()),
+                    error: err.display_message(),
+                }
+            }
+        },
     }
 }
 
@@ -110,6 +264,10 @@ fn TraceToolbar(
 fn TraceTreePanel(
     limit: Signal<usize>,
     filter: Signal<String>,
+    trace_id_filter: Signal<String>,
+    thread_filter: Signal<String>,
+    min_ms_filter: Signal<String>,
+    active_only: Signal<bool>,
     expand_all: Signal<u32>,
     collapse_all: Signal<u32>,
 ) -> Element {
@@ -124,7 +282,13 @@ fn TraceTreePanel(
         |spans| spans.is_empty(),
         "No trace data available. Start tracing with probing.tracing.span() or TorchProbe spans.",
         move |spans| {
-            let filtered = filter_span_tree(&spans, &filter());
+            let advanced = TraceAdvancedFilters {
+                trace_id: trace_id_filter().trim().parse().ok(),
+                thread_id: thread_filter().trim().parse().ok(),
+                min_duration_ms: min_ms_filter().trim().parse().ok(),
+                active_only: active_only(),
+            };
+            let filtered = filter_span_tree(&spans, &filter(), &advanced);
             let total = count_spans(&spans);
             let roots = spans.len();
             let shown = count_spans(&filtered);
@@ -169,16 +333,14 @@ fn count_spans(spans: &[SpanInfo]) -> usize {
         .sum()
 }
 
-fn filter_span_tree(spans: &[SpanInfo], query: &str) -> Vec<SpanInfo> {
+fn filter_span_tree(spans: &[SpanInfo], query: &str, advanced: &TraceAdvancedFilters) -> Vec<SpanInfo> {
     let q = query.trim().to_lowercase();
-    if q.is_empty() {
-        return spans.to_vec();
-    }
     spans
         .iter()
         .filter_map(|span| {
-            let children = filter_span_tree(&span.children, query);
-            let name_match = span.name.to_lowercase().contains(&q)
+            let children = filter_span_tree(&span.children, query, advanced);
+            let name_match = q.is_empty()
+                || span.name.to_lowercase().contains(&q)
                 || span
                     .kind
                     .as_ref()
@@ -187,7 +349,8 @@ fn filter_span_tree(spans: &[SpanInfo], query: &str) -> Vec<SpanInfo> {
                     .location
                     .as_ref()
                     .is_some_and(|l| l.to_lowercase().contains(&q));
-            if name_match || !children.is_empty() {
+            let self_matches = span_matches_advanced(span, advanced);
+            if (name_match && self_matches) || !children.is_empty() {
                 Some(SpanInfo {
                     children,
                     ..span.clone()
@@ -197,6 +360,40 @@ fn filter_span_tree(spans: &[SpanInfo], query: &str) -> Vec<SpanInfo> {
             }
         })
         .collect()
+}
+
+struct TraceAdvancedFilters {
+    trace_id: Option<i64>,
+    thread_id: Option<i64>,
+    min_duration_ms: Option<f64>,
+    active_only: bool,
+}
+
+fn span_matches_advanced(span: &SpanInfo, filters: &TraceAdvancedFilters) -> bool {
+    if let Some(trace_id) = filters.trace_id {
+        if span.trace_id != trace_id {
+            return false;
+        }
+    }
+    if let Some(thread_id) = filters.thread_id {
+        if span.thread_id != thread_id {
+            return false;
+        }
+    }
+    if filters.active_only && span.end_timestamp.is_some() {
+        return false;
+    }
+    if let Some(min_ms) = filters.min_duration_ms {
+        if let Some(end) = span.end_timestamp {
+            let dur_ms = (end - span.start_timestamp) as f64 / 1_000_000.0;
+            if dur_ms < min_ms {
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
+    true
 }
 
 fn span_duration_secs(span: &SpanInfo) -> Option<f64> {
@@ -230,6 +427,9 @@ fn SpanView(
     let has_details = has_children || has_events || has_attrs;
     let duration = span_duration_secs(&span);
     let indent = depth * 20;
+    let trace_id = span.trace_id;
+    let thread_id = span.thread_id as i32;
+    let span_name = span.name.clone();
 
     use_effect(move || {
         if expand_all() > 0 {
@@ -245,12 +445,18 @@ fn SpanView(
     rsx! {
         div { class: "min-w-0",
             div {
-                class: "group flex flex-wrap items-center gap-x-2 gap-y-0.5 py-0.5 px-1 rounded hover:bg-gray-50/90",
+                class: "group flex flex-wrap items-center gap-x-2 gap-y-0.5 py-0.5 px-1 rounded hover:bg-gray-50/90 cursor-pointer",
                 style: if indent > 0 { format!("padding-left: {indent}px") } else { String::new() },
+                onclick: move |_| {
+                    set_trace_context(trace_id, Some(&span_name), Some(thread_id));
+                },
                 if has_details {
                     button {
                         class: "shrink-0 w-4 h-4 flex items-center justify-center text-gray-400 hover:text-gray-700",
-                        onclick: move |_| expanded.set(!expanded()),
+                        onclick: move |e| {
+                            e.stop_propagation();
+                            expanded.set(!expanded());
+                        },
                         if expanded() {
                             Icon { icon: &icondata::AiCaretDownOutlined, class: "w-3 h-3" }
                         } else {

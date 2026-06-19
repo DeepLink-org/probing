@@ -10,11 +10,12 @@
 //! - **data** — KeyValueList and similar.
 //! - **icon** — Icon component.
 //! - **collapsible_card** / **card_view** / **callstack_view** / **value_list** — Domain helpers.
-//! - **chrome_tracing_iframe** — Chrome Tracing viewer wrapper.
+//! - **timeline_viewer** — Native Chrome trace timeline + Perfetto export.
 //! - **flamegraph** — Native flamegraph visualizations.
 
 pub mod stat_card;
 pub mod card;
+pub mod agent;
 pub mod global_command_panel;
 pub mod card_view;
 pub mod callstack_view;
@@ -26,10 +27,15 @@ pub mod common;
 pub mod dataframe_view;
 pub mod data;
 pub mod flamegraph;
+pub mod investigation_context_bar;
 pub mod icon;
+pub mod keyboard_shortcuts;
 pub mod layout;
 pub mod page;
+pub mod poll_status;
+pub mod profile_snapshot_bar;
 pub mod profiling;
 pub mod sidebar;
 pub mod table_view;
+pub mod timeline_viewer;
 pub mod value_list;

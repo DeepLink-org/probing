@@ -1,4 +1,5 @@
 use dioxus::prelude::*;
+use dioxus_router::use_navigator;
 
 use crate::components::colors::colors;
 use crate::components::card::Card;
@@ -8,12 +9,26 @@ use crate::components::icon::{Icon, RustIcon};
 use crate::components::page::{PageContainer, PageTitle};
 use crate::hooks::use_api;
 use crate::api::ApiClient;
+use crate::app::Route;
+use crate::state::investigation::INVESTIGATION_CONTEXT;
 use crate::utils::callframe::{count_by_kind, matches_mode, mode_for_kind, FrameKind};
 
 #[component]
 pub fn Stack(tid: Option<String>) -> Element {
+    let navigator = use_navigator();
     let tid_display = tid.clone();
+    let tid_for_redirect = tid.clone();
     let mut mode = use_signal(|| String::from("mixed"));
+
+    use_effect(move || {
+        if tid_for_redirect.is_none() {
+            if let Some(ctx_tid) = INVESTIGATION_CONTEXT.read().tid {
+                navigator.replace(Route::StackWithTidPage {
+                    tid: ctx_tid.to_string(),
+                });
+            }
+        }
+    });
 
     let state = use_api(move || {
         let tid_clone = tid.clone();

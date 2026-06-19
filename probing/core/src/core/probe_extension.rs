@@ -113,14 +113,14 @@ pub trait ProbeExtensionCall: Debug + Send + Sync {
 #[allow(unused)]
 pub trait ProbeExtension: Debug + Send + Sync + ProbeExtensionCall {
     fn name(&self) -> String;
-    fn set(&mut self, key: &str, value: &str) -> Result<String, EngineError> {
-        todo!()
+    fn set(&mut self, key: &str, _value: &str) -> Result<String, EngineError> {
+        Err(EngineError::UnsupportedOption(key.to_string()))
     }
     fn get(&self, key: &str) -> Result<String, EngineError> {
-        todo!()
+        Err(EngineError::UnsupportedOption(key.to_string()))
     }
     fn options(&self) -> Vec<ProbeExtensionOption> {
-        todo!()
+        Vec::new()
     }
 }
 

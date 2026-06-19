@@ -4,17 +4,16 @@ use async_trait::async_trait;
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::catalog::Session;
 use datafusion::common::Statistics;
-use datafusion::datasource::memory::{DataSourceExec, MemorySourceConfig};
 use datafusion::datasource::{TableProvider, TableType};
 use datafusion::error::Result;
 use datafusion::logical_expr::{Expr, TableProviderFilterPushDown};
-use datafusion::physical_plan::collect;
+use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
 use datafusion::physical_plan::ExecutionPlan;
 use super::cluster_executor::{reset_fanout_stats, ProbeClusterExecutor};
 use super::convert::{
-    align_batch_to_schema, extend_projection_with_probe_tags, federated_output_schema,
-    tag_record_batches,
+    cluster_rank_for_endpoint, extend_projection_with_probe_tags, federated_output_schema,
 };
+use super::federated_scan_exec::FederatedScanExec;
 use super::sql_gen::build_remote_table_sql;
 
 /// Ensure federated scans always expose node tag columns (`_addr`, `_rank`, …).
@@ -96,18 +95,18 @@ impl TableProvider for GlobalFederatedTable {
         let local_schema = self.local.schema();
         let local_projection = local_table_projection(projection, &output_schema, &local_schema);
 
+        // Local scan stays lazy; coalesce to a single partition so the federated
+        // plan can expose it as partition 0 without losing rows from sub-partitions.
         let local_plan = self
             .local
             .scan(state, local_projection.as_ref(), filters, limit)
             .await?;
-        let local_batches = collect(local_plan, state.task_ctx()).await?;
+        let local_plan: Arc<dyn ExecutionPlan> =
+            Arc::new(CoalescePartitionsExec::new(local_plan));
+
         let host = ProbeClusterExecutor::local_host_label();
         let addr = ProbeClusterExecutor::local_addr_label();
-        let local_rank = super::convert::cluster_rank_for_endpoint(&host, &addr);
-        let mut batches: Vec<_> = tag_record_batches(local_batches, &host, &addr, local_rank)?
-            .into_iter()
-            .map(|batch| align_batch_to_schema(batch, output_schema.as_ref()))
-            .collect::<Result<_>>()?;
+        let local_rank = cluster_rank_for_endpoint(&host, &addr);
 
         reset_fanout_stats();
         let remote_sql = build_remote_table_sql(
@@ -118,13 +117,22 @@ impl TableProvider for GlobalFederatedTable {
             filters,
             limit,
         );
-        for batch in ProbeClusterExecutor::collect_remote_batches(&remote_sql, &output_schema)? {
-            batches.push(batch);
-        }
+        let remote_nodes = ProbeClusterExecutor::remote_nodes();
 
-        let scan_projection = federated_scan_projection(projection, &output_schema);
-        let source = MemorySourceConfig::try_new(&[batches], output_schema, scan_projection)?;
-        Ok(Arc::new(DataSourceExec::new(Arc::new(source))))
+        let scan_projection = federated_scan_projection(projection, &output_schema)
+            .unwrap_or_else(|| (0..output_schema.fields().len()).collect());
+
+        let exec = FederatedScanExec::try_new(
+            local_plan,
+            output_schema,
+            scan_projection,
+            remote_sql,
+            remote_nodes,
+            host,
+            addr,
+            local_rank,
+        )?;
+        Ok(Arc::new(exec))
     }
 
     fn supports_filters_pushdown(

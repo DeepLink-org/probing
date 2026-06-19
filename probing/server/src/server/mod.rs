@@ -23,7 +23,6 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use log::error;
 
-use crate::asset::static_files;
 use crate::engine::{handle_query, initialize_engine};
 use crate::server::middleware::{request_logging_middleware, request_size_limit_middleware};
 use crate::server::repl::ws_handler;
@@ -56,7 +55,7 @@ fn build_app(auth: bool) -> axum::Router {
         )
         .nest("/apis", api::router())
         .route("/ws", axum::routing::get(ws_handler))
-        .fallback(static_files);
+        .fallback(spa::fallback);
 
     if auth {
         app = app.layer(axum::middleware::from_fn(

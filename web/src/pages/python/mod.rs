@@ -10,16 +10,19 @@ use dioxus::prelude::*;
 use crate::components::card::Card;
 use crate::components::common::AsyncBoundary;
 use crate::components::page::{PageContainer, PageTitle};
-use crate::hooks::{use_poll_tick};
+use crate::components::poll_status::PollStatusBar;
+use crate::hooks::{use_page_visible, use_poll_tick_gated};
 
 use active::ActiveTracesPanel;
 use catalog::TraceableCatalog;
 use dialogs::{RecordsModal, StartTraceDialog};
-use shared::{PollHint, RefreshButton, StartTraceDraft, POLL_MS};
+use shared::{RefreshButton, StartTraceDraft, POLL_MS};
 
 #[component]
 pub fn Python() -> Element {
-    let poll = use_poll_tick(POLL_MS);
+    let visible = use_page_visible();
+    let poll = use_poll_tick_gated(POLL_MS, Some(visible));
+    let poll_tick = poll();
     let mut refresh_key = use_signal(|| 0u32);
     let mut start_open = use_signal(|| false);
     let mut start_draft = use_signal(|| StartTraceDraft {
@@ -48,21 +51,26 @@ pub fn Python() -> Element {
     rsx! {
         PageContainer {
             PageTitle {
-                title: "Python".to_string(),
+                title: "Python variable tracing".to_string(),
                 subtitle: Some(format!(
-                    "Start variable tracing on live functions; active traces and records refresh every {}s",
+                    "Watch live function variables — not Distributed Spans or Profiling chrome trace · auto refresh every {}s while tab is visible",
                     POLL_MS / 1000
                 )),
                 icon: Some(&icondata::SiPython),
+                header_right: Some(rsx! {
+                    PollStatusBar {
+                        interval_secs: POLL_MS / 1000,
+                        poll_tick,
+                    }
+                }),
             }
 
             div { class: "grid grid-cols-1 lg:grid-cols-12 gap-4 items-start",
                 div { class: "lg:col-span-5 min-w-0",
                     Card {
-                        title: "Active Traces",
+                        title: "Active watches",
                         content_class: Some("p-0"),
                         header_right: Some(rsx! {
-                            PollHint { interval_secs: POLL_MS / 1000 }
                             RefreshButton {
                                 onclick: move |_| refresh_key.set(refresh_key() + 1),
                             }

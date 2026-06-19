@@ -16,11 +16,10 @@ use datafusion::sql::sqlparser::ast::{
 use datafusion::sql::sqlparser::dialect::GenericDialect;
 use datafusion::sql::sqlparser::parser::Parser;
 
-use crate::core::cluster::get_nodes;
 use crate::core::arrow_convert::arrow_array_to_seq;
 use crate::core::Engine;
 
-use super::cluster_executor::{reset_fanout_stats, ProbeClusterExecutor};
+use super::cluster_executor::{reset_fanout_stats, set_fanout_stats, FanoutStats, ProbeClusterExecutor};
 use super::convert::{
     cluster_rank_for_endpoint, is_federation_tag_column, proto_dataframe_to_record_batch,
     tag_proto_dataframe,
@@ -79,28 +78,30 @@ pub async fn try_execute_aggregate_pushdown(
         proto_parts.push(local_proto);
     }
 
-    let local_addrs = ProbeClusterExecutor::local_listen_addrs();
-    for node in get_nodes() {
-        if local_addrs.iter().any(|local| local == &node.addr) {
-            continue;
-        }
-        let node_host = if node.host.is_empty() {
-            node.addr.clone()
-        } else {
-            node.host.clone()
-        };
-        match ProbeClusterExecutor::execute_remote_query(&node.addr, &plan.per_node_sql) {
+    let per_node_sql = plan.per_node_sql.clone();
+    let outcomes = tokio::task::spawn_blocking(move || {
+        ProbeClusterExecutor::fanout_query_to_peers(&per_node_sql)
+    })
+    .await
+    .map_err(|e| DataFusionError::Execution(format!("aggregate fan-out join failed: {e}")))?;
+
+    let mut stats = FanoutStats::default();
+    for outcome in outcomes {
+        match outcome.result {
             Ok(mut df) => {
+                stats.nodes_succeeded += 1;
                 if plan.inject_tags {
-                    tag_proto_dataframe(&mut df, &node_host, &node.addr, node.rank);
+                    tag_proto_dataframe(&mut df, &outcome.host, &outcome.addr, outcome.rank);
                 }
                 proto_parts.push(df);
             }
             Err(err) => {
-                log::debug!("aggregate pushdown skipped {}: {err}", node.addr);
+                log::debug!("aggregate pushdown skipped {}: {err}", outcome.addr);
+                stats.nodes_failed.push(outcome.addr);
             }
         }
     }
+    set_fanout_stats(stats);
 
     if proto_parts.is_empty() {
         return Ok(None);

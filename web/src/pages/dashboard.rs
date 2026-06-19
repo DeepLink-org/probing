@@ -3,7 +3,10 @@
 use std::collections::HashMap;
 
 use dioxus::prelude::*;
+use dioxus_router::use_navigator;
 use probing_proto::prelude::Process;
+
+use crate::app::Route;
 
 use crate::api::{
     format_bytes, format_cpu_ms, format_opt_pct, format_pct, format_rss, gpu_device_label,
@@ -11,60 +14,90 @@ use crate::api::{
     GpuSnapshot,
 };
 use crate::components::card::Card;
-use crate::components::card_view::ThreadsCard;
 use crate::components::common::{EmptyState, ErrorState, LoadingState};
 use crate::components::cpu_threads_table::CpuThreadsTable;
 use crate::components::data::KeyValueList;
 use crate::components::page::{PageContainer, PageTitle};
+use crate::components::poll_status::PollStatusBar;
 use crate::components::stat_card::StatCard;
-use crate::hooks::{use_api, use_poll_tick};
+use crate::hooks::{use_api, use_api_with_options, use_page_visible, use_poll_tick_gated, ApiFetchOptions};
+use crate::state::investigation::sync_overview_process_context;
 
 const CPU_POLL_MS: u32 = 2000;
+const ENV_VARS_PREVIEW: usize = 40;
+const THREADS_PREVIEW: usize = 80;
+
+fn refresh_options() -> ApiFetchOptions {
+    ApiFetchOptions {
+        keep_previous_while_refreshing: true,
+    }
+}
 
 #[component]
 pub fn Dashboard() -> Element {
-    let poll = use_poll_tick(CPU_POLL_MS);
+    let visible = use_page_visible();
+    let poll = use_poll_tick_gated(CPU_POLL_MS, Some(visible));
+    let refresh = refresh_options();
+    let poll_tick = poll();
 
     let overview = use_api(|| {
         let client = ApiClient::new();
         async move { client.get_overview().await }
     });
 
-    let cpu_latest = use_api(move || {
-        let _ = poll();
-        let client = ApiClient::new();
-        async move { client.fetch_cpu_latest().await }
-    });
+    let cpu_latest = use_api_with_options(
+        move || {
+            let _ = poll();
+            let client = ApiClient::new();
+            async move { client.fetch_cpu_latest().await }
+        },
+        refresh,
+    );
 
-    let cpu_history = use_api(move || {
-        let _ = poll();
-        let client = ApiClient::new();
-        async move { client.fetch_cpu_history(60).await }
-    });
+    let cpu_history = use_api_with_options(
+        move || {
+            let _ = poll();
+            let client = ApiClient::new();
+            async move { client.fetch_cpu_history(60).await }
+        },
+        refresh,
+    );
 
-    let cpu_threads = use_api(move || {
-        let _ = poll();
-        let client = ApiClient::new();
-        async move { client.fetch_cpu_top_threads(15).await }
-    });
+    let cpu_threads = use_api_with_options(
+        move || {
+            let _ = poll();
+            let client = ApiClient::new();
+            async move { client.fetch_cpu_top_threads(15).await }
+        },
+        refresh,
+    );
 
-    let gpu_devices = use_api(move || {
-        let _ = poll();
-        let client = ApiClient::new();
-        async move { client.fetch_gpu_devices().await }
-    });
+    let gpu_devices = use_api_with_options(
+        move || {
+            let _ = poll();
+            let client = ApiClient::new();
+            async move { client.fetch_gpu_devices().await }
+        },
+        refresh,
+    );
 
-    let gpu_latest = use_api(move || {
-        let _ = poll();
-        let client = ApiClient::new();
-        async move { client.fetch_gpu_latest().await }
-    });
+    let gpu_latest = use_api_with_options(
+        move || {
+            let _ = poll();
+            let client = ApiClient::new();
+            async move { client.fetch_gpu_latest().await }
+        },
+        refresh,
+    );
 
-    let gpu_history = use_api(move || {
-        let _ = poll();
-        let client = ApiClient::new();
-        async move { client.fetch_gpu_history(60).await }
-    });
+    let gpu_history = use_api_with_options(
+        move || {
+            let _ = poll();
+            let client = ApiClient::new();
+            async move { client.fetch_gpu_history(60).await }
+        },
+        refresh,
+    );
 
     let show_gpu = gpu_has_data(&gpu_devices, &gpu_latest);
 
@@ -78,6 +111,12 @@ pub fn Dashboard() -> Element {
                     "Live CPU time (user / kernel) and process overview".to_string()
                 }),
                 icon: Some(&icondata::AiLineChartOutlined),
+                header_right: Some(rsx! {
+                    PollStatusBar {
+                        interval_secs: CPU_POLL_MS / 1000,
+                        poll_tick,
+                    }
+                }),
             }
             {cpu_section(&cpu_latest, &cpu_history, &cpu_threads)}
             if show_gpu {
@@ -263,7 +302,7 @@ fn cpu_threads_panel(state: &crate::hooks::ApiState<Vec<CpuThreadRow>>) -> Eleme
             rsx! {
                 div { class: "space-y-3",
                     p { class: "text-xs text-gray-500",
-                        "Ranked by CPU time in the latest sample. Click View stack for backtrace."
+                        "Ranked by CPU time in the latest sample. Use Stack / Traces / Profile to investigate."
                     }
                     CpuThreadsTable { threads: rows.clone() }
                 }
@@ -761,6 +800,7 @@ fn process_section(state: &crate::hooks::ApiState<Process>) -> Element {
     };
     rsx! {
         div { class: "space-y-4",
+            ProcessContextSync { process: process.clone() }
             Card {
                 title: "Process Information",
                 KeyValueList {
@@ -777,7 +817,10 @@ fn process_section(state: &crate::hooks::ApiState<Process>) -> Element {
                 div {
                     class: "space-y-3",
                     div { class: "text-sm text-gray-600", "Total threads: {process.threads.len()}" }
-                    ThreadsCard { threads: process.threads.clone() }
+                    ThreadsPreview {
+                        threads: process.threads.clone(),
+                        pid: process.pid,
+                    }
                 }
             }
             Card {
@@ -789,19 +832,102 @@ fn process_section(state: &crate::hooks::ApiState<Process>) -> Element {
 }
 
 #[component]
+fn ThreadsPreview(threads: Vec<u64>, pid: i32) -> Element {
+    let navigator = use_navigator();
+    let mut expanded = use_signal(|| false);
+    let total = threads.len();
+    let limit = if expanded() { total } else { THREADS_PREVIEW.min(total) };
+    let hidden = total.saturating_sub(limit);
+
+    rsx! {
+        div { class: "space-y-2",
+            div { class: "flex flex-wrap gap-2",
+                for tid in threads.iter().take(limit) {
+                    {
+                        let tid_i32 = *tid as i32;
+                        let tid_str = tid.to_string();
+                        rsx! {
+                            button {
+                                class: "px-3 py-1 text-sm bg-blue-100 text-blue-800 hover:bg-blue-200 rounded-md transition-colors font-mono",
+                                title: "Open stack for this thread and set investigation context",
+                                onclick: move |_| {
+                                    crate::state::investigation::set_thread_context(
+                                        tid_i32,
+                                        None,
+                                        Some(pid),
+                                    );
+                                    navigator.push(Route::StackWithTidPage {
+                                        tid: tid_str.clone(),
+                                    });
+                                },
+                                "{tid}"
+                            }
+                        }
+                    }
+                }
+            }
+            if hidden > 0 {
+                button {
+                    class: "text-sm text-blue-600 hover:underline",
+                    onclick: move |_| expanded.set(true),
+                    "Show {hidden} more threads…"
+                }
+            } else if expanded() && total > THREADS_PREVIEW {
+                button {
+                    class: "text-sm text-blue-600 hover:underline",
+                    onclick: move |_| expanded.set(false),
+                    "Show less"
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn ProcessContextSync(process: Process) -> Element {
+    let pid = process.pid;
+    let exe = process.exe.clone();
+    use_effect(move || {
+        sync_overview_process_context(pid, &exe);
+    });
+    rsx! {}
+}
+
+#[component]
 fn EnvVars(env: std::collections::HashMap<String, String>) -> Element {
+    let mut expanded = use_signal(|| false);
+    let total = env.len();
+    let show_all = expanded();
+    let preview_limit = if show_all { total } else { ENV_VARS_PREVIEW.min(total) };
+    let mut entries: Vec<_> = env.into_iter().collect();
+    entries.sort_by(|a, b| a.0.cmp(&b.0));
+    let hidden = total.saturating_sub(preview_limit);
+
     rsx! {
         div {
             class: "space-y-3",
-            div { class: "text-sm text-gray-600", "Total environment variables: {env.len()}" }
+            div { class: "text-sm text-gray-600", "Total environment variables: {total}" }
             div {
                 class: "space-y-2",
-                for (name, value) in env {
+                for (name, value) in entries.into_iter().take(preview_limit) {
                     div {
                         class: "flex justify-between items-start py-2 border-b border-gray-200 last:border-b-0",
-                        span { class: "font-medium text-gray-700 font-mono text-sm", "{name}" }
-                        span { class: "font-mono text-sm bg-gray-100 text-gray-900 px-6 py-2 rounded break-all", "{value}" }
+                        span { class: "font-medium text-gray-700 font-mono text-sm shrink-0 mr-4", "{name}" }
+                        span { class: "font-mono text-sm bg-gray-100 text-gray-900 px-3 py-1.5 rounded break-all text-right", "{value}" }
                     }
+                }
+            }
+            if hidden > 0 {
+                button {
+                    class: "text-sm text-blue-600 hover:underline",
+                    onclick: move |_| expanded.set(true),
+                    "Show {hidden} more…"
+                }
+            } else if show_all && total > ENV_VARS_PREVIEW {
+                button {
+                    class: "text-sm text-blue-600 hover:underline",
+                    onclick: move |_| expanded.set(false),
+                    "Show less"
                 }
             }
         }

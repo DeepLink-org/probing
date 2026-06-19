@@ -99,6 +99,16 @@ pub fn enable_tracer() -> PyResult<()> {
     Ok(())
 }
 
+/// Whether the eval-frame hook is currently installed. Requires the GIL.
+#[allow(static_mut_refs)]
+pub fn is_tracer_enabled() -> bool {
+    unsafe {
+        let interp = ffi::PyInterpreterState_Get();
+        let cur = ffi::_PyInterpreterState_GetEvalFrameFunc(interp);
+        cur as usize == rust_eval_frame as *const () as usize
+    }
+}
+
 #[allow(static_mut_refs)]
 #[pyfunction]
 pub fn disable_tracer() -> PyResult<()> {

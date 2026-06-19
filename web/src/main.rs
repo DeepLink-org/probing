@@ -2,6 +2,7 @@ use dioxus::prelude::*;
 
 mod api;
 mod app;
+mod agent;
 mod components;
 mod hooks;
 mod pages;

@@ -1,0 +1,107 @@
+apiVersion: probing.dev/v1
+kind: Playbook
+
+metadata:
+  id: health_overview
+  title: "训练健康概览"
+  title_en: "Training health overview"
+  category: triage
+  tags: [overview, doctor, triage, 健康检查]
+  triggers:
+    keywords:
+      zh: ["健康", "概览", "怎么样", "正常吗", "doctor", "体检"]
+      en: ["health", "overview", "status", "doctor", "checkup"]
+  docs: |
+    快速扫描目标进程：有哪些表、CPU/GPU 最近采样、训练是否在推进。
+    适合作为 agent 的默认第一步，或用户不确定从哪查起时使用。
+
+spec:
+  parameters:
+    - name: sample_limit
+      type: integer
+      default: 5
+      description: "Recent CPU/GPU samples to show"
+
+  steps:
+    - id: available_tables
+      title: "可查询的数据表"
+      type: sql
+      sql: |
+        SELECT table_schema, table_name, table_type
+        FROM information_schema.tables
+        WHERE table_schema NOT IN ('information_schema')
+        ORDER BY table_schema, table_name
+      on_empty: warn
+      empty_message: "未发现业务表 — 确认 probing 已注入且 PROBING=1"
+
+    - id: host_cpu
+      title: "主机 CPU / 内存 (最近采样)"
+      type: sql
+      sql: |
+        SELECT ts, comm, rss_kb, cpu_total_pct, thread_count, state
+        FROM cpu.utilization
+        WHERE scope = 'process'
+        ORDER BY ts DESC
+        LIMIT {sample_limit}
+      on_empty: skip
+      empty_message: "cpu.utilization 无数据 — CPU 采样可能未开启"
+
+    - id: gpu_mem
+      title: "GPU 显存 / 利用率 (最近采样)"
+      type: sql
+      sql: |
+        SELECT ts, name, used_bytes, total_bytes, mem_used_pct, gpu_util_pct
+        FROM gpu.utilization
+        ORDER BY ts DESC
+        LIMIT {sample_limit}
+      on_empty: skip
+      empty_message: "gpu.utilization 无数据 — GPU 扩展未启用或无 GPU"
+
+    - id: latest_torch_step
+      title: "最近训练 step (torch_trace)"
+      type: sql
+      sql: |
+        SELECT max(step) AS latest_step, count(*) AS trace_rows
+        FROM python.torch_trace
+      on_empty: skip
+      empty_message: "python.torch_trace 无数据 — 设置 probing.torch.profiling=on"
+
+    - id: cluster_nodes
+      title: "集群节点"
+      type: sql
+      sql: |
+        SELECT rank, host, addr, status
+        FROM cluster.nodes
+        ORDER BY rank
+      on_empty: skip
+      empty_message: "单进程模式或未注册 cluster 节点"
+
+  interpretation:
+    rules:
+      - id: no_tables
+        when: "step:available_tables | rows == 0"
+        severity: error
+        message: "没有可查询表 — probing 可能未正确注入"
+
+      - id: high_gpu_mem
+        when: "step:gpu_mem | column:mem_used_pct | max > 90"
+        severity: warning
+        message: "GPU 显存使用率超过 90%，关注 OOM 风险"
+
+      - id: training_active
+        when: "step:latest_torch_step | column:latest_step | value > 0"
+        severity: info
+        message: "Torch 训练 trace 活跃，最新 step = {latest_step}"
+
+  summary_template: |
+    ## 健康概览
+    - 可用表: {available_tables.row_count} 张
+    - 最新训练 step: {latest_torch_step.latest_step}
+    - 集群节点: {cluster_nodes.row_count} 个（0 表示单机）
+
+    若某项为空，按 empty_message 提示开启对应采集。
+
+  next_steps:
+    - "训练变慢 → playbook: module_bottleneck 或 slow_rank"
+    - "显存上涨 → playbook: memory_leak"
+    - "进程卡住 → playbook: training_hang"

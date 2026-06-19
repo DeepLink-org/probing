@@ -1,5 +1,9 @@
 //! SQL rewrite helpers for the `probe` / `global` catalog split.
 
+use datafusion::sql::sqlparser::ast::{Query, SetExpr, Statement};
+use datafusion::sql::sqlparser::dialect::GenericDialect;
+use datafusion::sql::sqlparser::parser::Parser;
+
 use super::convert::{PROBE_ADDR_COL, PROBE_HOST_COL, PROBE_RANK_COL};
 
 const KNOWN_SCHEMAS: &[&str] = &[
@@ -37,55 +41,97 @@ pub fn rewrite_sql_for_global_fanout(sql: &str) -> String {
 
 /// Whether the coordinator can execute this SQL via `global.*` table federation.
 ///
-/// Multi-table queries (JOIN, etc.) must still be broadcast to each node so joins
-/// run locally per process; only single-relation scans can fan out via `global`.
+/// Multi-table queries (JOIN, comma joins, UNION, CTEs, subqueries) must still be
+/// broadcast to each node so they run locally per process; only single-relation
+/// scans can fan out via `global`. Detection is AST-based rather than substring
+/// matching so SQL inside string literals or unusual whitespace cannot change the
+/// routing decision. Anything that fails to parse (or is not a single `SELECT`)
+/// conservatively falls back to the broadcast path, which is always correct.
 pub fn can_fanout_via_global_catalog(sql: &str) -> bool {
-    let lower = sql.to_lowercase();
-    if lower.contains(" join ") {
+    match parse_single_query(sql) {
+        Some(query) => query_is_single_relation_scan(&query),
+        None => false,
+    }
+}
+
+fn parse_single_query(sql: &str) -> Option<Query> {
+    let dialect = GenericDialect {};
+    let mut stmts = Parser::parse_sql(&dialect, sql).ok()?;
+    if stmts.len() != 1 {
+        return None;
+    }
+    match stmts.remove(0) {
+        Statement::Query(query) => Some(*query),
+        _ => None,
+    }
+}
+
+fn query_is_single_relation_scan(query: &Query) -> bool {
+    // CTEs introduce additional relations that must be resolved per node.
+    if query.with.is_some() {
         return false;
     }
-    // Subqueries and unions need the legacy broadcast path for now.
-    if lower.contains(" select ") && lower.matches("select").count() > 1 {
+    let SetExpr::Select(select) = query.body.as_ref() else {
+        // UNION / EXCEPT / INTERSECT / VALUES / INSERT ...
+        return false;
+    };
+    // Comma-separated relations (implicit joins) or explicit JOINs.
+    if select.from.len() != 1 {
         return false;
     }
-    if lower.contains(" union ") {
+    if !select.from[0].joins.is_empty() {
         return false;
     }
-    true
+    !query_contains_subquery(query)
+}
+
+/// Detect nested relations (scalar/IN/EXISTS subqueries) on the parsed AST.
+///
+/// Inspecting the debug rendering of the AST keeps this resilient to literals and
+/// formatting: only actual `Expr::Subquery` / `Expr::Exists` / `Expr::InSubquery`
+/// nodes render with these markers, whereas a string literal such as `'subquery'`
+/// renders as a `Value` node and is unaffected.
+fn query_contains_subquery(query: &Query) -> bool {
+    let rendered = format!("{:?}", query.body);
+    rendered.contains("Subquery") || rendered.contains("Exists")
 }
 
 fn references_global_catalog(sql: &str) -> bool {
     sql.to_lowercase().contains("global.")
 }
 
-/// Find the start of the top-level `FROM` clause (paren depth 0).
+/// Find the start of the top-level ` FROM ` clause (paren depth 0).
+///
+/// Iterates by `char` so all indexing stays on UTF-8 boundaries (SQL may contain
+/// multi-byte identifiers or string literals), and matches the keyword
+/// case-insensitively on raw bytes to avoid `to_lowercase()` length skew.
 fn find_top_level_from(sql: &str) -> Option<usize> {
-    let lower = sql.to_lowercase();
     let bytes = sql.as_bytes();
     let mut depth = 0i32;
-    let mut i = 0usize;
-    while i < sql.len() {
-        match bytes[i] {
-            b'(' => depth += 1,
-            b')' => depth = depth.saturating_sub(1),
-            _ if depth == 0 && lower[i..].starts_with(" from ") => return Some(i),
+    for (i, ch) in sql.char_indices() {
+        match ch {
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            _ if depth == 0 && byte_window_eq_ci(bytes, i, b" from ") => return Some(i),
             _ => {}
         }
-        i += 1;
     }
     None
 }
 
+/// Case-insensitive comparison of `needle` against the byte window starting at `at`.
+fn byte_window_eq_ci(bytes: &[u8], at: usize, needle: &[u8]) -> bool {
+    bytes
+        .get(at..at + needle.len())
+        .is_some_and(|window| window.eq_ignore_ascii_case(needle))
+}
+
 fn select_list_includes_wildcard(sql: &str) -> bool {
-    let Some(from_idx) = find_top_level_from(sql) else {
-        return false;
-    };
-    let lower = sql.to_lowercase();
-    let Some(select_idx) = lower.find("select") else {
-        return false;
-    };
-    let select_part = &sql[select_idx + "select".len()..from_idx];
-    select_part.contains('*')
+    match find_top_level_from(sql) {
+        // `from_idx` is a char boundary, so slicing the select list is panic-safe.
+        Some(from_idx) => sql[..from_idx].contains('*'),
+        None => false,
+    }
 }
 
 fn expand_global_select_star(sql: &str) -> String {
@@ -184,6 +230,57 @@ mod tests {
     fn single_table_queries_use_global_catalog() {
         let sql = "SELECT rank FROM python.comm_collective LIMIT 20";
         assert!(can_fanout_via_global_catalog(sql));
+    }
+
+    #[test]
+    fn newline_join_uses_legacy_broadcast() {
+        // Substring matching on " join " would miss this; AST parsing does not.
+        let sql = "SELECT a.x\nFROM python.a\nJOIN python.b ON a.id = b.id";
+        assert!(!can_fanout_via_global_catalog(sql));
+    }
+
+    #[test]
+    fn comma_join_uses_legacy_broadcast() {
+        let sql = "SELECT a.x FROM python.a, python.b WHERE a.id = b.id";
+        assert!(!can_fanout_via_global_catalog(sql));
+    }
+
+    #[test]
+    fn union_uses_legacy_broadcast() {
+        let sql = "SELECT rank FROM python.a UNION SELECT rank FROM python.b";
+        assert!(!can_fanout_via_global_catalog(sql));
+    }
+
+    #[test]
+    fn cte_uses_legacy_broadcast() {
+        let sql = "WITH t AS (SELECT rank FROM python.a) SELECT rank FROM t";
+        assert!(!can_fanout_via_global_catalog(sql));
+    }
+
+    #[test]
+    fn subquery_uses_legacy_broadcast() {
+        let sql = "SELECT rank FROM python.a WHERE rank > (SELECT max(rank) FROM python.a)";
+        assert!(!can_fanout_via_global_catalog(sql));
+    }
+
+    #[test]
+    fn join_keyword_in_string_literal_still_fans_out() {
+        // The literal contains "join" but the query is a genuine single-table scan.
+        let sql = "SELECT name FROM python.metrics WHERE name = 'inner join demo'";
+        assert!(can_fanout_via_global_catalog(sql));
+    }
+
+    #[test]
+    fn unparseable_sql_falls_back_to_broadcast() {
+        assert!(!can_fanout_via_global_catalog("this is not sql"));
+    }
+
+    #[test]
+    fn ensure_global_node_columns_handles_non_ascii_without_panic() {
+        // Multi-byte identifiers/literals must not cause byte-boundary panics.
+        let sql = "SELECT * FROM global.process.envs WHERE 名称 = '值'";
+        let rewritten = ensure_global_node_columns(sql);
+        assert!(rewritten.contains("EXCLUDE"));
     }
 
     #[test]

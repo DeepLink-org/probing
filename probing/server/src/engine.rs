@@ -41,6 +41,10 @@ pub async fn initialize_engine() -> Result<()> {
         .with_extension(cc::RdmaProbeExtension::default())
         .with_data_source(cc::RdmaProbeDataSource::create("rdma", "mlx_hca"));
 
+    // Kernel ring buffer (dmesg) — Linux only, requires the `kmsg` feature.
+    #[cfg(all(target_os = "linux", feature = "kmsg"))]
+    let builder = builder.with_data_source(cc::KMsgProbeDataSource::create("process", "kmsg"));
+
     let result = probing_core::initialize_engine(builder).await;
     // Opt-in background hot→cold compaction (PROBING_COLD=on / SET memtable.cold_compaction).
     crate::memtable_ext::start_cold_compaction_from_env();

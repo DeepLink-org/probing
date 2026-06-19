@@ -34,4 +34,8 @@ pub struct FlamegraphPayload {
     pub frames: Vec<FlameFrame>,
     #[serde(rename = "emptyMessage", default)]
     pub empty_message: Option<String>,
+    /// Samples discarded by the sampler (ring full or cardinality cap). Surfaced
+    /// as a warning; 0 / absent for profilers that don't report it.
+    #[serde(default)]
+    pub dropped: u64,
 }

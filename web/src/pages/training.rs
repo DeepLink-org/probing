@@ -8,7 +8,8 @@ use crate::api::{ApiClient, ClusterQueryResponse, StepDurationSample, StepMatrix
 use crate::components::card::Card;
 use crate::components::common::{AppErrorDisplay, AsyncBoundary, EmptyState, LoadingState};
 use crate::components::page::{PageContainer, PageTitle};
-use crate::hooks::{use_app_resource, use_poll_tick};
+use crate::components::poll_status::PollStatusBar;
+use crate::hooks::{use_app_resource, use_page_visible, use_poll_tick_gated};
 use crate::utils::error::AppError;
 
 const POLL_MS: u32 = 5000;
@@ -39,7 +40,9 @@ struct HeatCell {
 
 #[component]
 pub fn Training() -> Element {
-    let poll = use_poll_tick(POLL_MS);
+    let visible = use_page_visible();
+    let poll = use_poll_tick_gated(POLL_MS, Some(visible));
+    let poll_tick = poll();
     let mut scope = use_signal(|| DataScope::Local);
     let nodes = use_app_resource(|| async move { ApiClient::new().get_nodes().await });
     let mut cluster_scan = use_action(|| async move {
@@ -89,6 +92,12 @@ pub fn Training() -> Element {
                 title: "Training".to_string(),
                 subtitle: Some("Local train.step and collective traces refresh automatically; cluster-wide views run on demand.".to_string()),
                 icon: Some(&icondata::AiRadarChartOutlined),
+                header_right: Some(rsx! {
+                    PollStatusBar {
+                        interval_secs: POLL_MS / 1000,
+                        poll_tick,
+                    }
+                }),
             }
             div { class: "flex flex-wrap items-center gap-3 mb-4",
                 {scope_badge(current_scope)}

@@ -54,10 +54,15 @@ const MAX_SAMPLE_FREQ: i32 = 100_000;
 const RING_SIZE: usize = 512;
 const RING_MASK: usize = RING_SIZE - 1;
 const MAX_NATIVE: usize = 48;
-const MAX_PY: usize = 64;
+const MAX_PY: usize = 128;
 
 /// Max number of Python threads we track for signal-safe TLS access.
 const REG_SIZE: usize = 1024;
+
+/// Upper bound on distinct folded stacks kept in the aggregate map. Protects
+/// against unbounded memory under high-frequency / high-cardinality workloads;
+/// samples for new stacks beyond this are counted as dropped.
+const MAX_FOLDED_STACKS: usize = 1 << 17;
 
 // ---------------------------------------------------------------------------
 // Raw sample (fixed-size POD, memcpy-able from the signal handler)
@@ -70,8 +75,11 @@ struct RawSample {
     py_len: u32,
     /// Native return addresses, leaf -> root.
     native: [usize; MAX_NATIVE],
-    /// Python frames, outermost -> innermost (natural `PYSTACKS` order).
-    py: [RawCallLocation; MAX_PY],
+    /// Callee `PyCodeObject` pointers, outermost -> innermost (natural `PYSTACKS`
+    /// order). Only the pointer is captured here — it is the interner key the
+    /// consumer resolves to a label — keeping the POD sample small and cheap to
+    /// memcpy from the signal handler.
+    py: [usize; MAX_PY],
 }
 
 impl RawSample {
@@ -81,7 +89,7 @@ impl RawSample {
             native_len: 0,
             py_len: 0,
             native: [0usize; MAX_NATIVE],
-            py: [RawCallLocation::default(); MAX_PY],
+            py: [0usize; MAX_PY],
         }
     }
 }
@@ -190,6 +198,11 @@ struct ThreadSlot {
     tid: AtomicU64, // 0 == empty
     pystacks: AtomicPtr<Vec<RawCallLocation>>,
     writing: AtomicPtr<bool>,
+    /// Inclusive-exclusive stack bounds `[lo, hi)` captured in normal context,
+    /// so the handler can validate frame-pointer reads against real mapped
+    /// stack memory. `hi == 0` means "unknown" (fall back to heuristics).
+    stack_lo: AtomicUsize,
+    stack_hi: AtomicUsize,
 }
 
 static REG_TABLE: [ThreadSlot; REG_SIZE] = [const {
@@ -197,11 +210,82 @@ static REG_TABLE: [ThreadSlot; REG_SIZE] = [const {
         tid: AtomicU64::new(0),
         pystacks: AtomicPtr::new(std::ptr::null_mut()),
         writing: AtomicPtr::new(std::ptr::null_mut()),
+        stack_lo: AtomicUsize::new(0),
+        stack_hi: AtomicUsize::new(0),
     }
 }; REG_SIZE];
 
+static REG_FULL_WARNED: AtomicBool = AtomicBool::new(false);
+
 #[thread_local]
 static mut THREAD_REGISTERED: bool = false;
+
+/// Open-addressing probe start for `tid` (Fibonacci hashing). REG_SIZE is a
+/// power of two so the mask is exact.
+#[inline]
+fn slot_hash(tid: u64) -> usize {
+    let h = tid.wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    (h >> 40) as usize & (REG_SIZE - 1)
+}
+
+/// OS-thread names captured at registration (normal context), keyed by tid, so
+/// the consumer can label thread root frames readably.
+static THREAD_NAMES: Lazy<RwLock<HashMap<u64, String>>> =
+    Lazy::new(|| RwLock::new(HashMap::new()));
+
+/// Read the calling thread's name via `pthread_getname_np`. Normal context only.
+fn current_thread_name() -> Option<String> {
+    let mut buf = [0 as libc::c_char; 64];
+    let rc = unsafe { libc::pthread_getname_np(libc::pthread_self(), buf.as_mut_ptr(), buf.len()) };
+    if rc != 0 {
+        return None;
+    }
+    let name = unsafe { std::ffi::CStr::from_ptr(buf.as_ptr()) }
+        .to_string_lossy()
+        .into_owned();
+    if name.is_empty() {
+        None
+    } else {
+        Some(name)
+    }
+}
+
+fn thread_name(tid: u64) -> Option<String> {
+    THREAD_NAMES.read().ok().and_then(|m| m.get(&tid).cloned())
+}
+
+/// Stack bounds `[lo, hi)` of the calling thread. Safe to call only in normal
+/// context (uses `pthread_*` that may allocate / read `/proc` on Linux).
+fn current_stack_bounds() -> (usize, usize) {
+    #[cfg(target_os = "macos")]
+    unsafe {
+        let pt = libc::pthread_self();
+        let base = libc::pthread_get_stackaddr_np(pt) as usize; // highest address
+        let size = libc::pthread_get_stacksize_np(pt);
+        (base.saturating_sub(size), base)
+    }
+    #[cfg(target_os = "linux")]
+    unsafe {
+        let mut attr: libc::pthread_attr_t = std::mem::zeroed();
+        if libc::pthread_getattr_np(libc::pthread_self(), &mut attr) != 0 {
+            return (0, 0);
+        }
+        let mut addr: *mut c_void = std::ptr::null_mut();
+        let mut size: libc::size_t = 0;
+        let ok = libc::pthread_attr_getstack(&attr, &mut addr, &mut size) == 0;
+        libc::pthread_attr_destroy(&mut attr);
+        if ok {
+            let lo = addr as usize;
+            (lo, lo + size)
+        } else {
+            (0, 0)
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        (0, 0)
+    }
+}
 
 /// Called from the eval-frame hook (TLS-safe context) on every frame; the
 /// thread-local fast path makes the global table insert happen once per thread.
@@ -213,16 +297,33 @@ pub fn register_python_thread() {
         THREAD_REGISTERED = true;
     }
     let tid = current_tid();
-    // Resolve this thread's TLS addresses here, in normal context.
+    // Resolve this thread's TLS addresses and stack bounds here, in normal
+    // context (none of this is async-signal-safe).
     let ps = core::ptr::addr_of_mut!(PYSTACKS);
     let wr = core::ptr::addr_of_mut!(PYSTACK_WRITING);
-    for slot in REG_TABLE.iter() {
+    let (lo, hi) = current_stack_bounds();
+
+    if let Some(name) = current_thread_name() {
+        if let Ok(mut m) = THREAD_NAMES.write() {
+            m.insert(tid, name); // overwrite handles tid reuse
+        }
+    }
+
+    let publish = |slot: &ThreadSlot| {
+        slot.stack_lo.store(lo, Ordering::Release);
+        slot.stack_hi.store(hi, Ordering::Release);
+        slot.pystacks.store(ps, Ordering::Release);
+        slot.writing.store(wr, Ordering::Release);
+    };
+
+    let start = slot_hash(tid);
+    for i in 0..REG_SIZE {
+        let slot = &REG_TABLE[(start + i) & (REG_SIZE - 1)];
         let v = slot.tid.load(Ordering::Acquire);
         if v == tid {
             // Refresh: handles tid reuse after a previous thread with the same
-            // id exited (its TLS pointers are now stale).
-            slot.pystacks.store(ps, Ordering::Release);
-            slot.writing.store(wr, Ordering::Release);
+            // id exited (its TLS pointers / bounds are now stale).
+            publish(slot);
             return;
         }
         if v == 0
@@ -231,23 +332,34 @@ pub fn register_python_thread() {
                 .compare_exchange(0, tid, Ordering::AcqRel, Ordering::Acquire)
                 .is_ok()
         {
-            slot.pystacks.store(ps, Ordering::Release);
-            slot.writing.store(wr, Ordering::Release);
+            publish(slot);
             return;
         }
+        // Slot taken by another tid (lost the race or different thread): keep
+        // probing the same linear sequence.
+    }
+
+    if !REG_FULL_WARNED.swap(true, Ordering::Relaxed) {
+        log::warn!(
+            "probing: pprof thread registry full ({REG_SIZE} threads); \
+             Python stacks for further threads will be missing"
+        );
     }
 }
 
 /// Find the registry slot for `tid`, or `None` if this thread never ran the eval
-/// hook (no Python stack, and its TLS must not be touched from the handler).
+/// hook. Open-addressing lookup: an empty slot in the probe sequence proves the
+/// tid is absent (entries are never deleted).
 fn thread_slot(tid: u64) -> Option<&'static ThreadSlot> {
-    for slot in REG_TABLE.iter() {
+    let start = slot_hash(tid);
+    for i in 0..REG_SIZE {
+        let slot = &REG_TABLE[(start + i) & (REG_SIZE - 1)];
         let v = slot.tid.load(Ordering::Acquire);
         if v == tid {
             return Some(slot);
         }
         if v == 0 {
-            return None; // entries form a dense prefix
+            return None;
         }
     }
     None
@@ -258,6 +370,31 @@ fn thread_slot(tid: u64) -> Option<&'static ThreadSlot> {
 // ---------------------------------------------------------------------------
 
 static SAMPLER_ENABLED: AtomicBool = AtomicBool::new(false);
+
+/// Number of signal handlers currently executing past the enabled/ring checks.
+/// `reset` uses this to quiesce before freeing the ring.
+static HANDLER_ACTIVE: AtomicUsize = AtomicUsize::new(0);
+
+/// Whether *we* enabled the eval tracer (vs. the user enabling it independently);
+/// if so, `reset` disables it again.
+static PPROF_OWNS_TRACER: AtomicBool = AtomicBool::new(false);
+
+/// RAII guard that marks a handler as in-flight for the duration of its body,
+/// covering all early-return paths.
+struct ActiveGuard;
+impl ActiveGuard {
+    #[inline]
+    fn new() -> Self {
+        HANDLER_ACTIVE.fetch_add(1, Ordering::Acquire);
+        ActiveGuard
+    }
+}
+impl Drop for ActiveGuard {
+    #[inline]
+    fn drop(&mut self) {
+        HANDLER_ACTIVE.fetch_sub(1, Ordering::Release);
+    }
+}
 
 #[inline]
 fn current_tid() -> u64 {
@@ -328,11 +465,19 @@ unsafe fn regs_from_uctx(uctx: *mut c_void) -> (usize, usize) {
 
 /// Walk the frame-pointer chain, collecting return addresses leaf -> root.
 /// Both x86_64 and aarch64 use the layout `[fp] = saved fp`, `[fp+8] = ret`.
-unsafe fn walk_frame_pointers(start_fp: usize, out: &mut [usize]) -> usize {
+///
+/// `[lo, hi)` are the thread's stack bounds when known (`hi != 0`); reads are
+/// then proven to stay inside mapped stack memory, eliminating the residual
+/// "plausible but unmapped `fp`" fault. When bounds are unknown we fall back to
+/// alignment / monotonicity / canonical-range heuristics only.
+unsafe fn walk_frame_pointers(start_fp: usize, out: &mut [usize], lo: usize, hi: usize) -> usize {
+    let bounded = hi != 0 && lo < hi;
+    let in_stack = |fp: usize| !bounded || (fp >= lo && fp + 2 * std::mem::size_of::<usize>() <= hi);
+
     let mut fp = start_fp;
     let mut count = 0usize;
     while count < out.len() {
-        if !plausible(fp) || (fp & 0x7) != 0 {
+        if !plausible(fp) || (fp & 0x7) != 0 || !in_stack(fp) {
             break;
         }
         let saved_fp = *(fp as *const usize);
@@ -355,6 +500,8 @@ unsafe extern "C" fn sigprof_handler(_sig: c_int, _info: *mut libc::siginfo_t, u
     if !SAMPLER_ENABLED.load(Ordering::Acquire) {
         return;
     }
+    // Mark in-flight before touching the ring so `reset` can quiesce safely.
+    let _active = ActiveGuard::new();
     let ring = RING_PTR.load(Ordering::Acquire);
     if ring.is_null() {
         return;
@@ -364,6 +511,17 @@ unsafe extern "C" fn sigprof_handler(_sig: c_int, _info: *mut libc::siginfo_t, u
     let mut sample = RawSample::zeroed();
     sample.tid = current_tid();
 
+    // Resolve the registry slot once: its stack bounds guard the native walk and
+    // its TLS pointers feed the Python snapshot.
+    let slot = thread_slot(sample.tid);
+    let (lo, hi) = match slot {
+        Some(s) => (
+            s.stack_lo.load(Ordering::Acquire),
+            s.stack_hi.load(Ordering::Acquire),
+        ),
+        None => (0, 0),
+    };
+
     // ---- native ----
     let (pc, fp) = regs_from_uctx(uctx);
     let mut nlen = 0usize;
@@ -372,13 +530,13 @@ unsafe extern "C" fn sigprof_handler(_sig: c_int, _info: *mut libc::siginfo_t, u
         nlen += 1;
     }
     if nlen < MAX_NATIVE {
-        nlen += walk_frame_pointers(fp, &mut sample.native[nlen..]);
+        nlen += walk_frame_pointers(fp, &mut sample.native[nlen..], lo, hi);
     }
     sample.native_len = nlen as u32;
 
     // ---- python: read this thread's PYSTACKS through the pre-resolved raw
     // pointers in the registry, never touching TLS / tlv_get_addr from here ----
-    if let Some(slot) = thread_slot(sample.tid) {
+    if let Some(slot) = slot {
         let wr = slot.writing.load(Ordering::Acquire);
         let ps = slot.pystacks.load(Ordering::Acquire);
         if !wr.is_null() && !ps.is_null() && !*wr {
@@ -386,7 +544,7 @@ unsafe extern "C" fn sigprof_handler(_sig: c_int, _info: *mut libc::siginfo_t, u
             let stacks = &*ps;
             let n = stacks.len().min(MAX_PY);
             for i in 0..n {
-                sample.py[i] = stacks[i];
+                sample.py[i] = stacks[i].callee();
             }
             compiler_fence(Ordering::SeqCst);
             // If the eval hook touched PYSTACKS during the copy, discard it.
@@ -519,10 +677,9 @@ pub fn clear_py_symbols() {
     }
 }
 
-/// Look up a sampled Python frame's label. Pure integer-keyed lookup — never
-/// touches Python memory, so it is safe on the consumer thread.
-fn resolve_py_frame(f: &RawCallLocation) -> String {
-    let key = f.callee();
+/// Look up a sampled Python frame's label by callee pointer. Pure integer-keyed
+/// lookup — never touches Python memory, so it is safe on the consumer thread.
+fn resolve_py_frame(key: usize) -> String {
     if key != 0 {
         if let Ok(g) = PY_SYMBOLS.read() {
             if let Some(label) = g.get(&key) {
@@ -553,12 +710,25 @@ fn process_sample(s: &RawSample, cache: &mut HashMap<usize, String>) {
     let nlen = s.native_len as usize;
     let plen = s.py_len as usize;
 
-    // Native symbols, leaf -> root.
+    // Native symbols, leaf -> root. Frame 0 is the interrupted PC (exact); every
+    // deeper frame is a *return address* pointing just past the call site, so we
+    // symbolize `addr - 1` to get the correct line / inlined-function.
     let native_l2r: Vec<String> = (0..nlen)
-        .map(|i| symbolize_native(s.native[i], cache))
+        .map(|i| {
+            let resolve_addr = if i == 0 {
+                s.native[i]
+            } else {
+                s.native[i].wrapping_sub(1)
+            };
+            symbolize_native(resolve_addr, cache)
+        })
         .collect();
     // Python frames, innermost -> outermost (PYSTACKS stores outermost -> innermost).
-    let py_l2r: Vec<String> = s.py[..plen].iter().rev().map(resolve_py_frame).collect();
+    let py_l2r: Vec<String> = s.py[..plen]
+        .iter()
+        .rev()
+        .map(|&key| resolve_py_frame(key))
+        .collect();
 
     let eval_count = native_l2r.iter().filter(|n| is_eval_frame(n)).count();
 
@@ -601,14 +771,25 @@ fn process_sample(s: &RawSample, cache: &mut HashMap<usize, String>) {
     }
     combined.reverse(); // root -> leaf
 
-    let mut line = format!("thread-{}", s.tid);
+    let mut line = match thread_name(s.tid) {
+        Some(name) => format!("thread-{} ({})", s.tid, name),
+        None => format!("thread-{}", s.tid),
+    };
     for p in combined {
         line.push(';');
         line.push_str(&p);
     }
 
     if let Ok(mut map) = SAMPLER.samples.lock() {
-        *map.entry(line).or_insert(0) += 1;
+        if let Some(count) = map.get_mut(&line) {
+            *count += 1;
+        } else if map.len() < MAX_FOLDED_STACKS {
+            map.insert(line, 1);
+        } else {
+            // Cardinality cap hit: account the sample as dropped rather than
+            // grow the map without bound.
+            DROPPED.fetch_add(1, Ordering::Relaxed);
+        }
     }
 }
 
@@ -671,6 +852,26 @@ pub fn setup(freq: u64) -> Result<()> {
     }
     DROPPED.store(0, Ordering::Relaxed);
 
+    // The sampler's Python frames come from the eval-frame hook; ensure it is on
+    // (idempotent) so we don't silently degrade to native-only stacks when the
+    // user enables pprof without separately enabling the tracer. Remember whether
+    // *we* turned it on, so `reset` only retires a tracer it owns.
+    crate::features::vm_tracer::initialize_globals();
+    pyo3::Python::attach(|_py| {
+        let already_on = crate::features::vm_tracer::is_tracer_enabled();
+        match crate::features::vm_tracer::enable_tracer() {
+            Ok(()) => {
+                if !already_on {
+                    PPROF_OWNS_TRACER.store(true, Ordering::Release);
+                }
+            }
+            Err(e) => log::warn!(
+                "probing: pprof could not enable the Python eval tracer ({e}); \
+                 stacks will be native-only"
+            ),
+        }
+    });
+
     install_handler();
 
     let my_gen = SAMPLER.generation.fetch_add(1, Ordering::SeqCst) + 1;
@@ -691,6 +892,38 @@ pub fn reset() {
     disarm_timer();
     SAMPLER_ENABLED.store(false, Ordering::Release);
     SAMPLER.generation.fetch_add(1, Ordering::SeqCst);
+
+    // Take the ring out of circulation, wait for any in-flight handler to drain,
+    // then free it. If we can't confirm quiescence (practically never, the
+    // handler is bounded), put it back rather than risk a use-after-free.
+    let ring = RING_PTR.swap(std::ptr::null_mut(), Ordering::AcqRel);
+    if !ring.is_null() {
+        let mut drained = false;
+        for _ in 0..10_000_000 {
+            if HANDLER_ACTIVE.load(Ordering::Acquire) == 0 {
+                drained = true;
+                break;
+            }
+            std::hint::spin_loop();
+        }
+        if drained {
+            unsafe { drop(Box::from_raw(ring)) };
+        } else {
+            RING_PTR.store(ring, Ordering::Release);
+        }
+    }
+
+    // Retire the eval tracer only if pprof was the one that enabled it.
+    if PPROF_OWNS_TRACER.swap(false, Ordering::AcqRel) {
+        pyo3::Python::attach(|_py| {
+            let _ = crate::features::vm_tracer::disable_tracer();
+        });
+    }
+
+    clear_py_symbols();
+    if let Ok(mut m) = THREAD_NAMES.write() {
+        m.clear();
+    }
 }
 
 pub fn pprof_handler() {
@@ -707,25 +940,29 @@ fn pprof_flamegraph_options() -> FlamegraphOptions {
     }
 }
 
-pub fn flamegraph() -> Result<String> {
-    let lines: Vec<String> = {
-        let map = SAMPLER
-            .samples
-            .lock()
-            .map_err(|e| anyhow!("sampler lock poisoned: {e}"))?;
-        if map.is_empty() {
-            return Err(anyhow!(
-                "no samples collected yet; enable CPU sampling and let it run"
-            ));
-        }
-        map.iter()
+/// Snapshot the aggregate map into folded `"stack count"` lines under a single
+/// lock acquisition (no double-fold / TOCTOU between HTML and JSON paths).
+fn folded_lines() -> Vec<String> {
+    match SAMPLER.samples.lock() {
+        Ok(map) => map
+            .iter()
             .map(|(stack, count)| format!("{stack} {count}"))
-            .collect()
-    };
+            .collect(),
+        Err(_) => Vec::new(),
+    }
+}
+
+pub fn flamegraph() -> Result<String> {
+    let lines = folded_lines();
+    if lines.is_empty() {
+        return Err(anyhow!(
+            "no samples collected yet; enable CPU sampling and let it run"
+        ));
+    }
 
     let dropped = DROPPED.load(Ordering::Relaxed);
     if dropped > 0 {
-        log::warn!("probing: {dropped} CPU samples dropped (ring buffer full)");
+        log::warn!("probing: {dropped} CPU samples dropped (ring full or cardinality cap)");
     }
 
     let fg = crate::features::flamegraph::Flamegraph::from_folded_lines(&lines)
@@ -735,6 +972,7 @@ pub fn flamegraph() -> Result<String> {
 
 /// JSON payload for the web UI (`GET /apis/flamegraph/pprof?format=json`).
 pub fn flamegraph_json() -> String {
+    let dropped = DROPPED.load(Ordering::Relaxed);
     let empty = |msg: String| {
         json!({
             "profile": "cpu-stack",
@@ -745,25 +983,31 @@ pub fn flamegraph_json() -> String {
             "width": 1400.0,
             "frameHeight": 32.0,
             "frames": [],
+            "dropped": dropped,
             "emptyMessage": msg,
         })
         .to_string()
     };
 
-    match flamegraph() {
-        Ok(_) => {
-            let lines: Vec<String> = match SAMPLER.samples.lock() {
-                Ok(map) => map
-                    .iter()
-                    .map(|(stack, count)| format!("{stack} {count}"))
-                    .collect(),
-                Err(e) => return empty(format!("sampler lock poisoned: {e}")),
-            };
-            match crate::features::flamegraph::Flamegraph::from_folded_lines(&lines) {
-                Some(fg) => fg.json_payload(&pprof_flamegraph_options()),
-                None => empty("no valid folded stacks".to_string()),
+    let lines = folded_lines();
+    if lines.is_empty() {
+        return empty("no samples collected yet; enable CPU sampling and let it run".to_string());
+    }
+
+    match crate::features::flamegraph::Flamegraph::from_folded_lines(&lines) {
+        Some(fg) => {
+            let payload = fg.json_payload(&pprof_flamegraph_options());
+            // Splice in the dropped-sample counter so the UI can warn on it.
+            match serde_json::from_str::<serde_json::Value>(&payload) {
+                Ok(mut v) => {
+                    if let Some(obj) = v.as_object_mut() {
+                        obj.insert("dropped".to_string(), json!(dropped));
+                    }
+                    v.to_string()
+                }
+                Err(_) => payload,
             }
         }
-        Err(err) => empty(err.to_string()),
+        None => empty("no valid folded stacks".to_string()),
     }
 }

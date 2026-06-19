@@ -65,8 +65,13 @@ impl ApiClient {
         response.text().await.map_err(|e| AppError::Api(e.to_string()))
     }
 
+    /// Send GET request (public wrapper for agent / extensions).
+    pub async fn get_raw(&self, path: &str) -> Result<String> {
+        self.get_request(path).await
+    }
+
     /// Parse JSON response
-    fn parse_json<T: serde::de::DeserializeOwned>(response: &str) -> Result<T> {
+    pub fn parse_json<T: serde::de::DeserializeOwned>(response: &str) -> Result<T> {
         serde_json::from_str(response)
             .map_err(|e| AppError::Api(format!("JSON parse error: {}", e)))
     }

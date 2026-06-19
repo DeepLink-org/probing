@@ -6,10 +6,12 @@ use dioxus_router::use_navigator;
 use crate::api::{format_cpu_ms, CpuThreadRow};
 use crate::app::Route;
 use crate::components::colors::colors;
+use crate::state::investigation::{set_thread_context, INVESTIGATION_CONTEXT};
 
 #[component]
 pub fn CpuThreadsTable(threads: Vec<CpuThreadRow>) -> Element {
     let navigator = use_navigator();
+    let pid = INVESTIGATION_CONTEXT.read().pid;
 
     rsx! {
         div { class: "overflow-x-auto",
@@ -21,7 +23,7 @@ pub fn CpuThreadsTable(threads: Vec<CpuThreadRow>) -> Element {
                         th { class: "py-2 pr-4 font-medium text-right", "User" }
                         th { class: "py-2 pr-4 font-medium text-right", "Kernel" }
                         th { class: "py-2 pr-4 font-medium", "Waiting on" }
-                        th { class: "py-2 font-medium text-right", "" }
+                        th { class: "py-2 font-medium text-right", "Actions" }
                     }
                 }
                 tbody {
@@ -29,6 +31,7 @@ pub fn CpuThreadsTable(threads: Vec<CpuThreadRow>) -> Element {
                         {
                             let tid = row.tid;
                             let tid_for_stack = row.tid.to_string();
+                            let name = row.name.clone();
                             let has_named = !row.name.starts_with("thread-");
                             rsx! {
                                 tr { class: "border-b border-gray-100 last:border-0 hover:bg-gray-50",
@@ -54,15 +57,50 @@ pub fn CpuThreadsTable(threads: Vec<CpuThreadRow>) -> Element {
                                         {row.wchan.clone().unwrap_or_else(|| "—".to_string())}
                                     }
                                     td { class: "py-3 align-top text-right",
-                                        button {
-                                            class: format!(
-                                                "text-xs font-medium text-{} hover:underline whitespace-nowrap",
-                                                colors::PRIMARY
-                                            ),
-                                            onclick: move |_| {
-                                                navigator.push(Route::StackWithTidPage { tid: tid_for_stack.clone() });
-                                            },
-                                            "View stack"
+                                        div { class: "inline-flex flex-wrap justify-end gap-2",
+                                            button {
+                                                class: format!(
+                                                    "text-xs font-medium text-{} hover:underline whitespace-nowrap",
+                                                    colors::PRIMARY
+                                                ),
+                                                onclick: {
+                                                    let name = name.clone();
+                                                    move |_| {
+                                                        set_thread_context(tid, Some(&name), pid);
+                                                        navigator.push(Route::StackWithTidPage {
+                                                            tid: tid_for_stack.clone(),
+                                                        });
+                                                    }
+                                                },
+                                                "Stack"
+                                            }
+                                            button {
+                                                class: "text-xs font-medium text-gray-600 hover:underline whitespace-nowrap",
+                                                onclick: {
+                                                    let name = name.clone();
+                                                    move |_| {
+                                                        set_thread_context(tid, Some(&name), pid);
+                                                        navigator.push(Route::TracesPage {});
+                                                    }
+                                                },
+                                                "Spans"
+                                            }
+                                            button {
+                                                class: format!(
+                                                    "text-xs font-medium text-{} hover:underline whitespace-nowrap",
+                                                    colors::CONTENT_ACCENT_TEXT
+                                                ),
+                                                onclick: {
+                                                    let name = name.clone();
+                                                    move |_| {
+                                                        set_thread_context(tid, Some(&name), pid);
+                                                        navigator.push(Route::ProfilingViewPage {
+                                                            view: "pprof".to_string(),
+                                                        });
+                                                    }
+                                                },
+                                                "Profile"
+                                            }
                                         }
                                     }
                                 }

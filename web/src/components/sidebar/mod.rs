@@ -52,7 +52,7 @@ pub fn Sidebar() -> Element {
 
     let route_for_profiling = route.clone();
     use_effect(move || {
-        if matches!(route_for_profiling, Route::ProfilingPage {}) {
+        if matches!(route_for_profiling, Route::ProfilingViewPage { .. }) {
             *show_profiling_dropdown.write() = true;
         }
     });
@@ -108,7 +108,8 @@ pub fn Sidebar() -> Element {
                         SidebarNavItem {
                             to: Route::TracesPage {},
                             icon: &icondata::AiApiOutlined,
-                            label: "Traces",
+                            label: "Distributed Spans",
+                            title: "Hierarchical spans from python.trace_event (not Profiling chrome trace)",
                             is_active: route == Route::TracesPage {},
                         }
                         SidebarNavItem {
@@ -135,6 +136,7 @@ pub fn Sidebar() -> Element {
                             to: Route::PythonPage {},
                             icon: &icondata::SiPython,
                             label: "Python",
+                            title: "Live variable tracing on functions (not distributed spans)",
                             is_active: route == Route::PythonPage {},
                         }
                     }

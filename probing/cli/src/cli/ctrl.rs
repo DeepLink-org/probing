@@ -6,11 +6,19 @@ use hyper_util::rt::TokioIo;
 
 use probing_proto::{prelude::*, protocol::process::CallFrame};
 
-use crate::table::render_dataframe;
+use crate::table::{render, OutputFormat};
 
 pub async fn query(ctrl: ProbeEndpoint, query: Query) -> Result<()> {
+    query_with_format(ctrl, query, OutputFormat::Table).await
+}
+
+pub async fn query_with_format(
+    ctrl: ProbeEndpoint,
+    query: Query,
+    format: OutputFormat,
+) -> Result<()> {
     let reply = ctrl.query(query).await?;
-    render_dataframe(&reply);
+    render(&reply, format);
     Ok(())
 }
 
@@ -144,6 +152,15 @@ impl ProbeEndpoint {
             QueryDataFormat::DataFrame(df) => Ok(df),
             QueryDataFormat::TimeSeries(_) => todo!(),
         }
+    }
+
+    /// Fetch a flamegraph (`torch` or `pprof`) and return its raw bytes (HTML or JSON).
+    pub async fn flamegraph(&self, kind: &str, json: bool) -> Result<Vec<u8>> {
+        let mut url = format!("/apis/flamegraph/{kind}");
+        if json {
+            url.push_str("?format=json");
+        }
+        request(self.clone(), &url, None).await
     }
 
     pub async fn get(&self, url: &str) -> Result<String> {

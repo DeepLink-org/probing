@@ -1,7 +1,24 @@
-use clap::{Args, Subcommand};
+use clap::{Args, Subcommand, ValueEnum};
 
 use super::store::StoreCommand;
 use crate::cli::cluster;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+pub enum FlamegraphKind {
+    /// CPU sampling profile (pprof)
+    Pprof,
+    /// PyTorch module-level profile
+    Torch,
+}
+
+impl FlamegraphKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            FlamegraphKind::Pprof => "pprof",
+            FlamegraphKind::Torch => "torch",
+        }
+    }
+}
 
 #[derive(Args, Default, Debug)]
 pub struct Settings {
@@ -149,6 +166,50 @@ pub enum Commands {
     Query {
         #[arg()]
         query: String,
+
+        /// Output format for the query result
+        #[arg(short, long, value_enum, default_value_t = crate::table::OutputFormat::Table)]
+        format: crate::table::OutputFormat,
+    },
+
+    /// List queryable tables in the target process
+    #[command(visible_aliases = ["tbl"])]
+    Tables {
+        /// Show all tables including internal information_schema tables
+        #[arg(short, long)]
+        all: bool,
+
+        /// Output format for the table list
+        #[arg(short, long, value_enum, default_value_t = crate::table::OutputFormat::Table)]
+        format: crate::table::OutputFormat,
+    },
+
+    /// Show memory usage (host RSS and GPU memory) of the target process
+    #[command(visible_aliases = ["mem"])]
+    Memory {
+        /// Number of recent samples to display
+        #[arg(short, long, default_value_t = 10)]
+        limit: usize,
+
+        /// Output format for the memory report
+        #[arg(short, long, value_enum, default_value_t = crate::table::OutputFormat::Table)]
+        format: crate::table::OutputFormat,
+    },
+
+    /// Fetch a flamegraph (CPU/pprof or PyTorch) from the target process
+    #[command(visible_aliases = ["flame", "fg"])]
+    Flamegraph {
+        /// Flamegraph source: `pprof` (CPU sampling) or `torch` (PyTorch modules)
+        #[arg(value_enum, default_value_t = FlamegraphKind::Pprof)]
+        kind: FlamegraphKind,
+
+        /// Write output to a file instead of stdout
+        #[arg(short, long)]
+        output: Option<String>,
+
+        /// Emit raw folded-stack JSON instead of interactive HTML
+        #[arg(short, long)]
+        json: bool,
     },
 
     /// Interactive Python REPL session

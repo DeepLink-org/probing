@@ -6,12 +6,13 @@
 use dioxus::prelude::*;
 use dioxus_router::{Routable, Router};
 
+use crate::components::common::LoadingState;
 use crate::components::layout::AppLayout;
 use crate::pages::{
     analytics::Analytics, cluster::Cluster, dashboard::Dashboard, profiling::Profiling,
     pulsing::Pulsing, python::Python, stack::Stack, traces::Traces, training::Training,
 };
-use crate::state::profiling::PROFILING_VIEW;
+use crate::state::profiling::normalize_profiling_view;
 
 /// All routes. Each is rendered inside AppLayout by the corresponding page component below.
 #[derive(Routable, Clone, PartialEq)]
@@ -26,7 +27,9 @@ pub enum Route {
     #[route("/stacks/:tid")]
     StackWithTidPage { tid: String },
     #[route("/profiling")]
-    ProfilingPage {},
+    ProfilingRedirect {},
+    #[route("/profiling/:view")]
+    ProfilingViewPage { view: String },
     #[route("/analytics")]
     AnalyticsPage {},
     #[route("/python")]
@@ -64,24 +67,66 @@ pub fn StackWithTidPage(tid: String) -> Element {
 }
 
 #[component]
-pub fn ChromeTracingRedirect() -> Element {
+pub fn ProfilingRedirect() -> Element {
     let nav = dioxus_router::use_navigator();
     use_effect(move || {
-        *PROFILING_VIEW.write() = "trace-timeline".to_string();
-        nav.replace(Route::ProfilingPage {});
+        nav.replace(Route::ProfilingViewPage {
+            view: "pprof".to_string(),
+        });
     });
     rsx! {
         AppLayout {
-            crate::components::common::LoadingState {
-                message: Some("Opening trace timeline…".to_string()),
-            }
+            fullscreen: true,
+            LoadingState { message: Some("Opening profiling…".to_string()) }
         }
     }
 }
 
 #[component]
-pub fn ProfilingPage() -> Element {
-    rsx! { AppLayout { Profiling {} } }
+pub fn ChromeTracingRedirect() -> Element {
+    let nav = dioxus_router::use_navigator();
+    use_effect(move || {
+        nav.replace(Route::ProfilingViewPage {
+            view: "trace".to_string(),
+        });
+    });
+    rsx! {
+        AppLayout {
+            fullscreen: true,
+            LoadingState { message: Some("Opening trace timeline…".to_string()) }
+        }
+    }
+}
+
+#[component]
+pub fn ProfilingViewPage(view: String) -> Element {
+    let canonical = normalize_profiling_view(&view).to_string();
+    if view != canonical {
+        return rsx! {
+            ProfilingSlugRedirect { target: canonical }
+        };
+    }
+
+    rsx! {
+        AppLayout {
+            fullscreen: true,
+            Profiling { key: "{canonical}", view: canonical }
+        }
+    }
+}
+
+#[component]
+fn ProfilingSlugRedirect(target: String) -> Element {
+    let nav = dioxus_router::use_navigator();
+    use_effect(move || {
+        nav.replace(Route::ProfilingViewPage { view: target.clone() });
+    });
+    rsx! {
+        AppLayout {
+            fullscreen: true,
+            LoadingState { message: Some("Redirecting…".to_string()) }
+        }
+    }
 }
 
 #[component]
@@ -96,7 +141,12 @@ pub fn PythonPage() -> Element {
 
 #[component]
 pub fn TracesPage() -> Element {
-    rsx! { AppLayout { Traces {} } }
+    rsx! {
+        AppLayout {
+            fullscreen: true,
+            Traces {}
+        }
+    }
 }
 
 #[component]

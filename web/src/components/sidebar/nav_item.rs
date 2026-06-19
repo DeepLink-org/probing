@@ -43,11 +43,14 @@ pub fn SidebarNavItem(
     icon: &'static IconData,
     label: &'static str,
     is_active: bool,
+    #[props(default = "")]
+    title: &'static str,
 ) -> Element {
     rsx! {
         Link {
             to: to,
             class: "{sidebar_item_class(is_active)}",
+            title: if title.is_empty() { "" } else { title },
             Icon { icon, class: "w-4 h-4" }
             span { "{label}" }
         }

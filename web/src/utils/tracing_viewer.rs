@@ -1,5 +1,30 @@
 //! Shared Chrome/Perfetto tracing viewer HTML generator.
 
+//! Open trace JSON in Perfetto UI in a new browser tab/window.
+pub fn open_perfetto_window(trace_json: &str) -> Result<(), String> {
+    use js_sys::Array;
+    use web_sys::{Blob, BlobPropertyBag, Url};
+
+    let window = web_sys::window().ok_or("No browser window")?;
+    let html = get_tracing_viewer_html(trace_json);
+
+    let parts = Array::new();
+    parts.push(&wasm_bindgen::JsValue::from_str(&html));
+    let bag = BlobPropertyBag::new();
+    bag.set_type("text/html");
+    let blob = Blob::new_with_str_sequence_and_options(&parts, &bag)
+        .map_err(|_| "Failed to create trace blob")?;
+    let url = Url::create_object_url_with_blob(&blob)
+        .map_err(|_| "Failed to create object URL")?;
+
+    window
+        .open_with_url_and_target(&url, "_blank")
+        .map_err(|_| "Pop-up blocked — allow pop-ups for this site")?
+        .ok_or_else(|| "Pop-up blocked — allow pop-ups for this site".to_string())?;
+
+    Ok(())
+}
+
 /// Generate HTML page containing Chrome tracing viewer.
 /// Embeds trace JSON and loads Perfetto UI via postMessage API.
 pub fn get_tracing_viewer_html(trace_json: &str) -> String {

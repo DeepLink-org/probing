@@ -4,77 +4,71 @@ use crate::api::ApiClient;
 use crate::components::common::AsyncBoundary;
 use crate::components::flamegraph::{FlamegraphPayload, FlamegraphView};
 use crate::components::page::{PageContainer, PageTitle};
+use crate::components::profile_snapshot_bar::ProfileSnapshotBar;
 use crate::components::profiling::{
-    ProfilerDisabledNotice, ProfilingContentPanel, ProfilingErrorPanel, PytorchChromeTimelineLoader,
-    RayChromeTimelineLoader, TimelinePlaceholder, TraceChromeTimelineLoader,
+    ProfilerDisabledNotice, ProfilingContentPanel, ProfilingErrorPanel, ProfilingFeedbackToast,
+    PytorchChromeTimelineLoader, RayChromeTimelineLoader, TimelinePlaceholder,
+    TraceChromeTimelineLoader,
 };
 use crate::hooks::use_app_resource;
 use crate::state::profiling::{
-    apply_profiler_config, PROFILING_CHROME_LIMIT, PROFILING_CONFIG_LOADED, PROFILING_PPROF_FREQ,
-    PROFILING_PYTORCH_TIMELINE_RELOAD, PROFILING_RAY_TIMELINE_RELOAD, PROFILING_TORCH_ENABLED,
-    PROFILING_VIEW,
+    apply_profiler_config, normalize_profiling_view, profiling_view_spec, PROFILING_CHROME_LIMIT,
+    PROFILING_CONFIG_LOADED, PROFILING_PPROF_FREQ, PROFILING_PYTORCH_TIMELINE_RELOAD,
+    PROFILING_RAY_TIMELINE_RELOAD, PROFILING_TORCH_ENABLED, PROFILING_TRACE_RELOAD,
 };
 
 #[component]
-pub fn Profiling() -> Element {
-    let current_view = PROFILING_VIEW.read().clone();
-    let (title, subtitle, icon) = view_title(&current_view);
+pub fn Profiling(view: String) -> Element {
+    let current_view = normalize_profiling_view(&view).to_string();
+    let spec = profiling_view_spec(&current_view);
+    let title = spec.label.to_string();
+    let subtitle = view_subtitle(&current_view);
 
     rsx! {
+        ProfilingFeedbackToast {}
         PageContainer {
             PageTitle {
                 title,
                 subtitle: Some(subtitle),
-                icon: Some(icon),
+                icon: Some(view_icon(&current_view)),
             }
             ProfilingContentPanel {
                 AsyncBoundary {
                     message: Some("Loading profiler configuration…".to_string()),
-                    ProfilerConfigGate {}
+                    ProfilerConfigGate { key: "{current_view}", view: current_view }
                 }
             }
         }
     }
 }
 
-fn view_title(view: &str) -> (String, String, &'static icondata::Icon) {
+fn view_icon(view: &str) -> &'static icondata::Icon {
     match view {
-        "pprof" => (
-            "CPU sampling".to_string(),
-            "SIGPROF stack explorer · statistical sampling".to_string(),
-            &icondata::CgPerformance,
-        ),
-        "torch" => (
-            "Module performance".to_string(),
-            "Median post-hook duration · statistical sampling".to_string(),
-            &icondata::SiPytorch,
-        ),
-        "trace-timeline" => (
-            "Trace".to_string(),
-            "Chrome timeline".to_string(),
-            &icondata::AiThunderboltOutlined,
-        ),
-        "pytorch-timeline" => (
-            "PyTorch".to_string(),
-            "Profiler timeline".to_string(),
-            &icondata::SiPytorch,
-        ),
-        "ray-timeline" => (
-            "Ray".to_string(),
-            "Ray timeline".to_string(),
-            &icondata::AiClockCircleOutlined,
-        ),
-        _ => (
-            "Profiling".to_string(),
-            "Profiling views".to_string(),
-            &icondata::AiSearchOutlined,
-        ),
+        "pprof" => &icondata::CgPerformance,
+        "torch" => &icondata::SiPytorch,
+        "trace" => &icondata::AiThunderboltOutlined,
+        "pytorch" => &icondata::SiPytorch,
+        "ray" => &icondata::AiClockCircleOutlined,
+        _ => &icondata::AiSearchOutlined,
+    }
+}
+
+fn view_subtitle(view: &str) -> String {
+    match view {
+        "pprof" => "SIGPROF stack explorer · statistical sampling".to_string(),
+        "torch" => "Median post-hook duration · statistical sampling".to_string(),
+        "trace" => "Chrome trace events from probing buffers — not distributed spans".to_string(),
+        "pytorch" => "PyTorch profiler chrome trace".to_string(),
+        "ray" => "Ray task timeline".to_string(),
+        _ => "Profiling views".to_string(),
     }
 }
 
 #[component]
-fn ProfilerConfigGate() -> Element {
-    let current_view = PROFILING_VIEW.read().clone();
+fn ProfilerConfigGate(view: String) -> Element {
+    let trace_reload = *PROFILING_TRACE_RELOAD.read();
+    let trace_limit = *PROFILING_CHROME_LIMIT.read();
+
     let _config = use_app_resource(|| async move {
         let client = ApiClient::new();
         let result = client.get_profiler_config().await;
@@ -86,29 +80,33 @@ fn ProfilerConfigGate() -> Element {
     });
     _config.suspend()?;
 
-    match current_view.as_str() {
+    match view.as_str() {
         "pprof" | "torch" => rsx! {
             AsyncBoundary {
                 message: Some("Loading flamegraph…".to_string()),
-                FlamegraphLoader { key: "{current_view}" }
+                FlamegraphLoader { key: "{view}", view: view.clone() }
             }
         },
-        "trace-timeline" => rsx! {
+        "trace" => rsx! {
             AsyncBoundary {
                 message: Some("Loading trace data…".to_string()),
-                TraceChromeTimelineLoader { limit: *PROFILING_CHROME_LIMIT.read() }
+                TraceChromeTimelineLoader {
+                    key: "{view}-{trace_reload}-{trace_limit}",
+                    reload_key: trace_reload,
+                    limit: trace_limit,
+                }
             }
         },
-        "pytorch-timeline" => rsx! {
+        "pytorch" => rsx! {
             AsyncBoundary {
                 message: Some("Loading PyTorch timeline data…".to_string()),
-                PytorchTimelineLoader {}
+                PytorchTimelineLoader { key: "{view}" }
             }
         },
-        "ray-timeline" => rsx! {
+        "ray" => rsx! {
             AsyncBoundary {
                 message: Some("Loading Ray timeline data…".to_string()),
-                RayTimelineLoader {}
+                RayTimelineLoader { key: "{view}" }
             }
         },
         _ => rsx! { div {} },
@@ -116,13 +114,12 @@ fn ProfilerConfigGate() -> Element {
 }
 
 #[component]
-fn FlamegraphLoader() -> Element {
-    let current_view = PROFILING_VIEW.read().clone();
+fn FlamegraphLoader(view: String) -> Element {
     let pprof_enabled = *PROFILING_PPROF_FREQ.read() > 0;
     let torch_enabled = *PROFILING_TORCH_ENABLED.read();
-    let profiler_name = if current_view == "pprof" { "pprof" } else { "torch" };
+    let profiler_name = if view == "pprof" { "pprof" } else { "torch" };
 
-    let profiler_active = match current_view.as_str() {
+    let profiler_active = match view.as_str() {
         "pprof" => pprof_enabled,
         "torch" => torch_enabled,
         _ => false,
@@ -168,15 +165,23 @@ fn FlamegraphData(profiler_name: String) -> Element {
 
     match payload.suspend()?() {
         Ok(data) => rsx! {
-            FlamegraphView {
-                key: "{profiler_name}-{metric()}",
-                payload: data,
-                torch_metric: if is_torch { Some(metric) } else { None },
-                on_torch_metric: if is_torch {
-                    Some(EventHandler::new(move |m: String| metric.set(m)))
-                } else {
-                    None
-                },
+            div { class: "flex flex-col min-h-[600px]",
+                ProfileSnapshotBar {
+                    key: "{profiler_name}-{metric()}",
+                    profiler: profiler_name.clone(),
+                    metric: if is_torch { Some(metric()) } else { None },
+                    payload: data.clone(),
+                }
+                FlamegraphView {
+                    key: "{profiler_name}-{metric()}",
+                    payload: data,
+                    torch_metric: if is_torch { Some(metric) } else { None },
+                    on_torch_metric: if is_torch {
+                        Some(EventHandler::new(move |m: String| metric.set(m)))
+                    } else {
+                        None
+                    },
+                }
             }
         },
         Err(err) => rsx! {
@@ -195,7 +200,7 @@ fn PytorchTimelineLoader() -> Element {
         return rsx! {
             TimelinePlaceholder {
                 title: "PyTorch Profiler Timeline",
-                hint: "Click 'Start Profile' to begin profiling, then click 'Load Timeline' to view the results.".to_string(),
+                hint: "Use Start Profile and Load Timeline in the sidebar.".to_string(),
             }
         };
     }
@@ -212,7 +217,7 @@ fn RayTimelineLoader() -> Element {
         return rsx! {
             TimelinePlaceholder {
                 title: "Ray Timeline",
-                hint: "Click 'Reload Ray Timeline' to load the timeline data.".to_string(),
+                hint: "Click Reload Ray Timeline in the sidebar.".to_string(),
             }
         };
     }

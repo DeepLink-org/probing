@@ -6,18 +6,14 @@
 //! Single-table queries route through the `global` catalog (DataFusion federation).
 //! JOIN / multi-statement SQL still uses the legacy per-node broadcast path.
 
-use std::time::Duration;
-
 use probing_core::core::cluster::get_nodes;
 use probing_core::core::federation::{
-    can_fanout_via_global_catalog, reset_fanout_stats, rewrite_sql_for_global_fanout,
-    take_fanout_stats,
+    can_fanout_via_global_catalog, remote_query_timeout, reset_fanout_stats,
+    rewrite_sql_for_global_fanout, take_fanout_stats,
 };
 use probing_proto::prelude::*;
 
 use crate::engine::handle_query;
-
-const DEFAULT_REMOTE_TIMEOUT_SECS: u64 = 2;
 
 pub fn local_listen_addrs() -> Vec<String> {
     let mut addrs = Vec::new();
@@ -65,7 +61,7 @@ pub async fn remote_query_df(addr: &str, sql: &str) -> anyhow::Result<DataFrame>
         ..Default::default()
     });
     let body = serde_json::to_string(&request)?;
-    let timeout = Duration::from_secs(DEFAULT_REMOTE_TIMEOUT_SECS);
+    let timeout = remote_query_timeout();
     let response = tokio::task::spawn_blocking(move || {
         ureq::post(&url)
             .config()
@@ -156,11 +152,21 @@ async fn broadcast_fanout_query(sql: &str) -> anyhow::Result<FanoutQueryResponse
     let mut nodes_failed = Vec::new();
 
     let local_addrs = local_listen_addrs();
-    for node in get_nodes() {
-        if local_addrs.contains(&node.addr) {
-            continue;
-        }
-        match remote_query_df(&node.addr, sql).await {
+    let peers: Vec<_> = get_nodes()
+        .into_iter()
+        .filter(|node| !local_addrs.contains(&node.addr))
+        .collect();
+
+    // Broadcast to all peers concurrently; total latency is bounded by the
+    // slowest peer rather than the sum of all peers.
+    let responses = futures_util::future::join_all(peers.into_iter().map(|node| async move {
+        let result = remote_query_df(&node.addr, sql).await;
+        (node, result)
+    }))
+    .await;
+
+    for (node, result) in responses {
+        match result {
             Ok(df) => {
                 parts.push(tag_dataframe(
                     df,
