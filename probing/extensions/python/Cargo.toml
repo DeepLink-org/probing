@@ -43,10 +43,12 @@ inferno = { version = "0.12.1", default-features = false, features = [
     "nameattr",
     "multithreaded",
 ] }
+# Do not enable `frame-pointer`: its stack walk calls `validate()` which may
+# invoke `pipe()`/`fcntl()` from the SIGPROF handler and kill the process with
+# no logs (especially on macOS + PyTorch). Use backtrace-rs unwinding instead.
 pprof = { version = "0.14.0", features = [
     "cpp",
     "flamegraph",
-    "frame-pointer",
 ] }
 lazy_static = "1.4.0"
 async-trait = "0.1.83"

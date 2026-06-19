@@ -28,6 +28,16 @@ pub fn sidebar_item_class(is_active: bool) -> String {
 }
 
 #[component]
+pub fn SidebarSectionLabel(label: &'static str) -> Element {
+    rsx! {
+        div {
+            class: "px-2 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500 select-none",
+            "{label}"
+        }
+    }
+}
+
+#[component]
 pub fn SidebarNavItem(
     to: Route,
     icon: &'static IconData,

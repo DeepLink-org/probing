@@ -15,6 +15,7 @@ use probing_proto::prelude::CallFrame;
 
 use probing_core::is_python_main_thread;
 
+use crate::features::pprof::is_sampling_active;
 use crate::features::vm_tracer::{get_python_frames_raw, get_python_stacks_raw};
 
 fn demangle_native_symbol(raw_name: &str) -> (String, Option<&'static str>) {
@@ -264,6 +265,16 @@ impl StackTracer for SignalTracer {
     fn trace(&self, tid: Option<i32>) -> Result<Vec<CallFrame>> {
         log::debug!("Collecting backtrace for TID: {tid:?}");
 
+        // pprof delivers SIGPROF while SIGUSR2 stack capture uses non-async-signal-safe
+        // code in the handler; mixing them can terminate the process with no logs.
+        if is_sampling_active() {
+            if tid.is_none() || is_python_main_thread() {
+                return Self::trace_current_thread_merged();
+            }
+            log::debug!("Skipping SIGUSR2 stack trace for tid {tid:?} while pprof is active");
+            return Ok(vec![]);
+        }
+
         if tid.is_none() && is_python_main_thread() {
             return Self::trace_current_thread_merged();
         }
@@ -285,6 +296,10 @@ impl StackTracer for SignalTracer {
 }
 
 pub fn backtrace_signal_handler() {
+    // Ignore stray SIGUSR2 while pprof SIGPROF sampling is active.
+    if is_sampling_active() {
+        return;
+    }
     // Runs on the signaled thread: native unwind + thread-local eval-frame tracer stack.
     let native_stacks = SignalTracer::get_native_stacks().unwrap_or_default();
     if SignalTracer::send_frames(native_stacks).is_err() {

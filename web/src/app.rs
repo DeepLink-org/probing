@@ -8,10 +8,10 @@ use dioxus_router::{Routable, Router};
 
 use crate::components::layout::AppLayout;
 use crate::pages::{
-    analytics::Analytics, chrome_tracing::ChromeTracing, cluster::Cluster, dashboard::Dashboard,
-    profiling::Profiling, pulsing::Pulsing, python::Python, stack::Stack, traces::Traces,
-    training::Training,
+    analytics::Analytics, cluster::Cluster, dashboard::Dashboard, profiling::Profiling,
+    pulsing::Pulsing, python::Python, stack::Stack, traces::Traces, training::Training,
 };
+use crate::state::profiling::PROFILING_VIEW;
 
 /// All routes. Each is rendered inside AppLayout by the corresponding page component below.
 #[derive(Routable, Clone, PartialEq)]
@@ -34,7 +34,7 @@ pub enum Route {
     #[route("/traces")]
     TracesPage {},
     #[route("/chrome-tracing")]
-    ChromeTracingPage {},
+    ChromeTracingRedirect {},
     #[route("/pulsing")]
     PulsingPage {},
     #[route("/training")]
@@ -64,6 +64,22 @@ pub fn StackWithTidPage(tid: String) -> Element {
 }
 
 #[component]
+pub fn ChromeTracingRedirect() -> Element {
+    let nav = dioxus_router::use_navigator();
+    use_effect(move || {
+        *PROFILING_VIEW.write() = "trace-timeline".to_string();
+        nav.replace(Route::ProfilingPage {});
+    });
+    rsx! {
+        AppLayout {
+            crate::components::common::LoadingState {
+                message: Some("Opening trace timeline…".to_string()),
+            }
+        }
+    }
+}
+
+#[component]
 pub fn ProfilingPage() -> Element {
     rsx! { AppLayout { Profiling {} } }
 }
@@ -81,11 +97,6 @@ pub fn PythonPage() -> Element {
 #[component]
 pub fn TracesPage() -> Element {
     rsx! { AppLayout { Traces {} } }
-}
-
-#[component]
-pub fn ChromeTracingPage() -> Element {
-    rsx! { AppLayout { ChromeTracing {} } }
 }
 
 #[component]

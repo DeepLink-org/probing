@@ -13,7 +13,7 @@ mod nav_item;
 mod profiling;
 mod resize;
 
-use nav_item::SidebarNavItem;
+use nav_item::{SidebarNavItem, SidebarSectionLabel};
 use profiling::ProfilingSidebarItem;
 use resize::ResizeHandle;
 
@@ -44,10 +44,17 @@ fn sidebar_classes() -> (String, String, String, String, String, String) {
 #[component]
 pub fn Sidebar() -> Element {
     let route = use_route::<Route>();
-    let show_profiling_dropdown = use_signal(|| false);
+    let mut show_profiling_dropdown = use_signal(|| false);
 
     use_effect(move || {
         load_sidebar_state();
+    });
+
+    let route_for_profiling = route.clone();
+    use_effect(move || {
+        if matches!(route_for_profiling, Route::ProfilingPage {}) {
+            *show_profiling_dropdown.write() = true;
+        }
     });
 
     let width = *SIDEBAR_WIDTH.read();
@@ -74,6 +81,7 @@ pub fn Sidebar() -> Element {
                 nav {
                     class: "flex-1 overflow-y-auto py-3",
                     div { class: "px-2 space-y-0.5",
+                        SidebarSectionLabel { label: "Overview" }
                         SidebarNavItem {
                             to: Route::DashboardPage {},
                             icon: &icondata::AiLineChartOutlined,
@@ -86,6 +94,8 @@ pub fn Sidebar() -> Element {
                             label: "Stacks",
                             is_active: matches!(route, Route::StackPage {} | Route::StackWithTidPage { .. }),
                         }
+
+                        SidebarSectionLabel { label: "Analysis" }
                         ProfilingSidebarItem {
                             show_dropdown: show_profiling_dropdown,
                         }
@@ -113,7 +123,8 @@ pub fn Sidebar() -> Element {
                             label: "Pulsing",
                             is_active: route == Route::PulsingPage {},
                         }
-                        div { class: "pt-2" }
+
+                        SidebarSectionLabel { label: "System" }
                         SidebarNavItem {
                             to: Route::ClusterPage {},
                             icon: &icondata::AiClusterOutlined,

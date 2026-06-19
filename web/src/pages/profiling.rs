@@ -4,32 +4,11 @@ use crate::components::page::{PageContainer, PageTitle};
 use crate::hooks::use_api_simple;
 use crate::api::{ApiClient, ProfileResponse};
 use crate::state::profiling::{
-    PROFILING_CHROME_LIMIT, PROFILING_PPROF_FREQ, PROFILING_PYTORCH_TIMELINE_RELOAD,
-    PROFILING_RAY_TIMELINE_RELOAD, PROFILING_TORCH_ENABLED, PROFILING_VIEW,
+    apply_profiler_config, PROFILING_CHROME_LIMIT, PROFILING_CONFIG_LOADED, PROFILING_PPROF_FREQ,
+    PROFILING_PYTORCH_TIMELINE_RELOAD, PROFILING_RAY_TIMELINE_RELOAD, PROFILING_TORCH_ENABLED,
+    PROFILING_VIEW,
 };
 use crate::components::chrome_tracing_iframe::ChromeTracingIframe;
-
-fn apply_config(config: &[(String, String)]) {
-    *PROFILING_PPROF_FREQ.write() = 0;
-    *PROFILING_TORCH_ENABLED.write() = false;
-
-    for (name, value) in config {
-        match name.as_str() {
-            "probing.pprof.sample_freq" => {
-                if let Ok(v) = value.parse::<i32>() {
-                    *PROFILING_PPROF_FREQ.write() = v.max(0);
-                }
-            },
-            "probing.torch.profiling" => {
-                let lowered = value.trim().to_lowercase();
-                let disabled_values = ["", "0", "false", "off", "disable", "disabled"];
-                let enabled = !disabled_values.contains(&lowered.as_str());
-                *PROFILING_TORCH_ENABLED.write() = enabled;
-            },
-            _ => {}
-        }
-    }
-}
 
 #[component]
 pub fn Profiling() -> Element {
@@ -39,7 +18,7 @@ pub fn Profiling() -> Element {
     let flamegraph_state = use_api_simple::<String>();
     let chrome_tracing_state = use_api_simple::<String>();
     let _pytorch_profile_state = use_api_simple::<ProfileResponse>();
-    let ray_timeline_state = use_api_simple::<String>(); // Changed to String for Chrome format JSON
+    let ray_timeline_state = use_api_simple::<String>();
 
     use_effect(move || {
         let mut loading = config_state.loading;
@@ -48,11 +27,9 @@ pub fn Profiling() -> Element {
             *loading.write() = true;
             let client = ApiClient::new();
             let result = client.get_profiler_config().await;
-            match result {
-                Ok(ref config) => {
-                    apply_config(config);
-                }
-                Err(_) => {}
+            match &result {
+                Ok(config) => apply_profiler_config(config),
+                Err(_) => *PROFILING_CONFIG_LOADED.write() = true,
             }
             *data.write() = Some(result);
             *loading.write() = false;
@@ -60,17 +37,9 @@ pub fn Profiling() -> Element {
     });
 
     use_effect(move || {
-        let view = PROFILING_VIEW.read().clone();
-        drop(view);
-        spawn(async move {
-            let client = ApiClient::new();
-            if let Ok(config) = client.get_profiler_config().await {
-                apply_config(&config);
-            }
-        });
-    });
-
-    use_effect(move || {
+        if !*PROFILING_CONFIG_LOADED.read() {
+            return;
+        }
         let view = PROFILING_VIEW.read().clone();
         let pprof_on = *PROFILING_PPROF_FREQ.read() > 0;
         let torch = *PROFILING_TORCH_ENABLED.read();

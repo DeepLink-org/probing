@@ -57,6 +57,7 @@ pub fn Training() -> Element {
 
     let cluster_matrix = use_api_simple::<StepMatrixResponse>();
     let cluster_comm = use_api_simple::<ClusterQueryResponse>();
+    let cluster_nodes_failed = use_signal(Vec::<String>::new);
 
     let peer_count = nodes_state
         .data
@@ -87,6 +88,7 @@ pub fn Training() -> Element {
                         let gen = cluster_scan_gen();
                         let mut matrix_state = cluster_matrix.clone();
                         let mut comm_state = cluster_comm.clone();
+                        let mut failed_signal = cluster_nodes_failed;
                         spawn(async move {
                             let _ = gen;
                             *matrix_state.loading.write() = true;
@@ -96,6 +98,18 @@ pub fn Training() -> Element {
                             let comm_res = client
                                 .cluster_query(&format!("{COMM_SQL}{COMM_LIMIT}"), true)
                                 .await;
+
+                            let mut failed: HashSet<String> = HashSet::new();
+                            if let Ok(ref m) = matrix_res {
+                                failed.extend(m.nodes_failed.iter().cloned());
+                            }
+                            if let Ok(ref c) = comm_res {
+                                failed.extend(c.meta.nodes_failed.iter().cloned());
+                            }
+                            let mut merged: Vec<String> = failed.into_iter().collect();
+                            merged.sort();
+                            failed_signal.set(merged);
+
                             *matrix_state.data.write() = Some(matrix_res);
                             *comm_state.data.write() = Some(comm_res);
                             *matrix_state.loading.write() = false;
@@ -119,6 +133,9 @@ pub fn Training() -> Element {
                     "Agents write locally only. Fan-out runs when you click Scan cluster or use probing cluster query."
                 }
             }
+            if current_scope == DataScope::Cluster {
+                {cluster_nodes_failed_banner(&cluster_nodes_failed)}
+            }
             {step_matrix_panel(current_scope, &local_matrix, &cluster_matrix)}
             {comm_panel(current_scope, &local_comm, &cluster_comm)}
         }
@@ -132,6 +149,29 @@ fn scope_badge(scope: DataScope) -> Element {
     };
     rsx! {
         span { class: "text-xs font-medium px-2 py-1 rounded {class}", "{label}" }
+    }
+}
+
+fn cluster_nodes_failed_banner(failed: &Signal<Vec<String>>) -> Element {
+    let nodes = failed.read().clone();
+    if nodes.is_empty() {
+        return rsx! { div {} };
+    }
+    rsx! {
+        div {
+            class: "mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950",
+            p { class: "font-medium",
+                "Partial cluster scan — {nodes.len()} node(s) did not respond"
+            }
+            p { class: "mt-1 text-xs text-amber-800",
+                "Results below may be incomplete. Check that peers are running and reachable."
+            }
+            ul { class: "mt-2 text-xs font-mono text-amber-900 list-disc pl-5 space-y-0.5",
+                for addr in nodes.iter() {
+                    li { "{addr}" }
+                }
+            }
+        }
     }
 }
 
@@ -155,10 +195,14 @@ fn step_matrix_panel(
         Some(Ok(resp)) if !resp.samples.is_empty() => {
             let (ranks, steps, cells, max_ms) = build_heatmap(&resp.samples);
             let scope_note = if resp.cluster {
-                format!(
-                    "cluster scan · {} nodes queried",
-                    resp.nodes_queried
-                )
+                let mut note = format!("cluster scan · {} nodes queried", resp.nodes_queried);
+                if !resp.nodes_failed.is_empty() {
+                    note.push_str(&format!(
+                        " · {} failed",
+                        resp.nodes_failed.len()
+                    ));
+                }
+                note
             } else {
                 "local node · auto-refresh".to_string()
             };
@@ -173,11 +217,6 @@ fn step_matrix_panel(
                             span { "{resp.rank_count} ranks" }
                             span { "·" }
                             span { "{resp.step_count} steps sampled" }
-                            if !resp.nodes_failed.is_empty() {
-                                span { class: "text-amber-700 text-xs",
-                                    "· {resp.nodes_failed.len()} node(s) failed"
-                                }
-                            }
                             span { "·" }
                             span { class: "text-xs text-gray-500",
                                 "Darker = slower · red ring = outlier (>1.2× step median)"
@@ -387,10 +426,16 @@ fn comm_panel_cluster(state: &crate::hooks::ApiState<ClusterQueryResponse>) -> E
 
     match state.data.read().as_ref() {
         Some(Ok(resp)) if !resp.dataframe.cols.is_empty() => {
-            let note = format!(
+            let mut note = format!(
                 "cluster scan · {} nodes queried",
                 resp.meta.nodes_queried
             );
+            if !resp.meta.nodes_failed.is_empty() {
+                note.push_str(&format!(
+                    " · {} failed",
+                    resp.meta.nodes_failed.len()
+                ));
+            }
             comm_table(&resp.dataframe, &note)
         }
         Some(Ok(_)) => rsx! {

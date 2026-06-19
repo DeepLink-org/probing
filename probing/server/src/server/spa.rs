@@ -8,6 +8,7 @@ const PAGE_PATHS: &[&str] = &[
     "/cluster",
     "/stacks",
     "/profiling",
+    "/training",
     "/analytics",
     "/python",
     "/traces",
