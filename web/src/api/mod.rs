@@ -1,3 +1,8 @@
+//! HTTP client and typed endpoints.
+//!
+//! Naming: `trace` = Python live variable tracing (`/python` page);
+//! `traces` = distributed span trees and Chrome/Ray timelines.
+
 use crate::utils::error::{AppError, Result};
 
 /// Base API client

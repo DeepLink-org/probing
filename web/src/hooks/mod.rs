@@ -1,3 +1,8 @@
+//! Data-fetching hooks for the web UI.
+//!
+//! **New code** should prefer [`use_app_resource`] (auto-fetch) and Dioxus [`use_action`](dioxus::prelude::use_action)
+//! (user-triggered). Legacy [`use_api`] / [`ApiState`] remain for pages not yet migrated.
+
 use dioxus::prelude::*;
 use gloo_timers::callback::Interval;
 use std::future::Future;
@@ -20,9 +25,8 @@ impl<T: Clone + 'static> ApiState<T> {
 
 impl<T: Clone + 'static + PartialEq> PartialEq for ApiState<T> {
     fn eq(&self, other: &Self) -> bool {
-        // Compare internal values of Signal
-        *self.loading.read() == *other.loading.read() &&
-        self.data.read().as_ref() == other.data.read().as_ref()
+        *self.loading.read() == *other.loading.read()
+            && self.data.read().as_ref() == other.data.read().as_ref()
     }
 }
 
@@ -35,9 +39,6 @@ pub fn use_api_simple<T: Clone + 'static>() -> ApiState<T> {
 }
 
 /// Generic API call hook (auto-executes)
-///
-/// Automatically executes API call when component mounts, and re-executes when any reactive
-/// dependency (e.g. Signals read inside the closure) changes.
 pub fn use_api<T, F, Fut>(mut fetch_fn: F) -> ApiState<T>
 where
     T: Clone + 'static,
@@ -59,6 +60,16 @@ where
     });
 
     state
+}
+
+/// Dioxus 0.7 [`use_resource`] wrapper with unified [`AppError`] results.
+pub fn use_app_resource<T, F, Fut>(fetch: F) -> Resource<Result<T, AppError>>
+where
+    T: Clone + 'static,
+    F: FnMut() -> Fut + 'static,
+    Fut: Future<Output = Result<T, AppError>> + 'static,
+{
+    use_resource(fetch)
 }
 
 /// Periodic tick signal for polling APIs (e.g. dashboard metrics).

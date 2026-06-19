@@ -1,353 +1,223 @@
 use dioxus::prelude::*;
-use crate::components::common::{LoadingState, ErrorState, EmptyState};
+
+use crate::api::ApiClient;
+use crate::components::common::AsyncBoundary;
+use crate::components::flamegraph::{FlamegraphPayload, FlamegraphView};
 use crate::components::page::{PageContainer, PageTitle};
-use crate::hooks::use_api_simple;
-use crate::api::{ApiClient, ProfileResponse};
+use crate::components::profiling::{
+    ProfilerDisabledNotice, ProfilingContentPanel, ProfilingErrorPanel, PytorchChromeTimelineLoader,
+    RayChromeTimelineLoader, TimelinePlaceholder, TraceChromeTimelineLoader,
+};
+use crate::hooks::use_app_resource;
 use crate::state::profiling::{
     apply_profiler_config, PROFILING_CHROME_LIMIT, PROFILING_CONFIG_LOADED, PROFILING_PPROF_FREQ,
     PROFILING_PYTORCH_TIMELINE_RELOAD, PROFILING_RAY_TIMELINE_RELOAD, PROFILING_TORCH_ENABLED,
     PROFILING_VIEW,
 };
-use crate::components::chrome_tracing_iframe::ChromeTracingIframe;
 
 #[component]
 pub fn Profiling() -> Element {
-    let chrome_iframe_key = use_signal(|| 0);
-
-    let config_state = use_api_simple::<Vec<(String, String)>>();
-    let flamegraph_state = use_api_simple::<String>();
-    let chrome_tracing_state = use_api_simple::<String>();
-    let _pytorch_profile_state = use_api_simple::<ProfileResponse>();
-    let ray_timeline_state = use_api_simple::<String>();
-
-    use_effect(move || {
-        let mut loading = config_state.loading;
-        let mut data = config_state.data;
-        spawn(async move {
-            *loading.write() = true;
-            let client = ApiClient::new();
-            let result = client.get_profiler_config().await;
-            match &result {
-                Ok(config) => apply_profiler_config(config),
-                Err(_) => *PROFILING_CONFIG_LOADED.write() = true,
-            }
-            *data.write() = Some(result);
-            *loading.write() = false;
-        });
-    });
-
-    use_effect(move || {
-        if !*PROFILING_CONFIG_LOADED.read() {
-            return;
-        }
-        let view = PROFILING_VIEW.read().clone();
-        let pprof_on = *PROFILING_PPROF_FREQ.read() > 0;
-        let torch = *PROFILING_TORCH_ENABLED.read();
-
-        let active_profiler = match view.as_str() {
-            "pprof" if pprof_on => "pprof",
-            "torch" if torch => "torch",
-            _ => return,
-        };
-
-        let mut loading = flamegraph_state.loading;
-        let mut data = flamegraph_state.data;
-        spawn(async move {
-            *loading.write() = true;
-            let client = ApiClient::new();
-            let result = client.get_flamegraph(active_profiler).await;
-            *data.write() = Some(result);
-            *loading.write() = false;
-        });
-    });
-
-    // Handle automatic loading of trace timeline
-    use_effect(move || {
-        let view = PROFILING_VIEW.read().clone();
-        let limit_val = *PROFILING_CHROME_LIMIT.read();
-
-        if view != "trace-timeline" {
-            return;
-        }
-
-        let mut loading = chrome_tracing_state.loading;
-        let mut data = chrome_tracing_state.data;
-        let mut iframe_key = chrome_iframe_key.clone();
-        spawn(async move {
-            *loading.write() = true;
-            let client = ApiClient::new();
-            let result = client.get_chrome_tracing_json(Some(limit_val)).await;
-            *data.write() = Some(result);
-            *loading.write() = false;
-            *iframe_key.write() += 1;
-        });
-    });
-
-    // Handle pytorch timeline loading (triggered by sidebar button)
-    use_effect(move || {
-        let view = PROFILING_VIEW.read().clone();
-        let reload_key = *PROFILING_PYTORCH_TIMELINE_RELOAD.read();
-
-        if view != "pytorch-timeline" || reload_key == 0 {
-            return;
-        }
-
-        let mut loading = chrome_tracing_state.loading;
-        let mut data = chrome_tracing_state.data;
-        let mut iframe_key = chrome_iframe_key.clone();
-        spawn(async move {
-            *loading.write() = true;
-            let client = ApiClient::new();
-            let result = client.get_pytorch_timeline().await;
-            *data.write() = Some(result);
-            *loading.write() = false;
-            *iframe_key.write() += 1;
-        });
-    });
-
-    // Handle Ray timeline loading (Chrome format for Perfetto)
-    use_effect(move || {
-        let view = PROFILING_VIEW.read().clone();
-        let reload_key = *PROFILING_RAY_TIMELINE_RELOAD.read();
-
-        if view != "ray-timeline" || reload_key == 0 {
-            return;
-        }
-
-        let mut loading = ray_timeline_state.loading;
-        let mut data = ray_timeline_state.data;
-        let mut iframe_key = chrome_iframe_key.clone();
-        spawn(async move {
-            *loading.write() = true;
-            let client = ApiClient::new();
-            let result = client.get_ray_timeline_chrome_format(None, None, None, None).await;
-            *data.write() = Some(result);
-            *loading.write() = false;
-            *iframe_key.write() += 1; // Force iframe reload
-        });
-    });
+    let current_view = PROFILING_VIEW.read().clone();
+    let (title, subtitle, icon) = view_title(&current_view);
 
     rsx! {
         PageContainer {
-            {
-                let current_view = PROFILING_VIEW.read();
-                let (title, subtitle, icon) = match current_view.as_str() {
-                    "pprof" => (
-                        "pprof".to_string(),
-                        Some("CPU flamegraph".to_string()),
-                        Some(&icondata::CgPerformance),
-                    ),
-                    "torch" => (
-                        "torch".to_string(),
-                        Some("PyTorch flamegraph".to_string()),
-                        Some(&icondata::SiPytorch),
-                    ),
-                    "trace-timeline" => (
-                        "Trace".to_string(),
-                        Some("Chrome timeline".to_string()),
-                        Some(&icondata::AiThunderboltOutlined),
-                    ),
-                    "pytorch-timeline" => (
-                        "PyTorch".to_string(),
-                        Some("Profiler timeline".to_string()),
-                        Some(&icondata::SiPytorch),
-                    ),
-                    "ray-timeline" => (
-                        "Ray".to_string(),
-                        Some("Ray timeline".to_string()),
-                        Some(&icondata::AiClockCircleOutlined),
-                    ),
-                    _ => (
-                        "Profiling".to_string(),
-                        Some("Profiling views".to_string()),
-                        Some(&icondata::AiSearchOutlined),
-                    ),
-                };
-                rsx! {
-                    PageTitle {
-                        title,
-                        subtitle,
-                        icon,
-                    }
+            PageTitle {
+                title,
+                subtitle: Some(subtitle),
+                icon: Some(icon),
+            }
+            ProfilingContentPanel {
+                AsyncBoundary {
+                    message: Some("Loading profiler configuration…".to_string()),
+                    ProfilerConfigGate {}
                 }
             }
+        }
+    }
+}
 
-            div {
-                class: "bg-white rounded-lg border border-gray-200 relative",
-                style: "min-height: calc(100vh - 12rem);",
-                {
-                    let current_view = PROFILING_VIEW.read().clone();
-                    if current_view == "pprof" || current_view == "torch" {
-                        rsx! {
-                            FlamegraphView {
-                                flamegraph_state: flamegraph_state.clone(),
-                            }
-                        }
-                    } else if current_view == "trace-timeline" || current_view == "pytorch-timeline" {
-                        rsx! {
-                            ChromeTracingView {
-                                chrome_tracing_state: chrome_tracing_state.clone(),
-                                chrome_iframe_key: chrome_iframe_key.clone(),
-                            }
-                        }
-                    } else if current_view == "ray-timeline" {
-                        rsx! {
-                            RayTimelineView {
-                                ray_timeline_state: ray_timeline_state.clone(),
-                                chrome_iframe_key: chrome_iframe_key.clone(),
-                            }
-                        }
-                    } else {
-                        rsx! { div {} }
-                    }
-                }
+fn view_title(view: &str) -> (String, String, &'static icondata::Icon) {
+    match view {
+        "pprof" => (
+            "CPU sampling".to_string(),
+            "SIGPROF stack explorer · statistical sampling".to_string(),
+            &icondata::CgPerformance,
+        ),
+        "torch" => (
+            "Module performance".to_string(),
+            "Median post-hook duration · statistical sampling".to_string(),
+            &icondata::SiPytorch,
+        ),
+        "trace-timeline" => (
+            "Trace".to_string(),
+            "Chrome timeline".to_string(),
+            &icondata::AiThunderboltOutlined,
+        ),
+        "pytorch-timeline" => (
+            "PyTorch".to_string(),
+            "Profiler timeline".to_string(),
+            &icondata::SiPytorch,
+        ),
+        "ray-timeline" => (
+            "Ray".to_string(),
+            "Ray timeline".to_string(),
+            &icondata::AiClockCircleOutlined,
+        ),
+        _ => (
+            "Profiling".to_string(),
+            "Profiling views".to_string(),
+            &icondata::AiSearchOutlined,
+        ),
+    }
+}
+
+#[component]
+fn ProfilerConfigGate() -> Element {
+    let current_view = PROFILING_VIEW.read().clone();
+    let _config = use_app_resource(|| async move {
+        let client = ApiClient::new();
+        let result = client.get_profiler_config().await;
+        match &result {
+            Ok(config) => apply_profiler_config(config),
+            Err(_) => *PROFILING_CONFIG_LOADED.write() = true,
+        }
+        result
+    });
+    _config.suspend()?;
+
+    match current_view.as_str() {
+        "pprof" | "torch" => rsx! {
+            AsyncBoundary {
+                message: Some("Loading flamegraph…".to_string()),
+                FlamegraphLoader { key: "{current_view}" }
             }
+        },
+        "trace-timeline" => rsx! {
+            AsyncBoundary {
+                message: Some("Loading trace data…".to_string()),
+                TraceChromeTimelineLoader { limit: *PROFILING_CHROME_LIMIT.read() }
+            }
+        },
+        "pytorch-timeline" => rsx! {
+            AsyncBoundary {
+                message: Some("Loading PyTorch timeline data…".to_string()),
+                PytorchTimelineLoader {}
+            }
+        },
+        "ray-timeline" => rsx! {
+            AsyncBoundary {
+                message: Some("Loading Ray timeline data…".to_string()),
+                RayTimelineLoader {}
+            }
+        },
+        _ => rsx! { div {} },
+    }
+}
 
+#[component]
+fn FlamegraphLoader() -> Element {
+    let current_view = PROFILING_VIEW.read().clone();
+    let pprof_enabled = *PROFILING_PPROF_FREQ.read() > 0;
+    let torch_enabled = *PROFILING_TORCH_ENABLED.read();
+    let profiler_name = if current_view == "pprof" { "pprof" } else { "torch" };
+
+    let profiler_active = match current_view.as_str() {
+        "pprof" => pprof_enabled,
+        "torch" => torch_enabled,
+        _ => false,
+    };
+
+    if !profiler_active {
+        return rsx! {
+            ProfilerDisabledNotice { profiler_name }
+        };
+    }
+
+    rsx! {
+        FlamegraphData {
+            key: "{profiler_name}",
+            profiler_name: profiler_name.to_string(),
         }
     }
 }
 
 #[component]
-fn FlamegraphView(
-    #[props] flamegraph_state: crate::hooks::ApiState<String>
-) -> Element {
-    let pprof_enabled = *PROFILING_PPROF_FREQ.read() > 0;
-    let torch_enabled = *PROFILING_TORCH_ENABLED.read();
-    let current_view = PROFILING_VIEW.read().clone();
-    let profiler_name = if current_view == "pprof" { "pprof" } else { "torch" };
+fn FlamegraphData(profiler_name: String) -> Element {
+    let is_torch = profiler_name == "torch";
+    let mut metric = use_signal(|| "duration".to_string());
+    let fetch_name = profiler_name.clone();
 
-    if !pprof_enabled && !torch_enabled {
-        let message = format!(
-            "No profilers are currently enabled. Enable {} using the controls in the sidebar.",
-            profiler_name
-        );
-        return rsx! {
-            div {
-                class: "absolute inset-0 flex items-center justify-center",
-                div {
-                    class: "text-center",
-                    h2 { class: "text-2xl font-bold text-gray-900 mb-4", "No Profilers Enabled" }
-                    EmptyState { message }
-                }
-            }
-        };
-    }
-
-    if flamegraph_state.is_loading() {
-        return rsx! {
-            LoadingState { message: Some("Loading flamegraph...".to_string()) }
-        };
-    }
-
-    if let Some(Ok(flamegraph)) = flamegraph_state.data.read().as_ref() {
-        return rsx! {
-            div {
-                class: "absolute inset-0 w-full h-full",
-                div {
-                    class: "w-full h-full",
-                    dangerous_inner_html: "{flamegraph}"
-                }
-            }
-        };
-    }
-
-    if let Some(Err(err)) = flamegraph_state.data.read().as_ref() {
-        return rsx! {
-            ErrorState {
-                error: format!("Failed to load flamegraph: {}", err.display_message()),
-                title: Some("Error Loading Flamegraph".to_string())
-            }
-        };
-    }
-
-    rsx! { div {} }
-}
-
-#[component]
-fn ChromeTracingView(
-    #[props] chrome_tracing_state: crate::hooks::ApiState<String>,
-    #[props] chrome_iframe_key: Signal<i32>,
-) -> Element {
-    let current_view = PROFILING_VIEW.read().clone();
-    let is_pytorch = current_view == "pytorch-timeline";
-
-    let loading_msg = if is_pytorch {
-        "Loading PyTorch timeline data..."
-    } else {
-        "Loading trace data..."
-    };
-    let empty_msg = "Timeline data is empty. Make sure the profiler has been executed.";
-
-    let no_data_placeholder = (!chrome_tracing_state.is_loading()
-        && chrome_tracing_state.data.read().as_ref().is_none())
-    .then(|| {
-        let (title, description) = if is_pytorch {
-            (
-                "PyTorch Profiler Timeline",
-                "Click 'Start Profile' to begin profiling, then click 'Load Timeline' to view the results.",
-            )
-        } else {
-            (
-                "Trace Events Timeline",
-                "Select the number of events and the timeline will load automatically.",
-            )
-        };
-        rsx! {
-            div {
-                class: "absolute inset-0 flex items-center justify-center p-8",
-                div {
-                    class: "text-center text-gray-500",
-                    p { class: "mb-4 text-lg", "{title}" }
-                    p { class: "text-sm", "{description}" }
-                }
-            }
+    let payload = use_app_resource(move || {
+        let name = fetch_name.clone();
+        let m = metric();
+        async move {
+            let client = ApiClient::new();
+            let body = if name == "torch" {
+                client
+                    .get_flamegraph_json_with_metric(&name, Some(&m))
+                    .await?
+            } else {
+                client.get_flamegraph_json(&name).await?
+            };
+            let parsed: FlamegraphPayload = serde_json::from_str(&body)
+                .map_err(|e| crate::utils::error::AppError::Api(format!("Invalid flamegraph JSON: {e}")))?;
+            Ok(parsed)
         }
     });
 
-    if let Some(placeholder) = no_data_placeholder {
-        return placeholder;
-    }
-
-    rsx! {
-        ChromeTracingIframe {
-            state: chrome_tracing_state.clone(),
-            iframe_key: chrome_iframe_key,
-            loading_message: Some(loading_msg.to_string()),
-            empty_message: Some(empty_msg.to_string()),
-        }
+    match payload.suspend()?() {
+        Ok(data) => rsx! {
+            FlamegraphView {
+                key: "{profiler_name}-{metric()}",
+                payload: data,
+                torch_metric: if is_torch { Some(metric) } else { None },
+                on_torch_metric: if is_torch {
+                    Some(EventHandler::new(move |m: String| metric.set(m)))
+                } else {
+                    None
+                },
+            }
+        },
+        Err(err) => rsx! {
+            ProfilingErrorPanel {
+                title: "Flamegraph Error".to_string(),
+                error: err.display_message(),
+            }
+        },
     }
 }
 
 #[component]
-fn RayTimelineView(
-    #[props] ray_timeline_state: crate::hooks::ApiState<String>,
-    #[props] chrome_iframe_key: Signal<i32>,
-) -> Element {
-    let no_data_placeholder =
-        (!ray_timeline_state.is_loading() && ray_timeline_state.data.read().as_ref().is_none())
-            .then(|| {
-                rsx! {
-                    div {
-                        class: "bg-white rounded-lg shadow p-8 text-center",
-                        div {
-                            class: "text-gray-500",
-                            p { class: "mb-4 text-lg", "Ray Timeline" }
-                            p { class: "text-sm", "Click 'Reload Ray Timeline' to load the timeline data." }
-                        }
-                    }
-                }
-            });
-
-    if let Some(placeholder) = no_data_placeholder {
-        return placeholder;
+fn PytorchTimelineLoader() -> Element {
+    let reload_key = *PROFILING_PYTORCH_TIMELINE_RELOAD.read();
+    if reload_key == 0 {
+        return rsx! {
+            TimelinePlaceholder {
+                title: "PyTorch Profiler Timeline",
+                hint: "Click 'Start Profile' to begin profiling, then click 'Load Timeline' to view the results.".to_string(),
+            }
+        };
     }
 
     rsx! {
-        ChromeTracingIframe {
-            state: ray_timeline_state.clone(),
-            iframe_key: chrome_iframe_key,
-            loading_message: Some("Loading Ray timeline data...".to_string()),
-            empty_message: Some("No Ray timeline data available. Start Ray tasks with probing tracing enabled.".to_string()),
-        }
+        PytorchChromeTimelineLoader { reload_key }
+    }
+}
+
+#[component]
+fn RayTimelineLoader() -> Element {
+    let reload_key = *PROFILING_RAY_TIMELINE_RELOAD.read();
+    if reload_key == 0 {
+        return rsx! {
+            TimelinePlaceholder {
+                title: "Ray Timeline",
+                hint: "Click 'Reload Ray Timeline' to load the timeline data.".to_string(),
+            }
+        };
+    }
+
+    rsx! {
+        RayChromeTimelineLoader { reload_key }
     }
 }

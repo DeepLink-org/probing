@@ -15,6 +15,7 @@ pub const PROBE_ADDR_COL: &str = "_addr";
 /// Cluster `rank` from `cluster.nodes` for the row's source probing endpoint.
 pub const PROBE_RANK_COL: &str = "_rank";
 
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn node_label(host: &str, addr: &str) -> String {
     if host.is_empty() {
         addr.to_string()
@@ -53,11 +54,6 @@ pub fn federated_output_schema(local: SchemaRef) -> SchemaRef {
     Arc::new(Schema::new(fields))
 }
 
-/// Federation tag columns automatically appended to `global.*` `SELECT *` queries.
-pub fn federation_auto_tag_columns() -> [&'static str; 3] {
-    [PROBE_HOST_COL, PROBE_ADDR_COL, PROBE_RANK_COL]
-}
-
 pub fn is_federation_tag_column(name: &str) -> bool {
     matches!(
         name,
@@ -93,19 +89,6 @@ pub fn proto_dataframe_to_record_batch(df: &DataFrame) -> Result<RecordBatch> {
     }
     RecordBatch::try_new(Arc::new(Schema::new(fields)), columns)
         .map_err(|e| DataFusionError::Execution(format!("proto dataframe conversion failed: {e}")))
-}
-
-/// Indices of auto-appended federation tag columns on a federated table schema.
-pub fn federation_auto_tag_indices(schema: &SchemaRef) -> Vec<usize> {
-    federation_auto_tag_columns()
-        .iter()
-        .filter_map(|name| schema.index_of(name).ok())
-        .collect()
-}
-
-/// Indices of probe tag columns on a federated table schema.
-pub fn probe_tag_column_indices(schema: &SchemaRef) -> Vec<usize> {
-    federation_auto_tag_indices(schema)
 }
 
 /// Honor the caller's column projection for `global.*` scans.

@@ -1,107 +1,52 @@
 use dioxus::prelude::*;
 
+use crate::api::{ApiClient, EventInfo, SpanInfo};
 use crate::components::card::Card;
 use crate::components::colors::colors;
+use crate::components::common::{query_result, AsyncBoundary, EmptyState};
+use crate::components::icon::Icon;
 use crate::components::page::{PageContainer, PageTitle};
-use crate::components::common::{LoadingState, ErrorState};
-use crate::hooks::use_api_simple;
-use crate::api::{ApiClient, SpanInfo, EventInfo};
+use crate::hooks::use_app_resource;
+
+const DEFAULT_LIMIT: usize = 400;
+const MIN_LIMIT: usize = 100;
+const MAX_LIMIT: usize = 2000;
+const LIMIT_STEP: usize = 100;
 
 #[component]
 pub fn Traces() -> Element {
-    let limit = use_signal(|| 400usize);
-    let state = use_api_simple::<Vec<SpanInfo>>();
-
-    // Create dependency, recalculate when limit changes
-    let limit_value = use_memo({
-        let limit = limit.clone();
-        move || *limit.read()
-    });
-
-    // Refetch data when limit changes
-    use_effect({
-        let limit_value = limit_value.clone();
-        let mut loading = state.loading;
-        let mut data = state.data;
-        move || {
-            let limit_val = *limit_value.read();
-            spawn(async move {
-                *loading.write() = true;
-                let client = ApiClient::new();
-                let result = client.get_span_tree(Some(limit_val)).await;
-                *data.write() = Some(result);
-                *loading.write() = false;
-            });
-        }
-    });
+    let limit = use_signal(|| DEFAULT_LIMIT);
+    let filter = use_signal(String::new);
+    let expand_all = use_signal(|| 0u32);
+    let collapse_all = use_signal(|| 0u32);
 
     rsx! {
         PageContainer {
             PageTitle {
                 title: "Traces".to_string(),
-                subtitle: Some("Span tree and timing".to_string()),
+                subtitle: Some("Hierarchical span tree from python.trace_event".to_string()),
                 icon: Some(&icondata::AiApiOutlined),
-            }
-            // Limit control slider
-            Card {
-                title: "Data Limit",
-                div {
-                    class: "space-y-2",
-                    div {
-                        class: "flex items-center justify-between",
-                        span {
-                            class: "text-sm text-gray-600",
-                            "Number of Events"
-                        }
-                        span {
-                            class: "text-sm text-gray-800 font-mono",
-                            "{*limit.read()} events"
-                        }
-                    }
-                    input {
-                        r#type: "range",
-                        min: "100",
-                        max: "2000",
-                        step: "100",
-                        value: "{*limit.read()}",
-                        class: "w-full",
-                        oninput: {
-                            let mut limit = limit.clone();
-                            move |ev| {
-                                if let Ok(val) = ev.value().parse::<usize>() {
-                                    *limit.write() = val;
-                                }
-                            }
-                        }
-                    }
-                    div {
-                        class: "flex justify-between text-xs text-gray-500",
-                        span { "100" }
-                        span { "2000" }
-                    }
-                }
             }
 
             Card {
                 title: "Span Tree",
-                if state.is_loading() {
-                    LoadingState { message: Some("Loading trace data...".to_string()) }
-                } else if let Some(Ok(spans)) = state.data.read().as_ref() {
-                    if spans.is_empty() {
-                        div {
-                            class: "text-center py-8 text-gray-500",
-                            "No trace data available. Start tracing with probing.tracing.span()"
-                        }
-                    } else {
-                        div {
-                            class: "space-y-4",
-                            for span in spans.iter() {
-                                SpanView { span: span.clone(), depth: 0 }
-                            }
-                        }
+                content_class: Some("p-0"),
+                header_right: Some(rsx! {
+                    TraceToolbar {
+                        limit,
+                        filter,
+                        expand_all,
+                        collapse_all,
                     }
-                } else if let Some(Err(err)) = state.data.read().as_ref() {
-                    ErrorState { error: err.display_message(), title: None }
+                }),
+                AsyncBoundary {
+                    message: Some("Loading trace data…".to_string()),
+                    TraceTreePanel {
+                        limit,
+                        filter,
+                        expand_all,
+                        collapse_all,
+                    }
                 }
             }
         }
@@ -109,169 +54,323 @@ pub fn Traces() -> Element {
 }
 
 #[component]
-fn SpanView(span: SpanInfo, depth: usize) -> Element {
-    let indent = depth * 24;
-    let duration = span.end_timestamp
-        .map(|end| (end - span.start_timestamp) as f64 / 1_000_000_000.0)
-        .unwrap_or(0.0);
-
-    let mut expanded = use_signal(|| depth < 2); // Auto-expand first 2 levels
-
+fn TraceToolbar(
+    limit: Signal<usize>,
+    filter: Signal<String>,
+    expand_all: Signal<u32>,
+    collapse_all: Signal<u32>,
+) -> Element {
     rsx! {
-        div {
-            class: "border-l-2 border-gray-200 pl-4",
-            style: format!("margin-left: {}px", indent),
-            div {
-                class: "flex items-center gap-2 py-2 hover:bg-gray-50 rounded px-2 flex-wrap",
-                button {
-                    class: "text-gray-400 hover:text-gray-600 flex-shrink-0",
-                    onclick: move |_| {
-                        let current = *expanded.read();
-                        *expanded.write() = !current;
+        div { class: "flex flex-wrap items-center gap-2 max-w-xl",
+            div { class: "relative min-w-[140px] flex-1",
+                span { class: "absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none",
+                    Icon { icon: &icondata::AiSearchOutlined, class: "w-3.5 h-3.5" }
+                }
+                input {
+                    r#type: "text",
+                    class: "w-full pl-7 pr-2 py-1.5 text-xs rounded-md border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500",
+                    placeholder: "Filter spans…",
+                    value: "{filter}",
+                    oninput: move |ev| filter.set(ev.value()),
+                }
+            }
+            button {
+                class: "px-2 py-1.5 text-xs rounded-md border border-gray-300 bg-white hover:bg-gray-50",
+                title: "Expand all spans",
+                onclick: move |_| expand_all.set(expand_all() + 1),
+                "Expand"
+            }
+            button {
+                class: "px-2 py-1.5 text-xs rounded-md border border-gray-300 bg-white hover:bg-gray-50",
+                title: "Collapse all spans",
+                onclick: move |_| collapse_all.set(collapse_all() + 1),
+                "Collapse"
+            }
+            div { class: "flex items-center gap-2 pl-1 border-l border-gray-200",
+                span { class: "text-xs text-gray-500 whitespace-nowrap font-mono", "{limit()} evt" }
+                input {
+                    r#type: "range",
+                    min: "{MIN_LIMIT}",
+                    max: "{MAX_LIMIT}",
+                    step: "{LIMIT_STEP}",
+                    value: "{limit}",
+                    class: "w-24 accent-blue-600",
+                    oninput: move |ev| {
+                        if let Ok(val) = ev.value().parse::<usize>() {
+                            limit.set(val);
+                        }
                     },
-                    if *expanded.read() {
-                        "▼"
-                    } else {
-                        "▶"
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn TraceTreePanel(
+    limit: Signal<usize>,
+    filter: Signal<String>,
+    expand_all: Signal<u32>,
+    collapse_all: Signal<u32>,
+) -> Element {
+    let spans = use_app_resource(move || {
+        let limit_val = limit();
+        async move { ApiClient::new().get_span_tree(Some(limit_val)).await }
+    });
+    let tree = spans.suspend()?();
+
+    query_result(
+        tree,
+        |spans| spans.is_empty(),
+        "No trace data available. Start tracing with probing.tracing.span() or TorchProbe spans.",
+        move |spans| {
+            let filtered = filter_span_tree(&spans, &filter());
+            let total = count_spans(&spans);
+            let roots = spans.len();
+            let shown = count_spans(&filtered);
+            rsx! {
+                div { class: "border-b border-gray-200 px-4 py-2 bg-gray-50/80 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-600",
+                    span { class: "font-medium text-gray-800", "{roots} roots" }
+                    span { "·" }
+                    span { "{total} spans" }
+                    span { "·" }
+                    span { "limit {limit()}" }
+                    if !filter.read().trim().is_empty() {
+                        span { "·" }
+                        span { class: "text-blue-700", "{shown} matched" }
                     }
                 }
-                span {
-                    class: "font-semibold text-gray-900",
-                    "{span.name}"
+                if filtered.is_empty() {
+                    div { class: "px-4 py-10",
+                        EmptyState { message: format!("No spans match \"{}\"", filter()) }
+                    }
+                } else {
+                    div { class: "px-2 py-2 max-h-[calc(100vh-14rem)] overflow-y-auto font-mono text-xs leading-5",
+                        for span in filtered {
+                            SpanView {
+                                key: "{span.span_id}",
+                                span: span.clone(),
+                                depth: 0,
+                                expand_all,
+                                collapse_all,
+                            }
+                        }
+                    }
                 }
+            }
+        },
+    )
+}
+
+fn count_spans(spans: &[SpanInfo]) -> usize {
+    spans
+        .iter()
+        .map(|s| 1 + count_spans(&s.children))
+        .sum()
+}
+
+fn filter_span_tree(spans: &[SpanInfo], query: &str) -> Vec<SpanInfo> {
+    let q = query.trim().to_lowercase();
+    if q.is_empty() {
+        return spans.to_vec();
+    }
+    spans
+        .iter()
+        .filter_map(|span| {
+            let children = filter_span_tree(&span.children, query);
+            let name_match = span.name.to_lowercase().contains(&q)
+                || span
+                    .kind
+                    .as_ref()
+                    .is_some_and(|k| k.to_lowercase().contains(&q))
+                || span
+                    .location
+                    .as_ref()
+                    .is_some_and(|l| l.to_lowercase().contains(&q));
+            if name_match || !children.is_empty() {
+                Some(SpanInfo {
+                    children,
+                    ..span.clone()
+                })
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+fn span_duration_secs(span: &SpanInfo) -> Option<f64> {
+    span.end_timestamp.map(|end| (end - span.start_timestamp) as f64 / 1_000_000_000.0)
+}
+
+fn duration_label(duration: f64) -> String {
+    if duration >= 1.0 {
+        format!("{duration:.3}s")
+    } else if duration >= 0.001 {
+        format!("{:.1}ms", duration * 1000.0)
+    } else {
+        format!("{:.0}us", duration * 1_000_000.0)
+    }
+}
+
+#[component]
+fn SpanView(
+    span: SpanInfo,
+    depth: usize,
+    expand_all: Signal<u32>,
+    collapse_all: Signal<u32>,
+) -> Element {
+    let mut expanded = use_signal(|| depth < 2);
+    let has_children = !span.children.is_empty();
+    let has_events = !span.events.is_empty();
+    let has_attrs = span
+        .attributes
+        .as_ref()
+        .is_some_and(|a| !a.trim().is_empty());
+    let has_details = has_children || has_events || has_attrs;
+    let duration = span_duration_secs(&span);
+    let indent = depth * 20;
+
+    use_effect(move || {
+        if expand_all() > 0 {
+            expanded.set(true);
+        }
+    });
+    use_effect(move || {
+        if collapse_all() > 0 {
+            expanded.set(false);
+        }
+    });
+
+    rsx! {
+        div { class: "min-w-0",
+            div {
+                class: "group flex flex-wrap items-center gap-x-2 gap-y-0.5 py-0.5 px-1 rounded hover:bg-gray-50/90",
+                style: if indent > 0 { format!("padding-left: {indent}px") } else { String::new() },
+                if has_details {
+                    button {
+                        class: "shrink-0 w-4 h-4 flex items-center justify-center text-gray-400 hover:text-gray-700",
+                        onclick: move |_| expanded.set(!expanded()),
+                        if expanded() {
+                            Icon { icon: &icondata::AiCaretDownOutlined, class: "w-3 h-3" }
+                        } else {
+                            Icon { icon: &icondata::AiCaretRightOutlined, class: "w-3 h-3" }
+                        }
+                    }
+                } else {
+                    span { class: "w-4 shrink-0" }
+                }
+                span { class: "font-semibold text-gray-900 shrink-0", "{span.name}" }
                 if let Some(ref kind) = span.kind {
                     span {
-                        class: format!("text-xs px-2 py-0.5 bg-{} text-{} rounded", colors::CONTENT_ACCENT_BG, colors::CONTENT_ACCENT_TEXT),
+                        class: format!(
+                            "shrink-0 px-1.5 py-px rounded text-[10px] font-sans font-medium bg-{} text-{}",
+                            colors::CONTENT_ACCENT_BG,
+                            colors::CONTENT_ACCENT_TEXT,
+                        ),
                         "{kind}"
                     }
                 }
-                // Display location in header
                 if let Some(ref location) = span.location {
                     if !location.is_empty() {
-                        span {
-                            class: "text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded font-mono",
-                            "{location}"
-                        }
+                        span { class: "text-gray-500 truncate max-w-[14rem]", "{location}" }
                     }
                 }
-                span {
-                    class: "text-sm text-gray-500",
-                    "span_id: {span.span_id}"
+                span { class: "text-gray-400 shrink-0", "id:{span.span_id}" }
+                if let Some(parent) = span.parent_id {
+                    span { class: "text-gray-400 shrink-0", "↑{parent}" }
                 }
-                if let Some(ref parent_id) = span.parent_id {
-                    span {
-                        class: "text-sm text-gray-400",
-                        "parent: {parent_id}"
-                    }
+                span { class: "text-gray-400 shrink-0", "t:{span.thread_id}" }
+                if let Some(dur) = duration {
+                    span { class: "text-emerald-700 font-medium shrink-0", "{duration_label(dur)}" }
+                } else {
+                    span { class: "text-amber-600 shrink-0", "active" }
                 }
-                span {
-                    class: "text-sm text-gray-500",
-                    "thread: {span.thread_id}"
+                if has_events {
+                    span { class: "text-gray-400 shrink-0", "{span.events.len()}evt" }
                 }
-                span {
-                    class: "text-sm font-mono text-green-600",
-                    "{duration:.3}s"
+                if has_children {
+                    span { class: "text-gray-400 shrink-0", "{span.children.len()}↓" }
                 }
             }
 
-            if *expanded.read() {
+            if expanded() && has_details {
                 div {
-                    class: "ml-6 space-y-2",
-                    // Attributes - displayed first
-                    if let Some(ref attrs) = span.attributes {
-                        if !attrs.is_empty() {
-                            div {
-                                class: "text-xs text-gray-500 mb-1",
-                                "Attributes:"
-                            }
-                            // Try to parse and format JSON attributes
-                            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(attrs) {
-                                if let Some(obj) = parsed.as_object() {
-                                    div {
-                                        class: "bg-gray-50 p-2 rounded mt-1 space-y-1",
-                                        for (key, val) in obj.iter() {
-                                            div {
-                                                class: "flex items-start gap-2 text-xs",
-                                                span {
-                                                    class: "font-semibold text-gray-700 min-w-[100px]",
-                                                    "{key}:"
-                                                }
-                                                span {
-                                                    class: "text-gray-600 font-mono break-all",
-                                                    {
-                                                        match val {
-                                                            serde_json::Value::String(s) => s.clone(),
-                                                            serde_json::Value::Number(n) => n.to_string(),
-                                                            serde_json::Value::Bool(b) => b.to_string(),
-                                                            serde_json::Value::Null => "null".to_string(),
-                                                            _ => format!("{}", val),
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    div {
-                                        class: "text-xs font-mono bg-gray-50 p-2 rounded mt-1 break-all",
-                                        "{attrs}"
-                                    }
-                                }
-                            } else {
-                                div {
-                                    class: "text-xs font-mono bg-gray-50 p-2 rounded mt-1 break-all",
-                                    "{attrs}"
-                                }
-                            }
-                        }
+                    class: "space-y-0.5 pb-1",
+                    style: format!("padding-left: {}px", indent + 20),
+                    if has_attrs {
+                        AttributesInline { raw: span.attributes.clone().unwrap_or_default() }
                     }
-
-                    // Events
-                    if !span.events.is_empty() {
-                        div {
-                            class: "text-xs text-gray-500 mb-1 mt-2",
-                            "Events ({span.events.len()}):"
-                        }
+                    if has_events {
                         for event in span.events.iter() {
                             EventView { event: event.clone() }
                         }
                     }
-
-                    // Children spans
-                    if !span.children.is_empty() {
-                        div {
-                            class: "text-xs text-gray-500 mb-1 mt-2",
-                            "Child Spans ({span.children.len()}):"
-                        }
+                    if has_children {
                         for child in span.children.iter() {
-                            SpanView { span: child.clone(), depth: depth + 1 }
+                            SpanView {
+                                key: "{child.span_id}",
+                                span: child.clone(),
+                                depth: depth + 1,
+                                expand_all,
+                                collapse_all,
+                            }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+#[component]
+fn AttributesInline(raw: String) -> Element {
+    rsx! {
+        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&raw) {
+            if let Some(obj) = parsed.as_object() {
+                div { class: "flex flex-wrap items-center gap-x-3 gap-y-0.5 py-0.5 text-gray-600",
+                    for (key, val) in obj.iter() {
+                        span { class: "inline-flex items-baseline gap-1 max-w-full",
+                            span { class: "text-gray-500 shrink-0", "{key}:" }
+                            span { class: "text-gray-800 break-all", { attribute_value(val) } }
+                        }
+                    }
+                }
+            } else {
+                MetaInline { text: raw }
+            }
+        } else {
+            MetaInline { text: raw }
+        }
+    }
+}
+
+#[component]
+fn MetaInline(text: String) -> Element {
+    rsx! {
+        div { class: "py-0.5 text-gray-600 break-all whitespace-pre-wrap", "{text}" }
+    }
+}
+
+fn attribute_value(val: &serde_json::Value) -> String {
+    match val {
+        serde_json::Value::String(s) => s.clone(),
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::Bool(b) => b.to_string(),
+        serde_json::Value::Null => "null".to_string(),
+        _ => val.to_string(),
     }
 }
 
 #[component]
 fn EventView(event: EventInfo) -> Element {
     rsx! {
-        div {
-            class: "flex items-center gap-2 py-1 text-sm",
-            span {
-                class: "text-gray-400",
-                "•"
-            }
-            span {
-                class: "text-gray-700",
-                "{event.name}"
-            }
+        div { class: "flex flex-wrap items-baseline gap-x-2 gap-y-0 py-0.5 text-gray-600",
+            span { class: "text-blue-500 shrink-0", "●" }
+            span { class: "text-gray-800", "{event.name}" }
             if let Some(ref attrs) = event.attributes {
                 if !attrs.is_empty() {
-                    span {
-                        class: "text-xs text-gray-500 font-mono",
-                        "{attrs}"
-                    }
+                    span { class: "text-gray-500 break-all", "{attrs}" }
                 }
             }
         }

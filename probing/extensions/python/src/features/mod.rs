@@ -1,5 +1,8 @@
 pub mod config;
 pub mod convert;
+/// Backtrace-on-crash handler for fatal signals (`SIGSEGV`/`SIGBUS`/...).
+pub mod crash;
+pub mod flamegraph;
 pub mod native_bridge;
 pub mod pprof;
 pub mod python_api;

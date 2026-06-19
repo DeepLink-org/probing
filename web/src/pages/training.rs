@@ -6,9 +6,10 @@ use dioxus::prelude::*;
 
 use crate::api::{ApiClient, ClusterQueryResponse, StepDurationSample, StepMatrixResponse};
 use crate::components::card::Card;
-use crate::components::common::{EmptyState, ErrorState, LoadingState};
+use crate::components::common::{AppErrorDisplay, AsyncBoundary, EmptyState, LoadingState};
 use crate::components::page::{PageContainer, PageTitle};
-use crate::hooks::{use_api, use_api_simple, use_poll_tick};
+use crate::hooks::{use_app_resource, use_poll_tick};
+use crate::utils::error::AppError;
 
 const POLL_MS: u32 = 5000;
 const STEP_LIMIT: usize = 120;
@@ -23,6 +24,13 @@ enum DataScope {
     Cluster,
 }
 
+#[derive(Clone, Debug)]
+struct ClusterScanOutput {
+    matrix: Result<StepMatrixResponse, AppError>,
+    comm: Result<ClusterQueryResponse, AppError>,
+    nodes_failed: Vec<String>,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 struct HeatCell {
     duration_ms: f64,
@@ -33,41 +41,47 @@ struct HeatCell {
 pub fn Training() -> Element {
     let poll = use_poll_tick(POLL_MS);
     let mut scope = use_signal(|| DataScope::Local);
-    let mut cluster_scan_gen = use_signal(|| 0u32);
-    let nodes_state = use_api(|| {
+    let nodes = use_app_resource(|| async move { ApiClient::new().get_nodes().await });
+    let mut cluster_scan = use_action(|| async move {
         let client = ApiClient::new();
-        async move { client.get_nodes().await }
-    });
+        let matrix_res = client.fetch_step_matrix(STEP_LIMIT, true).await;
+        let comm_res = client
+            .cluster_query(&format!("{COMM_SQL}{COMM_LIMIT}"), true)
+            .await;
 
-    let local_matrix = use_api(move || {
-        let _ = poll();
-        let client = ApiClient::new();
-        async move { client.fetch_step_matrix(STEP_LIMIT, false).await }
-    });
-
-    let local_comm = use_api(move || {
-        let _ = poll();
-        let client = ApiClient::new();
-        async move {
-            client
-                .execute_query(&format!("{COMM_SQL}{COMM_LIMIT}"))
-                .await
+        let mut failed: HashSet<String> = HashSet::new();
+        if let Ok(ref m) = matrix_res {
+            failed.extend(m.nodes_failed.iter().cloned());
         }
+        if let Ok(ref c) = comm_res {
+            failed.extend(c.meta.nodes_failed.iter().cloned());
+        }
+        let mut merged: Vec<String> = failed.into_iter().collect();
+        merged.sort();
+
+        Ok::<ClusterScanOutput, AppError>(ClusterScanOutput {
+            matrix: matrix_res,
+            comm: comm_res,
+            nodes_failed: merged,
+        })
     });
 
-    let cluster_matrix = use_api_simple::<StepMatrixResponse>();
-    let cluster_comm = use_api_simple::<ClusterQueryResponse>();
-    let cluster_nodes_failed = use_signal(Vec::<String>::new);
-
-    let peer_count = nodes_state
-        .data
-        .read()
-        .as_ref()
-        .and_then(|r| r.as_ref().ok())
+    let peer_count = nodes()
+        .and_then(|r| r.ok())
         .map(|nodes| nodes.len().saturating_sub(1))
         .unwrap_or(0);
 
     let current_scope = scope();
+    let scan_pending = cluster_scan.pending();
+    let scan_value = cluster_scan.value();
+    let scan_output = scan_value
+        .as_ref()
+        .and_then(|r| r.as_ref().ok())
+        .map(|signal| signal());
+    let scan_error = scan_value
+        .as_ref()
+        .and_then(|r| r.as_ref().err())
+        .map(|err| err.to_string());
 
     rsx! {
         PageContainer {
@@ -80,43 +94,15 @@ pub fn Training() -> Element {
                 {scope_badge(current_scope)}
                 button {
                     class: "px-3 py-1.5 text-sm rounded-md border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50",
-                    disabled: peer_count == 0,
+                    disabled: peer_count == 0 || scan_pending,
                     title: if peer_count == 0 { "No peer nodes in cluster view" } else { "Query all cluster nodes once (may take a few seconds)" },
                     onclick: move |_| {
                         scope.set(DataScope::Cluster);
-                        cluster_scan_gen.set(cluster_scan_gen() + 1);
-                        let gen = cluster_scan_gen();
-                        let mut matrix_state = cluster_matrix.clone();
-                        let mut comm_state = cluster_comm.clone();
-                        let mut failed_signal = cluster_nodes_failed;
-                        spawn(async move {
-                            let _ = gen;
-                            *matrix_state.loading.write() = true;
-                            *comm_state.loading.write() = true;
-                            let client = ApiClient::new();
-                            let matrix_res = client.fetch_step_matrix(STEP_LIMIT, true).await;
-                            let comm_res = client
-                                .cluster_query(&format!("{COMM_SQL}{COMM_LIMIT}"), true)
-                                .await;
-
-                            let mut failed: HashSet<String> = HashSet::new();
-                            if let Ok(ref m) = matrix_res {
-                                failed.extend(m.nodes_failed.iter().cloned());
-                            }
-                            if let Ok(ref c) = comm_res {
-                                failed.extend(c.meta.nodes_failed.iter().cloned());
-                            }
-                            let mut merged: Vec<String> = failed.into_iter().collect();
-                            merged.sort();
-                            failed_signal.set(merged);
-
-                            *matrix_state.data.write() = Some(matrix_res);
-                            *comm_state.data.write() = Some(comm_res);
-                            *matrix_state.loading.write() = false;
-                            *comm_state.loading.write() = false;
-                        });
+                        cluster_scan.call();
                     },
-                    if peer_count == 0 {
+                    if scan_pending {
+                        "Scanning cluster…"
+                    } else if peer_count == 0 {
                         "Scan cluster (no peers)"
                     } else {
                         "Scan cluster ({peer_count} peers)"
@@ -134,12 +120,83 @@ pub fn Training() -> Element {
                 }
             }
             if current_scope == DataScope::Cluster {
-                {cluster_nodes_failed_banner(&cluster_nodes_failed)}
+                if let Some(ref output) = scan_output {
+                    {cluster_nodes_failed_banner(&output.nodes_failed)}
+                }
             }
-            {step_matrix_panel(current_scope, &local_matrix, &cluster_matrix)}
-            {comm_panel(current_scope, &local_comm, &cluster_comm)}
+            if current_scope == DataScope::Local {
+                AsyncBoundary {
+                    message: Some("Loading train.step matrix…".to_string()),
+                    LocalStepMatrixPanel { poll }
+                }
+            } else if scan_pending {
+                Card {
+                    title: "Step Straggler Heatmap",
+                    LoadingState { message: Some("Loading train.step matrix…".to_string()) }
+                }
+            } else if let Some(ref err_msg) = scan_error {
+                Card {
+                    title: "Step Straggler Heatmap",
+                    AppErrorDisplay { error: AppError::Api(err_msg.clone()), title: Some("Cluster scan failed".to_string()) }
+                }
+            } else if let Some(ref output) = scan_output {
+                {render_step_matrix_result(&output.matrix)}
+            } else {
+                Card {
+                    title: "Step Straggler Heatmap",
+                    EmptyState { message: "Click Scan cluster to load cross-node step matrix.".to_string() }
+                }
+            }
+            if current_scope == DataScope::Local {
+                AsyncBoundary {
+                    message: Some("Loading comm.collective (local)…".to_string()),
+                    LocalCommPanel { poll }
+                }
+            } else if scan_pending {
+                Card {
+                    title: "Collective Communications",
+                    content_class: Some("p-4"),
+                    LoadingState { message: Some("Scanning cluster for comm.collective…".to_string()) }
+                }
+            } else if let Some(ref err_msg) = scan_error {
+                Card {
+                    title: "Collective Communications",
+                    content_class: Some("p-4"),
+                    AppErrorDisplay { error: AppError::Api(err_msg.clone()), title: Some("Cluster scan failed".to_string()) }
+                }
+            } else if let Some(ref output) = scan_output {
+                {render_comm_cluster_result(&output.comm)}
+            } else {
+                Card {
+                    title: "Collective Communications",
+                    content_class: Some("p-4"),
+                    EmptyState { message: "Click Scan cluster to load cross-node collective rows.".to_string() }
+                }
+            }
         }
     }
+}
+
+#[component]
+fn LocalStepMatrixPanel(poll: Signal<u32>) -> Element {
+    let matrix = use_app_resource(move || {
+        let _ = poll();
+        async move { ApiClient::new().fetch_step_matrix(STEP_LIMIT, false).await }
+    });
+    render_step_matrix_result(&matrix.suspend()?())
+}
+
+#[component]
+fn LocalCommPanel(poll: Signal<u32>) -> Element {
+    let comm = use_app_resource(move || {
+        let _ = poll();
+        async move {
+            ApiClient::new()
+                .execute_query(&format!("{COMM_SQL}{COMM_LIMIT}"))
+                .await
+        }
+    });
+    render_comm_local_result(&comm.suspend()?())
 }
 
 fn scope_badge(scope: DataScope) -> Element {
@@ -152,8 +209,7 @@ fn scope_badge(scope: DataScope) -> Element {
     }
 }
 
-fn cluster_nodes_failed_banner(failed: &Signal<Vec<String>>) -> Element {
-    let nodes = failed.read().clone();
+fn cluster_nodes_failed_banner(nodes: &[String]) -> Element {
     if nodes.is_empty() {
         return rsx! { div {} };
     }
@@ -175,32 +231,22 @@ fn cluster_nodes_failed_banner(failed: &Signal<Vec<String>>) -> Element {
     }
 }
 
-fn step_matrix_panel(
-    scope: DataScope,
-    local: &crate::hooks::ApiState<StepMatrixResponse>,
-    cluster: &crate::hooks::ApiState<StepMatrixResponse>,
-) -> Element {
-    let state = if scope == DataScope::Cluster { cluster } else { local };
-
-    if state.is_loading() {
-        return rsx! {
+fn render_step_matrix_result(result: &Result<StepMatrixResponse, AppError>) -> Element {
+    match result {
+        Ok(resp) if resp.samples.is_empty() => rsx! {
             Card {
                 title: "Step Straggler Heatmap",
-                LoadingState { message: Some("Loading train.step matrix…".to_string()) }
+                EmptyState {
+                    message: "No train.step spans yet. Wrap training loops with probing.span(..., kind='train.step') or enable TorchProbe.".to_string()
+                }
             }
-        };
-    }
-
-    match state.data.read().as_ref() {
-        Some(Ok(resp)) if !resp.samples.is_empty() => {
+        },
+        Ok(resp) => {
             let (ranks, steps, cells, max_ms) = build_heatmap(&resp.samples);
             let scope_note = if resp.cluster {
                 let mut note = format!("cluster scan · {} nodes queried", resp.nodes_queried);
                 if !resp.nodes_failed.is_empty() {
-                    note.push_str(&format!(
-                        " · {} failed",
-                        resp.nodes_failed.len()
-                    ));
+                    note.push_str(&format!(" · {} failed", resp.nodes_failed.len()));
                 }
                 note
             } else {
@@ -232,21 +278,66 @@ fn step_matrix_panel(
                 }
             }
         }
-        Some(Ok(_)) => rsx! {
+        Err(err) => rsx! {
             Card {
                 title: "Step Straggler Heatmap",
+                AppErrorDisplay { error: err.clone(), title: None }
+            }
+        },
+    }
+}
+
+fn render_comm_local_result(result: &Result<probing_proto::prelude::DataFrame, AppError>) -> Element {
+    match result {
+        Ok(df) if df.cols.is_empty() => rsx! {
+            Card {
+                title: "Collective Communications",
+                content_class: Some("p-4"),
                 EmptyState {
-                    message: "No train.step spans yet. Wrap training loops with probing.span(..., kind='train.step') or enable TorchProbe.".to_string()
+                    message: "No collective samples on this node. Auto-enabled for torchrun (WORLD_SIZE>1).".to_string()
                 }
             }
         },
-        Some(Err(e)) => rsx! {
+        Ok(df) => comm_table(&df, "local node · auto-refresh"),
+        Err(err) => rsx! {
             Card {
-                title: "Step Straggler Heatmap",
-                ErrorState { error: e.display_message(), title: None }
+                title: "Collective Communications",
+                content_class: Some("p-4"),
+                AppErrorDisplay { error: err.clone(), title: None }
             }
         },
-        _ => rsx! { div {} },
+    }
+}
+
+fn render_comm_cluster_result(result: &Result<ClusterQueryResponse, AppError>) -> Element {
+    match result {
+        Ok(resp) if !resp.dataframe.cols.is_empty() => {
+            let mut note = format!(
+                "cluster scan · {} nodes queried",
+                resp.meta.nodes_queried
+            );
+            if !resp.meta.nodes_failed.is_empty() {
+                note.push_str(&format!(
+                    " · {} failed",
+                    resp.meta.nodes_failed.len()
+                ));
+            }
+            comm_table(&resp.dataframe, &note)
+        }
+        Ok(_) => rsx! {
+            Card {
+                title: "Collective Communications",
+                content_class: Some("p-4"),
+                EmptyState { message: "No collective rows returned from cluster scan.".to_string() }
+            }
+        },
+        Err(err) => rsx! {
+            Card {
+                title: "Collective Communications",
+                content_class: Some("p-4"),
+                AppErrorDisplay { error: err.clone(), title: None }
+            }
+        },
     }
 }
 
@@ -365,100 +456,6 @@ fn StepHeatmap(
                 }
             }
         }
-    }
-}
-
-fn comm_panel(
-    scope: DataScope,
-    local: &crate::hooks::ApiState<probing_proto::prelude::DataFrame>,
-    cluster: &crate::hooks::ApiState<ClusterQueryResponse>,
-) -> Element {
-    if scope == DataScope::Cluster {
-        comm_panel_cluster(cluster)
-    } else {
-        comm_panel_local(local)
-    }
-}
-
-fn comm_panel_local(state: &crate::hooks::ApiState<probing_proto::prelude::DataFrame>) -> Element {
-    if state.is_loading() {
-        return rsx! {
-            Card {
-                title: "Collective Communications",
-                content_class: Some("p-4"),
-                LoadingState { message: Some("Loading comm.collective (local)…".to_string()) }
-            }
-        };
-    }
-
-    match state.data.read().as_ref() {
-        Some(Ok(df)) if !df.cols.is_empty() => comm_table(df, "local node · auto-refresh"),
-        Some(Ok(_)) => rsx! {
-            Card {
-                title: "Collective Communications",
-                content_class: Some("p-4"),
-                EmptyState {
-                    message: "No collective samples on this node. Auto-enabled for torchrun (WORLD_SIZE>1).".to_string()
-                }
-            }
-        },
-        Some(Err(e)) => rsx! {
-            Card {
-                title: "Collective Communications",
-                content_class: Some("p-4"),
-                ErrorState { error: e.display_message(), title: None }
-            }
-        },
-        _ => rsx! { div {} },
-    }
-}
-
-fn comm_panel_cluster(state: &crate::hooks::ApiState<ClusterQueryResponse>) -> Element {
-    if state.is_loading() {
-        return rsx! {
-            Card {
-                title: "Collective Communications",
-                content_class: Some("p-4"),
-                LoadingState { message: Some("Scanning cluster for comm.collective…".to_string()) }
-            }
-        };
-    }
-
-    match state.data.read().as_ref() {
-        Some(Ok(resp)) if !resp.dataframe.cols.is_empty() => {
-            let mut note = format!(
-                "cluster scan · {} nodes queried",
-                resp.meta.nodes_queried
-            );
-            if !resp.meta.nodes_failed.is_empty() {
-                note.push_str(&format!(
-                    " · {} failed",
-                    resp.meta.nodes_failed.len()
-                ));
-            }
-            comm_table(&resp.dataframe, &note)
-        }
-        Some(Ok(_)) => rsx! {
-            Card {
-                title: "Collective Communications",
-                content_class: Some("p-4"),
-                EmptyState { message: "No collective rows returned from cluster scan.".to_string() }
-            }
-        },
-        Some(Err(e)) => rsx! {
-            Card {
-                title: "Collective Communications",
-                content_class: Some("p-4"),
-                ErrorState { error: e.display_message(), title: None }
-            }
-        },
-        _ => rsx! {
-            Card {
-                title: "Collective Communications",
-                content_class: Some("p-4"),
-                EmptyState { message: "Click Scan cluster to load cross-node collective rows.".to_string() }
-            }
-        },
     }
 }
 

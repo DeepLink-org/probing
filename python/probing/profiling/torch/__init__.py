@@ -7,7 +7,8 @@ This module implements profiling hooks for PyTorch training loops.
 
 Responsibilities:
 1.  Install/Uninstall hooks on PyTorch Modules and Optimizers.
-2.  Track forward/backward passes and optimizer steps.
+2.  Track forward passes and optimizer steps (backward hooks optional; disabled
+    by default because they can alter autograd behaviour).
 3.  Manage training step lifecycle (`next_step`).
 
 Public Interfaces:
@@ -35,6 +36,7 @@ def install_hooks(
     tracer: BaseTracer = None,
     backward: bool = False,
 ):
+    """Attach profiler hooks. ``backward`` is off by default for autograd safety."""
     if tracer is None:
         return
 

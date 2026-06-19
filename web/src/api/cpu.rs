@@ -5,9 +5,7 @@ use probing_proto::prelude::{DataFrame, Ele};
 /// Latest process-level CPU snapshot from `cpu.utilization`.
 #[derive(Clone, Debug, Default)]
 pub struct CpuSnapshot {
-    pub ts: i64,
     pub platform: String,
-    pub wall_ns: i64,
     pub delta_user_ns: i64,
     pub delta_sys_ns: i64,
     pub delta_total_ns: i64,
@@ -151,13 +149,9 @@ fn parse_cpu_snapshot(df: &DataFrame) -> Option<CpuSnapshot> {
     }
     let idx = |name| col_index(df, name);
     Some(CpuSnapshot {
-        ts: idx("ts").and_then(|c| cell(df, 0, c).map(ele_i64)).unwrap_or(0),
         platform: idx("platform")
             .and_then(|c| cell(df, 0, c).map(ele_text))
             .unwrap_or_default(),
-        wall_ns: idx("wall_ns")
-            .and_then(|c| cell(df, 0, c).map(ele_i64))
-            .unwrap_or(0),
         delta_user_ns: idx("delta_user_ns")
             .and_then(|c| cell(df, 0, c).map(ele_i64))
             .unwrap_or(0),

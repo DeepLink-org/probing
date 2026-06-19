@@ -11,6 +11,7 @@
 //! - **icon** — Icon component.
 //! - **collapsible_card** / **card_view** / **callstack_view** / **value_list** — Domain helpers.
 //! - **chrome_tracing_iframe** — Chrome Tracing viewer wrapper.
+//! - **flamegraph** — Native flamegraph visualizations.
 
 pub mod stat_card;
 pub mod card;
@@ -24,9 +25,11 @@ pub mod colors;
 pub mod common;
 pub mod dataframe_view;
 pub mod data;
+pub mod flamegraph;
 pub mod icon;
 pub mod layout;
 pub mod page;
+pub mod profiling;
 pub mod sidebar;
 pub mod table_view;
 pub mod value_list;

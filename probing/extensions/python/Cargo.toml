@@ -39,17 +39,10 @@ pyo3 = { version = "0.29.0", default-features = false, features = [
     "auto-initialize",
     "macros"
 ] }
-inferno = { version = "0.12.1", default-features = false, features = [
-    "nameattr",
-    "multithreaded",
-] }
-# Do not enable `frame-pointer`: its stack walk calls `validate()` which may
-# invoke `pipe()`/`fcntl()` from the SIGPROF handler and kill the process with
-# no logs (especially on macOS + PyTorch). Use backtrace-rs unwinding instead.
-pprof = { version = "0.14.0", features = [
-    "cpp",
-    "flamegraph",
-] }
+# NOTE: the `pprof` crate was removed intentionally. Its in-signal libunwind
+# sampling crashed PyTorch processes (see features/pprof.rs). CPU sampling now
+# uses our own SIGPROF handler that only snapshots raw stack pointers, with all
+# symbolization done off the signal path on a consumer thread.
 lazy_static = "1.4.0"
 async-trait = "0.1.83"
 signal-hook-registry = "1.4.2"

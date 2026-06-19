@@ -44,23 +44,30 @@ Common columns:
 
 When monitoring PyTorch applications, additional tables become available:
 
-**`python.torch_trace`** - PyTorch execution traces
+**`python.torch_trace`** — TorchProbe module hooks (long-running sampled telemetry).
 
 ```sql
 SELECT step, module, stage, duration, allocated
 FROM python.torch_trace
-WHERE step >= 5
+WHERE step > 1 AND duration > 0
 ORDER BY step DESC, seq;
 ```
 
+The first training step is discovery (no rows). Skip cold-start steps with `WHERE step > N`.
+
 Common columns:
 
-- `step` - Training step number
-- `seq` - Sequence number within step
-- `module` - Module name
-- `stage` - Execution stage (forward, backward, step)
-- `allocated` - GPU memory allocated (MB)
-- `duration` - Execution duration (seconds)
+- `step` — training step (aligned with optimizer steps)
+- `seq` — hook order within the step
+- `module` — module name
+- `stage` — `pre forward`, `post forward`, `pre step`, `post step` (not `forward`/`backward` literals; backward not collected by default)
+- `allocated` — GPU memory allocated (MB); CUDA only
+- `duration` — stage duration (seconds); use post rows (`stage LIKE 'post %'`) for timings
+
+Sampling (`PROBING_TORCH_PROFILING`):
+
+- `ordered:rate` — `rate` = probability each step is sampled; one module rotates per sampled step
+- `random:rate` — every step sampled; `rate` = per-hook probability after the offset-0 anchor
 
 ## Advanced Analytics
 

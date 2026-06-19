@@ -44,23 +44,30 @@ SELECT * FROM python.backtrace LIMIT 10;
 
 监控 PyTorch 应用时，可用额外的表：
 
-**`python.torch_trace`** - PyTorch 执行跟踪
+**`python.torch_trace`** — TorchProbe 模块钩子（长期统计采样遥测）。
 
 ```sql
 SELECT step, module, stage, duration, allocated
 FROM python.torch_trace
-WHERE step >= 5
+WHERE step > 1 AND duration > 0
 ORDER BY step DESC, seq;
 ```
 
+第一个训练 step 为 discovery（无数据）。用 `WHERE step > N` 跳过冷启动。
+
 常用列：
 
-- `step` - 训练步数
-- `seq` - 步内序号
+- `step` - 训练步（与 optimizer step 对齐）
+- `seq` - step 内钩子顺序
 - `module` - 模块名
-- `stage` - 执行阶段（forward、backward、step）
-- `allocated` - GPU 已分配内存（MB）
-- `duration` - 执行时长（秒）
+- `stage` - `pre forward`、`post forward`、`pre step`、`post step`（非字面 `forward`/`backward`；默认不采 backward）
+- `allocated` - GPU 已分配内存（MB），仅 CUDA
+- `duration` - 阶段耗时（秒）；计时时用 post 行（`stage LIKE 'post %'`）
+
+采样（`PROBING_TORCH_PROFILING`）：
+
+- `ordered:rate` - `rate` 为每 step 采样概率；被采样 step 内轮转一个模块
+- `random:rate` - 每 step 都采样；`rate` 为 offset>0 钩子的概率（offset=0 锚点始终记录）
 
 ## 高级分析
 

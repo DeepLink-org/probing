@@ -289,6 +289,7 @@ impl CpuCollector {
         Ok(Arc::clone(guard.as_ref().unwrap()))
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn utilization_row_count(&self) -> usize {
         let tables = match self.tables.lock().unwrap().as_ref() {
             Some(t) => Arc::clone(t),
@@ -422,6 +423,7 @@ impl CpuCollector {
         Ok(())
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn stop(&self) -> Result<(), CollectorError> {
         if !self.running.swap(false, Ordering::SeqCst) {
             return Ok(());

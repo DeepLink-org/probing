@@ -47,15 +47,6 @@ fn is_gpu_table_missing(err: &AppError) -> bool {
 }
 
 impl ApiClient {
-    /// Returns true when at least one GPU device is registered.
-    pub async fn fetch_gpu_available(&self) -> Result<bool> {
-        match self.fetch_gpu_devices().await {
-            Ok(devs) => Ok(!devs.is_empty()),
-            Err(e) if is_gpu_table_missing(&e) => Ok(false),
-            Err(e) => Err(e),
-        }
-    }
-
     pub async fn fetch_gpu_devices(&self) -> Result<Vec<GpuDeviceRow>> {
         match self
             .execute_query(

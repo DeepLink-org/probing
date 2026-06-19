@@ -10,14 +10,16 @@ use crate::state::profiling::{
 
 #[component]
 pub fn PprofControls(control_title_class: String, control_value_class: String) -> Element {
-    const FREQ_VALUES: [i32; 4] = [0, 10, 100, 1000];
+    const FREQ_VALUES: [i32; 6] = [0, 10, 100, 1000, 10000, 100000];
 
     let freq = *PROFILING_PPROF_FREQ.read();
     let current_idx = match freq {
         f if f <= 0 => 0,
         f if f <= 10 => 1,
         f if f <= 100 => 2,
-        _ => 3,
+        f if f <= 1000 => 3,
+        f if f <= 10000 => 4,
+        _ => 5,
     };
     let label = FREQ_VALUES[current_idx];
 
@@ -37,7 +39,7 @@ pub fn PprofControls(control_title_class: String, control_value_class: String) -
                 input {
                     r#type: "range",
                     min: "0",
-                    max: "3",
+                    max: "5",
                     step: "1",
                     value: "{current_idx}",
                     class: "w-full",

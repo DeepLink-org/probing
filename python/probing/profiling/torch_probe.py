@@ -49,6 +49,8 @@ class TorchTrace:
     max_cached: float = 0.0
     time_offset: float = 0.0
     duration: float = 0.0
+    allocated_delta: float = 0.0
+    max_allocated_delta: float = 0.0
 
 
 @table
@@ -64,6 +66,24 @@ class Variables:
 class TorchProbeConfig:
     """Configuration container for TorchProbe runtime behaviour.
 
+    Torch profiling is designed for long-running, always-on module-level
+    telemetry (not episodic ``torch.profiler`` windows). There is no warmup
+    schedule: skip early steps in SQL (``WHERE step > N``) when needed.
+
+    Sampling modes (``mode`` / ``PROBING_TORCH_PROFILING`` prefix token):
+
+    - **ordered** — ``rate`` is the probability each training step is sampled.
+      On sampled steps, one module rotates per step (``curr_mod``), plus a
+      per-step time anchor: the first ``pre`` hook in the step (``offset=0``).
+      Any ``pre`` hook that is recorded always gets its matching ``post`` hook.
+    - **random** — every step is sampled. ``rate`` is the per-hook probability
+      for ``offset > 0`` on ``pre`` hooks; matching ``post`` hooks always pair.
+      The ``offset=0`` ``pre`` anchor is always recorded.
+
+    The first complete training step is discovery only (modules registered,
+    no rows written). Forward hooks are installed on all modules; backward
+    hooks are not enabled by default (autograd safety).
+
     The environment variable ``PROBING_TORCH_PROFILING`` is parsed with the
     following grammar::
 
@@ -73,8 +93,8 @@ class TorchProbeConfig:
         key           ::=  "enabled" | "mode" | "rate" | "tracepy" | "sync" |
                             "exprs" | "vars" | "watch"
         mode-rate     ::=  mode [":" rate]
-        mode          ::=  <any string without ',' or ':'>
-        rate          ::=  <float greater than zero>
+        mode          ::=  "ordered" | "random"
+        rate          ::=  <float in (0, 1]>
 
     Examples
     --------
@@ -334,7 +354,9 @@ class Timer:
             self.step_start = time.time()
             time_offset = 0.0
         else:
-            time_offset = time.time() - self.step_start
+            time_offset = (
+                0.0 if self.step_start is None else time.time() - self.step_start
+            )
 
         key = (id(mod), STAGEMAP[stage])
         if self.use_gpu_events:
@@ -358,7 +380,7 @@ class Timer:
         if self.sync and self.has_backend:
             backend.synchronize()
 
-        time_offset = time.time() - self.step_start
+        time_offset = 0.0 if self.step_start is None else time.time() - self.step_start
         key = (id(mod), STAGEMAP[stage])
 
         if key in self.events:
@@ -387,6 +409,8 @@ class Timer:
 
 
 class Sampler:
+    """Per-step sampling for module hooks (see :class:`TorchProbeConfig`)."""
+
     def __init__(self, mode="ordered", rate=1.0, **kwargs):
         # Strategy configuration
         self.mode = mode
@@ -416,14 +440,18 @@ class Sampler:
 
     def finalize_discovery(self):
         self.finalized = True
-        mods = sorted(self.mod_names.items(), key=lambda x: len(x[1]))
+        # Shallow modules first: dotted names grow with nesting depth (e.g. model.features.conv).
+        mods = sorted(
+            self.mod_names.items(),
+            key=lambda x: (x[1].count("."), len(x[1])),
+        )
         self.mod_queue = [x for x, _ in mods]
 
         if self.mod_queue:
             self.curr_idx = 0
             self.curr_mod = self.mod_queue[0]
 
-    def should_sample(self, mod) -> bool:
+    def should_sample(self, mod, stage: Optional[str] = None) -> bool:
         if not self.finalized:
             self.register_mod(mod)
             return False
@@ -431,7 +459,8 @@ class Sampler:
         if not self.sampled_step:
             return False
 
-        if self.offset() == 0:
+        # Time anchor: first pre hook in the step (pairs with its post hook).
+        if stage and stage.startswith("pre") and self.offset() == 0:
             return True
 
         if self.mode == "ordered":
@@ -446,10 +475,12 @@ class Sampler:
             self.curr_mod = self.mod_queue[idx]
 
     def set_sampling_mode(self, expr):
-        """Set the sampling mode and rate based on the provided expression.
+        """Set sampling mode and rate (``mode:rate`` or ``ordered``).
 
-        The expression should be in the format "mode:rate", where mode can be
-        "ordered" or "random", and rate is a float between 0 and 1.
+        In **ordered** mode, ``rate`` controls step-level sampling probability.
+        In **random** mode, ``rate`` controls per-hook sampling after the
+        per-step ``pre`` anchor (``offset=0``). Open ``pre`` stages always
+        receive a matching ``post`` hook.
 
         Examples
         --------
@@ -625,11 +656,78 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
         self._train_step_cm.__exit__(None, None, None)
         self._train_step_cm = None
 
+    def _post_stage_for_pre(self, pre_stage: str) -> str:
+        if pre_stage.startswith("pre "):
+            return "post " + pre_stage[4:]
+        return pre_stage
+
+    def _complete_post_stage(self, mod, post_stage: str) -> None:
+        """Finish a pre/post pair (used for normal post hooks and step-end cleanup)."""
+        mapped_stage = STAGEMAP[post_stage]
+        span_key = (id(mod), mapped_stage)
+
+        record = mem_stats()
+        record.step = current_local_step()
+        record.seq = self.offset()
+        module_name_str = self.mod_names.get(id(mod), "None")
+        record.module = module_name_str
+        record.stage = post_stage
+
+        record.time_offset, events = self.end_timing(mod, post_stage)
+        entry = self._open_spans.pop(span_key, None)
+        if entry is not None:
+            span_cm = entry[0]
+            pre_allocated = entry[3]
+            pre_max_allocated = entry[4]
+            record.allocated_delta = record.allocated - pre_allocated
+            record.max_allocated_delta = record.max_allocated - pre_max_allocated
+            span_cm.__exit__(None, None, None)
+        self.pending.append(DelayedRecord(record, events))
+
+    def _finish_open_stages(self) -> None:
+        """Close any pre stages that never received a post hook this step."""
+        while self._open_spans:
+            span_key = next(iter(self._open_spans))
+            entry = self._open_spans[span_key]
+            mod, pre_stage = entry[1], entry[2]
+            post_stage = self._post_stage_for_pre(pre_stage)
+            try:
+                self._complete_post_stage(mod, post_stage)
+            except Exception as e:
+                print(f"Error completing open stage {pre_stage}: {e}")
+                closed = self._open_spans.pop(span_key, None)
+                if closed is not None:
+                    try:
+                        closed[0].__exit__(None, None, None)
+                    except Exception:
+                        pass
+                self._release_timers(span_key)
+
+    def _release_timers(self, span_key) -> None:
+        self.events.pop(span_key, None)
+        self.cpu_start.pop(span_key, None)
+
+    def _cleanup_step_resources(self) -> None:
+        """Drop timer state after a step; spans should already be closed."""
+        for span_key, entry in list(self._open_spans.items()):
+            try:
+                entry[0].__exit__(None, None, None)
+            except Exception:
+                pass
+            self._release_timers(span_key)
+        self._open_spans.clear()
+        self.events.clear()
+        self.cpu_start.clear()
+
     def log_module_stage(self, stage, mod, force=False) -> None:
         if not self.enabled:
             return
-        # Skip if we shouldn't log this module
-        if not force and not self.should_sample(mod):
+
+        mapped_stage = STAGEMAP[stage]
+        span_key = (id(mod), mapped_stage)
+        pairing = stage.startswith("post") and span_key in self._open_spans
+
+        if not force and not pairing and not self.should_sample(mod, stage):
             return
 
         record = mem_stats()
@@ -638,8 +736,6 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
         module_name_str = self.mod_names.get(id(mod), "None")
         record.module = module_name_str
         record.stage = stage
-        mapped_stage = STAGEMAP[stage]
-        span_key = (id(mod), mapped_stage)
         span_kind = module_stage_kind(stage)
 
         if stage.startswith("pre"):
@@ -653,14 +749,16 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
                 source="torch_probe",
             )
             span_cm.__enter__()
-            self._open_spans[span_key] = span_cm
+            self._open_spans[span_key] = (
+                span_cm,
+                mod,
+                stage,
+                record.allocated,
+                record.max_allocated,
+            )
             self.pending.append(DelayedRecord(record, None))
         else:
-            record.time_offset, events = self.end_timing(mod, stage)
-            span_cm = self._open_spans.pop(span_key, None)
-            if span_cm is not None:
-                span_cm.__exit__(None, None, None)
-            self.pending.append(DelayedRecord(record, events))
+            self._complete_post_stage(mod, stage)
 
     def post_step_hook(self, opt, args, kwargs):
         super().post_step_hook(opt, args, kwargs)
@@ -681,14 +779,21 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
         if self.has_backend and self.pending:
             backend.synchronize()
 
-        # process pending records
-        self.pending = [x for x in self.pending if x.save()]
+        self._finish_open_stages()
+
+        if self.has_backend and self.pending:
+            backend.synchronize()
+
+        # Flush pending records after GPU sync (pre/post pairs get duration on post).
+        for pending in self.pending:
+            pending.save()
+        self.pending.clear()
 
         # trace Python variables
         self.trace_variables()
 
-        # reset the step start time
-        self.step_start = 0
+        self._cleanup_step_resources()
+        self.step_start = None
 
 
 def set_sampling_mode(mode):

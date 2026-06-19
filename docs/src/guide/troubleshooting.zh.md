@@ -70,8 +70,9 @@
    PROBING_TORCH_PROFILING=on python your_script.py
    ```
 
-3. **等待数据收集**：
-   表在操作发生时填充。先运行一些训练步骤。
+3. **等待数据写入**：
+   表在训练进行时填充。先运行若干训练 step。
+   TorchProbe 第一个 step 为 discovery（无行）；必要时使用 `WHERE step > 1`。
 
 ### 结果为空
 
@@ -129,18 +130,26 @@
 
 **解决方案**：
 
-1. **降低采样率**：
+1. **降低 TorchProbe 采样**（无全局 sample_rate 开关）：
    ```bash
-   probing $ENDPOINT config probing.sample_rate=0.01
+   PROBING_TORCH_PROFILING=ordered:0.1 python your_script.py
+   # 或运行时：set probing.torch.profiling=ordered:0.1;
    ```
 
-2. **禁用未使用的功能**：
+2. **降低 CPU pprof 频率**：
+   ```bash
+   probing $ENDPOINT config probing.pprof.sample_freq=50
+   ```
+
+3. **不需要时关闭 torch profiling**：
    ```bash
    PROBING_TORCH_PROFILING=off python your_script.py
    ```
 
-3. **使用针对性分析**：
-   只为特定模块或操作启用分析。
+4. **用 SQL 过滤 step**，而非 warmup schedule：
+   ```sql
+   SELECT * FROM python.torch_trace WHERE step > 10;
+   ```
 
 ### 查询超时
 

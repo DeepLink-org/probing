@@ -11,7 +11,7 @@ use probing_memtable::{DType, Schema, Value};
 use thiserror::Error;
 
 use super::backend::{
-    discover_backends, selected_backends, GpuBackend, GpuBackendKind, GpuMemorySample,
+    discover_backends, selected_backends, GpuBackend, GpuMemorySample,
 };
 
 #[cfg(feature = "cuda")]
@@ -174,14 +174,24 @@ fn sample_all(backends: &[Box<dyn GpuBackend>]) -> Vec<GpuMemorySample> {
     let mut samples = Vec::new();
     for backend in backends {
         for device in backend.probe_devices() {
-            if let Some(mut sample) = backend.sample_memory(device.ordinal) {
-                #[cfg(feature = "cuda")]
-                if sample.backend == GpuBackendKind::Cuda {
-                    if let Some(u) = nvidia_utils.get(&sample.ordinal) {
-                        sample.gpu_util_pct = Some(u.gpu_util_pct);
-                        sample.mem_controller_util_pct = Some(u.mem_controller_util_pct);
+            if let Some(sample) = backend.sample_memory(device.ordinal) {
+                let sample = {
+                    #[cfg(feature = "cuda")]
+                    {
+                        let mut s = sample;
+                        if s.backend == super::backend::GpuBackendKind::Cuda {
+                            if let Some(u) = nvidia_utils.get(&s.ordinal) {
+                                s.gpu_util_pct = Some(u.gpu_util_pct);
+                                s.mem_controller_util_pct = Some(u.mem_controller_util_pct);
+                            }
+                        }
+                        s
                     }
-                }
+                    #[cfg(not(feature = "cuda"))]
+                    {
+                        sample
+                    }
+                };
                 samples.push(sample);
             }
         }

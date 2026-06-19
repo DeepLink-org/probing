@@ -4,7 +4,7 @@ use crate::features::spy::PYVERSION;
 
 use crate::features::spy::python_interpreters::{BytesObject, CodeObject, StringObject};
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct RawCallLocation {
     callee: usize,
     caller: Option<usize>,
@@ -21,8 +21,47 @@ impl RawCallLocation {
         }
     }
 
-    pub fn resolve(&self) -> Result<CallLocation, std::io::Error> {
+    pub(crate) fn resolve(&self) -> Result<CallLocation, std::io::Error> {
         CallLocation::try_from(self)
+    }
+
+    /// The callee `PyCodeObject` pointer, used as a stable interner key.
+    #[inline(always)]
+    pub fn callee(&self) -> usize {
+        self.callee
+    }
+
+    /// Resolve only the callee symbol (name/file/first-line). Cheaper than the
+    /// full [`resolve`](Self::resolve) (no caller / line-table parsing) and used
+    /// to intern Python frames eagerly in the eval hook, while the code object
+    /// is guaranteed alive under the GIL.
+    pub(crate) fn resolve_callee(&self) -> Result<Symbol, std::io::Error> {
+        match unsafe { (PYVERSION.major, PYVERSION.minor) } {
+            (3, 4) | (3, 5) | (3, 6) | (3, 7) | (3, 8) | (3, 9) | (3, 10) => {
+                let sym: Symbol =
+                    (self.callee as *const python_bindings::v3_10_0::PyCodeObject).try_into()?;
+                Ok(sym)
+            }
+            (3, 11) => {
+                let sym: Symbol =
+                    (self.callee as *const python_bindings::v3_11_0::PyCodeObject).try_into()?;
+                Ok(sym)
+            }
+            (3, 12) => {
+                let sym: Symbol =
+                    (self.callee as *const python_bindings::v3_12_0::PyCodeObject).try_into()?;
+                Ok(sym)
+            }
+            (3, 13) => {
+                let sym: Symbol =
+                    (self.callee as *const python_bindings::v3_13_0::PyCodeObject).try_into()?;
+                Ok(sym)
+            }
+            _ => Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "Unsupported Python version",
+            )),
+        }
     }
 
     #[inline(always)]

@@ -21,7 +21,6 @@ pub struct TraceInfo {
 }
 
 /// Variable change record
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VariableRecord {
     pub function_name: String,
@@ -137,6 +136,27 @@ impl ApiClient {
         Ok(result)
     }
 
+    /// Get variable change records via the trace/variables HTTP handler.
+    pub async fn get_trace_variables(
+        &self,
+        function: Option<&str>,
+        limit: Option<usize>,
+    ) -> Result<Vec<VariableRecord>> {
+        let limit = limit.unwrap_or(100);
+        let mut path = format!("/apis/pythonext/trace/variables?limit={limit}");
+        if let Some(func) = function {
+            path.push_str(&format!("&function={}", urlencoding::encode(func)));
+        }
+
+        let response = self.get_request(&path).await?;
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(&response) {
+            if let Some(err) = value.get("error").and_then(|v| v.as_str()) {
+                return Err(crate::utils::error::AppError::Api(err.to_string()));
+            }
+        }
+        Self::parse_json(&response)
+    }
+
     /// Get variable change records (via SQL query)
     /// Returns DataFrame directly, uses SQL AS to control column name display
     pub async fn get_variable_records(
@@ -154,14 +174,14 @@ impl ApiClient {
             String::new()
         };
 
-        // SQL query uses AS to rename columns for display
+        // Use snake_case column names (DataFusion lowercases unquoted aliases).
         let queries = vec![
             format!(
-                "SELECT filename AS File, lineno AS Line, variable_name AS Variable, value AS Value, value_type AS Type, timestamp AS Time FROM python.trace_variables{} ORDER BY timestamp DESC{}",
+                "SELECT function_name, filename, lineno, variable_name, value, value_type, timestamp FROM python.trace_variables{} ORDER BY timestamp DESC{}",
                 where_clause, limit_clause
             ),
             format!(
-                "SELECT filename AS File, lineno AS Line, variable_name AS Variable, value AS Value, value_type AS Type, timestamp AS Time FROM trace_variables{} ORDER BY timestamp DESC{}",
+                "SELECT function_name, filename, lineno, variable_name, value, value_type, timestamp FROM trace_variables{} ORDER BY timestamp DESC{}",
                 where_clause, limit_clause
             ),
         ];

@@ -35,13 +35,4 @@ impl ApiClient {
             .await?;
         Self::parse_json(&response)
     }
-
-    /// Recent collective rows from ``python.comm_collective``.
-    pub async fn fetch_comm_collective_recent(&self, limit: usize) -> Result<probing_proto::prelude::DataFrame> {
-        self.execute_query(&format!(
-            "SELECT local_step, rank, op, group_size, duration_ms, bytes, tp_rank, pp_rank, dp_rank \
-             FROM python.comm_collective ORDER BY timestamp DESC LIMIT {limit}"
-        ))
-        .await
-    }
 }

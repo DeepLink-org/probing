@@ -224,11 +224,13 @@ PyTorch execution traces.
 | step | int | Training step |
 | seq | int | Sequence number |
 | module | string | Module name |
-| stage | string | forward/backward/step |
+| stage | string | Hook label: `pre forward`, `post forward`, `pre step`, `post step` (duration on post rows; backward not collected by default) |
 | allocated | float | GPU memory (MB) |
 | max_allocated | float | Peak GPU memory (MB) |
 | cached | float | Cached memory (MB) |
-| duration | float | Execution time (sec) |
+| max_cached | float | Peak cached memory (MB) |
+| time_offset | float | Seconds since step time anchor |
+| duration | float | Execution time (sec); meaningful on post rows |
 
 ---
 
@@ -258,10 +260,8 @@ Configuration settings.
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `probing.sample_rate` | 1.0 | Sampling rate (0.0-1.0) |
-| `probing.buffer_size` | 10000 | Ring buffer size |
-| `probing.server.port` | 0 | TCP port (0=Unix socket only) |
-| `probing.torch.enabled` | true | Enable PyTorch tracing |
+| `probing.torch.profiling` | — | TorchProbe spec (`on`, `ordered:0.5`, `random:0.1`, options) |
+| `probing.pprof.sample_freq` | — | CPU pprof sampling frequency (Hz) |
 
 ## Environment Variables
 
@@ -269,6 +269,6 @@ Configuration settings.
 |----------|-------------|
 | `PROBING` | Enable probing (1=on) |
 | `PROBING_PORT` | TCP server port |
-| `PROBING_TORCH_PROFILING` | PyTorch profiling (on/off) |
-| `PROBING_SAMPLE_RATE` | Default sample rate |
+| `PROBING_TORCH_PROFILING` | TorchProbe (`on`, `ordered:0.5`, `random:0.1`, `tracepy=on`, …) |
+| `PROBING_PPROF_SAMPLE_FREQ` | Synced to `probing.pprof.sample_freq` (CPU pprof Hz) |
 | `PROBING_AUTH_TOKEN` | Authentication token |

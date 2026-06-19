@@ -41,7 +41,7 @@ This page documents Probing version compatibility and changelog.
 
 **Breaking Changes**
 
-- Deprecated `probing.trace()` API, use `probing.enable_torch_profiling()` instead
+- Deprecated `probing.trace()` API; use `PROBING_TORCH_PROFILING=on` or `configure()` from `probing.profiling.torch_probe`
 - Configuration format changed from JSON to TOML
 
 **Bug Fixes**
@@ -80,7 +80,8 @@ pip install --upgrade probing
 probing.trace(enabled=True)
 
 # New format (v0.6.x)
-probing.enable_torch_profiling()
+PROBING_TORCH_PROFILING=on python train.py
+# or: from probing.profiling.torch_probe import configure; configure("on")
 ```
 
 ## Deprecation Policy

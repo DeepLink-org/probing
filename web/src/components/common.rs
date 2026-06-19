@@ -3,6 +3,7 @@
 use dioxus::prelude::*;
 
 use crate::components::colors::colors;
+use crate::utils::error::AppError;
 
 /// Centered spinner and optional message. Use while data is loading.
 #[component]
@@ -53,5 +54,51 @@ pub fn EmptyState(message: String) -> Element {
             class: "text-center py-8 text-gray-500",
             "{message}"
         }
+    }
+}
+
+/// Wraps [`SuspenseBoundary`] with the shared [`LoadingState`] spinner.
+#[component]
+pub fn AsyncBoundary(
+    #[props(optional)] message: Option<String>,
+    children: Element,
+) -> Element {
+    let msg = message;
+    rsx! {
+        SuspenseBoundary {
+            fallback: move |_| rsx! {
+                LoadingState { message: msg.clone() }
+            },
+            {children}
+        }
+    }
+}
+
+/// Render an [`AppError`] after a resource has suspended.
+#[component]
+pub fn AppErrorDisplay(error: AppError, #[props(optional)] title: Option<String>) -> Element {
+    rsx! {
+        ErrorState {
+            error: error.display_message(),
+            title,
+        }
+    }
+}
+
+/// Match a resolved API [`Result`] into error, empty, or success UI.
+pub fn query_result<T>(
+    result: Result<T, AppError>,
+    is_empty: impl FnOnce(&T) -> bool,
+    empty_message: &str,
+    render: impl FnOnce(T) -> Element,
+) -> Element {
+    match result {
+        Ok(value) if is_empty(&value) => rsx! {
+            EmptyState { message: empty_message.to_string() }
+        },
+        Ok(value) => render(value),
+        Err(err) => rsx! {
+            AppErrorDisplay { error: err, title: None }
+        },
     }
 }

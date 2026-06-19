@@ -71,7 +71,8 @@ Common issues and their solutions when using Probing.
    ```
 
 3. **Wait for data collection**:
-   Tables are populated as operations occur. Run some training steps first.
+   Tables are populated as operations occur. Run training steps first.
+   The first TorchProbe step is discovery only (no rows); use `WHERE step > 1` if needed.
 
 ### Empty Results
 
@@ -150,18 +151,26 @@ Common issues and their solutions when using Probing.
 
 **Solutions**:
 
-1. **Reduce sampling rate**:
+1. **Reduce TorchProbe sampling** (not a global sample_rate knob):
    ```bash
-   probing $ENDPOINT config probing.sample_rate=0.01
+   PROBING_TORCH_PROFILING=ordered:0.1 python your_script.py
+   # or at runtime: set probing.torch.profiling=ordered:0.1;
    ```
 
-2. **Disable unused features**:
+2. **Lower CPU pprof frequency**:
+   ```bash
+   probing $ENDPOINT config probing.pprof.sample_freq=50
+   ```
+
+3. **Disable torch profiling when not needed**:
    ```bash
    PROBING_TORCH_PROFILING=off python your_script.py
    ```
 
-3. **Use targeted profiling**:
-   Only enable profiling for specific modules or operations.
+4. **Use SQL step filters** instead of a warmup schedule:
+   ```sql
+   SELECT * FROM python.torch_trace WHERE step > 10;
+   ```
 
 ### Query Timeout
 

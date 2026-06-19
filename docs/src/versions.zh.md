@@ -41,7 +41,7 @@
 
 **破坏性变更**
 
-- 废弃 `probing.trace()` API，改用 `probing.enable_torch_profiling()`
+- 废弃 `probing.trace()` API；请使用 `PROBING_TORCH_PROFILING=on` 或 `probing.profiling.torch_probe.configure()`
 - 配置格式从 JSON 改为 TOML
 
 **Bug 修复**
@@ -80,7 +80,8 @@ pip install --upgrade probing
 probing.trace(enabled=True)
 
 # 新格式 (v0.6.x)
-probing.enable_torch_profiling()
+PROBING_TORCH_PROFILING=on python train.py
+# 或：from probing.profiling.torch_probe import configure; configure("on")
 ```
 
 ## 废弃策略
