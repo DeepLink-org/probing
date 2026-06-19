@@ -2111,7 +2111,7 @@
 <tr>
 <td>stage</td>
 <td>string</td>
-<td>forward/backward/step</td>
+<td>Hook label: <code>pre forward</code>, <code>post forward</code>, <code>pre step</code>, <code>post step</code> (duration on post rows; backward not collected by default)</td>
 </tr>
 <tr>
 <td>allocated</td>
@@ -2129,9 +2129,19 @@
 <td>Cached memory (MB)</td>
 </tr>
 <tr>
+<td>max_cached</td>
+<td>float</td>
+<td>Peak cached memory (MB)</td>
+</tr>
+<tr>
+<td>time_offset</td>
+<td>float</td>
+<td>Seconds since step time anchor</td>
+</tr>
+<tr>
 <td>duration</td>
 <td>float</td>
-<td>Execution time (sec)</td>
+<td>Execution time (sec); meaningful on post rows</td>
 </tr>
 </tbody>
 </table>
@@ -2204,24 +2214,14 @@
 </thead>
 <tbody>
 <tr>
-<td><code>probing.sample_rate</code></td>
-<td>1.0</td>
-<td>Sampling rate (0.0-1.0)</td>
+<td><code>probing.torch.profiling</code></td>
+<td>—</td>
+<td>TorchProbe spec (<code>on</code>, <code>ordered:0.5</code>, <code>random:0.1</code>, options)</td>
 </tr>
 <tr>
-<td><code>probing.buffer_size</code></td>
-<td>10000</td>
-<td>Ring buffer size</td>
-</tr>
-<tr>
-<td><code>probing.server.port</code></td>
-<td>0</td>
-<td>TCP port (0=Unix socket only)</td>
-</tr>
-<tr>
-<td><code>probing.torch.enabled</code></td>
-<td>true</td>
-<td>Enable PyTorch tracing</td>
+<td><code>probing.pprof.sample_freq</code></td>
+<td>—</td>
+<td>CPU pprof sampling frequency (Hz)</td>
 </tr>
 </tbody>
 </table>
@@ -2244,11 +2244,11 @@
 </tr>
 <tr>
 <td><code>PROBING_TORCH_PROFILING</code></td>
-<td>PyTorch profiling (on/off)</td>
+<td>TorchProbe (<code>on</code>, <code>ordered:0.5</code>, <code>random:0.1</code>, <code>tracepy=on</code>, …)</td>
 </tr>
 <tr>
-<td><code>PROBING_SAMPLE_RATE</code></td>
-<td>Default sample rate</td>
+<td><code>PROBING_PPROF_SAMPLE_FREQ</code></td>
+<td>Synced to <code>probing.pprof.sample_freq</code> (CPU pprof Hz)</td>
 </tr>
 <tr>
 <td><code>PROBING_AUTH_TOKEN</code></td>

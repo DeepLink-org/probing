@@ -1762,7 +1762,7 @@
 </ul>
 <p><strong>Breaking Changes</strong></p>
 <ul>
-<li>Deprecated <code>probing.trace()</code> API, use <code>probing.enable_torch_profiling()</code> instead</li>
+<li>Deprecated <code>probing.trace()</code> API; use <code>PROBING_TORCH_PROFILING=on</code> or <code>configure()</code> from <code>probing.profiling.torch_probe</code></li>
 <li>Configuration format changed from JSON to TOML</li>
 </ul>
 <p><strong>Bug Fixes</strong></p>
@@ -1797,7 +1797,8 @@
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">probing</span><span class="o">.</span><span class="n">trace</span><span class="p">(</span><span class="n">enabled</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># New format (v0.6.x)</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">probing</span><span class="o">.</span><span class="n">enable_torch_profiling</span><span class="p">()</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">PROBING_TORCH_PROFILING</span><span class="o">=</span><span class="n">on</span> <span class="n">python</span> <span class="n">train</span><span class="o">.</span><span class="n">py</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="c1"># or: from probing.profiling.torch_probe import configure; configure(&quot;on&quot;)</span>
 </span></code></pre></div>
 <h2 id="deprecation-policy">Deprecation Policy<a class="headerlink" href="#deprecation-policy" title="Permanent link">&para;</a></h2>
 <ul>

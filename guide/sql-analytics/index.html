@@ -1757,20 +1757,26 @@
 </ul>
 <h2 id="pytorch-integration">PyTorch Integration<a class="headerlink" href="#pytorch-integration" title="Permanent link">&para;</a></h2>
 <p>When monitoring PyTorch applications, additional tables become available:</p>
-<p><strong><code>python.torch_trace</code></strong> - PyTorch execution traces</p>
+<p><strong><code>python.torch_trace</code></strong> — TorchProbe module hooks (long-running sampled telemetry).</p>
 <div class="language-sql highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">step</span><span class="p">,</span><span class="w"> </span><span class="n">module</span><span class="p">,</span><span class="w"> </span><span class="n">stage</span><span class="p">,</span><span class="w"> </span><span class="n">duration</span><span class="p">,</span><span class="w"> </span><span class="n">allocated</span>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">step</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">5</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">duration</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span>
 </span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">step</span><span class="w"> </span><span class="k">DESC</span><span class="p">,</span><span class="w"> </span><span class="n">seq</span><span class="p">;</span>
 </span></code></pre></div>
+<p>The first training step is discovery (no rows). Skip cold-start steps with <code>WHERE step &gt; N</code>.</p>
 <p>Common columns:</p>
 <ul>
-<li><code>step</code> - Training step number</li>
-<li><code>seq</code> - Sequence number within step</li>
-<li><code>module</code> - Module name</li>
-<li><code>stage</code> - Execution stage (forward, backward, step)</li>
-<li><code>allocated</code> - GPU memory allocated (MB)</li>
-<li><code>duration</code> - Execution duration (seconds)</li>
+<li><code>step</code> — training step (aligned with optimizer steps)</li>
+<li><code>seq</code> — hook order within the step</li>
+<li><code>module</code> — module name</li>
+<li><code>stage</code> — <code>pre forward</code>, <code>post forward</code>, <code>pre step</code>, <code>post step</code> (not <code>forward</code>/<code>backward</code> literals; backward not collected by default)</li>
+<li><code>allocated</code> — GPU memory allocated (MB); CUDA only</li>
+<li><code>duration</code> — stage duration (seconds); use post rows (<code>stage LIKE 'post %'</code>) for timings</li>
+</ul>
+<p>Sampling (<code>PROBING_TORCH_PROFILING</code>):</p>
+<ul>
+<li><code>ordered:rate</code> — <code>rate</code> = probability each step is sampled; one module rotates per sampled step</li>
+<li><code>random:rate</code> — every step sampled; <code>rate</code> = per-hook probability after the offset-0 anchor</li>
 </ul>
 <h2 id="advanced-analytics">Advanced Analytics<a class="headerlink" href="#advanced-analytics" title="Permanent link">&para;</a></h2>
 <h3 id="time-series-analysis">Time-Series Analysis<a class="headerlink" href="#time-series-analysis" title="Permanent link">&para;</a></h3>

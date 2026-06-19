@@ -2289,7 +2289,7 @@ compactor a single lifecycle home:</p>
 <li>on startup it calls <code>prime_from_cold()</code>; on stop it flushes (seals the open segment).</li>
 </ul>
 <p>It is <strong>opt-in</strong> (off by default) to avoid spawning a compaction thread in every forked worker.
-Configuration is applied via the <code>MemTableExtension</code> option surface or environment variables; the
+Configuration is applied via the <code>MemTableProbeExtension</code> option surface or environment variables; the
 server calls <code>start_cold_compaction_from_env()</code> at engine init.</p>
 <h2 id="sql-integration">SQL Integration<a class="headerlink" href="#sql-integration" title="Permanent link">&para;</a></h2>
 <h3 id="catalog-discovery">Catalog Discovery<a class="headerlink" href="#catalog-discovery" title="Permanent link">&para;</a></h3>
@@ -2389,7 +2389,9 @@ re-validates).</p>
 <li><strong>No per-page <code>fsync</code></strong> — a <code>SIGKILL</code> may lose the open segment's not-yet-flushed tail.</li>
 <li><strong>No segment-level manifest</strong> — multi-segment queries open each segment header to prune.</li>
 <li><strong>Pco level is fixed (8)</strong> — not adapted per column.</li>
-<li><strong>Runtime is single-process</strong> — cross-process / cluster aggregation is not yet wired.</li>
+<li><strong>Runtime is single-process per agent</strong> — each training process owns local memtables. Cross-node
+  aggregation is explicit via the <code>global</code> federated catalog (<code>global.schema.table</code>), HTTP
+  <code>/apis/cluster/query</code>, and aggregate pushdown in <code>probing-core::federation</code>.</li>
 </ul>
 <h2 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h2>
 <p>The data layer ships with unit and end-to-end tests: hot-ring lock/recycle/fork tests

@@ -1759,20 +1759,26 @@
 </ul>
 <h2 id="pytorch">PyTorch 集成<a class="headerlink" href="#pytorch" title="Permanent link">&para;</a></h2>
 <p>监控 PyTorch 应用时，可用额外的表：</p>
-<p><strong><code>python.torch_trace</code></strong> - PyTorch 执行跟踪</p>
+<p><strong><code>python.torch_trace</code></strong> — TorchProbe 模块钩子（长期统计采样遥测）。</p>
 <div class="language-sql highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">step</span><span class="p">,</span><span class="w"> </span><span class="n">module</span><span class="p">,</span><span class="w"> </span><span class="n">stage</span><span class="p">,</span><span class="w"> </span><span class="n">duration</span><span class="p">,</span><span class="w"> </span><span class="n">allocated</span>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">step</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">5</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">duration</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span>
 </span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">step</span><span class="w"> </span><span class="k">DESC</span><span class="p">,</span><span class="w"> </span><span class="n">seq</span><span class="p">;</span>
 </span></code></pre></div>
+<p>第一个训练 step 为 discovery（无数据）。用 <code>WHERE step &gt; N</code> 跳过冷启动。</p>
 <p>常用列：</p>
 <ul>
-<li><code>step</code> - 训练步数</li>
-<li><code>seq</code> - 步内序号</li>
+<li><code>step</code> - 训练步（与 optimizer step 对齐）</li>
+<li><code>seq</code> - step 内钩子顺序</li>
 <li><code>module</code> - 模块名</li>
-<li><code>stage</code> - 执行阶段（forward、backward、step）</li>
-<li><code>allocated</code> - GPU 已分配内存（MB）</li>
-<li><code>duration</code> - 执行时长（秒）</li>
+<li><code>stage</code> - <code>pre forward</code>、<code>post forward</code>、<code>pre step</code>、<code>post step</code>（非字面 <code>forward</code>/<code>backward</code>；默认不采 backward）</li>
+<li><code>allocated</code> - GPU 已分配内存（MB），仅 CUDA</li>
+<li><code>duration</code> - 阶段耗时（秒）；计时时用 post 行（<code>stage LIKE 'post %'</code>）</li>
+</ul>
+<p>采样（<code>PROBING_TORCH_PROFILING</code>）：</p>
+<ul>
+<li><code>ordered:rate</code> - <code>rate</code> 为每 step 采样概率；被采样 step 内轮转一个模块</li>
+<li><code>random:rate</code> - 每 step 都采样；<code>rate</code> 为 offset&gt;0 钩子的概率（offset=0 锚点始终记录）</li>
 </ul>
 <h2 id="_5">高级分析<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
 <h3 id="_6">时间序列分析<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h3>
