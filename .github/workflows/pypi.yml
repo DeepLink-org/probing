@@ -35,16 +35,7 @@ jobs:
           python-version: '3.12'
           install-cargo-tools: 'true'
           install-python-deps: 'false'
-
-      - name: Cache web UI build
-        uses: actions/cache@v4
-        with:
-          path: |
-            web/dist
-            web/target/dx
-          key: web-ui-v1-${{ runner.os }}-${{ hashFiles('web/Cargo.toml', 'web/Cargo.lock', 'web/src/**', 'web/assets/**', 'probing/proto/**', 'skills/**') }}
-          restore-keys: |
-            web-ui-v1-${{ runner.os }}-
+          cache-web-ui: 'true'
 
       - name: Prepare wheel bundle
         env:
@@ -83,16 +74,7 @@ jobs:
           python-version: '3.12'
           install-cargo-tools: 'true'
           install-python-deps: 'false'
-
-      - name: Cache web UI build
-        uses: actions/cache@v4
-        with:
-          path: |
-            web/dist
-            web/target/dx
-          key: web-ui-v1-${{ runner.os }}-${{ hashFiles('web/Cargo.toml', 'web/Cargo.lock', 'web/src/**', 'web/assets/**', 'probing/proto/**', 'skills/**') }}
-          restore-keys: |
-            web-ui-v1-${{ runner.os }}-
+          cache-web-ui: 'true'
 
       - name: Prepare wheel bundle
         env:
@@ -126,16 +108,7 @@ jobs:
         with:
           install-python-deps: 'false'
           install-cargo-tools: 'true'
-
-      - name: Cache web UI build
-        uses: actions/cache@v4
-        with:
-          path: |
-            web/dist
-            web/target/dx
-          key: web-ui-v1-${{ runner.os }}-${{ hashFiles('web/Cargo.toml', 'web/Cargo.lock', 'web/src/**', 'web/assets/**', 'probing/proto/**', 'skills/**') }}
-          restore-keys: |
-            web-ui-v1-${{ runner.os }}-
+          cache-web-ui: 'true'
 
       - name: Prepare wheel bundle
         env:

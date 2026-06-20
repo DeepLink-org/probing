@@ -6,11 +6,11 @@ import os
 from pathlib import Path
 
 _ENV = "PROBING_ASSETS_ROOT"
-_BUNDLED_DIRNAME = "_web"
+_BUNDLED_DIRNAME = "bundled_web"
 
 
 def bundled_web_dir() -> Path | None:
-    """Wheel / install tree: ``python/probing/_web/`` (bundled by ``make wheel``)."""
+    """Wheel / install tree: ``python/probing/bundled_web/`` (bundled by ``make wheel``)."""
     root = _package_dir() / _BUNDLED_DIRNAME
     if (root / "index.html").is_file():
         return root

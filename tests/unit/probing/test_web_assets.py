@@ -14,9 +14,9 @@ from tests.conftest import is_wheel_install, repo_root
 
 def test_bundled_web_dir_missing_without_sync():
     root = web_assets.bundled_web_dir()
-    checkout_bundled = repo_root() / "python" / "probing" / "_web" / "index.html"
+    checkout_bundled = repo_root() / "python" / "probing" / "bundled_web" / "index.html"
     if is_wheel_install():
-        assert root is not None, "installed wheel is missing probing/_web"
+        assert root is not None, "installed wheel is missing probing/bundled_web"
         assert (root / "index.html").is_file()
         return
     if root is None:

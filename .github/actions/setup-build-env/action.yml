@@ -1,22 +1,46 @@
 name: 'Setup Build Environment'
-description: 'Setup Python, Rust, and build tools with caching'
+description: 'Setup Python, Rust, and build tools with unified caching'
 inputs:
   python-version:
     description: 'Python version to use'
     required: false
     default: '3.12'
   install-cargo-tools:
-    description: 'Whether to install cargo tools'
+    description: 'Whether to install cargo tools (dx, nextest, zigbuild, rnr)'
     required: false
     default: 'true'
   install-python-deps:
-    description: 'Whether to install Python build dependencies'
+    description: 'Whether to install maturin/build deps into .venv'
     required: false
     default: 'false'
   enable-rust-cache:
     description: 'Enable Swatinem/rust-cache for Cargo registry + target/'
     required: false
     default: 'true'
+  enable-rust:
+    description: 'Install Rust toolchain and targets'
+    required: false
+    default: 'true'
+  enable-zig:
+    description: 'Install Zig (manylinux / cross builds)'
+    required: false
+    default: 'true'
+  enable-uv:
+    description: 'Install uv with GitHub Actions cache'
+    required: false
+    default: 'true'
+  cache-web-ui:
+    description: 'Cache web/dist and web/target/dx (dx frontend build)'
+    required: false
+    default: 'false'
+  cache-venv:
+    description: 'Cache project .venv (make venv / pip deps)'
+    required: false
+    default: 'true'
+  cache-wheel-test-deps:
+    description: 'Include pytest+torch wheel-test deps in .venv cache key'
+    required: false
+    default: 'false'
   dx-version:
     description: 'dioxus-cli (dx) version — keep in sync with web/Cargo.toml'
     required: false
@@ -25,14 +49,58 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    - name: Compute cache keys
+      id: cache-keys
+      shell: bash
+      run: |
+        {
+          echo "web_ui<<EOF"
+          echo "${{ hashFiles(
+            'web/Cargo.toml',
+            'web/Cargo.lock',
+            'web/src/**',
+            'web/assets/**',
+            'probing/proto/**',
+            'skills/**'
+          ) }}"
+          echo "EOF"
+          echo "python_env<<EOF"
+          echo "${{ hashFiles('pyproject.toml', 'Makefile', 'uv.lock') }}"
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: ${{ inputs.python-version }}
         cache: pip
-        cache-dependency-path: pyproject.toml
+        cache-dependency-path: |
+          pyproject.toml
+          Makefile
+
+    - name: Cache project venv
+      if: inputs.cache-venv == 'true'
+      uses: actions/cache@v4
+      with:
+        path: .venv
+        key: venv-v1-${{ runner.os }}-py${{ inputs.python-version }}-${{ steps.cache-keys.outputs.python_env }}${{ inputs.cache-wheel-test-deps == 'true' && '-wheeltest' || '' }}${{ inputs.install-python-deps == 'true' && '-build' || '' }}
+        restore-keys: |
+          venv-v1-${{ runner.os }}-py${{ inputs.python-version }}-${{ steps.cache-keys.outputs.python_env }}-
+          venv-v1-${{ runner.os }}-py${{ inputs.python-version }}-
+
+    - name: Cache web UI build
+      if: inputs.cache-web-ui == 'true'
+      uses: actions/cache@v4
+      with:
+        path: |
+          web/dist
+          web/target/dx
+        key: web-ui-v1-${{ runner.os }}-${{ steps.cache-keys.outputs.web_ui }}
+        restore-keys: |
+          web-ui-v1-${{ runner.os }}-
 
     - name: Install Rust toolchain
+      if: inputs.enable-rust == 'true'
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
         toolchain: stable
@@ -40,6 +108,7 @@ runs:
         rustflags: ""
 
     - name: Add Rust Targets
+      if: inputs.enable-rust == 'true'
       shell: bash
       run: |
         if [ "${{ runner.os }}" == "Linux" ]; then
@@ -49,7 +118,7 @@ runs:
         fi
 
     - name: Cache Rust build artifacts
-      if: inputs.enable-rust-cache == 'true'
+      if: inputs.enable-rust == 'true' && inputs.enable-rust-cache == 'true'
       uses: Swatinem/rust-cache@v2
       with:
         workspaces: |
@@ -61,15 +130,27 @@ runs:
         cache-bin: true
 
     - name: Install uv
+      if: inputs.enable-uv == 'true'
       uses: astral-sh/setup-uv@v6
       with:
         enable-cache: true
 
     - name: Install Zig toolchain
+      if: inputs.enable-zig == 'true'
       uses: mlugg/setup-zig@v2
 
-    # Prebuilt dx from GitHub Releases (no API rate limits). Official alternative:
-    # DioxusLabs/dioxus-ci/actions/install-dioxus-cli (uses cargo-binstall internally).
+    - name: Cache cargo-installed CLI tools
+      if: inputs.install-cargo-tools == 'true'
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/cargo-nextest
+          ~/.cargo/bin/cargo-zigbuild
+          ~/.cargo/bin/rnr
+        key: cargo-cli-v1-${{ runner.os }}-nextest-zigbuild-rnr
+        restore-keys: |
+          cargo-cli-v1-${{ runner.os }}-
+
     - name: Install dioxus CLI (dx)
       if: inputs.install-cargo-tools == 'true'
       uses: taiki-e/install-action@v2
@@ -80,7 +161,7 @@ runs:
       if: inputs.install-cargo-tools == 'true'
       shell: bash
       run: |
-        test -e ~/.cargo/bin/cargo-zigbuild || cargo install cargo-zigbuild
+        test -e ~/.cargo/bin/cargo-zigbuild || cargo install cargo-zigbuild --locked
         test -e ~/.cargo/bin/rnr || cargo install rnr
         test -e ~/.cargo/bin/cargo-nextest || cargo install --locked cargo-nextest
 
@@ -92,3 +173,8 @@ runs:
       if: inputs.install-python-deps == 'true'
       shell: bash
       run: make install-build-deps
+
+    - name: Install wheel-test Python dependencies into venv
+      if: inputs.cache-wheel-test-deps == 'true'
+      shell: bash
+      run: make install-wheel-test-deps

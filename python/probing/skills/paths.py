@@ -81,11 +81,11 @@ def repo_skills_dir(start: Optional[Path] = None) -> Optional[Path]:
 
 
 def bundled_skills_dir() -> Optional[Path]:
-    """Skills copied into the wheel at ``python/probing/_skills/`` (release builds)."""
-    root = _package_dir() / "_skills"
+    """Skills copied into the wheel at ``python/probing/bundled_skills/`` (release builds)."""
+    root = _package_dir() / "bundled_skills"
     if root.is_dir() and (root / "catalog.yaml").is_file():
         return root
-    return _resource_dir("_skills", "catalog.yaml")
+    return _resource_dir("bundled_skills", "catalog.yaml")
 
 
 def _package_dir() -> Path:

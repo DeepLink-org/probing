@@ -83,7 +83,7 @@ install-dev-python-deps:
 	fi
 
 # ==============================================================================
-.PHONY: core develop dev check-dev frontend wheel wheel-ci install-wheel wheel-bundle nccl-profiler-lib venv venv-wheel install-build-deps
+.PHONY: core develop dev check-dev frontend wheel wheel-ci install-wheel wheel-bundle nccl-profiler-lib venv venv-wheel install-build-deps install-wheel-test-deps
 
 venv:
 	@test -x .venv/bin/python || $(shell command -v python3 || echo python3) -m venv .venv
@@ -94,6 +94,9 @@ venv-wheel: venv
 
 install-build-deps: venv
 	$(PYTHON) -m pip install -q -U pip $(BUILD_PY_DEPS)
+
+install-wheel-test-deps: venv
+	$(PYTHON) -m pip install -q -U pip $(PYTEST_WHEEL_DEPS)
 
 core: nccl-profiler-lib
 	$(PYTHON) -m maturin develop $(MATURIN_FLAGS)
@@ -127,9 +130,9 @@ frontend:
 
 wheel-bundle:
 	@test -f web/dist/index.html || { echo "error: run 'make frontend' first"; exit 1; }
-	rm -rf python/probing/_skills python/probing/_web
-	cp -R skills python/probing/_skills
-	cp -R web/dist python/probing/_web
+	rm -rf python/probing/bundled_skills python/probing/bundled_web
+	cp -R skills python/probing/bundled_skills
+	cp -R web/dist python/probing/bundled_web
 
 wheel: install-build-deps wheel-bundle nccl-profiler-lib
 	$(PYTHON) -m maturin build $(MATURIN_FLAGS) --out dist
@@ -145,8 +148,8 @@ install-wheel: venv
 	PROBING=0 $(PYTHON) -c "\
 import probing; from probing import _core; from pathlib import Path; \
 root = Path(probing.__file__).resolve().parent; \
-assert (root / '_skills' / 'catalog.yaml').is_file(), f'missing bundled skills under {root}'; \
-assert (root / '_web' / 'index.html').is_file(), f'missing bundled web UI under {root}'; \
+assert (root / 'bundled_skills' / 'catalog.yaml').is_file(), f'missing bundled skills under {root}'; \
+assert (root / 'bundled_web' / 'index.html').is_file(), f'missing bundled web UI under {root}'; \
 print('probing', probing.VERSION)"
 
 # Linux NCCL plugin copied into python/probing/libs/ for the wheel.
@@ -206,8 +209,7 @@ test-python-regression: check-dev
 test-doctest:
 	${PYTEST_RUN} --doctest-modules python/probing --ignore=python/probing/cli/__main__.py
 
-test-python-wheel: venv
-	$(PYTHON) -m pip install -q -U pip $(PYTEST_WHEEL_DEPS)
+test-python-wheel: venv install-wheel-test-deps
 	PROBING=1 $(PYTHON) -m pytest $(PYTEST_WHEEL_FLAGS) $(PYTEST_WHEEL_EXTRA) $(PYTEST_WHEEL_ARGS)
 
 coverage-python-wheel:
@@ -250,6 +252,6 @@ docs-clean:
 	@cd docs && $(MAKE) clean
 
 clean:
-	rm -rf dist web/dist docs/site python/probing/_skills python/probing/_web
+	rm -rf dist web/dist docs/site python/probing/bundled_skills python/probing/bundled_web
 	cargo clean
 	rm -f coverage.lcov coverage.xml coverage.json

@@ -18,17 +18,9 @@ jobs:
           python-version: "3.12"
           install-cargo-tools: "true"
           install-python-deps: "true"
-
-      - name: Cache web UI build
-        uses: actions/cache@v4
-        id: web-ui-cache
-        with:
-          path: |
-            web/dist
-            web/target/dx
-          key: web-ui-v1-${{ runner.os }}-${{ hashFiles('web/Cargo.toml', 'web/Cargo.lock', 'web/src/**', 'web/assets/**', 'probing/proto/**', 'skills/**') }}
-          restore-keys: |
-            web-ui-v1-${{ runner.os }}-
+          cache-web-ui: "true"
+          cache-venv: "true"
+          cache-wheel-test-deps: "true"
 
       - name: Code style checking
         working-directory: ${{ github.workspace }}
@@ -78,21 +70,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - name: Setup Python test environment
+        uses: ./.github/actions/setup-build-env
         with:
           python-version: ${{ matrix.python-version }}
-          cache: pip
-          cache-dependency-path: pyproject.toml
-
-      - name: Cache pytest wheel dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: pip-wheel-test-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('Makefile') }}
-          restore-keys: |
-            pip-wheel-test-${{ runner.os }}-py${{ matrix.python-version }}-
-            pip-wheel-test-${{ runner.os }}-
+          install-cargo-tools: "false"
+          install-python-deps: "false"
+          enable-rust: "false"
+          enable-zig: "false"
+          enable-uv: "false"
+          enable-rust-cache: "false"
+          cache-web-ui: "false"
+          cache-venv: "true"
+          cache-wheel-test-deps: "true"
 
       - name: Download wheel
         uses: actions/download-artifact@v4
@@ -120,6 +110,8 @@ jobs:
           python-version: "3.12"
           install-cargo-tools: "true"
           install-python-deps: "false"
+          cache-venv: "true"
+          cache-web-ui: "false"
 
       - name: Install llvm-tools-preview component
         run: rustup component add llvm-tools-preview --toolchain stable
@@ -156,17 +148,9 @@ jobs:
           python-version: "3.12"
           install-cargo-tools: "true"
           install-python-deps: "true"
-
-      - name: Cache web UI build
-        uses: actions/cache@v4
-        id: web-ui-cache
-        with:
-          path: |
-            web/dist
-            web/target/dx
-          key: web-ui-v1-${{ runner.os }}-${{ hashFiles('web/Cargo.toml', 'web/Cargo.lock', 'web/src/**', 'web/assets/**', 'probing/proto/**', 'skills/**') }}
-          restore-keys: |
-            web-ui-v1-${{ runner.os }}-
+          cache-web-ui: "true"
+          cache-venv: "true"
+          cache-wheel-test-deps: "true"
 
       - name: Run Rust tests
         run: |

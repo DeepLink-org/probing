@@ -78,8 +78,8 @@ include = [
     "probing.pth",
     "probing_hook.py",
     "probing/libs/*",
-    { path = "probing/_skills/**", format = "wheel" },
-    { path = "probing/_web/**", format = "wheel" },
+    "probing/bundled_skills/**",
+    "probing/bundled_web/**",
 ]
 
 [build-system]

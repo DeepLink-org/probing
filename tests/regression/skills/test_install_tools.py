@@ -25,7 +25,7 @@ from tests.conftest import is_wheel_install
 def test_bundled_skills_dir_exists():
     bundled = bundled_skills_dir()
     if is_wheel_install():
-        assert bundled is not None, "installed wheel is missing probing/_skills"
+        assert bundled is not None, "installed wheel is missing probing/bundled_skills"
         assert (bundled / "catalog.yaml").is_file()
         return
     assert bundled is not None or repo_skills_dir() is not None
