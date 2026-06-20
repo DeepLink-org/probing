@@ -26,7 +26,7 @@ make check-dev
 make test-python-regression    # Python 冒烟；完整套件：make test
 ```
 
-以上通过即表示环境就绪。可选：`./skills/install.sh`，让 Cursor / Claude / Codex 加载仓库 skill。
+以上通过即表示环境就绪。需要 Rust **stable**（若 `make develop` 因工具链失败，见 [前提条件](#prerequisites)）。可选：`./skills/install.sh`，让 Cursor / Claude / Codex 加载仓库 skill。
 
 本地预览文档：`make docs-install && make docs-serve` → http://127.0.0.1:8000
 
@@ -61,9 +61,18 @@ make test-python-regression    # Python 冒烟；完整套件：make test
 ## 前提条件 {#prerequisites}
 
 - **Python** 3.9+
-- **Rust**（最新 stable）+ **Cargo**
+- **Rust（stable 通道）** + **Cargo** — 仓库与 CI 均使用 stable 构建；不需要 nightly
 - **maturin** — 构建 `probing._core`（`pip install maturin` 或 `uv pip install maturin`）
 - **uv**（可选，推荐）— 常用 `uv venv`；若 venv 无 `pip`，Makefile 会改用 `uv pip`
+
+安装 Rust stable（若尚未安装）：
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+rustup default stable
+rustup component add rustfmt clippy
+rustc --version   # 应显示 stable，例如 rustc 1.xx.x (…)
+```
 
 可选（仅发布 / Web UI）：
 
