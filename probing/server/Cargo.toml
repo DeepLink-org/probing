@@ -6,6 +6,7 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+
 [features]
 extension-module = ["probing-python/extension-module"]
 gpu = ["dep:probing-gpu"]
@@ -33,7 +34,6 @@ tokio = { workspace = true }
 
 async-trait = "0.1.83"
 bytes = "1"
-include_dir = "=0.7.4"
 nu-ansi-term = "0.50.1"
 base64 = "0.21.5"
 ureq = { version = "3.0.2", default-features = false, features = ["json"] }

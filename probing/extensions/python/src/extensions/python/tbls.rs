@@ -102,7 +102,7 @@ impl PythonNamespace {
 
     fn data_from_python(expr: &str) -> Result<Vec<RecordBatch>> {
         Python::attach(|py| {
-            let import_path = expr.split(|c| c == '(' || c == '[').next().unwrap_or(expr);
+            let import_path = expr.split(['(', '[']).next().unwrap_or(expr);
 
             let parts: Vec<&str> = import_path
                 .split('.')
@@ -361,7 +361,7 @@ mod tests {
     fn test_import_path_parsing() {
         // Test the import path parsing logic used in data_from_python
         let expr = "sys.path";
-        let import_path = expr.split(|c| c == '(' || c == '[').next().unwrap_or(expr);
+        let import_path = expr.split(['(', '[']).next().unwrap_or(expr);
         let parts: Vec<&str> = import_path
             .split('.')
             .filter(|segment| !segment.is_empty())
@@ -371,10 +371,7 @@ mod tests {
 
         // Test with function call
         let expr2 = "sys.path.append('test')";
-        let import_path2 = expr2
-            .split(|c| c == '(' || c == '[')
-            .next()
-            .unwrap_or(expr2);
+        let import_path2 = expr2.split(['(', '[']).next().unwrap_or(expr2);
         let parts2: Vec<&str> = import_path2
             .split('.')
             .filter(|segment| !segment.is_empty())
@@ -384,10 +381,7 @@ mod tests {
 
         // Test with empty expression
         let expr3 = "";
-        let import_path3 = expr3
-            .split(|c| c == '(' || c == '[')
-            .next()
-            .unwrap_or(expr3);
+        let import_path3 = expr3.split(['(', '[']).next().unwrap_or(expr3);
         let parts3: Vec<&str> = import_path3
             .split('.')
             .filter(|segment| !segment.is_empty())

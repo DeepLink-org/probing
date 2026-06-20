@@ -1,11 +1,10 @@
 use std::env;
+use std::path::Path;
 
 use axum::body::Body;
 use axum::http::{header, HeaderMap, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
-use include_dir::include_dir;
-use include_dir::Dir;
 use once_cell::sync::Lazy;
 
 static BASE_PATH: Lazy<String> = Lazy::new(|| {
@@ -15,7 +14,18 @@ static BASE_PATH: Lazy<String> = Lazy::new(|| {
         .to_string()
 });
 
-static ASSET: Dir = include_dir!("web/dist");
+const MISSING_UI_HTML: &str = concat!(
+    "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\">",
+    "<title>Probing Web Interface</title></head><body>",
+    "<p>Web UI not available. Run <code>make frontend</code>, then restart probing.</p>",
+    "</body></html>"
+);
+
+fn assets_root() -> Option<String> {
+    env::var("PROBING_ASSETS_ROOT")
+        .ok()
+        .filter(|root| Path::new(root).join("index.html").is_file())
+}
 
 /// Normalize request paths such as `/./assets/foo.js` → `assets/foo.js`.
 fn normalize_asset_path(path: &str) -> String {
@@ -26,36 +36,30 @@ fn normalize_asset_path(path: &str) -> String {
     p
 }
 
-fn read_embedded(key: &str) -> Option<Bytes> {
-    ASSET
-        .get_file(key)
-        .map(|f| Bytes::copy_from_slice(f.contents()))
-}
-
 fn read_from_disk(key: &str) -> Option<Bytes> {
-    let assets_root = env::var("PROBING_ASSETS_ROOT").ok()?;
-    let path = format!("{}/{}", assets_root, key);
+    let assets_root = assets_root()?;
+    let path = Path::new(&assets_root).join(key);
     let content = std::fs::read(path).ok()?;
     Some(Bytes::from(content))
 }
 
-fn read_asset(key: &str) -> Option<Bytes> {
-    read_from_disk(key).or_else(|| read_embedded(key))
-}
-
 pub fn contains(path: &str) -> bool {
     let key = normalize_asset_path(path);
-    if env::var("PROBING_ASSETS_ROOT").is_ok() {
-        let path = format!("{}/{}", env::var("PROBING_ASSETS_ROOT").unwrap(), key);
-        std::path::Path::new(path.as_str()).exists()
-    } else {
-        ASSET.contains(&key)
+    if let Some(root) = assets_root() {
+        return Path::new(&root).join(&key).exists();
     }
+    key == "index.html"
 }
 
 pub fn get(path: &str) -> Bytes {
     let key = normalize_asset_path(path);
-    read_asset(&key).unwrap_or_default()
+    if let Some(data) = read_from_disk(&key) {
+        return data;
+    }
+    if key == "index.html" {
+        return Bytes::from_static(MISSING_UI_HTML.as_bytes());
+    }
+    Bytes::new()
 }
 
 fn accepts_brotli(accept_encoding: &str) -> bool {
@@ -92,7 +96,7 @@ fn resolve_asset(path: &str, accept_encoding: &str) -> (Bytes, Option<&'static s
 
     if accepts_brotli(accept_encoding) {
         let br_key = format!("{key}.br");
-        if let Some(data) = read_asset(&br_key) {
+        if let Some(data) = read_from_disk(&br_key) {
             if !data.is_empty() {
                 return (data, Some("br"));
             }
@@ -226,7 +230,8 @@ pub async fn static_files(uri: Uri, headers: HeaderMap) -> Result<Response, Stat
 #[cfg(test)]
 mod tests {
     use super::{
-        accepts_brotli, cache_control, get_content_type, is_content_hashed, normalize_asset_path,
+        accepts_brotli, assets_root, cache_control, get, get_content_type, is_content_hashed,
+        normalize_asset_path,
     };
 
     #[test]
@@ -273,5 +278,20 @@ mod tests {
     fn detects_content_hashed_names() {
         assert!(is_content_hashed("assets/web-dxh9874fc485ebe9e2.js"));
         assert!(!is_content_hashed("assets/tailwind.css"));
+    }
+
+    #[test]
+    fn index_html_from_assets_root_or_stub() {
+        let html = get("index.html");
+        assert!(!html.is_empty());
+        let body = String::from_utf8_lossy(&html);
+        if let Some(root) = assets_root() {
+            assert!(
+                body.contains("web-dxh"),
+                "UI assets at {root} have no Dioxus bundle — run `make frontend`"
+            );
+        } else {
+            assert!(body.contains("make frontend"));
+        }
     }
 }

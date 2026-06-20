@@ -6,6 +6,8 @@ Probing provides a powerful SQL interface for analyzing performance and monitori
 
 The SQL analytics interface transforms complex performance analysis into intuitive database queries. All monitoring data is accessible through standard SQL operations including `SELECT`, `WHERE`, `GROUP BY`, `ORDER BY`, and advanced analytical functions.
 
+**Table schemas:** [SQL Tables](../reference/sql-tables.md). **Terminology:** [Core Concepts](concepts.md).
+
 ## Basic Query Structure
 
 ```bash
@@ -68,6 +70,60 @@ Sampling (`PROBING_TORCH_PROFILING`):
 
 - `ordered:rate` — `rate` = probability each step is sampled; one module rotates per sampled step
 - `random:rate` — every step sampled; `rate` = per-hook probability after the offset-0 anchor
+
+Also stamped on each row: `global_step`, `rank`, `world_size`, `role` (parallel placement key).
+See [SQL Tables — torch_trace](../reference/sql-tables.md#python-torch_trace).
+
+## Collective communication (`python.comm_collective`)
+
+Records `torch.distributed` collectives with wall-clock `duration_ms` (no NCCL plugin required).
+
+```sql
+SELECT global_step, rank, role, op, duration_ms, bytes
+FROM python.comm_collective
+WHERE global_step > (SELECT max(global_step) - 20 FROM python.comm_collective)
+ORDER BY duration_ms DESC
+LIMIT 20;
+```
+
+Join with module work on the same rank and role:
+
+```sql
+SELECT c.global_step, c.role, c.op, c.duration_ms AS comm_ms,
+       t.module, t.duration AS module_sec
+FROM python.comm_collective c
+JOIN python.torch_trace t
+  ON c.global_step = t.global_step AND c.rank = t.rank AND c.role = t.role
+WHERE c.duration_ms > 5 AND t.stage LIKE 'post %' AND t.duration > 0
+LIMIT 50;
+```
+
+Run built-in diagnostics: `probing $ENDPOINT skill run slow_rank` or `comm_bottleneck`.
+
+## Federated queries (`global.*`)
+
+On a cluster master endpoint, query **`global.<schema>.<table>`** to fan out to registered peers.
+Each row gets `_host`, `_addr`, `_rank`, and `_role` (see [Distributed](../design/distributed.md)).
+
+**Slow rank by parallel role** (align ranks that share the same TP/PP/DP placement):
+
+```sql
+SELECT _role, _rank, avg(duration_ms) AS avg_ms, max(duration_ms) AS max_ms
+FROM global.python.comm_collective
+WHERE global_step > (SELECT max(global_step) - 50 FROM global.python.comm_collective)
+GROUP BY _role, _rank
+ORDER BY avg_ms DESC;
+```
+
+CLI equivalent:
+
+```bash
+probing -t rank0:8080 cluster query "
+SELECT _role, _rank, avg(duration_ms) AS avg_ms
+FROM global.python.comm_collective
+GROUP BY _role, _rank
+ORDER BY avg_ms DESC"
+```
 
 ## Advanced Analytics
 
@@ -162,12 +218,12 @@ Results can be exported for further analysis:
 # Export to JSON
 probing $ENDPOINT query "SELECT * FROM python.torch_trace" > torch_traces.json
 
-# Time-series data for plotting
+# 时间序列数据用于绘图
 probing $ENDPOINT query "
   SELECT step, stage, avg(duration), avg(allocated)
   FROM python.torch_trace
   GROUP BY step, stage
-" > training_metrics.json
+" > step_metrics.json
 ```
 
 ## Best Practices

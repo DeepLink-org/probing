@@ -1,0 +1,139 @@
+# Semantic layer: maps user/agent language to probing SQL tables and columns.
+# Used in system prompts and skill prerequisite checks.
+apiVersion: probing.dev/v1
+kind: SemanticCatalog
+
+tables:
+  python.torch_trace:
+    description: "PyTorch module-level forward/step timings and GPU memory snapshots"
+    synonyms: [torch trace, module timing, 模块耗时, 训练步 profiling]
+    key_columns:
+      step: "Training step index (int)"
+      global_step: "Global training step (from Rust step_snapshot)"
+      rank: "torch.distributed rank"
+      role: "Parallel role key, e.g. 'dp=2,pp=1,tp=0' (align/join across ranks)"
+      module: "Fully-qualified module name"
+      stage: "One of: forward, step (post forward / post step hooks)"
+      duration: "Hook duration in seconds"
+      allocated: "GPU memory allocated (MB) at hook time"
+      allocated_delta: "Change in allocated since previous hook (MB)"
+      max_allocated: "Peak allocated (MB)"
+    notes:
+      - "First complete step is discovery-only (may have no rows)"
+      - "Backward hooks are off by default"
+
+  python.comm_collective:
+    description: "torch.distributed collective calls (all_reduce, broadcast, …)"
+    synonyms: [collective, communication, NCCL, 通信, all_reduce]
+    key_columns:
+      global_step: "Global training step"
+      local_step: "Local step on this rank"
+      rank: "torch.distributed rank"
+      role: "Parallel role key, e.g. 'dp=2,pp=1,tp=0' (align/join across ranks)"
+      op: "Collective operation name"
+      duration_ms: "Wall time in milliseconds"
+      bytes: "Tensor bytes communicated"
+    global_name: global.python.comm_collective
+    federation_columns: [_host, _addr, _rank, _role]
+
+  python.trace_event:
+    description: "Span start/end and custom events (distributed tracing)"
+    synonyms: [trace, span, timeline, 链路]
+    key_columns:
+      record_type: "span_start | span_end | event"
+      trace_id: "Trace id shared by related spans"
+      span_id: "Unique span id"
+      name: "Span or event name"
+      time: "Timestamp (nanoseconds since epoch)"
+
+  python.backtrace:
+    description: "Live mixed Python + native stack (point-in-time, not historical)"
+    synonyms: [stack, backtrace, 调用栈, hang stack]
+    key_columns:
+      func: "Function name"
+      file: "Source file"
+      lineno: "Line number"
+      depth: "Stack depth (0 = innermost)"
+      frame_type: "python | native"
+
+  cpu.utilization:
+    description: "Host CPU and RSS sampling (process and top threads)"
+    synonyms: [cpu, host memory, RSS, 主机内存]
+    key_columns:
+      ts: "Sample timestamp (microseconds)"
+      scope: "process | thread"
+      rss_kb: "Resident set size (KB) — process scope only"
+      cpu_total_pct: "CPU utilization percentage"
+      comm: "Thread/process name"
+      wchan: "Kernel wait channel (Linux)"
+
+  gpu.utilization:
+    description: "GPU memory and utilization samples"
+    synonyms: [gpu memory, VRAM, 显存, GPU利用率]
+    key_columns:
+      ts: "Sample timestamp"
+      used_bytes: "Device memory used"
+      total_bytes: "Device memory total"
+      mem_used_pct: "Memory used percentage"
+      gpu_util_pct: "GPU compute utilization (-1 if unavailable)"
+
+  process.kmsg:
+    description: "Linux kernel ring buffer (dmesg) — OOM killer, GPU Xid, IB errors"
+    synonyms: [kernel log, dmesg, OOM, 内核日志]
+    platform: linux
+    key_columns:
+      timestamp: "Event time"
+      level: "Log level"
+      message: "Kernel message text"
+
+  cluster.nodes:
+    description: "Registered distributed training peers"
+    synonyms: [cluster, nodes, ranks, 集群节点]
+    key_columns:
+      rank: "Global rank"
+      host: "Hostname"
+      addr: "probing HTTP address"
+      role: "Parallel role key, e.g. dp=2,pp=1,tp=0 (federation _role source)"
+      status: "Node status"
+
+  nccl.proxy_ops:
+    description: "NCCL profiler plugin proxy-op wait decomposition (culprit vs victim)"
+    synonyms: [NCCL proxy, send_gpu_wait, recv_wait, culprit, victim, proxy wait]
+    key_columns:
+      ts: "Event timestamp (nanoseconds)"
+      rank: "torch.distributed rank"
+      tp_rank: "Tensor-parallel rank (-1 if unknown)"
+      pp_rank: "Pipeline-parallel rank (-1 if unknown)"
+      dp_rank: "Data-parallel rank (-1 if unknown)"
+      comm_hash: "NCCL communicator hash"
+      coll_func: "Collective name (AllReduce, AllGather, …)"
+      seq: "Collective sequence number"
+      channel_id: "NCCL channel id"
+      peer: "Peer rank for this proxy op"
+      is_send: "1 if send proxy, 0 if recv"
+      n_steps: "ProxyStep count aggregated"
+      trans_bytes: "Bytes transferred"
+      send_gpu_wait_ns: "Culprit signal — local GPU not ready to send"
+      send_wait_ns: "Send-side network wait"
+      recv_wait_ns: "Victim signal — waiting on peer data"
+      recv_flush_wait_ns: "Recv flush wait"
+    global_name: global.nccl.proxy_ops
+    federation_columns: [_host, _addr, _rank, _role]
+    notes:
+      - "Requires NCCL_PROFILER_PLUGIN + NCCL ≥ 2.26 (mask 26: Coll|ProxyOp|ProxyStep)"
+      - "macOS dev: PROBING_NCCL_MOCK=1 seeds synthetic culprit/victim pattern"
+
+  nccl.net_qp:
+    description: "NCCL NetPlugin IB QP completion timing (optional mask bit 128)"
+    synonyms: [IB QP, RoCE, net plugin, qp duration]
+    key_columns:
+      ts: "Event timestamp (nanoseconds)"
+      rank: "torch.distributed rank"
+      device: "IB device index"
+      qp_num: "Queue pair number"
+      wr_id: "Work request id"
+      opcode: "IB opcode"
+      length: "Transfer length"
+      duration_ns: "QP completion duration"
+    global_name: global.nccl.net_qp
+    federation_columns: [_host, _addr, _rank, _role]

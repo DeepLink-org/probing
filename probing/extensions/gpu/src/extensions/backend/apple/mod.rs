@@ -97,7 +97,7 @@ impl GpuBackend for AppleSiliconBackend {
     fn sample_memory(&self, ordinal: i32) -> Option<GpuMemorySample> {
         let dev = self.devices.iter().find(|d| d.ordinal == ordinal)?;
         let perf = ioreg::read_performance_stats();
-        let allocated = dev.device.current_allocated_size() as u64;
+        let allocated = dev.device.current_allocated_size();
         let budget = dev.device.recommended_max_working_set_size();
         let total = if budget > 0 {
             budget

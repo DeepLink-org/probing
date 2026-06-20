@@ -59,11 +59,7 @@ pub async fn initialize_engine() -> Result<()> {
 /// Parse `SET key = value` (value may be quoted).
 fn parse_set_assignment(stmt: &str) -> Option<(&str, &str)> {
     let mut s = stmt.trim();
-    if s.len() >= 3
-        && s.as_bytes()[0].to_ascii_lowercase() == b's'
-        && s.as_bytes()[1].to_ascii_lowercase() == b'e'
-        && s.as_bytes()[2].to_ascii_lowercase() == b't'
-    {
+    if s.len() >= 3 && s.as_bytes()[..3].eq_ignore_ascii_case(b"set") {
         s = s[3..].trim_start();
     } else {
         return None;
@@ -88,10 +84,7 @@ fn parse_set_assignment(stmt: &str) -> Option<(&str, &str)> {
 fn is_set_expr(expr: &str) -> bool {
     expr.split(';').any(|part| {
         let p = part.trim();
-        p.len() >= 3
-            && p.as_bytes()[0].to_ascii_lowercase() == b's'
-            && p.as_bytes()[1].to_ascii_lowercase() == b'e'
-            && p.as_bytes()[2].to_ascii_lowercase() == b't'
+        p.len() >= 3 && p.as_bytes()[..3].eq_ignore_ascii_case(b"set")
     })
 }
 

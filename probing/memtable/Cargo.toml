@@ -6,6 +6,7 @@ edition.workspace = true
 license.workspace = true
 description = "Self-describing columnar memory table with ring buffer"
 
+
 [dependencies]
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 memmap2 = "0.9"

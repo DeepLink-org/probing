@@ -14,7 +14,7 @@ from enum import Enum
 from typing import Iterable, Optional
 
 from probing.core import table
-from probing.parallel import parallel_fields
+from probing.parallel import current_role
 from probing.tracing import (
     _step_fields,
     comm_kind,
@@ -36,12 +36,8 @@ class CommCollective:
     global_step: int = 0
     rank: int = -1
     world_size: int = -1
-    tp_rank: int = -1
-    pp_rank: int = -1
-    dp_rank: int = -1
-    tp_size: int = -1
-    pp_size: int = -1
-    dp_size: int = -1
+    # Extensible parallel role (e.g. "dp=2,pp=1,tp=0"); see probing.parallel.role_key.
+    role: str = ""
     op: str = ""
     group_rank: int = 0
     group_size: int = 0
@@ -53,18 +49,8 @@ class CommCollective:
     async_op: int = 0
 
 
-def _topology_row_fields() -> dict:
-    fields = parallel_fields()
-    row = {
-        "tp_rank": -1,
-        "pp_rank": -1,
-        "dp_rank": -1,
-        "tp_size": -1,
-        "pp_size": -1,
-        "dp_size": -1,
-    }
-    row.update(fields)
-    return row
+def _role_row_fields() -> dict:
+    return {"role": current_role()}
 
 
 def _step_row_fields() -> dict:
@@ -94,7 +80,7 @@ def _context_fields(
     ranks_json = json.dumps(list(participate_ranks)) if participate_ranks else ""
     return {
         **_step_row_fields(),
-        **_topology_row_fields(),
+        **_role_row_fields(),
         "op": op,
         "group_rank": group_rank,
         "group_size": group_size,

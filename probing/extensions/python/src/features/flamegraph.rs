@@ -126,17 +126,12 @@ impl Flamegraph {
     fn layout_frames(&self, frame_height: f64, graph_width: f64) -> Vec<PlacedFrame> {
         let mut frames = Vec::new();
         let mut next_id = 0usize;
-        layout_node(
-            &self.root,
-            None,
-            0,
-            0.0,
-            0.0,
-            graph_width,
+        let mut ctx = LayoutCtx {
             frame_height,
-            &mut frames,
-            &mut next_id,
-        );
+            frames: &mut frames,
+            next_id: &mut next_id,
+        };
+        layout_node(&self.root, None, 0, 0.0, 0.0, graph_width, &mut ctx);
         frames
     }
 
@@ -809,6 +804,12 @@ fn insert_path(node: &mut Node, path: &[String], value: u64) {
     }
 }
 
+struct LayoutCtx<'a> {
+    frame_height: f64,
+    frames: &'a mut Vec<PlacedFrame>,
+    next_id: &'a mut usize,
+}
+
 fn layout_node(
     node: &Node,
     parent_id: Option<usize>,
@@ -816,14 +817,12 @@ fn layout_node(
     x: f64,
     y: f64,
     width: f64,
-    frame_height: f64,
-    frames: &mut Vec<PlacedFrame>,
-    next_id: &mut usize,
+    ctx: &mut LayoutCtx<'_>,
 ) -> usize {
-    let id = *next_id;
-    *next_id += 1;
+    let id = *ctx.next_id;
+    *ctx.next_id += 1;
 
-    frames.push(PlacedFrame {
+    ctx.frames.push(PlacedFrame {
         id,
         parent: parent_id,
         name: node.name.clone(),
@@ -851,11 +850,9 @@ fn layout_node(
                 Some(id),
                 depth + 1,
                 child_x,
-                y + frame_height,
+                y + ctx.frame_height,
                 child_w,
-                frame_height,
-                frames,
-                next_id,
+                ctx,
             );
             child_x += child_w;
         }
@@ -899,6 +896,7 @@ mod tests {
             count_name: "ns".to_string(),
             kind: FlamegraphKind::TorchModule,
             subtitle: "Test subtitle".to_string(),
+            metric: None,
         });
         assert!(html.contains("probing-torch-module"));
         assert!(html.contains("torch-search"));
@@ -914,6 +912,7 @@ mod tests {
             count_name: "ns".to_string(),
             kind: FlamegraphKind::TorchModule,
             subtitle: "S".to_string(),
+            metric: Some("duration".to_string()),
         });
         assert!(json.contains("\"profile\":\"torch-module\""));
         assert!(json.contains("\"subtitle\":\"S\""));

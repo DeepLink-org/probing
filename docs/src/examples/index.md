@@ -18,9 +18,10 @@ These examples show common debugging and profiling scenarios in AI/ML workflows.
 
 ```bash
 probing $ENDPOINT eval "
-print(f'Step: {trainer.current_step}')
-print(f'Loss: {trainer.last_loss:.4f}')
-print(f'LR: {optimizer.param_groups[0][\"lr\"]:.6f}')"
+from probing.tracing import step_snapshot
+snap = step_snapshot()
+print(f'local_step: {snap.local_step}, global_step: {snap.global_step}')
+"
 ```
 
 ### Monitor GPU Memory
@@ -57,10 +58,9 @@ for t in threading.enumerate():
 
 ## Running Examples
 
-All examples assume you have:
+All examples assume a target process with Probing enabled (`PROBING=1` at startup or `probing inject` on Linux).
 
-1. A running Python process with Probing enabled
-2. The `$ENDPOINT` environment variable set
+**Setup:** Repository examples need a [development environment](../contributing.md#development-setup) (`make develop`). ML demos may need extra packages — see [examples/README.md](https://github.com/DeepLink-org/probing/blob/main/examples/README.md).
 
 ```bash
 # Set endpoint

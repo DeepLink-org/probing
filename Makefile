@@ -1,258 +1,234 @@
-# ==============================================================================
-# Variables
-# ==============================================================================
-# Build mode: release (default) or debug
-ifndef DEBUG
-	MATURIN_FLAGS := --release
-	CARGO_FLAGS := --release
+# Probing Makefile
+#
+#   develop          → maturin develop (Rust/Python daily loop)
+#   frontend         → web/dist/  (manual, needs dx)
+#   wheel            → bundle skills + UI, then maturin build
+#   frontend wheel   → full release path
+#
+.DEFAULT_GOAL := help
+
+ifdef DEBUG
+	MATURIN_RELEASE :=
+	CARGO_RELEASE :=
 else
-	MATURIN_FLAGS :=
-	CARGO_FLAGS :=
+	MATURIN_RELEASE := --release
+	CARGO_RELEASE := --release
 endif
 
-# GPU: always compiled in; Linux wheels also enable CUDA (dlopen, no link-time driver).
-ifeq ($(shell uname -s),Linux)
-	MATURIN_GPU_FEATURES := gpu,gpu-cuda
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Linux)
+	MATURIN_FEATURES := gpu,gpu-cuda
 else
-	MATURIN_GPU_FEATURES := gpu
-endif
-MATURIN_FLAGS += --features $(MATURIN_GPU_FEATURES)
-
-# Frontend framework: dioxus (Tailwind compiled by `dx build` / `dx serve`)
-
-# OS-specific library extension
-ifeq ($(shell uname -s), Darwin)
-	LIB_EXT := dylib
-else
-	LIB_EXT := so
+	MATURIN_FEATURES := gpu
 endif
 
-# Cross-compilation support
+MATURIN_FLAGS := $(MATURIN_RELEASE) --features $(MATURIN_FEATURES)
+DX_PUBLIC := web/target/dx/web/release/web/public
+
 ifdef ZIG
-	ifdef TARGET
-		MATURIN_FLAGS += --zig --target $(TARGET)
-	endif
+ifdef TARGET
+	MATURIN_FLAGS += --zig --target $(TARGET)
+endif
 endif
 
-# Python version
-PYTHON ?= python3
+PYTHON ?= $(shell test -x .venv/bin/python && echo .venv/bin/python || echo python3)
+DEV_PTH := python/probing/dev_pth.py
+DEV_PY_DEPS := pyyaml pytest pytest-cov coverage ipython ipykernel
 
-# Pytest runner command
-# Lightweight version without uv
-PYTEST_RUN := PROBING=1 PYTHONPATH=python/ $(PYTHON) -m pytest
-PYTEST_ARGS := tests
+PYTEST_RUN := PROBING=1 $(PYTHON) -m pytest
+PYTEST_UNIT_ARGS := tests/unit
+PYTEST_REGRESSION_ARGS := tests/regression
+PYTEST_ARGS := $(PYTEST_UNIT_ARGS) $(PYTEST_REGRESSION_ARGS)
+
+CLIPPY_DENY := -- -D warnings
+CLIPPY_WORKSPACE := cargo clippy --workspace --all-targets --no-default-features $(CLIPPY_DENY)
+CLIPPY_CORE := cargo clippy -p probing-core --all-targets --no-default-features $(CLIPPY_DENY)
+CLIPPY_WEB := cd web && cargo clippy --all-targets $(CLIPPY_DENY)
 
 # ==============================================================================
-# Standard Targets
-# ==============================================================================
-.PHONY: all
-all: wheel
-
 .PHONY: help
 help:
-	@echo "Usage: make [target]"
+	@echo "Probing — make [target]    (see docs/src/contributing.md)"
 	@echo ""
-	@echo "Targets:"
-	@echo "  all             Build the wheel (default)."
-	@echo "  setup           Install dev tools and environment (pre-commit, etc.)."
-	@echo "  wheel           Build the Python wheel using maturin."
-	@echo "  wheel-ci        Build wheel for CI (Linux: ZIG=1 cross-build)."
-	@echo "  install-wheel   pip install dist/probing-*.whl and verify _core."
-	@echo "  develop         Install the package in editable mode."
-	@echo "  test            Run all tests (Rust + Python)."
-	@echo "  test-rust       Run Rust tests."
-	@echo "  test-python     Run Python tests (PYTHONPATH only, no wheel)."
-	@echo "  test-python-wheel  Run Python tests against installed wheel."
-	@echo "  test-doctest    Run python/probing module doctests (optional)."
-	@echo "  coverage-rust   Run Rust coverage (cargo llvm-cov)."
-	@echo "  coverage-python Generate Python coverage (pytest-cov)."
-	@echo "  coverage-python-wheel  Python coverage via installed wheel."
-	@echo "  coverage        Run both Rust and Python coverage and aggregate report."
-	@echo "  bootstrap       Install Python versions for testing."
-	@echo "  clean           Remove build artifacts."
-	@echo "  frontend        Build Dioxus frontend."
-	@echo "  web/dist        Build the web app (Dioxus; Tailwind via dx)."
-	@echo "  docs            Build Sphinx documentation."
-	@echo "  docs-serve      Start live preview server for documentation."
+	@echo "  develop / dev     Bootstrap: _core, CLI, pytest, site hook"
+	@echo "  core              Rebuild probing._core after Rust edits"
+	@echo "  frontend          Build web/dist/ (dx; manual)"
+	@echo "  wheel             Build dist/*.whl (needs web/dist/; bundles skills + UI)"
+	@echo "  wheel-ci          wheel with zig cross-compile on Linux"
+	@echo "  install-wheel     pip install dist/probing-*.whl"
+	@echo "  test / lint       Full test and lint suites"
+	@echo "  check-dev         Quick env sanity check"
+	@echo "  clean             Remove build artifacts"
 	@echo ""
-	@echo "Environment Variables:"
-	@echo "  DEBUG      Build mode: release (default) or debug"
-	@echo "  ZIG        Use zigbuild for cross-compilation"
-	@echo "  TARGET     Target architecture for cross-compilation"
-	@echo "  PYTHON     Python interpreter to use (default: python3)"
-	@echo ""
+	@echo "Env: PYTHON  DEBUG=1  ZIG=1 TARGET=<triplet>"
 
 # ==============================================================================
-# Setup Targets
-# ==============================================================================
-.PHONY: setup
+.PHONY: setup install-dev-python-deps
 setup:
-	@echo "Setting up development environment..."
-	@echo "Installing pre-commit..."
-	@if command -v pip >/dev/null 2>&1; then pip install pre-commit; else echo "pip not found, skipping pre-commit install"; fi
-	@if command -v pre-commit >/dev/null 2>&1; then pre-commit install; else echo "pre-commit not found, skipping hook install"; fi
-	@echo "Environment setup complete."
+	@if command -v pip >/dev/null 2>&1; then pip install pre-commit; fi
+	@if command -v pre-commit >/dev/null 2>&1; then pre-commit install; fi
+
+install-dev-python-deps:
+	@if $(PYTHON) -c "import pytest, yaml" 2>/dev/null; then \
+		echo "  dev Python deps OK"; \
+	elif $(PYTHON) -c "import pip" 2>/dev/null; then \
+		$(PYTHON) -m pip install -q -U pip $(DEV_PY_DEPS); \
+	elif command -v uv >/dev/null 2>&1; then \
+		uv pip install -q --python $(PYTHON) $(DEV_PY_DEPS); \
+	else \
+		$(PYTHON) -m ensurepip --upgrade; \
+		$(PYTHON) -m pip install -q -U pip $(DEV_PY_DEPS); \
+	fi
 
 # ==============================================================================
-# Build Targets
-# ==============================================================================
-.PHONY: wheel
-wheel: web/dist/index.html
-	@echo "Building wheel with maturin..."
-	maturin build $(MATURIN_FLAGS)
+.PHONY: core develop dev check-dev frontend wheel wheel-ci install-wheel wheel-bundle nccl-profiler-lib
 
-.PHONY: develop
-develop:
-	@echo "Installing in editable mode..."
+core: nccl-profiler-lib
 	maturin develop $(MATURIN_FLAGS)
 
-# CI: Linux cross-builds manylinux wheels; macOS uses native maturin.
-.PHONY: wheel-ci
+develop: core install-dev-python-deps
+	$(PYTHON) $(DEV_PTH) install
+	@$(MAKE) --no-print-directory check-dev
+
+dev: develop
+
+check-dev:
+	@$(PYTHON) $(DEV_PTH) status >/dev/null 2>&1 \
+		|| { echo "run: make develop"; exit 1; }
+	@PROBING=1 $(PYTHON) -c "\
+import shutil, sys; \
+from probing import _core, VERSION; \
+from probing.skills.tools import list_skills; \
+from probing.skills.paths import repo_skills_dir; \
+print(f'ok: probing {VERSION}, {len(list_skills())} skills, cli={shutil.which(\"probing\") or sys.executable}')" \
+		|| { echo "run: make develop"; exit 1; }
+
+frontend:
+	@test -n "$$SKIP_FRONTEND_CLEAN" || rm -rf web/dist
+	cd web && dx build --release
+	@test -f $(DX_PUBLIC)/index.html
+	cp -R $(DX_PUBLIC)/. web/dist/
+	@mkdir -p web/dist/assets
+	@cp -f web/assets/logo.svg web/dist/logo.svg 2>/dev/null || true
+	@cp -f web/assets/tailwind.css web/dist/assets/tailwind.css
+	@echo "web/dist ($$(du -sh web/dist | cut -f1))"
+
+wheel-bundle:
+	@test -f web/dist/index.html || { echo "error: run 'make frontend' first"; exit 1; }
+	rm -rf python/probing/_skills python/probing/_web
+	cp -R skills python/probing/_skills
+	cp -R web/dist python/probing/_web
+
+wheel: wheel-bundle nccl-profiler-lib
+	maturin build $(MATURIN_FLAGS)
+
 wheel-ci:
-ifeq ($(shell uname -s),Linux)
+ifeq ($(UNAME_S),Linux)
 	$(MAKE) ZIG=1 wheel
 else
 	$(MAKE) wheel
 endif
-	@ls -la dist/probing-*.whl
 
-.PHONY: install-wheel
 install-wheel:
 	@WH=$$(ls -1 dist/probing-*.whl 2>/dev/null | head -1); \
-	test -n "$$WH" || { echo "error: no wheel in dist/ — run 'make wheel' first"; exit 1; }; \
-	$(PYTHON) -m pip install --upgrade pip; \
-	$(PYTHON) -m pip install --force-reinstall "$$WH"; \
-	$(PYTHON) -c "import probing; from probing import _core; print('probing', probing.VERSION, '_core ok')"
+	test -n "$$WH" || { echo "run: make wheel"; exit 1; }; \
+	$(PYTHON) -m pip install -q -U pip && \
+	$(PYTHON) -m pip install --force-reinstall "$$WH" && \
+	$(PYTHON) -c "import probing; from probing import _core; print('probing', probing.VERSION)"
 
-# Test deps for wheel-based CI (extension from wheel, pure Python from checkout).
+# Linux NCCL plugin copied into python/probing/libs/ for the wheel.
+ifeq ($(UNAME_S),Linux)
+ifdef DEBUG
+NCCL_OUT := target/debug/libprobing_nccl_profiler.so
+else
+NCCL_OUT := target/release/libprobing_nccl_profiler.so
+endif
+nccl-profiler-lib:
+	cargo build -p probing-nccl-profiler $(CARGO_RELEASE)
+	mkdir -p python/probing/libs
+	cp $(NCCL_OUT) python/probing/libs/
+else
+nccl-profiler-lib:
+	@:
+endif
+
+# ==============================================================================
 PYTEST_WHEEL_DEPS := pytest pytest-cov coverage pyyaml websockets pandas torch ipykernel
-PYTEST_WHEEL_ARGS := tests python/probing
+PYTEST_WHEEL_ARGS := tests/unit tests/regression python/probing
 PYTEST_WHEEL_EXTRA ?=
 
-.PHONY: test-python-wheel
+.PHONY: test test-rust test-rust-unit test-rust-regression test-python test-python-unit test-python-regression test-doctest test-python-wheel coverage-python-wheel
+.PHONY: lint lint-python lint-rust lint-core clippy clippy-fix coverage coverage-rust coverage-python bootstrap clean docs-install docs docs-serve docs-clean
+
+test: test-rust test-python
+test-rust: test-rust-unit test-rust-regression
+
+test-rust-unit:
+	@if command -v pyenv >/dev/null 2>&1; then \
+		P=$$(pyenv which python3 2>/dev/null); \
+		test -n "$$P" && export PYTHON_SYS_EXECUTABLE=$$P PYO3_PYTHON=$$P; \
+	fi; \
+	cargo nextest run --lib --workspace --no-default-features --nff
+
+test-rust-regression:
+	@if command -v pyenv >/dev/null 2>&1; then \
+		P=$$(pyenv which python3 2>/dev/null); \
+		test -n "$$P" && export PYTHON_SYS_EXECUTABLE=$$P PYO3_PYTHON=$$P; \
+	fi; \
+	cargo nextest run --tests -p probing-rust-regression -p probing-macros --no-default-features --nff
+
+test-python: check-dev test-python-unit test-python-regression
+test-python-unit: check-dev
+	PROBING=0 ${PYTEST_RUN} $(PYTEST_UNIT_ARGS)
+test-python-regression: check-dev
+	${PYTEST_RUN} $(PYTEST_REGRESSION_ARGS)
+test-doctest:
+	${PYTEST_RUN} --doctest-modules python/probing --ignore=python/probing/cli/__main__.py
+
 test-python-wheel:
-	$(PYTHON) -m pip install --upgrade pip
-	$(PYTHON) -m pip install $(PYTEST_WHEEL_DEPS)
+	$(PYTHON) -m pip install -q -U pip $(PYTEST_WHEEL_DEPS)
 	PROBING=1 PYTHONPATH=python/ $(PYTHON) -m pytest $(PYTEST_WHEEL_EXTRA) $(PYTEST_WHEEL_ARGS)
 
-.PHONY: coverage-python-wheel
 coverage-python-wheel:
 	$(MAKE) test-python-wheel PYTEST_WHEEL_EXTRA="--cov=python/probing --cov=tests --cov-report=xml:coverage.xml"
 
-# Ensure frontend assets exist before packaging
-web/dist/index.html:
-	@$(MAKE) --no-print-directory web/dist
+lint: lint-python lint-rust
+lint-core:
+	$(CLIPPY_CORE)
+lint-python:
+	@if $(PYTHON) -c "import ruff" 2>/dev/null; then \
+		$(PYTHON) -m ruff check python/ tests/; \
+	elif command -v ruff >/dev/null 2>&1; then ruff check python/ tests/; \
+	else echo "install ruff"; exit 1; fi
+lint-rust:
+	$(CLIPPY_WORKSPACE)
+	$(CLIPPY_WEB)
+clippy: lint-rust
+clippy-fix:
+	cargo clippy --workspace --all-targets --no-default-features --fix --allow-dirty --allow-staged $(CLIPPY_DENY)
+	cd web && cargo clippy --all-targets --fix --allow-dirty --allow-staged $(CLIPPY_DENY)
 
-.PHONY: web/dist
-DX_PUBLIC := web/target/dx/web/release/web/public
-web/dist:
-	@echo "Building Dioxus web app (dx compiles Tailwind automatically)..."
-	@rm -rf web/dist
-	@mkdir -p web/dist/assets
-	@echo "Pruning stale dx assets (avoids compressing 150+ old wasm/js bundles)..."
-	@rm -rf $(DX_PUBLIC)/assets $(DX_PUBLIC)/wasm
-	cd web && dx build --release
-	@echo "Copying active bundle to web/dist..."
-	@cp -f $(DX_PUBLIC)/index.html web/dist/
-	@JS=$$(grep -oE 'web-dxh[a-f0-9]+\.js' web/dist/index.html | head -1); \
-	WASM=$$(grep -oE 'web_bg-dxh[a-f0-9]+\.wasm' $(DX_PUBLIC)/assets/$$JS); \
-	for f in "$$JS" "$$WASM" "$$JS.br" "$$WASM.br"; do \
-		[ -n "$$f" ] && [ -f "$(DX_PUBLIC)/assets/$$f" ] && cp "$(DX_PUBLIC)/assets/$$f" web/dist/assets/; \
-	done; \
-	if [ -z "$$JS" ] || [ -z "$$WASM" ]; then \
-		echo "error: could not resolve js/wasm bundle from index.html"; exit 1; \
-	fi
-	@echo "Copying static assets..."
-	@cp -f web/assets/tailwind.css web/assets/*.svg web/dist/assets/ 2>/dev/null || true
-	@cp -f web/assets/logo.svg web/dist/logo.svg 2>/dev/null || true
-	@if command -v brotli >/dev/null 2>&1; then \
-		for f in web/dist/assets/tailwind.css web/dist/logo.svg; do \
-			[ -f "$$f" ] && [ ! -f "$$f.br" ] && brotli -kf "$$f"; \
-		done; \
-	fi
-	@echo "web/dist size: $$(du -sh web/dist | cut -f1)"
-
-# Convenience targets for frontend builds
-.PHONY: frontend
-frontend:
-	@echo "Building Dioxus frontend..."
-	$(MAKE) web/dist
-
-# ==============================================================================
-# Testing & Utility Targets
-# ==============================================================================
-
-.PHONY: test
-test: test-rust test-python
-
-.PHONY: test-rust
-test-rust:
-	@echo "Running Rust tests..."
-	@# Set Python environment variables for pyenv if available
-	@if command -v pyenv >/dev/null 2>&1; then \
-		PYTHON_PATH=$$(pyenv which python3 2>/dev/null || echo ""); \
-		if [ -n "$$PYTHON_PATH" ]; then \
-			export PYTHON_SYS_EXECUTABLE=$$PYTHON_PATH; \
-			export PYO3_PYTHON=$$PYTHON_PATH; \
-			echo "Using pyenv Python: $$PYTHON_PATH"; \
-		fi; \
-	fi; \
-	cargo nextest run --workspace --no-default-features --nff
-
-# Renamed from 'pytest' to 'test-python' for consistency
-.PHONY: test-python
-test-python:
-	@echo "Running pytest for probing package..."
-	${PYTEST_RUN} $(PYTEST_ARGS)
-
-.PHONY: test-doctest
-test-doctest:
-	@echo "Running module doctests (may require PROBING=0; Rust examples are +SKIP)..."
-	${PYTEST_RUN} --doctest-modules python/probing --ignore=python/probing/cli/__main__.py
-
-.PHONY: pytest
-pytest: test-python
-
-.PHONY: coverage-rust
 coverage-rust:
-	@echo "Running Rust coverage (requires cargo-llvm-cov)..."
-	# Matches CI workflow step "Run Rust tests and collect coverage"
-	# Uses --lcov and --output-path coverage.lcov to match CI artifact naming
 	cargo llvm-cov clean --workspace
-	cargo llvm-cov nextest run --workspace --no-default-features --nff --lcov --output-path coverage.lcov --ignore-filename-regex '(.*/tests?/|.*/benches?/|.*/examples?/)' || echo "Install with: cargo install cargo-llvm-cov"
-	cargo llvm-cov report nextest --workspace --no-default-features --nff --json --output-path coverage.json || true
-
-.PHONY: coverage-python
+	cargo llvm-cov nextest run --workspace --no-default-features --nff --lcov --output-path coverage.lcov --ignore-filename-regex '(.*/tests?/|.*/benches?/|.*/examples?/)' || true
 coverage-python:
-	@echo "Running Python coverage..."
-	# Matches CI workflow step "Run Python tests and collect coverage"
-	# Uses coverage.xml as output to match CI artifact naming
-	${PYTEST_RUN} --cov=python/probing --cov=tests --cov-report=xml:coverage.xml --cov-report=term $(PYTEST_ARGS) || echo "Install pytest-cov via: uv add pytest-cov"
-
-.PHONY: coverage
+	${PYTEST_RUN} --cov=python/probing --cov=tests --cov-report=xml:coverage.xml --cov-report=term $(PYTEST_ARGS) || true
 coverage: coverage-rust coverage-python
-	@echo "Aggregating coverage summaries..."
-	python scripts/coverage/aggregate.py || echo "Aggregation script missing or failed"
+	python scripts/coverage/aggregate.py || true
 
-.PHONY: bootstrap
 bootstrap:
-	@echo "Bootstrapping Python environments..."
 	uv python install 3.8 3.9 3.10 3.11 3.12 3.13
 
-.PHONY: docs docs-serve
+docs-install:
+	@cd docs && $(MAKE) install
 docs:
-	@echo "Building Sphinx documentation..."
-	@cd docs && $(MAKE) html
-
+	@cd docs && $(MAKE) build
 docs-serve:
-	@echo "Starting documentation live preview server..."
 	@cd docs && $(MAKE) serve
+docs-clean:
+	@cd docs && $(MAKE) clean
 
-.PHONY: clean
 clean:
-	@echo "Cleaning up..."
-	rm -rf dist
-	rm -rf web/dist
-	rm -rf docs/_build
+	rm -rf dist web/dist docs/site python/probing/_skills python/probing/_web
 	cargo clean
 	rm -f coverage.lcov coverage.xml coverage.json

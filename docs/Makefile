@@ -1,5 +1,7 @@
 # Makefile for Probing Documentation (MkDocs)
 
+PYTHON ?= $(shell test -x ../.venv/bin/python && echo ../.venv/bin/python || echo python3)
+
 .PHONY: help install serve build clean deploy
 
 # Default target
@@ -16,7 +18,7 @@ help:
 # Install dependencies
 install:
 	@echo "Installing documentation dependencies..."
-	pip install mkdocs mkdocs-material mkdocs-material-extensions mkdocstrings mkdocstrings-python
+	$(PYTHON) -m pip install -r requirements.txt
 
 # Live preview server
 serve:

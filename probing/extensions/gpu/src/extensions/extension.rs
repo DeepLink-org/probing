@@ -60,7 +60,7 @@ impl GpuProbeExtension {
         start_gpu_sampling(interval as u64).map_err(|e| {
             EngineError::InvalidOptionValue(
                 Self::OPTION_GPU_SAMPLE_INTERVAL_MS.to_string(),
-                format!("{e}").into(),
+                format!("{e}"),
             )
         })?;
 

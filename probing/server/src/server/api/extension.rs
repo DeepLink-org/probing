@@ -103,7 +103,7 @@ mod tests {
 
     fn load_spec() -> serde_json::Value {
         let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../tests/spec/api_spec.json");
+            .join("../../tests/regression/spec/api_spec.json");
         let text = std::fs::read_to_string(path).expect("read api_spec.json");
         serde_json::from_str(&text).expect("parse api_spec.json")
     }

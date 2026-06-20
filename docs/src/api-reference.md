@@ -1,274 +1,192 @@
 # API Reference
 
-Complete reference for Probing's CLI commands and Python API.
+CLI commands and in-process Python API. Table schemas live in **[SQL Tables](reference/sql-tables.md)**.
 
-## CLI Commands
+## CLI commands
 
-### probing inject
+All commands accept `-t, --target <endpoint>` (`pid` or `host:port`) unless noted.
 
-Inject probes into a running process.
+### Core interaction
+
+| Command | Aliases | Description |
+|---------|---------|-------------|
+| `query "<sql>"` | `q` | Run SQL against memtables |
+| `eval "<code>"` | `e` | Execute Python in the target process |
+| `backtrace` | `bt`, `b` | Capture stack → `python.backtrace` |
+| `repl` | `r` | Interactive Python REPL |
 
 ```bash
-probing -t <pid> inject
+probing -t $ENDPOINT query "SELECT * FROM python.torch_trace LIMIT 10"
+probing -t $ENDPOINT eval "import torch; print(torch.cuda.is_available())"
+probing -t $ENDPOINT backtrace
 ```
 
-**Options:**
+### Discovery & introspection
 
-- `-t, --target <pid>` - Target process ID (required)
-
-**Platform:** Linux only
-
----
-
-### probing query
-
-Execute SQL queries against collected data.
+| Command | Aliases | Description |
+|---------|---------|-------------|
+| `tables` | `tbl` | List queryable tables (`--all` includes `information_schema`) |
+| `list` | `ls`, `l` | List processes with probes attached |
+| `memory` | `mem` | Host RSS + GPU memory samples |
+| `config [key[=value]]` | `cfg`, `c` | View or set runtime config |
+| `flamegraph [pprof\|torch]` | `flame`, `fg` | CPU pprof or Torch module flamegraph |
+| `rdma [hca]` | `rd` | RDMA flow analysis (when available) |
 
 ```bash
-probing -t <endpoint> query "<sql>"
+probing -t $ENDPOINT tables
+probing -t $ENDPOINT config probing.torch.profiling
+probing -t $ENDPOINT config probing.torch.profiling=ordered:0.1
+probing -t $ENDPOINT flamegraph torch -o torch.html
 ```
 
-**Examples:**
+### Cluster (distributed)
+
+| Subcommand | Description |
+|------------|-------------|
+| `cluster nodes` | List registered cluster nodes (`rank`, `role`, `status`, …) |
+| `cluster query "<sql>"` | Fan-out SQL; results include federation tags (`_rank`, `_role`, …) |
+| `cluster query --local "<sql>"` | Query only the connected endpoint |
 
 ```bash
-# Query torch traces
-probing -t 12345 query "SELECT * FROM python.torch_trace LIMIT 10"
-
-# Aggregate query
-probing -t host:8080 query "SELECT module, AVG(duration) FROM python.torch_trace GROUP BY module"
+probing -t rank0:8080 cluster nodes
+probing -t rank0:8080 cluster query "SELECT _rank, _role, AVG(duration) FROM global.python.comm_collective GROUP BY 1,2"
 ```
 
----
+In-process equivalent: `probing.query("SELECT … FROM global.python.torch_trace …")` when peers are registered.
 
-### probing eval
+### Diagnostic skills
 
-Execute Python code in target process.
+Structured multi-step SQL playbooks (shared with Web Agent):
+
+| Subcommand | Description |
+|------------|-------------|
+| `skill list` | List bundled skills (`health_overview`, `slow_rank`, …) |
+| `skill run <id>` | Run skill against target (`-p key=value`, `--global`, `--local`) |
+| `skill install` | Copy skills into Cursor / Claude / Codex agent dirs |
+| `skill update` | Refresh installed skills from bundle |
 
 ```bash
-probing -t <endpoint> eval "<python_code>"
+probing -t $ENDPOINT skill list
+probing -t $ENDPOINT skill run health_overview
+probing -t $ENDPOINT skill run slow_rank --global
+python -m probing.skills validate   # dev: validate skills/ authoring tree
 ```
 
-**Examples:**
+See **[Diagnostic Skills](guide/skills.md)** for workflow.
+
+### Process management
+
+| Command | Platform | Description |
+|---------|----------|-------------|
+| `inject` | Linux | Attach probe to running PID |
+| `launch [--recursive] <args…>` | All | Start Python with probing enabled |
 
 ```bash
-# Simple evaluation
-probing -t 12345 eval "print('hello')"
-
-# Multi-statement
-probing -t 12345 eval "import torch; print(torch.cuda.is_available())"
-```
-
----
-
-### probing backtrace
-
-Capture current stack trace.
-
-```bash
-probing -t <endpoint> backtrace
-```
-
-**Output:** Stack frames with function names, files, and line numbers.
-
----
-
-### probing repl
-
-Start interactive Python REPL.
-
-```bash
-probing -t <endpoint> repl
-```
-
-**Features:**
-
-- Tab completion
-- Multi-line input
-- Command history
-
----
-
-### probing list
-
-List processes with probing enabled.
-
-```bash
-probing list
-```
-
-**Output:** Process IDs and their probing status.
-
----
-
-### probing config
-
-View or modify configuration.
-
-```bash
-# View all config
-probing -t <endpoint> config
-
-# View specific key
-probing -t <endpoint> config probing.sample_rate
-
-# Set value
-probing -t <endpoint> config probing.sample_rate=0.1
+probing -t $PID inject          # Linux attach
+PROBING=1 python train.py       # macOS / Windows / preferred for training
 ```
 
 ---
 
-### probing memory
+## Python API (in-process)
 
-Quick memory overview.
+Use when the training script runs with `PROBING=1` (or after Linux `inject`). **There is no** `probing.connect()` — remote access is always CLI `-t <endpoint>`.
 
-```bash
-probing -t <endpoint> memory
-```
-
----
-
-### probing rdma
-
-RDMA flow analysis.
-
-```bash
-probing -t <endpoint> rdma
-```
-
-## Python API
-
-### probing.connect
-
-Connect to a probing endpoint.
+### probing.query
 
 ```python
-from probing import connect
+import probing
 
-# Connect by PID
-probe = connect(pid=12345)
-
-# Connect by address
-probe = connect(address="host:8080")
+df = probing.query("SELECT * FROM python.torch_trace LIMIT 10")
 ```
 
----
-
-### probe.eval
-
-Execute code in target process.
+### probing.span / probing.event
 
 ```python
-result = probe.eval("print('hello')")
+with probing.span("forward", kind="nn.forward"):
+    ...
+probing.event("batch.stats", attributes=[{"loss": 1.25}])
 ```
 
----
-
-### probe.query
-
-Execute SQL query.
+### @table (dataclass plugins)
 
 ```python
-df = probe.query("SELECT * FROM python.torch_trace")
-```
-
----
-
-### @probing.table
-
-Register custom data table.
-
-```python
+from dataclasses import dataclass
 from probing import table
 
-@table("my_data")
-def get_my_data():
-    return [{"key": "value"}]
+@table
+@dataclass
+class MyMetrics:
+    step: int
+    loss: float
+
+def init():
+    MyMetrics.init_table()
+
+MyMetrics(step=1, loss=0.42).save()
 ```
 
----
+See **[Extensibility](design/extensibility.md)**.
 
-### @probing.metric
-
-Register custom metric.
+### probing.set_role / current_role / clear_role
 
 ```python
-from probing import metric
-
-@metric("custom_metric")
-def get_metric():
-    return 42.0
+probing.set_role("dp=2,pp=1,tp=0")
+probing.set_role(dp=2, pp=1, tp=0)
+probing.current_role()
+probing.clear_role()
 ```
 
-## SQL Tables
+### probing.tracing.step_snapshot
 
-### python.backtrace
+```python
+from probing.tracing import step_snapshot
 
-Stack trace information.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| func | string | Function name |
-| file | string | Source file |
-| lineno | int | Line number |
-| depth | int | Stack depth |
-| frame_type | string | Python/Native |
+snap = step_snapshot()
+# snap.local_step, snap.global_step — use in SQL filters and custom tables
+```
 
 ---
 
-### python.torch_trace
+## Configuration
 
-PyTorch execution traces.
+| Key | Description |
+|-----|-------------|
+| `probing.torch.profiling` | TorchProbe (`on`, `ordered:0.5`, `random:0.1`, `tracepy=on`, …) |
+| `probing.pprof.sample_freq` | CPU pprof sampling frequency (Hz) |
 
-| Column | Type | Description |
-|--------|------|-------------|
-| step | int | Training step |
-| seq | int | Sequence number |
-| module | string | Module name |
-| stage | string | Hook label: `pre forward`, `post forward`, `pre step`, `post step` (duration on post rows; backward not collected by default) |
-| allocated | float | GPU memory (MB) |
-| max_allocated | float | Peak GPU memory (MB) |
-| cached | float | Cached memory (MB) |
-| max_cached | float | Peak cached memory (MB) |
-| time_offset | float | Seconds since step time anchor |
-| duration | float | Execution time (sec); meaningful on post rows |
+```bash
+probing -t $ENDPOINT config
+probing -t $ENDPOINT config probing.torch.profiling=ordered:0.1
+```
 
----
+There is **no** `probing.sample_rate` key. Torch sampling is controlled via `probing.torch.profiling` or `PROBING_TORCH_PROFILING`.
 
-### python.variables
-
-Variable tracking.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| step | int | Training step |
-| func | string | Function name |
-| name | string | Variable name |
-| value | string | String representation |
-
----
-
-### information_schema.df_settings
-
-Configuration settings.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| name | string | Setting name |
-| value | string | Setting value |
-
-## Configuration Options
-
-| Key | Default | Description |
-|-----|---------|-------------|
-| `probing.torch.profiling` | — | TorchProbe spec (`on`, `ordered:0.5`, `random:0.1`, options) |
-| `probing.pprof.sample_freq` | — | CPU pprof sampling frequency (Hz) |
-
-## Environment Variables
+### Environment variables
 
 | Variable | Description |
 |----------|-------------|
-| `PROBING` | Enable probing (1=on) |
-| `PROBING_PORT` | TCP server port |
-| `PROBING_TORCH_PROFILING` | TorchProbe (`on`, `ordered:0.5`, `random:0.1`, `tracepy=on`, …) |
-| `PROBING_PPROF_SAMPLE_FREQ` | Synced to `probing.pprof.sample_freq` (CPU pprof Hz) |
-| `PROBING_AUTH_TOKEN` | Authentication token |
+| `PROBING` | Enable probing (`1`) |
+| `PROBING_PORT` | TCP listen port for remote CLI |
+| `PROBING_TORCH_PROFILING` | TorchProbe spec (mirrors `probing.torch.profiling`) |
+| `PROBING_PPROF_SAMPLE_FREQ` | CPU pprof Hz |
+| `PROBING_AUTH_TOKEN` | HTTP auth token |
+| `PROBING_ROLE_<NAME>` | Custom parallel dimension for `role` derivation |
+
+---
+
+## Documented but not implemented {#unimplemented-apis}
+
+Do not use these in new code — listed for migration clarity:
+
+| API / pattern | Use instead |
+|---------------|-------------|
+| `probing.connect()` | CLI `probing -t <endpoint> …` |
+| `@metric` decorator | `@table` dataclass + `.save()` |
+| Function-style `@table` | Dataclass + `@table` only |
+| `probing.sample_rate` config | `probing.torch.profiling` / `PROBING_TORCH_PROFILING` |
+| `probing.is_profiling_active()` | `probing tables` / `SELECT COUNT(*) FROM python.torch_trace` |
+| `probing.flush()` | Rows append on event; no flush API |
+| `probing.get_config()` (Python) | CLI `probing config` |
+| `cluster list` | `cluster nodes` |
+| `nccl_trace` / `training_metrics` tables | `python.comm_collective`, `nccl.proxy_ops`, `python.torch_trace` |

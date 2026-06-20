@@ -80,10 +80,17 @@ plugins:
           site_name: "Probing 文档"
           nav_translations:
             Home: 首页
+            Getting Started: 入门
             Installation: 安装指南
+            Development Setup: 开发环境
+            Welcome Contributors: 欢迎参与开发
+            Welcome: 欢迎参与
+            Submitting Changes: 提交变更
             Quick Start: 快速开始
             User Guide: 用户指南
+            Core Concepts: 核心概念
             SQL Analytics: SQL 分析
+            Diagnostic Skills: 诊断 Skill
             Memory Analysis: 内存分析
             Debugging: 调试指南
             Troubleshooting: 常见问题
@@ -94,11 +101,14 @@ plugins:
             Distributed: 分布式
             Cluster with Pulsing: 基于 Pulsing 的集群
             Extensibility: 扩展机制
+            Modularity: 模块化与边界
             Examples: 示例
             Training Debugging: 训练调试
             Memory Leak: 内存泄漏
             Performance Analysis: 性能分析
             API Reference: API 参考
+            Reference: 参考手册
+            SQL Tables: SQL 表目录
             Versions: 版本兼容性
             Contributing: 贡献指南
   - mkdocstrings:
@@ -113,21 +123,26 @@ plugins:
 
 nav:
   - Home: index.md
-  - Installation: installation.md
-  - Quick Start: quickstart.md
+  - Getting Started:
+    - Installation: installation.md
+    - Quick Start: quickstart.md
+    - Core Concepts: guide/concepts.md
   - User Guide:
     - guide/index.md
     - SQL Analytics: guide/sql-analytics.md
+    - Diagnostic Skills: guide/skills.md
     - Memory Analysis: guide/memory-analysis.md
     - Debugging: guide/debugging.md
     - Troubleshooting: guide/troubleshooting.md
   - Design:
     - design/index.md
+    - Modularity: design/modularity.md
     - Architecture: design/architecture.md
     - Data Layer: design/data-layer.md
     - Profiling: design/profiling.md
     - Debugging: design/debugging.md
     - Distributed: design/distributed.md
+    - NCCL Profiler: design/nccl-profiler.md
     - Cluster with Pulsing: design/cluster-pulsing.md
     - Extensibility: design/extensibility.md
   - Examples:
@@ -135,9 +150,15 @@ nav:
     - Training Debugging: examples/training-debugging.md
     - Memory Leak: examples/memory-leak.md
     - Performance Analysis: examples/performance-analysis.md
-  - API Reference: api-reference.md
-  - Versions: versions.md
-  - Contributing: contributing.md
+  - Reference:
+    - reference/index.md
+    - SQL Tables: reference/sql-tables.md
+    - API Reference: api-reference.md
+    - Versions: versions.md
+  - Contributing:
+    - Welcome: contributing.md#getting-started
+    - Development Setup: contributing.md#development-setup
+    - Submitting Changes: contributing.md#submitting-changes
 
 extra:
   generator: false
@@ -150,4 +171,4 @@ extra:
 extra_css:
   - assets/stylesheets/home.css
 
-copyright: © 2025 Probing. All rights reserved.
+copyright: © 2025–2026 Probing. All rights reserved.

@@ -1,4 +1,4 @@
-//! Investigation Agent — playbook-driven diagnostic chat panel.
+//! Investigation Agent — skill-driven diagnostic chat panel.
 
 pub mod chat;
 pub mod panel;

@@ -288,6 +288,16 @@ impl StackTracer for SignalTracer {
 }
 
 pub fn backtrace_signal_handler() {
+    // Ignore stray SIGUSR2 (e.g. macOS tooling or other libraries). Only run
+    // capture logic while `trace_thread_signal` holds a receiver in the slot.
+    let expecting = NATIVE_CALLSTACK_SENDER_SLOT
+        .try_lock()
+        .ok()
+        .is_some_and(|guard| guard.is_some());
+    if !expecting {
+        return;
+    }
+
     // Runs on the signaled thread: native unwind + thread-local eval-frame tracer stack.
     let native_stacks = SignalTracer::get_native_stacks().unwrap_or_default();
     if SignalTracer::send_frames(native_stacks).is_err() {

@@ -1,4 +1,4 @@
-//! Catalog, intent, and page routing — shared playbook index (embedded YAML).
+//! Catalog, intent, and page routing — shared skill index (embedded YAML).
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -8,14 +8,14 @@ use serde::Deserialize;
 use crate::app::Route;
 use crate::state::profiling::normalize_profiling_view;
 
-const CATALOG_YAML: &str = include_str!("../../../playbooks/catalog.yaml");
-const INTENTS_YAML: &str = include_str!("../../../playbooks/semantic/intents.yaml");
-const PAGES_YAML: &str = include_str!("../../../playbooks/semantic/pages.yaml");
+const CATALOG_YAML: &str = include_str!("../../../skills/catalog.yaml");
+const INTENTS_YAML: &str = include_str!("../../../skills/semantic/intents.yaml");
+const PAGES_YAML: &str = include_str!("../../../skills/semantic/pages.yaml");
 
 #[derive(Debug, Deserialize)]
 struct CatalogFile {
     #[serde(default)]
-    playbooks: Vec<CatalogEntry>,
+    skills: Vec<CatalogEntry>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -44,7 +44,7 @@ struct IntentEntry {
     #[serde(default)]
     keywords: Vec<String>,
     #[serde(default)]
-    playbooks: Vec<String>,
+    skills: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -60,7 +60,7 @@ pub struct PageEntry {
     #[serde(default)]
     pub description: String,
     #[serde(default)]
-    pub playbooks: Vec<String>,
+    pub skills: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -69,14 +69,20 @@ pub struct PageDescriptor {
     pub title: String,
     pub path: String,
     pub description: String,
-    pub suggested_playbooks: Vec<String>,
+    pub suggested_skills: Vec<String>,
 }
 
 fn catalog_file() -> &'static CatalogFile {
     static CACHE: OnceLock<CatalogFile> = OnceLock::new();
     CACHE.get_or_init(|| {
-        serde_yaml::from_str(CATALOG_YAML).unwrap_or(CatalogFile { playbooks: vec![] })
+        serde_yaml::from_str(CATALOG_YAML).unwrap_or(CatalogFile {
+            skills: vec![],
+        })
     })
+}
+
+fn catalog_entries() -> Vec<CatalogEntry> {
+    catalog_file().skills.clone()
 }
 
 fn intent_file() -> &'static IntentCatalogFile {
@@ -97,18 +103,14 @@ fn page_file() -> &'static PageCatalogFile {
     })
 }
 
-pub fn catalog_playbook_ids() -> Vec<String> {
-    let mut entries: Vec<_> = catalog_file().playbooks.clone();
+pub fn catalog_skill_ids() -> Vec<String> {
+    let mut entries = catalog_entries();
     entries.sort_by_key(|e| e.priority);
     entries.into_iter().map(|e| e.id).collect()
 }
 
 fn catalog_entry(id: &str) -> Option<CatalogEntry> {
-    catalog_file()
-        .playbooks
-        .iter()
-        .find(|e| e.id == id)
-        .cloned()
+    catalog_entries().into_iter().find(|e| e.id == id)
 }
 
 pub fn page_id_for_route(route: &Route) -> String {
@@ -124,7 +126,7 @@ pub fn page_id_for_route(route: &Route) -> String {
         Route::ProfilingRedirect {} | Route::ChromeTracingRedirect {} => "profiling".into(),
         Route::AnalyticsPage {} => "analytics".into(),
         Route::PythonPage {} => "python".into(),
-        Route::TracesPage {} | Route::SpansPage {} => "spans".into(),
+        Route::SpansPage {} | Route::TracesRedirect {} => "spans".into(),
         Route::PulsingPage {} => "pulsing".into(),
         Route::TrainingPage {} => "training".into(),
     }
@@ -138,7 +140,7 @@ pub fn describe_route(route: &Route) -> PageDescriptor {
             title: entry.title.clone(),
             path: entry.path.clone(),
             description: entry.description.clone(),
-            suggested_playbooks: entry.playbooks.clone(),
+            suggested_skills: entry.skills.clone(),
         };
     }
     if page_id.starts_with("stacks/") {
@@ -148,7 +150,7 @@ pub fn describe_route(route: &Route) -> PageDescriptor {
                 title: format!("{} · {}", entry.title, page_id),
                 path: format!("/{}", page_id),
                 description: entry.description.clone(),
-                suggested_playbooks: entry.playbooks.clone(),
+                suggested_skills: entry.skills.clone(),
             };
         }
     }
@@ -157,7 +159,7 @@ pub fn describe_route(route: &Route) -> PageDescriptor {
         title: page_id.clone(),
         path: "/".into(),
         description: String::new(),
-        suggested_playbooks: vec!["health_overview".into()],
+        suggested_skills: vec!["health_overview".into()],
     }
 }
 
@@ -171,8 +173,8 @@ pub fn match_intents(query: &str, limit: usize) -> Vec<String> {
             .filter(|kw| q.contains(kw.to_lowercase().as_str()))
             .count();
         if hits > 0 {
-            for pb in &intent.playbooks {
-                scored.push((hits, pb.clone()));
+            for sid in &intent.skills {
+                scored.push((hits, sid.clone()));
             }
         }
     }
@@ -182,8 +184,8 @@ pub fn match_intents(query: &str, limit: usize) -> Vec<String> {
 }
 
 pub fn routing_context_for_llm() -> String {
-    let mut lines = vec!["Playbook catalog (by priority):".to_string()];
-    for id in catalog_playbook_ids() {
+    let mut lines = vec!["Skill catalog (by priority):".to_string()];
+    for id in catalog_skill_ids() {
         if let Some(entry) = catalog_entry(&id) {
             lines.push(format!(
                 "- {} [{}]: {} (pages: {})",
@@ -195,13 +197,13 @@ pub fn routing_context_for_llm() -> String {
         }
     }
     lines.push(String::new());
-    lines.push("Intent routing (user language → playbooks):".to_string());
+    lines.push("Intent routing (user language → skills):".to_string());
     for (intent_id, intent) in &intent_file().intents {
         lines.push(format!(
             "- {}: {} → {}",
             intent_id,
             intent.label,
-            intent.playbooks.join(", ")
+            intent.skills.join(", ")
         ));
     }
     lines.join("\n")

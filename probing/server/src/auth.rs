@@ -83,7 +83,7 @@ fn unauthorized_response() -> Response {
 }
 
 /// Authentication middleware
-pub async fn auth_middleware(request: Request, next: Next) -> Result<Response, impl IntoResponse> {
+pub async fn auth_middleware(request: Request, next: Next) -> Response {
     // Get the configured token
     let configured_token = config::get_str("server.auth_token")
         .await
@@ -96,12 +96,12 @@ pub async fn auth_middleware(request: Request, next: Next) -> Result<Response, i
 
         // Check if token matches
         return match provided_token {
-            Some(token) if token == configured_token => Ok(next.run(request).await),
-            _ => Err(unauthorized_response()),
+            Some(token) if token == configured_token => next.run(request).await,
+            _ => unauthorized_response(),
         };
     }
 
-    Ok(next.run(request).await)
+    next.run(request).await
 }
 
 // Path prefixes that should bypass authentication
@@ -116,15 +116,12 @@ pub fn is_public_path(path: &str) -> bool {
 }
 
 /// Selective auth middleware that skips authentication for specific paths
-pub async fn selective_auth_middleware(
-    request: Request,
-    next: Next,
-) -> Result<Response, impl IntoResponse> {
+pub async fn selective_auth_middleware(request: Request, next: Next) -> Response {
     let path = request.uri().path();
 
     // Skip authentication for public paths
     if is_public_path(path) {
-        return Ok(next.run(request).await);
+        return next.run(request).await;
     }
 
     // Apply authentication for all other paths

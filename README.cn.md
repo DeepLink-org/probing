@@ -174,84 +174,26 @@ probing -t <pid> config probing.max_memory=1GB
 
 ## 开发
 
-### 前置要求
+**使用者：** `pip install probing` — 见 [安装指南](docs/src/installation.zh.md)。
 
-从源码构建Probing前，确保安装以下依赖：
-
-```bash
-# 安装Rust工具链
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# 安装nightly工具链（必需）
-rustup toolchain install nightly
-rustup default nightly
-
-# 为Web UI添加WebAssembly目标
-rustup target add wasm32-unknown-unknown
-
-# 安装Dioxus CLI用于构建WebAssembly前端
-cargo install dioxus-cli
-```
-
-### 从源码构建
+**贡献者** — 初次参与？请先读 **[贡献指南 → 欢迎参与开发](docs/src/contributing.zh.md#getting-started)**（English: [Contributing](docs/src/contributing.md#getting-started)），然后：
 
 ```bash
-# 克隆仓库
-git clone https://github.com/DeepLink-org/probing.git
-cd probing
-
-# 开发构建（编译更快）
-make
-
-# 生产构建，支持跨平台兼容
-make ZIG=1
-
-# 单独构建Web UI（可选）
-cd web && dx build --release
-
-# 构建并安装wheel包
-make wheel
-pip install dist/probing-*.whl --force-reinstall
-```
-
-### 测试
-
-准备测试环境：
-
-```bash
-# 安装依赖
-cargo install cargo-nextest --locked
-```
-
-```bash
-# 运行所有测试
+python3 -m venv .venv && source .venv/bin/activate
+pip install maturin
+make develop
+make check-dev
 make test
-
-# 使用简单示例测试
-PROBING=1 python examples/test_probing.py
-
-# 带变量跟踪的高级测试
-PROBING_TORCH_PROFILING="on,exprs=loss@train,acc1@train" PROBE=1 python examples/imagenet.py
 ```
 
-### 项目结构
+| 文档 | 内容 |
+|------|------|
+| [贡献指南 — 欢迎](docs/src/contributing.zh.md#getting-started) | 选方向（skill / Python / 文档 / Rust / web）、第一个 PR |
+| [安装指南](docs/src/installation.zh.md) | PyPI、wheel、`PROBING=1`、平台支持 |
+| [贡献指南 — 开发环境](docs/src/contributing.zh.md#development-setup) | `make develop`、`.pth` hook、Makefile |
+| [examples/README.md](examples/README.md) | 示例所需的 torch/torchvision 等 |
 
-- `probing/cli/` - 命令行接口
-- `probing/core/` - 核心分析引擎
-- `probing/extensions/` - 语言特定扩展（Python, C++）
-- `probing/server/` - HTTP API服务器
-- `web/` - Web UI源码和构建输出（Dioxus + WebAssembly）
-  - `web/dist/` - Web UI构建输出目录
-- `python/` - Python钩子和集成
-- `examples/` - 使用示例和演示
-
-### 贡献指南
-
-1. Fork仓库
-2. 创建特性分支：`git checkout -b feature-name`
-3. 进行更改并添加测试
-4. 运行测试：`make test`
-5. 提交pull request
+发布 wheel：`make wheel && make install-wheel`。
 
 ## 许可证
 

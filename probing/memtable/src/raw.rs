@@ -397,15 +397,10 @@ mod tests {
     use crate::schema::{DType, Schema};
 
     #[test]
+    #[should_panic(expected = "buffer too small")]
     fn init_buf_rejects_small_buffer() {
         let schema = Schema::new().col("x", DType::I32);
-        let result = std::panic::catch_unwind(|| {
-            let mut buf = vec![0u8; 32]; // way too small
-            init_buf(&mut buf, &schema, 1024, 1);
-        });
-        assert!(
-            result.is_err(),
-            "init_buf should panic on undersized buffer"
-        );
+        let mut buf = vec![0u8; 32]; // way too small
+        init_buf(&mut buf, &schema, 1024, 1);
     }
 }

@@ -36,8 +36,8 @@ jobs:
           install-cargo-tools: 'true'
           install-python-deps: 'false'
 
-      - name: Build frontend
-        run: make web/dist
+      - name: Prepare wheel bundle
+        run: make frontend wheel-bundle nccl-profiler-lib
 
       - name: Build wheels
         uses: PyO3/maturin-action@v1
@@ -68,8 +68,8 @@ jobs:
           install-cargo-tools: 'true'
           install-python-deps: 'false'
 
-      - name: Build frontend
-        run: make web/dist
+      - name: Prepare wheel bundle
+        run: make frontend wheel-bundle
 
       - name: Build wheels
         uses: PyO3/maturin-action@v1
@@ -95,8 +95,8 @@ jobs:
           install-python-deps: 'false'
           install-cargo-tools: 'true'
 
-      - name: Build frontend
-        run: make web/dist
+      - name: Prepare wheel bundle
+        run: make frontend wheel-bundle nccl-profiler-lib
 
       - name: Build sdist
         uses: PyO3/maturin-action@v1

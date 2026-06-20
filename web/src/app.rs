@@ -40,7 +40,7 @@ pub enum Route {
     #[route("/python")]
     PythonPage {},
     #[route("/traces")]
-    TracesPage {},
+    TracesRedirect {},
     #[route("/spans")]
     SpansPage {},
     #[route("/chrome-tracing")]
@@ -154,11 +154,15 @@ pub fn PythonPage() -> Element {
 }
 
 #[component]
-pub fn TracesPage() -> Element {
+pub fn TracesRedirect() -> Element {
+    let nav = dioxus_router::use_navigator();
+    use_effect(move || {
+        nav.replace(Route::SpansPage {});
+    });
     rsx! {
         AppLayout {
             fullscreen: true,
-            Traces {}
+            LoadingState { message: Some("Redirecting to spans…".to_string()) }
         }
     }
 }

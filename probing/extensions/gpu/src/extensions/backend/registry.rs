@@ -65,21 +65,18 @@ pub fn discover_backends() -> Vec<Box<dyn GpuBackend>> {
 
 /// Backends selected by env `PROBING_GPU_BACKEND` (default: auto = all discovered).
 pub fn selected_backends() -> Vec<Box<dyn GpuBackend>> {
-    let filter = std::env::var("PROBING_GPU_BACKEND")
-        .ok()
-        .map(|raw| {
-            let trimmed = raw.trim().to_ascii_lowercase();
-            if matches!(trimmed.as_str(), "" | "auto" | "all" | "any") {
-                return None;
-            }
-            Some(
-                trimmed
-                    .split([',', ' ', ';'])
-                    .filter_map(GpuBackendKind::parse)
-                    .collect::<Vec<_>>(),
-            )
-        })
-        .flatten();
+    let filter = std::env::var("PROBING_GPU_BACKEND").ok().and_then(|raw| {
+        let trimmed = raw.trim().to_ascii_lowercase();
+        if matches!(trimmed.as_str(), "" | "auto" | "all" | "any") {
+            return None;
+        }
+        Some(
+            trimmed
+                .split([',', ' ', ';'])
+                .filter_map(GpuBackendKind::parse)
+                .collect::<Vec<_>>(),
+        )
+    });
 
     set_backend_filter(filter);
     discover_backends()

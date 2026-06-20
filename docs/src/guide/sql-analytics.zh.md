@@ -6,6 +6,8 @@ Probing 提供强大的 SQL 接口用于分析性能和监控数据。
 
 SQL 分析接口将复杂的性能分析转化为直观的数据库查询。所有监控数据都可以通过标准 SQL 操作访问，包括 `SELECT`、`WHERE`、`GROUP BY`、`ORDER BY` 和高级分析函数。
 
+**表结构：** [SQL 表目录](../reference/sql-tables.zh.md)。**术语：** [核心概念](concepts.zh.md)。
+
 ## 基本查询结构
 
 ```bash
@@ -68,6 +70,57 @@ ORDER BY step DESC, seq;
 
 - `ordered:rate` - `rate` 为每 step 采样概率；被采样 step 内轮转一个模块
 - `random:rate` - 每 step 都采样；`rate` 为 offset>0 钩子的概率（offset=0 锚点始终记录）
+
+每行还有 `global_step`、`rank`、`world_size`、`role`。见 [SQL 表 — torch_trace](../reference/sql-tables.zh.md#python-torch_trace)。
+
+## 集合通信（`python.comm_collective`）
+
+记录 `torch.distributed` 集合操作的墙钟 `duration_ms`（无需 NCCL 插件）。
+
+```sql
+SELECT global_step, rank, role, op, duration_ms, bytes
+FROM python.comm_collective
+WHERE global_step > (SELECT max(global_step) - 20 FROM python.comm_collective)
+ORDER BY duration_ms DESC
+LIMIT 20;
+```
+
+与同 rank、同 `role` 的模块耗时 JOIN：
+
+```sql
+SELECT c.global_step, c.role, c.op, c.duration_ms AS comm_ms,
+       t.module, t.duration AS module_sec
+FROM python.comm_collective c
+JOIN python.torch_trace t
+  ON c.global_step = t.global_step AND c.rank = t.rank AND c.role = t.role
+WHERE c.duration_ms > 5 AND t.stage LIKE 'post %' AND t.duration > 0
+LIMIT 50;
+```
+
+内置诊断：`probing $ENDPOINT skill run slow_rank` 或 `comm_bottleneck`。
+
+## 联邦查询（`global.*`）
+
+在集群 master 端点上查询 **`global.<schema>.<table>`**，向已注册节点 fan-out；每行带
+`_host`、`_addr`、`_rank`、`_role`。见 [分布式](../design/distributed.zh.md)。
+
+**按并行 role 找慢 rank：**
+
+```sql
+SELECT _role, _rank, avg(duration_ms) AS avg_ms, max(duration_ms) AS max_ms
+FROM global.python.comm_collective
+WHERE global_step > (SELECT max(global_step) - 50 FROM global.python.comm_collective)
+GROUP BY _role, _rank
+ORDER BY avg_ms DESC;
+```
+
+```bash
+probing -t rank0:8080 cluster query "
+SELECT _role, _rank, avg(duration_ms) AS avg_ms
+FROM global.python.comm_collective
+GROUP BY _role, _rank
+ORDER BY avg_ms DESC"
+```
 
 ## 高级分析
 
@@ -167,7 +220,7 @@ probing $ENDPOINT query "
   SELECT step, stage, avg(duration), avg(allocated)
   FROM python.torch_trace
   GROUP BY step, stage
-" > training_metrics.json
+" > step_metrics.json
 ```
 
 ## 最佳实践

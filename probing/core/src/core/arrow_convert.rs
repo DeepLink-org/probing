@@ -5,6 +5,7 @@
 
 use arrow::array::ArrayRef;
 use arrow::array::*;
+use arrow::datatypes::DataType;
 use probing_proto::prelude::Seq;
 
 /// Convert Arrow ArrayRef to Seq
@@ -39,5 +40,19 @@ pub fn arrow_array_to_seq(array: &ArrayRef) -> Seq {
     } else {
         // Fallback: return Nil for unsupported types
         Seq::Nil
+    }
+}
+
+/// Empty column matching an Arrow type (for zero-row query results).
+pub fn empty_seq_for_data_type(data_type: &DataType) -> Seq {
+    match data_type {
+        DataType::Int32 => Seq::SeqI32(vec![]),
+        DataType::Int64 => Seq::SeqI64(vec![]),
+        DataType::Float32 => Seq::SeqF32(vec![]),
+        DataType::Float64 => Seq::SeqF64(vec![]),
+        DataType::Utf8 | DataType::LargeUtf8 => Seq::SeqText(vec![]),
+        DataType::Boolean => Seq::SeqBOOL(vec![]),
+        DataType::Timestamp(_, _) => Seq::SeqI64(vec![]),
+        _ => Seq::Nil,
     }
 }

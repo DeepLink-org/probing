@@ -75,9 +75,15 @@ SELECT * FROM python.torch_trace WHERE step > 10;
 
 ### 采集字段（`python.torch_trace`）
 
+完整列说明：[SQL 表 — torch_trace](../reference/sql-tables.zh.md#python-torch_trace)。
+
 | 字段 | 类型 | 描述 |
 |------|------|------|
-| step | int | 训练步数 |
+| step | int | 本地训练步（每 rank） |
+| global_step | int | 全局步（`step_snapshot`） |
+| rank | int | `torch.distributed` rank |
+| world_size | int | world size |
+| role | string | 并行角色 key，如 `dp=2,pp=1,tp=0` |
 | seq | int | step 内钩子序号 |
 | module | string | 模块名 |
 | stage | string | `pre forward`、`post forward`、`pre step`、`post step`（默认不采 backward） |
@@ -87,6 +93,14 @@ SELECT * FROM python.torch_trace WHERE step > 10;
 | max_cached | float | 峰值预留 (MB) |
 | time_offset | float | 相对本 step 锚点的秒数 |
 | duration | float | 阶段耗时（秒）；post 行有意义 |
+
+可用 `role` + `global_step` 与同 rank 的 `python.comm_collective` JOIN。
+
+### 集合通信（`python.comm_collective`）
+
+对 `torch.distributed` 的 lite 模式钩子每条 collective 写一行，含 `duration_ms`、`bytes`、`op`
+及相同 step/role 坐标。见 [SQL 表](../reference/sql-tables.zh.md#python-comm_collective) 与
+[SQL 分析](../guide/sql-analytics.zh.md#集合通信pythoncomm_collective)。
 
 ### 启用 PyTorch 分析
 

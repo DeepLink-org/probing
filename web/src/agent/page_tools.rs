@@ -232,7 +232,7 @@ pub async fn fetch_page_snapshot(route: &Route) -> Result<String> {
                 parts.push(format!("[torch_trace]\n{p}"));
             }
         }
-        Route::TracesPage {} | Route::SpansPage {} => {
+        Route::SpansPage {} | Route::TracesRedirect {} => {
             if let Some(p) = query_preview(
                 &client,
                 "SELECT record_type, count(*) AS n FROM python.trace_event GROUP BY record_type",

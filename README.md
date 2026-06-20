@@ -209,88 +209,26 @@ probing -t <pid> config "probing.rdma.sample.rate='5'"
 
 ## Development
 
-### Prerequisites
+**Users:** `pip install probing` — see [Installation](docs/src/installation.md).
 
-Before building Probing from source, ensure you have the following dependencies installed:
-
-```bash
-# Install Rust toolchain
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# Install nightly toolchain (required)
-rustup toolchain install nightly
-rustup default nightly
-
-# Add WebAssembly target for web UI
-rustup target add wasm32-unknown-unknown
-
-# Install Dioxus CLI for building WebAssembly frontend
-cargo install dioxus-cli
-
-# Install cross-compilation tools (optional, for distribution builds)
-cargo install cargo-zigbuild
-pip install ziglang
-```
-
-### Building from Source
+**Contributors** — new here? Read **[Contributing → Welcome](docs/src/contributing.md#getting-started)** (中文: [贡献指南](docs/src/contributing.zh.md#getting-started)), then:
 
 ```bash
-# Clone repository
-git clone https://github.com/reiase/probing.git
-cd probing
-
-# Development build (faster compilation)
-make
-
-# Production build with cross-platform compatibility
-make ZIG=1
-
-# Build web UI separately (optional)
-cd web && dx build --release
-
-# Build and install wheel package
-make wheel
-pip install dist/probing-*.whl --force-reinstall
-```
-
-### Testing
-
-prepare your environment:
-
-```bash
-# Install dependencies
-cargo install cargo-nextest --locked
-```
-
-```bash
-# Run all tests
+python3 -m venv .venv && source .venv/bin/activate
+pip install maturin
+make develop
+make check-dev
 make test
-
-# Test with a simple example
-PROBING=1 python examples/test_probing.py
-
-# Advanced testing with variable tracking
-PROBING_TORCH_PROFILING="on,exprs=loss@train,acc1@train" PROBE=1 python examples/imagenet.py
 ```
 
-### Project Structure
+| Doc | Content |
+|-----|---------|
+| [Contributing — Welcome](docs/src/contributing.md#getting-started) | Pick a track (skills / Python / docs / Rust / web), first PR |
+| [Installation](docs/src/installation.md) | PyPI, wheel, `PROBING=1`, platform support |
+| [Contributing — Dev setup](docs/src/contributing.md#development-setup) | `make develop`, `.pth` hook, Makefile targets |
+| [examples/README.md](examples/README.md) | Optional torch/torchvision for demos |
 
-- `probing/cli/` - Command-line interface
-- `probing/core/` - Core profiling engine
-- `probing/extensions/` - Language-specific extensions (Python, C++)
-- `probing/server/` - HTTP API server
-- `web/` - Web UI source and build output (Dioxus + WebAssembly)
-  - `web/dist/` - Web UI build output directory
-- `python/` - Python hooks and integration
-- `examples/` - Usage examples and demos
-
-### Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Make your changes and add tests
-4. Run tests: `make test`
-5. Submit a pull request
+Release wheel only: `make frontend && make wheel && make install-wheel`.
 
 ## License
 

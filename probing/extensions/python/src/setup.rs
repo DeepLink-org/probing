@@ -27,8 +27,17 @@ fn setup() {
     if should_enable_probing() {
         set_enabled(true);
     }
-    register_signal_handler(
-        nix::libc::SIGUSR2,
-        crate::features::stack_tracer::backtrace_signal_handler,
-    );
+
+    if cfg!(test) {
+        // Unit-test processes must not run the SIGUSR2 stack handler: it calls
+        // backtrace/Python from signal context and aborts on stray delivery.
+        unsafe {
+            nix::libc::signal(nix::libc::SIGUSR2, nix::libc::SIG_IGN);
+        }
+    } else {
+        register_signal_handler(
+            nix::libc::SIGUSR2,
+            crate::features::stack_tracer::backtrace_signal_handler,
+        );
+    }
 }

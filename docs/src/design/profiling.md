@@ -75,9 +75,15 @@ Records are flushed at the end of each optimizer step (after optional GPU `synch
 
 ### Collected Data (`python.torch_trace`)
 
+Full column list: [SQL Tables — torch_trace](../reference/sql-tables.md#python-torch_trace).
+
 | Field | Type | Description |
 |-------|------|-------------|
-| step | int | Training step number |
+| step | int | Local training step (per rank) |
+| global_step | int | Global step (`step_snapshot`) |
+| rank | int | `torch.distributed` rank |
+| world_size | int | World size |
+| role | string | Parallel role key, e.g. `dp=2,pp=1,tp=0` |
 | seq | int | Hook sequence within step |
 | module | string | Module name |
 | stage | string | `pre forward`, `post forward`, `pre step`, `post step` (backward not collected by default) |
@@ -87,6 +93,13 @@ Records are flushed at the end of each optimizer step (after optional GPU `synch
 | max_cached | float | Peak reserved (MB) |
 | time_offset | float | Seconds since step anchor |
 | duration | float | Stage duration (seconds); meaningful on post rows |
+
+Use `role` + `global_step` to join with `python.comm_collective` on the same rank.
+
+### Collective rows (`python.comm_collective`)
+
+Lite-mode hooks on `torch.distributed` write one row per collective with `duration_ms`,
+`bytes`, `op`, and the same step/role coordinates. See [SQL Tables](../reference/sql-tables.md#python-comm_collective) and [SQL Analytics](../guide/sql-analytics.md#collective-communication-pythoncomm_collective).
 
 ### Enable PyTorch Profiling
 
