@@ -134,7 +134,7 @@ fn libcuda_driver_ready() -> bool {
 
     unsafe {
         for name in NAMES {
-            let Ok(cname) = CString::new(name) else {
+            let Ok(cname) = CString::new(*name) else {
                 continue;
             };
             let handle = libc::dlopen(cname.as_ptr(), libc::RTLD_LAZY);
