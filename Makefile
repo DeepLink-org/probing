@@ -162,7 +162,11 @@ endif
 
 # ==============================================================================
 PYTEST_WHEEL_DEPS := pytest pytest-cov coverage pyyaml websockets pandas torch ipykernel
-PYTEST_WHEEL_ARGS := tests/unit tests/regression python/probing
+# Installed wheel only — do not pass python/probing (conflicts with site-packages).
+PYTEST_WHEEL_ARGS := tests/unit tests/regression
+# Clear repo pythonpath; sibling unit/regression conftest.py need importlib mode.
+# Override addopts to drop --doctest-modules (wheel uses site-packages, not python/).
+PYTEST_WHEEL_FLAGS := --import-mode=importlib -o pythonpath= -o "addopts=--verbose --color=yes --durations=10 --strict-markers"
 PYTEST_WHEEL_EXTRA ?=
 
 .PHONY: test test-rust test-rust-unit test-rust-regression test-python test-python-unit test-python-regression test-doctest test-python-wheel coverage-python-wheel
@@ -199,10 +203,10 @@ test-doctest:
 
 test-python-wheel: venv
 	$(PYTHON) -m pip install -q -U pip $(PYTEST_WHEEL_DEPS)
-	PROBING=1 $(PYTHON) -m pytest $(PYTEST_WHEEL_EXTRA) $(PYTEST_WHEEL_ARGS)
+	PROBING=1 $(PYTHON) -m pytest $(PYTEST_WHEEL_FLAGS) $(PYTEST_WHEEL_EXTRA) $(PYTEST_WHEEL_ARGS)
 
 coverage-python-wheel:
-	$(MAKE) test-python-wheel PYTEST_WHEEL_EXTRA="--cov=python/probing --cov=tests --cov-report=xml:coverage.xml"
+	$(MAKE) test-python-wheel PYTEST_WHEEL_EXTRA="--cov=probing --cov=tests --cov-report=xml:coverage.xml"
 
 lint: lint-python lint-rust
 lint-core:

@@ -31,7 +31,11 @@ pub fn discover_backends() -> Vec<Box<dyn GpuBackend>> {
         #[cfg(feature = "cuda")]
         {
             if filter_allows(GpuBackendKind::Cuda) {
-                if let Some(cuda) = CudaBackend::try_load() {
+                let cuda =
+                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(CudaBackend::try_load))
+                        .ok()
+                        .flatten();
+                if let Some(cuda) = cuda {
                     log::info!(
                         "GPU backend loaded: cuda ({} device(s))",
                         cuda.device_count()
@@ -101,6 +105,15 @@ pub fn selected_backends() -> Vec<Box<dyn GpuBackend>> {
 #[cfg(test)]
 mod platform_tests {
     use super::*;
+
+    /// Linux/Windows CI: discovery must never abort when libcuda is missing.
+    #[test]
+    #[cfg(feature = "cuda")]
+    fn discover_backends_is_idempotent_without_cuda() {
+        let first = discover_backends();
+        let second = discover_backends();
+        assert_eq!(first.len(), second.len());
+    }
 
     /// Linux/Windows CI: crate must compile with zero GPU backends when cuda is off.
     #[test]

@@ -2,29 +2,27 @@ mod nvidia_smi;
 
 use std::sync::Arc;
 
+use once_cell::sync::Lazy;
+
 use super::traits::{GpuBackend, GpuBackendKind, GpuDeviceInfo, GpuMemoryModel, GpuMemorySample};
 use cudarc::driver::safe::CudaContext;
 use cudarc::driver::sys::CUdevice_attribute;
 
 pub use nvidia_smi::read_utilization_by_index;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CudaBackend {
     device_count: i32,
 }
 
+/// Cached probe result — cudarc poisons its internal `OnceLock` on failure, so we must
+/// never call into cudarc when libcuda / the driver is absent (CI, CPU-only hosts).
+static CUDA_BACKEND: Lazy<Option<CudaBackend>> = Lazy::new(probe_cuda_backend);
+
 impl CudaBackend {
     /// Probe for CUDA without panicking when `libcuda` is absent (CI, CPU-only hosts).
     pub fn try_load() -> Option<Self> {
-        let count =
-            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| CudaContext::device_count()))
-                .ok()
-                .and_then(|r| r.ok())?;
-        if count <= 0 {
-            return None;
-        }
-        Some(Self {
-            device_count: count,
-        })
+        CUDA_BACKEND.clone()
     }
 
     pub fn device_count(&self) -> i32 {
@@ -35,7 +33,11 @@ impl CudaBackend {
         if ordinal < 0 {
             return None;
         }
-        CudaContext::new(ordinal as usize).ok()
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            CudaContext::new(ordinal as usize).ok()
+        }))
+        .ok()
+        .flatten()
     }
 
     fn device_info(ctx: &CudaContext, ordinal: i32) -> GpuDeviceInfo {
@@ -95,6 +97,78 @@ impl GpuBackend for CudaBackend {
     }
 }
 
+fn probe_cuda_backend() -> Option<CudaBackend> {
+    if !libcuda_driver_ready() {
+        log::debug!("CUDA backend unavailable (libcuda or driver not ready)");
+        return None;
+    }
+
+    let count =
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| CudaContext::device_count()))
+            .ok()
+            .and_then(|r| r.ok())?;
+
+    if count <= 0 {
+        log::debug!("CUDA backend unavailable (zero devices)");
+        return None;
+    }
+
+    log::info!("CUDA backend available ({count} device(s))");
+    Some(CudaBackend {
+        device_count: count,
+    })
+}
+
+/// Probe driver via dlopen + `cuInit` — avoids cudarc's fatal `OnceLock` init when no driver exists.
+#[cfg(target_os = "linux")]
+fn libcuda_driver_ready() -> bool {
+    use std::ffi::CString;
+
+    const CUDA_SUCCESS: u32 = 0;
+    const NAMES: &[&str] = &[
+        "libcuda.so.1",
+        "libcuda.so",
+        "libnvcuda.so.1",
+        "libnvcuda.so",
+    ];
+
+    unsafe {
+        for name in NAMES {
+            let Ok(cname) = CString::new(name) else {
+                continue;
+            };
+            let handle = libc::dlopen(cname.as_ptr(), libc::RTLD_LAZY);
+            if handle.is_null() {
+                continue;
+            }
+
+            let sym = CString::new("cuInit").expect("cuInit");
+            let cu_init_ptr = libc::dlsym(handle, sym.as_ptr());
+            if cu_init_ptr.is_null() {
+                libc::dlclose(handle);
+                continue;
+            }
+
+            type CuInitFn = unsafe extern "C" fn(u32) -> u32;
+            let cu_init: CuInitFn = std::mem::transmute(cu_init_ptr);
+            let status = cu_init(0);
+            libc::dlclose(handle);
+
+            if status == CUDA_SUCCESS {
+                return true;
+            }
+            log::debug!("cuInit via {name} returned {status}, trying next candidate");
+        }
+    }
+    false
+}
+
+#[cfg(not(target_os = "linux"))]
+fn libcuda_driver_ready() -> bool {
+    // Non-Linux CUDA builds are uncommon; defer to catch_unwind around cudarc.
+    true
+}
+
 fn compute_capability(ctx: &CudaContext) -> Option<String> {
     let major = ctx
         .attribute(CUdevice_attribute::CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR)
@@ -119,6 +193,8 @@ mod tests {
     #[test]
     fn cuda_backend_loads_or_skips_gracefully() {
         let backend = CudaBackend::try_load();
+        // Must not panic on repeated probe (CI imports _core many times per process).
+        assert_eq!(backend, CudaBackend::try_load());
         if let Some(b) = backend {
             assert!(b.device_count() > 0);
             let devices = b.probe_devices();
