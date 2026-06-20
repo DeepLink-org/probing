@@ -20,13 +20,15 @@ jobs:
           install-python-deps: "true"
 
       - name: Code style checking
-        run: cargo fmt --all -- --check
+        run: |
+          cargo fmt --all -- --check
+          make lint-rust
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
 
       - name: Build wheel
-        run: make wheel-ci
+        run: make frontend wheel-ci
 
       - name: Install wheel and run Python tests
         run: |
@@ -94,8 +96,8 @@ jobs:
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
 
-      - name: Build web frontend
-        run: make web/dist
+      - name: Clippy (workspace + web)
+        run: make lint-rust
 
       - name: Install llvm-tools-preview component
         run: rustup component add llvm-tools-preview --toolchain nightly
@@ -138,17 +140,14 @@ jobs:
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
 
-      - name: Build web frontend
-        run: make web/dist
-
       - name: Run Rust tests
         run: |
           cargo nextest run --workspace --no-default-features
           cargo nextest run -p probing-server --no-default-features --features kmsg,gpu
 
-      - name: Build wheel, install, and run Python tests
+      - name: Build frontend and wheel, install, and run Python tests
         run: |
-          make wheel-ci
+          make frontend wheel-ci
           make install-wheel
           make test-python-wheel
         env:

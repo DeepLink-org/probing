@@ -211,7 +211,7 @@ fn finalize_remote_dataframe(
 }
 
 impl DisplayAs for FederatedScanExec {
-    fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "FederatedScanExec: peers={}, remote_sql={}",

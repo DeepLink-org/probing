@@ -5,13 +5,13 @@ use std::collections::HashMap;
 use dioxus::prelude::*;
 
 use crate::agent::{
-    evaluate_rules, evidence_from_outcomes, format_findings, list_playbook_ids, load_playbook,
-    refresh_page_snapshot_for_route, resolve_playbook_id, run_playbook, select_playbook,
+    evaluate_rules, evidence_from_outcomes, format_findings, list_skill_ids, load_skill,
+    refresh_page_snapshot_for_route, resolve_skill_id, run_skill, select_skill,
     summarize_run,
 };
 use crate::app::Route;
 use crate::components::agent::step_card::{
-    step_outcome_to_card, AgentPlaybookRunCard, AgentStepCard,
+    step_outcome_to_card, AgentSkillRunCard, AgentStepCard,
 };
 use crate::components::colors::colors;
 use crate::components::icon::Icon;
@@ -31,10 +31,11 @@ use crate::state::page_context::PAGE_CONTEXT;
 use crate::state::ui_tasks::{ui_agent_busy, UiTaskKind, UiTaskSession, UI_TASK_TICK};
 use dioxus_router::use_route;
 
-const QUICK_PLAYBOOKS: &[(&str, &str)] = &[
+const QUICK_SKILLS: &[(&str, &str)] = &[
     ("health_overview", "Health"),
     ("training_hang", "Hang"),
     ("slow_rank", "Slow rank"),
+    ("nccl_culprit_victim", "NCCL"),
     ("comm_bottleneck", "Comm"),
     ("memory_leak", "Memory"),
     ("module_bottleneck", "Bottleneck"),
@@ -67,7 +68,7 @@ pub fn AgentChat(variant: AgentChatVariant) -> Element {
         };
         match action {
             AgentPendingAction::SubmitText(text) => submit_agent_text(text),
-            AgentPendingAction::RunPlaybook(id) => trigger_playbook(id),
+            AgentPendingAction::RunSkill(id) => trigger_skill(id),
         }
     });
 
@@ -117,13 +118,13 @@ pub fn AgentChat(variant: AgentChatVariant) -> Element {
 
     let toolbar = rsx! {
         div { class: "flex flex-wrap gap-1.5",
-            for (id, label) in QUICK_PLAYBOOKS {
+            for (id, label) in QUICK_SKILLS {
                 ChipButton {
                     label: (*label).to_string(),
                     disabled: running,
                     onclick: {
-                        let pid = (*id).to_string();
-                        move |_| spawn_run_playbook(pid.clone(), HashMap::new(), None)
+                        let skill_id = (*id).to_string();
+                        move |_| spawn_run_skill(skill_id.clone(), HashMap::new(), None)
                     },
                 }
             }
@@ -227,14 +228,14 @@ fn AgentPageContextCard() -> Element {
                         if page.snapshot_loading { "…" } else { "Refresh" }
                     }
                 }
-                if !page.suggested_playbooks.is_empty() {
+                if !page.suggested_skills.is_empty() {
                     div { class: "flex flex-wrap gap-1 pt-0.5",
                         span { class: "text-[10px] text-gray-400", "Suggested:" }
-                        for id in page.suggested_playbooks.iter().cloned() {
+                        for id in page.suggested_skills.iter().cloned() {
                             ChipButton {
                                 label: id.clone(),
                                 disabled: ui_agent_busy(),
-                                onclick: move |_| spawn_run_playbook(id.clone(), HashMap::new(), None),
+                                onclick: move |_| spawn_run_skill(id.clone(), HashMap::new(), None),
                             }
                         }
                     }
@@ -258,7 +259,7 @@ fn AgentWelcome() -> Element {
         SurfaceCard {
             SurfaceCardBody {
                 class: "px-3 py-3 space-y-2 text-sm text-gray-600",
-                p { class: "font-medium text-gray-800", "Ask in plain language or pick a quick playbook above." }
+                p { class: "font-medium text-gray-800", "Ask in plain language or pick a quick skill above." }
                 ul { class: "list-disc list-inside text-xs space-y-1 text-gray-500",
                     li { "「训练卡住了」→ training_hang" }
                     li { "「哪个 rank 慢」→ slow_rank（多机自动 cluster fan-out）" }
@@ -271,14 +272,14 @@ fn AgentWelcome() -> Element {
                     }
                 }
                 if LLM_CONFIG.read().is_configured() {
-                    p { class: "text-xs text-emerald-700", "LLM will pick playbooks and summarize results." }
+                    p { class: "text-xs text-emerald-700", "LLM will pick skills and summarize results." }
                 } else {
                     p { class: "text-xs text-gray-500",
                         "No LLM key — open ⚙ to save an API key in this browser (localStorage)."
                     }
                 }
                 p { class: "text-xs text-gray-400",
-                    "Available: {list_playbook_ids().join(\", \")}"
+                    "Available: {list_skill_ids().join(\", \")}"
                 }
             }
         }
@@ -299,11 +300,11 @@ fn AgentMessageView(message: AgentMessage) -> Element {
         AgentMessageKind::Assistant => rsx! {
             AgentAssistantBlock { text: message.text.clone() }
         },
-        AgentMessageKind::PlaybookRun => rsx! {
-            AgentPlaybookRunCard {
+        AgentMessageKind::SkillRun => rsx! {
+            AgentSkillRunCard {
                 title: message.title.clone().unwrap_or_default(),
-                playbook_id: message.playbook_id.clone().unwrap_or_default(),
-                category: message.playbook_category.clone().unwrap_or_default(),
+                skill_id: message.skill_id.clone().unwrap_or_default(),
+                category: message.skill_category.clone().unwrap_or_default(),
                 docs: message.text.clone(),
             }
         },
@@ -329,7 +330,7 @@ fn AgentMessageView(message: AgentMessage) -> Element {
 fn AgentAssistantBlock(text: String) -> Element {
     let _task_tick = UI_TASK_TICK.read();
     let agent_busy = ui_agent_busy();
-    let chips = extract_playbook_chips(&text);
+    let chips = extract_skill_chips(&text);
     let source_refs = crate::utils::source_ref::extract_source_refs(&text);
     rsx! {
         div { class: "space-y-2",
@@ -356,7 +357,7 @@ fn AgentAssistantBlock(text: String) -> Element {
                         ChipButton {
                             label: format!("Run {id}"),
                             disabled: agent_busy,
-                            onclick: move |_| spawn_run_playbook(id.clone(), HashMap::new(), None),
+                            onclick: move |_| spawn_run_skill(id.clone(), HashMap::new(), None),
                         }
                     }
                 }
@@ -365,13 +366,13 @@ fn AgentAssistantBlock(text: String) -> Element {
     }
 }
 
-fn extract_playbook_chips(text: &str) -> Vec<String> {
+fn extract_skill_chips(text: &str) -> Vec<String> {
     let mut out = Vec::new();
     for line in text.lines() {
-        if let Some(idx) = line.find("playbook:") {
-            let rest = line[idx + "playbook:".len()..].trim();
+        if let Some(idx) = line.find("skill:") {
+            let rest = line[idx + "skill:".len()..].trim();
             let id = rest.split_whitespace().next().unwrap_or("").trim();
-            if load_playbook(id).is_some() && !out.contains(&id.to_string()) {
+            if load_skill(id).is_some() && !out.contains(&id.to_string()) {
                 out.push(id.to_string());
             }
         }
@@ -384,12 +385,12 @@ fn AgentWorkingIndicator() -> Element {
     rsx! {
         div { class: "flex items-center gap-2 px-3 py-2 text-xs text-gray-500",
             span { class: "inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" }
-            "Agent working — selecting playbook and running diagnostics…"
+            "Agent working — selecting skill and running diagnostics…"
         }
     }
 }
 
-/// Submit a user message to the agent (opens flow / playbooks / LLM).
+/// Submit a user message to the agent (opens flow / skills / LLM).
 pub fn submit_agent_text(text: String) {
     if text.trim().is_empty() || ui_agent_busy() {
         return;
@@ -397,12 +398,12 @@ pub fn submit_agent_text(text: String) {
     dispatch_agent_message(text);
 }
 
-/// Run a playbook immediately (used from source bridge, chips, etc.).
-pub fn trigger_playbook(playbook_id: String) {
+/// Run a skill immediately (used from source bridge, chips, etc.).
+pub fn trigger_skill(skill_id: String) {
     if ui_agent_busy() {
         return;
     }
-    spawn_run_playbook(playbook_id, HashMap::new(), None);
+    spawn_run_skill(skill_id, HashMap::new(), None);
 }
 
 fn submit_agent_input() {
@@ -417,9 +418,9 @@ fn submit_agent_input() {
 fn dispatch_agent_message(text: String) {
     push_agent_message(AgentMessage::user(text.clone()));
 
-    if text.starts_with('/') || text.starts_with("run ") || load_playbook(text.as_str()).is_some() {
-        if let Some(id) = resolve_playbook_id(&text) {
-            spawn_run_playbook(id, HashMap::new(), None);
+    if text.starts_with('/') || text.starts_with("run ") || load_skill(text.as_str()).is_some() {
+        if let Some(id) = resolve_skill_id(&text) {
+            spawn_run_skill(id, HashMap::new(), None);
             return;
         }
     }
@@ -430,11 +431,11 @@ fn dispatch_agent_message(text: String) {
         return;
     }
 
-    if let Some(id) = resolve_playbook_id(&text) {
-        spawn_run_playbook(id, HashMap::new(), None);
+    if let Some(id) = resolve_skill_id(&text) {
+        spawn_run_skill(id, HashMap::new(), None);
     } else {
         push_agent_message(AgentMessage::assistant(
-            "No playbook matched. Try quick chips, /health_overview, or open ⚙ to add an LLM API key."
+            "No skill matched. Try quick chips, /health_overview, or open ⚙ to add an LLM API key."
                 .to_string(),
         ));
     }
@@ -467,8 +468,8 @@ fn spawn_llm_flow(user_message: String, config: LlmConfig) {
             return;
         }
 
-        let llm_task = session.open(UiTaskKind::Agent, "Select playbook", None);
-        match select_playbook(&config, &user_message).await {
+        let llm_task = session.open(UiTaskKind::Agent, "Select skill", None);
+        match select_skill(&config, &user_message).await {
             Ok(sel) => {
                 if llm_task.is_cancelled() {
                     llm_task.cancel();
@@ -478,9 +479,9 @@ fn spawn_llm_flow(user_message: String, config: LlmConfig) {
                 if !sel.reply.is_empty() {
                     push_agent_message(AgentMessage::assistant(sel.reply.clone()));
                 }
-                match sel.playbook_id {
-                    Some(id) if load_playbook(&id).is_some() => {
-                        run_playbook_flow(
+                match sel.skill_id {
+                    Some(id) if load_skill(&id).is_some() => {
+                        run_skill_flow(
                             &session,
                             &id,
                             sel.parameters,
@@ -490,13 +491,13 @@ fn spawn_llm_flow(user_message: String, config: LlmConfig) {
                     }
                     Some(id) => {
                         push_agent_message(AgentMessage::error(format!(
-                            "LLM chose unknown playbook: {id}"
+                            "LLM chose unknown skill: {id}"
                         )));
                     }
                     None => {
                         if sel.reply.is_empty() {
                             push_agent_message(AgentMessage::assistant(
-                                "No suitable playbook — try rephrasing or pick a quick chip."
+                                "No suitable skill — try rephrasing or pick a quick chip."
                                     .to_string(),
                             ));
                         }
@@ -518,8 +519,8 @@ fn spawn_llm_flow(user_message: String, config: LlmConfig) {
     });
 }
 
-fn spawn_run_playbook(
-    playbook_id: String,
+fn spawn_run_skill(
+    skill_id: String,
     overrides: HashMap<String, String>,
     llm_followup: Option<(LlmConfig, String)>,
 ) {
@@ -528,13 +529,13 @@ fn spawn_run_playbook(
     }
     spawn(async move {
         let session = UiTaskSession::start();
-        run_playbook_flow(&session, &playbook_id, overrides, llm_followup).await;
+        run_skill_flow(&session, &skill_id, overrides, llm_followup).await;
     });
 }
 
-async fn run_playbook_flow(
+async fn run_skill_flow(
     session: &UiTaskSession,
-    playbook_id: &str,
+    skill_id: &str,
     overrides: HashMap<String, String>,
     llm_followup: Option<(LlmConfig, String)>,
 ) {
@@ -542,9 +543,9 @@ async fn run_playbook_flow(
         return;
     }
 
-    let Some(meta) = load_playbook(playbook_id) else {
+    let Some(meta) = load_skill(skill_id) else {
         push_agent_message(AgentMessage::error(format!(
-            "Unknown playbook: {playbook_id}"
+            "Unknown skill: {skill_id}"
         )));
         return;
     };
@@ -560,7 +561,7 @@ async fn run_playbook_flow(
         )));
     }
 
-    push_agent_message(AgentMessage::playbook_run(
+    push_agent_message(AgentMessage::skill_run(
         meta.id.clone(),
         meta.title.clone(),
         meta.category.clone(),
@@ -572,7 +573,7 @@ async fn run_playbook_flow(
     } else {
         overrides
     };
-    match run_playbook(playbook_id, overrides, Some(session)).await {
+    match run_skill(skill_id, overrides, Some(session)).await {
         Ok((pb, outcomes, ctx)) => {
             if session.is_cancelled() {
                 return;
@@ -592,9 +593,9 @@ async fn run_playbook_flow(
                 let summary_task = session.open(
                     UiTaskKind::Agent,
                     "Summarize results",
-                    Some(playbook_id.to_string()),
+                    Some(skill_id.to_string()),
                 );
-                match summarize_run(&config, &user_msg, playbook_id, &evidence).await {
+                match summarize_run(&config, &user_msg, skill_id, &evidence).await {
                     Ok(summary) => {
                         if summary_task.is_cancelled() {
                             summary_task.cancel();

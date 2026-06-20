@@ -1,82 +1,101 @@
 # 安装指南
 
-本指南介绍如何在您的系统上安装 Probing。
+本文说明如何**安装并使用** Probing（PyPI 或本地 wheel）。
+在仓库里改代码、跑测试请直接看 [贡献指南 — 开发环境](contributing.zh.md#development-setup)，使用 `make develop`，不要只按本文装 wheel。
 
 ## 环境要求
 
-在开始之前，请确保您的系统满足以下要求：
+| 组件 | 版本 |
+|------|------|
+| Python | 3.7+（开发建议 3.9+） |
+| 操作系统（完整功能） | Linux — `probing inject` 需要 |
+| 操作系统（仅进程内） | macOS / Windows — 启动时 `PROBING=1`，CLI query/eval 可用 |
 
-- Python（3.7 或更高版本）
-- Pip（Python 包安装器）
-- 如需从源码构建：
-    - Rust（推荐最新稳定版）
-    - Cargo（Rust 的包管理器和构建系统）
-
-## 安装方式
-
-### 1. 使用 Pip（推荐）
-
-这是安装 Probing 最简单的方式：
+## 从 PyPI 安装（推荐）
 
 ```bash
 pip install probing
+# 或：uv pip install probing
 ```
 
-此命令将从 Python Package Index (PyPI) 下载并安装 Probing 的最新稳定版本。
-
-### 2. 从源码构建
-
-如果您需要最新的开发版本或想要贡献代码，可以从源码构建：
-
-```bash
-# 1. 克隆仓库
-git clone https://github.com/DeepLink-org/probing.git
-cd probing
-
-# 2. 构建并安装 Python 包
-make wheel
-pip install dist/probing-*.whl
-```
-
-这将编译 Rust 组件并构建用于安装的 Python wheel 包。
-
-## 验证安装
-
-安装完成后，可以通过以下命令验证 Probing 是否正确安装：
+验证：
 
 ```bash
 probing --version
-```
-
-应该会输出已安装的 Probing 版本，例如：
-
-```
-probing 0.2.5
-```
-
-您也可以检查 `probing` 命令是否可用：
-
-```bash
 probing list
 ```
 
-此命令应该会列出可用的 probing 命令或显示当前没有进程正在被探测。
+## 在训练任务中启用 probing
+
+安装后，wheel 自带 **site hook**（`probing.pth` → `probing_hook.py`）：设置 `PROBING` 环境变量即可自动 import probing，**无需改训练脚本**。
+
+```bash
+# 仅当前进程
+PROBING=1 python train.py
+
+# 当前进程 + 子进程（torchrun、mp.spawn 等）
+PROBING=2 python train.py
+```
+
+常用取值：
+
+| `PROBING` | 行为 |
+|-----------|------|
+| 未设置 / `0` | 关闭（默认） |
+| `1` / `followed` | 当前进程启用 |
+| `2` / `nested` | 当前进程及子进程启用 |
+| `regex:PATTERN` | 脚本名匹配正则时启用 |
+| `SCRIPT.py` | 脚本 basename 完全匹配时启用 |
+
+高级过滤与 `init:…` 前缀见仓库内 `python/probing/site_hook.py`。
+
+在 **Linux** 上还可 attach 已运行进程：
+
+```bash
+probing -t <pid> inject
+```
+
+**macOS / Windows** 请在启动时设置 `PROBING=1`（或 `2`）；不支持 inject。
+
+## 从源码构建 wheel 安装
+
+适用于 CI 冒烟或本地验 wheel — **不是**日常改仓库代码的方式（请用 `make develop`）。
+
+```bash
+git clone https://github.com/DeepLink-org/probing.git
+cd probing
+
+# 可选：Rust / 前端工具链 — 见 contributing.zh.md#prerequisites
+make frontend
+make wheel
+pip install dist/probing-*.whl --force-reinstall
+# 或：make install-wheel
+```
+
+验证方式同上。本地 wheel 与 PyPI 一样包含 site hook。
 
 ## 平台支持
 
-| 平台 | 注入功能 | 查询/执行 |
-|------|----------|-----------|
-| Linux | ✅ 完全支持 | ✅ 完全支持 |
-| macOS | ❌ 不支持 | ✅ 支持 |
-| Windows | ❌ 不支持 | ✅ 支持 |
+| 平台 | `probing inject` | 进程内（`PROBING=1`） | CLI query / eval |
+|------|------------------|----------------------|------------------|
+| Linux | ✅ | ✅ | ✅ |
+| macOS | ❌ | ✅ | ✅ |
+| Windows | ❌ | ✅ | ✅ |
 
-!!! note "注入功能需要 Linux"
-    动态探针注入功能（`probing inject`）需要 Linux 系统。在其他平台上，如果目标进程在启动时启用了 probing，您仍然可以使用查询和执行功能。
+## 升级
+
+```bash
+pip install --upgrade probing
+```
+
+版本与 PyTorch / NCCL 兼容性见 [版本说明](versions.zh.md)。
+
+## 可选：示例与 ML 依赖
+
+核心包**无**强制 Python 依赖。`examples/` 下的示例可能需要额外安装（如 `torch`、`torchvision`），见 [examples/README.md](https://github.com/DeepLink-org/probing/blob/main/examples/README.md)。
 
 ## 下一步
 
-安装完成后，您可以开始使用 Probing：
-
-- [快速开始](quickstart.zh.md) - 开始您的第一次分析
-- [SQL 分析](guide/sql-analytics.zh.md) - 学习 SQL 查询接口
-- [内存分析](guide/memory-analysis.zh.md) - 调试内存问题
+- [快速开始](quickstart.zh.md)
+- [核心概念](guide/concepts.zh.md) — endpoint、进程内 vs attach
+- [贡献指南](contributing.zh.md) — 克隆、`make develop`、测试

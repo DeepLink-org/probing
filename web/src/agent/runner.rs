@@ -1,4 +1,4 @@
-//! Execute playbook steps against the probing HTTP API.
+//! Execute skill steps against the probing HTTP API.
 
 use std::collections::HashMap;
 
@@ -6,7 +6,7 @@ use crate::agent::cluster::{
     default_use_global, execute_sql_for_agent, fetch_cluster_snapshot, format_cluster_meta,
     sql_needs_cluster_fanout,
 };
-use crate::agent::playbook::{build_context, expand_sql, load_playbook, Playbook, PlaybookStep};
+use crate::agent::skill::{build_context, expand_sql, load_skill, Skill, SkillStep};
 use crate::api::ClusterQueryMeta;
 use crate::state::ui_tasks::{open_ui_task, UiTaskKind, UiTaskSession};
 use crate::utils::error::{AppError, Result};
@@ -49,7 +49,7 @@ fn dataframe_rows(df: &DataFrame) -> usize {
     df.cols.iter().map(|c| c.len()).max().unwrap_or(0)
 }
 
-fn playbook_default_use_global(pb: &Playbook) -> bool {
+fn skill_default_use_global(pb: &Skill) -> bool {
     pb.parameters
         .iter()
         .find(|p| p.name == "use_global")
@@ -61,19 +61,19 @@ fn playbook_default_use_global(pb: &Playbook) -> bool {
 }
 
 async fn resolve_overrides(
-    pb: &Playbook,
+    pb: &Skill,
     mut overrides: HashMap<String, String>,
 ) -> HashMap<String, String> {
     if overrides.contains_key("use_global") {
         return overrides;
     }
     let snapshot = fetch_cluster_snapshot().await;
-    let default = default_use_global(&snapshot, playbook_default_use_global(pb));
+    let default = default_use_global(&snapshot, skill_default_use_global(pb));
     overrides.insert("use_global".to_string(), default.to_string());
     overrides
 }
 
-fn should_skip_step(step: &PlaybookStep, ctx: &HashMap<String, String>) -> Option<String> {
+fn should_skip_step(step: &SkillStep, ctx: &HashMap<String, String>) -> Option<String> {
     let Some(when) = &step.when else {
         return None;
     };
@@ -91,7 +91,7 @@ fn should_skip_step(step: &PlaybookStep, ctx: &HashMap<String, String>) -> Optio
 }
 
 fn sql_outcome_from_df(
-    step: &PlaybookStep,
+    step: &SkillStep,
     df: DataFrame,
     cluster_meta: Option<ClusterQueryMeta>,
 ) -> StepOutcome {
@@ -136,7 +136,7 @@ fn sql_outcome_from_df(
     }
 }
 
-async fn run_sql_step(step: &PlaybookStep, sql: &str) -> StepOutcome {
+async fn run_sql_step(step: &SkillStep, sql: &str) -> StepOutcome {
     let cluster_fanout = sql_needs_cluster_fanout(sql, step.cluster.unwrap_or(false));
     match execute_sql_for_agent(sql, cluster_fanout).await {
         Ok((df, meta)) => sql_outcome_from_df(step, df, meta),
@@ -158,7 +158,7 @@ async fn run_sql_step(step: &PlaybookStep, sql: &str) -> StepOutcome {
     }
 }
 
-async fn run_api_step(step: &PlaybookStep) -> StepOutcome {
+async fn run_api_step(step: &SkillStep) -> StepOutcome {
     let path = step.path.clone().unwrap_or_default();
     let client = crate::api::ApiClient::new();
     if path.contains("callstack") {
@@ -231,7 +231,7 @@ async fn run_api_step(step: &PlaybookStep) -> StepOutcome {
     }
 }
 
-async fn run_step(step: &PlaybookStep, ctx: &HashMap<String, String>) -> StepOutcome {
+async fn run_step(step: &SkillStep, ctx: &HashMap<String, String>) -> StepOutcome {
     if let Some(reason) = should_skip_step(step, ctx) {
         return StepOutcome::Skipped {
             step_id: step.id.clone(),
@@ -265,16 +265,16 @@ async fn run_step(step: &PlaybookStep, ctx: &HashMap<String, String>) -> StepOut
     }
 }
 
-pub async fn run_playbook(
-    playbook_id: &str,
+pub async fn run_skill(
+    skill_id: &str,
     overrides: HashMap<String, String>,
     session: Option<&UiTaskSession>,
-) -> Result<(Playbook, Vec<StepOutcome>, HashMap<String, String>)> {
+) -> Result<(Skill, Vec<StepOutcome>, HashMap<String, String>)> {
     if session.is_some_and(|s| s.is_cancelled()) {
         return Err(AppError::Cancelled);
     }
-    let pb = load_playbook(playbook_id)
-        .ok_or_else(|| AppError::Api(format!("Unknown playbook: {playbook_id}")))?;
+    let pb = load_skill(skill_id)
+        .ok_or_else(|| AppError::Api(format!("Unknown skill: {skill_id}")))?;
     let overrides = resolve_overrides(&pb, overrides).await;
     if session.is_some_and(|s| s.is_cancelled()) {
         return Err(AppError::Cancelled);
@@ -287,14 +287,14 @@ pub async fn run_playbook(
         }
         let task = match session {
             Some(s) => s.open(
-                UiTaskKind::Playbook,
+                UiTaskKind::Skill,
                 step.title.clone(),
-                Some(format!("{playbook_id} · {}", step.id)),
+                Some(format!("{skill_id} · {}", step.id)),
             ),
             None => open_ui_task(
-                UiTaskKind::Playbook,
+                UiTaskKind::Skill,
                 step.title.clone(),
-                Some(format!("{playbook_id} · {}", step.id)),
+                Some(format!("{skill_id} · {}", step.id)),
             ),
         };
         let outcome = run_step(step, &ctx).await;

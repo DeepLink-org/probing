@@ -1,46 +1,39 @@
 ---
 template: home.html
 title: Probing - Dynamic Performance Profiler for Distributed AI
-description: A production-grade performance profiler designed specifically for distributed AI workloads. Zero-intrusion, SQL-powered analytics, real-time introspection.
+description: Zero-intrusion profiler for distributed AI — SQL tables, live introspection, cluster federation, and diagnostic skills.
 hide: toc
 ---
 
-<!-- This content is hidden by the home.html template but indexed for search -->
-
 # Probing
 
-**Probing** is a dynamic performance profiler for distributed AI applications.
+**Probing** profiles distributed AI training: continuous SQL tables, live attach, federated
+`global.*` queries, and bundled diagnostic skills.
 
-## Key Features
+## Capabilities
 
-- **Zero Intrusion** - Attach to running processes without code changes
-- **SQL Analytics** - Query performance data with standard SQL
-- **Live Execution** - Run Python code in target processes
-- **Stack Analysis** - Capture call stacks with variable values
-- **Distributed Ready** - Monitor processes across multiple nodes
+- **Continuous profiling** — `torch_trace`, `comm_collective`, NCCL proxy, custom `@table`
+- **Live introspection** — `eval`, `backtrace`, REPL against running processes
+- **SQL analytics** — single-node and `global.*` federation with `_rank` / `_role` tags
+- **Diagnostic skills** — `health_overview`, `slow_rank`, `nccl_culprit_victim`, …
+- **Cluster** — `cluster nodes`, `cluster query`, Web UI agent
+- **Zero intrusion** — `PROBING=1` at startup or Linux `inject`
 
 ## Quick Start
 
 ```bash
-# Install
 pip install probing
 
-# Inject into running process
-probing -t <pid> inject
+# Recommended for training
+PROBING=1 PROBING_TORCH_PROFILING=on python train.py
 
-# Query performance data
+# Or attach on Linux
+probing -t <pid> inject
 probing -t <pid> query "SELECT * FROM python.torch_trace LIMIT 10"
+probing -t <pid> skill run health_overview
 ```
 
-## Use Cases
+## Documentation map
 
-- **Training Debugging** - Debug training instabilities and hangs
-- **Memory Analysis** - Track GPU/CPU memory usage
-- **Performance Profiling** - Identify bottlenecks in model execution
-- **Production Monitoring** - Monitor AI services without restarts
-
-## Community
-
-- [GitHub Repository](https://github.com/DeepLink-org/probing)
-- [Issue Tracker](https://github.com/DeepLink-org/probing/issues)
-- [PyPI Package](https://pypi.org/project/probing/)
+- [Installation](installation.md) · [Quick Start](quickstart.md) · [Core Concepts](guide/concepts.md)
+- [SQL Tables](reference/sql-tables.md) · [API Reference](api-reference.md) · [Contributing](contributing.md)

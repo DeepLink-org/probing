@@ -56,7 +56,7 @@ where
 
 // Thread-local storage for span context
 thread_local! {
-    static SPAN_STACK: RefCell<Vec<Py<PyAny>>> = RefCell::new(Vec::new());
+    static SPAN_STACK: RefCell<Vec<Py<PyAny>>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Python binding for Span

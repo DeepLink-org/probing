@@ -12,7 +12,7 @@ const MAX_TASKS: usize = 24;
 pub enum UiTaskKind {
     Agent,
     Snapshot,
-    Playbook,
+    Skill,
     #[allow(dead_code)] // reserved for Command Panel / SQL tasks
     Query,
 }
@@ -22,7 +22,7 @@ impl UiTaskKind {
         match self {
             UiTaskKind::Agent => "Agent",
             UiTaskKind::Snapshot => "Snapshot",
-            UiTaskKind::Playbook => "Playbook",
+            UiTaskKind::Skill => "Skill",
             UiTaskKind::Query => "Query",
         }
     }
@@ -205,7 +205,7 @@ pub struct UiTaskSession {
 }
 
 impl UiTaskSession {
-    /// Start a new cancellable session (Agent / playbook run).
+    /// Start a new cancellable session (Agent / skill run).
     pub fn start() -> Self {
         let mut state = UI_TASKS.write();
         let group_id = state.next_group_id;
@@ -376,7 +376,7 @@ pub fn any_ui_task_running() -> bool {
     running_ui_task_count() > 0
 }
 
-/// True while an Agent session has running work (replaces legacy `AGENT_RUNNING`).
+/// True while an Agent session has running work.
 pub fn ui_agent_busy() -> bool {
     let state = UI_TASKS.read();
     let Some(gid) = state.active_agent_group else {

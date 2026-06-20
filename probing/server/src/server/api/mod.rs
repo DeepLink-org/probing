@@ -10,17 +10,15 @@ use axum::{
     Router,
 };
 
-use super::{cluster, cluster_query, file_api, profiling, system, training};
+use super::{cluster, cluster_query, file_api, system, training};
 
 /// Canonical public `/apis` routes (method, path suffix under `/apis`).
-/// Keep in sync with `tests/spec/api_spec.json` — verified by `spec_tests`.
+/// Keep in sync with `tests/regression/spec/api_spec.json` — verified by `spec_tests`.
 pub const PUBLIC_API_ROUTES: &[(&str, &str)] = &[
     ("GET", "/overview"),
     ("GET", "/files"),
     ("GET", "/nodes"),
     ("PUT", "/nodes"),
-    ("GET", "/flamegraph/torch"),
-    ("GET", "/flamegraph/pprof"),
     ("GET", "/training/step_matrix"),
     ("POST", "/cluster/query"),
 ];
@@ -36,8 +34,6 @@ fn public_routes() -> Router {
         .route("/overview", get(system::get_overview_json))
         .route("/files", get(file_api::read_file))
         .route("/nodes", get(cluster::get_nodes).put(cluster::put_node))
-        .route("/flamegraph/torch", get(profiling::get_torch_flamegraph))
-        .route("/flamegraph/pprof", get(profiling::get_pprof_flamegraph))
         .route("/training/step_matrix", get(training::get_step_matrix))
         .route("/cluster/query", post(cluster_query::post_cluster_query))
 }
@@ -48,7 +44,7 @@ mod spec_tests {
 
     fn load_spec() -> serde_json::Value {
         let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../tests/spec/api_spec.json");
+            .join("../../tests/regression/spec/api_spec.json");
         let text = std::fs::read_to_string(path).expect("read api_spec.json");
         serde_json::from_str(&text).expect("parse api_spec.json")
     }

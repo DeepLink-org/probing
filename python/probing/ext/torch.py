@@ -45,10 +45,6 @@ def optimizer_step_post_hook(optimizer, *args, **kwargs):
         install_hooks(opt=optimizer, tracer=tracer)
         hooks[optimizer] = tracer
 
-        from probing.profiling.torch import next_step
-
-        next_step()
-
 
 def collective_hook():
     """Autostart low-overhead collective tracing for distributed torch jobs."""

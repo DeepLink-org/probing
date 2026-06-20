@@ -32,6 +32,7 @@ impl CustomTable for ClusterTable {
             Field::new("role_name", DataType::Utf8, true),
             Field::new("role_rank", DataType::Int32, true),
             Field::new("role_world_size", DataType::Int32, true),
+            Field::new("role", DataType::Utf8, true),
             Field::new("status", DataType::Utf8, true),
             Field::new(
                 "timestamp",
@@ -55,6 +56,7 @@ impl CustomTable for ClusterTable {
         fields.push(cluster::extract_array(&nodes, |n| n.role_name.clone()));
         fields.push(cluster::extract_array(&nodes, |n| n.role_rank));
         fields.push(cluster::extract_array(&nodes, |n| n.role_world_size));
+        fields.push(cluster::extract_array(&nodes, |n| n.role.clone()));
         fields.push(cluster::extract_array(&nodes, |n| n.status.clone()));
         fields.push(cluster::extract_array(&nodes, |n| {
             std::time::Duration::from_micros(n.timestamp)

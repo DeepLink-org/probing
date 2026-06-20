@@ -59,8 +59,8 @@ probing -t node2:8080 list
 ### Cluster View
 
 ```bash
-# Aggregate view across cluster
-probing cluster list
+# List registered peers in the cluster view (connect to rank-0 / master endpoint)
+probing -t rank0:8080 cluster nodes
 ```
 
 ## Cross-Node Queries
@@ -73,15 +73,36 @@ SELECT * FROM python.torch_trace
 WHERE step = (SELECT MAX(step) FROM python.torch_trace)"
 ```
 
-### Query All Nodes
+### Federated query (`global.*`)
+
+Cross-rank SQL uses the **`global` catalog**. The master fans out to registered peers and
+attaches federation tags **`_host`**, **`_addr`**, **`_rank`**, **`_role`** (parallel-role
+key from the node registry, e.g. `dp=2,pp=1,tp=0`).
+
+**Option A — SQL engine (preferred for analytics):**
 
 ```bash
-# Federated query (future feature)
-probing cluster query "
-SELECT node, rank, step, loss
-FROM python.training_metrics
-ORDER BY step"
+probing -t rank0:8080 query "
+SELECT _role, _rank, avg(duration_ms) AS avg_ms
+FROM global.python.comm_collective
+WHERE global_step > 100
+GROUP BY _role, _rank
+ORDER BY avg_ms DESC"
 ```
+
+**Option B — cluster fan-out API:**
+
+```bash
+probing -t rank0:8080 cluster query "
+SELECT _role, _rank, avg(duration_ms) AS avg_ms
+FROM global.python.comm_collective
+GROUP BY _role, _rank
+ORDER BY avg_ms DESC"
+```
+
+Register peers with torchrun (`setup_torchrun_cluster`) or `PUT /apis/nodes` so `_rank` and
+`_role` resolve correctly. Override role at runtime with `probing.set_role(...)` in training
+scripts.
 
 ## Synchronized Debugging
 
@@ -109,20 +130,42 @@ if dist.is_initialized():
 
 ## Communication Analysis
 
-### NCCL Operations
+### Collective latency (coarse, built-in)
+
+`python.comm_collective` records `torch.distributed` calls with wall time. No NCCL plugin required.
 
 ```sql
--- Analyze communication patterns
-SELECT
-    operation,
-    src_rank,
-    dst_rank,
-    bytes_transferred,
-    duration_ms
-FROM python.nccl_trace
-WHERE step = (SELECT MAX(step) FROM python.nccl_trace)
-ORDER BY duration_ms DESC;
+SELECT rank, op, avg(duration_ms) AS avg_ms, count(*) AS n
+FROM python.comm_collective
+WHERE global_step >= (SELECT max(global_step) - 20 FROM python.comm_collective)
+GROUP BY rank, op
+ORDER BY avg_ms DESC;
 ```
+
+```bash
+probing -t $ENDPOINT skill run slow_rank
+probing -t $ENDPOINT skill run comm_bottleneck
+```
+
+### NCCL wait decomposition (fine-grained)
+
+For **culprit vs victim** attribution (`send_gpu_wait_ns` / `recv_wait_ns`), enable the NCCL profiler plugin and query `nccl.proxy_ops`:
+
+```bash
+export NCCL_PROFILER_PLUGIN=$(python -m probing.nccl --plugin-path)
+export NCCL_PROFILE_EVENT_MASK=$(python -m probing.nccl --event-mask)
+export PROBING=2
+# ... torchrun ...
+
+probing -t $ENDPOINT skill run nccl_culprit_victim
+probing -t $ENDPOINT query "
+SELECT rank, sum(send_gpu_wait_ns) AS gpu_wait, sum(recv_wait_ns) AS recv_wait
+FROM nccl.proxy_ops
+GROUP BY rank
+ORDER BY recv_wait DESC"
+```
+
+Multi-node: `global.nccl.proxy_ops`. Full setup, schema, and mock workflow: [NCCL profiler plugin](nccl-profiler.md).
 
 ### RDMA Flow Analysis
 
@@ -136,9 +179,12 @@ probing -t $ENDPOINT rdma
 ### Rank Synchronization
 
 ```bash
-# Check if all ranks are at same step
+# Check step coordinates on each node (uses probing's step_snapshot, not trainer fields)
 for node in node1 node2 node3; do
-    probing -t $node:8080 eval "print(f'Step: {trainer.current_step}')"
+    probing -t $node:8080 eval "
+from probing.tracing import step_snapshot
+s = step_snapshot()
+print(f'rank={s.rank} local_step={s.local_step} global_step={s.global_step}')"
 done
 ```
 

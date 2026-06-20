@@ -1,4 +1,4 @@
-//! Extension HTTP routing metadata driven by `tests/spec/api_spec.json`.
+//! Extension HTTP routing metadata driven by `tests/regression/spec/api_spec.json`.
 
 use std::collections::HashMap;
 
@@ -31,9 +31,10 @@ pub struct ExtensionRouteSpec {
 static ROUTE_MAP: Lazy<HashMap<String, ExtensionRouteSpec>> = Lazy::new(build_route_map);
 
 fn build_route_map() -> HashMap<String, ExtensionRouteSpec> {
-    let spec: serde_json::Value =
-        serde_json::from_str(include_str!("../../../../../tests/spec/api_spec.json"))
-            .expect("parse api_spec.json");
+    let spec: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tests/regression/spec/api_spec.json"
+    ))
+    .expect("parse api_spec.json");
 
     let defaults = spec
         .get("extension_response_defaults")
@@ -112,6 +113,7 @@ fn parse_response_meta(response: &serde_json::Value, defaults: &serde_json::Valu
         content_type: match content_type {
             "application/json" => "application/json",
             "text/plain" => "text/plain",
+            "text/html" => "text/html",
             other => panic!("unsupported extension response content_type: {other}"),
         },
         cors,
@@ -190,7 +192,7 @@ mod tests {
 
     fn load_spec() -> serde_json::Value {
         let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../tests/spec/api_spec.json");
+            .join("../../tests/regression/spec/api_spec.json");
         let text = std::fs::read_to_string(path).expect("read api_spec.json");
         serde_json::from_str(&text).expect("parse api_spec.json")
     }

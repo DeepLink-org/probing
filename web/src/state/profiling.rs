@@ -6,7 +6,7 @@ pub static PROFILING_TORCH_ENABLED: GlobalSignal<bool> = Signal::global(|| false
 /// Set after the first successful profiler config fetch (gates auto flamegraph load).
 pub static PROFILING_CONFIG_LOADED: GlobalSignal<bool> = Signal::global(|| false);
 
-/// Normalize URL slug or legacy view id to a canonical profiling view.
+/// Normalize URL slug to a canonical profiling view.
 pub fn normalize_profiling_view(view: &str) -> &'static str {
     let view = view.trim().trim_matches('/');
     match view {

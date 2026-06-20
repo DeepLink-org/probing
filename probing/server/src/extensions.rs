@@ -138,6 +138,9 @@ impl ServerProbeExtension {
     }
 
     fn set_assets_root(&mut self, assets_root: Maybe<String>) -> Result<(), EngineError> {
+        if let Maybe::Just(ref root) = assets_root {
+            std::env::set_var("PROBING_ASSETS_ROOT", root);
+        }
         self.assets_root = assets_root;
         Ok(())
     }

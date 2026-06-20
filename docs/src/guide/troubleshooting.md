@@ -60,9 +60,8 @@ Common issues and their solutions when using Probing.
 
 1. **Check if PyTorch profiling is enabled**:
    ```bash
-   probing $ENDPOINT eval "
-   import probing
-   print(probing.get_config())"
+   probing $ENDPOINT config probing.torch.profiling
+   probing $ENDPOINT tables
    ```
 
 2. **Enable PyTorch tracing**:
@@ -201,23 +200,19 @@ Common issues and their solutions when using Probing.
 
 **Solutions**:
 
-1. **Verify profiling is active**:
+1. **Verify tables exist and have rows**:
    ```bash
-   probing $ENDPOINT eval "
-   import probing
-   print(probing.is_profiling_active())"
+   probing $ENDPOINT tables
+   probing $ENDPOINT query "SELECT COUNT(*) AS n FROM python.torch_trace"
+   probing $ENDPOINT config probing.torch.profiling
    ```
 
-2. **Check data retention**:
-   ```bash
-   probing $ENDPOINT config | grep retention
-   ```
+2. **Confirm training has progressed** — rows append when hooks fire; step 1 of TorchProbe
+   is discovery-only (use `WHERE step > 1` if needed).
 
-3. **Force data flush**:
+3. **Check TorchProbe is not off**:
    ```bash
-   probing $ENDPOINT eval "
-   import probing
-   probing.flush()"
+   PROBING_TORCH_PROFILING=on python your_script.py
    ```
 
 ### Incorrect Values

@@ -3,8 +3,8 @@
 use dioxus::prelude::*;
 
 use crate::agent::{
-    ask_agent_about_source, ask_and_run_agent_about_source, run_playbook_with_source,
-    suggested_playbooks_for_source,
+    ask_agent_about_source, ask_and_run_agent_about_source, run_skill_with_source,
+    suggested_skills_for_source,
 };
 use crate::api::ApiClient;
 use crate::components::icon::Icon;
@@ -296,7 +296,7 @@ fn SourceSliceView(slice: SourceSlice, path: String, line: Option<i64>, floating
 #[component]
 fn SourceAgentBar(path: String, line: Option<i64>, slice: SourceSlice) -> Element {
     let busy = ui_agent_busy();
-    let playbooks = suggested_playbooks_for_source();
+    let skills = suggested_skills_for_source();
     let path_ask = path.clone();
     let path_run = path.clone();
     let slice_ask = slice.clone();
@@ -329,7 +329,7 @@ fn SourceAgentBar(path: String, line: Option<i64>, slice: SourceSlice) -> Elemen
                 },
                 "Ask & Run"
             }
-            for pb in playbooks {
+            for pb in skills {
                 {
                     let path_pb = path.clone();
                     let slice_pb = slice.clone();
@@ -339,7 +339,7 @@ fn SourceAgentBar(path: String, line: Option<i64>, slice: SourceSlice) -> Elemen
                             label: pb,
                             disabled: busy,
                             onclick: move |_| {
-                                run_playbook_with_source(&id, &path_pb, line, &slice_pb);
+                                run_skill_with_source(&id, &path_pb, line, &slice_pb);
                             },
                         }
                     }

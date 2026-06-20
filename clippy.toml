@@ -1,0 +1,4 @@
+# Shared Clippy settings (see `make lint-rust` / `make clippy-fix`).
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true

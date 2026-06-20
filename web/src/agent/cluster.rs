@@ -108,12 +108,12 @@ pub fn cluster_context_for_llm(snapshot: &ClusterSnapshot) -> String {
     format!("Cluster mode: {mode}\n{}", snapshot.nodes_summary)
 }
 
-/// Default `use_global` when the playbook parameter is not overridden.
-pub fn default_use_global(snapshot: &ClusterSnapshot, playbook_default: bool) -> bool {
+/// Default `use_global` when the skill parameter is not overridden.
+pub fn default_use_global(snapshot: &ClusterSnapshot, skill_default: bool) -> bool {
     if !snapshot.is_distributed() {
         return false;
     }
-    playbook_default
+    skill_default
 }
 
 pub async fn execute_sql_for_agent(

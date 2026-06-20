@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 use dioxus::prelude::*;
 
-use crate::agent::load_playbook;
+use crate::agent::load_skill;
 use crate::api::{ApiClient, ClusterQueryResponse, StepDurationSample, StepMatrixResponse};
 use crate::components::card::Card;
 use crate::components::collapsible_card::CollapsibleCardWithIcon;
@@ -26,7 +26,7 @@ const STEP_LIMIT: usize = 120;
 const COMM_LIMIT: usize = 30;
 
 const COMM_SQL: &str =
-    "SELECT local_step, rank, op, group_size, duration_ms, bytes, tp_rank, pp_rank, dp_rank \
+    "SELECT local_step, rank, op, group_size, duration_ms, bytes, role \
      FROM python.comm_collective ORDER BY timestamp DESC LIMIT ";
 
 const COMM_SUMMARY_SQL: &str = "SELECT op, count(*) AS n, \
@@ -51,8 +51,9 @@ const STEP_PHASE_SQL: &str = "SELECT step, \
        AND module IS NOT NULL AND module != '' AND module != 'None' \
      GROUP BY step ORDER BY step";
 
-const QUICK_PLAYBOOKS: &[(&str, &str)] = &[
+const QUICK_SKILLS: &[(&str, &str)] = &[
     ("slow_rank", "Slow rank"),
+    ("nccl_culprit_victim", "NCCL"),
     ("comm_bottleneck", "Comm"),
     ("module_bottleneck", "Bottleneck"),
 ];
@@ -278,12 +279,12 @@ pub fn Training() -> Element {
     }
 }
 
-fn queue_investigate_playbook(playbook_id: String) {
-    if !load_playbook(&playbook_id).is_some() {
+fn queue_investigate_skill(skill_id: String) {
+    if !load_skill(&skill_id).is_some() {
         return;
     }
     *AGENT_PANEL_OPEN.write() = true;
-    *AGENT_INPUT.write() = format!("/{playbook_id}");
+    *AGENT_INPUT.write() = format!("/{skill_id}");
 }
 
 #[component]
@@ -404,18 +405,18 @@ fn StepDetailLoaded(sel: SelectedStep) -> Element {
             }
         }
         div { class: "flex flex-wrap gap-1.5",
-            for (id, label) in QUICK_PLAYBOOKS {
+            for (id, label) in QUICK_SKILLS {
                 ChipButton {
                     label: (*label).to_string(),
                     disabled: ui_agent_busy(),
                     onclick: {
-                        let pid = (*id).to_string();
-                        move |_| queue_investigate_playbook(pid.clone())
+                        let skill_id = (*id).to_string();
+                        move |_| queue_investigate_skill(skill_id.clone())
                     },
                 }
             }
         }
-        p { class: "text-[10px] text-gray-400", "Opens Investigate with playbook · context pinned" }
+        p { class: "text-[10px] text-gray-400", "Opens Investigate with skill · context pinned" }
         StepDetailSection {
             title: "Span breakdown",
             hint: "Nested spans in this train.step (forward / backward / optim)",
@@ -1317,7 +1318,7 @@ fn render_module_hotspots(
                         }
                     }
                     p { class: "text-xs text-gray-400",
-                        "Select a slow step above, or use Investigate → Bottleneck playbook for deeper analysis."
+                        "Select a slow step above, or use Investigate → Bottleneck skill for deeper analysis."
                     }
                 }
             },

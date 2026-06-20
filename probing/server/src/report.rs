@@ -47,6 +47,9 @@ async fn report_worker(report_addr: String, local_addr: String) {
             role_name: std::env::var("ROLE_NAME").ok(),
             role_rank: get_i32_env("ROLE_RANK"),
             role_world_size: get_i32_env("ROLE_WORLD_SIZE"),
+            // Parallel-role key is populated by the Python torchrun registration
+            // path (probing.parallel.current_role); env-only report leaves it unset.
+            role: None,
             status: Some("running".to_string()),
             timestamp: 0,
         };

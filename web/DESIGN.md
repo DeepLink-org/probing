@@ -250,8 +250,8 @@ web/src/
 
 ## 八、构建与部署
 
-- 开发 / 构建：`dx serve` / `dx build --release`；仓库根 `make web/dist` 精简复制产物并生成 `.br`。
-- 静态资源由 `probing/server` 的 `include_dir!("web/dist")` 嵌入；支持 Brotli 与 `base_path` 子路径（见 `utils/base_path.rs`）。
+- 开发 / 构建：`dx serve` / `dx build --release`；仓库根 `make frontend` 复制产物到 `web/dist/`。
+- UI 静态资源由 Python 包提供（wheel：`python/probing/_web/`；editable：`web/dist/`），经 `probing.web_assets` 设置 `PROBING_ASSETS_ROOT`，`probing-server` 只读该目录；未配置时返回占位页。
 
 ---
 

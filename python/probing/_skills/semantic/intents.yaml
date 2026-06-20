@@ -1,0 +1,44 @@
+# Intent routing — maps user language to skill ids (keyword + LLM fallback).
+apiVersion: probing.dev/v1
+kind: IntentCatalog
+
+intents:
+  health_check:
+    label: "健康检查 / 不知道从哪查"
+    keywords: [健康, 概览, overview, status, 怎么样, doctor, 体检, checkup]
+    skills: [health_overview]
+
+  training_hung:
+    label: "训练卡住 / 无进展"
+    keywords: [卡住, hang, stall, 不动, deadlock, 死锁, frozen, stuck, loss 不更新]
+    skills: [training_hang, slow_rank]
+
+  training_slow:
+    label: "训练变慢 / 瓶颈"
+    keywords: [慢, slow, bottleneck, 瓶颈, 变慢, hotspot, 热点, 耗时]
+    skills: [module_bottleneck, slow_rank, comm_bottleneck]
+
+  which_rank:
+    label: "慢 rank / straggler"
+    keywords: [straggler, 慢 rank, 拖后腿, rank 慢, lagging rank, 哪个 rank]
+    skills: [slow_rank, nccl_culprit_victim, comm_bottleneck]
+
+  memory_growing:
+    label: "显存上涨 / OOM"
+    keywords: [OOM, leak, 泄漏, 显存涨, memory grow, out of memory, 阶梯]
+    skills: [memory_leak, gpu_pressure]
+
+  comm_slow:
+    label: "通信慢 / NCCL"
+    keywords: [通信慢, NCCL, all_reduce, 通信瓶颈, collective, 带宽, culprit, victim, recv_wait, gpu_wait]
+    skills: [comm_bottleneck, nccl_culprit_victim, slow_rank]
+
+  nccl_wait:
+    label: "NCCL wait 分解 / culprit victim"
+    keywords: [罪魁祸首, 受害者, send_gpu_wait, recv_wait, proxy wait, NCCL 等待, gpu wait]
+    skills: [nccl_culprit_victim, slow_rank]
+
+  cluster_view:
+    label: "集群 / 多机训练"
+    keywords: [集群, 多机, 分布式, cluster, multi-node, 跨节点, 所有 rank, all ranks, fan-out]
+    skills: [slow_rank, comm_bottleneck, health_overview]

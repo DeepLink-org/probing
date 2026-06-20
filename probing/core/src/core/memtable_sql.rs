@@ -227,7 +227,7 @@ fn dtype_to_arrow(dt: DType) -> DataType {
 }
 
 /// Arrow schema mirroring a ring table's column layout.
-pub fn view_to_arrow_schema(view: &MemTableView) -> SchemaRef {
+pub fn view_to_arrow_schema(view: &MemTableView<'_>) -> SchemaRef {
     let s = view.schema();
     let fields: Vec<Field> = s
         .cols
@@ -249,7 +249,7 @@ enum ColBuilder {
     Bytes(BinaryBuilder),
 }
 
-fn make_builders(view: &MemTableView) -> Vec<ColBuilder> {
+fn make_builders(view: &MemTableView<'_>) -> Vec<ColBuilder> {
     view.schema()
         .cols
         .iter()
@@ -274,7 +274,7 @@ fn make_builders(view: &MemTableView) -> Vec<ColBuilder> {
 /// the bytes can no longer be trusted, so the whole chunk is dropped
 /// rather than surfacing corrupt rows to SQL.
 fn chunk_to_recordbatch(
-    view: &MemTableView,
+    view: &MemTableView<'_>,
     chunk: usize,
     arrow_schema: &SchemaRef,
 ) -> Option<RecordBatch> {
@@ -342,7 +342,7 @@ fn chunk_to_recordbatch(
 ///
 /// Always returns at least one (possibly empty) batch so the table keeps its
 /// real schema even when no rows are visible.
-pub fn view_to_recordbatches(view: &MemTableView) -> Vec<RecordBatch> {
+pub fn view_to_recordbatches(view: &MemTableView<'_>) -> Vec<RecordBatch> {
     let arrow_schema = view_to_arrow_schema(view);
     let mut batches: Vec<RecordBatch> = view
         .chunks_logical()
@@ -464,7 +464,7 @@ pub fn ts_bounds_from_filters(filters: &[Expr], ts_name: &str) -> TsBounds {
 /// `false` only when the chunk's committed `[min_ts, max_ts]` provably lies
 /// outside `bounds`. Races with the writer resolve to `true` (keep the
 /// chunk) — materialisation re-validates the generation anyway.
-fn chunk_may_match(view: &MemTableView, chunk: usize, bounds: &TsBounds) -> bool {
+fn chunk_may_match(view: &MemTableView<'_>, chunk: usize, bounds: &TsBounds) -> bool {
     if bounds.is_unbounded() {
         return true;
     }
@@ -479,7 +479,10 @@ fn chunk_may_match(view: &MemTableView, chunk: usize, bounds: &TsBounds) -> bool
 }
 
 /// Like [`view_to_recordbatches`], skipping chunks outside `bounds`.
-pub fn view_to_recordbatches_pruned(view: &MemTableView, bounds: &TsBounds) -> Vec<RecordBatch> {
+pub fn view_to_recordbatches_pruned(
+    view: &MemTableView<'_>,
+    bounds: &TsBounds,
+) -> Vec<RecordBatch> {
     let arrow_schema = view_to_arrow_schema(view);
     let mut batches: Vec<RecordBatch> = view
         .chunks_logical()
@@ -498,7 +501,7 @@ pub fn view_to_recordbatches_pruned(view: &MemTableView, bounds: &TsBounds) -> V
 /// chunks already materialised from the cold tier, so a hot∪cold union counts
 /// each row exactly once even while a compacted chunk still lives in the ring.
 fn view_to_recordbatches_pruned_excluding(
-    view: &MemTableView,
+    view: &MemTableView<'_>,
     bounds: &TsBounds,
     excluded: &HashSet<(usize, u64)>,
 ) -> Vec<RecordBatch> {

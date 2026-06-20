@@ -1,4 +1,4 @@
-//! Playbook step results as in-app tool cards (tables, API text, navigation).
+//! Skill step results as in-app tool cards (tables, API text, navigation).
 
 use dioxus::prelude::*;
 use dioxus_router::Link;
@@ -180,9 +180,9 @@ pub fn step_outcome_to_card(outcome: StepOutcome) -> AgentStepCardData {
 }
 
 #[component]
-pub fn AgentPlaybookRunCard(
+pub fn AgentSkillRunCard(
     title: String,
-    playbook_id: String,
+    skill_id: String,
     category: String,
     docs: String,
 ) -> Element {
@@ -194,7 +194,7 @@ pub fn AgentPlaybookRunCard(
                 icon: &icondata::AiRobotOutlined,
                 icon_class: "w-4 h-4 text-blue-600",
                 title: title,
-                subtitle: Some(format!("{category} · {playbook_id}")),
+                subtitle: Some(format!("{category} · {skill_id}")),
             }
             if !docs_preview.is_empty() {
                 SurfaceCardBody {

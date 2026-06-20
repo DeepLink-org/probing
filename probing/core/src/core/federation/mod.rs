@@ -15,7 +15,8 @@ pub use cluster_executor::{
     ProbeClusterExecutor, RemoteFanoutResult,
 };
 pub use convert::{
-    cluster_rank_for_endpoint, PROBE_ADDR_COL, PROBE_HOST_COL, PROBE_NODE_COL, PROBE_RANK_COL,
+    cluster_rank_for_endpoint, cluster_role_for_endpoint, PROBE_ADDR_COL, PROBE_HOST_COL,
+    PROBE_NODE_COL, PROBE_RANK_COL, PROBE_ROLE_COL,
 };
 pub use global_catalog::{install_global_catalog, GLOBAL_CATALOG};
 pub use rewrite::{

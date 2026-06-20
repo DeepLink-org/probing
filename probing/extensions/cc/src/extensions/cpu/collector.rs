@@ -171,6 +171,7 @@ fn ts_micros() -> i64 {
         .as_micros() as i64
 }
 
+#[allow(clippy::too_many_arguments)]
 fn push_utilization_row(
     table: &mut ExposedTable,
     ts: i64,

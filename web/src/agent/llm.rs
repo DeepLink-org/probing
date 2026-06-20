@@ -17,15 +17,15 @@ use serde::Deserialize;
 use crate::agent::cluster::cluster_context_for_llm;
 use crate::agent::runner::StepOutcome;
 use crate::agent::{
-    fetch_cluster_snapshot, list_playbook_ids, load_playbook, routing_context_for_llm,
+    fetch_cluster_snapshot, list_skill_ids, load_skill, routing_context_for_llm,
 };
 use crate::state::llm_config::LlmConfig;
 use crate::state::page_context::PAGE_CONTEXT;
 use crate::utils::error::{AppError, Result};
 
 #[derive(Debug, Deserialize)]
-pub struct PlaybookSelection {
-    pub playbook_id: Option<String>,
+pub struct SkillSelection {
+    pub skill_id: Option<String>,
     #[serde(default)]
     pub parameters: HashMap<String, String>,
     #[serde(default)]
@@ -44,11 +44,11 @@ fn map_openai_error(err: OpenAIError) -> AppError {
     AppError::Api(err.to_string())
 }
 
-fn playbook_catalog_prompt() -> String {
+fn skill_catalog_prompt() -> String {
     let mut lines = vec![routing_context_for_llm(), String::new()];
-    lines.push("Playbook details:".to_string());
-    for id in list_playbook_ids() {
-        if let Some(pb) = load_playbook(id) {
+    lines.push("Skill details:".to_string());
+    for id in list_skill_ids() {
+        if let Some(pb) = load_skill(id) {
             lines.push(format!(
                 "- {}: {} — {}",
                 pb.id,
@@ -63,15 +63,15 @@ fn playbook_catalog_prompt() -> String {
 fn system_prompt_select() -> String {
     format!(
         "You are the Probing Investigate assistant for live AI training diagnostics \
-         (playbook-driven diagnostic agent).\n\
-         Pick exactly ONE playbook id from the catalog, or null if none apply.\n\
-         Use the current page context and page snapshot to choose relevant playbooks and parameters.\n\
+         (skill-driven diagnostic agent).\n\
+         Pick exactly ONE skill id from the catalog, or null if none apply.\n\
+         Use the current page context and page snapshot to choose relevant skills and parameters.\n\
          Respond with JSON only (no markdown), shape:\n\
-         {{\"playbook_id\":\"slow_rank\"|null,\"parameters\":{{\"step_window\":\"20\"}},\"reply\":\"one sentence\"}}\n\
-         parameters values must be strings. Allowed keys depend on playbook (e.g. step_window, use_global, sample_limit).\n\
-         For distributed training: prefer playbooks slow_rank, comm_bottleneck when cluster has peers; set use_global=true to fan-out via global.* tables.\n\
+         {{\"skill_id\":\"slow_rank\"|null,\"parameters\":{{\"step_window\":\"20\"}},\"reply\":\"one sentence\"}}\n\
+         parameters values must be strings. Allowed keys depend on skill (e.g. step_window, use_global, sample_limit).\n\
+         For distributed training: prefer skills slow_rank, comm_bottleneck when cluster has peers; set use_global=true to fan-out via global.* tables.\n\
          Catalog:\n{}",
-        playbook_catalog_prompt()
+        skill_catalog_prompt()
     )
 }
 
@@ -145,7 +145,7 @@ async fn chat_completion(
         .ok_or_else(|| AppError::Api("LLM returned empty response".to_string()))
 }
 
-pub async fn select_playbook(config: &LlmConfig, user_message: &str) -> Result<PlaybookSelection> {
+pub async fn select_skill(config: &LlmConfig, user_message: &str) -> Result<SkillSelection> {
     let page_block = workspace_context_block_with_cluster().await;
 
     let text = chat_completion(
@@ -165,12 +165,12 @@ pub async fn select_playbook(config: &LlmConfig, user_message: &str) -> Result<P
 pub async fn summarize_run(
     config: &LlmConfig,
     user_message: &str,
-    playbook_id: &str,
+    skill_id: &str,
     evidence: &str,
 ) -> Result<String> {
-    let pb_title = load_playbook(playbook_id)
+    let pb_title = load_skill(skill_id)
         .map(|p| p.title)
-        .unwrap_or_else(|| playbook_id.to_string());
+        .unwrap_or_else(|| skill_id.to_string());
 
     let system = "You summarize probing diagnostic results for an ML engineer. \
          Be concise (3-6 bullets). Cite specific numbers from evidence. \
@@ -180,7 +180,7 @@ pub async fn summarize_run(
 
     let user = format!(
         "User question: {user_message}\n\
-         Playbook: {pb_title}\n\
+         Skill: {pb_title}\n\
          Workspace:\n{page_block}\n\
          Evidence:\n{evidence}\n\
          Summarize findings and suggest next actions.",

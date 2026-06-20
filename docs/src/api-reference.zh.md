@@ -1,196 +1,192 @@
 # API 参考
 
-Probing CLI 命令和 Python API 的完整参考。
+CLI 命令与进程内 Python API。表结构见 **[SQL 表目录](reference/sql-tables.zh.md)**。
 
 ## CLI 命令
 
-### probing inject
+除特别说明外，命令均接受 `-t, --target <endpoint>`（`pid` 或 `host:port`）。
 
-将探针注入到运行中的进程。
+### 核心交互
+
+| 命令 | 别名 | 说明 |
+|------|------|------|
+| `query "<sql>"` | `q` | 对 memtable 执行 SQL |
+| `eval "<code>"` | `e` | 在目标进程执行 Python |
+| `backtrace` | `bt`, `b` | 抓栈 → `python.backtrace` |
+| `repl` | `r` | 交互式 Python REPL |
 
 ```bash
-probing -t <pid> inject
+probing -t $ENDPOINT query "SELECT * FROM python.torch_trace LIMIT 10"
+probing -t $ENDPOINT eval "import torch; print(torch.cuda.is_available())"
+probing -t $ENDPOINT backtrace
 ```
 
-**选项：**
+### 发现与内省
 
-- `-t, --target <pid>` - 目标进程 ID（必需）
+| 命令 | 别名 | 说明 |
+|------|------|------|
+| `tables` | `tbl` | 列出可查询表（`--all` 含 `information_schema`） |
+| `list` | `ls`, `l` | 列出已附着探针的进程 |
+| `memory` | `mem` | 主机 RSS + GPU 内存采样 |
+| `config [key[=value]]` | `cfg`, `c` | 查看或设置运行时配置 |
+| `flamegraph [pprof\|torch]` | `flame`, `fg` | CPU pprof 或 Torch 模块火焰图 |
+| `rdma [hca]` | `rd` | RDMA 流分析（若可用） |
 
-**平台：** 仅 Linux
+```bash
+probing -t $ENDPOINT tables
+probing -t $ENDPOINT config probing.torch.profiling
+probing -t $ENDPOINT config probing.torch.profiling=ordered:0.1
+probing -t $ENDPOINT flamegraph torch -o torch.html
+```
+
+### 集群（分布式）
+
+| 子命令 | 说明 |
+|--------|------|
+| `cluster nodes` | 列出已注册节点（`rank`、`role`、`status` 等） |
+| `cluster query "<sql>"` | 扇出 SQL；结果含联邦标签（`_rank`、`_role` 等） |
+| `cluster query --local "<sql>"` | 仅查询当前连接的 endpoint |
+
+```bash
+probing -t rank0:8080 cluster nodes
+probing -t rank0:8080 cluster query "SELECT _rank, _role, AVG(duration) FROM global.python.comm_collective GROUP BY 1,2"
+```
+
+进程内等价：`probing.query("SELECT … FROM global.python.torch_trace …")`（需已注册 peer）。
+
+### 诊断 skill
+
+多步 SQL 剧本（与 Web Agent 共用）：
+
+| 子命令 | 说明 |
+|--------|------|
+| `skill list` | 列出内置 skill（`health_overview`、`slow_rank` 等） |
+| `skill run <id>` | 对目标执行（`-p key=value`、`--global`、`--local`） |
+| `skill install` | 安装到 Cursor / Claude / Codex skill 目录 |
+| `skill update` | 从 bundle 更新已安装 skill |
+
+```bash
+probing -t $ENDPOINT skill list
+probing -t $ENDPOINT skill run health_overview
+probing -t $ENDPOINT skill run slow_rank --global
+python -m probing.skills validate   # 开发：校验 skills/ 源码树
+```
+
+见 **[诊断 Skill](guide/skills.zh.md)**。
+
+### 进程管理
+
+| 命令 | 平台 | 说明 |
+|------|------|------|
+| `inject` | Linux | 向运行中 PID 注入探针 |
+| `launch [--recursive] <args…>` | 全平台 | 以 probing 启用状态启动 Python |
+
+```bash
+probing -t $PID inject          # Linux 附着
+PROBING=1 python train.py       # macOS / Windows / 训练推荐路径
+```
 
 ---
 
-### probing query
+## Python API（进程内）
 
-对收集的数据执行 SQL 查询。
+训练脚本在 `PROBING=1`（或 Linux `inject` 后）使用。**没有** `probing.connect()`；远程一律 CLI `-t <endpoint>`。
 
-```bash
-probing -t <endpoint> query "<sql>"
-```
-
-**示例：**
-
-```bash
-# 查询 torch 追踪
-probing -t 12345 query "SELECT * FROM python.torch_trace LIMIT 10"
-
-# 聚合查询
-probing -t host:8080 query "SELECT module, AVG(duration) FROM python.torch_trace GROUP BY module"
-```
-
----
-
-### probing eval
-
-在目标进程中执行 Python 代码。
-
-```bash
-probing -t <endpoint> eval "<python_code>"
-```
-
-**示例：**
-
-```bash
-# 简单执行
-probing -t 12345 eval "print('hello')"
-
-# 多语句
-probing -t 12345 eval "import torch; print(torch.cuda.is_available())"
-```
-
----
-
-### probing backtrace
-
-捕获当前堆栈跟踪。
-
-```bash
-probing -t <endpoint> backtrace
-```
-
-**输出：** 包含函数名、文件和行号的堆栈帧。
-
----
-
-### probing repl
-
-启动交互式 Python REPL。
-
-```bash
-probing -t <endpoint> repl
-```
-
-**功能：**
-
-- Tab 补全
-- 多行输入
-- 命令历史
-
----
-
-### probing list
-
-列出启用了 probing 的进程。
-
-```bash
-probing list
-```
-
-**输出：** 进程 ID 及其 probing 状态。
-
----
-
-### probing config
-
-查看或修改配置。
-
-```bash
-# 查看所有配置
-probing -t <endpoint> config
-
-# 查看特定键
-probing -t <endpoint> config probing.sample_rate
-
-# 设置值
-probing -t <endpoint> config probing.sample_rate=0.1
-```
-
-## Python API
-
-### probing.connect
-
-连接到 probing 端点。
+### probing.query
 
 ```python
-from probing import connect
+import probing
 
-# 通过 PID 连接
-probe = connect(pid=12345)
-
-# 通过地址连接
-probe = connect(address="host:8080")
+df = probing.query("SELECT * FROM python.torch_trace LIMIT 10")
 ```
 
----
-
-### @probing.table
-
-注册自定义数据表。
+### probing.span / probing.event
 
 ```python
+with probing.span("forward", kind="nn.forward"):
+    ...
+probing.event("batch.stats", attributes=[{"loss": 1.25}])
+```
+
+### @table（dataclass 插件）
+
+```python
+from dataclasses import dataclass
 from probing import table
 
-@table("my_data")
-def get_my_data():
-    return [{"key": "value"}]
+@table
+@dataclass
+class MyMetrics:
+    step: int
+    loss: float
+
+def init():
+    MyMetrics.init_table()
+
+MyMetrics(step=1, loss=0.42).save()
 ```
 
-## SQL 表
+见 **[扩展机制](design/extensibility.zh.md)**。
 
-### python.backtrace
+### probing.set_role / current_role / clear_role
 
-堆栈跟踪信息。
+```python
+probing.set_role("dp=2,pp=1,tp=0")
+probing.set_role(dp=2, pp=1, tp=0)
+probing.current_role()
+probing.clear_role()
+```
 
-| 列 | 类型 | 描述 |
-|----|------|------|
-| func | string | 函数名 |
-| file | string | 源文件 |
-| lineno | int | 行号 |
-| depth | int | 堆栈深度 |
-| frame_type | string | Python/Native |
+### probing.tracing.step_snapshot
+
+```python
+from probing.tracing import step_snapshot
+
+snap = step_snapshot()
+# snap.local_step, snap.global_step — 用于 SQL 过滤与自定义表
+```
 
 ---
 
-### python.torch_trace
+## 配置
 
-PyTorch 执行跟踪。
+| 键 | 说明 |
+|----|------|
+| `probing.torch.profiling` | TorchProbe（`on`、`ordered:0.5`、`random:0.1`、`tracepy=on` 等） |
+| `probing.pprof.sample_freq` | CPU pprof 采样频率 (Hz) |
 
-| 列 | 类型 | 描述 |
-|----|------|------|
-| step | int | 训练步骤 |
-| seq | int | 序列号 |
-| module | string | 模块名 |
-| stage | string | 钩子标签：`pre forward`、`post forward`、`pre step`、`post step`（时长在 post 行；默认不采 backward） |
-| allocated | float | GPU 内存 (MB) |
-| max_allocated | float | GPU 峰值内存 (MB) |
-| cached | float | GPU 预留内存 (MB) |
-| max_cached | float | 峰值预留 (MB) |
-| time_offset | float | 相对 step 时间锚点（秒） |
-| duration | float | 执行时间 (秒)；post 行有效 |
+```bash
+probing -t $ENDPOINT config
+probing -t $ENDPOINT config probing.torch.profiling=ordered:0.1
+```
 
-## 配置选项
+**没有** `probing.sample_rate` 配置项。Torch 采样通过 `probing.torch.profiling` 或 `PROBING_TORCH_PROFILING` 控制。
 
-| 键 | 默认值 | 描述 |
-|----|--------|------|
-| `probing.torch.profiling` | — | TorchProbe 配置（`on`、`ordered:0.5`、`random:0.1` 等） |
-| `probing.pprof.sample_freq` | — | CPU pprof 采样频率 (Hz) |
+### 环境变量
 
-## 环境变量
-
-| 变量 | 描述 |
+| 变量 | 说明 |
 |------|------|
-| `PROBING` | 启用 probing (1=开启) |
-| `PROBING_PORT` | TCP 服务器端口 |
-| `PROBING_TORCH_PROFILING` | TorchProbe（`on`、`ordered:0.5`、`random:0.1`、`tracepy=on` 等） |
-| `PROBING_PPROF_SAMPLE_FREQ` | 同步为 `probing.pprof.sample_freq`（CPU pprof Hz） |
-| `PROBING_AUTH_TOKEN` | 认证令牌 |
+| `PROBING` | 启用 probing（`1`） |
+| `PROBING_PORT` | 远程 CLI 的 TCP 端口 |
+| `PROBING_TORCH_PROFILING` | TorchProbe 规格 |
+| `PROBING_PPROF_SAMPLE_FREQ` | CPU pprof Hz |
+| `PROBING_AUTH_TOKEN` | HTTP 认证令牌 |
+| `PROBING_ROLE_<NAME>` | 自定义并行维度，参与 `role` 推导 |
+
+---
+
+## 文档提及但未实现 {#unimplemented-apis}
+
+新代码请勿使用——便于迁移对照：
+
+| API / 模式 | 请改用 |
+|------------|--------|
+| `probing.connect()` | CLI `probing -t <endpoint> …` |
+| `@metric` 装饰器 | `@table` dataclass + `.save()` |
+| 函数式 `@table` | 仅 dataclass + `@table` |
+| `probing.sample_rate` 配置 | `probing.torch.profiling` / `PROBING_TORCH_PROFILING` |
+| `probing.is_profiling_active()` | `probing tables` / `SELECT COUNT(*) FROM python.torch_trace` |
+| `probing.flush()` | 事件触发即写入，无 flush API |
+| `probing.get_config()`（Python） | CLI `probing config` |
+| `cluster list` | `cluster nodes` |
+| `nccl_trace` / `training_metrics` 表 | `python.comm_collective`、`nccl.proxy_ops`、`python.torch_trace` |

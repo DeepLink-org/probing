@@ -2,9 +2,10 @@ use std::sync::Arc;
 
 use arrow::array::{
     ArrayRef, BooleanArray, Float32Array, Float64Array, Int32Array, Int64Array, RecordBatch,
-    StringArray,
+    StringArray, TimestampMicrosecondArray, TimestampMillisecondArray, TimestampNanosecondArray,
+    TimestampSecondArray,
 };
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit};
 use datafusion::error::{DataFusionError, Result};
 use probing_proto::prelude::{DataFrame, Seq};
 
@@ -14,6 +15,8 @@ pub const PROBE_HOST_COL: &str = "_host";
 pub const PROBE_ADDR_COL: &str = "_addr";
 /// Cluster `rank` from `cluster.nodes` for the row's source probing endpoint.
 pub const PROBE_RANK_COL: &str = "_rank";
+/// Parallel-role key (e.g. "dp=2,pp=1,tp=0") for the row's source endpoint.
+pub const PROBE_ROLE_COL: &str = "_role";
 
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn node_label(host: &str, addr: &str) -> String {
@@ -40,12 +43,30 @@ pub fn cluster_rank_for_endpoint(host: &str, addr: &str) -> Option<i32> {
         })
 }
 
+/// Resolve parallel-role key for a probing endpoint (`host` + `addr` key in CLUSTER).
+pub fn cluster_role_for_endpoint(host: &str, addr: &str) -> Option<String> {
+    use crate::core::cluster::CLUSTER;
+
+    CLUSTER
+        .read()
+        .ok()
+        .and_then(|c| c.get_by_addr(host, addr).and_then(|n| n.role.clone()))
+        .or_else(|| {
+            crate::core::cluster::get_nodes()
+                .into_iter()
+                .find(|n| n.addr == addr)
+                .and_then(|n| n.role)
+        })
+        .filter(|r| !r.is_empty())
+}
+
 pub fn federated_output_schema(local: SchemaRef) -> SchemaRef {
     let mut fields = local.fields().to_vec();
     for (name, dtype, nullable) in [
         (PROBE_HOST_COL, DataType::Utf8, false),
         (PROBE_ADDR_COL, DataType::Utf8, false),
         (PROBE_RANK_COL, DataType::Int32, true),
+        (PROBE_ROLE_COL, DataType::Utf8, true),
     ] {
         if !fields.iter().any(|f| f.name() == name) {
             fields.push(Arc::new(Field::new(name, dtype, nullable)));
@@ -57,7 +78,7 @@ pub fn federated_output_schema(local: SchemaRef) -> SchemaRef {
 pub fn is_federation_tag_column(name: &str) -> bool {
     matches!(
         name,
-        PROBE_NODE_COL | PROBE_HOST_COL | PROBE_ADDR_COL | PROBE_RANK_COL
+        PROBE_NODE_COL | PROBE_HOST_COL | PROBE_ADDR_COL | PROBE_RANK_COL | PROBE_ROLE_COL
     )
 }
 
@@ -67,12 +88,15 @@ pub fn tag_proto_dataframe(df: &mut DataFrame, host: &str, addr: &str, rank: Opt
         return;
     }
     let rows = df.len();
+    let role = cluster_role_for_endpoint(host, addr).unwrap_or_default();
     df.names.push(PROBE_HOST_COL.to_string());
     df.names.push(PROBE_ADDR_COL.to_string());
     df.names.push(PROBE_RANK_COL.to_string());
+    df.names.push(PROBE_ROLE_COL.to_string());
     df.cols.push(Seq::SeqText(vec![host.to_string(); rows]));
     df.cols.push(Seq::SeqText(vec![addr.to_string(); rows]));
     df.cols.push(Seq::SeqI32(vec![rank.unwrap_or(-1); rows]));
+    df.cols.push(Seq::SeqText(vec![role; rows]));
     df.size = df.len() as u64;
 }
 
@@ -125,8 +149,9 @@ pub fn dataframe_to_record_batch(
     }
 
     let rank = rank.or_else(|| cluster_rank_for_endpoint(host, addr));
-    let mut columns = Vec::with_capacity(df.cols.len() + 3);
-    let mut fields = Vec::with_capacity(df.names.len() + 3);
+    let role = cluster_role_for_endpoint(host, addr).unwrap_or_default();
+    let mut columns = Vec::with_capacity(df.cols.len() + 4);
+    let mut fields = Vec::with_capacity(df.names.len() + 4);
 
     for (name, col) in df.names.iter().zip(df.cols.iter()) {
         fields.push(Field::new(name, array_data_type(col), true));
@@ -137,9 +162,11 @@ pub fn dataframe_to_record_batch(
     fields.push(Field::new(PROBE_HOST_COL, DataType::Utf8, false));
     fields.push(Field::new(PROBE_ADDR_COL, DataType::Utf8, false));
     fields.push(Field::new(PROBE_RANK_COL, DataType::Int32, true));
+    fields.push(Field::new(PROBE_ROLE_COL, DataType::Utf8, true));
     columns.push(Arc::new(StringArray::from(vec![host.to_string(); rows])));
     columns.push(Arc::new(StringArray::from(vec![addr.to_string(); rows])));
     columns.push(Arc::new(Int32Array::from(vec![rank; rows])));
+    columns.push(Arc::new(StringArray::from(vec![role; rows])));
 
     RecordBatch::try_new(Arc::new(Schema::new(fields)), columns)
         .map_err(|e| DataFusionError::Execution(format!("dataframe conversion failed: {e}")))
@@ -171,6 +198,11 @@ pub fn tag_record_batch(
     if !fields.iter().any(|f| f.name() == PROBE_RANK_COL) {
         fields.push(Arc::new(Field::new(PROBE_RANK_COL, DataType::Int32, true)));
         columns.push(Arc::new(Int32Array::from(vec![rank; rows])));
+    }
+    if !fields.iter().any(|f| f.name() == PROBE_ROLE_COL) {
+        let role = cluster_role_for_endpoint(host, addr).unwrap_or_default();
+        fields.push(Arc::new(Field::new(PROBE_ROLE_COL, DataType::Utf8, true)));
+        columns.push(Arc::new(StringArray::from(vec![role; rows])));
     }
 
     RecordBatch::try_new(Arc::new(Schema::new(fields)), columns)
@@ -215,8 +247,22 @@ fn empty_array_for_field(field: &Field, rows: usize) -> Result<ArrayRef> {
         DataType::Int64 => Arc::new(Int64Array::from(vec![None::<i64>; rows])),
         DataType::Float32 => Arc::new(Float32Array::from(vec![None::<f32>; rows])),
         DataType::Float64 => Arc::new(Float64Array::from(vec![None::<f64>; rows])),
-        DataType::Utf8 => Arc::new(StringArray::from(vec![None::<&str>; rows])),
+        DataType::Utf8 | DataType::LargeUtf8 => {
+            Arc::new(StringArray::from(vec![None::<&str>; rows]))
+        }
         DataType::Boolean => Arc::new(BooleanArray::from(vec![None::<bool>; rows])),
+        DataType::Timestamp(unit, _) => match unit {
+            TimeUnit::Second => Arc::new(TimestampSecondArray::from(vec![None::<i64>; rows])),
+            TimeUnit::Millisecond => {
+                Arc::new(TimestampMillisecondArray::from(vec![None::<i64>; rows]))
+            }
+            TimeUnit::Microsecond => {
+                Arc::new(TimestampMicrosecondArray::from(vec![None::<i64>; rows]))
+            }
+            TimeUnit::Nanosecond => {
+                Arc::new(TimestampNanosecondArray::from(vec![None::<i64>; rows]))
+            }
+        },
         other => {
             return Err(DataFusionError::NotImplemented(format!(
                 "unsupported federated column type: {other:?}"
@@ -230,7 +276,7 @@ mod tests {
     use std::sync::Arc;
 
     use arrow::array::{Int32Array, RecordBatch, StringArray};
-    use arrow::datatypes::{DataType, Field, Schema};
+    use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 
     use super::*;
 
@@ -255,6 +301,7 @@ mod tests {
         assert!(schema.index_of(PROBE_HOST_COL).is_ok());
         assert!(schema.index_of(PROBE_ADDR_COL).is_ok());
         assert!(schema.index_of(PROBE_RANK_COL).is_ok());
+        assert!(schema.index_of(PROBE_ROLE_COL).is_ok());
         assert!(schema.index_of(PROBE_NODE_COL).is_err());
     }
 
@@ -267,7 +314,7 @@ mod tests {
         )]));
         let batch = RecordBatch::try_new(local, vec![Arc::new(Int32Array::from(vec![7]))]).unwrap();
         let tagged = tag_record_batch(batch, "host-a", "10.0.0.1:8080", Some(3)).unwrap();
-        assert_eq!(tagged.num_columns(), 4);
+        assert_eq!(tagged.num_columns(), 5);
         assert_eq!(
             tagged
                 .column(tagged.schema().index_of(PROBE_HOST_COL).unwrap())
@@ -320,5 +367,25 @@ mod tests {
         let rank_idx = schema.index_of(PROBE_RANK_COL).unwrap();
         let extended = extend_projection_with_probe_tags(Some(&vec![rank_idx]), &schema).unwrap();
         assert_eq!(extended, vec![rank_idx]);
+    }
+
+    #[test]
+    fn align_batch_fills_timestamp_column_for_empty_rows() {
+        let batch = RecordBatch::try_new(
+            Arc::new(Schema::new(vec![Field::new("host", DataType::Utf8, false)])),
+            vec![Arc::new(StringArray::from(Vec::<&str>::new()))],
+        )
+        .unwrap();
+        let full = Schema::new(vec![
+            Field::new("host", DataType::Utf8, false),
+            Field::new(
+                "timestamp",
+                DataType::Timestamp(TimeUnit::Microsecond, None),
+                false,
+            ),
+        ]);
+        let aligned = align_batch_to_schema(batch, &full).unwrap();
+        assert_eq!(aligned.num_columns(), 2);
+        assert_eq!(aligned.num_rows(), 0);
     }
 }

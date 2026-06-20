@@ -13,13 +13,6 @@ pub struct TraceResponse {
     pub error: Option<String>,
 }
 
-/// Trace status information (simplified version, as show_trace only returns function name list)
-#[allow(dead_code)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TraceInfo {
-    pub function: String,
-}
-
 /// Variable change record
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VariableRecord {
@@ -44,18 +37,7 @@ pub struct TraceableItem {
 
 /// Trace API
 impl ApiClient {
-    /// Get list of traceable functions (returns function name list, compatible with old format)
-    #[allow(dead_code)]
-    pub async fn get_traceable_functions(&self, prefix: Option<&str>) -> Result<Vec<String>> {
-        let items = self.get_traceable_items(prefix).await?;
-        // Convert to old format for backward compatibility
-        Ok(items
-            .iter()
-            .map(|item| format!("[{}] {}", item.item_type, item.name))
-            .collect())
-    }
-
-    /// Get list of traceable items (always includes variable information)
+    /// Get list of traceable items (includes variable information when available).
     pub async fn get_traceable_items(&self, prefix: Option<&str>) -> Result<Vec<TraceableItem>> {
         let base = "/apis/pythonext/trace/list";
         let path = if let Some(prefix) = prefix {
@@ -65,35 +47,7 @@ impl ApiClient {
         };
 
         let response = self.get_request(&path).await?;
-
-        // Try to parse as new format (list of objects)
-        if let Ok(items) = serde_json::from_str::<Vec<TraceableItem>>(&response) {
-            return Ok(items);
-        }
-
-        // Fallback to old format (list of strings)
-        let strings: Vec<String> = Self::parse_json(&response)?;
-        Ok(strings
-            .iter()
-            .map(|s| {
-                // Parse "[TYPE] name" format
-                if let Some(bracket_end) = s.find(']') {
-                    let item_type = s[1..bracket_end].to_string();
-                    let name = s[bracket_end + 2..].to_string();
-                    TraceableItem {
-                        name,
-                        item_type,
-                        variables: vec![],
-                    }
-                } else {
-                    TraceableItem {
-                        name: s.clone(),
-                        item_type: "".to_string(),
-                        variables: vec![],
-                    }
-                }
-            })
-            .collect())
+        Self::parse_json(&response)
     }
 
     /// Get current trace status (returns list of traced function names)

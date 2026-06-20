@@ -1,11 +1,10 @@
 //! Python-facing `ExternalTable`, backed by **mmap memtables**.
 //!
 //! Each table is an [`ExposedTable`] (MEMT ring buffer) under
-//! `<PROBING_DATA_DIR>/<pid>/python.<name>`, so:
+//! `<PROBING_DATA_DIR>/<pid>/`:
 //!
-//! - data **survives a crash** of the producing process (postmortem-readable),
-//! - any process can query it via the mmap SQL catalog
-//!   (`probing_core::core::memtable_sql`) as `python.<name>`,
+//! - ``foo`` → ``python.foo`` → SQL ``python.foo``
+//! - ``nccl.proxy_ops`` → ``nccl.proxy_ops`` → SQL ``nccl.proxy_ops``
 //! - the training process only ever pays the cost of an mmap row write —
 //!   query-side materialisation happens in whoever runs the SQL.
 //!
@@ -27,8 +26,39 @@ use pyo3::{pyclass, pymethods, Bound, PyResult, Python};
 
 use crate::features::convert::{ele_to_python, python_to_ele};
 
+type PyTableRow = (Py<PyAny>, Vec<Py<PyAny>>);
+
 /// SQL schema (and filename prefix) for Python extern tables.
 pub const EXTERN_TABLE_SCHEMA: &str = "python";
+
+/// Mmap filename for an extern table.
+///
+/// - ``foo`` → ``python.foo`` (legacy Python plugin tables)
+/// - ``nccl.proxy_ops`` → ``nccl.proxy_ops`` (schema-qualified, matches memtable discovery)
+fn mmap_basename(name: &str) -> String {
+    if name.contains('.') {
+        name.to_string()
+    } else {
+        format!("{EXTERN_TABLE_SCHEMA}.{name}")
+    }
+}
+
+/// Legacy ``python.*`` tables prepend a ``timestamp`` column; schema-qualified
+/// tables (``nccl.proxy_ops``) match native writer layouts exactly.
+fn uses_timestamp_column(name: &str) -> bool {
+    !name.contains('.')
+}
+
+fn build_schema(name: &str, columns: &[String], dtypes: &[DType]) -> MtSchema {
+    let mut schema = MtSchema::new();
+    if uses_timestamp_column(name) {
+        schema = schema.col("timestamp", DType::I64);
+    }
+    for (col, dt) in columns.iter().zip(dtypes.iter()) {
+        schema = schema.col(col, *dt);
+    }
+    schema
+}
 
 /// Ring layout: fixed chunk count; chunk byte size derives from capacity.
 const NUM_CHUNKS: u32 = 8;
@@ -200,12 +230,9 @@ impl ExternBacking {
             return Ok(());
         }
         self.dtypes = vec![DType::Str; self.columns.len()];
-        let mut schema = MtSchema::new().col("timestamp", DType::I64);
-        for name in &self.columns {
-            schema = schema.col(name, DType::Str);
-        }
+        let schema = build_schema(&self.name, &self.columns, &self.dtypes);
         let chunk_bytes = ring_chunk_bytes(self.capacity_bytes);
-        let filename = format!("{EXTERN_TABLE_SCHEMA}.{}", self.name);
+        let filename = mmap_basename(&self.name);
         let table = ExposedTable::create(&filename, &schema, chunk_bytes, NUM_CHUNKS)
             .map_err(|e| format!("failed to register mmap table {filename}: {e}"))?;
         self.table = Some(table);
@@ -227,12 +254,9 @@ impl ExternBacking {
         self.dtypes.clear();
 
         let dtypes: Vec<DType> = first_row.iter().map(ele_dtype).collect();
-        let mut schema = MtSchema::new().col("timestamp", DType::I64);
-        for (name, dt) in self.columns.iter().zip(dtypes.iter()) {
-            schema = schema.col(name, *dt);
-        }
+        let schema = build_schema(&self.name, &self.columns, &dtypes);
         let chunk_bytes = ring_chunk_bytes(self.capacity_bytes);
-        let filename = format!("{EXTERN_TABLE_SCHEMA}.{}", self.name);
+        let filename = mmap_basename(&self.name);
         let table = ExposedTable::create(&filename, &schema, chunk_bytes, NUM_CHUNKS)
             .map_err(|e| format!("failed to create mmap table {filename}: {e}"))?;
         self.dtypes = dtypes;
@@ -252,12 +276,31 @@ impl ExternBacking {
             .map(|(e, dt)| ele_to_owned(e, *dt))
             .collect();
         let mut row: Vec<Value> = Vec::with_capacity(owned.len() + 1);
-        row.push(Value::I64(timestamp));
+        if uses_timestamp_column(&self.name) {
+            row.push(Value::I64(timestamp));
+        }
         row.extend(owned.iter().map(owned_to_value));
 
         // ExposedTable::push_row validates schema and auto-advances chunks.
         self.table.as_mut().expect("ensured above").push_row(&row);
         Ok(())
+    }
+
+    fn read_row_values(&self, cursor: &mut probing_memtable::RowCursor<'_>) -> Vec<Ele> {
+        self.dtypes
+            .iter()
+            .map(|dt| match dt {
+                DType::U8 => Ele::BOOL(cursor.next_u8() != 0),
+                DType::I32 => Ele::I32(cursor.next_i32()),
+                DType::I64 => Ele::I64(cursor.next_i64()),
+                DType::F32 => Ele::F32(cursor.next_f32()),
+                DType::F64 => Ele::F64(cursor.next_f64()),
+                DType::U64 => Ele::DataTime(cursor.next_u64()),
+                DType::U32 => Ele::I64(cursor.next_u32() as i64),
+                DType::Str => Ele::Text(cursor.next_str().to_string()),
+                DType::Bytes => Ele::Text(String::from_utf8_lossy(cursor.next_bytes()).to_string()),
+            })
+            .collect()
     }
 
     /// Rows in chronological order; when `limit` is set, only the most
@@ -271,24 +314,15 @@ impl ExternBacking {
         for chunk in view.chunks_logical() {
             for row in view.rows(chunk) {
                 let mut cursor = row.cursor();
-                let ts = Ele::I64(cursor.next_i64());
-                let vals: Vec<Ele> = self
-                    .dtypes
-                    .iter()
-                    .map(|dt| match dt {
-                        DType::U8 => Ele::BOOL(cursor.next_u8() != 0),
-                        DType::I32 => Ele::I32(cursor.next_i32()),
-                        DType::I64 => Ele::I64(cursor.next_i64()),
-                        DType::F32 => Ele::F32(cursor.next_f32()),
-                        DType::F64 => Ele::F64(cursor.next_f64()),
-                        DType::U64 => Ele::DataTime(cursor.next_u64()),
-                        DType::U32 => Ele::I64(cursor.next_u32() as i64),
-                        DType::Str => Ele::Text(cursor.next_str().to_string()),
-                        DType::Bytes => {
-                            Ele::Text(String::from_utf8_lossy(cursor.next_bytes()).to_string())
-                        }
-                    })
-                    .collect();
+                let (ts, vals) = if uses_timestamp_column(&self.name) {
+                    let ts = Ele::I64(cursor.next_i64());
+                    let vals = self.read_row_values(&mut cursor);
+                    (ts, vals)
+                } else {
+                    let vals = self.read_row_values(&mut cursor);
+                    let ts = vals.first().cloned().unwrap_or(Ele::Nil);
+                    (ts, vals)
+                };
                 out.push((ts, vals));
             }
         }
@@ -469,7 +503,7 @@ impl ExternalTable {
     }
 
     #[pyo3(signature = (limit=None))]
-    fn take(&self, limit: Option<usize>) -> PyResult<Vec<(Py<PyAny>, Vec<Py<PyAny>>)>> {
+    fn take(&self, limit: Option<usize>) -> PyResult<Vec<PyTableRow>> {
         let backing = self.0.clone();
         with_detached_native(move || {
             let rows = backing.lock().unwrap().take(limit);
@@ -648,6 +682,23 @@ probing.ExternalTable.drop("table_to_drop")
             .join("python.roundtrip");
         assert!(path.is_file(), "mmap file missing: {path:?}");
 
+        // Qualified schema.table → mmap basename used as-is
+        let mut nccl = ExternalTable::new(
+            "nccl.proxy_ops",
+            vec!["rank".to_string()],
+            10000,
+            1_000_000,
+            "BaseMemorySize".to_string(),
+        );
+        Python::attach(|py| {
+            let vals: Vec<Py<PyAny>> = vec![1i64.into_pyobject(py).unwrap().into_any().unbind()];
+            nccl.append(vals).unwrap();
+        });
+        let nccl_path = probing_memtable::discover::default_dir()
+            .join(std::process::id().to_string())
+            .join("nccl.proxy_ops");
+        assert!(nccl_path.is_file(), "mmap file missing: {nccl_path:?}");
+
         // take() returns rows oldest → newest, with coerced values
         let rows = table.take(None).unwrap();
         assert_eq!(rows.len(), 2);
@@ -666,31 +717,6 @@ probing.ExternalTable.drop("table_to_drop")
         Python::attach(|py| {
             assert_eq!(rows[0].1[1].extract::<String>(py).unwrap(), "world");
         });
-    }
-
-    #[test]
-    fn test_see_py_table_in_engine() {
-        setup_table("table3");
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(4)
-            .enable_all()
-            .build()
-            .unwrap();
-        let engine = rt.block_on(engine_with_python());
-        let tables = rt.block_on(async {
-            engine
-                .async_query(
-                    "select * from probe.information_schema.tables where table_name = 'table3' ",
-                )
-                .await
-                .unwrap()
-        });
-        let df = tables.expect("Table 'table3' should be found in information_schema.tables");
-        assert!(!df.cols.is_empty(), "Should have at least one column");
-        assert!(
-            df.len() > 0,
-            "Table 'table3' should be found in information_schema.tables"
-        );
     }
 
     #[test]

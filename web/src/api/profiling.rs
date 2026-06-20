@@ -40,15 +40,20 @@ impl ApiClient {
         profiler_type: &str,
         metric: Option<&str>,
     ) -> Result<String> {
-        let path = match metric {
-            Some(m) if !m.is_empty() => {
-                format!(
-                    "/apis/flamegraph/{}?format=json&metric={}",
-                    profiler_type,
+        let path = match profiler_type {
+            "torch" => match metric {
+                Some(m) if !m.is_empty() => format!(
+                    "/apis/torchextension/flamegraph/json?metric={}",
                     urlencoding::encode(m)
-                )
+                ),
+                _ => "/apis/torchextension/flamegraph/json".to_string(),
+            },
+            "pprof" => "/apis/pprofextension/flamegraph/json".to_string(),
+            other => {
+                return Err(crate::utils::error::AppError::Api(format!(
+                    "unknown flamegraph profiler: {other}"
+                )))
             }
-            _ => format!("/apis/flamegraph/{}?format=json", profiler_type),
         };
         self.get_request(&path).await
     }

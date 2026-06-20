@@ -1,0 +1,261 @@
+{
+  "$comment": "Canonical HTTP API contract for Server, Python handlers, Web UI, and CLI. Narrative docs: probing/server/API.md. Client paths are validated via tests/regression/spec/client_contract.py (no Server crate coupling).",
+  "version": 1,
+  "routing": {
+    "server_public_prefix": "/apis",
+    "extension_url_pattern": "/apis/{extension_name}/{local_path}",
+    "python_sql_namespace": "python",
+    "python_http_extension_name": "pythonext"
+  },
+  "extension_response_defaults": {
+    "content_type": "text/plain",
+    "cors": false
+  },
+  "server_public": [
+    { "method": "GET", "path": "/apis/overview" },
+    { "method": "GET", "path": "/apis/files" },
+    { "method": "GET", "path": "/apis/nodes" },
+    { "method": "PUT", "path": "/apis/nodes" },
+    { "method": "GET", "path": "/apis/training/step_matrix" },
+    { "method": "POST", "path": "/apis/cluster/query" }
+  ],
+  "top_level": [
+    { "method": "POST", "path": "/query" },
+    { "method": "POST", "path": "/query/dto" },
+    { "method": "GET", "path": "/config/{config_key}" },
+    { "method": "GET", "path": "/ws" }
+  ],
+  "pythonext_handlers": [
+    {
+      "local_path": "callstack",
+      "method": "GET",
+      "uses_body": false,
+      "response": { "content_type": "application/json", "cors": false }
+    },
+    {
+      "local_path": "eval",
+      "method": "POST",
+      "uses_body": true,
+      "response": { "content_type": "text/plain", "cors": false }
+    },
+    {
+      "local_path": "trace/list",
+      "method": "GET",
+      "uses_body": false,
+      "response": { "content_type": "application/json", "cors": false }
+    },
+    {
+      "local_path": "trace/show",
+      "method": "GET",
+      "uses_body": false,
+      "response": { "content_type": "application/json", "cors": false }
+    },
+    {
+      "local_path": "trace/start",
+      "method": "GET",
+      "uses_body": false,
+      "response": { "content_type": "application/json", "cors": false }
+    },
+    {
+      "local_path": "trace/stop",
+      "method": "GET",
+      "uses_body": false,
+      "response": { "content_type": "application/json", "cors": false }
+    },
+    {
+      "local_path": "trace/variables",
+      "method": "GET",
+      "uses_body": false,
+      "response": { "content_type": "application/json", "cors": false }
+    },
+    {
+      "local_path": "trace/chrome-tracing",
+      "method": "GET",
+      "uses_body": false,
+      "response": { "content_type": "application/json", "cors": true }
+    },
+    {
+      "local_path": "pytorch/timeline",
+      "method": "GET",
+      "uses_body": false,
+      "response": { "content_type": "application/json", "cors": true }
+    },
+    {
+      "local_path": "pytorch/profile",
+      "method": "GET",
+      "uses_body": false,
+      "response": { "content_type": "application/json", "cors": false }
+    },
+    {
+      "local_path": "ray/timeline",
+      "method": "GET",
+      "uses_body": false,
+      "response": { "content_type": "application/json", "cors": true }
+    },
+    {
+      "local_path": "ray/timeline/chrome",
+      "method": "GET",
+      "uses_body": false,
+      "response": { "content_type": "application/json", "cors": true }
+    },
+    {
+      "local_path": "magics",
+      "method": "GET",
+      "uses_body": false,
+      "response": { "content_type": "application/json", "cors": false }
+    }
+  ],
+  "other_extensions": [
+    {
+      "extension_name": "torchextension",
+      "method": "GET",
+      "path": "/apis/torchextension/flamegraph",
+      "local_path": "flamegraph",
+      "response": { "content_type": "text/html", "cors": false }
+    },
+    {
+      "extension_name": "torchextension",
+      "method": "GET",
+      "path": "/apis/torchextension/flamegraph/json",
+      "local_path": "flamegraph/json",
+      "response": { "content_type": "application/json", "cors": false }
+    },
+    {
+      "extension_name": "pprofextension",
+      "method": "GET",
+      "path": "/apis/pprofextension/flamegraph",
+      "local_path": "flamegraph",
+      "response": { "content_type": "text/html", "cors": false }
+    },
+    {
+      "extension_name": "pprofextension",
+      "method": "GET",
+      "path": "/apis/pprofextension/flamegraph/json",
+      "local_path": "flamegraph/json",
+      "response": { "content_type": "application/json", "cors": false }
+    },
+    {
+      "extension_name": "rdmaextension",
+      "method": "POST",
+      "path": "/apis/rdmaextension/",
+      "local_path": "",
+      "response": { "content_type": "text/plain", "cors": false }
+    }
+  ],
+  "deprecated_paths": [
+    {
+      "path": "/apis/flamegraph/torch",
+      "replacement": "/apis/torchextension/flamegraph"
+    },
+    {
+      "path": "/apis/flamegraph/pprof",
+      "replacement": "/apis/pprofextension/flamegraph"
+    },
+    {
+      "path": "/apis/python/ray/timeline",
+      "replacement": "/apis/pythonext/ray/timeline"
+    },
+    {
+      "path": "/apis/python/ray/timeline/chrome",
+      "replacement": "/apis/pythonext/ray/timeline/chrome"
+    },
+    {
+      "path": "/apis/pythonext/flamegraph",
+      "replacement": "/apis/torchextension/flamegraph"
+    }
+  ],
+  "client_contracts": {
+    "web": [
+      {
+        "source": "web/src/api/dashboard.rs",
+        "calls": [{ "method": "GET", "path": "/apis/overview" }]
+      },
+      {
+        "source": "web/src/api/cluster.rs",
+        "calls": [
+          { "method": "GET", "path": "/apis/nodes" },
+          { "method": "POST", "path": "/apis/cluster/query" }
+        ]
+      },
+      {
+        "source": "web/src/api/files.rs",
+        "calls": [{ "method": "GET", "path": "/apis/files" }]
+      },
+      {
+        "source": "web/src/api/profiling.rs",
+        "calls": [
+          { "method": "GET", "path": "/apis/torchextension/flamegraph/json" },
+          { "method": "GET", "path": "/apis/pprofextension/flamegraph/json" }
+        ]
+      },
+      {
+        "source": "web/src/api/stack.rs",
+        "calls": [{ "method": "GET", "path": "/apis/pythonext/callstack" }]
+      },
+      {
+        "source": "web/src/api/trace.rs",
+        "calls": [
+          { "method": "GET", "path": "/apis/pythonext/trace/list" },
+          { "method": "GET", "path": "/apis/pythonext/trace/show" },
+          { "method": "GET", "path": "/apis/pythonext/trace/start" },
+          { "method": "GET", "path": "/apis/pythonext/trace/stop" }
+        ]
+      },
+      {
+        "source": "web/src/api/pytorch.rs",
+        "calls": [
+          { "method": "GET", "path": "/apis/pythonext/pytorch/timeline" },
+          { "method": "GET", "path": "/apis/pythonext/pytorch/profile" }
+        ]
+      },
+      {
+        "source": "web/src/api/traces.rs",
+        "calls": [
+          { "method": "GET", "path": "/apis/pythonext/ray/timeline" },
+          { "method": "GET", "path": "/apis/pythonext/ray/timeline/chrome" }
+        ]
+      },
+      {
+        "source": "web/src/api/repl.rs",
+        "calls": [
+          { "method": "GET", "path": "/apis/pythonext/magics" },
+          { "method": "POST", "path": "/apis/pythonext/eval" }
+        ]
+      },
+      {
+        "source": "web/src/api/training.rs",
+        "calls": [{ "method": "GET", "path": "/apis/training/step_matrix" }]
+      },
+      {
+        "source": "web/src/api/analytics.rs",
+        "calls": [{ "method": "POST", "path": "/query" }]
+      }
+    ],
+    "cli": [
+      {
+        "source": "probing/cli/src/cli/cluster.rs",
+        "calls": [
+          { "method": "GET", "path": "/apis/nodes" },
+          { "method": "POST", "path": "/apis/cluster/query" }
+        ]
+      },
+      {
+        "source": "probing/cli/src/cli/ctrl.rs",
+        "calls": [
+          { "method": "GET", "path": "/apis/pythonext/callstack" },
+          { "method": "POST", "path": "/apis/pythonext/eval" },
+          { "method": "POST", "path": "/apis/rdmaextension/" },
+          { "method": "POST", "path": "/query" },
+          { "method": "GET", "path": "/apis/torchextension/flamegraph" },
+          { "method": "GET", "path": "/apis/torchextension/flamegraph/json" },
+          { "method": "GET", "path": "/apis/pprofextension/flamegraph" },
+          { "method": "GET", "path": "/apis/pprofextension/flamegraph/json" }
+        ]
+      },
+      {
+        "source": "probing/cli/src/cli/repl.rs",
+        "calls": [{ "method": "GET", "path": "/ws" }]
+      }
+    ]
+  }
+}

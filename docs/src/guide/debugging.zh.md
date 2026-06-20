@@ -83,10 +83,9 @@ for t in threading.enumerate():
 
 ```bash
 probing $ENDPOINT eval "
-# 检查当前步骤
-print(f'当前步骤: {trainer.current_step}')
-print(f'当前损失: {trainer.last_loss}')
-print(f'学习率: {optimizer.param_groups[0][\"lr\"]}')
+from probing.tracing import step_snapshot
+snap = step_snapshot()
+print(f'local_step: {snap.local_step}, global_step: {snap.global_step}')
 "
 ```
 

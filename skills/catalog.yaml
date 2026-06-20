@@ -1,0 +1,145 @@
+# Skill catalog — index for CLI, Python loader, and Web Agent.
+apiVersion: probing.dev/v1
+kind: Catalog
+categories:
+  triage:
+    label: 分诊 / Triage
+    description: First look when unsure where to start.
+  reliability:
+    label: 可靠性 / Reliability
+    description: Stalls, hangs, deadlocks.
+  distributed:
+    label: 分布式 / Distributed
+    description: Ranks, collectives, stragglers.
+  performance:
+    label: 性能 / Performance
+    description: Module hotspots and step regressions.
+  memory:
+    label: 内存 / Memory
+    description: GPU/VRAM pressure and leaks.
+skills:
+- id: health_overview
+  category: triage
+  priority: 0
+  entry: true
+  description: 'One-shot health check: CPU, GPU, tables, recent training activity'
+  tables:
+  - cpu.utilization
+  - gpu.utilization
+  - python.torch_trace
+  - cluster.nodes
+  pages:
+  - dashboard
+  - agent
+  - analytics
+  related:
+  - module_bottleneck
+  - training_hang
+  - memory_leak
+  path: health_overview/steps.yaml
+- id: training_hang
+  category: reliability
+  priority: 1
+  description: Training stalled — capture stacks and thread/blocking hints
+  tables:
+  - python.backtrace
+  - cpu.utilization
+  - python.trace_event
+  - python.comm_collective
+  pages:
+  - stacks
+  - spans
+  related:
+  - slow_rank
+  - module_bottleneck
+  path: training_hang/steps.yaml
+- id: slow_rank
+  category: distributed
+  priority: 2
+  description: Find straggler ranks via collective latency imbalance
+  tables:
+  - python.comm_collective
+  - global.python.comm_collective
+  pages:
+  - training
+  - cluster
+  - analytics
+  related:
+  - comm_bottleneck
+  - nccl_culprit_victim
+  - gpu_pressure
+  - training_hang
+  path: slow_rank/steps.yaml
+- id: memory_leak
+  category: memory
+  priority: 3
+  description: Detect monotonic GPU memory growth across training steps
+  tables:
+  - python.torch_trace
+  - gpu.utilization
+  pages:
+  - profiling/torch
+  related:
+  - gpu_pressure
+  - module_bottleneck
+  path: memory_leak/steps.yaml
+- id: module_bottleneck
+  category: performance
+  priority: 4
+  description: Find slowest PyTorch modules in recent steps
+  tables:
+  - python.torch_trace
+  pages:
+  - profiling/torch
+  - training
+  related:
+  - slow_rank
+  - comm_bottleneck
+  - memory_leak
+  path: module_bottleneck/steps.yaml
+- id: comm_bottleneck
+  category: distributed
+  priority: 5
+  description: Rank collective ops by total and p99 latency
+  tables:
+  - python.comm_collective
+  - rdma.mlx_hca
+  pages:
+  - training
+  - cluster
+  - analytics
+  - spans
+  related:
+  - slow_rank
+  - nccl_culprit_victim
+  path: comm_bottleneck/steps.yaml
+- id: gpu_pressure
+  category: memory
+  priority: 6
+  description: GPU memory and utilization headroom
+  tables:
+  - gpu.utilization
+  - gpu.devices
+  - python.torch_trace
+  pages:
+  - dashboard
+  related:
+  - memory_leak
+  - slow_rank
+  path: gpu_pressure/steps.yaml
+- id: nccl_culprit_victim
+  category: distributed
+  priority: 7
+  description: NCCL proxy wait decomposition — culprit (send_gpu_wait) vs victim (recv_wait)
+  tables:
+  - nccl.proxy_ops
+  - nccl.net_qp
+  - global.nccl.proxy_ops
+  pages:
+  - training
+  - cluster
+  - analytics
+  related:
+  - slow_rank
+  - comm_bottleneck
+  path: nccl_culprit_victim/steps.yaml

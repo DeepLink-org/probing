@@ -10,7 +10,7 @@ pub struct PageContext {
     pub title: String,
     pub path: String,
     pub description: String,
-    pub suggested_playbooks: Vec<String>,
+    pub suggested_skills: Vec<String>,
     pub investigation_summary: String,
     /// Extra hints pushed by the active page component (optional).
     pub local_hints: Vec<String>,
@@ -35,10 +35,10 @@ impl PageContext {
         if !self.local_hints.is_empty() {
             lines.push(format!("Page hints: {}", self.local_hints.join("; ")));
         }
-        if !self.suggested_playbooks.is_empty() {
+        if !self.suggested_skills.is_empty() {
             lines.push(format!(
-                "Suggested playbooks on this page: {}",
-                self.suggested_playbooks.join(", ")
+                "Suggested skills on this page: {}",
+                self.suggested_skills.join(", ")
             ));
         }
         if self.snapshot_loading {
@@ -75,7 +75,7 @@ pub fn apply_page_descriptor(
     title: String,
     path: String,
     description: String,
-    suggested_playbooks: Vec<String>,
+    suggested_skills: Vec<String>,
     investigation_summary: String,
 ) {
     let mut ctx = PAGE_CONTEXT.read().clone();
@@ -84,7 +84,7 @@ pub fn apply_page_descriptor(
     ctx.title = title;
     ctx.path = path;
     ctx.description = description;
-    ctx.suggested_playbooks = suggested_playbooks;
+    ctx.suggested_skills = suggested_skills;
     ctx.investigation_summary = investigation_summary;
     if route_changed {
         ctx.local_hints.clear();

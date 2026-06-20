@@ -159,8 +159,9 @@ print('清理完成')"
 ```bash
 probing $ENDPOINT eval "
 import torch
+from probing.tracing import step_snapshot
 checkpoint = {
-    'step': trainer.current_step,
+    'step': step_snapshot().local_step,
     'model': model.state_dict(),
     'optimizer': optimizer.state_dict(),
 }
@@ -204,8 +205,8 @@ print(f'新学习率: {optimizer.param_groups[0][\"lr\"]}')"
 
 ```bash
 # 在每个节点上运行
-probing -t node1:8080 eval "print(f'Rank 0 step: {trainer.current_step}')"
-probing -t node2:8080 eval "print(f'Rank 1 step: {trainer.current_step}')"
+probing -t node1:8080 eval "from probing.tracing import step_snapshot as s; print(f'Rank 0 step: {s().local_step}')"
+probing -t node2:8080 eval "from probing.tracing import step_snapshot as s; print(f'Rank 1 step: {s().local_step}')"
 ```
 
 ### 验证同步
@@ -214,7 +215,8 @@ probing -t node2:8080 eval "print(f'Rank 1 step: {trainer.current_step}')"
 probing $ENDPOINT eval "
 import torch.distributed as dist
 if dist.is_initialized():
-    tensor = torch.tensor([trainer.current_step], device='cuda')
+    from probing.tracing import step_snapshot
+    tensor = torch.tensor([step_snapshot().local_step], device='cuda')
     dist.all_reduce(tensor)
     print(f'所有 rank 步数之和: {tensor.item()}')"
 ```

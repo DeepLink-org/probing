@@ -1,84 +1,101 @@
 # Installation
 
-This guide provides instructions on how to install Probing on your system.
+How to install Probing for **production use** or **wheel-based evaluation**.
+Contributors building from a git checkout should follow [Contributing — Development setup](contributing.md#development-setup) (`make develop`), not this page alone.
 
-## Prerequisites
+## Requirements
 
-Before you begin, ensure you have the following:
+| Component | Version |
+|-----------|---------|
+| Python | 3.7+ (3.9+ recommended for development) |
+| OS (full features) | Linux — required for `probing inject` |
+| OS (in-process only) | macOS / Windows — `PROBING=1` at startup, query/eval via CLI |
 
-- Python (version 3.7 or higher)
-- Pip (Python package installer)
-- For building from source:
-    - Rust (latest stable version recommended)
-    - Cargo (Rust's package manager and build system)
-
-## Installation Methods
-
-### 1. Using Pip (Recommended)
-
-This is the easiest way to install Probing:
+## Install from PyPI (recommended)
 
 ```bash
 pip install probing
+# or: uv pip install probing
 ```
 
-This command will download and install the latest stable release of Probing from the Python Package Index (PyPI).
-
-### 2. Building from Source
-
-If you want the latest development version or want to contribute to Probing, you can build it from source:
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/DeepLink-org/probing.git
-cd probing
-
-# 2. Build and install the Python package
-make wheel
-pip install dist/probing-*.whl
-```
-
-This will compile the Rust components and build the Python wheel for installation.
-
-For detailed instructions on building from source, including prerequisites and troubleshooting, see the [Building from Source](design/architecture.md) guide.
-
-## Verifying the Installation
-
-After installation, you can verify that Probing is correctly installed by running:
+Verify:
 
 ```bash
 probing --version
-```
-
-This should print the installed version of Probing, for example:
-
-```
-probing 0.2.5
-```
-
-You can also check if the `probing` command is available:
-
-```bash
 probing list
 ```
 
-This command should list available probing commands or indicate that no processes are currently being probed.
+## Enable probing in your training job
 
-## Platform Support
+After installation, the wheel ships a **site hook** (`probing.pth` → `probing_hook.py`) that can auto-import probing when the `PROBING` environment variable is set — no code changes required.
 
-| Platform | Injection | Query/Eval |
-|----------|-----------|------------|
-| Linux    | ✅ Full support | ✅ Full support |
-| macOS    | ❌ Not supported | ✅ Supported |
-| Windows  | ❌ Not supported | ✅ Supported |
+```bash
+# Current process only
+PROBING=1 python train.py
 
-!!! note "Linux Required for Injection"
-    The dynamic probe injection feature (`probing inject`) requires Linux. On other platforms, you can still use query and eval features if the target process has probing enabled at startup.
+# Current process + child processes (torchrun, mp.spawn, …)
+PROBING=2 python train.py
+```
 
-## Next Steps
+Common values:
 
-With Probing installed, you are ready to start using it:
+| `PROBING` | Behavior |
+|-----------|----------|
+| unset / `0` | Disabled (default) |
+| `1` / `followed` | Enable in current process |
+| `2` / `nested` | Enable in current and child processes |
+| `regex:PATTERN` | Enable when script name matches regex |
+| `SCRIPT.py` | Enable when script basename matches |
 
-- [Quick Start](quickstart.md) - Get started with your first analysis
-- [SQL Analytics](guide/sql-analytics.md) - Learn the SQL query interface
-- [Memory Analysis](guide/memory-analysis.md) - Debug memory issues
+Advanced filters and `init:…` prefixes: see `python/probing/site_hook.py` in the repository.
+
+On **Linux**, you can also attach to a running process:
+
+```bash
+probing -t <pid> inject
+```
+
+On **macOS / Windows**, use `PROBING=1` (or `2`) at startup; injection is not available.
+
+## Install from a release wheel (source build)
+
+Use this for CI smoke tests or when you need a locally built wheel — **not** for day-to-day hacking on the repo (use `make develop` instead).
+
+```bash
+git clone https://github.com/DeepLink-org/probing.git
+cd probing
+
+# Optional: Rust / frontend toolchain — see contributing.md#prerequisites
+make frontend
+make wheel
+pip install dist/probing-*.whl --force-reinstall
+# or: make install-wheel
+```
+
+Verify as above. The installed wheel includes the same site hook as PyPI.
+
+## Platform support
+
+| Platform | `probing inject` | In-process (`PROBING=1`) | CLI query / eval |
+|----------|------------------|---------------------------|------------------|
+| Linux | ✅ | ✅ | ✅ |
+| macOS | ❌ | ✅ | ✅ |
+| Windows | ❌ | ✅ | ✅ |
+
+## Upgrade
+
+```bash
+pip install --upgrade probing
+```
+
+See [Versions](versions.md) for Python / PyTorch / NCCL compatibility notes.
+
+## Optional: example & ML dependencies
+
+The core package has **no** hard Python dependencies. Repository examples under `examples/` may require extra packages (e.g. `torch`, `torchvision`). See [examples/README.md](https://github.com/DeepLink-org/probing/blob/main/examples/README.md).
+
+## Next steps
+
+- [Quick Start](quickstart.md)
+- [Core Concepts](guide/concepts.md) — endpoints, in-process vs attach
+- [Contributing](contributing.md) — clone, `make develop`, run tests

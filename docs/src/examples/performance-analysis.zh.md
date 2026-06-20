@@ -113,18 +113,45 @@ print(f'Prefetch factor: {getattr(train_loader, \"prefetch_factor\", 2)}')"
 
 ## 通信开销（分布式）
 
-### NCCL 操作时间
+### 粗粒度：`python.comm_collective`
 
 ```bash
 probing $ENDPOINT query "
 SELECT
-    operation_type,
-    COUNT(*) as count,
-    AVG(duration_ms) as avg_time_ms,
-    MAX(duration_ms) as max_time_ms
-FROM python.nccl_trace
-GROUP BY operation_type
-ORDER BY avg_time_ms DESC"
+    op,
+    COUNT(*) AS calls,
+    AVG(duration_ms) AS avg_ms,
+    MAX(duration_ms) AS max_ms
+FROM python.comm_collective
+GROUP BY op
+ORDER BY avg_ms DESC"
+```
+
+```bash
+probing -t $ENDPOINT skill run comm_bottleneck
+probing -t $ENDPOINT skill run slow_rank --global
+```
+
+### 细粒度：NCCL proxy 等待
+
+需 NCCL profiler 插件（NCCL ≥ 2.26）。见 [NCCL profiler 插件](../design/nccl-profiler.zh.md)。
+
+```bash
+export NCCL_PROFILER_PLUGIN=$(python -m probing.nccl --plugin-path)
+export NCCL_PROFILE_EVENT_MASK=$(python -m probing.nccl --event-mask)
+```
+
+```bash
+probing $ENDPOINT query "
+SELECT
+    rank,
+    sum(send_gpu_wait_ns) AS gpu_wait_ns,
+    sum(recv_wait_ns) AS recv_wait_ns
+FROM nccl.proxy_ops
+GROUP BY rank
+ORDER BY recv_wait_ns DESC"
+
+probing -t $ENDPOINT skill run nccl_culprit_victim
 ```
 
 ### All-Reduce 扩展

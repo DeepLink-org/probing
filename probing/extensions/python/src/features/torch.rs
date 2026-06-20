@@ -11,7 +11,7 @@ use crate::features::flamegraph::{
     empty_torch_html, Flamegraph, FlamegraphKind, FlamegraphOptions,
 };
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum TorchMetric {
     Duration,
     DeltaMb,
@@ -21,8 +21,8 @@ enum TorchMetric {
 impl TorchMetric {
     fn parse(raw: Option<&str>) -> Self {
         match raw.map(str::trim).filter(|s| !s.is_empty()) {
-            Some(s) if matches!(s, "delta_mb" | "memory" | "delta" | "mem") => Self::DeltaMb,
-            Some(s) if matches!(s, "peak_mb" | "peak") => Self::PeakMb,
+            Some("delta_mb" | "memory" | "delta" | "mem") => Self::DeltaMb,
+            Some("peak_mb" | "peak") => Self::PeakMb,
             _ => Self::Duration,
         }
     }
@@ -329,7 +329,7 @@ fn median_f64(values: &[f64]) -> f64 {
     let mut sorted = values.to_vec();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let mid = sorted.len() / 2;
-    if sorted.len() % 2 == 0 {
+    if sorted.len().is_multiple_of(2) {
         (sorted[mid - 1] + sorted[mid]) / 2.0
     } else {
         sorted[mid]
@@ -515,7 +515,7 @@ pub fn flamegraph() -> String {
     }
 }
 
-/// JSON payload for the web UI (`GET /apis/flamegraph/torch?format=json`).
+/// JSON payload for the web UI (`GET /apis/torchextension/flamegraph/json`).
 pub fn flamegraph_json(metric: Option<&str>) -> String {
     let metric = TorchMetric::parse(metric);
 
@@ -577,14 +577,14 @@ mod tests {
         let lines = build_folded_lines(
             [
                 (
-                    "model.features.conv1".to_string(),
-                    "post forward".to_string(),
-                    0.005,
-                ),
-                (
                     "model.features".to_string(),
                     "post forward".to_string(),
                     0.008,
+                ),
+                (
+                    "model.features.conv1".to_string(),
+                    "post forward".to_string(),
+                    0.005,
                 ),
             ],
             value_to_ns,
@@ -594,10 +594,10 @@ mod tests {
         assert_eq!(lines.len(), 2);
         assert!(lines
             .iter()
-            .any(|l| l.starts_with("forward;model;features;conv1 5000000")));
+            .any(|l| l.starts_with("forward;model;features;conv1; 5000000")));
         assert!(lines
             .iter()
-            .any(|l| l.starts_with("forward;model;features 3000000")));
+            .any(|l| l.starts_with("forward;model;features; 3000000")));
     }
 
     #[test]
@@ -625,8 +625,8 @@ mod tests {
         );
         assert!(lines
             .iter()
-            .any(|l| l.starts_with("forward;layer 10000000")));
-        assert!(lines.iter().any(|l| l.starts_with("step;Adam 2000000")));
+            .any(|l| l.starts_with("forward;layer; 10000000")));
+        assert!(lines.iter().any(|l| l.starts_with("step;Adam; 2000000")));
     }
 
     #[test]
@@ -646,7 +646,9 @@ mod tests {
             value_to_micro_mb,
             true,
         );
-        assert!(lines.iter().any(|l| l.starts_with("forward;layer 1500000")));
+        assert!(lines
+            .iter()
+            .any(|l| l.starts_with("forward;layer; 1500000")));
     }
 
     #[test]
@@ -658,31 +660,28 @@ mod tests {
 
     #[test]
     fn build_lines_from_memory_pairs_computes_positive_deltas() {
-        let mut df = probing_proto::types::DataFrame::default();
-        df.cols = vec![
+        use probing_proto::types::{DataFrame, Seq};
+
+        let df = DataFrame::new(
             vec![
-                probing_proto::types::Ele::I64(1),
-                probing_proto::types::Ele::I64(1),
+                "step".into(),
+                "module".into(),
+                "stage".into(),
+                "allocated".into(),
+                "max_allocated".into(),
             ],
             vec![
-                probing_proto::types::Ele::Text("layer".into()),
-                probing_proto::types::Ele::Text("layer".into()),
+                Seq::SeqI64(vec![1, 1]),
+                Seq::SeqText(vec!["layer".into(), "layer".into()]),
+                Seq::SeqText(vec!["pre forward".into(), "post forward".into()]),
+                Seq::SeqF64(vec![100.0, 102.5]),
+                Seq::SeqF64(vec![100.0, 103.0]),
             ],
-            vec![
-                probing_proto::types::Ele::Text("pre forward".into()),
-                probing_proto::types::Ele::Text("post forward".into()),
-            ],
-            vec![
-                probing_proto::types::Ele::F64(100.0),
-                probing_proto::types::Ele::F64(102.5),
-            ],
-            vec![
-                probing_proto::types::Ele::F64(100.0),
-                probing_proto::types::Ele::F64(103.0),
-            ],
-        ];
+        );
 
         let lines = build_lines_from_memory_pairs(&df, false);
-        assert!(lines.iter().any(|l| l.starts_with("forward;layer 2500000")));
+        assert!(lines
+            .iter()
+            .any(|l| l.starts_with("forward;layer; 2500000")));
     }
 }

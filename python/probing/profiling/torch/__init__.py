@@ -9,21 +9,21 @@ Responsibilities:
 1.  Install/Uninstall hooks on PyTorch Modules and Optimizers.
 2.  Track forward passes and optimizer steps (backward hooks optional; disabled
     by default because they can alter autograd behaviour).
-3.  Manage training step lifecycle (`next_step`).
+
+The training step coordinate is owned by Rust (``probing.tracing.step_snapshot``);
+there is no separate Python step counter here.
 
 Public Interfaces:
 - `install_hooks`: Attach profiling hooks to a model/optimizer.
 - `uninstall_hooks`: Remove attached hooks.
-- `next_step`: Signal the start of a new training iteration.
 """
 
 import torch
 
 from ..types import BaseTracer
 from .module_utils import module_analysis, module_get_fullname, module_name
-from .step import next_step, step
 
-__all__ = ["next_step", "step", "install_hooks", "uninstall_hooks"]
+__all__ = ["install_hooks", "uninstall_hooks"]
 
 HOOK_CACHE = {}
 EVENT_COUNT = 0

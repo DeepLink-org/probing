@@ -6,6 +6,22 @@ edition.workspace = true
 license.workspace = true
 description = "Core library for the Probing framework, providing essential data analysis and inspection capabilities"
 
+[lints.rust]
+rust_2018_idioms = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = "allow"
+nursery = "allow"
+upper_case_acronyms = "allow"
+enum_variant_names = "allow"
+too_many_arguments = "allow"
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+similar_names = "allow"
+
 [lib]
 crate-type = ["rlib"]
 

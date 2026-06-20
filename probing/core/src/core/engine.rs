@@ -12,7 +12,7 @@ use datafusion::execution::SessionState;
 use datafusion::prelude::{DataFrame, SessionConfig, SessionContext};
 use futures;
 
-use super::arrow_convert::arrow_array_to_seq;
+use super::arrow_convert::{arrow_array_to_seq, empty_seq_for_data_type};
 use super::probe_extension::ProbeExtension;
 use super::probe_extension::ProbeExtensionManager;
 
@@ -109,9 +109,21 @@ impl Engine {
             return Ok(Some(df));
         }
         let query: String = federation::prepare_global_query(&original);
-        let batches = self.sql(query.as_str()).await?.collect().await?;
+        let df = self.sql(query.as_str()).await?;
+        let schema = df.schema().clone();
+        let batches = df.collect().await?;
         if batches.is_empty() {
-            return Ok(None);
+            let names = schema
+                .fields()
+                .iter()
+                .map(|f| f.name().clone())
+                .collect::<Vec<_>>();
+            let columns = schema
+                .fields()
+                .iter()
+                .map(|f| empty_seq_for_data_type(f.data_type()))
+                .collect::<Vec<_>>();
+            return Ok(Some(probing_proto::prelude::DataFrame::new(names, columns)));
         }
         let batch = concat_batches(&batches[0].schema(), batches.iter())?;
 
@@ -480,7 +492,9 @@ mod tests {
         assert_eq!(result.names[1], "str");
 
         let result = engine.async_query("SELECT 1 WHERE 1=0").await.unwrap();
-        assert!(result.is_none());
+        let result = result.expect("zero-row queries preserve column schema");
+        assert_eq!(result.names, vec!["Int64(1)".to_string()]);
+        assert_eq!(result.len(), 0);
     }
 
     #[tokio::test]

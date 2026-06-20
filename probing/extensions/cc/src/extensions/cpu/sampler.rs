@@ -20,7 +20,7 @@ pub fn host_sampler() -> Box<dyn CpuHostSampler> {
     }
     #[cfg(target_os = "macos")]
     {
-        return Box::new(super::macos::MacSampler);
+        Box::new(super::macos::MacSampler)
     }
     #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {

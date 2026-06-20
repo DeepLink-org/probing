@@ -1,0 +1,185 @@
+apiVersion: probing.dev/v1
+kind: Skill
+
+metadata:
+  id: slow_rank
+  title: "慢 rank / Straggler 定位"
+  title_en: "Find slow rank (straggler)"
+  category: distributed
+  tags: [rank, straggler, distributed, collective, 拖后腿]
+  triggers:
+    keywords:
+      zh: ["慢 rank", "拖后腿", "straggler", "掉队", "哪个 rank", "rank 慢"]
+      en: ["slow rank", "straggler", "lagging rank", "which rank"]
+  docs: |
+    对比各 rank 的 collective 延迟，找出明显偏慢的 straggler。
+    单机多卡时 rank 列来自 torch.distributed；多机时使用 global.* 并带 _host/_rank 标签。
+
+spec:
+  parameters:
+    - name: step_window
+      type: integer
+      default: 20
+      description: "Include collectives from the last N global_steps"
+    - name: use_global
+      type: boolean
+      default: true
+      description: "Query global.python.comm_collective for cross-node fan-out"
+
+  requires:
+    any_tables:
+      - python.comm_collective
+      - global.python.comm_collective
+      - nccl.proxy_ops
+      - global.nccl.proxy_ops
+
+  steps:
+    - id: rank_latency
+      title: "各 rank collective 平均延迟"
+      type: sql
+      sql: |
+        SELECT
+          rank,
+          count(*) AS calls,
+          avg(duration_ms) AS avg_ms,
+          max(duration_ms) AS max_ms,
+          sum(bytes) AS total_bytes
+        FROM {table_comm}
+        WHERE global_step >= (
+          SELECT max(global_step) - {step_window}
+          FROM {table_comm}
+        )
+        GROUP BY rank
+        ORDER BY avg_ms DESC
+      on_empty: abort
+      empty_message: |
+        无 collective 数据。确认:
+        - PROBING=1 且 torch.distributed 已初始化
+        - collective tracing 已开启 (默认 lite 模式)
+
+    - id: rank_latency_by_op
+      title: "按 op 分解的 rank 延迟"
+      type: sql
+      sql: |
+        SELECT
+          op,
+          rank,
+          avg(duration_ms) AS avg_ms,
+          count(*) AS calls
+        FROM {table_comm}
+        WHERE global_step >= (
+          SELECT max(global_step) - {step_window}
+          FROM {table_comm}
+        )
+        GROUP BY op, rank
+        ORDER BY op, avg_ms DESC
+      on_empty: skip
+
+    - id: rank_latency_global
+      title: "跨节点 rank 延迟 (_host 标签)"
+      type: sql
+      cluster: true
+      when: "{use_global}"
+      sql: |
+        SELECT
+          _host,
+          _rank AS probe_rank,
+          rank AS torch_rank,
+          avg(duration_ms) AS avg_ms,
+          count(*) AS calls
+        FROM global.python.comm_collective
+        WHERE global_step >= (
+          SELECT max(global_step) - {step_window}
+          FROM global.python.comm_collective
+        )
+        GROUP BY _host, _rank, rank
+        ORDER BY avg_ms DESC
+      on_empty: skip
+      empty_message: "global 查询无结果 — 可能只有单节点或未 PUT /apis/nodes 注册"
+
+    - id: step_straggler
+      title: "按 step 找最慢的 rank"
+      type: sql
+      sql: |
+        WITH per_step AS (
+          SELECT
+            global_step,
+            rank,
+            sum(duration_ms) AS step_ms
+          FROM {table_comm}
+          WHERE global_step >= (
+            SELECT max(global_step) - {step_window}
+            FROM {table_comm}
+          )
+          GROUP BY global_step, rank
+        ),
+        ranked AS (
+          SELECT
+            global_step,
+            rank,
+            step_ms,
+            step_ms - min(step_ms) OVER (PARTITION BY global_step) AS lag_ms
+          FROM per_step
+        )
+        SELECT global_step, rank, step_ms, lag_ms
+        FROM ranked
+        WHERE lag_ms = max(lag_ms) OVER (PARTITION BY global_step)
+        ORDER BY global_step DESC
+        LIMIT 10
+      on_empty: skip
+
+    - id: nccl_wait_decomp
+      title: "NCCL wait 分解 (若已启用 profiler)"
+      type: sql
+      sql: |
+        SELECT
+          rank,
+          sum(send_gpu_wait_ns) AS gpu_wait_ns,
+          sum(recv_wait_ns) AS recv_wait_ns,
+          count(*) AS proxy_ops
+        FROM {nccl_proxy_table}
+        WHERE seq >= (
+          SELECT max(seq) - {step_window}
+          FROM {nccl_proxy_table}
+        )
+        GROUP BY rank
+        ORDER BY recv_wait_ns DESC
+      on_empty: skip
+      empty_message: |
+        无 nccl.proxy_ops — 粗粒度 collective 仍可用。
+        启用: NCCL_PROFILER_PLUGIN=$(python -m probing.nccl --plugin-path)
+
+    - id: open_analytics
+      title: "打开 Analytics 查看 collective"
+      type: ui
+      action: navigate
+      view: analytics
+      when: "always"
+
+  variables:
+    table_comm: "{comm_table}"
+    nccl_proxy_table: "{nccl_proxy_table}"
+
+  interpretation:
+    rules:
+      - id: straggler_ratio
+        when: "step:rank_latency | column:avg_ms | max/min(ratio) > 1.5"
+        severity: warning
+        message: "最慢 rank 的平均 collective 延迟是中位数的 1.5 倍以上"
+
+      - id: single_rank_dominates
+        when: "step:rank_latency | rows >= 2 | top(row).avg_ms > 2 * median(avg_ms)"
+        severity: warning
+        message: "Rank {worst_rank} 可能是 straggler — 查看 rank_latency_by_op 确认是哪个 op"
+
+  summary_template: |
+    ## 慢 rank 诊断
+    - 查看 **rank_latency**: 平均延迟最高的 rank
+    - **rank_latency_by_op**: 是 all_reduce 还是 broadcast 拖慢
+    - **step_straggler**: 哪些 step 上 lag 最大
+
+  next_steps:
+    - "某 rank 持续最慢 → 检查该节点 GPU/网络/数据: skill: gpu_pressure"
+    - "栈卡在 collective → skill: training_hang"
+    - "模块级热点 → skill: module_bottleneck (在慢 rank 上 inject)"
+    - "有 nccl.proxy_ops → skill: nccl_culprit_victim (culprit/victim 归因)"

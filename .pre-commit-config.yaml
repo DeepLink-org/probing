@@ -21,12 +21,17 @@ repos:
     hooks:
       - id: black
 
-  # - repo: local
-  #   hooks:
-  #     - id: cargo-fmt
-  #       name: cargo fmt
-  #       description: Format Rust code
-  #       entry: cargo fmt
-  #       language: system
-  #       types: [rust]
-  #       pass_filenames: false
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt
+        entry: cargo fmt --all --
+        language: system
+        types: [rust]
+        pass_filenames: false
+      - id: cargo-clippy
+        name: cargo clippy (make lint-rust)
+        entry: make lint-rust
+        language: system
+        types: [rust]
+        pass_filenames: false

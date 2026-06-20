@@ -241,7 +241,7 @@ pub enum Commands {
     #[command(hide = true)]
     Bench(super::bench::BenchCommand),
 
-    /// Run structured diagnostic playbooks (shared YAML with Web Agent)
+    /// Run structured diagnostic skills (shared with Web Agent)
     #[command(subcommand, visible_aliases = ["doc", "dr"])]
-    Doctor(super::doctor::DoctorCommand),
+    Skill(super::skill::SkillCommand),
 }

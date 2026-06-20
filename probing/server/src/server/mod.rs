@@ -13,7 +13,6 @@ pub mod config;
 pub mod error;
 pub mod file_api;
 pub mod middleware;
-pub mod profiling;
 pub mod system;
 pub mod training;
 
@@ -28,7 +27,7 @@ use crate::server::middleware::{request_logging_middleware, request_size_limit_m
 use crate::server::repl::ws_handler;
 use probing_proto::prelude::Query;
 
-/// Top-level routes outside `/apis`. Keep in sync with `tests/spec/api_spec.json`.
+/// Top-level routes outside `/apis`. Keep in sync with `tests/regression/spec/api_spec.json`.
 pub const TOP_LEVEL_ROUTES: &[(&str, &str)] = &[
     ("POST", "/query"),
     ("POST", "/query/dto"),
@@ -190,7 +189,7 @@ mod spec_tests {
 
     fn load_spec() -> serde_json::Value {
         let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../tests/spec/api_spec.json");
+            .join("../../tests/regression/spec/api_spec.json");
         let text = std::fs::read_to_string(path).expect("read api_spec.json");
         serde_json::from_str(&text).expect("parse api_spec.json")
     }

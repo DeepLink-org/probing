@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 from typing import Any
 
-from .torch.step import next_step
-
 
 @dataclass
 class TensorDef:
@@ -14,25 +12,35 @@ class TensorDef:
         return TensorDef(t.shape, t.dtype)
 
 
-# Global counter for tracking execution order within a step
-MODULE_CALL_OFFSET = 0
-CURRENT_MODULE = None
-CURRENT_STAGE = None
-
-
 class BaseTracer:
+    """Base hook dispatcher for module/optimizer instrumentation.
+
+    Per-step execution ordering (``offset``) and the "current module/stage"
+    de-duplication state are kept on the instance — never as module globals —
+    so multiple tracers (e.g. one per optimizer) and concurrent training loops
+    cannot corrupt each other's sequencing or per-step time anchor.
+
+    The authoritative training step coordinate lives in Rust
+    (``probing.tracing.step_snapshot``); this class no longer maintains a
+    separate Python step counter.
+    """
+
+    def __init__(self, **kwargs):
+        # Execution order within the current step; reset on each optimizer step.
+        self._module_call_offset = 0
+        # Last (module_id, stage) seen, used to advance offset only on change.
+        self._current_module = None
+        self._current_stage = None
+        super().__init__(**kwargs)
+
     def offset(self):
-        return MODULE_CALL_OFFSET
+        return self._module_call_offset
 
     def process_hook(self, module, stage):
-        global MODULE_CALL_OFFSET
-        global CURRENT_MODULE
-        global CURRENT_STAGE
-
-        if CURRENT_MODULE != id(module) or CURRENT_STAGE != stage:
-            MODULE_CALL_OFFSET += 1
-            CURRENT_MODULE = id(module)
-            CURRENT_STAGE = stage
+        if self._current_module != id(module) or self._current_stage != stage:
+            self._module_call_offset += 1
+            self._current_module = id(module)
+            self._current_stage = stage
 
     def pre_forward_hook(self, m, i):
         self.log_module_stage("pre forward", m)
@@ -57,6 +65,6 @@ class BaseTracer:
     def post_step_hook(self, optimizer, args, kwargs):
         self.log_module_stage("post step", optimizer, force=False)
         self.process_hook(optimizer, "post step")
-        global MODULE_CALL_OFFSET
-        MODULE_CALL_OFFSET = 0
-        next_step()
+        # New step begins: reset intra-step execution offset. The training step
+        # coordinate itself is advanced by the train-step span (Rust side).
+        self._module_call_offset = 0

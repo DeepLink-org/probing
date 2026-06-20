@@ -7,10 +7,10 @@
 //!   * reads the interrupted thread's `pc`/`fp` from the `ucontext`,
 //!   * walks the frame-pointer chain collecting raw return addresses,
 //!   * snapshots this thread's thread-local `PYSTACKS` (raw `usize` pointers),
-//! and copies that fixed-size POD snapshot into a preallocated lock-free ring
-//! buffer. No allocation, no locks, no symbolization, no `libunwind`, no libc
-//! string calls happen in the handler — that is what crashed the old `pprof`
-//! path on PyTorch (libunwind + `strlen` over Accelerate/JIT frames).
+//!   * and copies that fixed-size POD snapshot into a preallocated lock-free ring
+//!     buffer. No allocation, no locks, no symbolization, no `libunwind`, no libc
+//!     string calls happen in the handler — that is what crashed the old `pprof`
+//!     path on PyTorch (libunwind + `strlen` over Accelerate/JIT frames).
 //!
 //! A dedicated consumer thread drains the ring and does all the dangerous work
 //! off the signal path: symbolizing native addresses (`backtrace::resolve`) and
@@ -414,7 +414,7 @@ fn current_tid() -> u64 {
 #[inline]
 fn plausible(p: usize) -> bool {
     // Canonical lower-half userspace pointer, above the first page.
-    p >= 0x1000 && p < 0x0001_0000_0000_0000
+    (0x1000..0x0001_0000_0000_0000).contains(&p)
 }
 
 /// Extract (pc, fp) from the signal `ucontext` for the interrupted thread.
@@ -541,8 +541,8 @@ unsafe extern "C" fn sigprof_handler(_sig: c_int, _info: *mut libc::siginfo_t, u
             compiler_fence(Ordering::SeqCst);
             let stacks = &*ps;
             let n = stacks.len().min(MAX_PY);
-            for i in 0..n {
-                sample.py[i] = stacks[i].callee();
+            for (i, stack) in stacks.iter().enumerate().take(n) {
+                sample.py[i] = stack.callee();
             }
             compiler_fence(Ordering::SeqCst);
             // If the eval hook touched PYSTACKS during the copy, discard it.
@@ -970,7 +970,7 @@ pub fn flamegraph() -> Result<String> {
     Ok(fg.render_html(&pprof_flamegraph_options()))
 }
 
-/// JSON payload for the web UI (`GET /apis/flamegraph/pprof?format=json`).
+/// JSON payload for the web UI (`GET /apis/pprofextension/flamegraph/json`).
 pub fn flamegraph_json() -> String {
     let dropped = DROPPED.load(Ordering::Relaxed);
     let empty = |msg: String| {

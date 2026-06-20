@@ -1,67 +1,42 @@
 # User Guide
 
-Welcome to the Probing User Guide. This section covers the core features and usage patterns.
+How-to guides for analyzing and debugging AI training with Probing.
 
-## Overview
+## What Probing does
 
-Probing provides three core capabilities for analyzing and debugging your AI applications:
+| Layer | What you get | How |
+|-------|--------------|-----|
+| **Continuous profiling** | `python.torch_trace`, `python.comm_collective`, spans, plugins | Hooks append rows as training runs |
+| **Live introspection** | Inspect live objects, capture stacks | CLI `eval`, `backtrace` (or in-process API) |
+| **SQL analytics** | Ad-hoc and federated queries | `query`, `global.*`, `cluster query` |
+| **Diagnostic skills** | Curated multi-step investigations | `probing skill run <id>` |
 
-| Capability | Command | Description |
-|------------|---------|-------------|
-| **eval** | `probing $ENDPOINT eval "..."` | Execute Python code in target process |
-| **query** | `probing $ENDPOINT query "..."` | Query performance data with SQL |
-| **backtrace** | `probing $ENDPOINT backtrace` | Capture execution stack with variables |
+Terminology anchor: **[Core Concepts](concepts.md)**. Table columns: **[SQL Tables](../reference/sql-tables.md)**.
 
-## Getting Started
+## Reading order
 
-If you're new to Probing, we recommend starting with these guides in order:
+New users — **Getting Started** in the nav: Installation → Quick Start → Core Concepts.
 
-1. **[SQL Analytics](sql-analytics.md)** - Learn the powerful SQL query interface
-2. **[Memory Analysis](memory-analysis.md)** - Debug memory leaks and usage patterns
-3. **[Debugging](debugging.md)** - Master stack analysis and live debugging
-4. **[Troubleshooting](troubleshooting.md)** - Common issues and solutions
+Then this guide:
 
-## Core Concepts
+1. **[SQL Analytics](sql-analytics.md)** — queries, `global.*`, `_role`
+2. **[Diagnostic Skills](skills.md)** — `health_overview`, `slow_rank`, …
+3. **[Memory Analysis](memory-analysis.md)** — leaks and GPU pressure
+4. **[Debugging](debugging.md)** — backtrace / eval workflows
+5. **[Troubleshooting](troubleshooting.md)** — common failures
 
-### Target Endpoint
+## Primary CLI commands
 
-All Probing commands require a target endpoint, which can be:
+| Command | Role |
+|---------|------|
+| `query` | Read profiling tables |
+| `eval` | Run Python in the target process |
+| `backtrace` | Capture stack → `python.backtrace` |
 
-- **Process ID**: Local process (e.g., `12345`)
-- **Remote Address**: Network endpoint (e.g., `host:8080`)
+Full CLI reference: **[API Reference](../api-reference.md)**.
 
-```bash
-# Set target endpoint
-export ENDPOINT=12345  # or host:8080
-```
+## Design docs
 
-### Data Tables
-
-Probing exposes performance data through SQL tables:
-
-| Table | Description |
-|-------|-------------|
-| `python.backtrace` | Stack trace information |
-| `python.torch_trace` | PyTorch execution traces |
-| `python.variables` | Variable tracking |
-| `information_schema.df_settings` | Configuration settings |
-
-### Workflow Patterns
-
-**Debugging Workflow:**
-```bash
-# 1. Capture current state
-probing $ENDPOINT backtrace
-
-# 2. Inspect specific values
-probing $ENDPOINT eval "print(my_variable)"
-
-# 3. Query historical data
-probing $ENDPOINT query "SELECT * FROM python.torch_trace"
-```
-
-## Advanced Topics
-
-- **[Architecture](../design/architecture.md)** - System design and internals
-- **[Distributed](../design/distributed.md)** - Multi-node monitoring
-- **[Extensibility](../design/extensibility.md)** - Custom tables and metrics
+- **[Architecture](../design/architecture.md)** — probe, engine, extensions
+- **[Distributed](../design/distributed.md)** — cluster, federation
+- **[Extensibility](../design/extensibility.md)** — `@table` plugins

@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+
+use async_trait::async_trait;
 use probing_core::core::EngineError;
 use probing_core::core::Maybe;
 use probing_core::core::ProbeExtension;
@@ -12,7 +15,24 @@ pub struct TorchProbeExtension {
     profiling: Maybe<String>,
 }
 
-impl ProbeExtensionCall for TorchProbeExtension {}
+#[async_trait]
+impl ProbeExtensionCall for TorchProbeExtension {
+    async fn call(
+        &self,
+        path: &str,
+        params: &HashMap<String, String>,
+        _body: &[u8],
+    ) -> Result<Vec<u8>, EngineError> {
+        match path.trim_start_matches('/') {
+            "flamegraph" => Ok(crate::features::torch::flamegraph().into_bytes()),
+            "flamegraph/json" => {
+                let metric = params.get("metric").map(|s| s.as_str());
+                Ok(crate::features::torch::flamegraph_json(metric).into_bytes())
+            }
+            _ => Err(EngineError::UnsupportedCall),
+        }
+    }
+}
 
 impl TorchProbeExtension {
     fn set_profiling(&mut self, profiling: Maybe<String>) -> Result<(), EngineError> {

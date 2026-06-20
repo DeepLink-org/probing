@@ -59,8 +59,8 @@ probing -t node2:8080 list
 ### 集群视图
 
 ```bash
-# 跨集群的聚合视图
-probing cluster list
+# 列出集群视图中已注册的节点（连接到 rank 0 / master 端点）
+probing -t rank0:8080 cluster nodes
 ```
 
 ## 跨节点查询
@@ -73,15 +73,33 @@ SELECT * FROM python.torch_trace
 WHERE step = (SELECT MAX(step) FROM python.torch_trace)"
 ```
 
-### 查询所有节点
+### 联邦查询（`global.*`）
+
+跨 rank SQL 使用 **`global` catalog**。Master 向已注册节点 fan-out，并为每行附加联邦标签
+**`_host`**、**`_addr`**、**`_rank`**、**`_role`**（并行角色 key，来自节点注册表，如 `dp=2,pp=1,tp=0`）。
+
+**方式 A — SQL 引擎（分析推荐）：**
 
 ```bash
-# 联合查询（未来功能）
-probing cluster query "
-SELECT node, rank, step, loss
-FROM python.training_metrics
-ORDER BY step"
+probing -t rank0:8080 query "
+SELECT _role, _rank, avg(duration_ms) AS avg_ms
+FROM global.python.comm_collective
+WHERE global_step > 100
+GROUP BY _role, _rank
+ORDER BY avg_ms DESC"
 ```
+
+**方式 B — cluster fan-out API：**
+
+```bash
+probing -t rank0:8080 cluster query "
+SELECT _role, _rank, avg(duration_ms) AS avg_ms
+FROM global.python.comm_collective
+GROUP BY _role, _rank
+ORDER BY avg_ms DESC"
+```
+
+通过 torchrun（`setup_torchrun_cluster`）或 `PUT /apis/nodes` 注册节点，`_rank` / `_role` 才能正确解析。训练脚本中可用 `probing.set_role(...)` 运行时覆盖 role。
 
 ## 同步调试
 
@@ -109,20 +127,42 @@ if dist.is_initialized():
 
 ## 通信分析
 
-### NCCL 操作
+### Collective 延迟（粗粒度，内置）
+
+`python.comm_collective` 记录 `torch.distributed` 调用墙钟时间，无需 NCCL 插件。
 
 ```sql
--- 分析通信模式
-SELECT
-    operation,
-    src_rank,
-    dst_rank,
-    bytes_transferred,
-    duration_ms
-FROM python.nccl_trace
-WHERE step = (SELECT MAX(step) FROM python.nccl_trace)
-ORDER BY duration_ms DESC;
+SELECT rank, op, avg(duration_ms) AS avg_ms, count(*) AS n
+FROM python.comm_collective
+WHERE global_step >= (SELECT max(global_step) - 20 FROM python.comm_collective)
+GROUP BY rank, op
+ORDER BY avg_ms DESC;
 ```
+
+```bash
+probing -t $ENDPOINT skill run slow_rank
+probing -t $ENDPOINT skill run comm_bottleneck
+```
+
+### NCCL 等待分解（细粒度）
+
+要区分 **culprit / victim**（`send_gpu_wait_ns` / `recv_wait_ns`），需启用 NCCL profiler 插件并查询 `nccl.proxy_ops`：
+
+```bash
+export NCCL_PROFILER_PLUGIN=$(python -m probing.nccl --plugin-path)
+export NCCL_PROFILE_EVENT_MASK=$(python -m probing.nccl --event-mask)
+export PROBING=2
+# ... torchrun ...
+
+probing -t $ENDPOINT skill run nccl_culprit_victim
+probing -t $ENDPOINT query "
+SELECT rank, sum(send_gpu_wait_ns) AS gpu_wait, sum(recv_wait_ns) AS recv_wait
+FROM nccl.proxy_ops
+GROUP BY rank
+ORDER BY recv_wait DESC"
+```
+
+多机使用 `global.nccl.proxy_ops`。完整说明见 [NCCL profiler 插件](nccl-profiler.zh.md)。
 
 ### RDMA 流分析
 
@@ -136,9 +176,12 @@ probing -t $ENDPOINT rdma
 ### Rank 同步
 
 ```bash
-# 检查所有 rank 是否在相同步骤
+# 检查各节点 step 坐标（使用 probing step_snapshot，而非 trainer 字段）
 for node in node1 node2 node3; do
-    probing -t $node:8080 eval "print(f'Step: {trainer.current_step}')"
+    probing -t $node:8080 eval "
+from probing.tracing import step_snapshot
+s = step_snapshot()
+print(f'rank={s.rank} local_step={s.local_step} global_step={s.global_step}')"
 done
 ```
 

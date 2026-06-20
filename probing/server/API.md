@@ -21,10 +21,17 @@ Registered in `server/api/mod.rs`:
 | GET | `/apis/overview` | System overview |
 | GET | `/apis/files?path=…` | Read workspace file |
 | GET/PUT | `/apis/nodes` | Cluster node list / register |
-| GET | `/apis/flamegraph/torch` | PyTorch module flamegraph (interactive HTML; `?format=json` for native UI) |
-| GET | `/apis/flamegraph/pprof` | CPU sampling flamegraph (interactive HTML; `?format=json` for native UI) |
 | GET | `/apis/training/step_matrix` | Cross-rank train.step samples (`cluster=false` default; set `cluster=true` for on-demand fan-out) |
 | POST | `/apis/cluster/query` | On-demand SQL fan-out (`{"expr":"…","cluster":true}`) |
+
+Flamegraphs are served by profiler extensions (extension fallback, not public routes):
+
+| Method | Path | Notes |
+|--------|------|-------|
+| GET | `/apis/torchextension/flamegraph` | PyTorch module flamegraph (interactive HTML) |
+| GET | `/apis/torchextension/flamegraph/json` | JSON for native Web UI (`?metric=` optional) |
+| GET | `/apis/pprofextension/flamegraph` | CPU sampling flamegraph (interactive HTML) |
+| GET | `/apis/pprofextension/flamegraph/json` | JSON for native Web UI |
 
 ## Cluster query (on-demand fan-out)
 
@@ -67,6 +74,10 @@ Rust-backed endpoints (`callstack`, `eval`) are thin `@ext_handler` wrappers aro
 
 | Extension | Example path | Notes |
 |-----------|--------------|-------|
+| `torchextension` | `GET /apis/torchextension/flamegraph` | Rust `ProbeExtensionCall`; torch module flamegraph |
+| `torchextension` | `GET /apis/torchextension/flamegraph/json` | Torch flamegraph JSON (`?metric=` optional) |
+| `pprofextension` | `GET /apis/pprofextension/flamegraph` | CPU SIGPROF flamegraph HTML |
+| `pprofextension` | `GET /apis/pprofextension/flamegraph/json` | pprof flamegraph JSON |
 | `rdmaextension` | `POST /apis/rdmaextension/` | Rust `ProbeExtensionCall`, CLI only |
 
 ## Top-level (non `/apis`)
@@ -106,7 +117,7 @@ Do not register the same capability in both places. Do not add path aliases.
 ## Extension response headers
 
 Extension fallback responses (`server/api/extension.rs`) take `Content-Type` and CORS
-from [`tests/spec/api_spec.json`](../../tests/spec/api_spec.json), not path substring
+from [`tests/regression/spec/api_spec.json`](../../tests/regression/spec/api_spec.json), not path substring
 heuristics. Each handler declares:
 
 ```json
@@ -127,11 +138,11 @@ When adding a pythonext handler, update the spec `response` block alongside
 ## Client contracts (Web UI + CLI)
 
 Web and CLI do **not** import Server routes. They share the same machine-readable
-contract: [`tests/spec/api_spec.json`](../../tests/spec/api_spec.json), section
+contract: [`tests/regression/spec/api_spec.json`](../../tests/regression/spec/api_spec.json), section
 `client_contracts`.
 
 Each entry lists the Rust source file and the HTTP calls it makes (`method` +
-`path`). Contract tests in `tests/spec/client_contract.py` verify:
+`path`). Contract tests in `tests/regression/spec/client_contract.py` verify:
 
 - declared paths exist in the canonical endpoint list (`server_public`,
   `pythonext_handlers`, `other_extensions`, `top_level`)
@@ -142,16 +153,15 @@ When adding or changing a Web/CLI HTTP call, update `client_contracts` in the
 spec — not Server source.
 
 ```bash
-uv run pytest tests/spec/test_api_spec.py -q
+uv run pytest tests/regression/spec/test_api_spec.py -q
 ```
 
 ## Contract spec (machine-readable)
 
-The canonical contract is [`tests/spec/api_spec.json`](../../tests/spec/api_spec.json).
+The canonical contract is [`tests/regression/spec/api_spec.json`](../../tests/regression/spec/api_spec.json).
 Run contract tests:
 
 ```bash
-uv run pytest tests/spec/test_api_spec.py -q
-cargo test -p probing-server --no-default-features spec
-cargo test -p probing-core --test extension_routing_spec
+uv run pytest tests/regression/spec/test_api_spec.py -q
+cargo test -p probing-rust-regression server_training_observability --no-default-features
 ```

@@ -8,9 +8,9 @@
 
 | 示例 | 描述 |
 |------|------|
-| [训练调试](training-debugging.md) | 调试训练问题 |
-| [内存泄漏](memory-leak.md) | 查找和修复内存泄漏 |
-| [性能分析](performance-analysis.md) | 识别瓶颈 |
+| [训练调试](training-debugging.zh.md) | 调试训练问题 |
+| [内存泄漏](memory-leak.zh.md) | 查找和修复内存泄漏 |
+| [性能分析](performance-analysis.zh.md) | 识别瓶颈 |
 
 ## 快速示例
 
@@ -18,9 +18,10 @@
 
 ```bash
 probing $ENDPOINT eval "
-print(f'步骤: {trainer.current_step}')
-print(f'损失: {trainer.last_loss:.4f}')
-print(f'学习率: {optimizer.param_groups[0][\"lr\"]:.6f}')"
+from probing.tracing import step_snapshot
+snap = step_snapshot()
+print(f'local_step: {snap.local_step}, global_step: {snap.global_step}')
+"
 ```
 
 ### 监控 GPU 内存
@@ -57,10 +58,9 @@ for t in threading.enumerate():
 
 ## 运行示例
 
-所有示例假设您已经：
+示例需要已启用 Probing 的目标进程（启动时 `PROBING=1`，或 Linux 上 `probing inject`）。
 
-1. 一个启用了 Probing 的运行中 Python 进程
-2. 设置了 `$ENDPOINT` 环境变量
+**环境：** 仓库内脚本需 [开发环境](../contributing.zh.md#development-setup)（`make develop`）。ML 示例可能需额外依赖 — 见 [examples/README.md](https://github.com/DeepLink-org/probing/blob/main/examples/README.md)。
 
 ```bash
 # 设置端点

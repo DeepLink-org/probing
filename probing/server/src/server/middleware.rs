@@ -10,10 +10,7 @@ use bytes::Bytes;
 use http_body_util::BodyExt;
 
 /// Middleware to limit request body size
-pub async fn request_size_limit_middleware(
-    request: Request,
-    next: Next,
-) -> Result<Response, Response> {
+pub async fn request_size_limit_middleware(request: Request, next: Next) -> Response {
     let max_size = get_max_request_body_size();
 
     // Get the content-length header if present
@@ -27,11 +24,11 @@ pub async fn request_size_limit_middleware(
     if let Some(length) = content_length {
         if length > max_size {
             log::warn!("Request rejected: Content-Length {length} exceeds limit {max_size}");
-            return Err((
+            return (
                 StatusCode::PAYLOAD_TOO_LARGE,
                 format!("Request body too large (max {max_size} bytes allowed)"),
             )
-                .into_response());
+                .into_response();
         }
     }
 
@@ -44,11 +41,11 @@ pub async fn request_size_limit_middleware(
         Ok(bytes) => bytes,
         Err(e) => {
             log::warn!("Request body collection failed: {e}");
-            return Err((
+            return (
                 StatusCode::PAYLOAD_TOO_LARGE,
                 format!("Request body too large (max {max_size} bytes allowed)"),
             )
-                .into_response());
+                .into_response();
         }
     };
 
@@ -57,7 +54,7 @@ pub async fn request_size_limit_middleware(
     let new_request = Request::from_parts(parts, new_body);
 
     // Continue to the next middleware/handler
-    Ok(next.run(new_request).await)
+    next.run(new_request).await
 }
 
 /// Collect body bytes with a size limit using BodyExt::collect()

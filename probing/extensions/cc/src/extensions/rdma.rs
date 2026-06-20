@@ -126,28 +126,81 @@ impl ProbeExtensionCall for RdmaProbeExtension {
     async fn call(
         &self,
         path: &str,
-        params: &HashMap<String, String>,
+        _params: &HashMap<String, String>,
         body: &[u8],
     ) -> Result<Vec<u8>, EngineError> {
-        if path == "" {
-            let string = GLOBAL_HCA_NAME.get_or_init(|| Mutex::new(String::new()));
-            let guard = string.lock().unwrap();
-            let hca_name = guard.clone();
-
-            let mut monitor = RDMAMonitor::new(&hca_name);
-
-            const TEST_CALL: u32 = 5;
-            let mut call_cnt = 0;
-
-            while call_cnt < TEST_CALL {
-                call_cnt += 1;
-                monitor.obtain_newset();
-                std::thread::sleep(Duration::from_millis(1000));
-            }
-            return Ok("RDMA request handled successfully".as_bytes().to_vec());
+        if path.is_empty() {
+            let hca_name = resolve_hca_name(body)?;
+            return Ok(format_rdma_snapshot(&hca_name)?.into_bytes());
         }
         Err(EngineError::UnsupportedCall)
     }
+}
+
+fn resolve_hca_name(body: &[u8]) -> Result<String, EngineError> {
+    if !body.is_empty() {
+        let name = String::from_utf8_lossy(body).trim().to_string();
+        if !name.is_empty() {
+            let global = GLOBAL_HCA_NAME.get_or_init(|| Mutex::new(String::new()));
+            *global.lock().unwrap() = name.clone();
+            return Ok(name);
+        }
+    }
+
+    let global = GLOBAL_HCA_NAME.get_or_init(|| Mutex::new(String::new()));
+    let name = global.lock().unwrap().clone();
+    if name.is_empty() {
+        return Err(EngineError::InvalidOptionValue(
+            RdmaProbeExtension::OPTION_HCA_NAME.to_string(),
+            "HCA name required (POST body or SET rdma.hca.name)".to_string(),
+        ));
+    }
+    Ok(name)
+}
+
+fn format_rdma_snapshot(hca_name: &str) -> Result<String, EngineError> {
+    let mut monitor = RDMAMonitor::new(hca_name);
+    monitor.obtain_newset();
+
+    let sleep_secs = GLOBAL_HCA_SAMPLE_RATE
+        .get_or_init(|| Mutex::new(0.0))
+        .lock()
+        .unwrap()
+        .max(0.0) as u64;
+    if sleep_secs > 0 {
+        thread::sleep(Duration::from_secs(sleep_secs));
+    }
+
+    let port_rcv_packets = monitor.read_counter("port_rcv_packets");
+    let port_rcv_data = monitor.read_counter("port_rcv_data");
+    let port_xmit_packets = monitor.read_counter("port_xmit_packets");
+    let port_xmit_data = monitor.read_counter("port_xmit_data");
+    let link_downed = monitor.read_counter("link_downed");
+    let np_cnp_sent = monitor.read_counter("np_cnp_sent");
+    let np_ecn_marked = monitor.read_counter("np_ecn_marked_roce_packets");
+    let rcv_pkts_rate = monitor.calculate_rate(
+        Some(port_rcv_packets),
+        monitor.previous_port_rcv_packets,
+        monitor.last_measurement_time.map(|t| t.elapsed()),
+    );
+    let snd_pkts_rate = monitor.calculate_rate(
+        Some(port_xmit_packets),
+        monitor.previous_port_xmit_packets,
+        monitor.last_measurement_time.map(|t| t.elapsed()),
+    );
+
+    Ok(format!(
+        "hca_name: {hca_name}\n\
+         port_rcv_packets: {port_rcv_packets}\n\
+         port_rcv_data: {port_rcv_data}\n\
+         port_xmit_packets: {port_xmit_packets}\n\
+         port_xmit_data: {port_xmit_data}\n\
+         link_downed: {link_downed}\n\
+         np_cnp_sent: {np_cnp_sent}\n\
+         np_ecn_marked_roce_packets: {np_ecn_marked}\n\
+         rcv_pkts_rate: {rcv_pkts_rate:.2}\n\
+         snd_pkts_rate: {snd_pkts_rate:.2}\n"
+    ))
 }
 
 impl RdmaProbeExtension {
@@ -221,13 +274,7 @@ impl RDMAMonitor {
             )
         };
 
-        match read_file_to_f64(&path) {
-            Ok(value) => value,
-            Err(e) => {
-                println!("Error reading counter {}: {}", counter_name, e);
-                0.0
-            }
-        }
+        read_file_to_f64(&path).unwrap_or(0.0)
     }
 
     fn calculate_rate(
@@ -255,47 +302,10 @@ impl RDMAMonitor {
 
     fn obtain_newset(&mut self) {
         let port_rcv_packets = self.read_counter("port_rcv_packets");
-        let port_rcv_data = self.read_counter("port_rcv_data");
         let port_xmit_packets = self.read_counter("port_xmit_packets");
-        let port_xmit_data = self.read_counter("port_xmit_data");
-        let link_downed = self.read_counter("link_downed");
-        let np_cnp_sent = self.read_counter("np_cnp_sent");
-        let np_ecn_marked_roce_packets = self.read_counter("np_ecn_marked_roce_packets");
-
-        let current_time = Instant::now();
-        let interval = self
-            .last_measurement_time
-            .map(|t| current_time.duration_since(t));
-
-        let rcv_pkts_rate = self.calculate_rate(
-            Some(port_rcv_packets),
-            self.previous_port_rcv_packets,
-            interval,
-        );
-
-        let snd_pkts_rate = self.calculate_rate(
-            Some(port_xmit_packets),
-            self.previous_port_xmit_packets,
-            interval,
-        );
-
         self.previous_port_rcv_packets = Some(port_rcv_packets);
         self.previous_port_xmit_packets = Some(port_xmit_packets);
-        self.last_measurement_time = Some(current_time);
-
-        let new_data = [
-            port_rcv_packets as f64,
-            port_rcv_data as f64,
-            port_xmit_packets as f64,
-            port_xmit_data as f64,
-            link_downed as f64,
-            np_cnp_sent as f64,
-            np_ecn_marked_roce_packets as f64,
-            rcv_pkts_rate,
-            snd_pkts_rate,
-        ];
-
-        println!("New RDMA data: {:?}", new_data);
+        self.last_measurement_time = Some(Instant::now());
     }
 }
 

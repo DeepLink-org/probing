@@ -150,17 +150,24 @@ impl ProbeEndpoint {
             QueryDataFormat::Error(err) => Err(anyhow::anyhow!("error: {}", err)),
             QueryDataFormat::Nil => Ok(Default::default()),
             QueryDataFormat::DataFrame(df) => Ok(df),
-            QueryDataFormat::TimeSeries(_) => todo!(),
+            QueryDataFormat::TimeSeries(_) => {
+                anyhow::bail!("TimeSeries query responses are not supported by the CLI")
+            }
         }
     }
 
     /// Fetch a flamegraph (`torch` or `pprof`) and return its raw bytes (HTML or JSON).
     pub async fn flamegraph(&self, kind: &str, json: bool) -> Result<Vec<u8>> {
-        let mut url = format!("/apis/flamegraph/{kind}");
-        if json {
-            url.push_str("?format=json");
-        }
-        request(self.clone(), &url, None).await
+        let url = match (kind, json) {
+            ("torch", true) => "/apis/torchextension/flamegraph/json",
+            ("torch", false) => "/apis/torchextension/flamegraph",
+            ("pprof", true) => "/apis/pprofextension/flamegraph/json",
+            ("pprof", false) => "/apis/pprofextension/flamegraph",
+            (other, _) => {
+                anyhow::bail!("unknown flamegraph kind: {other} (expected torch or pprof)")
+            }
+        };
+        request(self.clone(), url, None).await
     }
 
     pub async fn get(&self, url: &str) -> Result<String> {
@@ -214,7 +221,11 @@ pub async fn request(ctrl: ProbeEndpoint, url: &str, body: Option<String>) -> Re
             });
             sender
         }
-        _ => todo!(),
+        ProbeEndpoint::Launch { .. } => {
+            anyhow::bail!(
+                "launch endpoint does not support HTTP requests; use `probing launch` instead"
+            )
+        }
     };
     let request = if let Some(body) = body {
         Request::builder()

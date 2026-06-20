@@ -60,9 +60,8 @@
 
 1. **检查 PyTorch 分析是否启用**：
    ```bash
-   probing $ENDPOINT eval "
-   import probing
-   print(probing.get_config())"
+   probing $ENDPOINT config probing.torch.profiling
+   probing $ENDPOINT tables
    ```
 
 2. **启用 PyTorch 追踪**：
@@ -171,6 +170,68 @@
    ```sql
    SELECT step, AVG(duration) FROM python.torch_trace GROUP BY step;
    ```
+
+## 数据问题
+
+### 数据缺失
+
+**症状**：预期数据未出现在表中。
+
+**解决方案**：
+
+1. **确认表存在且有行**：
+   ```bash
+   probing $ENDPOINT tables
+   probing $ENDPOINT query "SELECT COUNT(*) AS n FROM python.torch_trace"
+   probing $ENDPOINT config probing.torch.profiling
+   ```
+
+2. **确认训练已推进** — 钩子在事件发生时写入；TorchProbe 第 1 步仅发现模块（可用 `WHERE step > 1`）。
+
+3. **确认未关闭 TorchProbe**：
+   ```bash
+   PROBING_TORCH_PROFILING=on python your_script.py
+   ```
+
+### 数值异常
+
+**症状**：数据值看起来不对。
+
+**解决方案**：
+
+1. **确认单位**：
+   - 内存通常为 MB
+   - duration 通常为秒
+
+2. **注意聚合方式**：
+   ```sql
+   -- SUM 与单行 allocated 的区别
+   SELECT SUM(allocated) FROM python.torch_trace;
+   SELECT allocated FROM python.torch_trace LIMIT 5;
+   ```
+
+3. **手工校验**：
+   ```bash
+   probing $ENDPOINT eval "
+   import torch
+   print(torch.cuda.memory_allocated() / 1024**2)"
+   ```
+
+## 平台相关问题
+
+### Linux
+
+- **ptrace 错误**：可能需要 `CAP_SYS_PTRACE`
+- **SELinux**：可能需要调整策略
+
+### macOS
+
+- **不支持 inject**：启动时使用 `PROBING=1`
+- **SIP**：可能影响部分功能
+
+### Windows
+
+- **支持有限**：仅能对已启用 probing 的进程 query/eval
 
 ## 获取帮助
 

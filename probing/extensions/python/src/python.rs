@@ -101,7 +101,7 @@ pub fn should_enable_probing() -> bool {
     match lower.as_str() {
         "1" | "followed" | "2" | "nested" => true,
         _ if lower.starts_with("regex:") => {
-            let Some(pattern) = probe_value.splitn(2, ':').nth(1) else {
+            let Some((_, pattern)) = probe_value.split_once(':') else {
                 return false;
             };
             let Ok(regex) = regex::Regex::new(pattern) else {
@@ -164,7 +164,11 @@ pub fn enable_monitoring(filename: &str) -> anyhow::Result<()> {
             filename
         };
 
-        let code = get_code(filename).unwrap_or_default();
+        let code = get_code(filename).ok_or_else(|| {
+            anyhow::anyhow!(
+                "monitoring script not found: {filename} (embed under pycode/ or set PROBING_CODE_ROOT)"
+            )
+        })?;
         run_embedded(py, &code, None, None)
             .map_err(|err| anyhow::anyhow!("error apply monitoring {filename}: {err}"))?;
         Ok(())

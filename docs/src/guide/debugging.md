@@ -83,10 +83,10 @@ for t in threading.enumerate():
 
 ```bash
 probing $ENDPOINT eval "
-# Check current step
-print(f'Current step: {trainer.current_step}')
-print(f'Current loss: {trainer.last_loss}')
-print(f'Learning rate: {optimizer.param_groups[0][\"lr\"]}')
+from probing.tracing import step_snapshot
+snap = step_snapshot()
+print(f'local_step: {snap.local_step}, global_step: {snap.global_step}')
+# plus framework-specific vars if present in globals()
 "
 ```
 
@@ -181,10 +181,11 @@ if torch.cuda.is_available():
 ```bash
 # Monitor until condition is met
 probing $ENDPOINT eval "
+from probing.tracing import step_snapshot
 import torch
-step = trainer.current_step
-loss = trainer.last_loss
-if loss > 10 or torch.isnan(torch.tensor(loss)):
+snap = step_snapshot()
+loss = globals().get('last_loss')  # framework-specific
+if loss is not None and (loss > 10 or torch.isnan(torch.tensor(loss))):
     print(f'ALERT: Step {step}, Loss {loss}')
     # Trigger investigation
 "

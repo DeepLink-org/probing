@@ -1,4 +1,4 @@
-//! Map playbook `ui.view` targets to app routes (shared with sidebar navigation).
+//! Map skill `ui.view` targets to app routes (shared with sidebar navigation).
 
 use crate::app::Route;
 use crate::state::profiling::{normalize_profiling_view, profiling_view_label};
