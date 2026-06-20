@@ -100,7 +100,7 @@ jobs:
         run: make lint-rust
 
       - name: Install llvm-tools-preview component
-        run: rustup component add llvm-tools-preview --toolchain nightly
+        run: rustup component add llvm-tools-preview --toolchain stable
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov

@@ -46,7 +46,7 @@ jobs:
           args: --release --out dist --zig --compatibility manylinux2014 --auditwheel repair --features extension-module,gpu,gpu-cuda,kmsg
           sccache: "true"
           manylinux: auto
-          rust-toolchain: nightly
+          rust-toolchain: stable
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -77,7 +77,7 @@ jobs:
           target: ${{ matrix.target }}
           args: --release --out dist --find-interpreter --features extension-module,gpu,kmsg
           sccache: "true"
-          rust-toolchain: nightly
+          rust-toolchain: stable
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -103,7 +103,7 @@ jobs:
         with:
           command: sdist
           args: --out dist --features extension-module,gpu,kmsg
-          rust-toolchain: nightly
+          rust-toolchain: stable
 
       - name: Upload sdist
         uses: actions/upload-artifact@v4
