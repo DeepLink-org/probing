@@ -10,9 +10,7 @@
 | Agent 诊断 skill | [Skills 与 Agent](#skills-agents) + [AGENTS.md](https://github.com/DeepLink-org/probing/blob/main/AGENTS.md) |
 | PR / 规范 / 行为准则 | [提交变更](#submitting-changes) |
 
-<a id="getting-started"></a>
-
-## 欢迎参与开发
+## 欢迎参与开发 {#getting-started}
 
 Probing 是**分层**项目：Rust 里的 SQL 引擎与采集、Python SDK 与 hook、诊断 skill、Web UI。**不必一次学完所有层**——按你的背景选一条贡献路径即可。
 
@@ -28,7 +26,7 @@ make check-dev
 make test-python-regression    # Python 冒烟；完整套件：make test
 ```
 
-以上通过即表示环境就绪。可选：`./skills/install.sh`，让 Cursor / Claude / Codex 加载仓库 skill。
+以上通过即表示环境就绪。需要 Rust **stable**（若 `make develop` 因工具链失败，见 [前提条件](#prerequisites)）。可选：`./skills/install.sh`，让 Cursor / Claude / Codex 加载仓库 skill。
 
 本地预览文档：`make docs-install && make docs-serve` → http://127.0.0.1:8000
 
@@ -60,23 +58,28 @@ make test-python-regression    # Python 冒烟；完整套件：make test
 
 不确定改动该落在哪一层？先开 [Discussion](https://github.com/DeepLink-org/probing/discussions) 或 issue，我们可以帮你指路。
 
-<a id="prerequisites"></a>
-
-## 前提条件
+## 前提条件 {#prerequisites}
 
 - **Python** 3.9+
-- **Rust**（最新 stable）+ **Cargo**
+- **Rust（stable 通道）** + **Cargo** — 仓库与 CI 均使用 stable 构建；不需要 nightly
 - **maturin** — 构建 `probing._core`（`pip install maturin` 或 `uv pip install maturin`）
 - **uv**（可选，推荐）— 常用 `uv venv`；若 venv 无 `pip`，Makefile 会改用 `uv pip`
+
+安装 Rust stable（若尚未安装）：
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+rustup default stable
+rustup component add rustfmt clippy
+rustc --version   # 应显示 stable，例如 rustc 1.xx.x (…)
+```
 
 可选（仅发布 / Web UI）：
 
 - **dioxus-cli**（`dx`）— `make frontend` 构建 Web UI；`make wheel` 将其嵌入 wheel
 - **cargo-zigbuild** + **ziglang** — Linux manylinux wheel（`make wheel-ci`）
 
-<a id="development-setup"></a>
-
-## 开发环境
+## 开发环境 {#development-setup}
 
 每个 clone 只需一次：
 
@@ -256,9 +259,7 @@ probing/                          # 仓库根
 分层与依赖规则：[模块化](design/modularity.zh.md)。
 Agent 工作流：[AGENTS.md](https://github.com/DeepLink-org/probing/blob/main/AGENTS.md)。
 
-<a id="submitting-changes"></a>
-
-## 提交变更
+## 提交变更 {#submitting-changes}
 
 ### Pull Request 流程
 

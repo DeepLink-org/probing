@@ -22,6 +22,7 @@ datafusion = { workspace = true }
 log = { workspace = true }
 once_cell = { workspace = true }
 thiserror = { workspace = true }
+libc = "0.2"
 
 cudarc = { version = "0.19.7", default-features = false, features = [
     "dynamic-loading",
@@ -31,5 +32,4 @@ cudarc = { version = "0.19.7", default-features = false, features = [
 
 # macOS-only: Metal + sysctl + ioreg. Not resolved when building for Linux.
 [target.'cfg(target_os = "macos")'.dependencies]
-libc = "0.2"
 metal = "0.31.0"

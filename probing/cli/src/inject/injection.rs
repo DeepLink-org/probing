@@ -310,14 +310,14 @@ impl<'a> Injection<'a> {
     }
 }
 
-impl<'a> InjectionTrait for Injection<'a> {
+impl InjectionTrait for Injection<'_> {
     fn inject(proc: &Process, tracer: &mut pete::Ptracer, tracee: pete::Tracee) -> Result<Self> {
-        // SAFETY: We need to convert &mut pete::Ptracer to &'a mut pete::Ptracer
-        // This is safe because the returned Injection<'a> will have the same lifetime
+        // SAFETY: We need to convert &mut pete::Ptracer to a longer-lived reference.
+        // This is safe because the returned Injection will have the same lifetime
         // as the tracer reference, and the injection will be removed before the tracer
         // goes out of scope in perform_injection.
         unsafe {
-            let tracer_ref = &mut *(tracer as *mut pete::Ptracer);
+            let tracer_ref = &mut *std::ptr::from_mut(tracer);
             Self::inject(proc, tracer_ref, tracee)
         }
     }

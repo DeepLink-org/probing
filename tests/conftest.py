@@ -15,10 +15,20 @@ os.environ.setdefault("RUST_BACKTRACE", "1")
 os.environ.setdefault("PROBING_RUST_BACKTRACE", "1")
 
 # Fallback when tests run without ``make develop`` (no venv .pth files).
+# Skip when ``probing._core`` is already installed (wheel / maturin develop) so we
+# do not shadow site-packages with the checkout-only ``python/probing`` tree.
 _repo_python = Path(__file__).resolve().parents[1] / "python"
 if _repo_python.is_dir():
     _repo_python_str = str(_repo_python)
-    if _repo_python_str not in sys.path:
+    _prepend_repo = True
+    try:
+        import importlib.util
+
+        if importlib.util.find_spec("probing._core") is not None:
+            _prepend_repo = False
+    except (ImportError, ModuleNotFoundError, ValueError):
+        pass
+    if _prepend_repo and _repo_python_str not in sys.path:
         sys.path.insert(0, _repo_python_str)
 
 
@@ -58,3 +68,19 @@ def _thread_excepthook(args: threading.ExceptHookArgs) -> None:
 
 if hasattr(threading, "excepthook"):
     threading.excepthook = _thread_excepthook
+
+
+def repo_root() -> Path:
+    """Repository root (contains ``pyproject.toml``)."""
+    return Path(__file__).resolve().parents[1]
+
+
+def repo_probing_pkg() -> Path:
+    return repo_root() / "python" / "probing"
+
+
+def is_wheel_install() -> bool:
+    """True when ``probing`` is imported from site-packages, not the checkout tree."""
+    import probing
+
+    return Path(probing.__file__).resolve().parent != repo_probing_pkg().resolve()

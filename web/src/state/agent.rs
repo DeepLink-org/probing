@@ -86,12 +86,7 @@ impl AgentMessage {
         }
     }
 
-    pub fn skill_run(
-        skill_id: String,
-        title: String,
-        category: String,
-        docs: String,
-    ) -> Self {
+    pub fn skill_run(skill_id: String, title: String, category: String, docs: String) -> Self {
         Self {
             kind: AgentMessageKind::SkillRun,
             text: docs,

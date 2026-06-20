@@ -1,5 +1,3 @@
-#![feature(thread_local)]
-
 #[macro_use]
 extern crate ctor;
 

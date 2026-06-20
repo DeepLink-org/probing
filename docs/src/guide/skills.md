@@ -80,7 +80,7 @@ skills/<id>/
 ```
 
 Semantic metadata (`tables.yaml`, `intents.yaml`) links skills to SQL catalog and Web UI.
-See **[Contributing](../contributing.md#skills)** and `skills/semantic/`.
+See **[Contributing](../contributing.md#skills-agents)** and `skills/semantic/`.
 
 ## Related
 

@@ -7,14 +7,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "py
 
 import pytest
 
-pytest.importorskip("ipykernel")
-
-from probing.repl import CodeExecutor
-
 
 @pytest.fixture
 def executor():
     """Create a code executor with a real IPython kernel."""
+    pytest.importorskip("ipykernel")
+    from probing.repl import CodeExecutor
+
     ex = CodeExecutor()
     yield ex
     ex.shutdown()

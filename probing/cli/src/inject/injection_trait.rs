@@ -22,32 +22,6 @@ pub trait InjectionTrait {
     fn remove(self) -> Result<()>;
 }
 
-/// Generic injection handler that works with any platform-specific implementation
-pub struct GenericInjection<T> {
-    inner: T,
-}
-
-impl<T> GenericInjection<T>
-where
-    T: InjectionTrait,
-{
-    pub fn new(inner: T) -> Self {
-        Self { inner }
-    }
-
-    pub fn execute(&mut self, filename: &Path) -> Result<()> {
-        self.inner.execute(filename)
-    }
-
-    pub fn setenv(&mut self, name: Option<&str>, value: Option<&str>) -> Result<()> {
-        self.inner.setenv(name, value)
-    }
-
-    pub fn remove(self) -> Result<()> {
-        self.inner.remove()
-    }
-}
-
 /// Generic injection function that works with any platform
 pub fn perform_injection<T>(
     proc: &crate::inject::Process,

@@ -6,7 +6,7 @@ failure detection for probing cluster discovery, while keeping probing's trainin
 
 !!! note "Language"
     The full design narrative is maintained in Chinese:
-    **[cluster-pulsing.zh.md](cluster-pulsing.zh.md)**. This page is an English summary.
+    **[中文版](/zh/design/cluster-pulsing/)**. This page is an English summary.
 
 ## Current probing cluster model
 
@@ -48,5 +48,5 @@ flowchart LR
 ## Related
 
 - **[Distributed](distributed.md)** — `global.*`, `cluster query`, `role`
-- **[Cluster with Pulsing (中文)](cluster-pulsing.zh.md)** — full design
+- **[Cluster with Pulsing (中文)](/zh/design/cluster-pulsing/)** — full design
 - **[SQL Tables](../reference/sql-tables.md)** — `cluster.nodes` columns

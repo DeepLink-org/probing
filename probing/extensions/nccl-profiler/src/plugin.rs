@@ -97,7 +97,7 @@ pub unsafe extern "C" fn probing_profiler_finalize(context: *mut c_void) -> Nccl
 mod tests {
     use super::*;
     use crate::abi::NcclProfilerEventBodyV3;
-    use crate::abi::NCCL_PROFILE_PROXY_OP;
+    use crate::abi::{NcclProfilerProxyOpDescr, NCCL_PROFILE_COLL, NCCL_PROFILE_PROXY_OP};
     use std::sync::atomic::Ordering;
 
     #[test]
@@ -136,7 +136,7 @@ mod tests {
                     let mut c: crate::abi::NcclProfilerCollDescr = unsafe { std::mem::zeroed() };
                     c.comm_hash = 99;
                     c.seq_number = 1;
-                    c.func = b"AllReduce\0".as_ptr() as *const _;
+                    c.func = c"AllReduce".as_ptr();
                     c.n_max_channels = 4;
                     c
                 },

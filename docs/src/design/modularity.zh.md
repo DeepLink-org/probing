@@ -348,5 +348,5 @@ sequenceDiagram
 | [扩展机制](extensibility.zh.md) | 对外扩展路径（表 + skill + NCCL） |
 | [分布式](distributed.zh.md) | 联邦与集群 |
 | [NCCL Profiler](nccl-profiler.zh.md) | NCCL 插件边界 |
-| [web/DESIGN.md](../../../web/DESIGN.md) | 前端模块布局 |
-| [AGENTS.md](../../../AGENTS.md) | Agent 使用 skill |
+| [web/DESIGN.md](https://github.com/DeepLink-org/probing/blob/main/web/DESIGN.md) | 前端模块布局 |
+| [AGENTS.md](https://github.com/DeepLink-org/probing/blob/main/AGENTS.md) | Agent 使用 skill |

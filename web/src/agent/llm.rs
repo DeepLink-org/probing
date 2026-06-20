@@ -16,9 +16,7 @@ use serde::Deserialize;
 
 use crate::agent::cluster::cluster_context_for_llm;
 use crate::agent::runner::StepOutcome;
-use crate::agent::{
-    fetch_cluster_snapshot, list_skill_ids, load_skill, routing_context_for_llm,
-};
+use crate::agent::{fetch_cluster_snapshot, list_skill_ids, load_skill, routing_context_for_llm};
 use crate::state::llm_config::LlmConfig;
 use crate::state::page_context::PAGE_CONTEXT;
 use crate::utils::error::{AppError, Result};

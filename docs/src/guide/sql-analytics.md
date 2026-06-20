@@ -74,7 +74,7 @@ Sampling (`PROBING_TORCH_PROFILING`):
 Also stamped on each row: `global_step`, `rank`, `world_size`, `role` (parallel placement key).
 See [SQL Tables — torch_trace](../reference/sql-tables.md#python-torch_trace).
 
-## Collective communication (`python.comm_collective`)
+## Collective communication (`python.comm_collective`) {#python-comm_collective}
 
 Records `torch.distributed` collectives with wall-clock `duration_ms` (no NCCL plugin required).
 

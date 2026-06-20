@@ -273,8 +273,8 @@ pub async fn run_skill(
     if session.is_some_and(|s| s.is_cancelled()) {
         return Err(AppError::Cancelled);
     }
-    let pb = load_skill(skill_id)
-        .ok_or_else(|| AppError::Api(format!("Unknown skill: {skill_id}")))?;
+    let pb =
+        load_skill(skill_id).ok_or_else(|| AppError::Api(format!("Unknown skill: {skill_id}")))?;
     let overrides = resolve_overrides(&pb, overrides).await;
     if session.is_some_and(|s| s.is_cancelled()) {
         return Err(AppError::Cancelled);

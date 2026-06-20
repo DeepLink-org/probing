@@ -48,7 +48,7 @@ GROUP BY _role, _rank;
 
 ## Training & tracing (`python.*`)
 
-### `python.torch_trace`
+### `python.torch_trace` {#python-torch_trace}
 
 PyTorch module-level forward/step timings and GPU memory snapshots.
 
@@ -78,7 +78,7 @@ by default.
 
 ---
 
-### `python.comm_collective`
+### `python.comm_collective` {#python-comm_collective}
 
 `torch.distributed` collective calls (all_reduce, broadcast, …).
 

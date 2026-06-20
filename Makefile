@@ -17,9 +17,9 @@ endif
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Linux)
-	MATURIN_FEATURES := gpu,gpu-cuda
+	MATURIN_FEATURES := extension-module,gpu,gpu-cuda,kmsg
 else
-	MATURIN_FEATURES := gpu
+	MATURIN_FEATURES := extension-module,gpu,kmsg
 endif
 
 MATURIN_FLAGS := $(MATURIN_RELEASE) --features $(MATURIN_FEATURES)
@@ -32,6 +32,7 @@ endif
 endif
 
 PYTHON ?= $(shell test -x .venv/bin/python && echo .venv/bin/python || echo python3)
+BUILD_PY_DEPS := build wheel toml maturin
 DEV_PTH := python/probing/dev_pth.py
 DEV_PY_DEPS := pyyaml pytest pytest-cov coverage ipython ipykernel
 
@@ -54,8 +55,9 @@ help:
 	@echo "  core              Rebuild probing._core after Rust edits"
 	@echo "  frontend          Build web/dist/ (dx; manual)"
 	@echo "  wheel             Build dist/*.whl (needs web/dist/; bundles skills + UI)"
-	@echo "  wheel-ci          wheel with zig cross-compile on Linux"
+	@echo "  wheel-ci          alias for wheel (native build; PyPI uses maturin-action + zig)"
 	@echo "  install-wheel     pip install dist/probing-*.whl"
+	@echo "  venv              create/refresh project .venv (used by develop and CI)"
 	@echo "  test / lint       Full test and lint suites"
 	@echo "  check-dev         Quick env sanity check"
 	@echo "  clean             Remove build artifacts"
@@ -81,12 +83,25 @@ install-dev-python-deps:
 	fi
 
 # ==============================================================================
-.PHONY: core develop dev check-dev frontend wheel wheel-ci install-wheel wheel-bundle nccl-profiler-lib
+.PHONY: core develop dev check-dev frontend wheel wheel-ci install-wheel wheel-bundle nccl-profiler-lib venv venv-wheel install-build-deps install-wheel-test-deps
+
+venv:
+	@test -x .venv/bin/python || $(shell command -v python3 || echo python3) -m venv .venv
+	.venv/bin/python -m pip install -q -U pip
+
+# Backward-compatible alias (CI/docs may still reference venv-wheel).
+venv-wheel: venv
+
+install-build-deps: venv
+	$(PYTHON) -m pip install -q -U pip $(BUILD_PY_DEPS)
+
+install-wheel-test-deps: venv
+	$(PYTHON) -m pip install -q -U pip $(PYTEST_WHEEL_DEPS)
 
 core: nccl-profiler-lib
-	maturin develop $(MATURIN_FLAGS)
+	$(PYTHON) -m maturin develop $(MATURIN_FLAGS)
 
-develop: core install-dev-python-deps
+develop: install-build-deps core install-dev-python-deps
 	$(PYTHON) $(DEV_PTH) install
 	@$(MAKE) --no-print-directory check-dev
 
@@ -115,26 +130,27 @@ frontend:
 
 wheel-bundle:
 	@test -f web/dist/index.html || { echo "error: run 'make frontend' first"; exit 1; }
-	rm -rf python/probing/_skills python/probing/_web
-	cp -R skills python/probing/_skills
-	cp -R web/dist python/probing/_web
+	rm -rf python/probing/bundled_skills python/probing/bundled_web
+	cp -R skills python/probing/bundled_skills
+	cp -R web/dist python/probing/bundled_web
 
-wheel: wheel-bundle nccl-profiler-lib
-	maturin build $(MATURIN_FLAGS)
+wheel: install-build-deps wheel-bundle nccl-profiler-lib
+	$(PYTHON) -m maturin build $(MATURIN_FLAGS) --out dist
 
 wheel-ci:
-ifeq ($(UNAME_S),Linux)
-	$(MAKE) ZIG=1 wheel
-else
 	$(MAKE) wheel
-endif
 
-install-wheel:
+install-wheel: venv
 	@WH=$$(ls -1 dist/probing-*.whl 2>/dev/null | head -1); \
 	test -n "$$WH" || { echo "run: make wheel"; exit 1; }; \
 	$(PYTHON) -m pip install -q -U pip && \
 	$(PYTHON) -m pip install --force-reinstall "$$WH" && \
-	$(PYTHON) -c "import probing; from probing import _core; print('probing', probing.VERSION)"
+	PROBING=0 $(PYTHON) -c "\
+import probing; from probing import _core; from pathlib import Path; \
+root = Path(probing.__file__).resolve().parent; \
+assert (root / 'bundled_skills' / 'catalog.yaml').is_file(), f'missing bundled skills under {root}'; \
+assert (root / 'bundled_web' / 'index.html').is_file(), f'missing bundled web UI under {root}'; \
+print('probing', probing.VERSION)"
 
 # Linux NCCL plugin copied into python/probing/libs/ for the wheel.
 ifeq ($(UNAME_S),Linux)
@@ -154,7 +170,11 @@ endif
 
 # ==============================================================================
 PYTEST_WHEEL_DEPS := pytest pytest-cov coverage pyyaml websockets pandas torch ipykernel
-PYTEST_WHEEL_ARGS := tests/unit tests/regression python/probing
+# Installed wheel only — do not pass python/probing (conflicts with site-packages).
+PYTEST_WHEEL_ARGS := tests/unit tests/regression
+# Clear repo pythonpath; sibling unit/regression conftest.py need importlib mode.
+# Override addopts to drop --doctest-modules (wheel uses site-packages, not python/).
+PYTEST_WHEEL_FLAGS := --import-mode=importlib -o pythonpath= -o "addopts=--verbose --color=yes --durations=10 --strict-markers"
 PYTEST_WHEEL_EXTRA ?=
 
 .PHONY: test test-rust test-rust-unit test-rust-regression test-python test-python-unit test-python-regression test-doctest test-python-wheel coverage-python-wheel
@@ -164,14 +184,18 @@ test: test-rust test-python
 test-rust: test-rust-unit test-rust-regression
 
 test-rust-unit:
-	@if command -v pyenv >/dev/null 2>&1; then \
+	@if test -x .venv/bin/python; then \
+		export PYTHON_SYS_EXECUTABLE=.venv/bin/python PYO3_PYTHON=.venv/bin/python; \
+	elif command -v pyenv >/dev/null 2>&1; then \
 		P=$$(pyenv which python3 2>/dev/null); \
 		test -n "$$P" && export PYTHON_SYS_EXECUTABLE=$$P PYO3_PYTHON=$$P; \
 	fi; \
 	cargo nextest run --lib --workspace --no-default-features --nff
 
 test-rust-regression:
-	@if command -v pyenv >/dev/null 2>&1; then \
+	@if test -x .venv/bin/python; then \
+		export PYTHON_SYS_EXECUTABLE=.venv/bin/python PYO3_PYTHON=.venv/bin/python; \
+	elif command -v pyenv >/dev/null 2>&1; then \
 		P=$$(pyenv which python3 2>/dev/null); \
 		test -n "$$P" && export PYTHON_SYS_EXECUTABLE=$$P PYO3_PYTHON=$$P; \
 	fi; \
@@ -185,12 +209,11 @@ test-python-regression: check-dev
 test-doctest:
 	${PYTEST_RUN} --doctest-modules python/probing --ignore=python/probing/cli/__main__.py
 
-test-python-wheel:
-	$(PYTHON) -m pip install -q -U pip $(PYTEST_WHEEL_DEPS)
-	PROBING=1 PYTHONPATH=python/ $(PYTHON) -m pytest $(PYTEST_WHEEL_EXTRA) $(PYTEST_WHEEL_ARGS)
+test-python-wheel: venv install-wheel-test-deps
+	PROBING=1 $(PYTHON) -m pytest $(PYTEST_WHEEL_FLAGS) $(PYTEST_WHEEL_EXTRA) $(PYTEST_WHEEL_ARGS)
 
 coverage-python-wheel:
-	$(MAKE) test-python-wheel PYTEST_WHEEL_EXTRA="--cov=python/probing --cov=tests --cov-report=xml:coverage.xml"
+	$(MAKE) test-python-wheel PYTEST_WHEEL_EXTRA="--cov=probing --cov=tests --cov-report=xml:coverage.xml"
 
 lint: lint-python lint-rust
 lint-core:
@@ -210,7 +233,7 @@ clippy-fix:
 
 coverage-rust:
 	cargo llvm-cov clean --workspace
-	cargo llvm-cov nextest run --workspace --no-default-features --nff --lcov --output-path coverage.lcov --ignore-filename-regex '(.*/tests?/|.*/benches?/|.*/examples?/)' || true
+	cargo llvm-cov nextest --workspace --no-default-features --nff --lcov --output-path coverage.lcov --ignore-filename-regex '(.*/tests?/|.*/benches?/|.*/examples?/)' || true
 coverage-python:
 	${PYTEST_RUN} --cov=python/probing --cov=tests --cov-report=xml:coverage.xml --cov-report=term $(PYTEST_ARGS) || true
 coverage: coverage-rust coverage-python
@@ -229,6 +252,6 @@ docs-clean:
 	@cd docs && $(MAKE) clean
 
 clean:
-	rm -rf dist web/dist docs/site python/probing/_skills python/probing/_web
+	rm -rf dist web/dist docs/site python/probing/bundled_skills python/probing/bundled_web
 	cargo clean
 	rm -f coverage.lcov coverage.xml coverage.json

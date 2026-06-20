@@ -163,9 +163,8 @@ pub struct Skill {
 }
 
 fn catalog_entries() -> Vec<CatalogEntry> {
-    let file: CatalogFile = serde_yaml::from_str(CATALOG_YAML).unwrap_or(CatalogFile {
-        skills: vec![],
-    });
+    let file: CatalogFile =
+        serde_yaml::from_str(CATALOG_YAML).unwrap_or(CatalogFile { skills: vec![] });
     file.skills
 }
 
@@ -300,10 +299,7 @@ pub fn expand_sql(template: &str, ctx: &HashMap<String, String>) -> String {
     out
 }
 
-pub fn build_context(
-    pb: &Skill,
-    overrides: &HashMap<String, String>,
-) -> HashMap<String, String> {
+pub fn build_context(pb: &Skill, overrides: &HashMap<String, String>) -> HashMap<String, String> {
     let mut ctx = default_parameters(pb);
     ctx.extend(derive_variables(&ctx));
     for (k, v) in overrides {

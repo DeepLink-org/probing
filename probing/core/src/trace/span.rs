@@ -20,7 +20,7 @@ fn current_thread_id() -> u64 {
     }
     #[cfg(target_os = "linux")]
     unsafe {
-        return libc::syscall(libc::SYS_gettid) as u64;
+        libc::syscall(libc::SYS_gettid) as u64
     }
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     {

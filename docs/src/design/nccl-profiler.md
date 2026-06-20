@@ -141,7 +141,7 @@ make nccl-profiler-lib    # Linux .so → python/probing/libs/
 cargo test -p probing-nccl-profiler
 ```
 
-Crate: `probing/extensions/nccl-profiler/`. See crate [README](../../../probing/extensions/nccl-profiler/README.md) for architecture (slot pools, Coll→ProxyOp→ProxyStep hierarchy, batch flush).
+Crate: `probing/extensions/nccl-profiler/`. See crate [README](https://github.com/DeepLink-org/probing/blob/main/probing/extensions/nccl-profiler/README.md) for architecture (slot pools, Coll→ProxyOp→ProxyStep hierarchy, batch flush).
 
 ## Smoke test checklist (P0)
 
@@ -154,4 +154,4 @@ Crate: `probing/extensions/nccl-profiler/`. See crate [README](../../../probing/
 
 - [Distributed training](distributed.md) — cluster fan-out, `global.*`
 - [Extensibility](extensibility.md) — Path 1 (table plugin), Path 2 (skills), Path 3 (this plugin)
-- [AGENTS.md](../../../AGENTS.md) — agent skill install and routing
+- [AGENTS.md](https://github.com/DeepLink-org/probing/blob/main/AGENTS.md) — agent skill install and routing

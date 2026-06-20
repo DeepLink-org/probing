@@ -7,23 +7,6 @@ import pytest
 pytestmark = pytest.mark.integration
 
 
-def _table_exists(schema: str, table: str) -> bool:
-    import probing
-
-    try:
-        names = probing.query(
-            "SELECT table_name FROM information_schema.tables "
-            f"WHERE table_schema = '{schema}'"
-        )["table_name"].tolist()
-    except Exception:
-        return False
-    return table in names
-
-
-@pytest.mark.skipif(
-    not _table_exists("cluster", "nodes"),
-    reason="cluster.nodes not registered in this probe",
-)
 def test_global_cluster_nodes_explicit_select_omits_probe_tags():
     import probing
 
@@ -34,10 +17,6 @@ def test_global_cluster_nodes_explicit_select_omits_probe_tags():
     assert "_rank" not in df.columns
 
 
-@pytest.mark.skipif(
-    not _table_exists("cluster", "nodes"),
-    reason="cluster.nodes not registered in this probe",
-)
 def test_global_cluster_nodes_select_star_includes_probe_tags():
     import probing
 
@@ -48,10 +27,6 @@ def test_global_cluster_nodes_select_star_includes_probe_tags():
     assert "_rank" in df.columns
 
 
-@pytest.mark.skipif(
-    not _table_exists("cluster", "nodes"),
-    reason="cluster.nodes not registered in this probe",
-)
 def test_probe_cluster_nodes_omits_probe_tags():
     import probing
 

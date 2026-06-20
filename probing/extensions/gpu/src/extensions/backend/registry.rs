@@ -27,40 +27,60 @@ fn filter_allows(kind: GpuBackendKind) -> bool {
 
 /// Discover all GPU backends available on this host (dlopen / runtime probe; never panics).
 pub fn discover_backends() -> Vec<Box<dyn GpuBackend>> {
-    let mut backends: Vec<Box<dyn GpuBackend>> = Vec::new();
-
-    #[cfg(feature = "cuda")]
-    {
-        if filter_allows(GpuBackendKind::Cuda) {
-            if let Some(cuda) = CudaBackend::try_load() {
-                log::info!(
-                    "GPU backend loaded: cuda ({} device(s))",
-                    cuda.device_count()
-                );
-                backends.push(Box::new(cuda));
+    let cuda: Option<Box<dyn GpuBackend>> = {
+        #[cfg(feature = "cuda")]
+        {
+            if filter_allows(GpuBackendKind::Cuda) {
+                let cuda =
+                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(CudaBackend::try_load))
+                        .ok()
+                        .flatten();
+                if let Some(cuda) = cuda {
+                    log::info!(
+                        "GPU backend loaded: cuda ({} device(s))",
+                        cuda.device_count()
+                    );
+                    Some(Box::new(cuda))
+                } else {
+                    log::debug!("CUDA backend unavailable (no driver or libcuda)");
+                    None
+                }
             } else {
-                log::debug!("CUDA backend unavailable (no driver or libcuda)");
+                None
             }
         }
-    }
+        #[cfg(not(feature = "cuda"))]
+        {
+            None
+        }
+    };
 
-    #[cfg(target_os = "macos")]
-    {
-        if filter_allows(GpuBackendKind::Metal) {
-            if let Some(apple) = AppleSiliconBackend::try_load() {
-                let count = apple.probe_devices().len();
-                log::info!("GPU backend loaded: metal/apple-silicon ({count} device(s))");
-                backends.push(Box::new(apple));
+    let apple: Option<Box<dyn GpuBackend>> = {
+        #[cfg(target_os = "macos")]
+        {
+            if filter_allows(GpuBackendKind::Metal) {
+                if let Some(apple) = AppleSiliconBackend::try_load() {
+                    let count = apple.probe_devices().len();
+                    log::info!("GPU backend loaded: metal/apple-silicon ({count} device(s))");
+                    Some(Box::new(apple))
+                } else {
+                    log::debug!("Apple Silicon GPU backend unavailable (no Metal device)");
+                    None
+                }
             } else {
-                log::debug!("Apple Silicon GPU backend unavailable (no Metal device)");
+                None
             }
         }
-    }
+        #[cfg(not(target_os = "macos"))]
+        {
+            None
+        }
+    };
 
     #[cfg(not(any(feature = "cuda", target_os = "macos")))]
     log::debug!("probing-gpu: no GPU backends available for this target");
 
-    backends
+    [cuda, apple].into_iter().flatten().collect()
 }
 
 /// Backends selected by env `PROBING_GPU_BACKEND` (default: auto = all discovered).
@@ -85,6 +105,15 @@ pub fn selected_backends() -> Vec<Box<dyn GpuBackend>> {
 #[cfg(test)]
 mod platform_tests {
     use super::*;
+
+    /// Linux/Windows CI: discovery must never abort when libcuda is missing.
+    #[test]
+    #[cfg(feature = "cuda")]
+    fn discover_backends_is_idempotent_without_cuda() {
+        let first = discover_backends();
+        let second = discover_backends();
+        assert_eq!(first.len(), second.len());
+    }
 
     /// Linux/Windows CI: crate must compile with zero GPU backends when cuda is off.
     #[test]

@@ -8,6 +8,7 @@ Contributors building from a git checkout should follow [Contributing — Develo
 | Component | Version |
 |-----------|---------|
 | Python | 3.7+ (3.9+ recommended for development) |
+| Rust (source build only) | stable channel — see [Contributing — Prerequisites](contributing.md#prerequisites) |
 | OS (full features) | Linux — required for `probing inject` |
 | OS (in-process only) | macOS / Windows — `PROBING=1` at startup, query/eval via CLI |
 
@@ -61,11 +62,13 @@ On **macOS / Windows**, use `PROBING=1` (or `2`) at startup; injection is not av
 
 Use this for CI smoke tests or when you need a locally built wheel — **not** for day-to-day hacking on the repo (use `make develop` instead).
 
+Requires **Rust stable** and optional frontend tools — see [Contributing — Prerequisites](contributing.md#prerequisites).
+
 ```bash
 git clone https://github.com/DeepLink-org/probing.git
 cd probing
 
-# Optional: Rust / frontend toolchain — see contributing.md#prerequisites
+# Install Rust stable if needed (see contributing.md#prerequisites)
 make frontend
 make wheel
 pip install dist/probing-*.whl --force-reinstall

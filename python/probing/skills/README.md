@@ -2,7 +2,7 @@
 
 **This package is code, not skill content.** Skill folders live at the repo root
 [`skills/`](../../../skills/README.md). Wheel installs ship a copy under
-[`../_skills/`](../_skills/README.md).
+[`../bundled_skills/`](../bundled_skills/README.md).
 
 ## Modules
 
@@ -17,7 +17,7 @@
 
 ## Resolution order (later wins)
 
-1. Bundled `python/probing/_skills/` (wheel)
+1. Bundled `python/probing/bundled_skills/` (wheel)
 2. Repo `skills/` (checkout)
 3. `~/.probing/skills/`
 4. `<project>/.probing/skills/`

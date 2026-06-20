@@ -55,7 +55,7 @@ impl PluginState {
         F: FnOnce(&mut PluginStateInner) -> R,
     {
         let mut guard = self.inner.lock();
-        f(&mut *guard)
+        f(&mut guard)
     }
 }
 
@@ -97,10 +97,10 @@ impl PluginStateInner {
                 let ctx = read_coll_context(descr);
                 let ts = now_ns();
                 if let Some((ptr, _idx)) = self.coll_pool.alloc(|| CollSlot::new(ctx, ts)) {
-                    *handle = ptr as *mut c_void;
+                    unsafe { *handle = ptr as *mut c_void };
                 } else {
                     self.counters.pool_exhausted.fetch_add(1, Ordering::Relaxed);
-                    *handle = std::ptr::null_mut();
+                    unsafe { *handle = std::ptr::null_mut() };
                 }
             }
             x if x == NCCL_PROFILE_PROXY_OP => {
@@ -136,10 +136,10 @@ impl PluginStateInner {
                             coll_slot.register_proxy(channel, p.is_send, proxy_idx);
                         }
                     }
-                    *handle = ptr as *mut c_void;
+                    unsafe { *handle = ptr as *mut c_void };
                 } else {
                     self.counters.pool_exhausted.fetch_add(1, Ordering::Relaxed);
-                    *handle = std::ptr::null_mut();
+                    unsafe { *handle = std::ptr::null_mut() };
                 }
             }
             x if x == NCCL_PROFILE_PROXY_STEP => {
@@ -170,10 +170,10 @@ impl PluginStateInner {
                         ..Default::default()
                     },
                 }) {
-                    *handle = ptr as *mut c_void;
+                    unsafe { *handle = ptr as *mut c_void };
                 } else {
                     self.counters.pool_exhausted.fetch_add(1, Ordering::Relaxed);
-                    *handle = std::ptr::null_mut();
+                    unsafe { *handle = std::ptr::null_mut() };
                 }
             }
             x if x == NCCL_PROFILE_NET_PLUGIN => {
@@ -204,13 +204,13 @@ impl PluginStateInner {
                     length,
                     stop_ns: 0,
                 }) {
-                    *handle = ptr as *mut c_void;
+                    unsafe { *handle = ptr as *mut c_void };
                 } else {
                     self.counters.pool_exhausted.fetch_add(1, Ordering::Relaxed);
-                    *handle = std::ptr::null_mut();
+                    unsafe { *handle = std::ptr::null_mut() };
                 }
             }
-            _ => *handle = std::ptr::null_mut(),
+            _ => unsafe { *handle = std::ptr::null_mut() },
         }
     }
 
@@ -218,7 +218,7 @@ impl PluginStateInner {
         if handle.is_null() {
             return;
         }
-        match event_type(handle) {
+        match unsafe { event_type(handle) } {
             EVT_PROXY_STEP => {
                 let step_idx = self
                     .step_pool
@@ -346,7 +346,7 @@ impl PluginStateInner {
             return;
         }
         let ts = now_ns();
-        match event_type(handle) {
+        match unsafe { event_type(handle) } {
             EVT_PROXY_STEP => {
                 let step_idx = self
                     .step_pool
@@ -370,10 +370,12 @@ impl PluginStateInner {
                 }
                 let slot = self.proxy_pool.get_mut(proxy_idx).unwrap();
                 if !args.is_null() {
-                    let a = unsafe { &*args };
-                    slot.op.trans_bytes = a.proxy_op.trans_size as u64;
-                    if a.proxy_op.steps > 0 {
-                        slot.op.n_steps = a.proxy_op.steps;
+                    unsafe {
+                        let a = &*args;
+                        slot.op.trans_bytes = a.proxy_op.trans_size as u64;
+                        if a.proxy_op.steps > 0 {
+                            slot.op.n_steps = a.proxy_op.steps;
+                        }
                     }
                 }
             }

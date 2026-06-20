@@ -73,7 +73,7 @@ impl CustomTable for RdmaTable {
 
         let f64_val = GLOBAL_HCA_SAMPLE_RATE.get_or_init(|| Mutex::new(0.0));
         let guard = f64_val.lock().unwrap();
-        let sleep_time = guard.clone() as u64;
+        let sleep_time = *guard as u64;
 
         thread::sleep(Duration::from_secs(sleep_time));
 

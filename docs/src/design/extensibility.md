@@ -19,7 +19,7 @@ flowchart LR
 
 ---
 
-## Path 1: Table plugin
+## Path 1: Table plugin {#path-1-table-plugin-dataclass--table}
 
 A table plugin is a Python module that:
 
@@ -166,7 +166,7 @@ WHERE step > (SELECT max(step) - 100 FROM python.step_stats);
 
 ---
 
-## Path 2: Diagnostic skill
+## Path 2: Diagnostic skill {#path-2-diagnostic-skill}
 
 A **skill** packages domain knowledge for *how* to investigate a problem. It does not collect data (use Path 1 for that). Each skill is a directory with a **`SKILL.md`** the agent can read, plus an optional machine-readable step list (`steps.yaml`).
 
@@ -301,7 +301,7 @@ Web Agent loads skill frontmatter for routing (`description` + `tables`), inject
 
 Skills may reference **any** SQL table—Path 1 plugin tables, built-in tables (`cpu.utilization`, `gpu.utilization`, `python.torch_trace`, …), and `global.*` for multi-rank fan-out.
 
-See `skills/README.md` and [AGENTS.md](../../../AGENTS.md) for routing, install, and cluster fan-out.
+See `skills/README.md` and [AGENTS.md](https://github.com/DeepLink-org/probing/blob/main/AGENTS.md) for routing, install, and cluster fan-out.
 
 ---
 

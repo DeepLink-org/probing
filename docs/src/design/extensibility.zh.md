@@ -19,7 +19,7 @@ flowchart LR
 
 ---
 
-## 路径 1：表插件
+## 路径 1：表插件 {#path-1-table-plugin-dataclass--table}
 
 表插件是一个 Python 模块，它：
 
@@ -172,7 +172,7 @@ WHERE step > (SELECT max(step) - 100 FROM python.step_stats);
 
 ---
 
-## 路径 2：诊断 skill
+## 路径 2：诊断 skill {#path-2-diagnostic-skill}
 
 **Skill** 打包**如何排查**的领域知识，本身不采集数据（数据用路径 1）。每个 skill 是一个目录：Agent 可读的 **`SKILL.md`**，加上可选的机器可读步骤列表（`steps.yaml`）。
 
@@ -306,7 +306,7 @@ Web Agent 用 frontmatter 做路由（`description` + `tables`），将 `SKILL.m
 
 Skill 可引用**任意** SQL 表——路径 1 插件表、内置表（`cpu.utilization`、`python.torch_trace` 等）、以及多 rank 的 `global.*`。
 
-详见 `skills/README.md`、[诊断 Skill 用户指南](../guide/skills.zh.md)、[AGENTS.md](../../../AGENTS.md)。
+详见 `skills/README.md`、[诊断 Skill 用户指南](../guide/skills.zh.md)、[AGENTS.md](https://github.com/DeepLink-org/probing/blob/main/AGENTS.md)。
 
 ---
 

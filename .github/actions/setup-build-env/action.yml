@@ -1,16 +1,36 @@
 name: 'Setup Build Environment'
-description: 'Setup Python, Rust, and build tools with caching'
+description: 'Setup Python, Rust, and build tools; cache env only (venv, cargo CLI) — not compile artifacts'
 inputs:
   python-version:
     description: 'Python version to use'
     required: false
     default: '3.12'
   install-cargo-tools:
-    description: 'Whether to install cargo tools'
+    description: 'Whether to install cargo tools (dx, nextest, zigbuild, rnr)'
     required: false
     default: 'true'
   install-python-deps:
-    description: 'Whether to install Python build dependencies'
+    description: 'Whether to install maturin/build deps into .venv'
+    required: false
+    default: 'false'
+  enable-rust:
+    description: 'Install Rust toolchain and targets'
+    required: false
+    default: 'true'
+  enable-zig:
+    description: 'Install Zig (manylinux / cross builds)'
+    required: false
+    default: 'true'
+  enable-uv:
+    description: 'Install uv (no GitHub cache — avoids extra cache uploads)'
+    required: false
+    default: 'true'
+  cache-venv:
+    description: 'Cache project .venv (pip deps)'
+    required: false
+    default: 'true'
+  cache-wheel-test-deps:
+    description: 'Include pytest+torch wheel-test deps in .venv cache key'
     required: false
     default: 'false'
   dx-version:
@@ -21,19 +41,39 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    - name: Compute cache keys
+      id: cache-keys
+      shell: bash
+      run: |
+        echo "python_env<<EOF" >> "$GITHUB_OUTPUT"
+        echo "${{ hashFiles('pyproject.toml', 'Makefile', 'uv.lock') }}" >> "$GITHUB_OUTPUT"
+        echo "EOF" >> "$GITHUB_OUTPUT"
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: ${{ inputs.python-version }}
 
+    - name: Cache project venv
+      if: inputs.cache-venv == 'true'
+      uses: actions/cache@v4
+      with:
+        path: .venv
+        key: venv-v1-${{ runner.os }}-py${{ inputs.python-version }}-${{ steps.cache-keys.outputs.python_env }}${{ inputs.cache-wheel-test-deps == 'true' && '-wheeltest' || '' }}${{ inputs.install-python-deps == 'true' && '-build' || '' }}
+        restore-keys: |
+          venv-v1-${{ runner.os }}-py${{ inputs.python-version }}-${{ steps.cache-keys.outputs.python_env }}-
+          venv-v1-${{ runner.os }}-py${{ inputs.python-version }}-
+
     - name: Install Rust toolchain
+      if: inputs.enable-rust == 'true'
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
-        toolchain: nightly
-        components: rustfmt
+        toolchain: stable
+        components: rustfmt, clippy
         rustflags: ""
 
     - name: Add Rust Targets
+      if: inputs.enable-rust == 'true'
       shell: bash
       run: |
         if [ "${{ runner.os }}" == "Linux" ]; then
@@ -43,27 +83,27 @@ runs:
         fi
 
     - name: Install uv
+      if: inputs.enable-uv == 'true'
       uses: astral-sh/setup-uv@v6
       with:
-        enable-cache: true
+        enable-cache: false
 
     - name: Install Zig toolchain
+      if: inputs.enable-zig == 'true'
       uses: mlugg/setup-zig@v2
 
-    - name: Cache dependencies
-      id: cache-deps
+    - name: Cache cargo-installed CLI tools
+      if: inputs.install-cargo-tools == 'true'
       uses: actions/cache@v4
       with:
         path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-          ~/zig
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          ~/.cargo/bin/cargo-nextest
+          ~/.cargo/bin/cargo-zigbuild
+          ~/.cargo/bin/rnr
+        key: cargo-cli-v1-${{ runner.os }}-nextest-zigbuild-rnr
+        restore-keys: |
+          cargo-cli-v1-${{ runner.os }}-
 
-    # Prebuilt dx from GitHub Releases (no API rate limits). Official alternative:
-    # DioxusLabs/dioxus-ci/actions/install-dioxus-cli (uses cargo-binstall internally).
     - name: Install dioxus CLI (dx)
       if: inputs.install-cargo-tools == 'true'
       uses: taiki-e/install-action@v2
@@ -74,13 +114,20 @@ runs:
       if: inputs.install-cargo-tools == 'true'
       shell: bash
       run: |
-        test -e ~/.cargo/bin/cargo-zigbuild || cargo install cargo-zigbuild
+        test -e ~/.cargo/bin/cargo-zigbuild || cargo install cargo-zigbuild --locked
         test -e ~/.cargo/bin/rnr || cargo install rnr
         test -e ~/.cargo/bin/cargo-nextest || cargo install --locked cargo-nextest
 
-    - name: Install Python Build Dependencies
+    - name: Create project venv
+      shell: bash
+      run: make venv
+
+    - name: Install Python build dependencies into venv
       if: inputs.install-python-deps == 'true'
       shell: bash
-      run: |
-        python -m pip install --upgrade pip
-        pip install build wheel toml maturin
+      run: make install-build-deps
+
+    - name: Install wheel-test Python dependencies into venv
+      if: inputs.cache-wheel-test-deps == 'true'
+      shell: bash
+      run: make install-wheel-test-deps

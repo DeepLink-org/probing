@@ -155,10 +155,7 @@ nav:
     - SQL Tables: reference/sql-tables.md
     - API Reference: api-reference.md
     - Versions: versions.md
-  - Contributing:
-    - Welcome: contributing.md#getting-started
-    - Development Setup: contributing.md#development-setup
-    - Submitting Changes: contributing.md#submitting-changes
+  - Contributing: contributing.md
 
 extra:
   generator: false

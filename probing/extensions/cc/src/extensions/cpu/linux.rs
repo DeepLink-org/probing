@@ -36,8 +36,8 @@ impl CpuHostSampler for LinuxSampler {
             .ok()
             .map(|status| {
                 (
-                    status.voluntary_ctxt_switches.unwrap_or(0) as u64,
-                    status.nonvoluntary_ctxt_switches.unwrap_or(0) as u64,
+                    status.voluntary_ctxt_switches.unwrap_or(0),
+                    status.nonvoluntary_ctxt_switches.unwrap_or(0),
                 )
             })
             .unwrap_or((0, 0));
@@ -69,7 +69,7 @@ impl CpuHostSampler for LinuxSampler {
                 .filter(|s| !s.is_empty());
 
             threads.push(ThreadSample {
-                tid: stat.pid as i32,
+                tid: stat.pid,
                 comm: stat.comm,
                 state: Some(stat.state.to_string()),
                 wchan,
