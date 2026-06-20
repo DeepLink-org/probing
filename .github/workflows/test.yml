@@ -18,7 +18,6 @@ jobs:
           python-version: "3.12"
           install-cargo-tools: "true"
           install-python-deps: "true"
-          cache-web-ui: "true"
           cache-venv: "true"
           cache-wheel-test-deps: "true"
 
@@ -79,9 +78,7 @@ jobs:
           enable-rust: "false"
           enable-zig: "false"
           enable-uv: "false"
-          enable-rust-cache: "false"
-          cache-web-ui: "false"
-          cache-venv: "true"
+          cache-venv: "false"
           cache-wheel-test-deps: "true"
 
       - name: Download wheel
@@ -110,8 +107,8 @@ jobs:
           python-version: "3.12"
           install-cargo-tools: "true"
           install-python-deps: "false"
-          cache-venv: "true"
-          cache-web-ui: "false"
+          cache-venv: "false"
+          enable-zig: "false"
 
       - name: Install llvm-tools-preview component
         run: rustup component add llvm-tools-preview --toolchain stable
@@ -148,7 +145,6 @@ jobs:
           python-version: "3.12"
           install-cargo-tools: "true"
           install-python-deps: "true"
-          cache-web-ui: "true"
           cache-venv: "true"
           cache-wheel-test-deps: "true"
 

@@ -1,5 +1,5 @@
 name: 'Setup Build Environment'
-description: 'Setup Python, Rust, and build tools with unified caching'
+description: 'Setup Python, Rust, and build tools; cache env only (venv, cargo CLI) — not compile artifacts'
 inputs:
   python-version:
     description: 'Python version to use'
@@ -13,10 +13,6 @@ inputs:
     description: 'Whether to install maturin/build deps into .venv'
     required: false
     default: 'false'
-  enable-rust-cache:
-    description: 'Enable Swatinem/rust-cache for Cargo registry + target/'
-    required: false
-    default: 'true'
   enable-rust:
     description: 'Install Rust toolchain and targets'
     required: false
@@ -26,15 +22,11 @@ inputs:
     required: false
     default: 'true'
   enable-uv:
-    description: 'Install uv with GitHub Actions cache'
+    description: 'Install uv (no GitHub cache — avoids extra cache uploads)'
     required: false
     default: 'true'
-  cache-web-ui:
-    description: 'Cache web/dist and web/target/dx (dx frontend build)'
-    required: false
-    default: 'false'
   cache-venv:
-    description: 'Cache project .venv (make venv / pip deps)'
+    description: 'Cache project .venv (pip deps)'
     required: false
     default: 'true'
   cache-wheel-test-deps:
@@ -53,30 +45,14 @@ runs:
       id: cache-keys
       shell: bash
       run: |
-        {
-          echo "web_ui<<EOF"
-          echo "${{ hashFiles(
-            'web/Cargo.toml',
-            'web/Cargo.lock',
-            'web/src/**',
-            'web/assets/**',
-            'probing/proto/**',
-            'skills/**'
-          ) }}"
-          echo "EOF"
-          echo "python_env<<EOF"
-          echo "${{ hashFiles('pyproject.toml', 'Makefile', 'uv.lock') }}"
-          echo "EOF"
-        } >> "$GITHUB_OUTPUT"
+        echo "python_env<<EOF" >> "$GITHUB_OUTPUT"
+        echo "${{ hashFiles('pyproject.toml', 'Makefile', 'uv.lock') }}" >> "$GITHUB_OUTPUT"
+        echo "EOF" >> "$GITHUB_OUTPUT"
 
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: ${{ inputs.python-version }}
-        cache: pip
-        cache-dependency-path: |
-          pyproject.toml
-          Makefile
 
     - name: Cache project venv
       if: inputs.cache-venv == 'true'
@@ -87,17 +63,6 @@ runs:
         restore-keys: |
           venv-v1-${{ runner.os }}-py${{ inputs.python-version }}-${{ steps.cache-keys.outputs.python_env }}-
           venv-v1-${{ runner.os }}-py${{ inputs.python-version }}-
-
-    - name: Cache web UI build
-      if: inputs.cache-web-ui == 'true'
-      uses: actions/cache@v4
-      with:
-        path: |
-          web/dist
-          web/target/dx
-        key: web-ui-v1-${{ runner.os }}-${{ steps.cache-keys.outputs.web_ui }}
-        restore-keys: |
-          web-ui-v1-${{ runner.os }}-
 
     - name: Install Rust toolchain
       if: inputs.enable-rust == 'true'
@@ -117,23 +82,11 @@ runs:
           rustup target add wasm32-unknown-unknown x86_64-apple-darwin aarch64-apple-darwin
         fi
 
-    - name: Cache Rust build artifacts
-      if: inputs.enable-rust == 'true' && inputs.enable-rust-cache == 'true'
-      uses: Swatinem/rust-cache@v2
-      with:
-        workspaces: |
-          .
-          web
-        shared-key: probing
-        cache-all-crates: "true"
-        cache-on-failure: true
-        cache-bin: true
-
     - name: Install uv
       if: inputs.enable-uv == 'true'
       uses: astral-sh/setup-uv@v6
       with:
-        enable-cache: true
+        enable-cache: false
 
     - name: Install Zig toolchain
       if: inputs.enable-zig == 'true'

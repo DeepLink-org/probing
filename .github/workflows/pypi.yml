@@ -35,7 +35,7 @@ jobs:
           python-version: '3.12'
           install-cargo-tools: 'true'
           install-python-deps: 'false'
-          cache-web-ui: 'true'
+          cache-venv: 'false'
 
       - name: Prepare wheel bundle
         env:
@@ -74,7 +74,7 @@ jobs:
           python-version: '3.12'
           install-cargo-tools: 'true'
           install-python-deps: 'false'
-          cache-web-ui: 'true'
+          cache-venv: 'false'
 
       - name: Prepare wheel bundle
         env:
@@ -108,7 +108,7 @@ jobs:
         with:
           install-python-deps: 'false'
           install-cargo-tools: 'true'
-          cache-web-ui: 'true'
+          cache-venv: 'false'
 
       - name: Prepare wheel bundle
         env:
