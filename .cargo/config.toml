@@ -1,5 +1,6 @@
-[target.x86_64-unknown-linux-gnu]
-rustflags = ["-C", "linker=clang", "-C", "link-arg=-fuse-ld=mold"]
+# Optional local speedup on Linux (do not commit — CI may not have mold):
+# [target.x86_64-unknown-linux-gnu]
+# rustflags = ["-C", "linker=clang", "-C", "link-arg=-fuse-ld=mold"]
 
 # dioxus' wasm-opt chokes on some DWARF; skip debuginfo for wasm dev builds.
 [target.wasm32-unknown-unknown]
