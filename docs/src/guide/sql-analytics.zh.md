@@ -73,7 +73,7 @@ ORDER BY step DESC, seq;
 
 每行还有 `global_step`、`rank`、`world_size`、`role`。见 [SQL 表 — torch_trace](../reference/sql-tables.zh.md#python-torch_trace)。
 
-## 集合通信（`python.comm_collective`）
+## 集合通信（`python.comm_collective`） {#python-comm_collective}
 
 记录 `torch.distributed` 集合操作的墙钟 `duration_ms`（无需 NCCL 插件）。
 

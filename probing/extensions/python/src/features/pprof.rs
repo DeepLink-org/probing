@@ -40,7 +40,7 @@ use serde_json::json;
 
 use crate::features::flamegraph::{FlamegraphKind, FlamegraphOptions};
 use crate::features::spy::call::RawCallLocation;
-use crate::features::spy::{PYSTACKS, PYSTACK_WRITING};
+use crate::features::spy::spy_tls_addrs;
 
 const DEFAULT_SAMPLE_FREQ: i32 = 100;
 const MIN_SAMPLE_FREQ: i32 = 1;
@@ -215,8 +215,9 @@ static REG_TABLE: [ThreadSlot; REG_SIZE] = [const {
 
 static REG_FULL_WARNED: AtomicBool = AtomicBool::new(false);
 
-#[thread_local]
-static mut THREAD_REGISTERED: bool = false;
+thread_local! {
+    static THREAD_REGISTERED: std::cell::UnsafeCell<bool> = const { std::cell::UnsafeCell::new(false) };
+}
 
 /// Open-addressing probe start for `tid` (Fibonacci hashing). REG_SIZE is a
 /// power of two so the mask is exact.
@@ -287,17 +288,20 @@ fn current_stack_bounds() -> (usize, usize) {
 /// Called from the eval-frame hook (TLS-safe context) on every frame; the
 /// thread-local fast path makes the global table insert happen once per thread.
 pub fn register_python_thread() {
-    unsafe {
-        if THREAD_REGISTERED {
-            return;
+    let already = THREAD_REGISTERED.with(|flag| unsafe {
+        if *flag.get() {
+            return true;
         }
-        THREAD_REGISTERED = true;
+        *flag.get() = true;
+        false
+    });
+    if already {
+        return;
     }
     let tid = current_tid();
     // Resolve this thread's TLS addresses and stack bounds here, in normal
     // context (none of this is async-signal-safe).
-    let ps = core::ptr::addr_of_mut!(PYSTACKS);
-    let wr = core::ptr::addr_of_mut!(PYSTACK_WRITING);
+    let (ps, wr) = spy_tls_addrs();
     let (lo, hi) = current_stack_bounds();
 
     if let Some(name) = current_thread_name() {

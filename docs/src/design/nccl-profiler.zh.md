@@ -126,7 +126,7 @@ make nccl-profiler-lib
 cargo test -p probing-nccl-profiler
 ```
 
-实现：`probing/extensions/nccl-profiler/`。架构细节见 crate [README](../../../probing/extensions/nccl-profiler/README.md)。
+实现：`probing/extensions/nccl-profiler/`。架构细节见 crate [README](https://github.com/DeepLink-org/probing/blob/main/probing/extensions/nccl-profiler/README.md)。
 
 ## 真机验收清单（P0）
 
@@ -139,4 +139,4 @@ cargo test -p probing-nccl-profiler
 
 - [分布式训练](distributed.zh.md)
 - [扩展机制](extensibility.zh.md)
-- [AGENTS.md](../../../AGENTS.md)
+- [AGENTS.md](https://github.com/DeepLink-org/probing/blob/main/AGENTS.md)

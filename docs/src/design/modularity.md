@@ -415,5 +415,5 @@ Need new raw signals?
 | [Extensibility](extensibility.md) | Public extension paths (table + skill) |
 | [Distributed](distributed.md) | Federation & cluster |
 | [NCCL Profiler](nccl-profiler.md) | NCCL plugin boundary |
-| [web/DESIGN.md](../../../web/DESIGN.md) | UI module layout |
-| [AGENTS.md](../../../AGENTS.md) | Agent skill usage |
+| [web/DESIGN.md](https://github.com/DeepLink-org/probing/blob/main/web/DESIGN.md) | UI module layout |
+| [AGENTS.md](https://github.com/DeepLink-org/probing/blob/main/AGENTS.md) | Agent skill usage |

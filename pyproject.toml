@@ -74,7 +74,13 @@ python-source = "python"
 compatibility = "linux"
 bindings = "pyo3"
 cargo-extra-args = "--features extension-module,gpu,kmsg"
-include = ["probing.pth", "probing_hook.py", "probing/libs/*", "probing/_skills/**", "probing/_web/**"]
+include = [
+    "probing.pth",
+    "probing_hook.py",
+    "probing/libs/*",
+    "probing/bundled_skills/**",
+    "probing/bundled_web/**",
+]
 
 [build-system]
 requires = ["maturin>=1.0,<2.0"]

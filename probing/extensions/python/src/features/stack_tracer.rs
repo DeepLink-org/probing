@@ -183,7 +183,6 @@ impl SignalTracer {
 
     fn trace_thread_signal(tid: i32) -> Result<Vec<CallFrame>> {
         let pid = nix::unistd::getpid().as_raw();
-        let tid_param = Some(tid);
 
         let _guard = BACKTRACE_MUTEX.try_lock().map_err(|e| {
             log::error!("Failed to acquire BACKTRACE_MUTEX: {e}");
@@ -215,7 +214,7 @@ impl SignalTracer {
 
         #[cfg(target_os = "macos")]
         {
-            let signal_result = if tid_param.is_none() || tid == pid {
+            let signal_result = if tid == pid {
                 let ret = unsafe { libc::kill(pid, libc::SIGUSR2) };
                 if ret != 0 {
                     Err(std::io::Error::last_os_error())
@@ -235,7 +234,7 @@ impl SignalTracer {
 
         #[cfg(not(any(target_os = "linux", target_os = "macos")))]
         {
-            let _ = (pid, tid, tid_param);
+            let _ = (pid, tid);
             Self::clear_sender_slot();
             return Err(anyhow::anyhow!(
                 "Stack tracing is not supported on this platform"

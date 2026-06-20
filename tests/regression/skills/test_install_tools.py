@@ -14,20 +14,31 @@ from probing.skills.loader import load_catalog
 from probing.skills.paths import (
     bundled_skills_dir,
     detect_agent_install_targets,
+    repo_skills_dir,
     skill_roots,
 )
 from probing.skills.tools import list_skills, plan_skill_run, run_skill
 
+from tests.conftest import is_wheel_install
+
 
 def test_bundled_skills_dir_exists():
     bundled = bundled_skills_dir()
-    assert bundled is not None
-    assert (bundled / "catalog.yaml").is_file()
+    if is_wheel_install():
+        assert bundled is not None, "installed wheel is missing probing/bundled_skills"
+        assert (bundled / "catalog.yaml").is_file()
+        return
+    assert bundled is not None or repo_skills_dir() is not None
+    if bundled is not None:
+        assert (bundled / "catalog.yaml").is_file()
 
 
 def test_skill_roots_include_bundled():
     labels = [r.label for r in skill_roots()]
-    assert "bundled" in labels
+    if is_wheel_install():
+        assert "bundled" in labels
+        return
+    assert "bundled" in labels or "repo" in labels
 
 
 def test_merged_catalog_has_eight_skills():

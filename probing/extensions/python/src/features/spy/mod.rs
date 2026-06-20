@@ -9,6 +9,37 @@ pub use python_bindings::version::Version;
 
 use crate::features::spy::call::RawCallLocation;
 
+pub(crate) struct ThreadSpyState {
+    pub stacks: Vec<RawCallLocation>,
+    pub writing: bool,
+    pub frame_eval: ffi::_PyFrameEvalFunction,
+}
+
+thread_local! {
+    static SPY_STATE: std::cell::UnsafeCell<ThreadSpyState> =
+        std::cell::UnsafeCell::new(ThreadSpyState {
+            stacks: Vec::new(),
+            writing: false,
+            frame_eval: ffi::_PyEval_EvalFrameDefault,
+        });
+}
+
+/// Access thread-local spy state. Hot path: one TLS lookup per eval-frame call.
+#[inline(always)]
+pub(crate) fn with_spy_state<R>(f: impl FnOnce(*mut ThreadSpyState) -> R) -> R {
+    SPY_STATE.with(|cell| f(cell.get()))
+}
+
+/// Raw addresses for SIGPROF registry (normal context only).
+pub(crate) fn spy_tls_addrs() -> (*mut Vec<RawCallLocation>, *mut bool) {
+    with_spy_state(|state| unsafe {
+        (
+            core::ptr::addr_of_mut!((*state).stacks),
+            core::ptr::addr_of_mut!((*state).writing),
+        )
+    })
+}
+
 pub(crate) static mut PYVERSION: Version = Version {
     major: 0,
     minor: 0,
@@ -16,19 +47,6 @@ pub(crate) static mut PYVERSION: Version = Version {
     release_flags: String::new(),
     build_metadata: None,
 };
-
-#[thread_local]
-pub(crate) static mut PYSTACKS: Vec<RawCallLocation> = Vec::new();
-
-/// Set by `rust_eval_frame` while it mutates `PYSTACKS` (push/pop). The SIGPROF
-/// sampler reads this from the signal handler to avoid snapshotting `PYSTACKS`
-/// mid-`Vec`-reallocation; if it is `true`, the handler discards the Python part
-/// of the sample. Same-thread only, so plain `bool` + `compiler_fence` suffices.
-#[thread_local]
-pub(crate) static mut PYSTACK_WRITING: bool = false;
-
-#[thread_local]
-pub(crate) static mut PYFRAMEEVAL: ffi::_PyFrameEvalFunction = ffi::_PyEval_EvalFrameDefault;
 
 /// 获取当前线程执行的Python frame指针
 /// 这个函数适用于在信号处理函数中调用

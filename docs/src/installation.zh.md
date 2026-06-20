@@ -8,6 +8,7 @@
 | 组件 | 版本 |
 |------|------|
 | Python | 3.7+（开发建议 3.9+） |
+| Rust（仅源码构建） | stable 通道 — 见 [贡献指南 — 前提条件](contributing.zh.md#prerequisites) |
 | 操作系统（完整功能） | Linux — `probing inject` 需要 |
 | 操作系统（仅进程内） | macOS / Windows — 启动时 `PROBING=1`，CLI query/eval 可用 |
 
@@ -61,11 +62,13 @@ probing -t <pid> inject
 
 适用于 CI 冒烟或本地验 wheel — **不是**日常改仓库代码的方式（请用 `make develop`）。
 
+需要 **Rust stable** 及可选的前端工具链 — 见 [贡献指南 — 前提条件](contributing.zh.md#prerequisites)。
+
 ```bash
 git clone https://github.com/DeepLink-org/probing.git
 cd probing
 
-# 可选：Rust / 前端工具链 — 见 contributing.zh.md#prerequisites
+# 若尚未安装 Rust stable，见 contributing.zh.md#prerequisites
 make frontend
 make wheel
 pip install dist/probing-*.whl --force-reinstall

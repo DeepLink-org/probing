@@ -16,7 +16,7 @@ pub trait CpuHostSampler: Send + Sync {
 pub fn host_sampler() -> Box<dyn CpuHostSampler> {
     #[cfg(target_os = "linux")]
     {
-        return Box::new(super::linux::LinuxSampler::new());
+        Box::new(super::linux::LinuxSampler::new())
     }
     #[cfg(target_os = "macos")]
     {
@@ -24,6 +24,6 @@ pub fn host_sampler() -> Box<dyn CpuHostSampler> {
     }
     #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {
-        return Box::new(super::unsupported::UnsupportedSampler);
+        Box::new(super::unsupported::UnsupportedSampler)
     }
 }

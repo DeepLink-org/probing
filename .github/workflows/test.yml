@@ -18,17 +18,24 @@ jobs:
           python-version: "3.12"
           install-cargo-tools: "true"
           install-python-deps: "true"
+          cache-venv: "true"
+          cache-wheel-test-deps: "true"
 
       - name: Code style checking
+        working-directory: ${{ github.workspace }}
         run: |
           cargo fmt --all -- --check
+          (cd web && cargo fmt --all -- --check)
           make lint-rust
 
-      - name: Cache Rust artifacts
-        uses: Swatinem/rust-cache@v2
-
       - name: Build wheel
-        run: make frontend wheel-ci
+        env:
+          SKIP_FRONTEND_CLEAN: "1"
+        run: |
+          if [ ! -f web/dist/index.html ]; then
+            make frontend
+          fi
+          make wheel-ci
 
       - name: Install wheel and run Python tests
         run: |
@@ -62,10 +69,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - name: Setup Python test environment
+        uses: ./.github/actions/setup-build-env
         with:
           python-version: ${{ matrix.python-version }}
+          install-cargo-tools: "false"
+          install-python-deps: "false"
+          enable-rust: "false"
+          enable-zig: "false"
+          enable-uv: "false"
+          cache-venv: "false"
+          cache-wheel-test-deps: "true"
 
       - name: Download wheel
         uses: actions/download-artifact@v4
@@ -74,6 +88,7 @@ jobs:
           path: dist
 
       - name: Install wheel and run tests
+        working-directory: ${{ github.workspace }}
         run: |
           make install-wheel
           make test-python-wheel
@@ -91,16 +106,12 @@ jobs:
         with:
           python-version: "3.12"
           install-cargo-tools: "true"
-          install-python-deps: "true"
-
-      - name: Cache Rust artifacts
-        uses: Swatinem/rust-cache@v2
-
-      - name: Clippy (workspace + web)
-        run: make lint-rust
+          install-python-deps: "false"
+          cache-venv: "false"
+          enable-zig: "false"
 
       - name: Install llvm-tools-preview component
-        run: rustup component add llvm-tools-preview --toolchain nightly
+        run: rustup component add llvm-tools-preview --toolchain stable
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
@@ -108,13 +119,11 @@ jobs:
       - name: Run Rust tests and collect coverage
         shell: bash
         run: |
-          source <(cargo llvm-cov show-env --export-prefix)
-          export CARGO_TARGET_DIR=$CARGO_LLVM_COV_TARGET_DIR
-          export CARGO_INCREMENTAL=1
           cargo llvm-cov clean --workspace
+          # Do not source show-env here — llvm-cov nextest sets instrumentation itself.
           # extension-module is for the Python wheel only; omit it in lib tests (PyO3 linking).
-          cargo llvm-cov nextest run --workspace --no-default-features
-          cargo llvm-cov nextest run -p probing-server --no-default-features --features kmsg,gpu,gpu-cuda
+          cargo llvm-cov nextest --workspace --no-default-features
+          cargo llvm-cov nextest -p probing-server --no-default-features --features kmsg,gpu,gpu-cuda
           cargo llvm-cov report --lcov --output-path coverage.lcov
 
       - name: Upload Rust coverage report
@@ -136,9 +145,8 @@ jobs:
           python-version: "3.12"
           install-cargo-tools: "true"
           install-python-deps: "true"
-
-      - name: Cache Rust artifacts
-        uses: Swatinem/rust-cache@v2
+          cache-venv: "true"
+          cache-wheel-test-deps: "true"
 
       - name: Run Rust tests
         run: |
@@ -146,12 +154,16 @@ jobs:
           cargo nextest run -p probing-server --no-default-features --features kmsg,gpu
 
       - name: Build frontend and wheel, install, and run Python tests
+        env:
+          SKIP_FRONTEND_CLEAN: "1"
+          PROBING: "1"
         run: |
-          make frontend wheel-ci
+          if [ ! -f web/dist/index.html ]; then
+            make frontend
+          fi
+          make wheel-ci
           make install-wheel
           make test-python-wheel
-        env:
-          PROBING: "1"
 
   codecov:
     name: Upload coverage to Codecov

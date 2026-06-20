@@ -6,13 +6,10 @@ use dioxus::prelude::*;
 
 use crate::agent::{
     evaluate_rules, evidence_from_outcomes, format_findings, list_skill_ids, load_skill,
-    refresh_page_snapshot_for_route, resolve_skill_id, run_skill, select_skill,
-    summarize_run,
+    refresh_page_snapshot_for_route, resolve_skill_id, run_skill, select_skill, summarize_run,
 };
 use crate::app::Route;
-use crate::components::agent::step_card::{
-    step_outcome_to_card, AgentSkillRunCard, AgentStepCard,
-};
+use crate::components::agent::step_card::{step_outcome_to_card, AgentSkillRunCard, AgentStepCard};
 use crate::components::colors::colors;
 use crate::components::icon::Icon;
 use crate::components::markdown_view::MarkdownView;
@@ -481,13 +478,8 @@ fn spawn_llm_flow(user_message: String, config: LlmConfig) {
                 }
                 match sel.skill_id {
                     Some(id) if load_skill(&id).is_some() => {
-                        run_skill_flow(
-                            &session,
-                            &id,
-                            sel.parameters,
-                            Some((config, user_message)),
-                        )
-                        .await;
+                        run_skill_flow(&session, &id, sel.parameters, Some((config, user_message)))
+                            .await;
                     }
                     Some(id) => {
                         push_agent_message(AgentMessage::error(format!(
@@ -544,9 +536,7 @@ async fn run_skill_flow(
     }
 
     let Some(meta) = load_skill(skill_id) else {
-        push_agent_message(AgentMessage::error(format!(
-            "Unknown skill: {skill_id}"
-        )));
+        push_agent_message(AgentMessage::error(format!("Unknown skill: {skill_id}")));
         return;
     };
 

@@ -10,9 +10,7 @@ use crate::features::spy::{get_current_frame, get_prev_frame};
 use super::spy::python_bindings;
 
 use crate::features::spy::ffi;
-use crate::features::spy::PYFRAMEEVAL;
-use crate::features::spy::PYSTACKS;
-use crate::features::spy::PYSTACK_WRITING;
+use crate::features::spy::with_spy_state;
 use crate::features::spy::PYVERSION;
 
 #[allow(static_mut_refs)]
@@ -28,9 +26,11 @@ pub fn initialize_globals() -> bool {
                     release_flags: ver.suffix.unwrap_or_default().to_string(),
                     build_metadata: Default::default(),
                 };
-                if PYSTACKS.capacity() == 0 {
-                    PYSTACKS.reserve(1024);
-                }
+                with_spy_state(|state| {
+                    if (*state).stacks.capacity() == 0 {
+                        (*state).stacks.reserve(1024);
+                    }
+                });
                 true
             } else {
                 false
@@ -48,34 +48,36 @@ unsafe extern "C" fn rust_eval_frame(
 ) -> *mut pyo3::ffi::PyObject {
     use std::sync::atomic::{compiler_fence, Ordering};
 
-    // Mark this thread as a Python thread once; lets the SIGPROF sampler know its
-    // thread-local `PYSTACKS` is allocated and safe to read from a signal handler.
-    crate::features::pprof::register_python_thread();
+    with_spy_state(|state| {
+        // Mark this thread as a Python thread once; lets the SIGPROF sampler know its
+        // thread-local `PYSTACKS` is allocated and safe to read from a signal handler.
+        crate::features::pprof::register_python_thread();
 
-    // Resolve this frame's callee symbol *now*, while the code object is alive
-    // under the GIL, and cache it by pointer. The SIGPROF consumer later looks
-    // the label up by integer key instead of dereferencing a possibly-freed
-    // `PyCodeObject` off the signal path.
-    let loc = RawCallLocation::from(frame as usize, Some(ts as usize));
-    crate::features::pprof::intern_py_frame(&loc);
+        // Resolve this frame's callee symbol *now*, while the code object is alive
+        // under the GIL, and cache it by pointer. The SIGPROF consumer later looks
+        // the label up by integer key instead of dereferencing a possibly-freed
+        // `PyCodeObject` off the signal path.
+        let loc = RawCallLocation::from(frame as usize, Some(ts as usize));
+        crate::features::pprof::intern_py_frame(&loc);
 
-    // Bracket the `PYSTACKS` mutation so a SIGPROF sample taken mid-realloc is
-    // discarded instead of reading a torn `Vec`.
-    PYSTACK_WRITING = true;
-    compiler_fence(Ordering::SeqCst);
-    PYSTACKS.push(loc);
-    compiler_fence(Ordering::SeqCst);
-    PYSTACK_WRITING = false;
+        // Bracket the `PYSTACKS` mutation so a SIGPROF sample taken mid-realloc is
+        // discarded instead of reading a torn `Vec`.
+        (*state).writing = true;
+        compiler_fence(Ordering::SeqCst);
+        (*state).stacks.push(loc);
+        compiler_fence(Ordering::SeqCst);
+        (*state).writing = false;
 
-    let ret = PYFRAMEEVAL(ts, frame, extra);
+        let ret = ((*state).frame_eval)(ts, frame, extra);
 
-    PYSTACK_WRITING = true;
-    compiler_fence(Ordering::SeqCst);
-    PYSTACKS.pop();
-    compiler_fence(Ordering::SeqCst);
-    PYSTACK_WRITING = false;
+        (*state).writing = true;
+        compiler_fence(Ordering::SeqCst);
+        (*state).stacks.pop();
+        compiler_fence(Ordering::SeqCst);
+        (*state).writing = false;
 
-    ret
+        ret
+    })
 }
 
 #[allow(static_mut_refs)]
@@ -86,7 +88,9 @@ pub fn enable_tracer() -> PyResult<()> {
             let interp = ffi::PyInterpreterState_Get();
             let old_eval_frame = ffi::_PyInterpreterState_GetEvalFrameFunc(interp);
             if old_eval_frame as usize != rust_eval_frame as *const () as usize {
-                PYFRAMEEVAL = old_eval_frame;
+                with_spy_state(|state| {
+                    (*state).frame_eval = old_eval_frame;
+                });
             }
             ffi::_PyInterpreterState_SetEvalFrameFunc(interp, rust_eval_frame);
         } else {
@@ -116,10 +120,12 @@ pub fn disable_tracer() -> PyResult<()> {
         let interp = ffi::PyInterpreterState_Get();
         let old_eval_frame = ffi::_PyInterpreterState_GetEvalFrameFunc(interp);
         if old_eval_frame as usize == rust_eval_frame as *const () as usize {
-            ffi::_PyInterpreterState_SetEvalFrameFunc(interp, PYFRAMEEVAL);
+            with_spy_state(|state| {
+                ffi::_PyInterpreterState_SetEvalFrameFunc(interp, (*state).frame_eval);
+                (*state).stacks.clear();
+                (*state).stacks.shrink_to_fit();
+            });
         }
-        PYSTACKS.clear();
-        PYSTACKS.shrink_to_fit();
     }
     crate::features::pprof::clear_py_symbols();
     Ok(())
@@ -169,11 +175,12 @@ pub fn _get_python_frames(py: Python) -> PyResult<Py<PyAny>> {
 
 #[allow(static_mut_refs)]
 pub fn get_python_stacks_raw() -> Vec<CallFrame> {
-    unsafe {
-        if PYSTACKS.capacity() == 0 {
+    with_spy_state(|state| unsafe {
+        if (*state).stacks.capacity() == 0 {
             return vec![];
         }
-        PYSTACKS
+        (*state)
+            .stacks
             .iter()
             .rev()
             .map(|location| {
@@ -186,7 +193,7 @@ pub fn get_python_stacks_raw() -> Vec<CallFrame> {
                 }
             })
             .collect::<Vec<_>>()
-    }
+    })
 }
 
 #[allow(static_mut_refs)]

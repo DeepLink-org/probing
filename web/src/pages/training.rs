@@ -25,8 +25,7 @@ const POLL_MS: u32 = 5000;
 const STEP_LIMIT: usize = 120;
 const COMM_LIMIT: usize = 30;
 
-const COMM_SQL: &str =
-    "SELECT local_step, rank, op, group_size, duration_ms, bytes, role \
+const COMM_SQL: &str = "SELECT local_step, rank, op, group_size, duration_ms, bytes, role \
      FROM python.comm_collective ORDER BY timestamp DESC LIMIT ";
 
 const COMM_SUMMARY_SQL: &str = "SELECT op, count(*) AS n, \
@@ -280,7 +279,7 @@ pub fn Training() -> Element {
 }
 
 fn queue_investigate_skill(skill_id: String) {
-    if !load_skill(&skill_id).is_some() {
+    if load_skill(&skill_id).is_none() {
         return;
     }
     *AGENT_PANEL_OPEN.write() = true;
@@ -919,9 +918,7 @@ fn dataframe_rows(df: &probing_proto::prelude::DataFrame) -> usize {
 
 type HeatmapData = (Vec<i32>, Vec<i64>, HashMap<(i32, i64), HeatCell>, f64);
 
-fn build_heatmap(
-    samples: &[StepDurationSample],
-) -> HeatmapData {
+fn build_heatmap(samples: &[StepDurationSample]) -> HeatmapData {
     let mut rank_set = HashSet::new();
     let mut step_set = HashSet::new();
     let mut raw: HashMap<(i32, i64), f64> = HashMap::new();
@@ -1280,11 +1277,7 @@ fn render_module_hotspots(
         };
     }
 
-    let row_count = modules
-        .as_ref()
-        .ok()
-        .map(dataframe_rows)
-        .unwrap_or(0);
+    let row_count = modules.as_ref().ok().map(dataframe_rows).unwrap_or(0);
 
     rsx! {
         CollapsibleCardWithIcon {

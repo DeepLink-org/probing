@@ -57,6 +57,7 @@ impl<T> SlotPool<T> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn free_ptr(&mut self, ptr: *mut T) {
         if let Some(idx) = self.index_of(ptr) {
             self.free_idx(idx);

@@ -35,9 +35,16 @@ jobs:
           python-version: '3.12'
           install-cargo-tools: 'true'
           install-python-deps: 'false'
+          cache-venv: 'false'
 
       - name: Prepare wheel bundle
-        run: make frontend wheel-bundle nccl-profiler-lib
+        env:
+          SKIP_FRONTEND_CLEAN: "1"
+        run: |
+          if [ ! -f web/dist/index.html ]; then
+            make frontend
+          fi
+          make wheel-bundle nccl-profiler-lib
 
       - name: Build wheels
         uses: PyO3/maturin-action@v1
@@ -46,7 +53,7 @@ jobs:
           args: --release --out dist --zig --compatibility manylinux2014 --auditwheel repair --features extension-module,gpu,gpu-cuda,kmsg
           sccache: "true"
           manylinux: auto
-          rust-toolchain: nightly
+          rust-toolchain: stable
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -67,9 +74,16 @@ jobs:
           python-version: '3.12'
           install-cargo-tools: 'true'
           install-python-deps: 'false'
+          cache-venv: 'false'
 
       - name: Prepare wheel bundle
-        run: make frontend wheel-bundle
+        env:
+          SKIP_FRONTEND_CLEAN: "1"
+        run: |
+          if [ ! -f web/dist/index.html ]; then
+            make frontend
+          fi
+          make wheel-bundle
 
       - name: Build wheels
         uses: PyO3/maturin-action@v1
@@ -77,7 +91,7 @@ jobs:
           target: ${{ matrix.target }}
           args: --release --out dist --find-interpreter --features extension-module,gpu,kmsg
           sccache: "true"
-          rust-toolchain: nightly
+          rust-toolchain: stable
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -94,16 +108,23 @@ jobs:
         with:
           install-python-deps: 'false'
           install-cargo-tools: 'true'
+          cache-venv: 'false'
 
       - name: Prepare wheel bundle
-        run: make frontend wheel-bundle nccl-profiler-lib
+        env:
+          SKIP_FRONTEND_CLEAN: "1"
+        run: |
+          if [ ! -f web/dist/index.html ]; then
+            make frontend
+          fi
+          make wheel-bundle nccl-profiler-lib
 
       - name: Build sdist
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
           args: --out dist --features extension-module,gpu,kmsg
-          rust-toolchain: nightly
+          rust-toolchain: stable
 
       - name: Upload sdist
         uses: actions/upload-artifact@v4
