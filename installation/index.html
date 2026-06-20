@@ -282,36 +282,20 @@
     
   
   
-    <li class="md-tabs__item md-tabs__item--active">
-      <a href="./" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
+          
   
   
     
   
-  Installation
+  Getting Started
 
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../quickstart/" class="md-tabs__link">
-        
-  
-  
+        </a>
+      </li>
     
-  
-  Quick Start
-
-      </a>
-    </li>
   
 
       
@@ -386,36 +370,20 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="../api-reference/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="../reference/" class="md-tabs__link">
+          
   
   
     
   
-  API Reference
+  Reference
 
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../versions/" class="md-tabs__link">
-        
-  
-  
+        </a>
+      </li>
     
-  
-  Versions
-
-      </a>
-    </li>
   
 
       
@@ -518,6 +486,71 @@
   
   
   
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
     <li class="md-nav__item md-nav__item--active">
       
       <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
@@ -577,10 +610,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#prerequisites" class="md-nav__link">
+  <a href="#requirements" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Prerequisites
+        Requirements
       
     </span>
   </a>
@@ -588,49 +621,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#installation-methods" class="md-nav__link">
+  <a href="#install-from-pypi-recommended" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Installation Methods
+        Install from PyPI (recommended)
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Installation Methods">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#1-using-pip-recommended" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        1. Using Pip (Recommended)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#2-building-from-source" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2. Building from Source
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#verifying-the-installation" class="md-nav__link">
+  <a href="#enable-probing-in-your-training-job" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Verifying the Installation
+        Enable probing in your training job
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#install-from-a-release-wheel-source-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install from a release wheel (source build)
       
     </span>
   </a>
@@ -641,7 +657,29 @@
   <a href="#platform-support" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Platform Support
+        Platform support
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#upgrade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrade
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#optional-example-ml-dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Optional: example &amp; ML dependencies
       
     </span>
   </a>
@@ -652,7 +690,7 @@
   <a href="#next-steps" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Next Steps
+        Next steps
       
     </span>
   </a>
@@ -666,9 +704,10 @@
     </li>
   
 
-    
-      
-      
+              
+            
+              
+                
   
   
   
@@ -693,6 +732,42 @@
     </li>
   
 
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
     
       
       
@@ -705,6 +780,8 @@
       
         
           
+        
+      
         
       
         
@@ -728,7 +805,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -750,14 +827,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -784,6 +861,34 @@
     
   
     SQL Analytics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Diagnostic Skills
   
 
     
@@ -915,6 +1020,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -928,7 +1037,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -950,14 +1059,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -967,6 +1076,34 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design/modularity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modularity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -1116,6 +1253,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../design/nccl-profiler/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    NCCL Profiler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../design/cluster-pulsing/" class="md-nav__link">
         
   
@@ -1204,7 +1369,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -1226,14 +1391,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_6" id="__nav_6_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_6">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1342,6 +1507,107 @@
   
   
   
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../reference/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6" id="__nav_6_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/sql-tables/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQL Tables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../api-reference/" class="md-nav__link">
         
@@ -1362,9 +1628,10 @@
     </li>
   
 
-    
-      
-      
+              
+            
+              
+                
   
   
   
@@ -1386,6 +1653,14 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -1444,10 +1719,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#prerequisites" class="md-nav__link">
+  <a href="#requirements" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Prerequisites
+        Requirements
       
     </span>
   </a>
@@ -1455,49 +1730,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#installation-methods" class="md-nav__link">
+  <a href="#install-from-pypi-recommended" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Installation Methods
+        Install from PyPI (recommended)
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Installation Methods">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#1-using-pip-recommended" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        1. Using Pip (Recommended)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#2-building-from-source" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2. Building from Source
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#verifying-the-installation" class="md-nav__link">
+  <a href="#enable-probing-in-your-training-job" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Verifying the Installation
+        Enable probing in your training job
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#install-from-a-release-wheel-source-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install from a release wheel (source build)
       
     </span>
   </a>
@@ -1508,7 +1766,29 @@
   <a href="#platform-support" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Platform Support
+        Platform support
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#upgrade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrade
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#optional-example-ml-dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Optional: example &amp; ML dependencies
       
     </span>
   </a>
@@ -1519,7 +1799,7 @@
   <a href="#next-steps" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Next Steps
+        Next steps
       
     </span>
   </a>
@@ -1547,84 +1827,142 @@
 
 
 <h1 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h1>
-<p>This guide provides instructions on how to install Probing on your system.</p>
-<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
-<p>Before you begin, ensure you have the following:</p>
-<ul>
-<li>Python (version 3.7 or higher)</li>
-<li>Pip (Python package installer)</li>
-<li>For building from source:<ul>
-<li>Rust (latest stable version recommended)</li>
-<li>Cargo (Rust's package manager and build system)</li>
-</ul>
-</li>
-</ul>
-<h2 id="installation-methods">Installation Methods<a class="headerlink" href="#installation-methods" title="Permanent link">&para;</a></h2>
-<h3 id="1-using-pip-recommended">1. Using Pip (Recommended)<a class="headerlink" href="#1-using-pip-recommended" title="Permanent link">&para;</a></h3>
-<p>This is the easiest way to install Probing:</p>
+<p>How to install Probing for <strong>production use</strong> or <strong>wheel-based evaluation</strong>.
+Contributors building from a git checkout should follow <a href="../contributing/#development-setup">Contributing — Development setup</a> (<code>make develop</code>), not this page alone.</p>
+<h2 id="requirements">Requirements<a class="headerlink" href="#requirements" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Version</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Python</td>
+<td>3.7+ (3.9+ recommended for development)</td>
+</tr>
+<tr>
+<td>Rust (source build only)</td>
+<td>stable channel — see <a href="../contributing/#prerequisites">Contributing — Prerequisites</a></td>
+</tr>
+<tr>
+<td>OS (full features)</td>
+<td>Linux — required for <code>probing inject</code></td>
+</tr>
+<tr>
+<td>OS (in-process only)</td>
+<td>macOS / Windows — <code>PROBING=1</code> at startup, query/eval via CLI</td>
+</tr>
+</tbody>
+</table>
+<h2 id="install-from-pypi-recommended">Install from PyPI (recommended)<a class="headerlink" href="#install-from-pypi-recommended" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>probing
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="c1"># or: uv pip install probing</span>
 </span></code></pre></div>
-<p>This command will download and install the latest stable release of Probing from the Python Package Index (PyPI).</p>
-<h3 id="2-building-from-source">2. Building from Source<a class="headerlink" href="#2-building-from-source" title="Permanent link">&para;</a></h3>
-<p>If you want the latest development version or want to contribute to Probing, you can build it from source:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># 1. Clone the repository</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/DeepLink-org/probing.git
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nb">cd</span><span class="w"> </span>probing
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1"># 2. Build and install the Python package</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>make<span class="w"> </span>wheel
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>pip<span class="w"> </span>install<span class="w"> </span>dist/probing-*.whl
+<p>Verify:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>probing<span class="w"> </span>--version
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>probing<span class="w"> </span>list
 </span></code></pre></div>
-<p>This will compile the Rust components and build the Python wheel for installation.</p>
-<p>For detailed instructions on building from source, including prerequisites and troubleshooting, see the <a href="../design/architecture/">Building from Source</a> guide.</p>
-<h2 id="verifying-the-installation">Verifying the Installation<a class="headerlink" href="#verifying-the-installation" title="Permanent link">&para;</a></h2>
-<p>After installation, you can verify that Probing is correctly installed by running:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>probing<span class="w"> </span>--version
+<h2 id="enable-probing-in-your-training-job">Enable probing in your training job<a class="headerlink" href="#enable-probing-in-your-training-job" title="Permanent link">&para;</a></h2>
+<p>After installation, the wheel ships a <strong>site hook</strong> (<code>probing.pth</code> → <code>probing_hook.py</code>) that can auto-import probing when the <code>PROBING</code> environment variable is set — no code changes required.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Current process only</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>python<span class="w"> </span>train.py
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># Current process + child processes (torchrun, mp.spawn, …)</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">2</span><span class="w"> </span>python<span class="w"> </span>train.py
 </span></code></pre></div>
-<p>This should print the installed version of Probing, for example:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>probing 0.2.5
+<p>Common values:</p>
+<table>
+<thead>
+<tr>
+<th><code>PROBING</code></th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>unset / <code>0</code></td>
+<td>Disabled (default)</td>
+</tr>
+<tr>
+<td><code>1</code> / <code>followed</code></td>
+<td>Enable in current process</td>
+</tr>
+<tr>
+<td><code>2</code> / <code>nested</code></td>
+<td>Enable in current and child processes</td>
+</tr>
+<tr>
+<td><code>regex:PATTERN</code></td>
+<td>Enable when script name matches regex</td>
+</tr>
+<tr>
+<td><code>SCRIPT.py</code></td>
+<td>Enable when script basename matches</td>
+</tr>
+</tbody>
+</table>
+<p>Advanced filters and <code>init:…</code> prefixes: see <code>python/probing/site_hook.py</code> in the repository.</p>
+<p>On <strong>Linux</strong>, you can also attach to a running process:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>probing<span class="w"> </span>-t<span class="w"> </span>&lt;pid&gt;<span class="w"> </span>inject
 </span></code></pre></div>
-<p>You can also check if the <code>probing</code> command is available:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>probing<span class="w"> </span>list
+<p>On <strong>macOS / Windows</strong>, use <code>PROBING=1</code> (or <code>2</code>) at startup; injection is not available.</p>
+<h2 id="install-from-a-release-wheel-source-build">Install from a release wheel (source build)<a class="headerlink" href="#install-from-a-release-wheel-source-build" title="Permanent link">&para;</a></h2>
+<p>Use this for CI smoke tests or when you need a locally built wheel — <strong>not</strong> for day-to-day hacking on the repo (use <code>make develop</code> instead).</p>
+<p>Requires <strong>Rust stable</strong> and optional frontend tools — see <a href="../contributing/#prerequisites">Contributing — Prerequisites</a>.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/DeepLink-org/probing.git
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nb">cd</span><span class="w"> </span>probing
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># Install Rust stable if needed (see contributing.md#prerequisites)</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>make<span class="w"> </span>frontend
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>make<span class="w"> </span>wheel
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>pip<span class="w"> </span>install<span class="w"> </span>dist/probing-*.whl<span class="w"> </span>--force-reinstall
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="c1"># or: make install-wheel</span>
 </span></code></pre></div>
-<p>This command should list available probing commands or indicate that no processes are currently being probed.</p>
-<h2 id="platform-support">Platform Support<a class="headerlink" href="#platform-support" title="Permanent link">&para;</a></h2>
+<p>Verify as above. The installed wheel includes the same site hook as PyPI.</p>
+<h2 id="platform-support">Platform support<a class="headerlink" href="#platform-support" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
 <th>Platform</th>
-<th>Injection</th>
-<th>Query/Eval</th>
+<th><code>probing inject</code></th>
+<th>In-process (<code>PROBING=1</code>)</th>
+<th>CLI query / eval</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Linux</td>
-<td>✅ Full support</td>
-<td>✅ Full support</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
 </tr>
 <tr>
 <td>macOS</td>
-<td>❌ Not supported</td>
-<td>✅ Supported</td>
+<td>❌</td>
+<td>✅</td>
+<td>✅</td>
 </tr>
 <tr>
 <td>Windows</td>
-<td>❌ Not supported</td>
-<td>✅ Supported</td>
+<td>❌</td>
+<td>✅</td>
+<td>✅</td>
 </tr>
 </tbody>
 </table>
-<div class="admonition note">
-<p class="admonition-title">Linux Required for Injection</p>
-<p>The dynamic probe injection feature (<code>probing inject</code>) requires Linux. On other platforms, you can still use query and eval features if the target process has probing enabled at startup.</p>
-</div>
-<h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
-<p>With Probing installed, you are ready to start using it:</p>
+<h2 id="upgrade">Upgrade<a class="headerlink" href="#upgrade" title="Permanent link">&para;</a></h2>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pip<span class="w"> </span>install<span class="w"> </span>--upgrade<span class="w"> </span>probing
+</span></code></pre></div>
+<p>See <a href="../versions/">Versions</a> for Python / PyTorch / NCCL compatibility notes.</p>
+<h2 id="optional-example-ml-dependencies">Optional: example &amp; ML dependencies<a class="headerlink" href="#optional-example-ml-dependencies" title="Permanent link">&para;</a></h2>
+<p>The core package has <strong>no</strong> hard Python dependencies. Repository examples under <code>examples/</code> may require extra packages (e.g. <code>torch</code>, <code>torchvision</code>). See <a href="https://github.com/DeepLink-org/probing/blob/main/examples/README.md">examples/README.md</a>.</p>
+<h2 id="next-steps">Next steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../quickstart/">Quick Start</a> - Get started with your first analysis</li>
-<li><a href="../guide/sql-analytics/">SQL Analytics</a> - Learn the SQL query interface</li>
-<li><a href="../guide/memory-analysis/">Memory Analysis</a> - Debug memory issues</li>
+<li><a href="../quickstart/">Quick Start</a></li>
+<li><a href="../guide/concepts/">Core Concepts</a> — endpoints, in-process vs attach</li>
+<li><a href="../contributing/">Contributing</a> — clone, <code>make develop</code>, run tests</li>
 </ul>
 
 
@@ -1661,7 +1999,7 @@
       <div class="md-copyright">
   
     <div class="md-copyright__highlight">
-      © 2025 Probing. All rights reserved.
+      © 2025–2026 Probing. All rights reserved.
     </div>
   
   

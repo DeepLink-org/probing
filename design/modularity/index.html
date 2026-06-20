@@ -1,0 +1,3087 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Dynamic Performance Profiler for Distributed AI">
+      
+      
+      
+        <link rel="canonical" href="https://github.com/DeepLink-org/probing/design/modularity/">
+      
+      
+        <link rel="prev" href="../">
+      
+      
+        <link rel="next" href="../architecture/">
+      
+      
+        
+          <link rel="alternate" href="./" hreflang="en">
+        
+          <link rel="alternate" href="../../zh/design/modularity/" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Modularity - Probing Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/home.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#modularity-module-boundaries" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Probing Documentation" class="md-header__button md-logo" aria-label="Probing Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Probing Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Modularity
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Select language">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../zh/design/modularity/" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/DeepLink-org/probing" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    DeepLink-org/probing
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../installation/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Getting Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../guide/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Design
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../examples/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Examples
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../contributing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Contributing
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Probing Documentation" class="md-nav__button md-logo" aria-label="Probing Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Probing Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/DeepLink-org/probing" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    DeepLink-org/probing
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../guide/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/sql-analytics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQL Analytics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Diagnostic Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/memory-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory Analysis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Debugging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modularity
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modularity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-layer-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Layer model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-crate-directory-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Crate &amp; directory map
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Crate &amp; directory map">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#l1-platform-core-stable-interfaces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        L1 — Platform core (stable interfaces)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#l2-collectors-feature-modules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        L2 — Collectors (feature modules)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#l3-control-plane" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        L3 — Control plane
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#l4-experience" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        L4 — Experience
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-public-interfaces-contracts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Public interfaces (contracts)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Public interfaces (contracts)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-probedatasource-register-sql-tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 ProbeDataSource — register SQL tables
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-probeextension-config-imperative-http" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 ProbeExtension — config + imperative HTTP
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-python-table-application-data-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 Python @table — application data plugins
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34-skill-contract-diagnostic-workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4 Skill contract — diagnostic workflows
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#35-wire-protocol-cli-web-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.5 Wire protocol — CLI / Web ↔ Server
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#36-federation-tags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.6 Federation tags
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-dependency-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Dependency rules
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Dependency rules">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#dependency-matrix-target-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dependency matrix (target state)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#41-pypi-packaging-coupling-probing-python-probing-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 PyPI packaging coupling (probing-python → probing-cli)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-module-boundaries-by-concern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Module boundaries by concern
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-team-ownership-suggested" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Team ownership (suggested)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-known-boundary-violations-technical-debt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Known boundary violations (technical debt)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-adding-a-new-feature-decision-tree" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Adding a new feature (decision tree)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-related-documents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Related documents
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-layer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Layer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../profiling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Profiling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Debugging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../distributed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Distributed
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nccl-profiler/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    NCCL Profiler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cluster-pulsing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cluster with Pulsing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../extensibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extensibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../examples/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/training-debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training Debugging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/memory-leak/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory Leak
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/performance-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance Analysis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../reference/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6" id="__nav_6_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/sql-tables/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQL Tables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../versions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Versions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-layer-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Layer model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-crate-directory-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Crate &amp; directory map
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Crate &amp; directory map">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#l1-platform-core-stable-interfaces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        L1 — Platform core (stable interfaces)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#l2-collectors-feature-modules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        L2 — Collectors (feature modules)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#l3-control-plane" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        L3 — Control plane
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#l4-experience" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        L4 — Experience
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-public-interfaces-contracts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Public interfaces (contracts)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Public interfaces (contracts)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-probedatasource-register-sql-tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 ProbeDataSource — register SQL tables
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-probeextension-config-imperative-http" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 ProbeExtension — config + imperative HTTP
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-python-table-application-data-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 Python @table — application data plugins
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34-skill-contract-diagnostic-workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4 Skill contract — diagnostic workflows
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#35-wire-protocol-cli-web-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.5 Wire protocol — CLI / Web ↔ Server
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#36-federation-tags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.6 Federation tags
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-dependency-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Dependency rules
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Dependency rules">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#dependency-matrix-target-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dependency matrix (target state)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#41-pypi-packaging-coupling-probing-python-probing-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 PyPI packaging coupling (probing-python → probing-cli)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-module-boundaries-by-concern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Module boundaries by concern
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-team-ownership-suggested" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Team ownership (suggested)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-known-boundary-violations-technical-debt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Known boundary violations (technical debt)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-adding-a-new-feature-decision-tree" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Adding a new feature (decision tree)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-related-documents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Related documents
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="modularity-module-boundaries">Modularity &amp; Module Boundaries<a class="headerlink" href="#modularity-module-boundaries" title="Permanent link">&para;</a></h1>
+<p>This document defines <strong>core vs feature modules</strong>, public interfaces, dependency rules, and
+ownership boundaries. Goal: parallel development without cross-cutting churn.</p>
+<p>Read with <a href="../architecture/">Architecture</a>, <a href="../data-layer/">Data Layer</a>, and
+<a href="../extensibility/">Extensibility</a>. Shared vocabulary: <a href="../../guide/concepts/">Core Concepts</a>.</p>
+<hr />
+<h2 id="1-layer-model">1. Layer model<a class="headerlink" href="#1-layer-model" title="Permanent link">&para;</a></h2>
+<p>Probing is organized in four layers. <strong>Dependencies only flow downward</strong> (higher layers may
+call lower; never the reverse).</p>
+<pre class="mermaid"><code>flowchart TB
+    subgraph L4["L4 — Experience (no engine logic)"]
+        WEB[web/ WASM UI]
+        SKILLS[skills/ diagnostic workflows]
+        PYSDK[python/probing/ SDK &amp; hooks]
+    end
+
+    subgraph L3["L3 — Control plane"]
+        CLI[probing-cli]
+        SERVER[probing-server]
+    end
+
+    subgraph L2["L2 — Collectors &amp; extensions"]
+        PYEXT[probing-python]
+        CC[probing-cc]
+        GPU[probing-gpu]
+        NCCL[probing-nccl-profiler cdylib]
+    end
+
+    subgraph L1["L1 — Platform core"]
+        CORE[probing-core]
+        MEM[probing-memtable]
+        PROTO[probing-proto]
+        MACROS[probing-macros]
+    end
+
+    WEB --&gt; PROTO
+    CLI --&gt; PROTO
+    SERVER --&gt; CORE
+    SERVER --&gt; L2
+    L2 --&gt; CORE
+    L2 --&gt; MEM
+    CORE --&gt; MEM
+    CORE --&gt; PROTO
+    SKILLS --&gt; PYSDK
+    PYSDK --&gt; PYEXT
+    NCCL --&gt; MEM</code></pre>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Role</th>
+<th>Changes when…</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>L1 Platform</strong></td>
+<td>SQL engine, storage, wire types, plugin traits</td>
+<td>Federation, memtable, config, catalog</td>
+</tr>
+<tr>
+<td><strong>L2 Collectors</strong></td>
+<td>Produce rows into tables; optional HTTP via Extension</td>
+<td>New signals (GPU, NCCL, host, Python runtime)</td>
+</tr>
+<tr>
+<td><strong>L3 Control plane</strong></td>
+<td>HTTP API, CLI, composition root</td>
+<td>New endpoints, auth, cluster fan-out</td>
+</tr>
+<tr>
+<td><strong>L4 Experience</strong></td>
+<td>UI, skills, Python integration</td>
+<td>Diagnostics UX, hooks, agent flows</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Composition root (only place that wires everything):</strong></p>
+<ul>
+<li><code>probing/server/src/engine.rs</code> — registers all <code>ProbeDataSource</code> + <code>ProbeExtension</code> for the
+  in-process server.</li>
+<li>Root <code>src/lib.rs</code> + <code>Cargo.toml</code> — PyO3 wheel bundles server + python extension.</li>
+</ul>
+<hr />
+<h2 id="2-crate-directory-map">2. Crate &amp; directory map<a class="headerlink" href="#2-crate-directory-map" title="Permanent link">&para;</a></h2>
+<h3 id="l1-platform-core-stable-interfaces">L1 — Platform core (stable interfaces)<a class="headerlink" href="#l1-platform-core-stable-interfaces" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Unit</th>
+<th>Path</th>
+<th>Responsibility</th>
+<th>Must NOT</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>probing-proto</strong></td>
+<td><code>probing/proto/</code></td>
+<td><code>Message&lt;T&gt;</code>, <code>DataFrame</code>, <code>Node</code>, <code>Query</code> DTOs</td>
+<td>Import core, server, extensions</td>
+</tr>
+<tr>
+<td><strong>probing-memtable</strong></td>
+<td><code>probing/memtable/</code></td>
+<td>MEMT/MEMH/MEMC read/write, mmap discovery</td>
+<td>Know SQL, HTTP, Python</td>
+</tr>
+<tr>
+<td><strong>probing-core</strong></td>
+<td><code>probing/core/</code></td>
+<td>DataFusion engine, federation, config, traits</td>
+<td>Import server, cli, extensions</td>
+</tr>
+<tr>
+<td><strong>probing-macros</strong></td>
+<td><code>probing/macros/</code></td>
+<td><code>#[derive(ProbeExtension)]</code></td>
+<td>Business logic</td>
+</tr>
+</tbody>
+</table>
+<p>Key core submodules:</p>
+<table>
+<thead>
+<tr>
+<th>Submodule</th>
+<th>Path</th>
+<th>Contract</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Engine</td>
+<td><code>core/engine.rs</code></td>
+<td><code>async_query</code>, <code>enable(ProbeDataSource)</code></td>
+</tr>
+<tr>
+<td>Federation</td>
+<td><code>core/federation/</code></td>
+<td><code>global.*</code> catalog, tags <code>_host/_addr/_rank/_role</code></td>
+</tr>
+<tr>
+<td>Memtable SQL</td>
+<td><code>core/memtable_sql.rs</code></td>
+<td>mmap files → <code>TableProvider</code></td>
+</tr>
+<tr>
+<td>Config</td>
+<td><code>config.rs</code></td>
+<td><code>get</code> / <code>set</code> / <code>write</code> KV + extension options</td>
+</tr>
+</tbody>
+</table>
+<h3 id="l2-collectors-feature-modules">L2 — Collectors (feature modules)<a class="headerlink" href="#l2-collectors-feature-modules" title="Permanent link">&para;</a></h3>
+<p>Each collector <strong>writes data</strong> and optionally <strong>registers tables + extension config</strong>. Collectors
+do not call each other.</p>
+<table>
+<thead>
+<tr>
+<th>Unit</th>
+<th>Path</th>
+<th>Schema / tables</th>
+<th>Extension</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>probing-python</strong></td>
+<td><code>probing/extensions/python/</code></td>
+<td><code>python.*</code> (backtrace, mmap tables)</td>
+<td><code>PythonExt</code>, <code>TorchProbeExtension</code>, <code>PprofProbeExtension</code></td>
+</tr>
+<tr>
+<td><strong>probing-cc</strong></td>
+<td><code>probing/extensions/cc/</code></td>
+<td><code>cpu.*</code>, <code>cluster.nodes</code>, <code>rdma.*</code>, <code>process.*</code>, <code>files.*</code></td>
+<td><code>CpuProbeExtension</code>, <code>RdmaProbeExtension</code></td>
+</tr>
+<tr>
+<td><strong>probing-gpu</strong></td>
+<td><code>probing/extensions/gpu/</code></td>
+<td><code>gpu.utilization</code>, <code>gpu.devices</code></td>
+<td><code>GpuProbeExtension</code></td>
+</tr>
+<tr>
+<td><strong>probing-nccl-profiler</strong></td>
+<td><code>probing/extensions/nccl-profiler/</code></td>
+<td><code>nccl.proxy_ops</code>, <code>nccl.net_qp</code> (mmap)</td>
+<td>NCCL plugin ABI only (no HTTP)</td>
+</tr>
+</tbody>
+</table>
+<p>Python-side collectors (same layer, different language):</p>
+<table>
+<thead>
+<tr>
+<th>Unit</th>
+<th>Path</th>
+<th>Tables</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Torch tracing</td>
+<td><code>python/probing/profiling/</code></td>
+<td><code>python.torch_trace</code>, <code>python.comm_collective</code></td>
+</tr>
+<tr>
+<td>Tracing spans</td>
+<td><code>python/probing/tracing.py</code></td>
+<td><code>python.trace_event</code></td>
+</tr>
+<tr>
+<td>Parallel role</td>
+<td><code>python/probing/parallel.py</code></td>
+<td>stamps <code>role</code> on rows</td>
+</tr>
+<tr>
+<td>User plugins</td>
+<td><code>python/probing/ext/</code></td>
+<td><code>python.&lt;custom&gt;</code> via <code>@table</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="l3-control-plane">L3 — Control plane<a class="headerlink" href="#l3-control-plane" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Unit</th>
+<th>Path</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>probing-server</strong></td>
+<td><code>probing/server/</code></td>
+<td>Axum routes, auth, <code>initialize_engine()</code>, cluster fan-out</td>
+</tr>
+<tr>
+<td><strong>probing-cli</strong></td>
+<td><code>probing/cli/</code></td>
+<td>HTTP client to probe; inject/list/query/repl/<strong>skill</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Stable HTTP surface: <code>probing/server/API.md</code>, enforced by <code>tests/regression/spec/api_spec.json</code>.</p>
+<h3 id="l4-experience">L4 — Experience<a class="headerlink" href="#l4-experience" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Unit</th>
+<th>Path</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>web/</strong></td>
+<td>Dioxus WASM</td>
+<td>Pages, visualization, Investigate agent</td>
+</tr>
+<tr>
+<td><strong>skills/</strong></td>
+<td>YAML + SKILL.md</td>
+<td>Diagnostic workflows over SQL</td>
+</tr>
+<tr>
+<td><strong>python/probing/</strong></td>
+<td>Python package</td>
+<td>Hooks, <code>query()</code>, skills loader, nccl helper</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="3-public-interfaces-contracts">3. Public interfaces (contracts)<a class="headerlink" href="#3-public-interfaces-contracts" title="Permanent link">&para;</a></h2>
+<p>New work should extend <strong>one</strong> of these contracts instead of adding cross-module calls.</p>
+<h3 id="31-probedatasource-register-sql-tables">3.1 <code>ProbeDataSource</code> — register SQL tables<a class="headerlink" href="#31-probedatasource-register-sql-tables" title="Permanent link">&para;</a></h3>
+<p><strong>Where:</strong> <code>probing/core/src/core/data_source.rs</code>
+<strong>Register:</strong> <code>EngineBuilder::with_data_source</code> (wired in <code>server/engine.rs</code>)</p>
+<table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>Use when</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Table</code></td>
+<td>Fixed schema, one table</td>
+<td><code>gpu.devices</code></td>
+</tr>
+<tr>
+<td><code>Namespace</code></td>
+<td>Dynamic tables</td>
+<td><code>python.*</code>, mmap discovery</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Rules:</strong></p>
+<ul>
+<li>Schema + scan logic live in the collector crate.</li>
+<li>Federation: table names under known schemas (<code>python</code>, <code>nccl</code>, <code>gpu</code>, …) auto-mirror to
+  <code>global.&lt;schema&gt;.&lt;table&gt;</code>.</li>
+<li>Do <strong>not</strong> query other collectors from inside <code>scan()</code>; join at SQL layer.</li>
+</ul>
+<h3 id="32-probeextension-config-imperative-http">3.2 <code>ProbeExtension</code> — config + imperative HTTP<a class="headerlink" href="#32-probeextension-config-imperative-http" title="Permanent link">&para;</a></h3>
+<p><strong>Where:</strong> <code>probing/core/src/core/probe_extension.rs</code>
+<strong>Derive:</strong> <code>#[derive(ProbeExtension)]</code> in <code>probing-macros</code></p>
+<table>
+<thead>
+<tr>
+<th>Capability</th>
+<th>Mechanism</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Config keys</td>
+<td><code>probing.&lt;namespace&gt;.&lt;option&gt;</code> via <code>set</code> / <code>get</code> / <code>options</code></td>
+</tr>
+<tr>
+<td>Side effects</td>
+<td>Background sampler start/stop in <code>set_*</code> handlers</td>
+</tr>
+<tr>
+<td>HTTP</td>
+<td><code>ProbeExtensionCall::call</code> → <code>/apis/&lt;name&gt;/...</code> fallback</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Rules:</strong></p>
+<ul>
+<li>Extension name = URL segment (<code>pythonext</code>, <code>rdmaextension</code>, …).</li>
+<li>Prefer <strong>tables for data</strong>, extension for <strong>control</strong> (start/stop, eval, flamegraph render).</li>
+<li>Never <code>todo!()</code> in default trait methods — return <code>EngineError</code>.</li>
+</ul>
+<h3 id="33-python-table-application-data-plugins">3.3 Python <code>@table</code> — application data plugins<a class="headerlink" href="#33-python-table-application-data-plugins" title="Permanent link">&para;</a></h3>
+<p><strong>Where:</strong> <code>python/probing/core/table.py</code>, documented in <a href="../extensibility/">Extensibility</a></p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nd">@table</span><span class="p">(</span><span class="s2">&quot;comm_collective&quot;</span><span class="p">)</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nd">@dataclass</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">CommCollective</span><span class="p">:</span> <span class="o">...</span>
+</span></code></pre></div>
+<p><strong>Rules:</strong></p>
+<ul>
+<li>Writes go through memtable mmap → appear as <code>python.&lt;name&gt;</code>.</li>
+<li>Stamp <code>local_step</code>, <code>global_step</code>, <code>rank</code>, <code>role</code> on training rows (see
+  <a href="../../guide/concepts/">concepts</a>).</li>
+<li>No direct Rust imports from Python plugins.</li>
+</ul>
+<h3 id="34-skill-contract-diagnostic-workflows">3.4 Skill contract — diagnostic workflows<a class="headerlink" href="#34-skill-contract-diagnostic-workflows" title="Permanent link">&para;</a></h3>
+<p><strong>Where:</strong> <code>skills/&lt;id&gt;/SKILL.md</code> + <code>steps.yaml</code>, catalog <code>skills/catalog.yaml</code></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>requires.any_tables</code></td>
+<td>Preconditions</td>
+</tr>
+<tr>
+<td><code>spec.steps[].sql</code></td>
+<td>Evidence queries (only interface to engine)</td>
+</tr>
+<tr>
+<td><code>interpretation.rules</code></td>
+<td>Deterministic findings</td>
+</tr>
+<tr>
+<td><code>next_steps</code></td>
+<td>Hand-off to other skills</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Rules:</strong></p>
+<ul>
+<li>Skills <strong>only</strong> talk to the engine via SQL (<code>probing query</code>) or documented HTTP APIs.</li>
+<li>No Rust/Python code in skills — YAML + markdown only.</li>
+<li>CLI (<code>probing/cli/skill/</code>), Python (<code>python/probing/skills/</code>), Web (<code>web/src/agent/skill.rs</code>)
+  are <strong>loaders</strong>; skill content is single source in <code>skills/</code>.</li>
+</ul>
+<h3 id="35-wire-protocol-cli-web-server">3.5 Wire protocol — CLI / Web ↔ Server<a class="headerlink" href="#35-wire-protocol-cli-web-server" title="Permanent link">&para;</a></h3>
+<p><strong>Where:</strong> <code>probing/proto/</code></p>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Payload</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST /query</code></td>
+<td><code>Message&lt;Query&gt;</code> → <code>Message&lt;Data&gt;</code></td>
+</tr>
+<tr>
+<td><code>POST /query/dto</code></td>
+<td>Stable external DTO</td>
+</tr>
+<tr>
+<td><code>GET /apis/*</code></td>
+<td>JSON / SVG per API.md</td>
+</tr>
+<tr>
+<td><code>GET /ws</code></td>
+<td>REPL</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Rules:</strong></p>
+<ul>
+<li>CLI and Web must not link <code>probing-core</code> at runtime (CLI: proto only; Web: HTTP + proto types).</li>
+<li>Breaking API changes require <code>api_spec.json</code> + contract tests update.</li>
+</ul>
+<h3 id="36-federation-tags">3.6 Federation tags<a class="headerlink" href="#36-federation-tags" title="Permanent link">&para;</a></h3>
+<p><strong>Where:</strong> <code>probing/core/src/core/federation/convert.rs</code></p>
+<p>Every <code>global.*</code> row adds:</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>_host</code></td>
+<td>Peer hostname</td>
+</tr>
+<tr>
+<td><code>_addr</code></td>
+<td>Peer <code>host:port</code></td>
+</tr>
+<tr>
+<td><code>_rank</code></td>
+<td><code>torch.distributed</code> rank from node registry</td>
+</tr>
+<tr>
+<td><code>_role</code></td>
+<td>Parallel role key from node registry</td>
+</tr>
+</tbody>
+</table>
+<p>Collectors must not invent alternate peer tags.</p>
+<hr />
+<h2 id="4-dependency-rules">4. Dependency rules<a class="headerlink" href="#4-dependency-rules" title="Permanent link">&para;</a></h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>Allowed:
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  L4 → L3 (HTTP only)
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  L3 → L2, L1
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>  L2 → L1
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>  L1 internal: core → memtable, proto
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>Forbidden (fix if found):
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>  L1 → L2/L3/L4
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>  L2 → L2 (collector cross-deps)
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>  L2 → L3 (extensions must not import server)
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>  L2 → probing-cli  — **packaging only** (see §4.1; not a runtime collector→control violation)
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>  skills → Rust internals
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>  web → probing-core / pyo3
+</span></code></pre></div>
+<h3 id="dependency-matrix-target-state">Dependency matrix (target state)<a class="headerlink" href="#dependency-matrix-target-state" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th style="text-align: center;">proto</th>
+<th style="text-align: center;">memtable</th>
+<th style="text-align: center;">core</th>
+<th style="text-align: center;">cc/gpu/py</th>
+<th style="text-align: center;">server</th>
+<th style="text-align: center;">cli</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>proto</strong></td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+</tr>
+<tr>
+<td><strong>memtable</strong></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+</tr>
+<tr>
+<td><strong>core</strong></td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+</tr>
+<tr>
+<td><strong>extensions</strong></td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+</tr>
+<tr>
+<td><strong>server</strong></td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;"></td>
+</tr>
+<tr>
+<td><strong>cli</strong></td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">opt</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td><strong>web</strong></td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+</tr>
+</tbody>
+</table>
+<h3 id="41-pypi-packaging-coupling-probing-python-probing-cli">4.1 PyPI packaging coupling (<code>probing-python</code> → <code>probing-cli</code>)<a class="headerlink" href="#41-pypi-packaging-coupling-probing-python-probing-cli" title="Permanent link">&para;</a></h3>
+<p>Maturin builds <strong>one native artifact</strong> (<code>probing._core</code> cdylib from root <code>Cargo.toml</code>). The
+<code>probing</code> console script is <strong>not</strong> a separate Rust binary on PyPI:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pip install probing
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>  → probing._core.so   (core + server + python ext + cli linked in)
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>  → probing.cli.__main__  →  _core.cli_main()  →  probing_cli::cli_main()
+</span></code></pre></div>
+<p>This is an <strong>accepted compile-time coupling</strong> for the wheel workflow (<code>pyproject.toml</code>
+<code>[tool.maturin]</code> + <code>[project.scripts]</code>). It is <strong>not</strong> the Python collector calling the CLI
+control plane at runtime for data paths.</p>
+<p><strong>Contract (keep the edge thin):</strong></p>
+<ul>
+<li><code>probing-python</code> may depend on <code>probing-cli</code> <strong>only</strong> to re-export <code>cli_main</code> in
+  <code>features/python_api.rs</code> for the PyO3 entrypoint.</li>
+<li>Do <strong>not</strong> import other <code>probing-cli</code> modules (inject, skill runner internals, ctrl) from
+  collectors or server.</li>
+<li>Standalone Rust binary (<code>probing/cli/src/main.rs</code>) remains optional for non-PyPI installs;
+  PyPI users always go through the Python script entry.</li>
+</ul>
+<p>If CLI logic grows, split <strong><code>probing-cli-lib</code></strong> (shared <code>cli_main</code> + HTTP client) from CLI-only
+commands, rather than letting <code>probing-python</code> spread imports across the cli crate.</p>
+<hr />
+<pre class="mermaid"><code>sequenceDiagram
+    participant C as Collector L2
+    participant M as memtable L1
+    participant E as Engine L1
+    participant S as Server L3
+    participant X as CLI/Web/Skill L4
+
+    C-&gt;&gt;M: push_row / mmap file
+    Note over M: MEMT ring (+ optional MEMC cold)
+    X-&gt;&gt;S: POST /query
+    S-&gt;&gt;E: async_query(SQL)
+    E-&gt;&gt;M: scan via TableProvider
+    E--&gt;&gt;S: DataFrame
+    S--&gt;&gt;X: JSON / render</code></pre>
+<p><strong>Implications:</strong></p>
+<ul>
+<li>New metrics → new table (or new columns with new table name), not ad-hoc server state.</li>
+<li>Cross-signal analysis → SQL JOIN or skill steps, not collector callbacks.</li>
+<li>Hot/cold retention → memtable + <code>MemTableProbeExtension</code> config only.</li>
+</ul>
+<hr />
+<h2 id="6-module-boundaries-by-concern">6. Module boundaries by concern<a class="headerlink" href="#6-module-boundaries-by-concern" title="Permanent link">&para;</a></h2>
+<p>Use this table to decide <strong>where a change belongs</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Concern</th>
+<th>Owner module</th>
+<th>Interface</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SQL parsing, federation rewrite</td>
+<td>probing-core</td>
+<td><code>Engine::async_query</code></td>
+</tr>
+<tr>
+<td>mmap format, compaction</td>
+<td>probing-memtable</td>
+<td><code>RowWriter</code>, <code>ColdStore</code></td>
+</tr>
+<tr>
+<td>Mixed Python/C stack</td>
+<td>probing-python/features</td>
+<td><code>python.backtrace</code>, pprof</td>
+</tr>
+<tr>
+<td>Torch module sampling</td>
+<td>python/probing/profiling</td>
+<td><code>python.torch_trace</code></td>
+</tr>
+<tr>
+<td>Collective wall time</td>
+<td>python/probing/profiling/collective</td>
+<td><code>python.comm_collective</code></td>
+</tr>
+<tr>
+<td>NCCL wait decomposition</td>
+<td>probing-nccl-profiler</td>
+<td><code>nccl.proxy_ops</code></td>
+</tr>
+<tr>
+<td>Host CPU / RDMA counters</td>
+<td>probing-cc</td>
+<td><code>cpu.*</code>, <code>rdma.*</code></td>
+</tr>
+<tr>
+<td>GPU mem / util</td>
+<td>probing-gpu</td>
+<td><code>gpu.*</code></td>
+</tr>
+<tr>
+<td>Cluster node registry</td>
+<td>probing-core/cluster + server/report</td>
+<td><code>cluster.nodes</code>, PUT/GET <code>/apis/nodes</code></td>
+</tr>
+<tr>
+<td>Cross-rank fan-out</td>
+<td>probing-server/cluster_fanout</td>
+<td><code>global.*</code>, <code>/apis/cluster/query</code></td>
+</tr>
+<tr>
+<td>Auth, request limits</td>
+<td>probing-server</td>
+<td>middleware</td>
+</tr>
+<tr>
+<td>Inject, query CLI</td>
+<td>probing-cli</td>
+<td>HTTP to server</td>
+</tr>
+<tr>
+<td>Diagnostic skills</td>
+<td>skills/</td>
+<td>steps.yaml</td>
+</tr>
+<tr>
+<td>Training step matrix UI</td>
+<td>web/pages/training</td>
+<td>GET <code>/apis/training/step_matrix</code></td>
+</tr>
+<tr>
+<td>Agent routing</td>
+<td>web/agent + skills catalog</td>
+<td>skill metadata</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="7-team-ownership-suggested">7. Team ownership (suggested)<a class="headerlink" href="#7-team-ownership-suggested" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>Paths</th>
+<th>Can merge without</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Platform</strong></td>
+<td><code>probing/core</code>, <code>probing/memtable</code>, <code>probing/proto</code>, <code>probing/macros</code></td>
+<td>Touching collectors</td>
+</tr>
+<tr>
+<td><strong>Host/GPU</strong></td>
+<td><code>probing/extensions/cc</code>, <code>probing/extensions/gpu</code></td>
+<td>Python, web</td>
+</tr>
+<tr>
+<td><strong>Runtime Python</strong></td>
+<td><code>probing/extensions/python</code>, <code>python/probing/profiling</code>, <code>python/probing/tracing</code></td>
+<td>NCCL plugin, web pages</td>
+</tr>
+<tr>
+<td><strong>NCCL</strong></td>
+<td><code>probing/extensions/nccl-profiler</code>, <code>python/probing/nccl</code></td>
+<td>Torch hooks</td>
+</tr>
+<tr>
+<td><strong>Control plane</strong></td>
+<td><code>probing/server</code>, <code>probing/cli</code></td>
+<td>Skill content, web UI</td>
+</tr>
+<tr>
+<td><strong>Diagnostics</strong></td>
+<td><code>skills/</code>, <code>probing/cli/skill</code>, <code>web/src/agent</code></td>
+<td>Collector internals</td>
+</tr>
+<tr>
+<td><strong>Web UI</strong></td>
+<td><code>web/</code> (except agent skill loader)</td>
+<td>Rust collectors</td>
+</tr>
+<tr>
+<td><strong>Docs</strong></td>
+<td><code>docs/</code></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Merge checklist:</strong></p>
+<ol>
+<li>Does it respect dependency direction (§4)?</li>
+<li>If adding a table → <code>ProbeDataSource</code> or <code>@table</code> only?</li>
+<li>If adding diagnostics → skill step or new table, not server one-off?</li>
+<li>HTTP change → <code>API.md</code> + <code>api_spec.json</code>?</li>
+<li>Federation → uses standard tags only?</li>
+</ol>
+<hr />
+<h2 id="8-known-boundary-violations-technical-debt">8. Known boundary violations (technical debt)<a class="headerlink" href="#8-known-boundary-violations-technical-debt" title="Permanent link">&para;</a></h2>
+<p>Track and fix incrementally:</p>
+<table>
+<thead>
+<tr>
+<th>Issue</th>
+<th>Current</th>
+<th>Target</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Python ext → CLI</td>
+<td><code>probing-python</code> → <code>probing-cli</code></td>
+<td><strong>Accepted</strong> for maturin wheel (<code>cli_main</code> only); keep import surface minimal</td>
+</tr>
+<tr>
+<td>Server → python <code>features/*</code></td>
+<td>~~<code>server/profiling.rs</code>~~ removed</td>
+<td>Flamegraphs via <code>torchextension</code> / <code>pprofextension</code> <code>ProbeExtensionCall</code></td>
+</tr>
+<tr>
+<td>Server → python REPL internals</td>
+<td>~~<code>PythonRepl</code> in server~~</td>
+<td><code>/ws</code> uses <code>ReplSession</code> facade only</td>
+</tr>
+<tr>
+<td>Composition sprawl</td>
+<td>All wiring in <code>server/engine.rs</code></td>
+<td>Optional: manifest TOML listing enabled extensions</td>
+</tr>
+<tr>
+<td>Skills triple loader</td>
+<td>Rust + Python + Web embed <code>skills/</code></td>
+<td>Keep <code>skills/</code> SSOT; loaders versioned together in CI</td>
+</tr>
+<tr>
+<td>kmsg collector</td>
+<td>Implemented, not registered</td>
+<td>Register in engine or delete</td>
+</tr>
+<tr>
+<td>Architecture doc</td>
+<td>2-layer diagram</td>
+<td>Superseded by this doc + <a href="../data-layer/">Data Layer</a></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="9-adding-a-new-feature-decision-tree">9. Adding a new feature (decision tree)<a class="headerlink" href="#9-adding-a-new-feature-decision-tree" title="Permanent link">&para;</a></h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>Need new raw signals?
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>  └─ Yes → L2 collector
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>        ├─ System/host/GPU/NCCL → Rust extension crate
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>        └─ Training semantics → Python @table + hook in python/probing/
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>  └─ No
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>        Need new analysis workflow?
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>          └─ Yes → L4 skill (steps.yaml) referencing existing tables
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>        Need new UI?
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>          └─ Yes → L4 web page calling existing HTTP/SQL
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>        Need new transport/command?
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>          └─ Yes → L3 CLI + server endpoint (proto DTO first)
+</span></code></pre></div>
+<p><strong>Anti-patterns:</strong></p>
+<ul>
+<li>Adding business logic to <code>server/engine.rs</code> beyond registration.</li>
+<li>Web page importing SQL strings for tables that don't exist in catalog.</li>
+<li>Collector calling <code>Engine::async_query</code> from write path.</li>
+<li>Skill embedding one-off Rust code paths.</li>
+</ul>
+<hr />
+<h2 id="10-related-documents">10. Related documents<a class="headerlink" href="#10-related-documents" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Doc</th>
+<th>Scope</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../architecture/">Architecture</a></td>
+<td>Historical overview (being aligned with this doc)</td>
+</tr>
+<tr>
+<td><a href="../data-layer/">Data Layer</a></td>
+<td>MEMT/MEMC internals</td>
+</tr>
+<tr>
+<td><a href="../extensibility/">Extensibility</a></td>
+<td>Public extension paths (table + skill)</td>
+</tr>
+<tr>
+<td><a href="../distributed/">Distributed</a></td>
+<td>Federation &amp; cluster</td>
+</tr>
+<tr>
+<td><a href="../nccl-profiler/">NCCL Profiler</a></td>
+<td>NCCL plugin boundary</td>
+</tr>
+<tr>
+<td><a href="https://github.com/DeepLink-org/probing/blob/main/web/DESIGN.md">web/DESIGN.md</a></td>
+<td>UI module layout</td>
+</tr>
+<tr>
+<td><a href="https://github.com/DeepLink-org/probing/blob/main/AGENTS.md">AGENTS.md</a></td>
+<td>Agent skill usage</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      © 2025–2026 Probing. All rights reserved.
+    </div>
+  
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/DeepLink-org/probing" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://pypi.org/project/probing/" target="_blank" rel="noopener" title="pypi.org" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.8 200.5c-7.7-30.9-22.3-54.2-53.4-54.2h-40.1v47.4c0 36.8-31.2 67.8-66.8 67.8H172.7c-29.2 0-53.4 25-53.4 54.3v101.8c0 29 25.2 46 53.4 54.3 33.8 9.9 66.3 11.7 106.8 0 26.9-7.8 53.4-23.5 53.4-54.3v-40.7H226.2v-13.6h160.2c31.1 0 42.6-21.7 53.4-54.2 11.2-33.5 10.7-65.7 0-108.6M286.2 444.7a20.4 20.4 0 1 1 0-40.7 20.4 20.4 0 1 1 0 40.7M167.8 248.1h106.8c29.7 0 53.4-24.5 53.4-54.3V91.9c0-29-24.4-50.7-53.4-55.6-35.8-5.9-74.7-5.6-106.8.1-45.2 8-53.4 24.7-53.4 55.6v40.7h106.9v13.6h-147c-31.1 0-58.3 18.7-66.8 54.2-9.8 40.7-10.2 66.1 0 108.6 7.6 31.6 25.7 54.2 56.8 54.2H101v-48.8c0-35.3 30.5-66.4 66.8-66.4m-6.6-183.4a20.4 20.4 0 1 1 0 40.8 20.4 20.4 0 1 1 0-40.8"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.indexes", "navigation.tracking", "navigation.top", "search.highlight", "search.share", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
