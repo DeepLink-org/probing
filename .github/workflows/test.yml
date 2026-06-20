@@ -125,8 +125,8 @@ jobs:
           cargo llvm-cov clean --workspace
           # Do not source show-env here — llvm-cov nextest sets instrumentation itself.
           # extension-module is for the Python wheel only; omit it in lib tests (PyO3 linking).
-          cargo llvm-cov nextest run --workspace --no-default-features
-          cargo llvm-cov nextest run -p probing-server --no-default-features --features kmsg,gpu,gpu-cuda
+          cargo llvm-cov nextest --workspace --no-default-features
+          cargo llvm-cov nextest -p probing-server --no-default-features --features kmsg,gpu,gpu-cuda
           cargo llvm-cov report --lcov --output-path coverage.lcov
 
       - name: Upload Rust coverage report

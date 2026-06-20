@@ -233,7 +233,7 @@ clippy-fix:
 
 coverage-rust:
 	cargo llvm-cov clean --workspace
-	cargo llvm-cov nextest run --workspace --no-default-features --nff --lcov --output-path coverage.lcov --ignore-filename-regex '(.*/tests?/|.*/benches?/|.*/examples?/)' || true
+	cargo llvm-cov nextest --workspace --no-default-features --nff --lcov --output-path coverage.lcov --ignore-filename-regex '(.*/tests?/|.*/benches?/|.*/examples?/)' || true
 coverage-python:
 	${PYTEST_RUN} --cov=python/probing --cov=tests --cov-report=xml:coverage.xml --cov-report=term $(PYTEST_ARGS) || true
 coverage: coverage-rust coverage-python
