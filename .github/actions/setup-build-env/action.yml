@@ -30,9 +30,7 @@ runs:
       with:
         python-version: ${{ inputs.python-version }}
         cache: pip
-        cache-dependency-path: |
-          pyproject.toml
-          Makefile
+        cache-dependency-path: pyproject.toml
 
     - name: Install Rust toolchain
       uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -86,9 +84,11 @@ runs:
         test -e ~/.cargo/bin/rnr || cargo install rnr
         test -e ~/.cargo/bin/cargo-nextest || cargo install --locked cargo-nextest
 
-    - name: Install Python Build Dependencies
+    - name: Create project venv
+      shell: bash
+      run: make venv
+
+    - name: Install Python build dependencies into venv
       if: inputs.install-python-deps == 'true'
       shell: bash
-      run: |
-        python -m pip install --upgrade pip
-        pip install build wheel toml maturin
+      run: make install-build-deps

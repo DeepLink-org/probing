@@ -13,8 +13,12 @@ pub struct CudaBackend {
 }
 
 impl CudaBackend {
+    /// Probe for CUDA without panicking when `libcuda` is absent (CI, CPU-only hosts).
     pub fn try_load() -> Option<Self> {
-        let count = CudaContext::device_count().ok()?;
+        let count =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| CudaContext::device_count()))
+                .ok()
+                .and_then(|r| r.ok())?;
         if count <= 0 {
             return None;
         }

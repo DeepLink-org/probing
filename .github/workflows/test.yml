@@ -26,11 +26,12 @@ jobs:
           path: |
             web/dist
             web/target/dx
-          key: web-ui-v1-${{ runner.os }}-${{ hashFiles('web/Cargo.toml', 'web/Cargo.lock', 'web/src/**', 'web/assets/**', 'probing/proto/**', 'skills/catalog.yaml') }}
+          key: web-ui-v1-${{ runner.os }}-${{ hashFiles('web/Cargo.toml', 'web/Cargo.lock', 'web/src/**', 'web/assets/**', 'probing/proto/**', 'skills/**') }}
           restore-keys: |
             web-ui-v1-${{ runner.os }}-
 
       - name: Code style checking
+        working-directory: ${{ github.workspace }}
         run: |
           cargo fmt --all -- --check
           (cd web && cargo fmt --all -- --check)
@@ -82,7 +83,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-          cache-dependency-path: Makefile
+          cache-dependency-path: pyproject.toml
 
       - name: Cache pytest wheel dependencies
         uses: actions/cache@v4
@@ -100,6 +101,7 @@ jobs:
           path: dist
 
       - name: Install wheel and run tests
+        working-directory: ${{ github.workspace }}
         run: |
           make install-wheel
           make test-python-wheel
@@ -162,7 +164,7 @@ jobs:
           path: |
             web/dist
             web/target/dx
-          key: web-ui-v1-${{ runner.os }}-${{ hashFiles('web/Cargo.toml', 'web/Cargo.lock', 'web/src/**', 'web/assets/**', 'probing/proto/**', 'skills/catalog.yaml') }}
+          key: web-ui-v1-${{ runner.os }}-${{ hashFiles('web/Cargo.toml', 'web/Cargo.lock', 'web/src/**', 'web/assets/**', 'probing/proto/**', 'skills/**') }}
           restore-keys: |
             web-ui-v1-${{ runner.os }}-
 
