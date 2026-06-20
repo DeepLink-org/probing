@@ -120,7 +120,7 @@ wheel-bundle:
 	cp -R web/dist python/probing/_web
 
 wheel: wheel-bundle nccl-profiler-lib
-	maturin build $(MATURIN_FLAGS)
+	maturin build $(MATURIN_FLAGS) --out dist
 
 wheel-ci:
 ifeq ($(UNAME_S),Linux)

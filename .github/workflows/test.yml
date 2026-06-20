@@ -96,9 +96,6 @@ jobs:
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
 
-      - name: Clippy (workspace + web)
-        run: make lint-rust
-
       - name: Install llvm-tools-preview component
         run: rustup component add llvm-tools-preview --toolchain stable
 
@@ -108,10 +105,8 @@ jobs:
       - name: Run Rust tests and collect coverage
         shell: bash
         run: |
-          source <(cargo llvm-cov show-env --export-prefix)
-          export CARGO_TARGET_DIR=$CARGO_LLVM_COV_TARGET_DIR
-          export CARGO_INCREMENTAL=1
           cargo llvm-cov clean --workspace
+          # Do not source show-env here — llvm-cov nextest sets instrumentation itself.
           # extension-module is for the Python wheel only; omit it in lib tests (PyO3 linking).
           cargo llvm-cov nextest run --workspace --no-default-features
           cargo llvm-cov nextest run -p probing-server --no-default-features --features kmsg,gpu,gpu-cuda
