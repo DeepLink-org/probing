@@ -20,10 +20,13 @@ def _table_exists(schema: str, table: str) -> bool:
     return table in names
 
 
-@pytest.mark.skipif(
-    not _table_exists("cluster", "nodes"),
-    reason="cluster.nodes not registered in this probe",
-)
+@pytest.fixture(scope="module", autouse=True)
+def _require_cluster_nodes():
+    """Defer engine probe until fixtures run (not pytest collection / import)."""
+    if not _table_exists("cluster", "nodes"):
+        pytest.skip("cluster.nodes not registered in this probe")
+
+
 def test_global_cluster_nodes_explicit_select_omits_probe_tags():
     import probing
 
@@ -34,10 +37,6 @@ def test_global_cluster_nodes_explicit_select_omits_probe_tags():
     assert "_rank" not in df.columns
 
 
-@pytest.mark.skipif(
-    not _table_exists("cluster", "nodes"),
-    reason="cluster.nodes not registered in this probe",
-)
 def test_global_cluster_nodes_select_star_includes_probe_tags():
     import probing
 
@@ -48,10 +47,6 @@ def test_global_cluster_nodes_select_star_includes_probe_tags():
     assert "_rank" in df.columns
 
 
-@pytest.mark.skipif(
-    not _table_exists("cluster", "nodes"),
-    reason="cluster.nodes not registered in this probe",
-)
 def test_probe_cluster_nodes_omits_probe_tags():
     import probing
 
