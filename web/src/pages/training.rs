@@ -280,7 +280,7 @@ pub fn Training() -> Element {
 }
 
 fn queue_investigate_skill(skill_id: String) {
-    if !load_skill(&skill_id).is_some() {
+    if load_skill(&skill_id).is_none() {
         return;
     }
     *AGENT_PANEL_OPEN.write() = true;

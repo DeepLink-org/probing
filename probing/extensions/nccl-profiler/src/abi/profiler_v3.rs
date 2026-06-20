@@ -175,3 +175,6 @@ pub struct NcclProfilerV3 {
     pub record_event_state: ProfilerRecordStateFn,
     pub finalize: ProfilerFinalizeFn,
 }
+
+// SAFETY: exported as a read-only C vtable; `name` points to `PLUGIN_NAME` static bytes.
+unsafe impl Sync for NcclProfilerV3 {}

@@ -63,6 +63,7 @@ pub struct CollContext {
 }
 
 impl CollContext {
+    #[allow(dead_code)]
     pub fn func_str(&self) -> &str {
         let n = self.func_len as usize;
         std::str::from_utf8(&self.func[..n.min(MAX_FUNC_NAME)]).unwrap_or("unknown")
@@ -77,7 +78,8 @@ pub fn copy_func_name(dst: &mut CollContext, src: Option<&str>) {
     dst.func_len = n as u8;
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
+#[allow(dead_code)]
 pub struct ProxyStepData {
     pub step: i32,
     pub is_send: i32,
@@ -87,6 +89,7 @@ pub struct ProxyStepData {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct ProxyOpData {
     pub channel_id: i32,
     pub peer: i32,

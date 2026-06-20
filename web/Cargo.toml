@@ -75,6 +75,12 @@ dioxus-code = { version = "0.1.2", default-features = false, features = [
     "lang-toml",
 ] }
 
+# Match workspace root: faster compile, smaller debug artifacts.
+[profile.dev]
+debug = 1
+split-debuginfo = "unpacked"
+codegen-units = 256
+
 [profile.release]
 opt-level = "z"
 debug = false
