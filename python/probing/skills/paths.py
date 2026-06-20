@@ -82,10 +82,27 @@ def repo_skills_dir(start: Optional[Path] = None) -> Optional[Path]:
 
 def bundled_skills_dir() -> Optional[Path]:
     """Skills copied into the wheel at ``python/probing/_skills/`` (release builds)."""
-    bundled = Path(__file__).resolve().parent.parent / "_skills"
-    if bundled.is_dir() and (bundled / "catalog.yaml").is_file():
-        return bundled
-    return None
+    root = _package_dir() / "_skills"
+    if root.is_dir() and (root / "catalog.yaml").is_file():
+        return root
+    return _resource_dir("_skills", "catalog.yaml")
+
+
+def _package_dir() -> Path:
+    return Path(__file__).resolve().parent.parent
+
+
+def _resource_dir(name: str, marker: str) -> Optional[Path]:
+    try:
+        from importlib.resources import as_file, files
+
+        bundle = files("probing") / name
+        if not (bundle / marker).is_file():
+            return None
+        with as_file(bundle) as path:
+            return Path(path)
+    except (TypeError, ModuleNotFoundError, FileNotFoundError, OSError):
+        return None
 
 
 def user_skills_dir() -> Path:

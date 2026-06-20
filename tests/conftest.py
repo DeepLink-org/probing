@@ -68,3 +68,19 @@ def _thread_excepthook(args: threading.ExceptHookArgs) -> None:
 
 if hasattr(threading, "excepthook"):
     threading.excepthook = _thread_excepthook
+
+
+def repo_root() -> Path:
+    """Repository root (contains ``pyproject.toml``)."""
+    return Path(__file__).resolve().parents[1]
+
+
+def repo_probing_pkg() -> Path:
+    return repo_root() / "python" / "probing"
+
+
+def is_wheel_install() -> bool:
+    """True when ``probing`` is imported from site-packages, not the checkout tree."""
+    import probing
+
+    return Path(probing.__file__).resolve().parent != repo_probing_pkg().resolve()

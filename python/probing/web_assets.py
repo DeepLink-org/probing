@@ -11,18 +11,46 @@ _BUNDLED_DIRNAME = "_web"
 
 def bundled_web_dir() -> Path | None:
     """Wheel / install tree: ``python/probing/_web/`` (bundled by ``make wheel``)."""
-    root = Path(__file__).resolve().parent / _BUNDLED_DIRNAME
+    root = _package_dir() / _BUNDLED_DIRNAME
     if (root / "index.html").is_file():
         return root
-    return None
+    return _resource_dir(_BUNDLED_DIRNAME, "index.html")
 
 
 def dev_web_dir() -> Path | None:
     """Editable checkout: repo ``web/dist/``."""
-    root = Path(__file__).resolve().parents[2] / "web" / "dist"
+    if _running_from_installed_wheel():
+        return None
+    root = _repo_root_from_editable() / "web" / "dist"
     if (root / "index.html").is_file():
         return root
     return None
+
+
+def _package_dir() -> Path:
+    return Path(__file__).resolve().parent
+
+
+def _running_from_installed_wheel() -> bool:
+    maybe_repo = Path(__file__).resolve().parents[2]
+    return not (maybe_repo / "pyproject.toml").is_file()
+
+
+def _repo_root_from_editable() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def _resource_dir(name: str, marker: str) -> Path | None:
+    try:
+        from importlib.resources import as_file, files
+
+        bundle = files("probing") / name
+        if not (bundle / marker).is_file():
+            return None
+        with as_file(bundle) as path:
+            return Path(path)
+    except (TypeError, ModuleNotFoundError, FileNotFoundError, OSError):
+        return None
 
 
 def resolve_web_assets_root() -> Path | None:

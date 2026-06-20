@@ -142,7 +142,12 @@ install-wheel: venv
 	test -n "$$WH" || { echo "run: make wheel"; exit 1; }; \
 	$(PYTHON) -m pip install -q -U pip && \
 	$(PYTHON) -m pip install --force-reinstall "$$WH" && \
-	PROBING=0 $(PYTHON) -c "import probing; from probing import _core; print('probing', probing.VERSION)"
+	PROBING=0 $(PYTHON) -c "\
+import probing; from probing import _core; from pathlib import Path; \
+root = Path(probing.__file__).resolve().parent; \
+assert (root / '_skills' / 'catalog.yaml').is_file(), f'missing bundled skills under {root}'; \
+assert (root / '_web' / 'index.html').is_file(), f'missing bundled web UI under {root}'; \
+print('probing', probing.VERSION)"
 
 # Linux NCCL plugin copied into python/probing/libs/ for the wheel.
 ifeq ($(UNAME_S),Linux)
