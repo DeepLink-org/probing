@@ -7,26 +7,6 @@ import pytest
 pytestmark = pytest.mark.integration
 
 
-def _table_exists(schema: str, table: str) -> bool:
-    import probing
-
-    try:
-        names = probing.query(
-            "SELECT table_name FROM information_schema.tables "
-            f"WHERE table_schema = '{schema}'"
-        )["table_name"].tolist()
-    except Exception:
-        return False
-    return table in names
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _require_cluster_nodes():
-    """Defer engine probe until fixtures run (not pytest collection / import)."""
-    if not _table_exists("cluster", "nodes"):
-        pytest.skip("cluster.nodes not registered in this probe")
-
-
 def test_global_cluster_nodes_explicit_select_omits_probe_tags():
     import probing
 
