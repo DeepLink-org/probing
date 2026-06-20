@@ -19,13 +19,14 @@ jobs:
           install-cargo-tools: "true"
           install-python-deps: "true"
 
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+
       - name: Code style checking
         run: |
           cargo fmt --all -- --check
+          cd web && cargo fmt --all -- --check
           make lint-rust
-
-      - name: Cache Rust artifacts
-        uses: Swatinem/rust-cache@v2
 
       - name: Build wheel
         run: make frontend wheel-ci

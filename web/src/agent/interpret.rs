@@ -4,8 +4,8 @@ use std::collections::HashMap;
 
 use probing_proto::prelude::{DataFrame, Ele};
 
-use super::skill::InterpretRuleRaw;
 use super::runner::StepOutcome;
+use super::skill::InterpretRuleRaw;
 
 pub type InterpretRule = InterpretRuleRaw;
 

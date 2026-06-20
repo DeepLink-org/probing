@@ -17,9 +17,9 @@ endif
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Linux)
-	MATURIN_FEATURES := gpu,gpu-cuda
+	MATURIN_FEATURES := extension-module,gpu,gpu-cuda,kmsg
 else
-	MATURIN_FEATURES := gpu
+	MATURIN_FEATURES := extension-module,gpu,kmsg
 endif
 
 MATURIN_FLAGS := $(MATURIN_RELEASE) --features $(MATURIN_FEATURES)
@@ -54,7 +54,7 @@ help:
 	@echo "  core              Rebuild probing._core after Rust edits"
 	@echo "  frontend          Build web/dist/ (dx; manual)"
 	@echo "  wheel             Build dist/*.whl (needs web/dist/; bundles skills + UI)"
-	@echo "  wheel-ci          wheel with zig cross-compile on Linux"
+	@echo "  wheel-ci          alias for wheel (native build; PyPI uses maturin-action + zig)"
 	@echo "  install-wheel     pip install dist/probing-*.whl"
 	@echo "  test / lint       Full test and lint suites"
 	@echo "  check-dev         Quick env sanity check"
@@ -123,11 +123,7 @@ wheel: wheel-bundle nccl-profiler-lib
 	maturin build $(MATURIN_FLAGS) --out dist
 
 wheel-ci:
-ifeq ($(UNAME_S),Linux)
-	$(MAKE) ZIG=1 wheel
-else
 	$(MAKE) wheel
-endif
 
 install-wheel:
 	@WH=$$(ls -1 dist/probing-*.whl 2>/dev/null | head -1); \

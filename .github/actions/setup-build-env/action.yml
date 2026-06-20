@@ -60,7 +60,7 @@ runs:
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
           ~/zig
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock', 'uv.lock') }}
 
     # Prebuilt dx from GitHub Releases (no API rate limits). Official alternative:
     # DioxusLabs/dioxus-ci/actions/install-dioxus-cli (uses cargo-binstall internally).
