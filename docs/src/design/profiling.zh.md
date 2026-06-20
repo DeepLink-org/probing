@@ -100,7 +100,7 @@ SELECT * FROM python.torch_trace WHERE step > 10;
 
 对 `torch.distributed` 的 lite 模式钩子每条 collective 写一行，含 `duration_ms`、`bytes`、`op`
 及相同 step/role 坐标。见 [SQL 表](../reference/sql-tables.zh.md#python-comm_collective) 与
-[SQL 分析](../guide/sql-analytics.zh.md#集合通信pythoncomm_collective)。
+[SQL 分析](../guide/sql-analytics.zh.md#python-comm_collective)。
 
 ### 启用 PyTorch 分析
 

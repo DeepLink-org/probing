@@ -99,7 +99,7 @@ Use `role` + `global_step` to join with `python.comm_collective` on the same ran
 ### Collective rows (`python.comm_collective`)
 
 Lite-mode hooks on `torch.distributed` write one row per collective with `duration_ms`,
-`bytes`, `op`, and the same step/role coordinates. See [SQL Tables](../reference/sql-tables.md#python-comm_collective) and [SQL Analytics](../guide/sql-analytics.md#collective-communication-pythoncomm_collective).
+`bytes`, `op`, and the same step/role coordinates. See [SQL Tables](../reference/sql-tables.md#python-comm_collective) and [SQL Analytics](../guide/sql-analytics.md#python-comm_collective).
 
 ### Enable PyTorch Profiling
 

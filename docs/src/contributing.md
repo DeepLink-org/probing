@@ -10,9 +10,7 @@ Thank you for contributing to Probing. This document is the **canonical developm
 | Agent diagnostic skills | [Skills & agents](#skills-agents) + [AGENTS.md](https://github.com/DeepLink-org/probing/blob/main/AGENTS.md) |
 | PR / style / conduct | [Submitting changes](#submitting-changes) |
 
-<a id="getting-started"></a>
-
-## Welcome — get started
+## Welcome — get started {#getting-started}
 
 Probing is a **layered** project: SQL engine and collectors in Rust, Python SDK and hooks, diagnostic skills, and a Web UI. **You do not need to learn every layer** to contribute — pick a track that matches your background.
 
@@ -60,9 +58,7 @@ Preview docs while editing: `make docs-install && make docs-serve` → http://12
 
 Not sure where your change belongs? Open a [Discussion](https://github.com/DeepLink-org/probing/discussions) or issue first — we are happy to point you to the right layer.
 
-<a id="prerequisites"></a>
-
-## Prerequisites
+## Prerequisites {#prerequisites}
 
 - **Python** 3.9+
 - **Rust** (latest stable) + **Cargo**
@@ -74,9 +70,7 @@ Optional (release / web UI only):
 - **dioxus-cli** (`dx`) — `make frontend` builds the web UI; `make wheel` embeds it
 - **cargo-zigbuild** + **ziglang** — Linux manylinux wheels (`make wheel-ci`)
 
-<a id="development-setup"></a>
-
-## Development setup
+## Development setup {#development-setup}
 
 One-time per clone:
 
@@ -256,9 +250,7 @@ probing/                          # repo root
 Architecture layers (what may call what): [Modularity](design/modularity.md).
 Agent workflow: [AGENTS.md](https://github.com/DeepLink-org/probing/blob/main/AGENTS.md).
 
-<a id="submitting-changes"></a>
-
-## Submitting changes
+## Submitting changes {#submitting-changes}
 
 ### Pull request process
 

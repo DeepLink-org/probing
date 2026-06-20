@@ -47,7 +47,7 @@ GROUP BY _role, _rank;
 
 ## 训练与 tracing（`python.*`）
 
-### `python.torch_trace`
+### `python.torch_trace` {#python-torch_trace}
 
 PyTorch 模块级 forward/step 耗时与 GPU 显存快照。
 
@@ -76,7 +76,7 @@ PyTorch 模块级 forward/step 耗时与 GPU 显存快照。
 
 ---
 
-### `python.comm_collective`
+### `python.comm_collective` {#python-comm_collective}
 
 `torch.distributed` 集合通信（all_reduce、broadcast 等）。
 

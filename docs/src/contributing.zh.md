@@ -10,9 +10,7 @@
 | Agent 诊断 skill | [Skills 与 Agent](#skills-agents) + [AGENTS.md](https://github.com/DeepLink-org/probing/blob/main/AGENTS.md) |
 | PR / 规范 / 行为准则 | [提交变更](#submitting-changes) |
 
-<a id="getting-started"></a>
-
-## 欢迎参与开发
+## 欢迎参与开发 {#getting-started}
 
 Probing 是**分层**项目：Rust 里的 SQL 引擎与采集、Python SDK 与 hook、诊断 skill、Web UI。**不必一次学完所有层**——按你的背景选一条贡献路径即可。
 
@@ -60,9 +58,7 @@ make test-python-regression    # Python 冒烟；完整套件：make test
 
 不确定改动该落在哪一层？先开 [Discussion](https://github.com/DeepLink-org/probing/discussions) 或 issue，我们可以帮你指路。
 
-<a id="prerequisites"></a>
-
-## 前提条件
+## 前提条件 {#prerequisites}
 
 - **Python** 3.9+
 - **Rust**（最新 stable）+ **Cargo**
@@ -74,9 +70,7 @@ make test-python-regression    # Python 冒烟；完整套件：make test
 - **dioxus-cli**（`dx`）— `make frontend` 构建 Web UI；`make wheel` 将其嵌入 wheel
 - **cargo-zigbuild** + **ziglang** — Linux manylinux wheel（`make wheel-ci`）
 
-<a id="development-setup"></a>
-
-## 开发环境
+## 开发环境 {#development-setup}
 
 每个 clone 只需一次：
 
@@ -256,9 +250,7 @@ probing/                          # 仓库根
 分层与依赖规则：[模块化](design/modularity.zh.md)。
 Agent 工作流：[AGENTS.md](https://github.com/DeepLink-org/probing/blob/main/AGENTS.md)。
 
-<a id="submitting-changes"></a>
-
-## 提交变更
+## 提交变更 {#submitting-changes}
 
 ### Pull Request 流程
 
