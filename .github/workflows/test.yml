@@ -33,7 +33,7 @@ jobs:
       - name: Code style checking
         run: |
           cargo fmt --all -- --check
-          cd web && cargo fmt --all -- --check
+          (cd web && cargo fmt --all -- --check)
           make lint-rust
 
       - name: Build wheel
