@@ -36,8 +36,24 @@ jobs:
           install-cargo-tools: 'true'
           install-python-deps: 'false'
 
+      - name: Cache web UI build
+        uses: actions/cache@v4
+        with:
+          path: |
+            web/dist
+            web/target/dx
+          key: web-ui-v1-${{ runner.os }}-${{ hashFiles('web/Cargo.toml', 'web/Cargo.lock', 'web/src/**', 'web/assets/**', 'probing/proto/**', 'skills/catalog.yaml') }}
+          restore-keys: |
+            web-ui-v1-${{ runner.os }}-
+
       - name: Prepare wheel bundle
-        run: make frontend wheel-bundle nccl-profiler-lib
+        env:
+          SKIP_FRONTEND_CLEAN: "1"
+        run: |
+          if [ ! -f web/dist/index.html ]; then
+            make frontend
+          fi
+          make wheel-bundle nccl-profiler-lib
 
       - name: Build wheels
         uses: PyO3/maturin-action@v1
@@ -68,8 +84,24 @@ jobs:
           install-cargo-tools: 'true'
           install-python-deps: 'false'
 
+      - name: Cache web UI build
+        uses: actions/cache@v4
+        with:
+          path: |
+            web/dist
+            web/target/dx
+          key: web-ui-v1-${{ runner.os }}-${{ hashFiles('web/Cargo.toml', 'web/Cargo.lock', 'web/src/**', 'web/assets/**', 'probing/proto/**', 'skills/catalog.yaml') }}
+          restore-keys: |
+            web-ui-v1-${{ runner.os }}-
+
       - name: Prepare wheel bundle
-        run: make frontend wheel-bundle
+        env:
+          SKIP_FRONTEND_CLEAN: "1"
+        run: |
+          if [ ! -f web/dist/index.html ]; then
+            make frontend
+          fi
+          make wheel-bundle
 
       - name: Build wheels
         uses: PyO3/maturin-action@v1
@@ -95,8 +127,24 @@ jobs:
           install-python-deps: 'false'
           install-cargo-tools: 'true'
 
+      - name: Cache web UI build
+        uses: actions/cache@v4
+        with:
+          path: |
+            web/dist
+            web/target/dx
+          key: web-ui-v1-${{ runner.os }}-${{ hashFiles('web/Cargo.toml', 'web/Cargo.lock', 'web/src/**', 'web/assets/**', 'probing/proto/**', 'skills/catalog.yaml') }}
+          restore-keys: |
+            web-ui-v1-${{ runner.os }}-
+
       - name: Prepare wheel bundle
-        run: make frontend wheel-bundle nccl-profiler-lib
+        env:
+          SKIP_FRONTEND_CLEAN: "1"
+        run: |
+          if [ ! -f web/dist/index.html ]; then
+            make frontend
+          fi
+          make wheel-bundle nccl-profiler-lib
 
       - name: Build sdist
         uses: PyO3/maturin-action@v1

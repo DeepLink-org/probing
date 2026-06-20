@@ -13,6 +13,10 @@ inputs:
     description: 'Whether to install Python build dependencies'
     required: false
     default: 'false'
+  enable-rust-cache:
+    description: 'Enable Swatinem/rust-cache for Cargo registry + target/'
+    required: false
+    default: 'true'
   dx-version:
     description: 'dioxus-cli (dx) version — keep in sync with web/Cargo.toml'
     required: false
@@ -25,6 +29,10 @@ runs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ inputs.python-version }}
+        cache: pip
+        cache-dependency-path: |
+          pyproject.toml
+          Makefile
 
     - name: Install Rust toolchain
       uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -42,6 +50,18 @@ runs:
           rustup target add wasm32-unknown-unknown x86_64-apple-darwin aarch64-apple-darwin
         fi
 
+    - name: Cache Rust build artifacts
+      if: inputs.enable-rust-cache == 'true'
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: |
+          .
+          web
+        shared-key: probing
+        cache-all-crates: "true"
+        cache-on-failure: true
+        cache-bin: true
+
     - name: Install uv
       uses: astral-sh/setup-uv@v6
       with:
@@ -49,18 +69,6 @@ runs:
 
     - name: Install Zig toolchain
       uses: mlugg/setup-zig@v2
-
-    - name: Cache dependencies
-      id: cache-deps
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-          ~/zig
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock', 'uv.lock') }}
 
     # Prebuilt dx from GitHub Releases (no API rate limits). Official alternative:
     # DioxusLabs/dioxus-ci/actions/install-dioxus-cli (uses cargo-binstall internally).

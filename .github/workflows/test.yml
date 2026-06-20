@@ -19,8 +19,16 @@ jobs:
           install-cargo-tools: "true"
           install-python-deps: "true"
 
-      - name: Cache Rust artifacts
-        uses: Swatinem/rust-cache@v2
+      - name: Cache web UI build
+        uses: actions/cache@v4
+        id: web-ui-cache
+        with:
+          path: |
+            web/dist
+            web/target/dx
+          key: web-ui-v1-${{ runner.os }}-${{ hashFiles('web/Cargo.toml', 'web/Cargo.lock', 'web/src/**', 'web/assets/**', 'probing/proto/**', 'skills/catalog.yaml') }}
+          restore-keys: |
+            web-ui-v1-${{ runner.os }}-
 
       - name: Code style checking
         run: |
@@ -29,7 +37,13 @@ jobs:
           make lint-rust
 
       - name: Build wheel
-        run: make frontend wheel-ci
+        env:
+          SKIP_FRONTEND_CLEAN: "1"
+        run: |
+          if [ ! -f web/dist/index.html ]; then
+            make frontend
+          fi
+          make wheel-ci
 
       - name: Install wheel and run Python tests
         run: |
@@ -67,6 +81,17 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: Makefile
+
+      - name: Cache pytest wheel dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-wheel-test-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('Makefile') }}
+          restore-keys: |
+            pip-wheel-test-${{ runner.os }}-py${{ matrix.python-version }}-
+            pip-wheel-test-${{ runner.os }}-
 
       - name: Download wheel
         uses: actions/download-artifact@v4
@@ -92,10 +117,7 @@ jobs:
         with:
           python-version: "3.12"
           install-cargo-tools: "true"
-          install-python-deps: "true"
-
-      - name: Cache Rust artifacts
-        uses: Swatinem/rust-cache@v2
+          install-python-deps: "false"
 
       - name: Install llvm-tools-preview component
         run: rustup component add llvm-tools-preview --toolchain stable
@@ -133,8 +155,16 @@ jobs:
           install-cargo-tools: "true"
           install-python-deps: "true"
 
-      - name: Cache Rust artifacts
-        uses: Swatinem/rust-cache@v2
+      - name: Cache web UI build
+        uses: actions/cache@v4
+        id: web-ui-cache
+        with:
+          path: |
+            web/dist
+            web/target/dx
+          key: web-ui-v1-${{ runner.os }}-${{ hashFiles('web/Cargo.toml', 'web/Cargo.lock', 'web/src/**', 'web/assets/**', 'probing/proto/**', 'skills/catalog.yaml') }}
+          restore-keys: |
+            web-ui-v1-${{ runner.os }}-
 
       - name: Run Rust tests
         run: |
@@ -142,12 +172,16 @@ jobs:
           cargo nextest run -p probing-server --no-default-features --features kmsg,gpu
 
       - name: Build frontend and wheel, install, and run Python tests
+        env:
+          SKIP_FRONTEND_CLEAN: "1"
+          PROBING: "1"
         run: |
-          make frontend wheel-ci
+          if [ ! -f web/dist/index.html ]; then
+            make frontend
+          fi
+          make wheel-ci
           make install-wheel
           make test-python-wheel
-        env:
-          PROBING: "1"
 
   codecov:
     name: Upload coverage to Codecov
