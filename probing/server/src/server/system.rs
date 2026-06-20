@@ -55,7 +55,7 @@ pub fn get_overview() -> Result<Process> {
             .unwrap_or_default()
             .to_string(),
         main_thread: myself as u64,
-        threads: threads,
+        threads,
     };
     Ok(info)
 }

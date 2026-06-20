@@ -1,0 +1,82 @@
+[package]
+name = "probing-rust-regression"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Rust regression / integration tests (mirrors probing crate layout)"
+
+
+[lib]
+path = "src/lib.rs"
+
+[build-dependencies]
+pyo3-build-config = "0.29.0"
+
+[dependencies]
+probing-core = { path = "../../../probing/core" }
+probing-server = { path = "../../../probing/server", default-features = false }
+probing-memtable = { path = "../../../probing/memtable" }
+probing-cli = { path = "../../../probing/cli" }
+probing-python = { path = "../../../probing/extensions/python", default-features = false }
+probing-proto = { path = "../../../probing/proto" }
+
+anyhow = { workspace = true }
+arrow = { workspace = true }
+async-trait = "0.1.83"
+axum = { version = "0.8.1", default-features = false, features = [
+    "tokio",
+    "http1",
+    "query",
+    "json",
+] }
+base64 = "0.21.5"
+datafusion = { workspace = true }
+futures = "0.3.31"
+pyo3 = { version = "0.29.0", default-features = false, features = [
+    "auto-initialize",
+    "macros",
+] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tempfile = "3.8"
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[[test]]
+name = "core_federation"
+path = "probing/core/federation_tests.rs"
+
+[[test]]
+name = "core_engine_complex"
+path = "probing/core/engine_complex_tests.rs"
+
+[[test]]
+name = "core_extension_routing_spec"
+path = "probing/core/extension_routing_spec.rs"
+
+[[test]]
+name = "core_distributed_storage"
+path = "probing/core/distributed_storage_integration.rs"
+
+[[test]]
+name = "server_training_observability"
+path = "probing/server/training_observability_tests.rs"
+
+[[test]]
+name = "server_auth_complex"
+path = "probing/server/auth_complex_tests.rs"
+
+[[test]]
+name = "server_file_api_complex"
+path = "probing/server/file_api_complex_tests.rs"
+
+[[test]]
+name = "memtable_chaos_stress"
+path = "probing/memtable/chaos_stress.rs"
+
+[[test]]
+name = "cli_inject_aarch64"
+path = "probing/cli/inject_aarch64.rs"
+
+[[test]]
+name = "python_py_to_table"
+path = "probing/python/py_to_table.rs"

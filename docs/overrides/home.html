@@ -468,10 +468,10 @@
     <div class="container">
       {% if config.theme.language == "zh" %}
       <h2>核心特性</h2>
-      <p class="section-subtitle">零侵入分析 AI 工作负载，SQL 驱动的分析能力</p>
+      <p class="section-subtitle">SQL tables, live introspection, cluster federation, and diagnostic skills</p>
       {% else %}
       <h2>Core Features</h2>
-      <p class="section-subtitle">Zero-intrusion profiling for AI workloads with SQL-powered analytics</p>
+      <p class="section-subtitle">SQL tables, live introspection, cluster federation, and diagnostic skills</p>
       {% endif %}
       <div class="features-grid">
         <div class="feature-card">
@@ -525,13 +525,23 @@
           {% endif %}
         </div>
         <div class="feature-card">
-          <span class="feature-icon">⚡</span>
+          <span class="feature-icon">🧩</span>
           {% if config.theme.language == "zh" %}
-          <h3>极低开销</h3>
-          <p>典型工作负载下性能影响小于 5%。生产级效率，适用于真实部署。</p>
+          <h3>诊断 Skill</h3>
+          <p>内置多步 SQL 剧本：<code>health_overview</code>、<code>slow_rank</code> 等，CLI 与 Web Agent 共用。</p>
           {% else %}
-          <h3>Minimal Overhead</h3>
-          <p>Less than 5% performance impact in typical workloads. Production-grade efficiency for real deployments.</p>
+          <h3>Diagnostic Skills</h3>
+          <p>Bundled multi-step playbooks — <code>health_overview</code>, <code>slow_rank</code>, … — via CLI and Web Agent.</p>
+          {% endif %}
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">🔗</span>
+          {% if config.theme.language == "zh" %}
+          <h3>联邦查询</h3>
+          <p><code>global.*</code> 跨 rank 聚合，<code>_rank</code> / <code>_role</code> 标签，<code>cluster query</code> 扇出。</p>
+          {% else %}
+          <h3>Federated SQL</h3>
+          <p><code>global.*</code> cross-rank queries with <code>_rank</code> / <code>_role</code> tags and <code>cluster query</code> fan-out.</p>
           {% endif %}
         </div>
       </div>
@@ -555,12 +565,13 @@
         <div class="quickstart-step">
           <div class="step-number">2</div>
           <div class="step-content">
-            <h3>{% if config.theme.language == "zh" %}注入到运行中的进程{% else %}Inject into Running Process{% endif %}</h3>
+            <h3>{% if config.theme.language == "zh" %}启用 Probing{% else %}Enable Probing{% endif %}</h3>
             <div class="code-block">
-              <pre><code class="language-bash"># {% if config.theme.language == "zh" %}查找进程{% else %}Find your process{% endif %}
-pgrep -f "python.*train"
+              <pre><code class="language-bash"># {% if config.theme.language == "zh" %}训练推荐{% else %}Recommended for training{% endif %}
+PROBING=1 PROBING_TORCH_PROFILING=on python train.py
 
-# {% if config.theme.language == "zh" %}注入探针{% else %}Inject probes{% endif %}
+# {% if config.theme.language == "zh" %}或 Linux 附着{% else %}Or attach on Linux{% endif %}
+pgrep -f "python.*train"
 probing -t &lt;pid&gt; inject</code></pre>
             </div>
           </div>

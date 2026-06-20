@@ -20,6 +20,11 @@ pub struct Node {
     pub role_rank: Option<i32>,
     pub role_world_size: Option<i32>,
 
+    /// Parallel-role key (e.g. "dp=2,pp=1,tp=0"); surfaced as the `_role`
+    /// federation tag. Distinct from torchrun's `role_name`.
+    #[serde(default)]
+    pub role: Option<String>,
+
     pub status: Option<String>,
     pub timestamp: u64,
 }
@@ -28,7 +33,7 @@ impl Display for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Node {{ host: {}, addr: {}, local_rank: {:?}, rank: {:?}, world_size: {:?}, group_rank: {:?}, group_world_size: {:?}, role_name: {:?}, role_rank: {:?}, role_world_size: {:?}, status: {:?}, timestamp: {} }}",
+            "Node {{ host: {}, addr: {}, local_rank: {:?}, rank: {:?}, world_size: {:?}, group_rank: {:?}, group_world_size: {:?}, role_name: {:?}, role_rank: {:?}, role_world_size: {:?}, role: {:?}, status: {:?}, timestamp: {} }}",
             self.host,
             self.addr,
             self.local_rank,
@@ -39,6 +44,7 @@ impl Display for Node {
             self.role_name,
             self.role_rank,
             self.role_world_size,
+            self.role,
             self.status,
             self.timestamp
         )

@@ -39,12 +39,19 @@ Probing's core mission is simple: **make distributed systems feel Pythonic again
 
 ## Design Documents
 
+Shared vocabulary (endpoint, steps, role, federation): **[Core Concepts](../guide/concepts.md)**.
+
 | Document | Description |
 |----------|-------------|
+| [Modularity & boundaries](modularity.md) | **Core vs feature modules**, interfaces, dependency rules, ownership |
 | [Architecture](architecture.md) | System structure and components |
 | [Data Layer](data-layer.md) | Hot/cold columnar store and SQL integration |
 | [Profiling](profiling.md) | Performance data collection |
 | [Debugging](debugging.md) | Debugging capabilities |
 | [Distributed](distributed.md) | Multi-node support |
+| [NCCL Profiler](nccl-profiler.md) | NCCL plugin, culprit/victim, `nccl.proxy_ops` |
 | [Cluster with Pulsing](cluster-pulsing.md) | Using Pulsing for membership and failure detection |
 | [Extensibility](extensibility.md) | Custom tables and metrics |
+
+User-facing workflows: **[User Guide](../guide/index.md)** (SQL, skills, debugging).
+Reference: **[SQL Tables](../reference/sql-tables.md)** · **[API Reference](../api-reference.md)**.

@@ -6,8 +6,8 @@ pub mod bench;
 pub mod cluster;
 pub mod commands;
 pub mod ctrl;
-pub mod doctor;
 pub mod repl;
+pub mod skill;
 
 pub mod store;
 
@@ -82,8 +82,15 @@ impl Cli {
             Some(Commands::Bench(cmd)) => {
                 return cmd.run();
             }
-            Some(Commands::Doctor(doctor::DoctorCommand::List)) => {
-                return doctor::list_playbooks_sync();
+            Some(Commands::Skill(skill::SkillCommand::List)) => {
+                return skill::list_skills_sync();
+            }
+            Some(Commands::Skill(
+                skill_cmd @ (skill::SkillCommand::Install { .. }
+                | skill::SkillCommand::Update { .. }),
+            )) => {
+                let ctrl: ProbeEndpoint = "0".try_into()?;
+                return skill::run(ctrl, skill_cmd.clone()).await;
             }
             _ => {}
         }
@@ -276,7 +283,7 @@ impl Cli {
                     .await
             }
             Commands::Cluster(cmd) => cluster::run(ctrl, cmd.clone()).await,
-            Commands::Doctor(cmd) => doctor::run(ctrl, cmd.clone()).await,
+            Commands::Skill(cmd) => skill::run(ctrl, cmd.clone()).await,
             Commands::Repl => repl::start_repl(ctrl).await,
             // These commands are handled in run() method and don't need a target
             Commands::Launch { .. }

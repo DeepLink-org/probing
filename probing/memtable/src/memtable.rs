@@ -1416,6 +1416,8 @@ mod tests {
         use std::sync::{Arc, Barrier};
         use std::thread;
 
+        use std::time::Duration;
+
         // The production model: one writer feeds the ring while N lock-free
         // readers continuously scan it. Readers must never observe a torn or
         // corrupt row.
@@ -1474,11 +1476,16 @@ mod tests {
                 let mut mt = MemTableWriter::new(buf).unwrap();
                 for seq in 0..total_rows {
                     mt.push_row(&[Value::I64(seq)]);
+                    if seq % 32 == 0 {
+                        thread::yield_now();
+                    }
                 }
             })
         };
 
         writer.join().unwrap();
+        // Let readers observe completed rows before they exit the scan loop.
+        thread::sleep(Duration::from_millis(20));
         done.store(true, Ordering::Release);
 
         for h in reader_handles {
@@ -1643,6 +1650,17 @@ mod tests {
             assert_eq!(cd.next_str(), cp.next_str());
             assert_eq!(cd.next_i64(), cp.next_i64());
         }
+    }
+
+    #[test]
+    fn from_buf_roundtrip() {
+        let schema = Schema::new().col("x", DType::I32);
+        let mut t = MemTable::new(&schema, 1024, 1);
+        t.push_row(&[Value::I32(7)]);
+        let raw = t.as_bytes().to_vec();
+        let t2 = MemTable::from_buf(raw).expect("valid buffer");
+        assert_eq!(t2.num_rows(0), 1);
+        assert_eq!(t2.rows(0).next().unwrap().col_i32(0), 7);
     }
 
     #[test]

@@ -6,6 +6,6 @@ root_dir = Path(__file__).parent
 python_dir = root_dir / "python"
 sys.path.insert(0, str(python_dir))
 
-# Note: The rust extension (_core) must be built and available.
-# If running in development mode, use 'maturin develop' to build and install
-# the extension into your virtual environment.
+# The Rust extension (probing._core) must exist — run once: ``make develop``
+# (builds _core into python/probing/ and installs the ``probing`` CLI).
+# Release/CI wheel path: ``make wheel && make install-wheel``.

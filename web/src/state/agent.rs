@@ -37,7 +37,7 @@ pub struct AgentStepCardData {
 pub enum AgentMessageKind {
     User,
     Assistant,
-    PlaybookRun,
+    SkillRun,
     StepCard,
     Error,
 }
@@ -47,8 +47,8 @@ pub struct AgentMessage {
     pub kind: AgentMessageKind,
     pub text: String,
     pub title: Option<String>,
-    pub playbook_id: Option<String>,
-    pub playbook_category: Option<String>,
+    pub skill_id: Option<String>,
+    pub skill_category: Option<String>,
     pub step: Option<AgentStepCardData>,
 }
 
@@ -58,8 +58,8 @@ impl AgentMessage {
             kind: AgentMessageKind::User,
             text,
             title: None,
-            playbook_id: None,
-            playbook_category: None,
+            skill_id: None,
+            skill_category: None,
             step: None,
         }
     }
@@ -69,8 +69,8 @@ impl AgentMessage {
             kind: AgentMessageKind::Assistant,
             text,
             title: None,
-            playbook_id: None,
-            playbook_category: None,
+            skill_id: None,
+            skill_category: None,
             step: None,
         }
     }
@@ -80,24 +80,24 @@ impl AgentMessage {
             kind: AgentMessageKind::Error,
             text,
             title: None,
-            playbook_id: None,
-            playbook_category: None,
+            skill_id: None,
+            skill_category: None,
             step: None,
         }
     }
 
-    pub fn playbook_run(
-        playbook_id: String,
+    pub fn skill_run(
+        skill_id: String,
         title: String,
         category: String,
         docs: String,
     ) -> Self {
         Self {
-            kind: AgentMessageKind::PlaybookRun,
+            kind: AgentMessageKind::SkillRun,
             text: docs,
             title: Some(title),
-            playbook_id: Some(playbook_id),
-            playbook_category: Some(category),
+            skill_id: Some(skill_id),
+            skill_category: Some(category),
             step: None,
         }
     }
@@ -107,8 +107,8 @@ impl AgentMessage {
             kind: AgentMessageKind::StepCard,
             text: String::new(),
             title: None,
-            playbook_id: None,
-            playbook_category: None,
+            skill_id: None,
+            skill_category: None,
             step: Some(step),
         }
     }
@@ -122,7 +122,7 @@ pub static AGENT_MESSAGES: GlobalSignal<Vec<AgentMessage>> = Signal::global(Vec:
 #[derive(Clone, Debug, PartialEq)]
 pub enum AgentPendingAction {
     SubmitText(String),
-    RunPlaybook(String),
+    RunSkill(String),
 }
 
 pub static AGENT_PENDING_ACTION: GlobalSignal<Option<AgentPendingAction>> = Signal::global(|| None);

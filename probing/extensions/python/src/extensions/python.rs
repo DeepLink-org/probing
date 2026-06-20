@@ -49,7 +49,7 @@ impl Display for PyExtList {
 }
 
 /// Python integration with the probing system
-#[derive(Debug, ProbeExtension)]
+#[derive(Debug, Default, ProbeExtension)]
 pub struct PythonExt {
     /// Path to Python crash handler script (executed when interpreter crashes)
     #[option(aliases = ["crash.handler"])]
@@ -66,17 +66,6 @@ pub struct PythonExt {
     /// Disable Python extension by setting `python.disabled=<extension_statement>`
     #[option()]
     disabled: Maybe<String>,
-}
-
-impl Default for PythonExt {
-    fn default() -> Self {
-        Self {
-            crash_handler: Default::default(),
-            monitoring: Default::default(),
-            enabled: Default::default(),
-            disabled: Default::default(),
-        }
-    }
 }
 
 #[async_trait]
@@ -296,7 +285,7 @@ fn call_python_handler(
             }
 
             let body_arg = if body.is_empty() {
-                py.None().into()
+                py.None()
             } else {
                 let body_str = std::str::from_utf8(&body).map_err(|e| {
                     EngineError::PluginError(format!("Request body is not valid UTF-8: {e}"))

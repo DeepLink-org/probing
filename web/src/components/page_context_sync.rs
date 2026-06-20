@@ -26,7 +26,7 @@ pub fn PageContextSync() -> Element {
             desc.title,
             desc.path,
             desc.description,
-            desc.suggested_playbooks,
+            desc.suggested_skills,
             inv_summary,
         );
         let route_changed = old_page_id != PAGE_CONTEXT.read().page_id;

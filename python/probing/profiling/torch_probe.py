@@ -5,12 +5,13 @@ from typing import Optional
 
 import probing
 from probing.core import table
+from probing.parallel import current_role
 from probing.tracing import (
     TRAIN_STEP_KIND,
     current_local_step,
     module_stage_kind,
     recorded_span,
-    sync_local_step,
+    step_snapshot,
 )
 
 from .torch.module_utils import module_name
@@ -51,6 +52,13 @@ class TorchTrace:
     duration: float = 0.0
     allocated_delta: float = 0.0
     max_allocated_delta: float = 0.0
+    # Step coordinate + parallel role, so module-level local work can be aligned
+    # across ranks by role and joined with comm_collective. ``role`` is an
+    # extensible KV string (e.g. "dp=2,pp=1,tp=0"); see probing.parallel.role_key.
+    global_step: int = -1
+    rank: int = -1
+    world_size: int = -1
+    role: str = ""
 
 
 @table
@@ -664,6 +672,16 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
             exprs=config.exprs,
         )
 
+    def _stamp_step_role(self, record) -> None:
+        """Fill step coordinate (local/global/rank) and parallel role on a record."""
+        snap = step_snapshot()
+        if snap is not None:
+            record.step = int(snap.local_step)
+            record.global_step = int(snap.global_step)
+            record.rank = int(snap.rank)
+            record.world_size = int(snap.world_size)
+        record.role = current_role()
+
     def _begin_train_step_span(self) -> None:
         if self._train_step_cm is not None:
             return
@@ -695,7 +713,7 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
         span_key = (id(mod), mapped_stage)
 
         record = mem_stats()
-        record.step = current_local_step()
+        self._stamp_step_role(record)
         record.seq = self.offset()
         module_name_str = self._module_display_name(mod)
         record.module = module_name_str
@@ -759,7 +777,7 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
             return
 
         record = mem_stats()
-        record.step = current_local_step()
+        self._stamp_step_role(record)
         record.seq = self.offset()
         module_name_str = self._module_display_name(mod)
         record.module = module_name_str

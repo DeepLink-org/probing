@@ -103,7 +103,7 @@ pub fn Sidebar() -> Element {
                             to: Route::AgentPage {},
                             icon: &icondata::AiRobotOutlined,
                             label: "Investigate",
-                            title: "Playbook-driven investigation (diagnostic agent)",
+                            title: "Skill-driven investigation (diagnostic agent)",
                             is_active: route == Route::AgentPage {},
                         }
                         StackSidebarItem {
@@ -125,7 +125,7 @@ pub fn Sidebar() -> Element {
                             icon: &icondata::AiApiOutlined,
                             label: "Spans",
                             title: "Hierarchical tracing spans from python.trace_event",
-                            is_active: matches!(route, Route::TracesPage {} | Route::SpansPage {}),
+                            is_active: route == Route::SpansPage {},
                         }
                         SidebarNavItem {
                             to: Route::TrainingPage {},

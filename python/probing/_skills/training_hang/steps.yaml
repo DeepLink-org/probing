@@ -1,0 +1,114 @@
+apiVersion: probing.dev/v1
+kind: Skill
+
+metadata:
+  id: training_hang
+  title: "训练卡住 / Hang 诊断"
+  title_en: "Training hang diagnosis"
+  category: reliability
+  tags: [hang, stall, deadlock, 卡住, 不动]
+  triggers:
+    keywords:
+      zh: ["卡住", "hang", "不动", "停住", "deadlock", "死锁", "loss 不更新"]
+      en: ["hang", "stuck", "stall", "frozen", "deadlock", "not progressing"]
+  docs: |
+    Loss 不更新、进程仍存活但无进展时使用。
+    组合：实时混合栈 + CPU 线程 wchan + 最近 trace 活动。
+
+spec:
+  parameters:
+    - name: stack_depth
+      type: integer
+      default: 20
+      description: "Backtrace frames to show"
+
+  steps:
+    - id: backtrace
+      title: "当前混合调用栈 (Python + native)"
+      type: api
+      method: GET
+      path: /apis/pythonext/callstack
+      on_empty: warn
+      empty_message: "无法获取栈 — 目标进程可能不是 Python 或 tracer 未启用"
+
+    - id: backtrace_sql
+      title: "调用栈 (SQL 视图)"
+      type: sql
+      sql: |
+        SELECT depth, frame_type, func, file, lineno
+        FROM python.backtrace
+        ORDER BY depth
+        LIMIT {stack_depth}
+      on_empty: skip
+
+    - id: blocking_threads
+      title: "阻塞中的线程 (wchan)"
+      type: sql
+      sql: |
+        SELECT tid, comm, state, wchan, cpu_total_pct
+        FROM cpu.utilization
+        WHERE scope = 'thread'
+          AND state NOT IN ('R', 'S')
+        ORDER BY ts DESC
+        LIMIT 10
+      on_empty: skip
+      empty_message: "无线程 wchan 数据 (macOS 上 wchan 可能为空)"
+
+    - id: top_wchan
+      title: "最常见内核等待点 (最近窗口)"
+      type: sql
+      sql: |
+        SELECT wchan, count(*) AS samples, max(comm) AS example_comm
+        FROM cpu.utilization
+        WHERE scope = 'thread' AND wchan != ''
+        GROUP BY wchan
+        ORDER BY samples DESC
+        LIMIT 8
+      on_empty: skip
+
+    - id: last_trace_activity
+      title: "最近一次 trace 活动时间"
+      type: sql
+      sql: |
+        SELECT max(time) AS last_event_ns, count(*) AS events_last_100
+        FROM (
+          SELECT time FROM python.trace_event
+          ORDER BY time DESC
+          LIMIT 100
+        )
+      on_empty: skip
+      empty_message: "无 trace_event — tracing 可能未启用"
+
+    - id: last_collective
+      title: "最近一次 collective 通信"
+      type: sql
+      sql: |
+        SELECT op, rank, global_step, duration_ms, bytes
+        FROM python.comm_collective
+        ORDER BY global_step DESC, duration_ms DESC
+        LIMIT 5
+      on_empty: skip
+      empty_message: "无 comm_collective — 非分布式或未 patch torch.distributed"
+
+  interpretation:
+    rules:
+      - id: nccl_wait
+        when: "step:top_wchan | column:wchan | any_contains('nccl','cuda','poll')"
+        severity: warning
+        message: "线程可能在等待 NCCL/CUDA — 常见于 collective 死锁或 straggler"
+
+      - id: dataloader_wait
+        when: "step:backtrace_sql | column:func | any_contains('DataLoader','_next','fetch')"
+        severity: info
+        message: "栈顶指向 DataLoader — 检查 num_workers / 数据管道"
+
+  summary_template: |
+    ## Hang 诊断
+    1. 查看 **backtrace** / **backtrace_sql** 最内层 frame
+    2. **top_wchan** 提示内核级等待原因
+    3. **last_collective** 若停在 collective 上 → 试 skill: slow_rank
+
+  next_steps:
+    - "栈在 dist/barrier → 检查各 rank 是否都存活: probing list / cluster nodes"
+    - "栈在 DataLoader → 减少 num_workers 或检查数据路径"
+    - "需要持续采样 → SET probing.pprof.sample_freq=99 后 skill: module_bottleneck"

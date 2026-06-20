@@ -1,4 +1,4 @@
-//! Markdown → HTML for agent chat and playbook summaries.
+//! Markdown → HTML for agent chat and skill summaries.
 
 use pulldown_cmark::{html, Options, Parser};
 

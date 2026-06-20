@@ -67,7 +67,7 @@ impl CpuProbeExtension {
         start_cpu_sampling(interval as u64, thread_top_n).map_err(|e| {
             EngineError::InvalidOptionValue(
                 Self::OPTION_CPU_SAMPLE_INTERVAL_MS.to_string(),
-                format!("{e}").into(),
+                format!("{e}"),
             )
         })?;
 

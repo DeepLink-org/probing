@@ -1,10 +1,10 @@
-//! Deterministic evaluation of playbook ``interpretation.rules``.
+//! Deterministic evaluation of skill ``interpretation.rules``.
 
 use std::collections::HashMap;
 
 use probing_proto::prelude::{DataFrame, Ele};
 
-use super::playbook::InterpretRuleRaw;
+use super::skill::InterpretRuleRaw;
 use super::runner::StepOutcome;
 
 pub type InterpretRule = InterpretRuleRaw;
@@ -382,9 +382,11 @@ mod tests {
     use probing_proto::prelude::{DataFrame, Seq};
 
     fn df_one_col(name: &str, vals: Vec<f64>) -> DataFrame {
+        let size = vals.len() as u64;
         DataFrame {
             names: vec![name.to_string()],
             cols: vec![Seq::SeqF64(vals)],
+            size,
         }
     }
 

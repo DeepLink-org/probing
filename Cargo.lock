@@ -3286,7 +3286,6 @@ name = "probing"
 version = "0.2.5"
 dependencies = [
  "anyhow",
- "arrow",
  "ctor",
  "env_logger",
  "log",
@@ -3298,7 +3297,6 @@ dependencies = [
  "probing-server",
  "pyo3",
  "pyo3-build-config",
- "tokio",
 ]
 
 [[package]]
@@ -3415,6 +3413,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "probing-nccl-profiler"
+version = "0.2.5"
+dependencies = [
+ "libc",
+ "once_cell",
+ "parking_lot 0.12.3",
+ "probing-memtable",
+ "tempfile",
+ "thiserror 2.0.12",
+]
+
+[[package]]
 name = "probing-proto"
 version = "0.2.5"
 dependencies = [
@@ -3462,6 +3472,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "probing-rust-regression"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "arrow",
+ "async-trait",
+ "axum",
+ "base64 0.21.7",
+ "datafusion",
+ "futures",
+ "probing-cli",
+ "probing-core",
+ "probing-memtable",
+ "probing-proto",
+ "probing-python",
+ "probing-server",
+ "pyo3",
+ "pyo3-build-config",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "probing-server"
 version = "0.2.5"
 dependencies = [
@@ -3473,7 +3508,6 @@ dependencies = [
  "datafusion",
  "futures-util",
  "http-body-util",
- "include_dir",
  "log",
  "nix 0.31.3",
  "nu-ansi-term",

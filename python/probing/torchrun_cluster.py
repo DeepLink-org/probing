@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 _SETUP_DONE = False
 _MASTER_KEY_SUFFIX = "master"
+_MASTER_INFO: dict[str, str] | None = None
 
 
 def _enabled() -> bool:
@@ -128,6 +129,8 @@ def _optional_env_int(name: str) -> int | None:
 
 
 def _node_payload(local_addr: str) -> dict[str, Any]:
+    from probing.parallel import current_role
+
     host = socket.gethostname()
     return {
         "host": host,
@@ -140,6 +143,8 @@ def _node_payload(local_addr: str) -> dict[str, Any]:
         "role_name": os.environ.get("ROLE_NAME"),
         "role_rank": _optional_env_int("ROLE_RANK"),
         "role_world_size": _optional_env_int("ROLE_WORLD_SIZE"),
+        # Parallel role key (e.g. "dp=2,pp=1,tp=0"); surfaces as federation _role.
+        "role": current_role() or None,
         "status": "running",
         "timestamp": int(time.time() * 1_000_000),
     }
@@ -268,8 +273,26 @@ def setup_torchrun_cluster() -> dict[str, str] | None:
     else:
         master_info = wait_master()
 
+    global _MASTER_INFO
+    _MASTER_INFO = master_info
     register_with_master(master_info)
     return master_info
+
+
+def refresh_node_role() -> bool:
+    """Re-register this node so the master picks up a runtime role change.
+
+    No-op (returns ``False``) when the cluster was never set up. Best-effort:
+    swallows network errors so ``set_role`` never raises on registration issues.
+    """
+    if not _SETUP_DONE or _MASTER_INFO is None:
+        return False
+    try:
+        register_with_master(_MASTER_INFO)
+        return True
+    except Exception as exc:  # pragma: no cover - network best-effort
+        logger.debug("probing torchrun: role refresh failed: %s", exc)
+        return False
 
 
 def maybe_setup_torchrun_cluster() -> dict[str, str] | None:

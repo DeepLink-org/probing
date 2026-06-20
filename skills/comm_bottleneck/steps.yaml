@@ -1,0 +1,142 @@
+apiVersion: probing.dev/v1
+kind: Skill
+
+metadata:
+  id: comm_bottleneck
+  title: "通信瓶颈分析"
+  title_en: "Communication bottleneck"
+  category: distributed
+  tags: [NCCL, collective, communication, 通信, all_reduce]
+  triggers:
+    keywords:
+      zh: ["通信慢", "NCCL", "all_reduce", "通信瓶颈", "带宽"]
+      en: ["communication slow", "NCCL", "collective", "comm bottleneck"]
+  docs: |
+    按 collective op 聚合延迟与传输量，定位通信热点。
+    适用于「计算不慢但 step 时间长」或「通信占比高」的场景。
+
+spec:
+  parameters:
+    - name: step_window
+      type: integer
+      default: 50
+    - name: use_global
+      type: boolean
+      default: true
+
+  requires:
+    any_tables:
+      - python.comm_collective
+      - nccl.proxy_ops
+
+  steps:
+    - id: op_summary
+      title: "各 collective op 统计"
+      type: sql
+      sql: |
+        SELECT
+          op,
+          count(*) AS calls,
+          avg(duration_ms) AS avg_ms,
+          max(duration_ms) AS p100_ms,
+          sum(bytes) AS total_bytes,
+          avg(bytes) AS avg_bytes
+        FROM {table_comm}
+        WHERE global_step >= (
+          SELECT max(global_step) - {step_window}
+          FROM {table_comm}
+        )
+        GROUP BY op
+        ORDER BY sum(duration_ms) DESC
+      on_empty: abort
+      empty_message: "无 comm_collective 数据"
+
+    - id: op_by_step
+      title: "每 step 通信总耗时"
+      type: sql
+      sql: |
+        SELECT
+          global_step,
+          sum(duration_ms) AS comm_ms,
+          count(*) AS calls,
+          sum(bytes) AS bytes
+        FROM {table_comm}
+        WHERE global_step >= (
+          SELECT max(global_step) - {step_window}
+          FROM {table_comm}
+        )
+        GROUP BY global_step
+        ORDER BY global_step
+      on_empty: skip
+
+    - id: slowest_calls
+      title: "最慢的 collective 调用"
+      type: sql
+      sql: |
+        SELECT global_step, rank, op, duration_ms, bytes, tensor_shape
+        FROM {table_comm}
+        WHERE global_step >= (
+          SELECT max(global_step) - {step_window}
+          FROM {table_comm}
+        )
+        ORDER BY duration_ms DESC
+        LIMIT 20
+      on_empty: skip
+
+    - id: nccl_proxy_wait
+      title: "NCCL proxy wait 汇总 (profiler)"
+      type: sql
+      sql: |
+        SELECT
+          coll_func,
+          sum(send_gpu_wait_ns) AS total_gpu_wait_ns,
+          sum(recv_wait_ns) AS total_recv_wait_ns,
+          count(*) AS ops
+        FROM {nccl_proxy_table}
+        WHERE seq >= (
+          SELECT max(seq) - {step_window}
+          FROM {nccl_proxy_table}
+        )
+        GROUP BY coll_func
+        ORDER BY total_recv_wait_ns DESC
+      on_empty: skip
+      empty_message: "无 nccl.proxy_ops — 仅 python.comm_collective 粗粒度可用"
+
+    - id: rdma_hint
+      title: "RDMA 端口速率 (Linux)"
+      type: sql
+      platform: linux
+      sql: |
+        SELECT hca_name, rcv_pkts_rate, snd_pkts_rate, np_ecn_marked_roce_packets
+        FROM rdma.mlx_hca
+        LIMIT 5
+      on_empty: skip
+      empty_message: "RDMA 表不可用 — 非 InfiniBand/RoCE 或未配置 rdma.hca_name"
+
+  variables:
+    table_comm: "{comm_table}"
+    nccl_proxy_table: "{nccl_proxy_table}"
+
+  interpretation:
+    rules:
+      - id: comm_dominates_step
+        when: "step:op_by_step | column:comm_ms | avg > 100"
+        severity: info
+        message: "平均每 step 通信耗时 >100ms — 考虑梯度桶/重叠/压缩"
+
+      - id: ecn_marked
+        when: "step:rdma_hint | column:np_ecn_marked_roce_packets | max > 0"
+        severity: warning
+        message: "RoCE ECN 标记包 >0 — 网络可能存在拥塞"
+
+  summary_template: |
+    ## 通信瓶颈
+    - **op_summary**: 哪个 op 总耗时最高
+    - **slowest_calls**: 极端慢调用
+    - rank 不均衡 → skill: slow_rank
+
+  next_steps:
+    - "all_reduce 慢 → 检查 bucket 大小、overlap、FP16 compress"
+    - "某 step comm_ms 尖峰 → 对照 checkpoint / eval 边界"
+    - "RoCE 拥塞 → 查 rdma.mlx_hca 与交换机 ECN 配置"
+    - "有 proxy wait 数据 → skill: nccl_culprit_victim"

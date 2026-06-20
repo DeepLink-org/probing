@@ -200,9 +200,17 @@ The HTTP API can be used for IDE integration:
 
 ### Jupyter
 
-```python
-from probing import connect
+There is no `probing.connect()` API. From a notebook cell, shell out to the CLI
+(same as any external tool):
 
-probe = connect(pid=12345)
-probe.eval("print(globals().keys())")
+```python
+import os, subprocess
+
+endpoint = os.environ["ENDPOINT"]  # pid or host:port
+subprocess.run(
+    ["probing", "-t", endpoint, "eval", "print(list(globals().keys()))"],
+    check=True,
+)
 ```
+
+Or use `!probing -t $ENDPOINT eval "..."` when `ENDPOINT` is set in the notebook environment.

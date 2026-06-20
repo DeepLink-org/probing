@@ -26,5 +26,8 @@ pkg/
 *.pyc
 venv/
 python/probing/probing
-docs/site/
+python/probing/_skills/
+python/probing/_web/
 .claude/
+*.pth.tar
+docs/site/

@@ -45,7 +45,8 @@ docs/
 │   └── home.html        # Homepage template
 └── src/                 # Documentation source
     ├── index.md         # Homepage content
-    ├── installation.md  # Installation guide
+    ├── installation.md  # User install (PyPI / wheel)
+    ├── contributing.md  # Dev setup (make develop, .pth hook)
     ├── quickstart.md    # Quick start guide
     ├── guide/           # User guide
     ├── design/          # Design documents

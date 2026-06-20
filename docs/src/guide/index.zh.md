@@ -1,67 +1,42 @@
 # 用户指南
 
-欢迎阅读 Probing 用户指南。本章节介绍核心功能和使用模式。
+使用 Probing 分析与调试 AI 训练的操作指南。
 
-## 概览
+## Probing 做什么
 
-Probing 提供三个核心能力来分析和调试您的 AI 应用：
-
-| 能力 | 命令 | 描述 |
+| 层次 | 产出 | 方式 |
 |------|------|------|
-| **eval** | `probing $ENDPOINT eval "..."` | 在目标进程中执行 Python 代码 |
-| **query** | `probing $ENDPOINT query "..."` | 使用 SQL 查询性能数据 |
-| **backtrace** | `probing $ENDPOINT backtrace` | 捕获带变量的执行堆栈 |
+| **持续采集** | `python.torch_trace`、`python.comm_collective`、span、插件表 | 钩子随训练追加行 |
+| **现场内省** | 查看 live 对象、抓栈 | CLI `eval`、`backtrace`（或进程内 API） |
+| **SQL 分析** | 临时与联邦查询 | `query`、`global.*`、`cluster query` |
+| **诊断 skill** | 多步调查剧本 | `probing skill run <id>` |
 
-## 入门指南
+术语：**[核心概念](concepts.zh.md)**。列定义：**[SQL 表目录](../reference/sql-tables.zh.md)**。
 
-如果您是 Probing 新用户，建议按以下顺序阅读这些指南：
+## 阅读顺序
 
-1. **[SQL 分析](sql-analytics.zh.md)** - 学习强大的 SQL 查询接口
-2. **[内存分析](memory-analysis.zh.md)** - 调试内存泄漏和使用模式
-3. **[调试指南](debugging.zh.md)** - 掌握堆栈分析和实时调试
-4. **[常见问题](troubleshooting.zh.md)** - 常见问题和解决方案
+新用户请走导航 **入门**：安装指南 → 快速开始 → 核心概念。
 
-## 核心概念
+然后读本指南：
 
-### 目标端点
+1. **[SQL 分析](sql-analytics.zh.md)** — 查询、`global.*`、`_role`
+2. **[诊断 Skill](skills.zh.md)** — `health_overview`、`slow_rank` 等
+3. **[内存分析](memory-analysis.zh.md)** — 泄漏与 GPU 压力
+4. **[调试指南](debugging.zh.md)** — backtrace / eval 工作流
+5. **[常见问题](troubleshooting.zh.md)** — 典型故障
 
-所有 Probing 命令都需要一个目标端点，可以是：
+## 主要 CLI 命令
 
-- **进程 ID**：本地进程（如 `12345`）
-- **远程地址**：网络端点（如 `host:8080`）
-
-```bash
-# 设置目标端点
-export ENDPOINT=12345  # 或 host:8080
-```
-
-### 数据表
-
-Probing 通过 SQL 表暴露性能数据：
-
-| 表名 | 描述 |
+| 命令 | 作用 |
 |------|------|
-| `python.backtrace` | 堆栈跟踪信息 |
-| `python.torch_trace` | PyTorch 执行跟踪 |
-| `python.variables` | 变量追踪 |
-| `information_schema.df_settings` | 配置设置 |
+| `query` | 读取采集表 |
+| `eval` | 在目标进程执行 Python |
+| `backtrace` | 抓栈 → `python.backtrace` |
 
-### 工作流模式
+完整 CLI：**[API 参考](../api-reference.zh.md)**。
 
-**调试工作流：**
-```bash
-# 1. 捕获当前状态
-probing $ENDPOINT backtrace
+## 设计文档
 
-# 2. 检查特定值
-probing $ENDPOINT eval "print(my_variable)"
-
-# 3. 查询历史数据
-probing $ENDPOINT query "SELECT * FROM python.torch_trace"
-```
-
-## 进阶主题
-
-- **[系统架构](../design/architecture.md)** - 系统设计和内部实现
-- **[分布式](../design/distributed.md)** - 多节点监控
-- **[扩展机制](../design/extensibility.md)** - 自定义表和指标
+- **[系统架构](../design/architecture.zh.md)** — 探针、引擎、扩展
+- **[分布式](../design/distributed.zh.md)** — 集群与联邦
+- **[扩展机制](../design/extensibility.zh.md)** — `@table` 插件

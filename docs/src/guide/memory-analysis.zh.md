@@ -144,11 +144,12 @@ if torch.cuda.is_available():
 
 ```bash
 probing $ENDPOINT eval "
+from probing.tracing import step_snapshot
 import torch
-step = trainer.current_step
-if step % 100 == 0:
+snap = step_snapshot()
+if snap.local_step % 100 == 0:
     allocated = torch.cuda.memory_allocated() / 1024**3
-    print(f'步骤 {step}: {allocated:.2f} GB')
+    print(f'step {snap.local_step}: {allocated:.2f} GB')
 "
 ```
 

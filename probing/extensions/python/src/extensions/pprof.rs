@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+
+use async_trait::async_trait;
 use probing_core::core::EngineError;
 use probing_core::core::Maybe;
 use probing_core::core::ProbeExtension;
@@ -11,7 +14,23 @@ pub struct PprofProbeExtension {
     sample_freq: Maybe<i32>,
 }
 
-impl ProbeExtensionCall for PprofProbeExtension {}
+#[async_trait]
+impl ProbeExtensionCall for PprofProbeExtension {
+    async fn call(
+        &self,
+        path: &str,
+        _params: &HashMap<String, String>,
+        _body: &[u8],
+    ) -> Result<Vec<u8>, EngineError> {
+        match path.trim_start_matches('/') {
+            "flamegraph" => crate::features::pprof::flamegraph()
+                .map(|html| html.into_bytes())
+                .map_err(|e| EngineError::CallError(e.to_string())),
+            "flamegraph/json" => Ok(crate::features::pprof::flamegraph_json().into_bytes()),
+            _ => Err(EngineError::UnsupportedCall),
+        }
+    }
+}
 
 impl PprofProbeExtension {
     fn set_sample_freq(&mut self, pprof_sample_freq: Maybe<i32>) -> Result<(), EngineError> {

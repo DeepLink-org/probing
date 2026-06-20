@@ -363,3 +363,37 @@ impl InjectionTrait for InjectionAarch64<'_> {
         self.remove()
     }
 }
+
+#[cfg(all(test, target_arch = "aarch64", target_os = "linux"))]
+mod tests {
+    use super::SHELLCODE_AARCH64;
+    use pete::ptracer::Registers;
+
+    #[test]
+    fn shellcode_layout() {
+        assert_eq!(SHELLCODE_AARCH64.len(), 16);
+        assert_eq!(SHELLCODE_AARCH64[0..4], [0x1f, 0x20, 0x03, 0xd5]);
+        assert_eq!(SHELLCODE_AARCH64[4..8], [0x1f, 0x20, 0x03, 0xd5]);
+        assert_eq!(SHELLCODE_AARCH64[8..12], [0x00, 0x01, 0x3f, 0xd6]);
+        assert_eq!(SHELLCODE_AARCH64[12..16], [0x00, 0x00, 0x20, 0xd4]);
+    }
+
+    #[test]
+    fn register_handling() {
+        let mut regs = Registers::default();
+        regs.x0 = 0x12345678;
+        regs.x1 = 0x87654321;
+        regs.x2 = 0x11111111;
+        regs.x3 = 0x22222222;
+        regs.x8 = 0xdeadbeef;
+        regs.sp = 0x1000;
+        regs.pc = 0x2000;
+
+        assert_eq!(regs.x0, 0x12345678);
+        assert_eq!(regs.x1, 0x87654321);
+        assert_eq!(regs.x2, 0x11111111);
+        assert_eq!(regs.x3, 0x22222222);
+        assert_eq!(regs.x8, 0xdeadbeef);
+        assert_eq!(regs.sp & !0xf, 0x1000);
+    }
+}

@@ -181,7 +181,9 @@ fn aggregate_step_samples(rows: &[RawStepRow], window: usize) -> Vec<StepDuratio
             .copied()
             .filter(|&i| span_preference_score(&rows[i].span_name, &rows[i].source) > 0)
             .collect();
-        let picked: Vec<usize> = if preferred.len() >= indices.len().max(1) / 3 {
+        let picked: Vec<usize> = if preferred.is_empty() {
+            indices
+        } else if preferred.len() >= indices.len().max(1) / 3 {
             preferred
         } else {
             indices
@@ -193,7 +195,7 @@ fn aggregate_step_samples(rows: &[RawStepRow], window: usize) -> Vec<StepDuratio
             let row = &rows[row_idx];
             out.push(StepDurationSample {
                 rank: normalize_rank(row.rank),
-                local_step: (start + idx) as i64,
+                local_step: idx as i64,
                 coord_step: row.coord_step,
                 duration_ms: row.duration_ms,
                 host: row.host.clone(),
@@ -202,7 +204,7 @@ fn aggregate_step_samples(rows: &[RawStepRow], window: usize) -> Vec<StepDuratio
         }
     }
 
-    out.sort_by(|a, b| (a.rank, a.local_step).cmp(&(b.rank, b.local_step)));
+    out.sort_by_key(|a| (a.rank, a.local_step));
     out
 }
 

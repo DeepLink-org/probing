@@ -4,7 +4,7 @@ use datafusion::sql::sqlparser::ast::{Query, SetExpr, Statement};
 use datafusion::sql::sqlparser::dialect::GenericDialect;
 use datafusion::sql::sqlparser::parser::Parser;
 
-use super::convert::{PROBE_ADDR_COL, PROBE_HOST_COL, PROBE_RANK_COL};
+use super::convert::{PROBE_ADDR_COL, PROBE_HOST_COL, PROBE_RANK_COL, PROBE_ROLE_COL};
 
 const KNOWN_SCHEMAS: &[&str] = &[
     "cluster", "process", "files", "python", "memtable", "gpu", "rdma",
@@ -140,6 +140,7 @@ fn expand_global_select_star(sql: &str) -> String {
     if lower.contains(PROBE_HOST_COL)
         && lower.contains(PROBE_ADDR_COL)
         && lower.contains(PROBE_RANK_COL)
+        && lower.contains(PROBE_ROLE_COL)
     {
         return sql.to_string();
     }
@@ -153,7 +154,7 @@ fn expand_global_select_star(sql: &str) -> String {
     }
 
     let exclude = format!(
-        " EXCLUDE ({PROBE_HOST_COL}, {PROBE_ADDR_COL}, {PROBE_RANK_COL}), {PROBE_HOST_COL}, {PROBE_ADDR_COL}, {PROBE_RANK_COL}"
+        " EXCLUDE ({PROBE_HOST_COL}, {PROBE_ADDR_COL}, {PROBE_RANK_COL}, {PROBE_ROLE_COL}), {PROBE_HOST_COL}, {PROBE_ADDR_COL}, {PROBE_RANK_COL}, {PROBE_ROLE_COL}"
     );
     let new_select = if let Some(dot_star) = select_part.rfind(".*") {
         let before = &select_part[..dot_star + 2];
@@ -300,7 +301,7 @@ mod tests {
         let sql = "SELECT * FROM global.process.envs";
         assert_eq!(
             ensure_global_node_columns(sql),
-            "SELECT * EXCLUDE (_host, _addr, _rank), _host, _addr, _rank FROM global.process.envs"
+            "SELECT * EXCLUDE (_host, _addr, _rank, _role), _host, _addr, _rank, _role FROM global.process.envs"
         );
     }
 
@@ -309,20 +310,20 @@ mod tests {
         let sql = "SELECT e.* FROM global.process.envs e";
         assert_eq!(
             ensure_global_node_columns(sql),
-            "SELECT e.* EXCLUDE (_host, _addr, _rank), _host, _addr, _rank FROM global.process.envs e"
+            "SELECT e.* EXCLUDE (_host, _addr, _rank, _role), _host, _addr, _rank, _role FROM global.process.envs e"
         );
     }
 
     #[test]
     fn skips_select_star_wildcard_when_tags_already_present() {
         let sql =
-            "SELECT * EXCLUDE (_host, _addr, _rank), _host, _addr, _rank FROM global.process.envs";
+            "SELECT * EXCLUDE (_host, _addr, _rank, _role), _host, _addr, _rank, _role FROM global.process.envs";
         assert_eq!(ensure_global_node_columns(sql), sql);
     }
 
     #[test]
     fn skips_qualified_select_star_when_already_expanded() {
-        let sql = "SELECT e.* EXCLUDE (_host, _addr, _rank), _host, _addr, _rank FROM global.process.envs e";
+        let sql = "SELECT e.* EXCLUDE (_host, _addr, _rank, _role), _host, _addr, _rank, _role FROM global.process.envs e";
         assert_eq!(ensure_global_node_columns(sql), sql);
     }
 

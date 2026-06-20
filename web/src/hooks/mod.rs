@@ -1,7 +1,7 @@
 //! Data-fetching hooks for the web UI.
 //!
-//! **New code** should prefer [`use_app_resource`] (auto-fetch) and Dioxus [`use_action`](dioxus::prelude::use_action)
-//! (user-triggered). Legacy [`use_api`] / [`ApiState`] remain for pages not yet migrated.
+//! Prefer [`use_app_resource`] (auto-fetch) and Dioxus [`use_action`](dioxus::prelude::use_action)
+//! (user-triggered). [`use_api`] remains on a few pages (e.g. Pulsing) pending migration.
 
 use crate::utils::error::AppError;
 use dioxus::prelude::*;

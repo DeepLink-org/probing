@@ -49,15 +49,22 @@ test = [
     "pytest<8.0; python_version < '3.8'",
     "pytest-cov>=4.0",
     "coverage>=7.0",
+    "pyyaml>=6",
+    "ipython>=8.0",
+    "ipykernel>=6.0",
 ]
 dev = [
     "pytest>=8.0; python_version >= '3.8'",
     "pytest<8.0; python_version < '3.8'",
     "pytest-cov>=4.0",
     "coverage>=7.0",
+    "pyyaml>=6",
+    "ipython>=8.0",
+    "ipykernel>=6.0",
     "ruff>=0.1.0",
     "black>=24.0; python_version >= '3.8'",
     "black<24.0; python_version < '3.8'",
+    "maturin>=1.0,<2.0",
 ]
 
 [tool.maturin]
@@ -67,7 +74,7 @@ python-source = "python"
 compatibility = "linux"
 bindings = "pyo3"
 cargo-extra-args = "--features extension-module,gpu,kmsg"
-include = ["probing.pth", "probing_hook.py"]
+include = ["probing.pth", "probing_hook.py", "probing/libs/*", "probing/_skills/**", "probing/_web/**"]
 
 [build-system]
 requires = ["maturin>=1.0,<2.0"]
@@ -75,7 +82,7 @@ build-backend = "maturin"
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-testpaths = ["tests", "python/probing"]
+testpaths = ["tests/unit", "tests/regression"]
 pythonpath = ["python"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
@@ -98,11 +105,14 @@ norecursedirs = [
     "dist",
     "build",
     "__pycache__",
+    "rust",
 ]
 markers = [
     "integration: marks tests that require integration resources",
     "slow: marks tests that are expected to be slow",
     "unit: marks tests that can run in isolation",
+    "regression: contract, e2e, and cross-module tests",
+    "training_observability: training iteration / collective observability tests",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning:pandas.*",

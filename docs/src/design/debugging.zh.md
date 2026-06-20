@@ -183,3 +183,33 @@ for thread_id, frame in sys._current_frames().items():
     print(f'线程 {thread_id}:')
     traceback.print_stack(frame)"
 ```
+
+## 与 IDE 集成
+
+### VS Code
+
+可通过 HTTP API 做 IDE 集成：
+
+```json
+{
+  "type": "probing",
+  "request": "attach",
+  "endpoint": "localhost:8080"
+}
+```
+
+### Jupyter
+
+**没有** `probing.connect()` API。在 notebook 单元格中通过 CLI 调用（与任何外部工具相同）：
+
+```python
+import os, subprocess
+
+endpoint = os.environ["ENDPOINT"]  # pid 或 host:port
+subprocess.run(
+    ["probing", "-t", endpoint, "eval", "print(list(globals().keys()))"],
+    check=True,
+)
+```
+
+或在 notebook 环境已设置 `ENDPOINT` 时使用：`!probing -t $ENDPOINT eval "..."`。
