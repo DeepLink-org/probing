@@ -376,7 +376,7 @@ Track and fix incrementally:
 | Server → python REPL internals | ~~`PythonRepl` in server~~ | `/ws` uses `ReplSession` facade only |
 | Composition sprawl | All wiring in `server/engine.rs` | Optional: manifest TOML listing enabled extensions |
 | Skills triple loader | Rust + Python + Web embed `skills/` | Keep `skills/` SSOT; loaders versioned together in CI |
-| kmsg collector | Implemented, not registered | Register in engine or delete |
+| kmsg collector | Registered (Linux/kmsg feature gate) | Done |
 | Architecture doc | 2-layer diagram | Superseded by this doc + [Data Layer](data-layer.md) |
 
 ---

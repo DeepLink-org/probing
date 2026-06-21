@@ -1,7 +1,7 @@
 # SQL 表目录
 
 可通过 `probing query` 或进程内 `probing.query()` 查询的内置 SQL 表权威目录。
-与 `python/probing/_skills/semantic/tables.yaml` 保持同步（诊断 skill 与 Web Agent 使用）。
+与 `skills/semantic/tables.yaml` 保持同步（诊断 skill 与 Web Agent 使用）。
 
 术语说明见 [核心概念](../guide/concepts.zh.md)。
 
@@ -55,7 +55,7 @@ PyTorch 模块级 forward/step 耗时与 GPU 显存快照。
 
 | 列 | 说明 |
 |----|------|
-| `step` | 本地训练步（每 rank） |
+| `local_step` | 本地训练步（每 rank） |
 | `global_step` | 全局步（`step_snapshot`） |
 | `rank` | `torch.distributed` rank |
 | `world_size` | world size |
@@ -144,7 +144,7 @@ Python + native 混合栈（**瞬时**，非历史全量）。
 
 | 列 | 说明 |
 |----|------|
-| `step` | 训练步 |
+| `micro_step` | 训练 micro-step |
 | `func` | 函数名 |
 | `name` | 变量名 |
 | `value` | 字符串表示 |

@@ -1,7 +1,7 @@
 # SQL Tables
 
 Authoritative catalog of built-in SQL tables queryable via `probing query` or in-process
-`probing.query()`. Kept in sync with `python/probing/_skills/semantic/tables.yaml` (used by
+`probing.query()`. Kept in sync with `skills/semantic/tables.yaml` (used by
 diagnostic skills and the Web Agent).
 
 Terminology: [Core Concepts](../guide/concepts.md) (endpoint, steps, `role`, federation).
@@ -56,7 +56,7 @@ PyTorch module-level forward/step timings and GPU memory snapshots.
 
 | Column | Description |
 |--------|-------------|
-| `step` | Local training step (per rank) |
+| `local_step` | Local training step (per rank) |
 | `global_step` | Global step (`step_snapshot`) |
 | `rank` | `torch.distributed` rank |
 | `world_size` | World size |
@@ -150,7 +150,7 @@ Variable snapshots when variable tracing is enabled.
 
 | Column | Description |
 |--------|-------------|
-| `step` | Training step |
+| `micro_step` | Training micro-step |
 | `func` | Function name |
 | `name` | Variable name |
 | `value` | String representation |

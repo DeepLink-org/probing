@@ -68,7 +68,7 @@ probing $ENDPOINT query "SELECT func, file, lineno FROM python.backtrace ORDER B
 probing $ENDPOINT eval "import gc, torch; gc.collect(); torch.cuda.empty_cache()"
 
 # 分析分配趋势
-probing $ENDPOINT query "SELECT step, AVG(allocated) as avg_memory FROM python.torch_trace GROUP BY step ORDER BY step"
+probing $ENDPOINT query "SELECT local_step, AVG(allocated) as avg_memory FROM python.torch_trace GROUP BY local_step ORDER BY local_step"
 ```
 
 ### 场景 3：性能瓶颈分析

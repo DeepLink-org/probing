@@ -72,7 +72,7 @@ single source of truth (not a separate Python counter).
 
 On data rows:
 
-- `python.torch_trace.step` → local step
+- `python.torch_trace.local_step` → per-rank step
 - `python.torch_trace.global_step`, `python.comm_collective.local_step` / `global_step`
 
 In-process:

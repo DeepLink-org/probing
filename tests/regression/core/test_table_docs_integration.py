@@ -7,22 +7,16 @@ import os
 import subprocess
 import sys
 import tempfile
-from pathlib import Path
 
 import probing
 
 
-def _project_root() -> Path:
-    return Path(__file__).resolve().parents[3]
-
-
 def _python_path_env(*, defer_engine_init: bool = False) -> dict[str, str]:
     env = os.environ.copy()
-    python_dir = str(_project_root() / "python")
-    env["PYTHONPATH"] = (
-        f"{python_dir}:{env['PYTHONPATH']}" if env.get("PYTHONPATH") else python_dir
-    )
-    env["PROBING"] = "1"
+    # Do not inherit PROBING=1: wheel probing.pth site-hook would import probing
+    # (and initialize the engine) before the subprocess script sets PROBING_CLI_MODE.
+    env.pop("PROBING", None)
+    env.pop("PROBING_ORIGINAL", None)
     if defer_engine_init:
         env["PROBING_CLI_MODE"] = "1"
     else:
@@ -44,7 +38,6 @@ import os
 import sys
 import tempfile
 
-sys.path.insert(0, {repr(str(_project_root() / "python"))})
 os.environ["PROBING"] = "1"
 {cli_mode_line}
 os.environ["PROBING_DATA_DIR"] = tempfile.mkdtemp(prefix="probing_doc_it_")
