@@ -10,6 +10,7 @@ members = [
     "probing/extensions/python",
     "probing/extensions/gpu",
     "probing/extensions/nccl-profiler",
+    "probing/extensions/hccl-shim",
     "probing/server",
     "probing/crates/store",
 ]

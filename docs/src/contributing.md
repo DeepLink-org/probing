@@ -165,7 +165,7 @@ make test-python-wheel   # tests against installed wheel + checkout pure Python
 
 ```bash
 uv pip install torch torchvision   # or pip install …
-PROBING=1 python examples/events.py
+PROBING=1 python examples/tracing.py
 ```
 
 See [examples/README.md](https://github.com/DeepLink-org/probing/blob/main/examples/README.md).

@@ -118,7 +118,7 @@ Span start/end and custom events (distributed tracing).
 | `trace_id` | Trace id shared by related spans |
 | `span_id` | Unique span id |
 | `name` | Span or event name |
-| `kind` | Semantic kind (e.g. `train.step`, `comm.all_reduce`) |
+| `phase` | Training phase (`forward`, `backward`, `optimizer`) or empty |
 | `time` | Timestamp (nanoseconds since epoch) |
 | `attributes` | JSON metadata (rank, local_step, …) |
 

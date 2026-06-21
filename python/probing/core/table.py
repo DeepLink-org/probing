@@ -23,12 +23,35 @@ def camel_to_snake(name):
     return re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
 
 
+def _table_doc_from_class(cls) -> Optional[str]:
+    doc = cls.__doc__
+    if not doc:
+        return None
+    line = doc.strip().splitlines()[0].strip()
+    if not line or line.startswith(f"{cls.__name__}("):
+        return None
+    return line
+
+
+def _column_docs_from_class(cls) -> dict[str, str]:
+    docs: dict[str, str] = {}
+    for field in dataclasses.fields(cls):
+        meta = field.metadata or {}
+        doc = meta.get("doc")
+        if doc:
+            docs[field.name] = str(doc)
+    return docs
+
+
 def table(name_or_class: Optional[Union[str, Type[Any]]] = None):
     """A decorator that converts a dataclass into a persistable table.
 
     This decorator adds database-like functionality to dataclasses. When applied to a dataclass,
     it creates or retrieves an ExternalTable with the dataclass name (or provided name) and adds
     methods for data persistence and retrieval operations.
+
+    Table documentation comes from the class ``__doc__`` (first line). Column docs use
+    ``field(metadata={"doc": "..."})`` and are registered for SQL ``DESCRIBE``.
 
     Parameters
     ----------
@@ -63,12 +86,13 @@ def table(name_or_class: Optional[Union[str, Type[Any]]] = None):
 
     Examples
     --------
-    >>> from dataclasses import dataclass
+    >>> from dataclasses import dataclass, field
     >>> @table
     ... @dataclass
     ... class Point:
-    ...     x: int
-    ...     y: int
+    ...     \"\"\"Demo points table.\"\"\"
+    ...     x: int = field(metadata={"doc": "X coordinate"})
+    ...     y: int = field(metadata={"doc": "Y coordinate"})
     >>> Point.append(Point(1, 2))
     >>> Point.take(10)[0][1]
     [1, 2]
@@ -91,6 +115,9 @@ def table(name_or_class: Optional[Union[str, Type[Any]]] = None):
 
         table_name = name or camel_to_snake(cls.__name__)
         fields = [f.name for f in dataclasses.fields(cls)]
+        table_doc = _table_doc_from_class(cls)
+        column_docs = _column_docs_from_class(cls)
+        qualified_name = table_name if "." in table_name else f"python.{table_name}"
 
         @functools.wraps(cls.__init__)
         def init_table():
@@ -101,7 +128,16 @@ def table(name_or_class: Optional[Union[str, Type[Any]]] = None):
                         f"Table {table_name} already exists with different fields"
                     )
             except Exception:
-                table = probing.ExternalTable(table_name, fields)
+                table = probing.ExternalTable(
+                    table_name,
+                    fields,
+                    table_doc=table_doc,
+                    column_docs=column_docs or None,
+                )
+            if column_docs or table_doc:
+                probing.register_table_docs(
+                    qualified_name, table_doc, column_docs or None
+                )
             cache[cls] = table
             return table
 

@@ -206,14 +206,7 @@ fn tag_dataframe(mut df: DataFrame, host: &str, addr: &str, rank: Option<i32>) -
     if df.is_empty() {
         return df;
     }
-    let rows = df.len();
-    df.names.push("_host".to_string());
-    df.names.push("_addr".to_string());
-    df.names.push("_rank".to_string());
-    df.cols.push(Seq::SeqText(vec![host.to_string(); rows]));
-    df.cols.push(Seq::SeqText(vec![addr.to_string(); rows]));
-    df.cols.push(Seq::SeqI32(vec![rank.unwrap_or(-1); rows]));
-    df.size = df.len() as u64;
+    probing_core::core::federation::tag_proto_dataframe(&mut df, host, addr, rank);
     df
 }
 
@@ -292,7 +285,7 @@ mod tests {
         );
         let merged = merge_tagged_dataframes(&[local, remote]);
         assert_eq!(merged.len(), 2);
-        assert_eq!(merged.names.len(), 4);
+        assert_eq!(merged.names.len(), 7);
         let host_col = merged.names.iter().position(|n| n == "_host").unwrap();
         assert_eq!(merged.cols[host_col].get_str(0).as_deref(), Some("host-a"));
         assert_eq!(merged.cols[host_col].get_str(1).as_deref(), Some("host-b"));

@@ -130,7 +130,7 @@ def get_chrome_tracing(limit: int = 1000) -> str:
                 name,
                 time as timestamp,
                 COALESCE(thread_id, 0) as thread_id,
-                kind,
+                phase,
                 location,
                 attributes,
                 event_attributes
@@ -167,13 +167,13 @@ def get_chrome_tracing(limit: int = 1000) -> str:
                     thread_id = row.get("thread_id", 0)
                     trace_id = row.get("trace_id", 0)
                     name = row.get("name", "unknown")
-                    kind = row.get("kind", "trace")
+                    phase = row.get("phase", "")
                     # Use (span_id, thread_id) as key to handle multiple threads
                     key = (span_id, thread_id)
                     span_start_lookup[key] = {
                         "trace_id": trace_id,
                         "name": name,
-                        "kind": kind,
+                        "phase": phase,
                         "timestamp": row.get("timestamp", 0),
                     }
 
@@ -185,7 +185,7 @@ def get_chrome_tracing(limit: int = 1000) -> str:
                 trace_id = row.get("trace_id", 0)
                 span_id = row.get("span_id", 0)
                 thread_id = row.get("thread_id", 0)
-                kind = row.get("kind", "trace")
+                phase = row.get("phase", "")
 
                 # Convert nanoseconds to microseconds
                 ts_micros = (timestamp - min_timestamp) // 1000
@@ -196,10 +196,10 @@ def get_chrome_tracing(limit: int = 1000) -> str:
                 if record_type == "span_start":
                     # Store span start information with trace_id for matching
                     key = (span_id, thread_id)
-                    span_starts[key] = (ts_micros, name, kind, pid)
+                    span_starts[key] = (ts_micros, name, phase, pid)
                     chrome_event = {
                         "name": name,
-                        "cat": kind if kind else "span",
+                        "cat": phase if phase else "span",
                         "ph": "B",
                         "ts": ts_micros,
                         "pid": pid,
@@ -215,12 +215,12 @@ def get_chrome_tracing(limit: int = 1000) -> str:
 
                     if start_info:
                         # Found matching span_start that was already processed
-                        start_ts, start_name, start_kind, start_pid = start_info
+                        start_ts, start_name, start_phase, start_pid = start_info
                         # Use the pid from span_start to ensure matching
                         chrome_event = {
                             "name": start_name,  # Must match span_start name
                             "cat": (
-                                start_kind if start_kind else "span"
+                                start_phase if start_phase else "span"
                             ),  # Must match span_start cat
                             "ph": "E",
                             "ts": ts_micros,
@@ -244,11 +244,11 @@ def get_chrome_tracing(limit: int = 1000) -> str:
                                 lookup_info["timestamp"] - min_timestamp
                             ) // 1000
                             start_name = lookup_info["name"]
-                            start_kind = lookup_info["kind"]
+                            start_phase = lookup_info["phase"]
                             chrome_event = {
                                 "name": start_name,  # Must match span_start name
                                 "cat": (
-                                    start_kind if start_kind else "span"
+                                    start_phase if start_phase else "span"
                                 ),  # Must match span_start cat
                                 "ph": "E",
                                 "ts": ts_micros,

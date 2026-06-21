@@ -18,6 +18,8 @@ use super::probe_extension::ProbeExtensionManager;
 
 use super::data_source::{ProbeDataSource, ProbeDataSourceKind};
 use super::federation;
+use super::metadata_rewrite;
+use super::semantic_catalog;
 
 /// Core query engine for the Probing system
 ///
@@ -108,7 +110,10 @@ impl Engine {
         if let Some(df) = federation::try_execute_aggregate_pushdown(self, &original).await? {
             return Ok(Some(df));
         }
-        let query: String = federation::prepare_global_query(&original);
+        let default_schema = self.default_namespace();
+        let query: String = metadata_rewrite::prepare_metadata_query(&original, &default_schema)
+            .unwrap_or(original);
+        let query: String = federation::prepare_global_query(&query);
         let df = self.sql(query.as_str()).await?;
         let schema = df.schema().clone();
         let batches = df.collect().await?;
@@ -271,6 +276,7 @@ impl EngineBuilder {
         for data_source in self.data_sources {
             engine.enable(data_source).await?;
         }
+        semantic_catalog::install_semantic_catalog(&engine.context)?;
         federation::install_global_catalog(&engine.context)?;
 
         Ok(engine)

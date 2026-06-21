@@ -5,7 +5,7 @@ use anyhow::Result;
 use pyo3::prelude::*;
 
 use probing_core::{install_panic_hook, register_python_main_thread};
-use probing_python::extensions::python::ExternalTable;
+use probing_python::extensions::python::{register_table_docs, ExternalTable};
 use probing_python::features::config;
 use probing_python::features::python_api::{cli_main, query_json};
 use probing_python::features::tracing;
@@ -148,6 +148,14 @@ fn cleanup() {
     }
 }
 
+/// Start the in-process engine and local query server (same as normal `PROBING=1` startup).
+///
+/// Used when `PROBING_CLI_MODE=1` skipped the `#[ctor]` hook so docs can be registered first.
+#[pyfunction]
+fn start_local() {
+    probing_server::start_local();
+}
+
 /// Python module entry point - exported as probing._core
 #[pymodule(gil_used = true)]
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -165,6 +173,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Register all classes
     m.add_class::<ExternalTable>()?;
+    m.add_function(wrap_pyfunction!(register_table_docs, m)?)?;
     m.add_class::<TCPStore>()?;
 
     // Register all functions
@@ -182,6 +191,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     use probing_python::features::python_api::{is_enabled, should_enable_probing};
     m.add_function(wrap_pyfunction!(is_enabled, m)?)?;
     m.add_function(wrap_pyfunction!(should_enable_probing, m)?)?;
+    m.add_function(wrap_pyfunction!(start_local, m)?)?;
 
     // Register config functions directly to the module (flattened)
     config::register_config_functions(m)?;

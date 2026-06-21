@@ -22,6 +22,11 @@ missing_errors_doc = "allow"
 missing_panics_doc = "allow"
 similar_names = "allow"
 
+[features]
+test-utils = []
+default = ["builtin-schema-docs"]
+builtin-schema-docs = ["dep:profapi", "dep:probing-nccl-profiler"]
+
 [lib]
 crate-type = ["rlib"]
 
@@ -29,6 +34,8 @@ crate-type = ["rlib"]
 probing-proto = { path = "../proto" }
 probing-macros = { path = "../macros" }
 probing-memtable = { path = "../memtable" }
+profapi = { path = "../extensions/hccl-shim", optional = true, package = "probing-hccl-shim" }
+probing-nccl-profiler = { path = "../extensions/nccl-profiler", optional = true }
 
 anyhow = { workspace = true }
 arrow = { workspace = true }
@@ -38,6 +45,7 @@ once_cell = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde_yaml = "0.9"
 thiserror = { workspace = true }
 
 async-trait = "0.1.83"

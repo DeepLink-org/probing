@@ -1,139 +1,361 @@
 # Semantic layer: maps user/agent language to probing SQL tables and columns.
-# Used in system prompts and skill prerequisite checks.
+# Used in system prompts, skill prerequisite checks, and Engine DESCRIBE rewrite
+# (probe.probing.table_docs / column_docs).
 apiVersion: probing.dev/v1
 kind: SemanticCatalog
 
 tables:
   python.torch_trace:
-    description: "PyTorch module-level forward/step timings and GPU memory snapshots"
+    description: "PyTorch 模块级 forward/step hook 耗时与 GPU 显存快照（长驻采样，非 torch.profiler 窗口）"
     synonyms: [torch trace, module timing, 模块耗时, 训练步 profiling]
     key_columns:
-      step: "Training step index (int)"
-      global_step: "Global training step (from Rust step_snapshot)"
-      rank: "torch.distributed rank"
-      role: "Parallel role key, e.g. 'dp=2,pp=1,tp=0' (align/join across ranks)"
-      module: "Fully-qualified module name"
-      stage: "One of: forward, step (post forward / post step hooks)"
-      duration: "Hook duration in seconds"
-      allocated: "GPU memory allocated (MB) at hook time"
-      allocated_delta: "Change in allocated since previous hook (MB)"
-      max_allocated: "Peak allocated (MB)"
+      micro_step: "最细粒度步计数（micro-batch 序号）"
+      local_step: "本 rank 训练步（micro_step // micro_batches）"
+      global_step: "全局训练步（各 rank 对齐时与 local_step 相同）"
+      micro_batches: "梯度累积因子"
+      seq: "本 step 内 hook 序号"
+      rank: "torch.distributed rank（-1 未知）"
+      world_size: "world size（-1 未知）"
+      role: "并行角色键，如 dp=2,pp=1,tp=0"
+      module: "模块全限定名"
+      stage: "pre forward | post forward | pre step | post step"
+      time_offset: "相对本 step 时间锚点的秒偏移"
+      duration: "hook 耗时（秒）；post 行有意义"
+      allocated: "当前 GPU 已分配显存（MB）"
+      allocated_delta: "相对上一 hook 的 allocated 变化（MB）"
+      max_allocated: "峰值已分配显存（MB）"
+      max_allocated_delta: "相对上一 hook 的 max_allocated 变化（MB）"
+      cached: "当前 GPU reserved 显存（MB）"
+      max_cached: "峰值 reserved 显存（MB）"
     notes:
-      - "First complete step is discovery-only (may have no rows)"
-      - "Backward hooks are off by default"
+      - "第一个完整 step 为 discovery-only，可能无数据行"
+      - "默认仅 forward hook；backward hook 默认关闭"
 
   python.comm_collective:
-    description: "torch.distributed collective calls (all_reduce, broadcast, …)"
+    description: "torch.distributed 集合通信调用记录（all_reduce、broadcast 等）"
     synonyms: [collective, communication, NCCL, 通信, all_reduce]
     key_columns:
-      global_step: "Global training step"
-      local_step: "Local step on this rank"
+      micro_step: "最细粒度步计数"
+      local_step: "本 rank 训练步"
+      global_step: "全局训练步"
+      micro_batches: "梯度累积因子"
       rank: "torch.distributed rank"
-      role: "Parallel role key, e.g. 'dp=2,pp=1,tp=0' (align/join across ranks)"
-      op: "Collective operation name"
-      duration_ms: "Wall time in milliseconds"
-      bytes: "Tensor bytes communicated"
+      world_size: "world size"
+      role: "并行角色键"
+      op: "集合通信算子名"
+      group_rank: "进程组内 rank"
+      group_size: "进程组大小"
+      participate_ranks: "参与 rank 列表（JSON 数组字符串）"
+      tensor_shape: "张量 shape 字符串"
+      tensor_dtype: "张量 dtype"
+      bytes: "通信字节数"
+      duration_ms: "墙钟耗时（毫秒）"
+      async_op: "1=异步 collective，0=同步"
     global_name: global.python.comm_collective
     federation_columns: [_host, _addr, _rank, _role]
 
   python.trace_event:
-    description: "Span start/end and custom events (distributed tracing)"
+    description: "分布式 tracing：span 起止与自定义 event（python.tracing）"
     synonyms: [trace, span, timeline, 链路]
     key_columns:
       record_type: "span_start | span_end | event"
-      trace_id: "Trace id shared by related spans"
-      span_id: "Unique span id"
-      name: "Span or event name"
-      time: "Timestamp (nanoseconds since epoch)"
+      trace_id: "同一 trace 内共享的 trace id"
+      span_id: "span 唯一 id"
+      parent_id: "父 span id（-1 表示无）"
+      name: "span 或 event 名称"
+      phase: "训练阶段：forward | backward | optimizer（可为空）"
+      time: "时间戳（纳秒，epoch）"
+      thread_id: "记录线程 id"
+      location: "源码位置（file:line）"
+      attributes: "JSON 元数据（rank、local_step 等）"
+      event_attributes: "event 专用 JSON 属性"
+    notes:
+      - "与 span_end 按 span_id join 可算 duration"
+      - "物化视图见 python.tracing.table.SPANS_SQL"
 
   python.backtrace:
-    description: "Live mixed Python + native stack (point-in-time, not historical)"
+    description: "混合 Python + native 调用栈快照（即时采集，非历史表）"
     synonyms: [stack, backtrace, 调用栈, hang stack]
     key_columns:
-      func: "Function name"
-      file: "Source file"
-      lineno: "Line number"
-      depth: "Stack depth (0 = innermost)"
-      frame_type: "python | native"
+      ip: "native 帧指令指针（Python 帧为 NULL）"
+      file: "源文件路径"
+      func: "函数/符号名"
+      lineno: "行号"
+      depth: "栈深度（0=最内层）"
+      frame_type: "Python | Native | Rust"
+    notes:
+      - "通过 probing backtrace 或 inject 后 SELECT 填充"
+
+  python.variables:
+    description: "TorchProbe 变量追踪快照（需启用 vars/watch）"
+    synonyms: [variable trace, watch, 变量快照]
+    key_columns:
+      micro_step: "训练 micro-step"
+      func: "函数名"
+      name: "变量名"
+      value: "变量值的字符串表示"
+    notes:
+      - "与 python.trace_variables 不同；后者记录调试器 watch 变更"
+
+  python.trace_variables:
+    description: "调试器 watch 触发的变量变更记录"
+    synonyms: [trace variables, watch changes, 变量变更]
+    key_columns:
+      function_name: "发生变更的函数名"
+      filename: "源文件"
+      lineno: "行号"
+      variable_name: "变量名"
+      value: "变更后的值（字符串）"
+      value_type: "值类型名"
 
   cpu.utilization:
-    description: "Host CPU and RSS sampling (process and top threads)"
-    synonyms: [cpu, host memory, RSS, 主机内存]
+    description: "主机 CPU / RSS 周期采样（进程级 + Top-N 线程）"
+    synonyms: [cpu, host memory, RSS, 主机 CPU]
     key_columns:
-      ts: "Sample timestamp (microseconds)"
+      ts: "采样时间戳（微秒 since epoch）"
       scope: "process | thread"
-      rss_kb: "Resident set size (KB) — process scope only"
-      cpu_total_pct: "CPU utilization percentage"
-      comm: "Thread/process name"
-      wchan: "Kernel wait channel (Linux)"
+      platform: "采样后端（linux | macos）"
+      tid: "线程 id（process scope 时为 0）"
+      comm: "进程/线程名"
+      wall_ns: "距上次采样的墙钟间隔（纳秒）"
+      delta_user_ns: "用户态 CPU 增量（纳秒）"
+      delta_sys_ns: "内核态 CPU 增量（纳秒）"
+      delta_total_ns: "总 CPU 增量（纳秒）"
+      cpu_user_pct: "用户态 CPU 利用率（%）"
+      cpu_sys_pct: "内核态 CPU 利用率（%）"
+      cpu_total_pct: "总 CPU 利用率（%）"
+      cum_user_ns: "累计用户态 CPU 时间（纳秒）"
+      cum_sys_ns: "累计内核态 CPU 时间（纳秒）"
+      rss_kb: "常驻内存 RSS（KB）；仅 process scope"
+      thread_count: "线程数；仅 process scope"
+      delta_vol_ctxt: "自愿上下文切换增量"
+      delta_invol_ctxt: "非自愿上下文切换增量"
+      state: "线程/进程状态（Linux）"
+      wchan: "内核 wait channel（Linux）"
+
+  cpu.tasks:
+    description: "CPU Top-N 热点线程明细（与 cpu.utilization 同周期采样）"
+    synonyms: [cpu threads, top threads, 热点线程]
+    key_columns:
+      ts: "采样时间戳（微秒）"
+      platform: "linux | macos"
+      tid: "线程 id"
+      comm: "线程名"
+      state: "线程状态"
+      wchan: "内核 wait channel"
+      wall_ns: "采样间隔（纳秒）"
+      delta_user_ns: "用户态 CPU 增量（纳秒）"
+      delta_sys_ns: "内核态 CPU 增量（纳秒）"
+      delta_total_ns: "总 CPU 增量（纳秒）"
 
   gpu.utilization:
-    description: "GPU memory and utilization samples"
+    description: "GPU 显存与利用率周期采样"
     synonyms: [gpu memory, VRAM, 显存, GPU利用率]
     key_columns:
-      ts: "Sample timestamp"
-      used_bytes: "Device memory used"
-      total_bytes: "Device memory total"
-      mem_used_pct: "Memory used percentage"
-      gpu_util_pct: "GPU compute utilization (-1 if unavailable)"
+      ts: "采样时间戳（微秒）"
+      backend: "cuda | mps | …"
+      device_id: "设备序号"
+      name: "设备名称"
+      memory_model: "显存型号描述"
+      chip: "芯片/架构标识"
+      free_bytes: "空闲显存（字节）"
+      total_bytes: "总显存（字节）"
+      used_bytes: "已用显存（字节）"
+      mem_used_pct: "显存使用率（%）"
+      gpu_util_pct: "GPU 计算利用率（%；不可用为 -1）"
+      mem_controller_util_pct: "显存控制器利用率（NVIDIA）"
+      renderer_util_pct: "渲染引擎利用率（Apple MPS）"
+      tiler_util_pct: "Tiler 利用率（Apple MPS）"
+      driver_mem_bytes: "驱动保留显存（字节）"
+      wall_ns: "采样间隔（纳秒）"
 
   process.kmsg:
-    description: "Linux kernel ring buffer (dmesg) — OOM killer, GPU Xid, IB errors"
+    description: "Linux 内核 ring buffer（dmesg）— OOM、GPU Xid、IB 错误等"
     synonyms: [kernel log, dmesg, OOM, 内核日志]
     platform: linux
     key_columns:
-      timestamp: "Event time"
-      level: "Log level"
-      message: "Kernel message text"
+      timestamp: "内核日志时间（微秒）"
+      facility: "syslog facility"
+      level: "日志级别"
+      message: "内核消息正文"
 
   cluster.nodes:
-    description: "Registered distributed training peers"
+    description: "已注册的分布式训练 peer（torchrun / PUT /apis/nodes）"
     synonyms: [cluster, nodes, ranks, 集群节点]
     key_columns:
-      rank: "Global rank"
-      host: "Hostname"
-      addr: "probing HTTP address"
-      role: "Parallel role key, e.g. dp=2,pp=1,tp=0 (federation _role source)"
-      status: "Node status"
+      host: "主机名"
+      addr: "probing HTTP 地址"
+      local_rank: "节点内 local rank"
+      rank: "全局 rank"
+      world_size: "world size"
+      group_rank: "进程组 rank"
+      group_world_size: "进程组大小"
+      role_name: "Torchrun / Elastic role 名"
+      role_rank: "role 内 rank"
+      role_world_size: "role 内 world size"
+      role: "并行角色键（federation _role 来源）"
+      status: "节点状态"
+      timestamp: "最后更新时间（微秒）"
+
+  rdma.mlx_hca:
+    description: "InfiniBand/RoCE HCA 端口计数器快照（/sys/class/infiniband）"
+    synonyms: [IB, RoCE, HCA, mlx, RDMA counters]
+    platform: linux
+    key_columns:
+      hca_name: "HCA 设备名（如 mlx5_0）"
+      port_rcv_packets: "端口接收包计数"
+      port_rcv_data: "端口接收字节计数"
+      port_xmit_packets: "端口发送包计数"
+      port_xmit_data: "端口发送字节计数"
+      link_downed: "链路 down 次数"
+      np_cnp_sent: "RoCE CNP 发送计数"
+      np_ecn_marked_roce_packets: "ECN 标记 RoCE 包计数"
+      rcv_pkts_rate: "接收包速率（包/秒，两次采样差分）"
+      snd_pkts_rate: "发送包速率（包/秒）"
+    notes:
+      - "需配置 rdma.hca.name 与 rdma.sample.rate"
 
   nccl.proxy_ops:
-    description: "NCCL profiler plugin proxy-op wait decomposition (culprit vs victim)"
+    description: "NCCL profiler plugin proxy-op wait 分解（culprit / victim 归因）"
     synonyms: [NCCL proxy, send_gpu_wait, recv_wait, culprit, victim, proxy wait]
     key_columns:
-      ts: "Event timestamp (nanoseconds)"
+      ts: "事件时间戳（纳秒）"
       rank: "torch.distributed rank"
-      tp_rank: "Tensor-parallel rank (-1 if unknown)"
-      pp_rank: "Pipeline-parallel rank (-1 if unknown)"
-      dp_rank: "Data-parallel rank (-1 if unknown)"
+      tp_rank: "张量并行 rank（未知 -1）"
+      pp_rank: "流水线并行 rank（未知 -1）"
+      dp_rank: "数据并行 rank（未知 -1）"
       comm_hash: "NCCL communicator hash"
-      coll_func: "Collective name (AllReduce, AllGather, …)"
-      seq: "Collective sequence number"
+      coll_func: "集合通信名（AllReduce、AllGather…）"
+      seq: "collective 序号"
       channel_id: "NCCL channel id"
-      peer: "Peer rank for this proxy op"
-      is_send: "1 if send proxy, 0 if recv"
-      n_steps: "ProxyStep count aggregated"
-      trans_bytes: "Bytes transferred"
-      send_gpu_wait_ns: "Culprit signal — local GPU not ready to send"
-      send_wait_ns: "Send-side network wait"
-      recv_wait_ns: "Victim signal — waiting on peer data"
-      recv_flush_wait_ns: "Recv flush wait"
+      peer: "对端 rank"
+      is_send: "1=send proxy，0=recv proxy"
+      n_steps: "聚合的 ProxyStep 数"
+      trans_bytes: "传输字节数"
+      send_gpu_wait_ns: "Culprit 信号 — 本地 GPU 未就绪发送"
+      send_wait_ns: "发送侧网络等待"
+      recv_wait_ns: "Victim 信号 — 等待对端数据"
+      recv_flush_wait_ns: "接收 flush 等待"
     global_name: global.nccl.proxy_ops
     federation_columns: [_host, _addr, _rank, _role]
     notes:
-      - "Requires NCCL_PROFILER_PLUGIN + NCCL ≥ 2.26 (mask 26: Coll|ProxyOp|ProxyStep)"
-      - "macOS dev: PROBING_NCCL_MOCK=1 seeds synthetic culprit/victim pattern"
+      - "需 NCCL_PROFILER_PLUGIN + NCCL ≥ 2.26（mask Coll|ProxyOp|ProxyStep）"
+      - "macOS 开发：PROBING_NCCL_MOCK=1 可注入合成数据"
 
   nccl.net_qp:
-    description: "NCCL NetPlugin IB QP completion timing (optional mask bit 128)"
+    description: "NCCL NetPlugin IB QP 完成耗时（可选 mask bit 128）"
     synonyms: [IB QP, RoCE, net plugin, qp duration]
     key_columns:
-      ts: "Event timestamp (nanoseconds)"
+      ts: "事件时间戳（纳秒）"
       rank: "torch.distributed rank"
-      device: "IB device index"
-      qp_num: "Queue pair number"
-      wr_id: "Work request id"
+      device: "IB 设备索引"
+      qp_num: "Queue Pair 号"
+      wr_id: "Work Request id"
       opcode: "IB opcode"
-      length: "Transfer length"
-      duration_ns: "QP completion duration"
+      length: "传输长度（字节）"
+      duration_ns: "QP 完成耗时（纳秒）"
     global_name: global.nccl.net_qp
     federation_columns: [_host, _addr, _rank, _role]
+
+  hccl.host_ops:
+    description: "HCCL MSProf Host API 时间线（集合通信 op、ACL、task master/slave）"
+    synonyms: [HCCL host, MSProf API, host_hccl_op, task_master]
+    key_columns:
+      ts: "结束时间（CANN sys cycle）"
+      begin_ns: "开始时间"
+      end_ns: "结束时间"
+      duration_ns: "耗时 end - begin"
+      thread_id: "上报线程 id"
+      level: "MSProf level"
+      type_id: "MSProf type id"
+      item_id: "名称 hash"
+      item_name: "解码名称（hcom_allReduce_、Memcpy 等）"
+      event_class: "host_hccl_op | task_master | task_slave | host_acl | node_launch"
+      aging: "MSProf aging flag"
+    notes:
+      - "来源：libprofapi.so shim 拦截 MsprofReportApi"
+      - "需开启 CANN/HCCL profiling"
+
+  hccl.collectives:
+    description: "HCCL 集合通信元数据与 Host 耗时（row_source 区分 api/compact 行）"
+    synonyms: [HCCL collective, hcom_allReduce, HcclOpInfo]
+    key_columns:
+      ts: "事件时间"
+      thread_id: "上报线程"
+      row_source: "api=耗时行；compact=count/group/alg 参数行"
+      begin_ns: "开始时间（api 行）"
+      end_ns: "结束时间（api 行）"
+      duration_ns: "耗时（api 行）"
+      op_hash: "算子名 hash（api 行）"
+      op_name: "算子名（api 行）"
+      group_hash: "comm group 名 hash（compact 行）"
+      alg_hash: "算法名 hash（compact 行）"
+      count: "元素个数（compact 行）"
+      data_type: "HcclDataType enum"
+      relay: "HCCL relay 标志"
+      retry: "HCCL retry 计数"
+      compact_type: "MsprofReportCompactInfo type id"
+    notes:
+      - "api 与 compact 行按 thread_id + 邻近 ts JOIN"
+
+  hccl.tasks:
+    description: "HCCL 设备侧 task 明细（MsprofHcclInfo L1）"
+    synonyms: [HCCL task, RDMASend, Memcpy, Notify_Wait]
+    key_columns:
+      ts: "上报时间戳"
+      thread_id: "上报线程"
+      info_type: "AdditionalInfo type id"
+      info_level: "AdditionalInfo level"
+      info_type_name: "RegTypeInfo 注册名（如 hccl_info）"
+      item_id: "task 类型 hash"
+      task_name: "task 类型名（Memcpy、RDMASend…）"
+      ccl_tag: "CCL tag hash"
+      group_name: "comm group hash"
+      local_rank: "本端 rank"
+      remote_rank: "对端 rank（-1 表示 N/A）"
+      rank_size: "通信组大小"
+      workflow_mode: "HCCL workflow mode enum"
+      plane_id: "原始 plane 编码"
+      plane_index: "plane 索引（plane_id bits 28-31）"
+      rank_in_plane: "plane 内 rank（bits 0-15）"
+      rank_size_plane: "plane 宽度（bits 16-27）"
+      ctx_id: "FFTS context id"
+      notify_id: "notify 对象 id"
+      stage: "流水线 stage"
+      role: "task 角色 enum"
+      data_size: "传输字节数"
+      op_type: "操作类型 enum"
+      data_type: "数据类型 enum"
+      link_type: "链路类型"
+      transport_type: "传输类型"
+      rdma_type: "RDMA 类型"
+      duration_est_us: "HCCL 估算耗时（微秒）"
+      payload_len: "原始 AdditionalInfo payload 长度"
+    global_name: global.hccl.tasks
+    federation_columns: [_host, _addr, _rank, _role]
+
+  hccl.mc2_streams:
+    description: "HCCL MC2 communicator stream 拓扑快照"
+    synonyms: [MC2, comm streams, aicpu stream]
+    key_columns:
+      ts: "上报时间"
+      thread_id: "上报线程"
+      info_type: "MSProf AdditionalInfo type"
+      group_hash: "comm group 名 hash"
+      rank_size: "组内 rank 数"
+      rank_id: "rank id"
+      usr_rank_id: "用户可见 rank id"
+      aicpu_kfc_stream_id: "KFC stream id"
+      comm_stream_size: "comm stream 数量"
+      comm_stream_ids: "逗号分隔的 stream id 列表"
+
+  hccl.context_ids:
+    description: "HCCL FFTS context id 范围（dispatch 时上报）"
+    synonyms: [FFTS context, context id]
+    key_columns:
+      ts: "上报时间"
+      thread_id: "上报线程"
+      info_type: "MSProf AdditionalInfo type"
+      ctx_id_num: "context 数量（HCCL 固定报 2）"
+      ctx_id_min: "范围起点（通常 0）"
+      ctx_id_max: "范围终点（ctxIdMax）"

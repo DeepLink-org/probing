@@ -69,7 +69,15 @@ where
     use_effect(move || {
         let mut loading = state.loading;
         let mut data = state.data;
-        let show_loading = !options.keep_previous_while_refreshing || data.read().is_none();
+
+        // Avoid stacking polls while a refresh is still in flight.
+        if options.keep_previous_while_refreshing && *loading.peek() {
+            return;
+        }
+
+        // Peek so completing a fetch does not re-trigger this effect (infinite /query loop).
+        let show_loading =
+            !options.keep_previous_while_refreshing || data.with_peek(|d| d.is_none());
         let result_future = fetch_fn();
         spawn(async move {
             if show_loading {

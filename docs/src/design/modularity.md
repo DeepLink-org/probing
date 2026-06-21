@@ -84,7 +84,7 @@ Key core submodules:
 | Submodule | Path | Contract |
 |-----------|------|----------|
 | Engine | `core/engine.rs` | `async_query`, `enable(ProbeDataSource)` |
-| Federation | `core/federation/` | `global.*` catalog, tags `_host/_addr/_rank/_role` |
+| Federation | `core/federation/` | `global.*` catalog, tags `_host/_addr/_rank/_role` — see [Federated query engine](federation.md) |
 | Memtable SQL | `core/memtable_sql.rs` | mmap files → `TableProvider` |
 | Config | `config.rs` | `get` / `set` / `write` KV + extension options |
 
@@ -105,7 +105,7 @@ Python-side collectors (same layer, different language):
 | Unit | Path | Tables |
 |------|------|--------|
 | Torch tracing | `python/probing/profiling/` | `python.torch_trace`, `python.comm_collective` |
-| Tracing spans | `python/probing/tracing.py` | `python.trace_event` |
+| Tracing spans | `python/probing/tracing/` | `python.trace_event` |
 | Parallel role | `python/probing/parallel.py` | stamps `role` on rows |
 | User plugins | `python/probing/ext/` | `python.<custom>` via `@table` |
 

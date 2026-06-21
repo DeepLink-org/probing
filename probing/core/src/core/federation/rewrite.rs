@@ -4,7 +4,7 @@ use datafusion::sql::sqlparser::ast::{Query, SetExpr, Statement};
 use datafusion::sql::sqlparser::dialect::GenericDialect;
 use datafusion::sql::sqlparser::parser::Parser;
 
-use super::convert::{PROBE_ADDR_COL, PROBE_HOST_COL, PROBE_RANK_COL, PROBE_ROLE_COL};
+use super::convert::FEDERATION_TAG_COLUMNS;
 
 const KNOWN_SCHEMAS: &[&str] = &[
     "cluster", "process", "files", "python", "memtable", "gpu", "rdma",
@@ -134,14 +134,22 @@ fn select_list_includes_wildcard(sql: &str) -> bool {
     }
 }
 
+fn federation_tags_already_expanded(lower: &str) -> bool {
+    FEDERATION_TAG_COLUMNS.iter().all(|col| lower.contains(col))
+}
+
+fn federation_tag_exclude_list() -> String {
+    FEDERATION_TAG_COLUMNS
+        .iter()
+        .map(|col| col.to_string())
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 fn expand_global_select_star(sql: &str) -> String {
     let trimmed = sql.trim();
     let lower = trimmed.to_lowercase();
-    if lower.contains(PROBE_HOST_COL)
-        && lower.contains(PROBE_ADDR_COL)
-        && lower.contains(PROBE_RANK_COL)
-        && lower.contains(PROBE_ROLE_COL)
-    {
+    if federation_tags_already_expanded(&lower) {
         return sql.to_string();
     }
     let Some(from_idx) = find_top_level_from(trimmed) else {
@@ -154,7 +162,8 @@ fn expand_global_select_star(sql: &str) -> String {
     }
 
     let exclude = format!(
-        " EXCLUDE ({PROBE_HOST_COL}, {PROBE_ADDR_COL}, {PROBE_RANK_COL}, {PROBE_ROLE_COL}), {PROBE_HOST_COL}, {PROBE_ADDR_COL}, {PROBE_RANK_COL}, {PROBE_ROLE_COL}"
+        " EXCLUDE ({tags}), {tags}",
+        tags = federation_tag_exclude_list()
     );
     let new_select = if let Some(dot_star) = select_part.rfind(".*") {
         let before = &select_part[..dot_star + 2];
@@ -192,6 +201,7 @@ pub fn prepare_global_query(sql: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use super::super::convert::{PROBE_ADDR_COL, PROBE_RANK_COL};
     use super::*;
 
     #[test]
@@ -301,7 +311,7 @@ mod tests {
         let sql = "SELECT * FROM global.process.envs";
         assert_eq!(
             ensure_global_node_columns(sql),
-            "SELECT * EXCLUDE (_host, _addr, _rank, _role), _host, _addr, _rank, _role FROM global.process.envs"
+            "SELECT * EXCLUDE (_host, _addr, _rank, _node_rank, _local_rank, _role), _host, _addr, _rank, _node_rank, _local_rank, _role FROM global.process.envs"
         );
     }
 
@@ -310,20 +320,19 @@ mod tests {
         let sql = "SELECT e.* FROM global.process.envs e";
         assert_eq!(
             ensure_global_node_columns(sql),
-            "SELECT e.* EXCLUDE (_host, _addr, _rank, _role), _host, _addr, _rank, _role FROM global.process.envs e"
+            "SELECT e.* EXCLUDE (_host, _addr, _rank, _node_rank, _local_rank, _role), _host, _addr, _rank, _node_rank, _local_rank, _role FROM global.process.envs e"
         );
     }
 
     #[test]
     fn skips_select_star_wildcard_when_tags_already_present() {
-        let sql =
-            "SELECT * EXCLUDE (_host, _addr, _rank, _role), _host, _addr, _rank, _role FROM global.process.envs";
+        let sql = "SELECT * EXCLUDE (_host, _addr, _rank, _node_rank, _local_rank, _role), _host, _addr, _rank, _node_rank, _local_rank, _role FROM global.process.envs";
         assert_eq!(ensure_global_node_columns(sql), sql);
     }
 
     #[test]
     fn skips_qualified_select_star_when_already_expanded() {
-        let sql = "SELECT e.* EXCLUDE (_host, _addr, _rank, _role), _host, _addr, _rank, _role FROM global.process.envs e";
+        let sql = "SELECT e.* EXCLUDE (_host, _addr, _rank, _node_rank, _local_rank, _role), _host, _addr, _rank, _node_rank, _local_rank, _role FROM global.process.envs e";
         assert_eq!(ensure_global_node_columns(sql), sql);
     }
 

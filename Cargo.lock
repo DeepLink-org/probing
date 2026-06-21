@@ -3362,11 +3362,14 @@ dependencies = [
  "libc",
  "log",
  "once_cell",
+ "probing-hccl-shim",
  "probing-macros",
  "probing-memtable",
+ "probing-nccl-profiler",
  "probing-proto",
  "serde",
  "serde_json",
+ "serde_yaml",
  "sled",
  "tempfile",
  "thiserror 2.0.12",
@@ -3391,6 +3394,17 @@ dependencies = [
  "probing-core",
  "probing-memtable",
  "thiserror 2.0.12",
+]
+
+[[package]]
+name = "probing-hccl-shim"
+version = "0.2.5"
+dependencies = [
+ "libc",
+ "once_cell",
+ "parking_lot 0.12.3",
+ "probing-memtable",
+ "tempfile",
 ]
 
 [[package]]

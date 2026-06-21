@@ -131,9 +131,9 @@ impl ExposedTable {
         chunk_size: u32,
         num_chunks: u32,
     ) -> io::Result<Self> {
-        Ok(Self {
-            inner: MemTable::shared_in(base_dir, name, schema, chunk_size, num_chunks)?,
-        })
+        let inner = MemTable::shared_in(base_dir, name, schema, chunk_size, num_chunks)?;
+        crate::docs::register_from_name(name, schema);
+        Ok(Self { inner })
     }
 
     pub fn as_bytes(&self) -> &[u8] {
@@ -473,6 +473,44 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    #[test]
+    fn exposed_table_create_registers_docs() {
+        let dir = test_dir();
+        let table = format!("registry_create_{}", std::process::id());
+        let qualified = format!("unittest.{table}");
+        let schema =
+            Schema::new()
+                .table_doc("created via mmap")
+                .col_doc("x", DType::I32, "int column");
+        ExposedTable::create_in(&dir, &qualified, &schema, 1024, 2).unwrap();
+        let rows = crate::docs::snapshot();
+        assert!(rows.iter().any(|r| {
+            r.table_schema == "unittest"
+                && r.table_name == table
+                && r.description.as_deref() == Some("created via mmap")
+                && r.columns.get("x") == Some(&"int column".to_string())
+        }));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn exposed_table_undotted_create_uses_memtable_schema() {
+        let dir = test_dir();
+        let table = format!("undotted_{}", std::process::id());
+        let schema =
+            Schema::new()
+                .table_doc("plain memtable file")
+                .col_doc("v", DType::F64, "value");
+        ExposedTable::create_in(&dir, &table, &schema, 1024, 2).unwrap();
+        let rows = crate::docs::snapshot();
+        assert!(rows.iter().any(|r| {
+            r.table_schema == "memtable"
+                && r.table_name == table
+                && r.description.as_deref() == Some("plain memtable file")
+        }));
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

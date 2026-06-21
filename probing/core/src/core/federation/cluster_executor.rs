@@ -6,6 +6,19 @@ use probing_proto::prelude::{DataFrame, Message, Node, Query, QueryDataFormat};
 
 use crate::core::cluster::get_nodes;
 
+#[cfg(any(test, feature = "test-utils"))]
+type RemoteQueryHook = Box<dyn Fn(&str, &str) -> Result<DataFrame> + Send + Sync>;
+
+#[cfg(any(test, feature = "test-utils"))]
+static REMOTE_QUERY_HOOK: LazyLock<Mutex<Option<RemoteQueryHook>>> =
+    LazyLock::new(|| Mutex::new(None));
+
+/// Install an in-process remote query handler for federation integration tests.
+#[cfg(any(test, feature = "test-utils"))]
+pub fn set_remote_query_hook(hook: Option<RemoteQueryHook>) {
+    *REMOTE_QUERY_HOOK.lock().unwrap() = hook;
+}
+
 /// Default per-node timeout for remote federated queries (seconds).
 const DEFAULT_REMOTE_QUERY_TIMEOUT_SECS: u64 = 2;
 /// Env var to override the per-node remote query timeout (seconds).
@@ -155,6 +168,11 @@ impl ProbeClusterExecutor {
     }
 
     fn execute_remote(addr: &str, sql: &str) -> Result<DataFrame> {
+        #[cfg(any(test, feature = "test-utils"))]
+        if let Some(hook) = REMOTE_QUERY_HOOK.lock().unwrap().as_ref() {
+            return hook(addr, sql);
+        }
+
         let url = format!("http://{addr}/query");
         let request = Message::new(Query {
             expr: sql.to_string(),

@@ -101,6 +101,8 @@ ORDER BY avg_ms DESC"
 
 通过 torchrun（`setup_torchrun_cluster`）或 `PUT /apis/nodes` 注册节点，`_rank` / `_role` 才能正确解析。训练脚本中可用 `probing.set_role(...)` 运行时覆盖 role。
 
+引擎实现与正确性测试要求见 **[联邦查询引擎](federation.zh.md)**。
+
 ## 同步调试
 
 ### 捕获所有堆栈

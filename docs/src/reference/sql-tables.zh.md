@@ -114,7 +114,7 @@ Span 起止与自定义事件（分布式 tracing）。
 | `trace_id` | 同一 trace 内共享 |
 | `span_id` | Span 唯一 id |
 | `name` | Span / 事件名 |
-| `kind` | 语义类型（如 `train.step`、`comm.all_reduce`） |
+| `phase` | 训练阶段（`forward`、`backward`、`optimizer`）或空 |
 | `time` | 时间戳（纳秒） |
 | `attributes` | JSON 元数据（rank、local_step 等） |
 

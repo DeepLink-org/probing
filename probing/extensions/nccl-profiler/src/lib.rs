@@ -16,7 +16,7 @@ mod state;
 #[cfg(target_os = "linux")]
 mod plugin;
 
-pub use tables::{net_qp_schema, proxy_ops_schema, NET_QP_FILE, PROXY_OPS_FILE};
+pub use tables::{net_qp_schema, proxy_ops_schema, register_docs, NET_QP_FILE, PROXY_OPS_FILE};
 
 #[cfg(target_os = "linux")]
 mod export {

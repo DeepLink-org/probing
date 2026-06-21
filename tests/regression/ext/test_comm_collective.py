@@ -96,5 +96,4 @@ def test_comm_lite_writes_trace_event():
     ]
     by_type = {row["record_type"]: row for row in rows}
     assert by_type["span_start"]["name"] == "all_reduce"
-    assert by_type["span_start"]["kind"] == "comm.all_reduce"
     assert by_type["span_end"]["span_id"] == by_type["span_start"]["span_id"]

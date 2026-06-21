@@ -84,7 +84,7 @@ pub fn Sidebar() -> Element {
                     Link {
                         to: Route::DashboardPage {},
                         class: "flex items-center gap-2",
-                        img { src: "{crate::utils::base_path::with_base(\"/assets/logo.svg\")}", alt: "Probing", class: "w-7 h-7 flex-shrink-0" }
+                        img { src: "{crate::utils::base_path::with_base(\"/logo.svg\")}", alt: "Probing", class: "w-7 h-7 flex-shrink-0" }
                         span { class: "{brand}", "Probing" }
                     }
                 }

@@ -15,7 +15,7 @@ pub struct TraceEvent {
     pub name: String,
     pub timestamp: i64,
     pub thread_id: i64,
-    pub kind: Option<String>,
+    pub phase: Option<String>,
     pub location: Option<String>,
     pub attributes: Option<String>,
     pub event_attributes: Option<String>,
@@ -30,7 +30,7 @@ pub struct SpanInfo {
     pub start_timestamp: i64,
     pub end_timestamp: Option<i64>,
     pub thread_id: i64,
-    pub kind: Option<String>,
+    pub phase: Option<String>,
     pub location: Option<String>,
     pub attributes: Option<String>,
     pub children: Vec<SpanInfo>,
@@ -54,6 +54,8 @@ impl ApiClient {
             String::new()
         };
 
+        // Use logical event time (`time`, ns) — not memtable ingestion `timestamp` (µs).
+        // Matches training step_matrix / SPANS_SQL in probing.tracing.
         let query = format!(
             r#"
             SELECT
@@ -62,14 +64,14 @@ impl ApiClient {
                 span_id,
                 COALESCE(parent_id, -1) as parent_id,
                 name,
-                timestamp,
+                time AS timestamp,
                 COALESCE(thread_id, 0) as thread_id,
-                kind,
+                phase,
                 location,
                 attributes,
                 event_attributes
             FROM python.trace_event
-            ORDER BY timestamp DESC
+            ORDER BY time DESC
             {}
         "#,
             limit_clause
@@ -96,7 +98,7 @@ impl ApiClient {
         let name_idx = df.names.iter().position(|c| c == "name").unwrap_or(4);
         let timestamp_idx = df.names.iter().position(|c| c == "timestamp").unwrap_or(5);
         let thread_id_idx = df.names.iter().position(|c| c == "thread_id").unwrap_or(6);
-        let kind_idx = df.names.iter().position(|c| c == "kind").unwrap_or(7);
+        let phase_idx = df.names.iter().position(|c| c == "phase").unwrap_or(7);
         let location_idx = df.names.iter().position(|c| c == "location").unwrap_or(8);
         let attributes_idx = df.names.iter().position(|c| c == "attributes").unwrap_or(9);
         let event_attributes_idx = df
@@ -155,7 +157,7 @@ impl ApiClient {
                 name: get_str(name_idx),
                 timestamp: get_i64(timestamp_idx),
                 thread_id: get_i64(thread_id_idx),
-                kind: get_opt_str(kind_idx),
+                phase: get_opt_str(phase_idx),
                 location: get_opt_str(location_idx),
                 attributes: get_opt_str(attributes_idx),
                 event_attributes: get_opt_str(event_attributes_idx),
@@ -184,7 +186,7 @@ impl ApiClient {
                     start_timestamp: event.timestamp,
                     end_timestamp: None,
                     thread_id: event.thread_id,
-                    kind: event.kind.clone(),
+                    phase: event.phase.clone(),
                     location: event.location.clone(),
                     attributes: event.attributes.clone(),
                     children: Vec::new(),
@@ -308,7 +310,7 @@ impl ApiClient {
         let mut trace_events: Vec<serde_json::Value> = Vec::new();
 
         // Use (span_id, thread_id) as key to track span start time, supports multi-threaded scenarios
-        // Value contains: (start timestamp in microseconds, span name, kind, trace_id)
+        // Value contains: (start timestamp in microseconds, span name, phase, trace_id)
         let mut span_starts: SpanStartMap = std::collections::HashMap::new();
 
         // First pass: collect all span_start events, build lookup table
@@ -328,7 +330,7 @@ impl ApiClient {
                     (
                         event.timestamp,
                         event.name.clone(),
-                        event.kind.clone(),
+                        event.phase.clone(),
                         event.trace_id,
                     ),
                 );
@@ -374,7 +376,7 @@ impl ApiClient {
                         (
                             ts_micros,
                             event.name.clone(),
-                            event.kind.clone(),
+                            event.phase.clone(),
                             unified_pid,
                         ),
                     );
@@ -382,7 +384,7 @@ impl ApiClient {
                     // Create 'B' (Begin) event
                     let mut chrome_event = serde_json::json!({
                         "name": event.name,
-                        "cat": event.kind.as_ref().unwrap_or(&"span".to_string()),
+                        "cat": event.phase.as_ref().unwrap_or(&"span".to_string()),
                         "ph": "B",
                         "ts": ts_micros,
                         "pid": pid,
@@ -417,13 +419,13 @@ impl ApiClient {
                     let key = (event.span_id, event.thread_id);
 
                     // First try to find from already processed events
-                    if let Some((start_ts, start_name, start_kind, start_pid)) =
+                    if let Some((start_ts, start_name, start_phase, start_pid)) =
                         span_starts.get(&key)
                     {
                         // Found matching span_start, create 'E' (End) event
                         let mut chrome_event = serde_json::json!({
                             "name": start_name,
-                            "cat": start_kind.as_ref().unwrap_or(&"span".to_string()),
+                            "cat": start_phase.as_ref().unwrap_or(&"span".to_string()),
                             "ph": "E",
                             "ts": ts_micros,
                             "pid": *start_pid as u32,
@@ -439,7 +441,7 @@ impl ApiClient {
                         trace_events.push(chrome_event);
                         // Remove from span_starts to avoid duplicate matching
                         span_starts.remove(&key);
-                    } else if let Some((start_timestamp, start_name, start_kind, _)) =
+                    } else if let Some((start_timestamp, start_name, start_phase, _)) =
                         span_start_lookup.get(&key)
                     {
                         // Find span_start information from lookup table
@@ -447,7 +449,7 @@ impl ApiClient {
                         // Use unified pid to ensure all spans are in the same process
                         let mut chrome_event = serde_json::json!({
                             "name": start_name,
-                            "cat": start_kind.as_ref().unwrap_or(&"span".to_string()),
+                            "cat": start_phase.as_ref().unwrap_or(&"span".to_string()),
                             "ph": "E",
                             "ts": ts_micros,
                             "pid": unified_pid as u32,
@@ -603,7 +605,7 @@ pub struct RayTimelineEntry {
     pub trace_id: i64,
     pub span_id: i64,
     pub parent_id: Option<i64>,
-    pub kind: Option<String>,
+    pub phase: Option<String>,
     pub thread_id: i64,
     pub attributes: Option<serde_json::Value>,
 }
