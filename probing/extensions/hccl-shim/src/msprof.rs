@@ -155,7 +155,7 @@ pub fn read_hccl_op_info(data: *const u8, data_len: u32) -> Option<MsprofHCCLOPI
 }
 
 pub fn read_context_id_info(data: *const u8, data_len: u32) -> Option<MsprofContextIdInfo> {
-    if data.is_null() || (data_len as usize) < 8 {
+    if data.is_null() || (data_len as usize) < MSPROF_CONTEXT_ID_INFO {
         return None;
     }
     Some(unsafe { std::ptr::read_unaligned(data as *const MsprofContextIdInfo) })

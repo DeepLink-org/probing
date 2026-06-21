@@ -37,6 +37,16 @@ struct RealLib {
 
 unsafe impl Send for RealLib {}
 
+impl Drop for RealLib {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.handle.is_null() {
+                libc::dlclose(self.handle);
+            }
+        }
+    }
+}
+
 static INIT: Lazy<Mutex<Option<RealLib>>> = Lazy::new(|| Mutex::new(None));
 static INIT_FAILED: AtomicBool = AtomicBool::new(false);
 static LOGGED_INIT: AtomicBool = AtomicBool::new(false);
@@ -236,15 +246,4 @@ pub fn forward_sys_cycle_time() -> u64 {
         }
     }
     unsafe { stub_time() }
-}
-
-pub fn shutdown() {
-    let mut guard = INIT.lock();
-    if let Some(real) = guard.take() {
-        unsafe {
-            if !real.handle.is_null() {
-                libc::dlclose(real.handle);
-            }
-        }
-    }
 }

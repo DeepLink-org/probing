@@ -36,7 +36,6 @@ mod forward {
     pub fn forward_sys_cycle_time() -> u64 {
         0
     }
-    pub fn shutdown() {}
 }
 
 pub use tables::{
