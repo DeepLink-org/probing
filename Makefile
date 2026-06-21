@@ -169,7 +169,7 @@ else
 NCCL_OUT := target/release/libprobing_nccl_profiler.so
 endif
 nccl-profiler-lib:
-	cargo build -p probing-nccl-profiler $(CARGO_RELEASE)
+	cargo build -p probing-nccl-profiler-cdylib $(CARGO_RELEASE)
 	mkdir -p python/probing/libs
 	cp $(NCCL_OUT) python/probing/libs/
 else
@@ -185,7 +185,7 @@ else
 HCCL_SHIM_OUT := target/release/libprofapi.so
 endif
 hccl-shim-lib:
-	cargo build -p probing-hccl-shim $(CARGO_RELEASE)
+	cargo build -p probing-hccl-profapi $(CARGO_RELEASE)
 	mkdir -p python/probing/shim/hccl
 	cp $(HCCL_SHIM_OUT) python/probing/shim/hccl/
 else
@@ -258,7 +258,9 @@ clippy-fix:
 
 coverage-rust:
 	cargo llvm-cov clean --workspace
-	cargo llvm-cov nextest --workspace --no-default-features --nff --lcov --output-path coverage.lcov --ignore-filename-regex '(.*/tests?/|.*/benches?/|.*/examples?/)' || true
+	cargo llvm-cov nextest --workspace --no-default-features --nff \
+		--exclude probing-hccl-profapi --exclude probing-nccl-profiler-cdylib \
+		--lcov --output-path coverage.lcov --ignore-filename-regex '(.*/tests?/|.*/benches?/|.*/examples?/)' || true
 coverage-python:
 	${PYTEST_RUN} --cov=python/probing --cov=tests --cov-report=xml:coverage.xml --cov-report=term $(PYTEST_ARGS) || true
 coverage: coverage-rust coverage-python

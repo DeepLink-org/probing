@@ -85,7 +85,7 @@ fn column_key(table_schema: &str, table_name: &str, column_name: &str) -> (Strin
 pub fn register_builtin_schema_docs() {
     #[cfg(feature = "builtin-schema-docs")]
     {
-        profapi::register_docs();
+        probing_hccl_shim::register_docs();
         probing_nccl_profiler::register_docs();
     }
 }

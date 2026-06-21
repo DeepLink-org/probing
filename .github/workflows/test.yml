@@ -122,7 +122,9 @@ jobs:
           cargo llvm-cov clean --workspace
           # Do not source show-env here — llvm-cov nextest sets instrumentation itself.
           # extension-module is for the Python wheel only; omit it in lib tests (PyO3 linking).
-          cargo llvm-cov nextest --workspace --no-default-features
+          # Cdylib-only plugin wrappers share sources with rlib crates; exclude from coverage.
+          cargo llvm-cov nextest --workspace --no-default-features \
+            --exclude probing-hccl-profapi --exclude probing-nccl-profiler-cdylib
           cargo llvm-cov nextest -p probing-server --no-default-features --features kmsg,gpu,gpu-cuda
           cargo llvm-cov report --lcov --output-path coverage.lcov
 

@@ -3397,6 +3397,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "probing-hccl-profapi"
+version = "0.2.5"
+dependencies = [
+ "libc",
+ "once_cell",
+ "parking_lot 0.12.3",
+ "probing-memtable",
+]
+
+[[package]]
 name = "probing-hccl-shim"
 version = "0.2.5"
 dependencies = [
@@ -3435,6 +3445,17 @@ dependencies = [
  "parking_lot 0.12.3",
  "probing-memtable",
  "tempfile",
+ "thiserror 2.0.12",
+]
+
+[[package]]
+name = "probing-nccl-profiler-cdylib"
+version = "0.2.5"
+dependencies = [
+ "libc",
+ "once_cell",
+ "parking_lot 0.12.3",
+ "probing-memtable",
  "thiserror 2.0.12",
 ]
 

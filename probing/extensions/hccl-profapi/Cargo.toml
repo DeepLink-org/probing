@@ -1,25 +1,21 @@
 [package]
-name = "probing-nccl-profiler"
-description = "NCCL profiler plugin (v3) — writes nccl.* memtables for probing SQL"
+name = "probing-hccl-profapi"
+description = "libprofapi.so cdylib — same sources as probing-hccl-shim, Linux HCCL dlopen name"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
-
 [lib]
-# rlib for workspace linking; cdylib plugin is probing-nccl-profiler-cdylib.
-crate-type = ["rlib"]
+name = "profapi"
+crate-type = ["cdylib"]
+path = "../hccl-shim/src/lib.rs"
 
 [dependencies]
 probing-memtable = { path = "../../memtable" }
 
 once_cell = { workspace = true }
 parking_lot = "0.12"
-thiserror = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2"
-
-[dev-dependencies]
-tempfile = "3"

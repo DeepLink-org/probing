@@ -25,7 +25,7 @@ similar_names = "allow"
 [features]
 test-utils = []
 default = ["builtin-schema-docs"]
-builtin-schema-docs = ["dep:profapi", "dep:probing-nccl-profiler"]
+builtin-schema-docs = ["dep:probing-hccl-shim", "dep:probing-nccl-profiler"]
 
 [lib]
 crate-type = ["rlib"]
@@ -34,7 +34,7 @@ crate-type = ["rlib"]
 probing-proto = { path = "../proto" }
 probing-macros = { path = "../macros" }
 probing-memtable = { path = "../memtable" }
-profapi = { path = "../extensions/hccl-shim", optional = true, package = "probing-hccl-shim" }
+probing-hccl-shim = { path = "../extensions/hccl-shim", optional = true }
 probing-nccl-profiler = { path = "../extensions/nccl-profiler", optional = true }
 
 anyhow = { workspace = true }

@@ -7,9 +7,9 @@ edition.workspace = true
 license.workspace = true
 
 [lib]
-# Produces libprofapi.so on Linux (HCCL dlopen name).
-name = "profapi"
-crate-type = ["cdylib", "rlib"]
+# rlib for workspace linking (probing-core schema docs, unit tests).
+name = "probing_hccl_shim"
+crate-type = ["rlib"]
 
 [dependencies]
 probing-memtable = { path = "../../memtable" }
