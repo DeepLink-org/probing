@@ -113,24 +113,20 @@ probing list
 
 ### SQL Analytics Interface
 ```bash
-# Memory usage analysis
-probing -t <pid> query "SELECT * FROM memory_usage WHERE timestamp > now() - interval '5 min'"
-
-# Performance hotspot analysis
+# GPU memory trend across training steps
 probing -t <pid> query "
-  SELECT operation_name, avg(duration_ms), count(*)
-  FROM profiling_data
-  WHERE timestamp > now() - interval '5 minutes'
-  GROUP BY operation_name
-  ORDER BY avg(duration_ms) DESC
+  SELECT local_step, AVG(allocated) as avg_mb
+  FROM python.torch_trace
+  GROUP BY local_step ORDER BY local_step
 "
 
-# Training progress tracking
+# Find the slowest collectives
 probing -t <pid> query "
-  SELECT epoch, avg(loss), min(loss), count(*) as steps
-  FROM training_logs
-  GROUP BY epoch
-  ORDER BY epoch
+  SELECT op, AVG(duration_ms) as avg_ms, COUNT(*) as calls
+  FROM python.comm_collective
+  GROUP BY op
+  ORDER BY avg_ms DESC
+  LIMIT 5
 "
 ```
 
@@ -160,17 +156,23 @@ The REPL provides:
 
 ### Distributed Training Analysis
 ```bash
-# Monitor all cluster nodes
-probing cluster attach
+# See all registered cluster nodes
+probing -t <master> cluster nodes
 
-# Inter-node communication latency
-probing -t <pid> query "SELECT src_rank, dst_rank, avg(latency_ms) FROM comm_metrics"
+# Cross-rank communication analysis via federation
+probing -t <master> query "
+  SELECT _role, _rank, op, AVG(duration_ms) as avg_ms
+  FROM global.python.comm_collective
+  GROUP BY _role, _rank, op
+  ORDER BY avg_ms DESC
+  LIMIT 10
+"
 
-# Cross-node stack trace comparison
-probing -t <pid> query "SELECT * FROM python.backtrace"
-
-# GPU utilization analysis
-probing -t <pid> query "SELECT avg(gpu_util) FROM gpu_metrics WHERE timestamp > now() - 60"
+# GPU utilization across devices
+probing -t <pid> query "
+  SELECT ts, mem_used_pct, gpu_util_pct
+  FROM gpu.utilization ORDER BY ts DESC LIMIT 20
+"
 ```
 
 ### Memory Analysis
@@ -178,16 +180,20 @@ probing -t <pid> query "SELECT avg(gpu_util) FROM gpu_metrics WHERE timestamp > 
 # Quick memory usage overview
 probing -t <pid> memory
 
-# Memory growth trend analysis
-probing -t <pid> query "SELECT hour(timestamp), avg(memory_mb) FROM memory_usage GROUP BY hour(timestamp)"
-
-# Memory leak detection
+# Memory growth trend across steps
 probing -t <pid> query "
-  SELECT function_name, sum(allocated_bytes) as total_alloc
-  FROM memory_allocations
-  WHERE timestamp > now() - interval '1 hour'
-  GROUP BY function_name
-  ORDER BY total_alloc DESC
+  SELECT local_step, AVG(allocated_delta) as delta_mb
+  FROM python.torch_trace
+  GROUP BY local_step
+  ORDER BY local_step
+"
+
+# Check current CPU/GPU memory via eval
+probing -t <pid> eval "
+import torch, gc; gc.collect()
+alloc = torch.cuda.memory_allocated()/1024**2
+reserved = torch.cuda.memory_reserved()/1024**2
+print(f'GPU alloc: {alloc:.0f}MB, reserved: {reserved:.0f}MB')
 "
 ```
 

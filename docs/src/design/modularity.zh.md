@@ -80,7 +80,7 @@ flowchart TB
 | 子模块 | 路径 | 契约 |
 |--------|------|------|
 | Engine | `core/engine.rs` | `async_query`、`enable(ProbeDataSource)` |
-| Federation | `core/federation/` | `global.*`、标签 `_host/_addr/_rank/_role` |
+| Federation | `core/federation/` | `global.*`、六列联邦标签 — [联邦查询引擎](federation.zh.md) |
 | Memtable SQL | `core/memtable_sql.rs` | mmap → `TableProvider` |
 | Config | `config.rs` | KV + extension options |
 
@@ -100,7 +100,7 @@ Python 侧采集（同层，不同语言）：
 | 单元 | 路径 | 表 |
 |------|------|-----|
 | Torch | `python/probing/profiling/` | `torch_trace`、`comm_collective` |
-| Span | `python/probing/tracing.py` | `trace_event` |
+| Span | `python/probing/tracing/` | `trace_event` |
 | 并行 role | `python/probing/parallel.py` | 写入 `role` 列 |
 | 用户插件 | `python/probing/ext/` | `@table` → `python.*` |
 

@@ -4,8 +4,11 @@ import pytest
 
 import probing
 from probing.parallel import parallel_fields, parallel_topology
-from probing.profiling.collective.record import CommCollective, record_comm_lite
-from probing.tracing import comm_kind
+from probing.profiling.collective.record import (
+    CommCollective,
+    _comm_label,
+    record_comm_lite,
+)
 
 from .conftest import table_rows
 
@@ -60,8 +63,8 @@ class TestParallelTopology:
             assert attrs["dp_rank"] == 5
 
     def test_comm_kind_labels(self):
-        assert comm_kind("all_reduce") == "comm.all_reduce"
-        assert comm_kind("comm.broadcast") == "comm.broadcast"
+        assert _comm_label("all_reduce") == "comm.all_reduce"
+        assert _comm_label("comm.broadcast") == "comm.broadcast"
 
 
 @pytest.mark.training_observability

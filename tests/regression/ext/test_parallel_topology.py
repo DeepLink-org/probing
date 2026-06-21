@@ -58,8 +58,8 @@ def test_span_includes_parallel_fields(monkeypatch):
         assert attrs["dp_rank"] == 5
 
 
-def test_comm_kind():
-    from probing.tracing import comm_kind
+def test_comm_label():
+    from probing.profiling.collective.record import _comm_label
 
-    assert comm_kind("all_reduce") == "comm.all_reduce"
-    assert comm_kind("comm.broadcast") == "comm.broadcast"
+    assert _comm_label("all_reduce") == "comm.all_reduce"
+    assert _comm_label("comm.broadcast") == "comm.broadcast"

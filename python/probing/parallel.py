@@ -172,7 +172,7 @@ def current_role() -> str:
     return role_key()
 
 
-def set_role(role=None, /, **dims) -> str:
+def set_role(role=None, **dims) -> str:
     """Override this process's parallel role at runtime.
 
     Accepts a canonical string, a mapping, or keyword dimensions::

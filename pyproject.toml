@@ -44,6 +44,10 @@ Issues = "https://github.com/reiase/probing/issues"
 probing = "probing.cli.__main__:main"
 
 [project.optional-dependencies]
+otel = [
+    "opentelemetry-api>=1.20",
+    "opentelemetry-sdk>=1.20",
+]
 test = [
     "pytest>=8.0; python_version >= '3.8'",
     "pytest<8.0; python_version < '3.8'",

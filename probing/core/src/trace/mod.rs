@@ -3,7 +3,7 @@ mod step;
 
 pub use span::{attr, Attribute, Ele, Event, Location, Span, SpanStatus, Timestamp};
 pub use step::{
-    advance_local_step, current_local_step, set_step_bucket_size, step_snapshot, sync_local_step,
+    advance_micro_step, current_micro_step, set_micro_batches, step_snapshot, sync_micro_step,
     StepSnapshot,
 };
 

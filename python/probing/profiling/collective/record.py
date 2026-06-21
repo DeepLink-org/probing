@@ -15,13 +15,12 @@ from typing import Iterable, Optional
 
 from probing.core import table
 from probing.parallel import current_role
-from probing.tracing import (
-    _step_fields,
-    comm_kind,
-    record_closed_span,
-    recorded_span,
-    step_snapshot,
-)
+from probing.tracing import record_span, span, step
+from probing.tracing.coordinates import row_fields
+
+
+def _comm_label(op: str) -> str:
+    return op if op.startswith("comm.") else f"comm.{op}"
 
 
 class CommRecordMode(str, Enum):
@@ -32,8 +31,10 @@ class CommRecordMode(str, Enum):
 @table("comm_collective")
 @dataclass
 class CommCollective:
+    micro_step: int = 0
     local_step: int = 0
     global_step: int = 0
+    micro_batches: int = 1
     rank: int = -1
     world_size: int = -1
     # Extensible parallel role (e.g. "dp=2,pp=1,tp=0"); see probing.parallel.role_key.
@@ -54,16 +55,7 @@ def _role_row_fields() -> dict:
 
 
 def _step_row_fields() -> dict:
-    snap = step_snapshot()
-    if snap is None:
-        return {"local_step": 0, "global_step": 0, "rank": -1, "world_size": -1}
-    step = _step_fields(snap)
-    return {
-        "local_step": step.get("local_step", 0),
-        "global_step": step.get("global_step", 0),
-        "rank": step.get("rank", -1),
-        "world_size": step.get("world_size", -1),
-    }
+    return row_fields(step.snapshot())
 
 
 def _context_fields(
@@ -118,11 +110,10 @@ def record_comm_lite(
     )
     CommCollective(duration_ms=duration_ms, **fields).save()
     if write_trace_event:
-        record_closed_span(
+        record_span(
             op,
-            kind=comm_kind(op),
             duration_ns=int(duration_ms * 1e6),
-            attrs={**fields, "duration_ms": duration_ms},
+            attrs={**fields, "duration_ms": duration_ms, "comm": _comm_label(op)},
             source="collective_tracer",
         )
 
@@ -149,8 +140,8 @@ def begin_comm_span(
         nbytes=nbytes,
         async_op=async_op,
     )
-    span_attrs = {**meta, "source": "collective_tracer"}
-    cm = recorded_span(op, kind=comm_kind(op), **span_attrs)
+    span_attrs = {k: v for k, v in meta.items() if k != "source"}
+    cm = span(op, source="collective_tracer", comm=_comm_label(op), **span_attrs)
     cm.__enter__()
     return cm, meta
 

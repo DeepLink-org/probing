@@ -81,7 +81,7 @@ class TestCollectiveTracerHook:
 
             span = current_span()
             seen["had_span"] = span is not None
-            seen["kind"] = getattr(span, "kind", None) if span else None
+            seen["name"] = getattr(span, "name", None) if span else None
             return None
 
         wrapper = tracer._trace_wrapper("all_reduce", fake_all_reduce)
@@ -90,6 +90,6 @@ class TestCollectiveTracerHook:
             wrapper(mock_tensor)
 
         assert seen.get("had_span") is True
-        assert seen.get("kind") == "comm.all_reduce"
+        assert seen.get("name") == "all_reduce"
         rows = table_rows(CommCollective, 5)
         assert len(rows) == 1

@@ -127,7 +127,7 @@ pub struct Span {
     pub end: Option<Timestamp>,
 
     // === 元数据 ===
-    pub kind: Option<String>,
+    pub phase: Option<String>,
     pub loc: Option<Location>,
 
     // === 扩展数据 ===
@@ -137,7 +137,7 @@ pub struct Span {
 
 impl Span {
     /// Creates a new root span (starts a new trace).
-    pub fn new_root<N: Into<String>>(name: N, kind: Option<&str>, location: Option<&str>) -> Self {
+    pub fn new_root<N: Into<String>>(name: N, phase: Option<&str>, location: Option<&str>) -> Self {
         let trace_id = NEXT_TRACE_ID.fetch_add(1, Ordering::Relaxed);
         let span_id = NEXT_SPAN_ID.fetch_add(1, Ordering::Relaxed);
         let location = location.map(|loc_val| Location::UnknownLocation(loc_val.into()));
@@ -151,7 +151,7 @@ impl Span {
             name: name.into(),
             start: Timestamp::now(),
             end: None,
-            kind: kind.map(|k| k.to_string()),
+            phase: phase.map(|p| p.to_string()),
             loc: location,
             attrs: vec![],
             events: vec![],
@@ -162,7 +162,7 @@ impl Span {
     pub fn new_child<N: Into<String>>(
         parent: &Span,
         name: N,
-        kind: Option<&str>,
+        phase: Option<&str>,
         location: Option<&str>,
     ) -> Self {
         let span_id = NEXT_SPAN_ID.fetch_add(1, Ordering::Relaxed);
@@ -177,7 +177,7 @@ impl Span {
             name: name.into(),
             start: Timestamp::now(),
             end: None,
-            kind: kind.map(|k| k.to_string()),
+            phase: phase.map(|p| p.to_string()),
             loc: location,
             attrs: vec![],
             events: vec![],
@@ -273,7 +273,7 @@ mod tests {
         );
 
         assert_eq!(span.name, "process_incoming_request");
-        assert_eq!(span.kind, Some("server_op".to_string()));
+        assert_eq!(span.phase, Some("server_op".to_string()));
         assert_eq!(span.parent_id, None, "Root span has no parent");
         assert_eq!(
             span.status(),

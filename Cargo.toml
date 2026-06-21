@@ -10,6 +10,9 @@ members = [
     "probing/extensions/python",
     "probing/extensions/gpu",
     "probing/extensions/nccl-profiler",
+    "probing/extensions/nccl-profiler-cdylib",
+    "probing/extensions/hccl-shim",
+    "probing/extensions/hccl-profapi",
     "probing/server",
     "probing/crates/store",
 ]
@@ -113,7 +116,7 @@ pyo3-build-config = "0.29.0"
 [profile.dev]
 debug = 1
 split-debuginfo = "unpacked"
-codegen-units = 256
+codegen-units = 16
 
 [profile.release]
 opt-level = "z"    # Optimize for size.

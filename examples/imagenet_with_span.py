@@ -251,7 +251,7 @@ def main_worker(gpu, ngpus_per_node, args):
         except Exception:
             pass
     # create model
-    with probing.span("model.init", kind="setup"):
+    with probing.span("model.init"):
         if args.pretrained:
             print(f"=> using pre-trained model '{args.arch}'")
             model = models.__dict__[args.arch](pretrained=True)
@@ -331,7 +331,7 @@ def main_worker(gpu, ngpus_per_node, args):
             print(f"=> no checkpoint found at '{args.resume}'")
 
     # Data loading code
-    with probing.span("data.load", kind="io"):
+    with probing.span("data.load"):
         if args.dummy:
             print("=> Dummy data is used!")
             train_dataset = datasets.FakeData(
@@ -411,14 +411,14 @@ def main_worker(gpu, ngpus_per_node, args):
         return
 
     for epoch in range(args.start_epoch, args.epochs):
-        with probing.span("epoch", kind="train"):
+        with probing.span("epoch"):
             probing.event("epoch.start", attributes=[{"epoch": epoch}])
             if args.distributed:
                 train_sampler.set_epoch(epoch)
 
-            with probing.span("train", kind="loop"):
+            with probing.span("train"):
                 train(train_loader, model, criterion, optimizer, epoch, device, args)
-            with probing.span("validate", kind="loop"):
+            with probing.span("validate"):
                 acc1 = validate(val_loader, model, criterion, args)
             scheduler.step()
             probing.event("epoch.metrics", attributes=[{"acc1": float(acc1)}])
@@ -428,7 +428,7 @@ def main_worker(gpu, ngpus_per_node, args):
             if not args.multiprocessing_distributed or (
                 args.multiprocessing_distributed and args.rank % ngpus_per_node == 0
             ):
-                with probing.span("checkpoint.save", kind="io"):
+                with probing.span("checkpoint.save"):
                     save_checkpoint(
                         {
                             "epoch": epoch + 1,
@@ -468,23 +468,23 @@ def train(train_loader, model, criterion, optimizer, epoch, device, args):
     end = time.time()
     for i, (images, target) in enumerate(train_loader):
         time.sleep(1)
-        with probing.span("batch", kind="train.step"):
+        with probing.span("batch"):
             # measure data loading time
             data_time.update(time.time() - end)
             images = images.to(device, non_blocking=True)
             target = target.to(device, non_blocking=True)
-            with probing.span("forward", kind="nn.forward"):
+            with probing.span("forward"):
                 output = model(images)
-            with probing.span("loss", kind="compute"):
+            with probing.span("loss"):
                 loss = compute_loss(criterion, output, target)
             acc1, acc5 = accuracy(output, target, topk=(1, 5))
             losses.update(loss.item(), images.size(0))
             top1.update(acc1[0], images.size(0))
             top5.update(acc5[0], images.size(0))
-            with probing.span("backward", kind="nn.backward"):
+            with probing.span("backward"):
                 optimizer.zero_grad()
                 loss.backward()
-            with probing.span("step", kind="optim.step"):
+            with probing.span("step"):
                 optimizer.step()
             batch_time.update(time.time() - end)
             end = time.time()

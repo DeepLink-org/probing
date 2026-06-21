@@ -11,6 +11,16 @@ use datafusion::logical_expr::Expr;
 use datafusion::physical_plan::ExecutionPlan;
 use probing_core::core::{ProbeDataSource, ProbeDataSourceKind};
 use std::sync::Arc;
+use std::sync::LazyLock;
+
+use tokio::sync::Mutex;
+
+static FEDERATION_TEST_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+/// Serialize federation integration tests that mutate global cluster state.
+pub async fn federation_test_lock() -> tokio::sync::MutexGuard<'static, ()> {
+    FEDERATION_TEST_LOCK.lock().await
+}
 
 /// Generic test table plugin implementation
 #[derive(Debug, Clone)]

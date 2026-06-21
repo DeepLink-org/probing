@@ -1,8 +1,45 @@
+import dataclasses
 import time
 
 import pytest
 
 import probing
+
+
+@pytest.fixture(autouse=True)
+def _reset_trace_event_table():
+    """Isolate memtable rows so persistence tests are deterministic."""
+    from probing.tracing import TraceEvent, bind_table, reset_backends
+    from probing.tracing.phases import reset_phase
+
+    reset_phase()
+
+    try:
+        TraceEvent.drop()
+    except Exception:
+        pass
+    TraceEvent.init_table()
+    reset_backends(clear_registered=True)
+    bind_table(TraceEvent)
+    yield
+    reset_backends(clear_registered=True)
+
+
+def _trace_event_rows(n: int = 50) -> list[dict]:
+    from probing.tracing import TraceEvent
+
+    fields = [f.name for f in dataclasses.fields(TraceEvent)]
+    return [dict(zip(fields, data)) for _ts, data in TraceEvent.take(n)]
+
+
+def _span_duration_ns(rows: list[dict], span_id: int) -> int | None:
+    starts = {r["span_id"]: r for r in rows if r.get("record_type") == "span_start"}
+    ends = {r["span_id"]: r for r in rows if r.get("record_type") == "span_end"}
+    start = starts.get(span_id)
+    end = ends.get(span_id)
+    if start is None or end is None:
+        return None
+    return int(end["time"]) - int(start["time"])
 
 
 def test_context_manager_basic():
@@ -56,18 +93,17 @@ def test_current_span_stack_behavior():
 
 
 def test_property_immutability():
-    with probing.span("immutable", kind="op") as s:
+    with probing.span("immutable", phase="forward") as s:
         original_id = s.span_id
         with pytest.raises(AttributeError):
-            s.name = "changed"  # should not allow reassignment
+            s.name = "changed"
         with pytest.raises(AttributeError):
-            s.kind = "other"
+            s.phase = "other"
         with pytest.raises(AttributeError):
             s.span_id = 123
-        # ensure values unchanged
         assert s.span_id == original_id
         assert s.name == "immutable"
-        assert s.kind == "op"
+        assert s.phase == "forward"
 
 
 def test_events_recording():
@@ -79,6 +115,70 @@ def test_events_recording():
         assert events[0]["name"] == "e1"
         assert events[1]["name"] == "e2"
         assert events[1]["attributes"]["k"] == "v"
+
+    rows = _trace_event_rows()
+    event_rows = [r for r in rows if r.get("record_type") == "event"]
+    assert len(event_rows) == 2
+    assert {r["name"] for r in event_rows} == {"e1", "e2"}
+
+
+def test_span_persists_start_end_pair_to_trace_event():
+    with probing.span("persist_me", phase="forward") as s:
+        span_id = s.span_id
+        trace_id = s.trace_id
+
+    rows = _trace_event_rows()
+    starts = [r for r in rows if r.get("record_type") == "span_start"]
+    ends = [r for r in rows if r.get("record_type") == "span_end"]
+    assert len(starts) == 1
+    assert len(ends) == 1
+    assert starts[0]["span_id"] == span_id
+    assert starts[0]["trace_id"] == trace_id
+    assert starts[0]["name"] == "persist_me"
+    assert starts[0]["phase"] == "forward"
+    assert ends[0]["span_id"] == span_id
+    duration_ns = _span_duration_ns(rows, span_id)
+    assert duration_ns is not None
+    assert duration_ns >= 0
+
+
+def test_nested_spans_persist_parent_links():
+    with probing.span("parent") as parent:
+        with probing.span("child") as child:
+            child_id = child.span_id
+            parent_id = parent.span_id
+
+    rows = _trace_event_rows()
+    child_start = next(
+        r
+        for r in rows
+        if r.get("record_type") == "span_start" and r.get("span_id") == child_id
+    )
+    assert child_start["parent_id"] == parent_id
+
+
+def test_decorator_persists_trace_event_rows():
+    @probing.span("decor_persist")
+    def work():
+        return 7
+
+    assert work() == 7
+    rows = _trace_event_rows()
+    assert any(
+        r.get("record_type") == "span_start" and r.get("name") == "decor_persist"
+        for r in rows
+    )
+
+
+def test_manual_span_without_recorded_wrapper_does_not_persist():
+    """Low-level ``Span`` is stack-only; integrators should use ``probing.span``."""
+    from probing.tracing import Span
+
+    parent = Span("manual_parent")
+    child = Span.new_child(parent, "manual_child")
+    child.end()
+    rows = _trace_event_rows()
+    assert rows == []
 
 
 def test_status_and_duration():
@@ -119,6 +219,29 @@ def test_manual_construction_and_child():
     assert child.is_ended
 
 
+def test_add_event_module_function():
+    """Test add_event module-level function."""
+    with probing.span("test_add_event") as s:
+        span_id = s.span_id
+        probing.event("event1")
+        probing.event("event2", attributes=[{"key": "value"}])
+
+        events = s.get_events()
+        assert len(events) == 2
+        assert events[0]["name"] == "event1"
+        assert events[1]["name"] == "event2"
+        assert events[1]["attributes"]["key"] == "value"
+
+    rows = _trace_event_rows()
+    persisted = [
+        r
+        for r in rows
+        if r.get("record_type") == "event" and r.get("span_id") == span_id
+    ]
+    assert len(persisted) == 2
+    assert {r["name"] for r in persisted} == {"event1", "event2"}
+
+
 def test_access_nonexistent_attribute_raises():
     with probing.span("attr") as s:
         with pytest.raises(AttributeError):
@@ -132,19 +255,6 @@ def test_no_add_attr_method():
     assert not hasattr(s, "add_attr")
 
 
-def test_add_event_module_function():
-    """Test add_event module-level function."""
-    with probing.span("test_add_event") as s:
-        probing.event("event1")
-        probing.event("event2", attributes=[{"key": "value"}])
-
-        events = s.get_events()
-        assert len(events) == 2
-        assert events[0]["name"] == "event1"
-        assert events[1]["name"] == "event2"
-        assert events[1]["attributes"]["key"] == "value"
-
-
 def test_add_event_no_active_span():
     """Test add_event raises error when no active span."""
     from probing.tracing import current_span
@@ -156,32 +266,54 @@ def test_add_event_no_active_span():
         probing.event("should_fail")
 
 
-def test_event_inside_train_step_with_nested_spans():
-    """Regression: batch train.step + nested spans + event (imagenet pattern)."""
-    from probing.tracing import TRAIN_STEP_KIND
+def test_phase_inferred_from_name():
+    from probing.tracing.phases import BACKWARD, FORWARD, OPTIMIZER
 
-    with probing.span("batch", kind=TRAIN_STEP_KIND):
-        with probing.span("forward", kind="nn.forward"):
-            pass
-        with probing.span("loss", kind="compute"):
-            pass
-        with probing.span("backward", kind="nn.backward"):
-            pass
-        with probing.span("step", kind="optim.step"):
-            pass
-        probing.event(
-            "batch.stats",
-            attributes=[{"i": 0}, {"loss": 1.0}],
-        )
+    with probing.span("forward") as s:
+        assert s.phase == FORWARD
+    with probing.span("step") as s:
+        assert s.phase == OPTIMIZER
+    with probing.span("custom.op") as s:
+        assert not s.phase
 
 
-def test_train_step_reentrant_torch_probe_does_not_close_manual_span():
-    """TorchProbe reentrant train.step must not end the outer span on step hook."""
+def test_explicit_phase_on_span():
+    from probing.tracing.phases import BACKWARD
+
+    with probing.span("compute", phase=BACKWARD) as s:
+        assert s.phase == BACKWARD
+
+
+def test_inferred_phase_persists_to_trace_event():
+    with probing.span("forward"):
+        pass
+    rows = _trace_event_rows()
+    start = next(r for r in rows if r.get("record_type") == "span_start")
+    assert start["phase"] == "forward"
+
+
+def test_record_span_without_training_phase():
+    probing.record_span("train.step", duration_ns=1_000_000)
+    rows = _trace_event_rows()
+    start = next(
+        r
+        for r in rows
+        if r.get("record_type") == "span_start" and r.get("name") == "train.step"
+    )
+    assert start["phase"] in ("", None) or not start["phase"]
+
+
+def test_event_inside_training_phases_with_nested_spans():
+    with probing.span("optimizer", phase="optimizer"):
+        probing.event("batch.stats", attributes=[{"i": 0}, {"loss": 1.0}])
+
+
+def test_optimizer_span_reentrant_with_torch_probe():
     from probing.profiling.torch_probe import TorchProbe, TorchProbeConfig
-    from probing.tracing import TRAIN_STEP_KIND
+    from probing.tracing.phases import OPTIMIZER
 
     tracer = TorchProbe(config=TorchProbeConfig(enabled=True))
-    with probing.span("batch", kind=TRAIN_STEP_KIND) as outer:
+    with probing.span("outer", phase=OPTIMIZER) as outer:
         tracer._begin_train_step_span()
         assert not outer.is_ended
         tracer._end_train_step_span()
@@ -191,11 +323,10 @@ def test_train_step_reentrant_torch_probe_does_not_close_manual_span():
 
 
 def test_post_step_hook_does_not_reset_local_step_across_batches():
-    """Regression: stale curr_step must not sync_local_step back to 0/1."""
     from probing.profiling.torch_probe import TorchProbe, TorchProbeConfig
-    from probing.tracing import TRAIN_STEP_KIND, current_local_step, sync_local_step
+    from probing.tracing.phases import OPTIMIZER
 
-    sync_local_step(0)
+    probing.step(0)
     tracer = TorchProbe(config=TorchProbeConfig(enabled=True))
     tracer.finalized = True
 
@@ -205,6 +336,6 @@ def test_post_step_hook_does_not_reset_local_step_across_batches():
     opt = FakeOpt()
 
     for expected in range(1, 6):
-        with probing.span("batch", kind=TRAIN_STEP_KIND):
+        with probing.span("step", phase=OPTIMIZER):
             tracer.post_step_hook(opt, (), {})
-        assert current_local_step() == expected
+        assert probing.step.micro_step == expected

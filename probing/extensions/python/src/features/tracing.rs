@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 
 use probing_core::trace::Span as RawSpan;
 use probing_core::trace::{
-    advance_local_step, attr, set_step_bucket_size, step_snapshot, sync_local_step, Attribute,
+    advance_micro_step, attr, set_micro_batches, step_snapshot, sync_micro_step, Attribute,
     Event as RawEvent, SpanStatus, StepSnapshot, Timestamp,
 };
 
@@ -80,9 +80,9 @@ impl Span {
 impl Span {
     /// Creates a new root span (starts a new trace).
     #[new]
-    #[pyo3(signature = (name, *, kind=None, location=None))]
-    fn new(name: String, kind: Option<String>, location: Option<String>) -> Self {
-        let span = RawSpan::new_root(name, kind.as_deref(), location.as_deref());
+    #[pyo3(signature = (name, *, phase=None, location=None))]
+    fn new(name: String, phase: Option<String>, location: Option<String>) -> Self {
+        let span = RawSpan::new_root(name, phase.as_deref(), location.as_deref());
         Span {
             inner: Arc::new(Mutex::new(span)),
         }
@@ -90,15 +90,15 @@ impl Span {
 
     /// Creates a new child span from a parent span.
     #[staticmethod]
-    #[pyo3(signature = (parent, name, *, kind=None, location=None))]
+    #[pyo3(signature = (parent, name, *, phase=None, location=None))]
     fn new_child(
         parent: &Bound<'_, Span>,
         name: String,
-        kind: Option<String>,
+        phase: Option<String>,
         location: Option<String>,
     ) -> Self {
         let span = parent.borrow().with_inner(|parent_span| {
-            RawSpan::new_child(parent_span, name, kind.as_deref(), location.as_deref())
+            RawSpan::new_child(parent_span, name, phase.as_deref(), location.as_deref())
         });
         Span {
             inner: Arc::new(Mutex::new(span)),
@@ -135,10 +135,10 @@ impl Span {
         self.with_inner(|s| s.name.clone())
     }
 
-    /// Gets the span kind.
+    /// Gets the span training phase (forward / backward / optimizer).
     #[getter]
-    fn kind(&self) -> Option<String> {
-        self.with_inner(|s| s.kind.clone())
+    fn phase(&self) -> Option<String> {
+        self.with_inner(|s| s.phase.clone())
     }
 
     /// Gets the span status.
@@ -262,7 +262,7 @@ impl Span {
             "parent_id" => return optional_into_py(py, self.parent_id()),
             "thread_id" => return Ok(self.thread_id().into_bound_py_any(py)?.into()),
             "name" => return Ok(self.name().into_bound_py_any(py)?.into()),
-            "kind" => return optional_into_py(py, self.kind()),
+            "phase" => return optional_into_py(py, self.phase()),
             "status" => return Ok(self.status().into_bound_py_any(py)?.into()),
             "is_ended" => return Ok(self.is_ended().into_bound_py_any(py)?.into()),
             "duration" => return optional_into_py(py, self.duration()),
@@ -366,16 +366,40 @@ fn active_span_for_events(py: Python) -> PyResult<Option<Py<PyAny>>> {
     })
 }
 
-/// Return the innermost active span whose kind matches ``kind`` (or None).
+/// Return the innermost active span whose phase matches ``phase`` (or None).
 #[pyfunction]
-fn active_span_by_kind(py: Python, kind: String) -> PyResult<Option<Py<PyAny>>> {
+fn active_span_by_phase(py: Python, phase: String) -> PyResult<Option<Py<PyAny>>> {
     SPAN_STACK.with(|stack| {
         let stack = stack.borrow();
         for obj in stack.iter().rev() {
             let bound = obj.bind(py);
             if let Ok(span) = bound.cast::<Span>() {
-                if span.borrow().kind().as_deref() == Some(kind.as_str()) {
+                if span.borrow().phase().as_deref() == Some(phase.as_str()) {
                     return Ok(Some(obj.clone_ref(py)));
+                }
+            }
+        }
+        Ok(None)
+    })
+}
+
+/// Innermost active training phase on the span stack (``forward`` / ``backward`` / ``optimizer``).
+#[pyfunction]
+fn active_training_phase(py: Python) -> PyResult<Option<String>> {
+    SPAN_STACK.with(|stack| {
+        let stack = stack.borrow();
+        for obj in stack.iter().rev() {
+            let bound = obj.bind(py);
+            if let Ok(span) = bound.cast::<Span>() {
+                let borrowed = span.borrow();
+                if borrowed.is_ended() {
+                    continue;
+                }
+                if let Some(phase) = borrowed.phase() {
+                    match phase.as_str() {
+                        "forward" | "backward" | "optimizer" => return Ok(Some(phase)),
+                        _ => {}
+                    }
                 }
             }
         }
@@ -387,11 +411,13 @@ fn active_span_by_kind(py: Python, kind: String) -> PyResult<Option<Py<PyAny>>> 
 #[derive(Clone, Copy)]
 struct PyStepSnapshot {
     #[pyo3(get)]
+    micro_step: u64,
+    #[pyo3(get)]
     local_step: u64,
     #[pyo3(get)]
     global_step: u64,
     #[pyo3(get)]
-    bucket_size: u64,
+    micro_batches: u64,
     #[pyo3(get)]
     rank: i64,
     #[pyo3(get)]
@@ -401,9 +427,10 @@ struct PyStepSnapshot {
 impl From<StepSnapshot> for PyStepSnapshot {
     fn from(s: StepSnapshot) -> Self {
         Self {
+            micro_step: s.micro_step,
             local_step: s.local_step,
             global_step: s.global_step,
-            bucket_size: s.bucket_size,
+            micro_batches: s.micro_batches,
             rank: s.rank,
             world_size: s.world_size,
         }
@@ -416,33 +443,33 @@ fn py_step_snapshot() -> PyStepSnapshot {
 }
 
 #[pyfunction]
-fn py_sync_local_step(step: u64) -> PyStepSnapshot {
-    sync_local_step(step).into()
+fn py_sync_micro_step(step: u64) -> PyStepSnapshot {
+    sync_micro_step(step).into()
 }
 
 #[pyfunction]
-fn py_advance_local_step() -> PyStepSnapshot {
-    advance_local_step().into()
+fn py_advance_micro_step() -> PyStepSnapshot {
+    advance_micro_step().into()
 }
 
 #[pyfunction]
-fn py_set_step_bucket_size(bucket: u64) {
-    set_step_bucket_size(bucket);
+fn py_set_micro_batches(micro_batches: u64) {
+    set_micro_batches(micro_batches);
 }
 
 #[pyfunction]
-fn py_current_local_step() -> u64 {
-    probing_core::trace::current_local_step()
+fn py_current_micro_step() -> u64 {
+    probing_core::trace::current_micro_step()
 }
 
 /// Internal function to create a span - called by Python wrapper.
 /// This is a low-level function that directly creates a span.
 #[pyfunction]
-#[pyo3(signature = (name, *, kind=None, location=None))]
+#[pyo3(signature = (name, *, phase=None, location=None))]
 fn _span_raw(
     py: Python,
     name: String,
-    kind: Option<String>,
+    phase: Option<String>,
     location: Option<String>,
 ) -> PyResult<Span> {
     let parent = SPAN_STACK.with(|stack| {
@@ -453,9 +480,9 @@ fn _span_raw(
     let span = if let Some(parent) = parent {
         let parent_obj = parent.bind(py);
         let parent_span = parent_obj.cast::<Span>()?;
-        Span::new_child(parent_span, name, kind, location)
+        Span::new_child(parent_span, name, phase, location)
     } else {
-        Span::new(name, kind, location)
+        Span::new(name, phase, location)
     };
 
     Ok(span)
@@ -521,12 +548,13 @@ pub fn register_tracing_functions(module: &Bound<'_, PyModule>) -> PyResult<()> 
     module.add_function(wrap_pyfunction!(_span_raw, module)?)?;
     module.add_function(wrap_pyfunction!(current_span, module)?)?;
     module.add_function(wrap_pyfunction!(active_span_for_events, module)?)?;
-    module.add_function(wrap_pyfunction!(active_span_by_kind, module)?)?;
+    module.add_function(wrap_pyfunction!(active_span_by_phase, module)?)?;
+    module.add_function(wrap_pyfunction!(active_training_phase, module)?)?;
     module.add_function(wrap_pyfunction!(py_step_snapshot, module)?)?;
-    module.add_function(wrap_pyfunction!(py_sync_local_step, module)?)?;
-    module.add_function(wrap_pyfunction!(py_advance_local_step, module)?)?;
-    module.add_function(wrap_pyfunction!(py_set_step_bucket_size, module)?)?;
-    module.add_function(wrap_pyfunction!(py_current_local_step, module)?)?;
+    module.add_function(wrap_pyfunction!(py_sync_micro_step, module)?)?;
+    module.add_function(wrap_pyfunction!(py_advance_micro_step, module)?)?;
+    module.add_function(wrap_pyfunction!(py_set_micro_batches, module)?)?;
+    module.add_function(wrap_pyfunction!(py_current_micro_step, module)?)?;
 
     Ok(())
 }

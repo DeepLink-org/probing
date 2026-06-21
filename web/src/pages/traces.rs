@@ -405,9 +405,9 @@ fn span_matches_text(span: &SpanInfo, query: &str) -> bool {
     }
     span.name.to_lowercase().contains(&q)
         || span
-            .kind
+            .phase
             .as_ref()
-            .is_some_and(|k| k.to_lowercase().contains(&q))
+            .is_some_and(|p| p.to_lowercase().contains(&q))
         || span
             .location
             .as_ref()
@@ -612,14 +612,14 @@ fn SpanView(
                     span { class: "w-4 shrink-0" }
                 }
                 span { class: "font-semibold text-gray-900 shrink-0", "{span.name}" }
-                if let Some(ref kind) = span.kind {
+                if let Some(ref phase) = span.phase {
                     span {
                         class: format!(
                             "shrink-0 px-1.5 py-px rounded text-[10px] font-sans font-medium bg-{} text-{}",
                             colors::CONTENT_ACCENT_BG,
                             colors::CONTENT_ACCENT_TEXT,
                         ),
-                        "{kind}"
+                        "{phase}"
                     }
                 }
                 if let Some(ref location) = span.location {

@@ -35,10 +35,12 @@ struct PlannedAggregate {
     merge_fn: Option<&'static str>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FederatedAggregatePlan {
     pub per_node_sql: String,
     pub coordinator_sql: Option<String>,
+    /// Suffix applied on the coordinator after merge, e.g. ` ORDER BY avg_ms DESC LIMIT 5`.
+    pub post_merge_tail: Option<String>,
     pub inject_tags: bool,
 }
 
@@ -121,6 +123,12 @@ pub async fn try_execute_aggregate_pushdown(
         merge_proto_dataframes(&proto_parts)?
     };
 
+    let result = if let Some(tail) = plan.post_merge_tail {
+        apply_post_merge_tail(&engine.context, &tail, result).await?
+    } else {
+        result
+    };
+
     Ok(Some(result))
 }
 
@@ -142,9 +150,7 @@ fn parse_single_statement(sql: &str) -> Option<Statement> {
 }
 
 fn plan_from_query(query: &Query) -> Option<FederatedAggregatePlan> {
-    if query.order_by.is_some() || query.limit_clause.is_some() || query.fetch.is_some() {
-        return None;
-    }
+    let post_merge_tail = build_post_merge_tail(query);
     let SetExpr::Select(select) = query.body.as_ref() else {
         return None;
     };
@@ -189,6 +195,7 @@ fn plan_from_query(query: &Query) -> Option<FederatedAggregatePlan> {
     Some(FederatedAggregatePlan {
         per_node_sql,
         coordinator_sql,
+        post_merge_tail,
         inject_tags,
     })
 }
@@ -429,6 +436,50 @@ fn quote_ident(name: &str) -> String {
     }
 }
 
+fn build_post_merge_tail(query: &Query) -> Option<String> {
+    let order_by = format_order_by(query);
+    let limit = format_limit_clause(query);
+    if order_by.is_empty() && limit.is_empty() {
+        None
+    } else {
+        Some(format!("{order_by}{limit}"))
+    }
+}
+
+fn format_order_by(query: &Query) -> String {
+    query
+        .order_by
+        .as_ref()
+        .map(|order_by| format!(" {order_by}"))
+        .unwrap_or_default()
+}
+
+fn format_limit_clause(query: &Query) -> String {
+    let mut out = query
+        .limit_clause
+        .as_ref()
+        .map(|limit| format!(" {limit}"))
+        .unwrap_or_default();
+    if let Some(fetch) = &query.fetch {
+        out.push(' ');
+        out.push_str(&fetch.to_string());
+    }
+    out
+}
+
+async fn apply_post_merge_tail(
+    ctx: &SessionContext,
+    tail: &str,
+    df: probing_proto::prelude::DataFrame,
+) -> Result<probing_proto::prelude::DataFrame> {
+    let batch = proto_dataframe_to_record_batch(&df)?;
+    if batch.num_rows() == 0 {
+        return Ok(df);
+    }
+    let sql = format!("SELECT * FROM partials{tail}");
+    merge_on_coordinator(ctx, &sql, vec![batch]).await
+}
+
 async fn merge_on_coordinator(
     ctx: &SessionContext,
     merge_sql: &str,
@@ -552,5 +603,17 @@ mod tests {
     fn rejects_count_distinct_grouped_by_data_column() {
         let sql = "SELECT name, count(distinct value) AS n FROM global.process.envs GROUP BY name";
         assert!(plan_federated_aggregate_pushdown(sql).is_none());
+    }
+
+    #[test]
+    fn plans_order_by_limit_as_post_merge_tail() {
+        let sql = "SELECT name, count(*) AS n FROM global.process.envs GROUP BY name ORDER BY n DESC LIMIT 3";
+        let plan = plan_federated_aggregate_pushdown(sql).expect("plan");
+        assert!(plan.coordinator_sql.is_some());
+        let tail = plan.post_merge_tail.as_deref().unwrap();
+        assert!(tail.contains("ORDER BY n DESC"));
+        assert!(tail.contains("LIMIT 3"));
+        assert!(!plan.per_node_sql.to_uppercase().contains("ORDER BY"));
+        assert!(!plan.per_node_sql.to_uppercase().contains("LIMIT"));
     }
 }

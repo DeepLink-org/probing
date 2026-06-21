@@ -20,7 +20,7 @@ SELECT
 FROM python.trace_event s
 JOIN python.trace_event e
   ON s.span_id = e.span_id AND e.record_type = 'span_end'
-WHERE s.record_type = 'span_start' AND s.kind = 'train.step'
+WHERE s.record_type = 'span_start' AND s.name = 'train.step'
 ORDER BY s.time ASC
 "#;
 
@@ -250,13 +250,26 @@ fn parse_attrs(raw: &str) -> (i32, i64, String) {
         return (-1, -1, String::new());
     };
     let rank = normalize_rank(value.get("rank").and_then(json_i64).unwrap_or(-1) as i32);
-    let local_step = value.get("local_step").and_then(json_i64).unwrap_or(-1);
+    let coord_step = value
+        .get("local_step")
+        .or_else(|| value.get("global_step"))
+        .and_then(json_i64)
+        .or_else(|| {
+            let micro = value.get("micro_step").and_then(json_i64)?;
+            let batches = value
+                .get("micro_batches")
+                .and_then(json_i64)
+                .unwrap_or(1)
+                .max(1);
+            Some(micro / batches)
+        })
+        .unwrap_or(-1);
     let source = value
         .get("source")
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
-    (rank, local_step, source)
+    (rank, coord_step, source)
 }
 
 fn json_i64(v: &serde_json::Value) -> Option<i64> {

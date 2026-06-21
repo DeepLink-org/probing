@@ -95,28 +95,31 @@ impl TableProvider for GlobalFederatedTable {
         let local_schema = self.local.schema();
         let local_projection = local_table_projection(projection, &output_schema, &local_schema);
 
-        // Local scan stays lazy; coalesce to a single partition so the federated
-        // plan can expose it as partition 0 without losing rows from sub-partitions.
-        let local_plan = self
-            .local
-            .scan(state, local_projection.as_ref(), filters, limit)
-            .await?;
-        let local_plan: Arc<dyn ExecutionPlan> = Arc::new(CoalescePartitionsExec::new(local_plan));
-
         let host = ProbeClusterExecutor::local_host_label();
         let addr = ProbeClusterExecutor::local_addr_label();
         let local_rank = cluster_rank_for_endpoint(&host, &addr);
 
         reset_fanout_stats();
+        let remote_nodes = ProbeClusterExecutor::remote_nodes();
+        // With peers registered, LIMIT is global top-K at the coordinator only.
+        let scan_limit = if remote_nodes.is_empty() { limit } else { None };
+
+        // Local scan stays lazy; coalesce to a single partition so the federated
+        // plan can expose it as partition 0 without losing rows from sub-partitions.
+        let local_plan = self
+            .local
+            .scan(state, local_projection.as_ref(), filters, scan_limit)
+            .await?;
+        let local_plan: Arc<dyn ExecutionPlan> = Arc::new(CoalescePartitionsExec::new(local_plan));
+
         let remote_sql = build_remote_table_sql(
             &self.schema_name,
             &self.table_name,
             &local_schema,
             local_projection.as_ref(),
             filters,
-            limit,
+            scan_limit,
         );
-        let remote_nodes = ProbeClusterExecutor::remote_nodes();
 
         let scan_projection = federated_scan_projection(projection, &output_schema)
             .unwrap_or_else(|| (0..output_schema.fields().len()).collect());

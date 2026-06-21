@@ -156,6 +156,7 @@ macro_rules! impl_table_reader {
                         name: cd.name_str().to_string(),
                         dtype,
                         elem_size: cd.elem_size as usize,
+                        doc: None,
                     });
                 }
             }

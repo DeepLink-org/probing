@@ -84,7 +84,7 @@ Key core submodules:
 | Submodule | Path | Contract |
 |-----------|------|----------|
 | Engine | `core/engine.rs` | `async_query`, `enable(ProbeDataSource)` |
-| Federation | `core/federation/` | `global.*` catalog, tags `_host/_addr/_rank/_role` |
+| Federation | `core/federation/` | `global.*` catalog, tags `_host/_addr/_rank/_role` — see [Federated query engine](federation.md) |
 | Memtable SQL | `core/memtable_sql.rs` | mmap files → `TableProvider` |
 | Config | `config.rs` | `get` / `set` / `write` KV + extension options |
 
@@ -105,7 +105,7 @@ Python-side collectors (same layer, different language):
 | Unit | Path | Tables |
 |------|------|--------|
 | Torch tracing | `python/probing/profiling/` | `python.torch_trace`, `python.comm_collective` |
-| Tracing spans | `python/probing/tracing.py` | `python.trace_event` |
+| Tracing spans | `python/probing/tracing/` | `python.trace_event` |
 | Parallel role | `python/probing/parallel.py` | stamps `role` on rows |
 | User plugins | `python/probing/ext/` | `python.<custom>` via `@table` |
 
@@ -376,7 +376,7 @@ Track and fix incrementally:
 | Server → python REPL internals | ~~`PythonRepl` in server~~ | `/ws` uses `ReplSession` facade only |
 | Composition sprawl | All wiring in `server/engine.rs` | Optional: manifest TOML listing enabled extensions |
 | Skills triple loader | Rust + Python + Web embed `skills/` | Keep `skills/` SSOT; loaders versioned together in CI |
-| kmsg collector | Implemented, not registered | Register in engine or delete |
+| kmsg collector | Registered (Linux/kmsg feature gate) | Done |
 | Architecture doc | 2-layer diagram | Superseded by this doc + [Data Layer](data-layer.md) |
 
 ---

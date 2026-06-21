@@ -13,7 +13,7 @@ path = "src/lib.rs"
 pyo3-build-config = "0.29.0"
 
 [dependencies]
-probing-core = { path = "../../../probing/core" }
+probing-core = { path = "../../../probing/core", features = ["test-utils"] }
 probing-server = { path = "../../../probing/server", default-features = false }
 probing-memtable = { path = "../../../probing/memtable" }
 probing-cli = { path = "../../../probing/cli" }
@@ -46,6 +46,10 @@ name = "core_federation"
 path = "probing/core/federation_tests.rs"
 
 [[test]]
+name = "core_federation_explain"
+path = "probing/core/federation_explain_tests.rs"
+
+[[test]]
 name = "core_engine_complex"
 path = "probing/core/engine_complex_tests.rs"
 
@@ -56,6 +60,10 @@ path = "probing/core/extension_routing_spec.rs"
 [[test]]
 name = "core_distributed_storage"
 path = "probing/core/distributed_storage_integration.rs"
+
+[[test]]
+name = "core_table_docs_integration"
+path = "probing/core/table_docs_integration.rs"
 
 [[test]]
 name = "server_training_observability"

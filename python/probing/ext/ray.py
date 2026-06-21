@@ -54,13 +54,14 @@ class ProbingSpanProcessor:
                 SpanKind.PRODUCER: "producer",
                 SpanKind.CONSUMER: "consumer",
             }
-            span_kind = kind_map.get(span.kind)
-
             attrs = {}
             if hasattr(span, "attributes") and span.attributes:
                 attrs = {str(k): str(v) for k, v in span.attributes.items()}
+            span_kind = kind_map.get(span.kind)
+            if span_kind:
+                attrs["otel.span_kind"] = span_kind
 
-            probing_span = probing.span(span_name, kind=span_kind, **attrs)
+            probing_span = probing.span(span_name, **attrs)
             probing_span.__enter__()
 
             span_context = span.get_span_context()

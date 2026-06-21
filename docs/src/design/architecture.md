@@ -160,14 +160,15 @@ probing -t host:port query "..."
 ## Security Considerations
 
 - **Local mode**: Unix socket permissions (process owner only)
-- **Remote mode**: Optional authentication
-- **Network**: Support for TLS encryption
+- **Remote mode**: Optional authentication token via `PROBING_TOKEN`
 
 ## Performance Characteristics
 
-| Aspect | Target |
-|--------|--------|
-| Overhead | < 5% in typical workloads |
-| Memory | < 50MB additional |
-| Latency | < 10ms for queries |
-| Throughput | 1000+ queries/sec |
+Probing is designed for minimal overhead on training workloads:
+
+| Aspect | Design approach |
+|--------|----------------|
+| Overhead | Lock-free mmap writes on hot path; sampling in background threads |
+| Memory | Fixed-size ring buffers per table (MEMT); bounded by retention config |
+| Latency | Queries execute against in-process DataFusion; no network round-trip for local access |
+| Throughput | Columnar (Arrow) scan; `information_schema` for introspection |

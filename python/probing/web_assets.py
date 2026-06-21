@@ -53,6 +53,18 @@ def _resource_dir(name: str, marker: str) -> Path | None:
         return None
 
 
+def _looks_like_built_ui(root: Path) -> bool:
+    """True when ``index.html`` is a Dioxus bundle, not the checkout placeholder."""
+    index = root / "index.html"
+    if not index.is_file():
+        return False
+    try:
+        body = index.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return False
+    return "web-dxh" in body or '<div id="main">' in body
+
+
 def resolve_web_assets_root() -> Path | None:
     """Return the directory that contains ``index.html``, if any."""
     override = os.environ.get(_ENV)
@@ -61,8 +73,19 @@ def resolve_web_assets_root() -> Path | None:
         if (root / "index.html").is_file():
             return root
         return None
-    if bundled := bundled_web_dir():
-        return bundled
+
+    # Editable checkout: prefer freshly built ``web/dist`` over stale ``bundled_web``.
+    if not _running_from_installed_wheel():
+        dev = dev_web_dir()
+        if dev:
+            if _looks_like_built_ui(dev):
+                return dev
+
+    bundled = bundled_web_dir()
+    if bundled:
+        if _looks_like_built_ui(bundled):
+            return bundled
+
     return dev_web_dir()
 
 

@@ -1,0 +1,22 @@
+[package]
+name = "probing-nccl-profiler-cdylib"
+description = "NCCL profiler plugin cdylib — same sources as probing-nccl-profiler"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "probing_nccl_profiler"
+crate-type = ["cdylib"]
+path = "../nccl-profiler/src/lib.rs"
+
+[dependencies]
+probing-memtable = { path = "../../memtable" }
+
+once_cell = { workspace = true }
+parking_lot = "0.12"
+thiserror = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"

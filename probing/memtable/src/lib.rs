@@ -100,6 +100,7 @@
 mod cache;
 mod dedup;
 pub mod discover;
+pub mod docs;
 mod layout;
 pub mod memc;
 pub mod memh;

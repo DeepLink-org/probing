@@ -157,23 +157,44 @@ pub struct Col {
     pub name: String,
     pub dtype: DType,
     pub elem_size: usize,
+    /// Human-readable column description (not persisted in mmap).
+    pub doc: Option<String>,
 }
 
 pub struct Schema {
     pub cols: Vec<Col>,
+    /// Human-readable table description (not persisted in mmap).
+    pub table_doc: Option<String>,
 }
 
 impl Schema {
     pub fn new() -> Self {
-        Self { cols: vec![] }
+        Self {
+            cols: vec![],
+            table_doc: None,
+        }
     }
 
-    pub fn col(mut self, name: &str, dtype: DType) -> Self {
+    pub fn table_doc(mut self, doc: impl Into<String>) -> Self {
+        self.table_doc = Some(doc.into());
+        self
+    }
+
+    pub fn col(self, name: &str, dtype: DType) -> Self {
+        self.push_col(name, dtype, None)
+    }
+
+    pub fn col_doc(self, name: &str, dtype: DType, doc: impl Into<String>) -> Self {
+        self.push_col(name, dtype, Some(doc.into()))
+    }
+
+    fn push_col(mut self, name: &str, dtype: DType, doc: Option<String>) -> Self {
         let elem_size = dtype.fixed_size().unwrap_or(0);
         self.cols.push(Col {
             name: name.into(),
             dtype,
             elem_size,
+            doc,
         });
         self
     }
@@ -206,5 +227,16 @@ mod tests {
     fn schema_debug_format() {
         let schema = Schema::new().col("id", DType::I64).col("name", DType::Str);
         assert_eq!(format!("{schema:?}"), "Schema(id:i64, name:str)");
+    }
+
+    #[test]
+    fn schema_table_and_column_docs() {
+        let schema = Schema::new()
+            .table_doc("events table")
+            .col("id", DType::I64)
+            .col_doc("name", DType::Str, "event name");
+        assert_eq!(schema.table_doc.as_deref(), Some("events table"));
+        assert_eq!(schema.cols[0].doc, None);
+        assert_eq!(schema.cols[1].doc.as_deref(), Some("event name"));
     }
 }

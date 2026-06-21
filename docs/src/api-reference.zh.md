@@ -100,12 +100,49 @@ import probing
 df = probing.query("SELECT * FROM python.torch_trace LIMIT 10")
 ```
 
-### probing.span / probing.event
+### probing.span / probing.event / probing.record_span / probing.step
+
+用户面四个动词：
 
 ```python
-with probing.span("forward", kind="nn.forward"):
+import probing
+
+with probing.span("forward", phase=probing.FORWARD):
+    probing.event("batch.stats", attributes=[{"loss": 1.25}])
+
+probing.record_span("all_reduce", duration_ns=1_000_000)
+
+probing.attach_training_phases(model, optimizer)  # hook 驱动 forward/backward/optimizer
+
+probing.step.micro_step              # 最细计数
+probing.step()                       # micro_step +1
+probing.step(42)                     # 设置 micro_step
+probing.step(micro_batches=10)       # 梯度累积分组
+probing.step.local_step              # micro_step // micro_batches
+probing.step.global_step             # = local_step
+```
+
+### probing.tracing 原语（集成 / 插件）
+
+| 类别 | 导入 | 用途 |
+|------|------|------|
+| Span | `span`, `event`, `record_span`, `current_span` | 插桩 |
+| Step | `step`, `step_fields` | 训练坐标 |
+| Phase | `FORWARD`, `BACKWARD`, `OPTIMIZER`, `phases`, `attach_training_phases` | 训练阶段 |
+| Integrator | `phases.infer_from_stage()` | Torch stage → 训练 phase |
+| Context | `span_attrs`, `row_fields`, `step_fields` | span 与表行上下文字段 |
+| Backend | `register_backend`, `configure_backends`, `list_backends`, `reset_backends` | 导出插件；内置：`memtable`、`logger`、`otel` |
+| Table | `TraceEvent`, `SPANS_SQL` | SQL / skill |
+
+```python
+from probing.tracing import register_backend, configure_backends
+
+with probing.span("forward", phase=probing.FORWARD, source="my_trainer"):
     ...
-probing.event("batch.stats", attributes=[{"loss": 1.25}])
+
+register_backend("my_sink", factory)
+configure_backends(["memtable", "logger"])  # 终端 + memtable
+configure_backends(["memtable", "my_sink"])
 ```
 
 ### @table（dataclass 插件）
@@ -139,12 +176,7 @@ probing.clear_role()
 
 ### probing.tracing.step_snapshot
 
-```python
-from probing.tracing import step_snapshot
-
-snap = step_snapshot()
-# snap.local_step, snap.global_step — 用于 SQL 过滤与自定义表
-```
+已合并为 ``probing.step()`` — 见上文 **probing.step**。
 
 ---
 

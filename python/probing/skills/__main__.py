@@ -31,7 +31,8 @@ def main() -> int:
     catalog = load_catalog()
     print(f"Catalog: {len(catalog.skills)} skills")
     print(f"Roots: {_roots_display()}")
-    if repo := repo_skills_dir():
+    repo = repo_skills_dir()
+    if repo:
         print(f"Repo skills: {repo}")
     warnings = validate_all()
     if warnings:

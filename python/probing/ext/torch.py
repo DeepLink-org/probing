@@ -13,6 +13,10 @@ def is_true(value):
 
 def optimizer_step_post_hook(optimizer, *args, **kwargs):
     global hooks
+    from probing.tracing.hooks import maybe_auto_attach
+
+    maybe_auto_attach(optimizer)
+
     if optimizer not in hooks:
         from probing.profiling.torch import install_hooks
         from probing.profiling.torch.module_utils import get_toplevel_module

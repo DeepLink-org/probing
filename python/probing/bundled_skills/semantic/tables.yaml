@@ -8,8 +8,10 @@ tables:
     description: "PyTorch module-level forward/step timings and GPU memory snapshots"
     synonyms: [torch trace, module timing, 模块耗时, 训练步 profiling]
     key_columns:
-      step: "Training step index (int)"
-      global_step: "Global training step (from Rust step_snapshot)"
+      micro_step: "Finest step counter (micro-batch index)"
+      local_step: "Training step on this rank (micro_step // micro_batches)"
+      global_step: "Same as local_step when ranks are aligned"
+      micro_batches: "Gradient accumulation factor"
       rank: "torch.distributed rank"
       role: "Parallel role key, e.g. 'dp=2,pp=1,tp=0' (align/join across ranks)"
       module: "Fully-qualified module name"
@@ -26,8 +28,10 @@ tables:
     description: "torch.distributed collective calls (all_reduce, broadcast, …)"
     synonyms: [collective, communication, NCCL, 通信, all_reduce]
     key_columns:
-      global_step: "Global training step"
-      local_step: "Local step on this rank"
+      micro_step: "Finest step counter"
+      global_step: "Training step (same as local_step)"
+      local_step: "Training step on this rank"
+      micro_batches: "Gradient accumulation factor"
       rank: "torch.distributed rank"
       role: "Parallel role key, e.g. 'dp=2,pp=1,tp=0' (align/join across ranks)"
       op: "Collective operation name"

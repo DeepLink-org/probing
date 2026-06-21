@@ -112,10 +112,10 @@ fn step_module_sql(coord_step: i64) -> String {
 
 fn step_span_sql(display_step: i64) -> String {
     format!(
-        "SELECT s.name, s.kind, round((e.time - s.time) / 1000000.0, 2) AS duration_ms \
+        "SELECT s.name, s.phase, round((e.time - s.time) / 1000000.0, 2) AS duration_ms \
          FROM python.trace_event s \
          JOIN python.trace_event e ON s.span_id = e.span_id AND e.record_type = 'span_end' \
-         WHERE s.record_type = 'span_start' AND s.kind != 'train.step' \
+         WHERE s.record_type = 'span_start' AND s.name != 'train.step' \
            AND s.attributes LIKE '%\"local_step\":{display_step}%' \
          ORDER BY duration_ms DESC LIMIT 12"
     )
@@ -797,7 +797,7 @@ fn render_step_matrix_result(
             Card {
                 title: "Step timings",
                 EmptyState {
-                    message: "No train.step spans yet. Wrap training loops with probing.span(..., kind='train.step') or enable TorchProbe.".to_string()
+                    message: "No train.step spans yet. Enable phase hooks with probing.attach_training_phases(model, optimizer) or record train.step spans manually.".to_string()
                 }
             }
         },
