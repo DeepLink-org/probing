@@ -15,8 +15,8 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAnyMethods, PyString};
 use pyo3::Python;
 
-pub use exttbls::ExternalTable;
 pub use exttbls::PyExternalTableConfig;
+pub use exttbls::{register_table_docs, ExternalTable};
 pub use tbls::PythonProbeDataSource;
 
 use crate::features::stack_tracer::{SignalTracer, StackTracer};

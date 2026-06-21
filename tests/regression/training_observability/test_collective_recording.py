@@ -47,7 +47,7 @@ class TestCommCollectiveRecording:
         events = table_rows(TraceEvent, 10)
         assert len(events) >= 2
         starts = [e for e in events if e["record_type"] == "span_start"]
-        assert any(e["kind"] == "comm.all_reduce" for e in starts)
+        assert any(e["name"] == "all_reduce" for e in starts)
 
     def test_lite_mode_writes_comm_row(self):
         record_comm_lite(
@@ -76,7 +76,6 @@ class TestCommCollectiveRecording:
         events = table_rows(TraceEvent, 10)
         by_type = {row["record_type"]: row for row in events}
         assert by_type["span_start"]["name"] == "all_reduce"
-        assert by_type["span_start"]["kind"] == "comm.all_reduce"
         assert by_type["span_end"]["span_id"] == by_type["span_start"]["span_id"]
 
     def test_lite_mode_can_skip_trace_event(self):

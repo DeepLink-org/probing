@@ -89,7 +89,7 @@ pub struct Span {
     pub parent_span_id: Option<SpanId>,
 
     pub name: String,
-    pub kind: Option<String>,
+    pub phase: Option<String>,
     pub location: Option<Location>,
 
     pub start_time: Timestamp,
@@ -139,12 +139,12 @@ impl LocalSpanManager {
     pub fn start_span<N: Into<String>>(
         &mut self,
         name: N,
-        kind: Option<&str>,
+        phase: Option<&str>,
         location: Option<&str>,
         initial_attributes: Option<Vec<Attribute>>,
     ) -> (SpanId, TraceId) {
         let name = name.into();
-        let kind = kind.map(|k_val| k_val.into());
+        let phase = phase.map(|p_val| p_val.into());
 
         let start_time = Timestamp::now();
         let current_span_sequence = self.next_span_seq;
@@ -180,7 +180,7 @@ impl LocalSpanManager {
             span_id,
             parent_span_id: parent_span_id_to_store,
             name,
-            kind,
+            phase,
             location,
             start_time,
             end_time: None,
@@ -418,7 +418,7 @@ mod tests {
             .get(&span_id)
             .expect("Span not found in tracer");
         assert_eq!(span.name, "process_incoming_request");
-        assert_eq!(span.kind, Some("server_op".to_string()));
+        assert_eq!(span.phase, Some("server_op".to_string()));
         assert_eq!(span.parent_span_id, None, "Root span has no parent");
         assert_eq!(
             span.status,

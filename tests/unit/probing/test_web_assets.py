@@ -37,10 +37,34 @@ def test_dev_web_dir_when_frontend_built():
         assert root is None
 
 
-def test_configure_assets_root_prefers_bundled(monkeypatch, tmp_path: Path):
+def test_configure_assets_root_prefers_dev_in_editable(monkeypatch, tmp_path: Path):
     bundled = tmp_path / "_web"
     bundled.mkdir()
     (bundled / "index.html").write_text("<html>bundled</html>", encoding="utf-8")
+
+    dev = tmp_path / "web" / "dist"
+    dev.mkdir(parents=True)
+    (dev / "index.html").write_text(
+        '<html><div id="main"></div><script src="/assets/web-dxhabc.js"></script></html>',
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(web_assets, "bundled_web_dir", lambda: bundled)
+    monkeypatch.setattr(web_assets, "dev_web_dir", lambda: dev)
+    monkeypatch.setattr(web_assets, "_running_from_installed_wheel", lambda: False)
+    monkeypatch.delenv(web_assets._ENV, raising=False)
+
+    assert web_assets.configure_assets_root() == dev
+    assert os.environ[web_assets._ENV] == str(dev)
+
+
+def test_configure_assets_root_prefers_bundled_on_wheel(monkeypatch, tmp_path: Path):
+    bundled = tmp_path / "_web"
+    bundled.mkdir()
+    (bundled / "index.html").write_text(
+        '<html><div id="main"></div><script src="/assets/web-dxhabc.js"></script></html>',
+        encoding="utf-8",
+    )
 
     dev = tmp_path / "web" / "dist"
     dev.mkdir(parents=True)
@@ -48,6 +72,7 @@ def test_configure_assets_root_prefers_bundled(monkeypatch, tmp_path: Path):
 
     monkeypatch.setattr(web_assets, "bundled_web_dir", lambda: bundled)
     monkeypatch.setattr(web_assets, "dev_web_dir", lambda: dev)
+    monkeypatch.setattr(web_assets, "_running_from_installed_wheel", lambda: True)
     monkeypatch.delenv(web_assets._ENV, raising=False)
 
     assert web_assets.configure_assets_root() == bundled

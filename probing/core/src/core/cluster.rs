@@ -69,3 +69,9 @@ pub fn update_nodes(nodes: Vec<Node>) {
 pub fn get_nodes() -> Vec<Node> {
     CLUSTER.read().unwrap().list()
 }
+
+/// Clear in-memory cluster registration (tests only).
+#[cfg(any(test, feature = "test-utils"))]
+pub fn reset_cluster_for_tests() {
+    *CLUSTER.write().unwrap() = Cluster::default();
+}

@@ -1,94 +1,179 @@
 # Quick Start
 
-Get immediate value from Probing with this streamlined workflow.
+This guide walks you through using Probing to inspect a running training process.
+It assumes you've already [installed](installation.md) the package. By the end,
+you'll be able to attach to a process, capture backtraces, and run SQL queries
+against live performance data.
 
-## Your First 5 Minutes
+## Finding and attaching to a process
 
-### Step 1: Set Your Target Process
-
-All Probing commands need a target endpoint. Set `$ENDPOINT` to either a local process ID or remote address:
+First, locate the Python process you want to inspect. In your terminal:
 
 ```bash
-# Local process - find and set your Python process ID
-export ENDPOINT=$(pgrep -f "python.*your_script")
+# Find your training process
+pgrep -f "python.*train"
+# → 27891
 
-# Or for remote processes
-export ENDPOINT=remote-host:8080
+# Or with more context
+ps aux | grep python | grep -v grep
 ```
 
-!!! tip "Finding Processes"
-    Use `ps aux | grep python` or `pgrep -f "python.*train"` to locate your target.
-
-### Step 2: Attach and explore
+Set the endpoint environment variable so later commands are clean:
 
 ```bash
-# Connect to your process (Linux only)
+export ENDPOINT=27891
+```
+
+On Linux, you can attach to a running process directly:
+
+```bash
 probing $ENDPOINT inject
-
-# Get basic process info
-probing $ENDPOINT eval "import os, psutil; proc = psutil.Process(); print(f'PID: {os.getpid()}, Memory: {proc.memory_info().rss/1024**2:.1f}MB')"
 ```
 
-### Step 3: Try three CLI commands
+On macOS or Windows, injection isn't available — you need to start the process with
+probing enabled (`PROBING=1 python train.py`) instead. The `inject` command is the
+only part of probing that's Linux-only; everything else (query, eval, backtrace,
+skills) works on all platforms once the server is running.
 
-Profiling tables fill automatically when hooks run. These commands read and interact with the probe:
+## Your first diagnostic commands
+
+With the server running in the target, grab a backtrace and check what's happening
+on the main thread:
 
 ```bash
-probing $ENDPOINT query "SELECT name, value FROM information_schema.df_settings LIMIT 5"
-probing $ENDPOINT eval "import torch; print(f'CUDA: {torch.cuda.is_available()}')"
+probing $ENDPOINT backtrace
+```
+
+The backtrace populates `python.backtrace` — a point-in-time view of the current
+stack, mixing Python and native frames. Query it with SQL:
+
+```bash
+probing $ENDPOINT query "
+  SELECT func, file, lineno, depth, frame_type
+  FROM python.backtrace
+  ORDER BY depth LIMIT 10
+"
+```
+
+You'll see function names, source file paths, and whether each frame is Python or
+native code. Depth 0 is the innermost frame (what's executing right now).
+
+If you need to inspect live state beyond the stack, use `eval` to run arbitrary
+Python in the target:
+
+```bash
+probing $ENDPOINT eval "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
+probing $ENDPOINT eval "
+  import gc, torch
+  gc.collect()
+  alloc = torch.cuda.memory_allocated() / 1024**2
+  reserved = torch.cuda.memory_reserved() / 1024**2
+  print(f'GPU: {alloc:.0f}MB allocated, {reserved:.0f}MB reserved')
+"
+```
+
+## Three common workflows
+
+What follows are real scenarios — the kind of things you'll actually use Probing for
+in practice.
+
+### Training is hanging
+
+The most common use case: training suddenly stops making progress. The process is
+alive but nothing is happening.
+
+Start with a backtrace to see what the main thread is doing:
+
+```bash
 probing $ENDPOINT backtrace
 probing $ENDPOINT query "SELECT func, file, lineno FROM python.backtrace ORDER BY depth LIMIT 5"
 ```
 
-Details: **[Core Concepts](guide/concepts.md)** · **[API Reference](api-reference.md)**
+The innermost frame (depth 0) tells you exactly where execution is stuck. If the
+stack shows `ncclAllReduce` or a `torch.distributed` call, you're looking at a
+communication hang. If it shows Python code in your model, the computation itself
+is the bottleneck.
 
-## Real-World Debugging Scenarios
-
-### Scenario 1: Training Process Hanging
-
-**Problem**: PyTorch training suddenly stops progressing.
+Next, check thread states — a collective might be hanging while other threads are
+fine:
 
 ```bash
-# 1. See what main thread is doing
-probing $ENDPOINT backtrace
-
-# 2. Check thread states
-probing $ENDPOINT eval "import threading; [(t.name, t.is_alive()) for t in threading.enumerate()]"
-
-# 3. Analyze stack context
-probing $ENDPOINT query "SELECT func, file, lineno FROM python.backtrace ORDER BY depth LIMIT 10"
+probing $ENDPOINT eval "
+  import threading
+  for t in threading.enumerate():
+      print(f'{t.name}: alive={t.is_alive()}, daemon={t.daemon}')
+"
 ```
 
-### Scenario 2: Memory Leak Investigation
+### GPU memory is growing
 
-**Problem**: Memory usage keeps growing during training.
-
-```bash
-# Force cleanup and get current state
-probing $ENDPOINT eval "import gc, torch; gc.collect(); torch.cuda.empty_cache()"
-
-# Analyze allocation trends
-probing $ENDPOINT query "SELECT step, AVG(allocated) as avg_memory FROM python.torch_trace GROUP BY step ORDER BY step"
-```
-
-### Scenario 3: Performance Bottleneck Analysis
-
-**Problem**: Need to identify which model components are slowest.
+Memory creeping up step after step — a leak or accumulation pattern. Query the
+torch_trace table to see per-step allocation trends:
 
 ```bash
-# Find most expensive operations
 probing $ENDPOINT query "
-SELECT module, stage, AVG(duration) as avg_duration
-FROM python.torch_trace
-GROUP BY module, stage
-ORDER BY avg_duration DESC
-LIMIT 10"
+  SELECT local_step, AVG(allocated) as avg_mb, MAX(allocated_delta) as max_delta_mb
+  FROM python.torch_trace
+  GROUP BY local_step
+  ORDER BY local_step
+"
 ```
 
-## Next Steps
+Look for `allocated_delta` values that don't return to zero between steps —
+that indicates memory not being freed between iterations. Pair with `eval` to
+force a GC and check current state:
 
-- **[Core Concepts](guide/concepts.md)** — Endpoint, tables, step/role, federation (read this next)
-- **[Diagnostic Skills](guide/skills.md)** — `probing skill run` workflows
-- [SQL Analytics](guide/sql-analytics.md) - Advanced query techniques
-- [Memory Analysis](guide/memory-analysis.md) - Deep dive into memory debugging
-- [Debugging Guide](guide/debugging.md) - Expert debugging patterns
+```bash
+probing $ENDPOINT eval "import gc, torch; gc.collect(); torch.cuda.empty_cache()"
+```
+
+If the GC + cache clear brings memory back down, the issue is Python-side
+reference cycles. If not, you're looking at a CUDA-side leak or growing
+workspace.
+
+### Finding slow modules and operations
+
+To identify which parts of your model are the bottleneck:
+
+```bash
+probing $ENDPOINT query "
+  SELECT module, stage, AVG(duration) as avg_duration, COUNT(*) as calls
+  FROM python.torch_trace
+  WHERE stage IN ('post forward', 'post step')
+  GROUP BY module, stage
+  ORDER BY avg_duration DESC
+  LIMIT 10
+"
+```
+
+Filtering to `post forward` and `post step` stages gives you the execution times
+(the `pre` rows carry timing anchors; the `post` rows carry actual durations).
+The results tell you exactly which module and which pass direction accounts for
+the most time.
+
+If you're running distributed, add the federated query prefix to compare across
+ranks:
+
+```bash
+probing -t <master> query "
+  SELECT _rank, module, stage, AVG(duration) as avg_duration
+  FROM global.python.torch_trace
+  WHERE stage IN ('post forward', 'post step')
+  GROUP BY _rank, module, stage
+  ORDER BY avg_duration DESC
+  LIMIT 20
+"
+```
+
+`_rank` is a federation tag added at query time — see [Core Concepts](guide/concepts.md)
+for how this works.
+
+## What's next
+
+These three commands — `backtrace`, `eval`, `query` — cover the majority of
+day-to-day diagnostic work. Each is documented in detail in the [API
+Reference](api-reference.md).
+
+For deeper analysis patterns (JOINs across tables, time-series bucketing,
+statistical aggregation), read [SQL Analytics](sql-analytics.md). For
+multi-node debugging, start with [Distributed](../design/distributed.md).

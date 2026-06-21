@@ -1,166 +1,251 @@
-# Core Concepts
+# How Probing Works
 
-One-page glossary for terms used across tutorials, guides, and design docs.
-When in doubt, start here before diving into [SQL Analytics](sql-analytics.md) or
-[Distributed](../design/distributed.md).
+This page builds the mental model you need to use Probing effectively. It's not a
+reference — it explains the architecture, the data flow, and the key design decisions
+from a user's perspective. Read this before anything else.
 
-## 1. Endpoint
+## The two modes: in-process vs attach
 
-Every **CLI** command targets a running probing server via an **endpoint**:
+Probing works in two fundamentally different ways. Understanding the difference avoids
+a lot of confusion.
 
-| Form | Example | Notes |
-|------|---------|-------|
-| Local PID | `12345` | `probing -t 12345 query "…"` |
-| Host:port | `node-a:8080` | Remote TCP; set `PROBING_PORT` at training startup |
+**In-process mode** is what you get with `PROBING=1 python train.py`. A `.pth` hook
+fires at Python startup, and before your training script even runs its first line, an
+embedded HTTP server is listening on a Unix socket and the Rust engine has registered
+all its data sources. Your training code calls `import probing` and uses
+`probing.query()` directly — no network, no subprocess.
 
 ```bash
-export ENDPOINT=12345   # or host:8080
-probing $ENDPOINT query "SELECT 1"
+PROBING=1 python train.py
 ```
 
-**In-process** (training script): set `PROBING=1` (or inject on Linux) and `import probing`
-— no endpoint string; use `probing.query()` directly.
+**Attach mode** is what you get with `probing -t <pid> inject` — Linux only. The CLI
+uses ptrace to load the probing shared library into an already-running process. The
+process never restarted; it never imported probing. After injection, the same
+in-process server starts inside the target.
 
-There is **no** `probing.connect()` Python API. Remote access is always CLI `-t <endpoint>`.
+```bash
+probing -t $(pgrep -f train.py) inject
+probing -t $(pgrep -f train.py) query "SELECT 1"
+```
 
----
+In both cases, the end result is the same: a running probing server inside the target
+process. The CLI always talks to that server over HTTP (Unix socket for local PIDs,
+TCP for remote `host:port`). There's no magic — `probing -t <pid> query "..."` is
+literally an HTTP POST to `/query` on the embedded server.
 
-## 2. Three CLI commands
+On macOS and Windows, only in-process mode is available. The `inject` command is
+Linux-only because it depends on ptrace.
 
-| Command | Usage | Data |
-|---------|-------|------|
-| **query** | `probing $ENDPOINT query "<sql>"` | Recorded table rows |
-| **eval** | `probing $ENDPOINT eval "<code>"` | One-off Python in the target process |
-| **backtrace** | `probing $ENDPOINT backtrace` | Point-in-time stack → `python.backtrace` |
+## Where data comes from
 
-These are the main **CLI entry points** from outside the process — not the full product
-surface (continuous profiling, federation, `global.*`, skills, etc. are covered below).
-Typical flow: `backtrace` captures state → `eval` inspects live objects → `query` analyzes history.
+Probing doesn't poll. Data is pushed into tables when events happen.
 
----
+Every table you query is backed by one of two storage mechanisms:
 
-## 3. Data tables (`python.*`)
+**Mmap ring buffers (MEMT).** Most `python.*` tables and all extension tables use
+this. A fixed-size memory-mapped file, structured as a ring of chunks. The writer
+(the training process) appends rows to the current chunk. Readers (the SQL engine)
+scan from any position. This is lock-free on the read path — the writer uses atomic
+operations with Release/Acquire ordering, and readers never block the writer.
 
-Probe data lives in **append-only SQL tables** under the `python` schema (plus built-in
-extensions like `cpu.utilization`, `cluster.nodes`, `nccl.proxy_ops`).
+**Registered data sources (ProbeDataSource).** Some tables come from Rust code that
+implements the `ProbeDataSource` trait. `python.backtrace` is a virtual table — it
+captures the current stack on demand rather than storing a history. `process.envs`
+reads the process environment. `gpu.devices` enumerates CUDA devices.
 
-| Table | What it records |
-|-------|-----------------|
-| `python.torch_trace` | Module hook timings + GPU memory |
-| `python.comm_collective` | `torch.distributed` collective wall time |
-| `python.trace_event` | Span start/end and custom events |
-| `python.backtrace` | Latest captured stack (not a full history) |
-| `python.variables` | Watched variable snapshots (when enabled) |
+The distinction matters because it affects what you can query:
 
-Custom plugins use the same model: `@table` dataclass + `.save()` → `python.<name>`.
-Column reference: **[SQL Tables](../reference/sql-tables.md)**.
+| Table | Mechanism | What you get |
+|---|---|---|
+| `python.torch_trace` | mmap ring buffer | History of all hook invocations since sampling started |
+| `python.comm_collective` | mmap ring buffer | History of all collectives since sampling started |
+| `python.backtrace` | Virtual table | **Current** stack only — no history |
+| `cpu.utilization` | mmap ring buffer | Time-series of CPU samples |
+| `process.envs` | Virtual table | Current environment variables |
 
-Tables are **not** lazy snapshots — rows are pushed when events happen (hook, collective,
-span end).
+This is why `backtrace` requires a separate command (`probing backtrace`) — it
+captures the stack into the virtual table, and then you query it. The table doesn't
+accumulate data on its own.
 
----
+## How tables are organized
 
-## 4. Step coordinates
+All tables live under a schema prefix that tells you where the data came from:
 
-Training analysis needs a **shared step index**. Probing uses Rust `step_snapshot()` as the
-single source of truth (not a separate Python counter).
+`python.*`
+: Training semantics — `torch_trace` (module hooks), `comm_collective` (distributed
+ops), `trace_event` (spans), `backtrace` (stacks), `variables` (watched values).
+Plus any custom tables you create with `@table`.
 
-| Field | Meaning |
-|-------|---------|
-| `local_step` | Per-rank step counter (optimizer-step aligned) |
-| `global_step` | Cluster-wide step (when coordinated) |
+`cpu.*` / `gpu.*`
+: Host and device sampling. `cpu.utilization` has per-process and per-thread CPU/RSS
+samples. `gpu.utilization` has GPU memory and compute utilization.
 
-On data rows:
+`cluster.*`
+: Cluster node registry. `cluster.nodes` lists every peer that has registered via
+torchrun or the HTTP API.
 
-- `python.torch_trace.step` → local step
-- `python.torch_trace.global_step`, `python.comm_collective.local_step` / `global_step`
+`nccl.*`
+: NCCL profiler plugin output. `nccl.proxy_ops` decomposes collective wait time into
+culprit (local GPU not ready) and victim (waiting on peer data) components.
 
-In-process:
+`global.<schema>.<table>`
+: Federation. Prefix any table with `global.` to fan out the query to all registered
+cluster peers. The master merges results and attaches `_host`, `_addr`, `_rank`,
+`_role` tags to each row.
+
+The full column reference for every built-in table is at [SQL Tables](../reference/sql-tables.md).
+
+## Step coordinates: the shared time axis
+
+Timestamps are unreliable for training analysis — steps are deterministic and align
+naturally with training semantics. Probing uses a three-level step coordinate system:
+
+`micro_step` is the finest counter. Increments each time `probing.step()` is called.
+`local_step` is the optimizer step — `micro_step // micro_batches`. With gradient
+accumulation of 10, every 10 micro-steps produce one local step.
+`global_step` is the cluster-wide step, equal to `local_step` when ranks are aligned.
 
 ```python
-from probing.tracing import step_snapshot
-s = step_snapshot()
-print(s.local_step, s.global_step, s.rank)
+probing.step(micro_batches=10)   # gradient accumulation factor
+probing.step()                   # micro_step += 1 at each micro-batch boundary
+
+# Later, in queries:
+# SELECT local_step, AVG(duration) FROM python.torch_trace GROUP BY local_step
 ```
 
-Prefer these fields in SQL and skills — not `trainer.current_step`.
+Every training-related table (`torch_trace`, `comm_collective`) carries both
+`local_step` and `global_step` columns. The step coordinates are managed in Rust
+(not a Python counter) so they're consistent even if the training script's state
+gets corrupted.
 
----
+## Role: encoding parallel topology in one column
 
-## 5. Parallel role
+Distributed training decomposes work across multiple parallelism dimensions —
+tensor parallel (TP), pipeline parallel (PP), data parallel (DP), expert parallel
+(EP), and combinations of them. Probing encodes the entire topology as a compact
+sorted string: `dp=2,pp=1,tp=0`.
 
-Distributed training places each process in a **parallel topology** (TP / PP / DP / EP / …).
-Probing encodes this as one extensible string **`role`**, not one column per dimension.
-
-**Format:** sorted `name=value` pairs, e.g. `dp=2,pp=1,tp=0`. Empty string when unset.
-
-| Source | How |
-|--------|-----|
-| Environment | Megatron-style `*_PARALLEL_RANK`, or `PROBING_ROLE_<NAME>=<int>` |
-| Runtime | `probing.set_role("dp=2,pp=1,tp=0")` or `set_role(dp=2, pp=1)` |
-| Read | `probing.current_role()`; `clear_role()` reverts to env |
-
-`role` is stamped on **`python.torch_trace`** and **`python.comm_collective`** rows so you
-can `JOIN` / `GROUP BY role` across tables on one rank.
-
-Distinct from torchrun's **`role_name`** / `role_rank` on `cluster.nodes` — those are
-Elastic/job launcher fields. Probing's `role` is the parallel-placement key for analytics.
-
----
-
-## 6. Federation (`global.*` and tags)
-
-For **multi-rank** SQL, use the `global` catalog: `global.python.comm_collective` fans out
-to registered peers and merges results.
-
-Each row gets **federation tags** identifying the source probing endpoint:
-
-| Tag | Meaning |
-|-----|---------|
-| `_host` | Source hostname |
-| `_addr` | Source `host:port` |
-| `_rank` | `torch.distributed` rank (from node registry) |
-| `_role` | Parallel role key (from node registry / `set_role`) |
-
-Example:
+This string is stamped on every `torch_trace` and `comm_collective` row. Because
+it's a single column, you can GROUP BY role in SQL to compare performance across
+parallelism dimensions:
 
 ```sql
-SELECT _role, _rank, avg(duration_ms) AS avg_ms
+SELECT role, AVG(duration_ms) as avg_ms
+FROM python.comm_collective
+GROUP BY role;
+```
+
+Set it from environment variables (`PROBING_TP_RANK`, `PROBING_TP_SIZE`, etc., or
+Megatron-style `TP_RANK`/`PP_RANK`/`DP_RANK`) or from Python:
+
+```python
+probing.set_role(dp=2, pp=1, tp=0)
+# or: probing.set_role("dp=2,pp=1,tp=0")
+probing.clear_role()  # fall back to environment-derived role
+```
+
+Note: `cluster.nodes` has `role_name` and `role_rank` — those are torchrun/Elastic
+launcher fields describing the launcher role, not the parallel topology. Probing's
+`role` is the parallelism key for analytics; they serve different purposes.
+
+## Federation: querying across the cluster
+
+When multiple training ranks are registered in a cluster, prefixing a table with
+`global.` fans out the SQL query to every registered peer. The query runs
+independently on each node; the master collects and concatenates the results.
+
+Each returned row gets four federation tags added at query time:
+
+| Tag | Source |
+|-----|--------|
+| `_host` | Hostname of the node that produced the row |
+| `_addr` | That node's probing `host:port` |
+| `_rank` | `torch.distributed` rank from the cluster node registry |
+| `_role` | Parallel role key from the node registry |
+
+A query like this:
+
+```sql
+SELECT _rank, op, AVG(duration_ms) as avg_ms
 FROM global.python.comm_collective
-WHERE global_step > 100
-GROUP BY _role, _rank
+WHERE local_step > 100
+GROUP BY _rank, op
 ORDER BY avg_ms DESC;
 ```
 
-Register nodes via torchrun (`setup_torchrun_cluster`) or `PUT /apis/nodes`. CLI:
-`probing -t <master> cluster nodes` / `cluster query "…"`. Details:
-[Distributed](../design/distributed.md).
+...runs on every registered rank, then the master merges all results into one result
+set with `_rank` telling you which row came from where.
 
-Row column `role` = value at **write time** on that rank. Tag `_role` = value on the
-**node registry** at federation time (kept in sync via `set_role` + re-register).
+Nodes register via torchrun (`setup_torchrun_cluster`) or by POSTing to
+`/apis/nodes`. Check current registration with `probing -t <master> cluster nodes`.
 
----
+The `_role` tag uses the value from the **node registry**, which is kept in sync
+with calls to `set_role()`. The `role` column on individual data rows uses the value
+at **write time**. In practice these are the same, but understanding the distinction
+matters when diagnosing stale role data.
 
-## 7. Data plugin vs diagnostic skill
+## Extension paths: three ways to add capability
 
-| | **Table plugin** (Path 1) | **Diagnostic skill** (Path 2) |
-|--|---------------------------|----------------------------------|
-| You add | Dataclass table + rows | `SKILL.md` + optional `steps.yaml` |
-| Output | `python.my_table` | Findings + SQL steps / agent guidance |
-| Run | `SELECT …` | `probing skill run <id>` |
-| Use when | New **metrics/events** to store | New **investigation recipe** |
+Probing has three distinct extension mechanisms. They're not interchangeable — each
+serves a different purpose:
 
-Optional **Path 3**: NCCL profiler cdylib → `nccl.proxy_ops` for culprit/victim wait
-decomposition. See [Extensibility](../design/extensibility.md).
+**1. Data table plugin (`@table` in Python).**
+Define a dataclass, decorate it, append rows from your code. The table appears as
+`python.<name>` and is immediately queryable. Use this when you have new metrics or
+events to record. Built on mmap ring buffers.
 
----
+**2. Diagnostic skill (`steps.yaml` + `SKILL.md`).**
+A YAML workflow that runs SQL queries against existing tables, applies interpretation
+rules, and produces findings. Use this when you have a diagnosis recipe to codify —
+like "find the slowest rank" or "check for NCCL wait imbalance." Run with
+`probing skill run <id>`. Skills don't collect new data; they analyze existing data.
 
-## Where to go next
+**3. Rust extension (`ProbeExtension` + `ProbeDataSource`).**
+A compiled Rust crate that registers new data sources (virtual tables, mmap tables)
+and/or configurable options with side effects (like starting a CPU sampler). Use
+this when you need system-level access — ptrace, CUDA APIs, RDMA counters. The NCCL
+profiler is a variant of this: a C ABI plugin loaded by NCCL itself, not by Probing.
 
-| Goal | Doc |
-|------|-----|
-| SQL patterns | [SQL Analytics](sql-analytics.md) |
-| Table schemas | [SQL Tables](../reference/sql-tables.md) |
-| Multi-node | [Distributed](../design/distributed.md) |
-| Write a plugin | [Extensibility](../design/extensibility.md) |
-| CLI / Python API | [API Reference](../api-reference.md) |
+See [Extensibility](../design/extensibility.md) for the full development guide.
+
+## What happens when things go wrong
+
+Knowing what to expect when a query fails saves debugging time.
+
+**Invalid SQL** returns a `PyRuntimeError` with the DataFusion error message. The
+error usually tells you exactly what's wrong (unknown table, unknown column, syntax
+error). If you get a cryptic DataFusion error, check the server logs — set
+`PROBING_LOGLEVEL=debug` for verbose output.
+
+**Missing tables.** If `probing $ENDPOINT tables` doesn't show the table you expect,
+the data source isn't active. Common causes: the GPU extension isn't compiled in
+(check `probing $ENDPOINT query "SELECT name FROM information_schema.df_settings WHERE name LIKE 'probing.gpu%'"`), or the mmap file isn't being written to (check
+`$PROBING_DATA_DIR/<pid>/`).
+
+**Empty results from `python.torch_trace`.** The PyTorch profiler needs
+`PROBING_TORCH_PROFILING=on` at startup. Without it, hooks are never registered and
+no rows are written.
+
+**Injection fails with ESRCH.** On Linux, ptrace may be restricted by YAMA LSM
+(`/proc/sys/kernel/yama/ptrace_scope`). Set it to 0 or run as the same user.
+
+See [Troubleshooting](troubleshooting.md) for more.
+
+## Environment variables at a glance
+
+Probing has many configuration points. The most important ones:
+
+| Variable | Effect |
+|----------|--------|
+| `PROBING` | `0`=disabled, `1`=current process, `2`=current+children, `regex:...`=pattern match |
+| `PROBING_TORCH_PROFILING` | `on` to activate PyTorch module hooks |
+| `PROBING_DATA_DIR` | Where mmap ring buffers are stored |
+| `PROBING_PORT` | TCP port for remote access (or `RANDOM`) |
+| `PROBING_AUTH_TOKEN` | Authentication token for remote mode |
+| `PROBING_CPU_SAMPLE_MS` | CPU sampling interval in milliseconds (0=off) |
+| `PROBING_GPU_SAMPLE_MS` | GPU sampling interval in milliseconds |
+| `PROBING_SPAN_BACKENDS` | Comma-separated: `memtable`, `logger`, `otel` |
+| `PROBING_LOGLEVEL` | `trace`, `debug`, `info`, `warn`, `error` |
+
+The complete reference is at [Environment Variables](../reference/env-vars.md).

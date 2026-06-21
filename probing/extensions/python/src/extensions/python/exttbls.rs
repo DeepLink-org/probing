@@ -18,6 +18,7 @@ use std::sync::{Arc, Mutex};
 use crate::features::native_bridge::with_detached_native;
 use once_cell::sync::Lazy;
 use probing_memtable::discover::ExposedTable;
+use probing_memtable::docs;
 use probing_memtable::{DType, Schema as MtSchema, Value};
 use probing_proto::prelude::Ele;
 use pyo3::prelude::*;
@@ -49,15 +50,45 @@ fn uses_timestamp_column(name: &str) -> bool {
     !name.contains('.')
 }
 
-fn build_schema(name: &str, columns: &[String], dtypes: &[DType]) -> MtSchema {
+fn build_schema_with_docs(
+    name: &str,
+    columns: &[String],
+    dtypes: &[DType],
+    table_doc: Option<&str>,
+    column_docs: &HashMap<String, String>,
+) -> MtSchema {
     let mut schema = MtSchema::new();
+    if let Some(doc) = table_doc {
+        schema = schema.table_doc(doc);
+    }
     if uses_timestamp_column(name) {
         schema = schema.col("timestamp", DType::I64);
     }
     for (col, dt) in columns.iter().zip(dtypes.iter()) {
-        schema = schema.col(col, *dt);
+        schema = if let Some(doc) = column_docs.get(col) {
+            schema.col_doc(col, *dt, doc.as_str())
+        } else {
+            schema.col(col, *dt)
+        };
     }
     schema
+}
+
+fn register_python_table_docs(
+    name: &str,
+    table_doc: Option<&str>,
+    column_docs: &HashMap<String, String>,
+) {
+    let (table_schema, table_name) = if let Some((schema, table)) = name.split_once('.') {
+        (schema.to_string(), table.to_string())
+    } else {
+        (EXTERN_TABLE_SCHEMA.to_string(), name.to_string())
+    };
+    let pairs: Vec<(String, String)> = column_docs
+        .iter()
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+    docs::register_column_docs(&table_schema, &table_name, table_doc, &pairs);
 }
 
 /// Ring layout: fixed chunk count; chunk byte size derives from capacity.
@@ -212,16 +243,29 @@ pub struct ExternBacking {
     capacity_bytes: usize,
     dtypes: Vec<DType>,
     table: Option<ExposedTable>,
+    table_doc: Option<String>,
+    column_docs: HashMap<String, String>,
 }
 
 impl ExternBacking {
-    fn new(name: &str, columns: Vec<String>, capacity_bytes: usize) -> Self {
+    fn new(
+        name: &str,
+        columns: Vec<String>,
+        capacity_bytes: usize,
+        table_doc: Option<String>,
+        column_docs: HashMap<String, String>,
+    ) -> Self {
+        if !column_docs.is_empty() || table_doc.is_some() {
+            register_python_table_docs(name, table_doc.as_deref(), &column_docs);
+        }
         Self {
             name: name.to_string(),
             columns,
             capacity_bytes,
             dtypes: vec![],
             table: None,
+            table_doc,
+            column_docs,
         }
     }
 
@@ -230,7 +274,13 @@ impl ExternBacking {
             return Ok(());
         }
         self.dtypes = vec![DType::Str; self.columns.len()];
-        let schema = build_schema(&self.name, &self.columns, &self.dtypes);
+        let schema = build_schema_with_docs(
+            &self.name,
+            &self.columns,
+            &self.dtypes,
+            self.table_doc.as_deref(),
+            &self.column_docs,
+        );
         let chunk_bytes = ring_chunk_bytes(self.capacity_bytes);
         let filename = mmap_basename(&self.name);
         let table = ExposedTable::create(&filename, &schema, chunk_bytes, NUM_CHUNKS)
@@ -254,7 +304,13 @@ impl ExternBacking {
         self.dtypes.clear();
 
         let dtypes: Vec<DType> = first_row.iter().map(ele_dtype).collect();
-        let schema = build_schema(&self.name, &self.columns, &dtypes);
+        let schema = build_schema_with_docs(
+            &self.name,
+            &self.columns,
+            &dtypes,
+            self.table_doc.as_deref(),
+            &self.column_docs,
+        );
         let chunk_bytes = ring_chunk_bytes(self.capacity_bytes);
         let filename = mmap_basename(&self.name);
         let table = ExposedTable::create(&filename, &schema, chunk_bytes, NUM_CHUNKS)
@@ -370,9 +426,17 @@ impl ExternalTable {
         columns: Vec<String>,
         discard_threshold: usize,
         discard_strategy: &str,
+        table_doc: Option<String>,
+        column_docs: HashMap<String, String>,
     ) -> Arc<Mutex<ExternBacking>> {
         let capacity = ring_capacity_bytes(discard_threshold, discard_strategy);
-        let backing = Arc::new(Mutex::new(ExternBacking::new(name, columns, capacity)));
+        let backing = Arc::new(Mutex::new(ExternBacking::new(
+            name,
+            columns,
+            capacity,
+            table_doc,
+            column_docs,
+        )));
         backing
             .lock()
             .expect("extern table lock")
@@ -385,20 +449,28 @@ impl ExternalTable {
 #[pymethods]
 impl ExternalTable {
     #[new]
-    #[pyo3(signature = (name, columns, chunk_size = 10000, discard_threshold = 20_000_000, discard_strategy = "BaseMemorySize".to_string()))]
+    #[pyo3(signature = (name, columns, chunk_size = 10000, discard_threshold = 20_000_000, discard_strategy = "BaseMemorySize".to_string(), table_doc = None, column_docs = None))]
     fn new(
         name: &str,
         columns: Vec<String>,
         chunk_size: usize,
         discard_threshold: usize,
         discard_strategy: String,
+        table_doc: Option<String>,
+        column_docs: Option<HashMap<String, String>>,
     ) -> Self {
         let _ = chunk_size; // ring chunking is byte-based; kept for API compat
         let name = name.to_string();
         with_detached_native(move || {
             let ncolumn = columns.len();
-            let backing =
-                Self::create_backing(&name, columns, discard_threshold, &discard_strategy);
+            let backing = Self::create_backing(
+                &name,
+                columns,
+                discard_threshold,
+                &discard_strategy,
+                table_doc,
+                column_docs.unwrap_or_default(),
+            );
             EXTERN_TABLES.lock().unwrap().insert(name, backing.clone());
             ExternalTable(backing, ncolumn)
         })
@@ -421,7 +493,8 @@ impl ExternalTable {
     }
 
     #[classmethod]
-    #[pyo3(signature = (name, columns, chunk_size = 10000, discard_threshold = 20_000_000, discard_strategy = "BaseMemorySize".to_string()))]
+    #[pyo3(signature = (name, columns, chunk_size = 10000, discard_threshold = 20_000_000, discard_strategy = "BaseMemorySize".to_string(), table_doc = None, column_docs = None))]
+    #[allow(clippy::too_many_arguments)]
     fn get_or_create(
         _cls: &Bound<'_, PyType>,
         name: &str,
@@ -429,6 +502,8 @@ impl ExternalTable {
         chunk_size: usize,
         discard_threshold: usize,
         discard_strategy: String,
+        table_doc: Option<String>,
+        column_docs: Option<HashMap<String, String>>,
     ) -> PyResult<ExternalTable> {
         let _ = chunk_size;
         let name = name.to_string();
@@ -439,8 +514,14 @@ impl ExternalTable {
                 Ok(ExternalTable(backing.clone(), ncolumn))
             } else {
                 let ncolumn = columns.len();
-                let backing =
-                    Self::create_backing(&name, columns, discard_threshold, &discard_strategy);
+                let backing = Self::create_backing(
+                    &name,
+                    columns,
+                    discard_threshold,
+                    &discard_strategy,
+                    table_doc,
+                    column_docs.unwrap_or_default(),
+                );
                 binding.insert(name, backing.clone());
                 Ok(ExternalTable(backing, ncolumn))
             }
@@ -522,6 +603,43 @@ impl ExternalTable {
                 .collect();
             Ok(result)
         })
+    }
+}
+
+/// Register table/column documentation for SQL `DESCRIBE` (without creating a table).
+#[pyfunction]
+#[pyo3(signature = (qualified_name, table_doc=None, column_docs=None))]
+pub fn register_table_docs(
+    qualified_name: &str,
+    table_doc: Option<&str>,
+    column_docs: Option<HashMap<String, String>>,
+) -> PyResult<()> {
+    register_python_table_docs(qualified_name, table_doc, &column_docs.unwrap_or_default());
+    Ok(())
+}
+
+#[cfg(test)]
+mod register_docs_tests {
+    use super::*;
+    use probing_memtable::docs;
+
+    #[test]
+    fn register_table_docs_exposes_python_schema() {
+        let table = format!("py_doc_test_{}", std::process::id());
+        let qualified = format!("python.{table}");
+        let mut column_docs = HashMap::new();
+        column_docs.insert("latency_ms".to_string(), "latency in ms".to_string());
+        register_table_docs(&qualified, Some("Python doc test table"), Some(column_docs)).unwrap();
+        let rows = docs::snapshot();
+        let row = rows
+            .iter()
+            .find(|r| r.table_schema == "python" && r.table_name == table)
+            .expect("python table docs");
+        assert_eq!(row.description.as_deref(), Some("Python doc test table"));
+        assert_eq!(
+            row.columns.get("latency_ms"),
+            Some(&"latency in ms".to_string())
+        );
     }
 }
 
@@ -608,6 +726,8 @@ if not hasattr(probing, "_made_{name}"):
             10000,
             20000000,
             "BaseMemorySize".to_string(),
+            None,
+            None,
         );
         assert_eq!(table.names(), vec!["a", "b"]);
     }
@@ -662,6 +782,8 @@ probing.ExternalTable.drop("table_to_drop")
             10000,
             1_000_000,
             "BaseMemorySize".to_string(),
+            None,
+            None,
         );
         Python::attach(|py| {
             let vals: Vec<Py<PyAny>> = vec![
@@ -689,6 +811,8 @@ probing.ExternalTable.drop("table_to_drop")
             10000,
             1_000_000,
             "BaseMemorySize".to_string(),
+            None,
+            None,
         );
         Python::attach(|py| {
             let vals: Vec<Py<PyAny>> = vec![1i64.into_pyobject(py).unwrap().into_any().unbind()];

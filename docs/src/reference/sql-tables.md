@@ -1,28 +1,41 @@
 # SQL Tables
 
-Authoritative catalog of built-in SQL tables queryable via `probing query` or in-process
-`probing.query()`. Kept in sync with `python/probing/_skills/semantic/tables.yaml` (used by
-diagnostic skills and the Web Agent).
+This page catalogs every built-in SQL table you can query through Probing. It's a
+reference — if you're looking for query patterns and how-to, start with [SQL
+Analytics](../guide/sql-analytics.md).
 
-Terminology: [Core Concepts](../guide/concepts.md) (endpoint, steps, `role`, federation).
+Each table is backed by an mmap ring buffer (MEMT) or registered dynamically by an
+extension crate. Tables live under schema prefixes that reflect their data source:
+`python.*` for training and Python runtime data, `cpu.*` / `gpu.*` for host and
+device sampling, `cluster.*` for node registry, `nccl.*` for the NCCL profiler
+plugin, and `global.<schema>.<table>` for federated cross-rank queries.
 
-## Schemas
+The authoritative schema definitions live in `skills/semantic/tables.yaml` (used by
+diagnostic skills and the Web Agent). The tables on this page are kept in sync with
+that file.
 
-| Prefix | Meaning |
-|--------|---------|
-| `python.*` | Python / training probe tables (memtable) |
-| `cpu.*`, `gpu.*`, `process.*` | Host / device sampling (extensions) |
-| `cluster.*` | Cluster registry |
-| `nccl.*` | NCCL profiler plugin (optional) |
-| `global.<schema>.<table>` | Federated fan-out across registered peers |
-| `information_schema.*` | Engine metadata |
-
-List tables on a live endpoint:
+To see what tables are actually available on a live endpoint:
 
 ```bash
 probing $ENDPOINT tables
 probing $ENDPOINT tables --all
 ```
+
+Terminology: [Core Concepts](../guide/concepts.md) (endpoint, steps, `role`, federation).
+
+## Schema prefixes
+
+Each schema represents a category of data source. The tables listed below are organized
+by these prefixes so you know where to look:
+
+| Prefix | Data source |
+|--------|-------------|
+| `python.*` | Training and Python runtime (memtable-backed) |
+| `cpu.*`, `gpu.*`, `process.*` | Host and device sampling (extension crates) |
+| `cluster.*` | Cluster node registry |
+| `nccl.*` | NCCL profiler plugin (optional, cdylib) |
+| `global.<schema>.<table>` | Federated fan-out across registered peers |
+| `information_schema.*` | Engine metadata and configuration |
 
 ## Federation
 
@@ -56,7 +69,7 @@ PyTorch module-level forward/step timings and GPU memory snapshots.
 
 | Column | Description |
 |--------|-------------|
-| `step` | Local training step (per rank) |
+| `local_step` | Local training step (per rank) |
 | `global_step` | Global step (`step_snapshot`) |
 | `rank` | `torch.distributed` rank |
 | `world_size` | World size |
@@ -118,7 +131,7 @@ Span start/end and custom events (distributed tracing).
 | `trace_id` | Trace id shared by related spans |
 | `span_id` | Unique span id |
 | `name` | Span or event name |
-| `kind` | Semantic kind (e.g. `train.step`, `comm.all_reduce`) |
+| `phase` | Training phase (`forward`, `backward`, `optimizer`) or empty |
 | `time` | Timestamp (nanoseconds since epoch) |
 | `attributes` | JSON metadata (rank, local_step, …) |
 
@@ -150,7 +163,7 @@ Variable snapshots when variable tracing is enabled.
 
 | Column | Description |
 |--------|-------------|
-| `step` | Training step |
+| `micro_step` | Training micro-step |
 | `func` | Function name |
 | `name` | Variable name |
 | `value` | String representation |

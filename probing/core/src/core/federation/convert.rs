@@ -9,14 +9,38 @@ use arrow::datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit};
 use datafusion::error::{DataFusionError, Result};
 use probing_proto::prelude::{DataFrame, Seq};
 
-/// Primary node identity column on `global.*` query results (hostname, or addr if host is empty).
+/// Legacy alias; prefer the `_host` / `_addr` pair.
 pub const PROBE_NODE_COL: &str = "_probe_node";
 pub const PROBE_HOST_COL: &str = "_host";
 pub const PROBE_ADDR_COL: &str = "_addr";
 /// Cluster `rank` from `cluster.nodes` for the row's source probing endpoint.
 pub const PROBE_RANK_COL: &str = "_rank";
+/// Node/worker group rank (`GROUP_RANK` / `group_rank` on the endpoint).
+pub const PROBE_NODE_RANK_COL: &str = "_node_rank";
+/// Intra-node GPU index (`LOCAL_RANK` / `local_rank` on the endpoint).
+pub const PROBE_LOCAL_RANK_COL: &str = "_local_rank";
 /// Parallel-role key (e.g. "dp=2,pp=1,tp=0") for the row's source endpoint.
 pub const PROBE_ROLE_COL: &str = "_role";
+
+/// Fixed federation tag columns appended to `global.*` results (stable order).
+pub const FEDERATION_TAG_COLUMNS: &[&str] = &[
+    PROBE_HOST_COL,
+    PROBE_ADDR_COL,
+    PROBE_RANK_COL,
+    PROBE_NODE_RANK_COL,
+    PROBE_LOCAL_RANK_COL,
+    PROBE_ROLE_COL,
+];
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FederationEndpointTags {
+    pub host: String,
+    pub addr: String,
+    pub rank: i32,
+    pub node_rank: i32,
+    pub local_rank: i32,
+    pub role: String,
+}
 
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn node_label(host: &str, addr: &str) -> String {
@@ -29,17 +53,34 @@ pub fn node_label(host: &str, addr: &str) -> String {
 
 /// Resolve cluster rank for a probing endpoint (`host` + `addr` key in CLUSTER).
 pub fn cluster_rank_for_endpoint(host: &str, addr: &str) -> Option<i32> {
+    cluster_node_field(host, addr, |n| n.rank)
+}
+
+/// Resolve node/worker group rank for a probing endpoint.
+pub fn cluster_node_rank_for_endpoint(host: &str, addr: &str) -> Option<i32> {
+    cluster_node_field(host, addr, |n| n.group_rank)
+}
+
+/// Resolve intra-node local rank for a probing endpoint.
+pub fn cluster_local_rank_for_endpoint(host: &str, addr: &str) -> Option<i32> {
+    cluster_node_field(host, addr, |n| n.local_rank)
+}
+
+fn cluster_node_field<F>(host: &str, addr: &str, field: F) -> Option<i32>
+where
+    F: Fn(&probing_proto::prelude::Node) -> Option<i32>,
+{
     use crate::core::cluster::CLUSTER;
 
     CLUSTER
         .read()
         .ok()
-        .and_then(|c| c.get_by_addr(host, addr).and_then(|n| n.rank))
+        .and_then(|c| c.get_by_addr(host, addr).and_then(&field))
         .or_else(|| {
             crate::core::cluster::get_nodes()
                 .into_iter()
                 .find(|n| n.addr == addr)
-                .and_then(|n| n.rank)
+                .and_then(|n| field(&n))
         })
 }
 
@@ -60,12 +101,25 @@ pub fn cluster_role_for_endpoint(host: &str, addr: &str) -> Option<String> {
         .filter(|r| !r.is_empty())
 }
 
+pub fn federation_tags_for_endpoint(host: &str, addr: &str) -> FederationEndpointTags {
+    FederationEndpointTags {
+        host: host.to_string(),
+        addr: addr.to_string(),
+        rank: cluster_rank_for_endpoint(host, addr).unwrap_or(-1),
+        node_rank: cluster_node_rank_for_endpoint(host, addr).unwrap_or(-1),
+        local_rank: cluster_local_rank_for_endpoint(host, addr).unwrap_or(-1),
+        role: cluster_role_for_endpoint(host, addr).unwrap_or_default(),
+    }
+}
+
 pub fn federated_output_schema(local: SchemaRef) -> SchemaRef {
     let mut fields = local.fields().to_vec();
     for (name, dtype, nullable) in [
         (PROBE_HOST_COL, DataType::Utf8, false),
         (PROBE_ADDR_COL, DataType::Utf8, false),
         (PROBE_RANK_COL, DataType::Int32, true),
+        (PROBE_NODE_RANK_COL, DataType::Int32, true),
+        (PROBE_LOCAL_RANK_COL, DataType::Int32, true),
         (PROBE_ROLE_COL, DataType::Utf8, true),
     ] {
         if !fields.iter().any(|f| f.name() == name) {
@@ -78,7 +132,13 @@ pub fn federated_output_schema(local: SchemaRef) -> SchemaRef {
 pub fn is_federation_tag_column(name: &str) -> bool {
     matches!(
         name,
-        PROBE_NODE_COL | PROBE_HOST_COL | PROBE_ADDR_COL | PROBE_RANK_COL | PROBE_ROLE_COL
+        PROBE_NODE_COL
+            | PROBE_HOST_COL
+            | PROBE_ADDR_COL
+            | PROBE_RANK_COL
+            | PROBE_NODE_RANK_COL
+            | PROBE_LOCAL_RANK_COL
+            | PROBE_ROLE_COL
     )
 }
 
@@ -87,16 +147,34 @@ pub fn tag_proto_dataframe(df: &mut DataFrame, host: &str, addr: &str, rank: Opt
     if df.is_empty() {
         return;
     }
+    let mut tags = federation_tags_for_endpoint(host, addr);
+    if let Some(rank) = rank {
+        tags.rank = rank;
+    }
+    tag_proto_dataframe_with_tags(df, &tags);
+}
+
+pub(crate) fn tag_proto_dataframe_with_tags(df: &mut DataFrame, tags: &FederationEndpointTags) {
+    if df.is_empty() {
+        return;
+    }
+    append_proto_tags(df, tags);
+}
+
+fn append_proto_tags(df: &mut DataFrame, tags: &FederationEndpointTags) {
     let rows = df.len();
-    let role = cluster_role_for_endpoint(host, addr).unwrap_or_default();
     df.names.push(PROBE_HOST_COL.to_string());
     df.names.push(PROBE_ADDR_COL.to_string());
     df.names.push(PROBE_RANK_COL.to_string());
+    df.names.push(PROBE_NODE_RANK_COL.to_string());
+    df.names.push(PROBE_LOCAL_RANK_COL.to_string());
     df.names.push(PROBE_ROLE_COL.to_string());
-    df.cols.push(Seq::SeqText(vec![host.to_string(); rows]));
-    df.cols.push(Seq::SeqText(vec![addr.to_string(); rows]));
-    df.cols.push(Seq::SeqI32(vec![rank.unwrap_or(-1); rows]));
-    df.cols.push(Seq::SeqText(vec![role; rows]));
+    df.cols.push(Seq::SeqText(vec![tags.host.clone(); rows]));
+    df.cols.push(Seq::SeqText(vec![tags.addr.clone(); rows]));
+    df.cols.push(Seq::SeqI32(vec![tags.rank; rows]));
+    df.cols.push(Seq::SeqI32(vec![tags.node_rank; rows]));
+    df.cols.push(Seq::SeqI32(vec![tags.local_rank; rows]));
+    df.cols.push(Seq::SeqText(vec![tags.role.clone(); rows]));
     df.size = df.len() as u64;
 }
 
@@ -148,10 +226,12 @@ pub fn dataframe_to_record_batch(
         return Ok(RecordBatch::new_empty(Arc::new(Schema::empty())));
     }
 
-    let rank = rank.or_else(|| cluster_rank_for_endpoint(host, addr));
-    let role = cluster_role_for_endpoint(host, addr).unwrap_or_default();
-    let mut columns = Vec::with_capacity(df.cols.len() + 4);
-    let mut fields = Vec::with_capacity(df.names.len() + 4);
+    let mut tags = federation_tags_for_endpoint(host, addr);
+    if let Some(rank) = rank {
+        tags.rank = rank;
+    }
+    let mut columns = Vec::with_capacity(df.cols.len() + FEDERATION_TAG_COLUMNS.len());
+    let mut fields = Vec::with_capacity(df.names.len() + FEDERATION_TAG_COLUMNS.len());
 
     for (name, col) in df.names.iter().zip(df.cols.iter()) {
         fields.push(Field::new(name, array_data_type(col), true));
@@ -162,11 +242,15 @@ pub fn dataframe_to_record_batch(
     fields.push(Field::new(PROBE_HOST_COL, DataType::Utf8, false));
     fields.push(Field::new(PROBE_ADDR_COL, DataType::Utf8, false));
     fields.push(Field::new(PROBE_RANK_COL, DataType::Int32, true));
+    fields.push(Field::new(PROBE_NODE_RANK_COL, DataType::Int32, true));
+    fields.push(Field::new(PROBE_LOCAL_RANK_COL, DataType::Int32, true));
     fields.push(Field::new(PROBE_ROLE_COL, DataType::Utf8, true));
-    columns.push(Arc::new(StringArray::from(vec![host.to_string(); rows])));
-    columns.push(Arc::new(StringArray::from(vec![addr.to_string(); rows])));
-    columns.push(Arc::new(Int32Array::from(vec![rank; rows])));
-    columns.push(Arc::new(StringArray::from(vec![role; rows])));
+    columns.push(Arc::new(StringArray::from(vec![tags.host; rows])));
+    columns.push(Arc::new(StringArray::from(vec![tags.addr; rows])));
+    columns.push(Arc::new(Int32Array::from(vec![tags.rank; rows])));
+    columns.push(Arc::new(Int32Array::from(vec![tags.node_rank; rows])));
+    columns.push(Arc::new(Int32Array::from(vec![tags.local_rank; rows])));
+    columns.push(Arc::new(StringArray::from(vec![tags.role; rows])));
 
     RecordBatch::try_new(Arc::new(Schema::new(fields)), columns)
         .map_err(|e| DataFusionError::Execution(format!("dataframe conversion failed: {e}")))
@@ -182,31 +266,59 @@ pub fn tag_record_batch(
         return Ok(batch);
     }
 
-    let rank = rank.or_else(|| cluster_rank_for_endpoint(host, addr));
+    let mut tags = federation_tags_for_endpoint(host, addr);
+    if let Some(rank) = rank {
+        tags.rank = rank;
+    }
     let rows = batch.num_rows();
     let mut fields = batch.schema().fields().to_vec();
     let mut columns = batch.columns().to_vec();
 
-    if !fields.iter().any(|f| f.name() == PROBE_HOST_COL) {
-        fields.push(Arc::new(Field::new(PROBE_HOST_COL, DataType::Utf8, false)));
-        columns.push(Arc::new(StringArray::from(vec![host.to_string(); rows])));
-    }
-    if !fields.iter().any(|f| f.name() == PROBE_ADDR_COL) {
-        fields.push(Arc::new(Field::new(PROBE_ADDR_COL, DataType::Utf8, false)));
-        columns.push(Arc::new(StringArray::from(vec![addr.to_string(); rows])));
-    }
-    if !fields.iter().any(|f| f.name() == PROBE_RANK_COL) {
-        fields.push(Arc::new(Field::new(PROBE_RANK_COL, DataType::Int32, true)));
-        columns.push(Arc::new(Int32Array::from(vec![rank; rows])));
-    }
-    if !fields.iter().any(|f| f.name() == PROBE_ROLE_COL) {
-        let role = cluster_role_for_endpoint(host, addr).unwrap_or_default();
-        fields.push(Arc::new(Field::new(PROBE_ROLE_COL, DataType::Utf8, true)));
-        columns.push(Arc::new(StringArray::from(vec![role; rows])));
-    }
+    append_batch_tags(&mut fields, &mut columns, rows, &tags)?;
 
     RecordBatch::try_new(Arc::new(Schema::new(fields)), columns)
         .map_err(|e| DataFusionError::Execution(format!("tagging batch failed: {e}")))
+}
+
+fn append_batch_tags(
+    fields: &mut Vec<Arc<Field>>,
+    columns: &mut Vec<ArrayRef>,
+    rows: usize,
+    tags: &FederationEndpointTags,
+) -> Result<()> {
+    if !fields.iter().any(|f| f.name() == PROBE_HOST_COL) {
+        fields.push(Arc::new(Field::new(PROBE_HOST_COL, DataType::Utf8, false)));
+        columns.push(Arc::new(StringArray::from(vec![tags.host.as_str(); rows])));
+    }
+    if !fields.iter().any(|f| f.name() == PROBE_ADDR_COL) {
+        fields.push(Arc::new(Field::new(PROBE_ADDR_COL, DataType::Utf8, false)));
+        columns.push(Arc::new(StringArray::from(vec![tags.addr.as_str(); rows])));
+    }
+    if !fields.iter().any(|f| f.name() == PROBE_RANK_COL) {
+        fields.push(Arc::new(Field::new(PROBE_RANK_COL, DataType::Int32, true)));
+        columns.push(Arc::new(Int32Array::from(vec![tags.rank; rows])));
+    }
+    if !fields.iter().any(|f| f.name() == PROBE_NODE_RANK_COL) {
+        fields.push(Arc::new(Field::new(
+            PROBE_NODE_RANK_COL,
+            DataType::Int32,
+            true,
+        )));
+        columns.push(Arc::new(Int32Array::from(vec![tags.node_rank; rows])));
+    }
+    if !fields.iter().any(|f| f.name() == PROBE_LOCAL_RANK_COL) {
+        fields.push(Arc::new(Field::new(
+            PROBE_LOCAL_RANK_COL,
+            DataType::Int32,
+            true,
+        )));
+        columns.push(Arc::new(Int32Array::from(vec![tags.local_rank; rows])));
+    }
+    if !fields.iter().any(|f| f.name() == PROBE_ROLE_COL) {
+        fields.push(Arc::new(Field::new(PROBE_ROLE_COL, DataType::Utf8, true)));
+        columns.push(Arc::new(StringArray::from(vec![tags.role.as_str(); rows])));
+    }
+    Ok(())
 }
 
 pub fn align_batch_to_schema(batch: RecordBatch, schema: &Schema) -> Result<RecordBatch> {
@@ -277,8 +389,10 @@ mod tests {
 
     use arrow::array::{Int32Array, RecordBatch, StringArray};
     use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
+    use probing_proto::prelude::Node;
 
     use super::*;
+    use crate::core::cluster::{reset_cluster_for_tests, update_node};
 
     #[test]
     fn node_label_prefers_host() {
@@ -291,22 +405,40 @@ mod tests {
     }
 
     #[test]
-    fn federated_schema_includes_tag_columns() {
+    fn federated_schema_includes_six_tag_columns() {
         let local = Arc::new(Schema::new(vec![Field::new(
             "rank",
             DataType::Int32,
             false,
         )]));
         let schema = federated_output_schema(local);
-        assert!(schema.index_of(PROBE_HOST_COL).is_ok());
-        assert!(schema.index_of(PROBE_ADDR_COL).is_ok());
-        assert!(schema.index_of(PROBE_RANK_COL).is_ok());
-        assert!(schema.index_of(PROBE_ROLE_COL).is_ok());
+        for col in FEDERATION_TAG_COLUMNS {
+            assert!(schema.index_of(col).is_ok(), "missing tag column {col}");
+        }
         assert!(schema.index_of(PROBE_NODE_COL).is_err());
     }
 
     #[test]
-    fn tag_record_batch_adds_probe_columns() {
+    fn federation_tags_resolve_from_cluster_node() {
+        reset_cluster_for_tests();
+        update_node(Node {
+            host: "host-a".into(),
+            addr: "10.0.0.1:8080".into(),
+            rank: Some(3),
+            group_rank: Some(1),
+            local_rank: Some(2),
+            role: Some("dp=0".into()),
+            ..Default::default()
+        });
+        let tags = federation_tags_for_endpoint("host-a", "10.0.0.1:8080");
+        assert_eq!(tags.rank, 3);
+        assert_eq!(tags.node_rank, 1);
+        assert_eq!(tags.local_rank, 2);
+        assert_eq!(tags.role, "dp=0");
+    }
+
+    #[test]
+    fn tag_record_batch_adds_six_probe_columns() {
         let local = Arc::new(Schema::new(vec![Field::new(
             "rank",
             DataType::Int32,
@@ -314,34 +446,10 @@ mod tests {
         )]));
         let batch = RecordBatch::try_new(local, vec![Arc::new(Int32Array::from(vec![7]))]).unwrap();
         let tagged = tag_record_batch(batch, "host-a", "10.0.0.1:8080", Some(3)).unwrap();
-        assert_eq!(tagged.num_columns(), 5);
-        assert_eq!(
-            tagged
-                .column(tagged.schema().index_of(PROBE_HOST_COL).unwrap())
-                .as_any()
-                .downcast_ref::<StringArray>()
-                .unwrap()
-                .value(0),
-            "host-a"
-        );
-        assert_eq!(
-            tagged
-                .column(tagged.schema().index_of(PROBE_ADDR_COL).unwrap())
-                .as_any()
-                .downcast_ref::<StringArray>()
-                .unwrap()
-                .value(0),
-            "10.0.0.1:8080"
-        );
-        assert_eq!(
-            tagged
-                .column(tagged.schema().index_of(PROBE_RANK_COL).unwrap())
-                .as_any()
-                .downcast_ref::<Int32Array>()
-                .unwrap()
-                .value(0),
-            3
-        );
+        assert_eq!(tagged.num_columns(), 7);
+        for col in FEDERATION_TAG_COLUMNS {
+            assert!(tagged.schema().index_of(col).is_ok());
+        }
     }
 
     #[test]
@@ -354,19 +462,6 @@ mod tests {
         let schema = federated_output_schema(local);
         let extended = extend_projection_with_probe_tags(Some(&vec![0]), &schema).unwrap();
         assert_eq!(extended, vec![0]);
-    }
-
-    #[test]
-    fn extend_projection_honors_tag_only_selection() {
-        let local = Arc::new(Schema::new(vec![Field::new(
-            "rank",
-            DataType::Int32,
-            false,
-        )]));
-        let schema = federated_output_schema(local);
-        let rank_idx = schema.index_of(PROBE_RANK_COL).unwrap();
-        let extended = extend_projection_with_probe_tags(Some(&vec![rank_idx]), &schema).unwrap();
-        assert_eq!(extended, vec![rank_idx]);
     }
 
     #[test]

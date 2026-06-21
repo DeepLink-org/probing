@@ -1,7 +1,7 @@
 # Probing Makefile
 #
 #   develop          → maturin develop (Rust/Python daily loop)
-#   frontend         → web/dist/  (manual, needs dx)
+#   frontend         → web/dist/ + python/probing/bundled_web/  (manual, needs dx)
 #   wheel            → bundle skills + UI, then maturin build
 #   frontend wheel   → full release path
 #
@@ -32,6 +32,7 @@ endif
 endif
 
 PYTHON ?= $(shell test -x .venv/bin/python && echo .venv/bin/python || echo python3)
+VENV_PYTHON := $(abspath .venv/bin/python)
 BUILD_PY_DEPS := build wheel toml maturin
 DEV_PTH := python/probing/dev_pth.py
 DEV_PY_DEPS := pyyaml pytest pytest-cov coverage ipython ipykernel
@@ -53,7 +54,7 @@ help:
 	@echo ""
 	@echo "  develop / dev     Bootstrap: _core, CLI, pytest, site hook"
 	@echo "  core              Rebuild probing._core after Rust edits"
-	@echo "  frontend          Build web/dist/ (dx; manual)"
+	@echo "  frontend          Build web/dist/ + sync bundled_web (dx; manual)"
 	@echo "  wheel             Build dist/*.whl (needs web/dist/; bundles skills + UI)"
 	@echo "  wheel-ci          alias for wheel (native build; PyPI uses maturin-action + zig)"
 	@echo "  install-wheel     pip install dist/probing-*.whl"
@@ -83,7 +84,7 @@ install-dev-python-deps:
 	fi
 
 # ==============================================================================
-.PHONY: core develop dev check-dev frontend wheel wheel-ci install-wheel wheel-bundle nccl-profiler-lib venv venv-wheel install-build-deps install-wheel-test-deps
+.PHONY: core develop dev check-dev frontend sync-bundled-web wheel wheel-ci install-wheel wheel-bundle nccl-profiler-lib hccl-shim-lib venv venv-wheel install-build-deps install-wheel-test-deps
 
 venv:
 	@test -x .venv/bin/python || $(shell command -v python3 || echo python3) -m venv .venv
@@ -98,7 +99,7 @@ install-build-deps: venv
 install-wheel-test-deps: venv
 	$(PYTHON) -m pip install -q -U pip $(PYTEST_WHEEL_DEPS)
 
-core: nccl-profiler-lib
+core: nccl-profiler-lib hccl-shim-lib
 	$(PYTHON) -m maturin develop $(MATURIN_FLAGS)
 
 develop: install-build-deps core install-dev-python-deps
@@ -125,16 +126,24 @@ frontend:
 	cp -R $(DX_PUBLIC)/. web/dist/
 	@mkdir -p web/dist/assets
 	@cp -f web/assets/logo.svg web/dist/logo.svg 2>/dev/null || true
+	@cp -f web/assets/logo.svg web/dist/assets/logo.svg 2>/dev/null || true
 	@cp -f web/assets/tailwind.css web/dist/assets/tailwind.css
 	@echo "web/dist ($$(du -sh web/dist | cut -f1))"
+	$(MAKE) sync-bundled-web
+
+sync-bundled-web:
+	@test -f web/dist/index.html || { echo "error: web/dist missing — run make frontend first"; exit 1; }
+	rm -rf python/probing/bundled_web
+	cp -R web/dist python/probing/bundled_web
+	@echo "python/probing/bundled_web ($$(du -sh python/probing/bundled_web | cut -f1))"
 
 wheel-bundle:
 	@test -f web/dist/index.html || { echo "error: run 'make frontend' first"; exit 1; }
-	rm -rf python/probing/bundled_skills python/probing/bundled_web
+	rm -rf python/probing/bundled_skills
 	cp -R skills python/probing/bundled_skills
-	cp -R web/dist python/probing/bundled_web
+	$(MAKE) sync-bundled-web
 
-wheel: install-build-deps wheel-bundle nccl-profiler-lib
+wheel: install-build-deps wheel-bundle nccl-profiler-lib hccl-shim-lib
 	$(PYTHON) -m maturin build $(MATURIN_FLAGS) --out dist
 
 wheel-ci:
@@ -160,11 +169,27 @@ else
 NCCL_OUT := target/release/libprobing_nccl_profiler.so
 endif
 nccl-profiler-lib:
-	cargo build -p probing-nccl-profiler $(CARGO_RELEASE)
+	cargo build -p probing-nccl-profiler-cdylib $(CARGO_RELEASE)
 	mkdir -p python/probing/libs
 	cp $(NCCL_OUT) python/probing/libs/
 else
 nccl-profiler-lib:
+	@:
+endif
+
+# Linux HCCL libprofapi.so shim → python/probing/shim/hccl/
+ifeq ($(UNAME_S),Linux)
+ifdef DEBUG
+HCCL_SHIM_OUT := target/debug/libprofapi.so
+else
+HCCL_SHIM_OUT := target/release/libprofapi.so
+endif
+hccl-shim-lib:
+	cargo build -p probing-hccl-profapi $(CARGO_RELEASE)
+	mkdir -p python/probing/shim/hccl
+	cp $(HCCL_SHIM_OUT) python/probing/shim/hccl/
+else
+hccl-shim-lib:
 	@:
 endif
 
@@ -184,8 +209,8 @@ test: test-rust test-python
 test-rust: test-rust-unit test-rust-regression
 
 test-rust-unit:
-	@if test -x .venv/bin/python; then \
-		export PYTHON_SYS_EXECUTABLE=.venv/bin/python PYO3_PYTHON=.venv/bin/python; \
+	@if test -x $(VENV_PYTHON); then \
+		export PYTHON_SYS_EXECUTABLE=$(VENV_PYTHON) PYO3_PYTHON=$(VENV_PYTHON); \
 	elif command -v pyenv >/dev/null 2>&1; then \
 		P=$$(pyenv which python3 2>/dev/null); \
 		test -n "$$P" && export PYTHON_SYS_EXECUTABLE=$$P PYO3_PYTHON=$$P; \
@@ -193,8 +218,8 @@ test-rust-unit:
 	cargo nextest run --lib --workspace --no-default-features --nff
 
 test-rust-regression:
-	@if test -x .venv/bin/python; then \
-		export PYTHON_SYS_EXECUTABLE=.venv/bin/python PYO3_PYTHON=.venv/bin/python; \
+	@if test -x $(VENV_PYTHON); then \
+		export PYTHON_SYS_EXECUTABLE=$(VENV_PYTHON) PYO3_PYTHON=$(VENV_PYTHON); \
 	elif command -v pyenv >/dev/null 2>&1; then \
 		P=$$(pyenv which python3 2>/dev/null); \
 		test -n "$$P" && export PYTHON_SYS_EXECUTABLE=$$P PYO3_PYTHON=$$P; \
@@ -233,7 +258,9 @@ clippy-fix:
 
 coverage-rust:
 	cargo llvm-cov clean --workspace
-	cargo llvm-cov nextest --workspace --no-default-features --nff --lcov --output-path coverage.lcov --ignore-filename-regex '(.*/tests?/|.*/benches?/|.*/examples?/)' || true
+	cargo llvm-cov nextest --workspace --no-default-features --nff \
+		--exclude probing-hccl-profapi --exclude probing-nccl-profiler-cdylib \
+		--lcov --output-path coverage.lcov --ignore-filename-regex '(.*/tests?/|.*/benches?/|.*/examples?/)' || true
 coverage-python:
 	${PYTEST_RUN} --cov=python/probing --cov=tests --cov-report=xml:coverage.xml --cov-report=term $(PYTEST_ARGS) || true
 coverage: coverage-rust coverage-python

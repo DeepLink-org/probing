@@ -100,12 +100,49 @@ import probing
 df = probing.query("SELECT * FROM python.torch_trace LIMIT 10")
 ```
 
-### probing.span / probing.event
+### probing.span / probing.event / probing.record_span / probing.step
+
+Four user-facing verbs:
 
 ```python
-with probing.span("forward", kind="nn.forward"):
+import probing
+
+with probing.span("forward", phase=probing.FORWARD):
+    probing.event("batch.stats", attributes=[{"loss": 1.25}])
+
+probing.record_span("all_reduce", duration_ns=1_000_000)
+
+probing.attach_training_phases(model, optimizer)  # hook-driven forward/backward/optimizer
+
+probing.step.micro_step              # finest counter
+probing.step()                       # micro_step +1
+probing.step(42)                     # set micro_step
+probing.step(micro_batches=10)       # gradient-accumulation grouping
+probing.step.local_step              # micro_step // micro_batches
+probing.step.global_step             # = local_step
+```
+
+### probing.tracing primitives (integrators / plugins)
+
+| Category | Import | Purpose |
+|----------|--------|---------|
+| Span | `span`, `event`, `record_span`, `current_span` | Instrumentation |
+| Step | `step`, `step_fields` | Training coordinates |
+| Phase | `FORWARD`, `BACKWARD`, `OPTIMIZER`, `phases`, `attach_training_phases` | Training phase |
+| Integrator | `phases.infer_from_stage()` | Torch stage → training phase |
+| Context | `span_attrs`, `row_fields`, `step_fields` | Span and table row context fields |
+| Backend | `register_backend`, `configure_backends`, `list_backends`, `reset_backends` | Export plugins; built-in: `memtable`, `logger`, `otel` |
+| Table | `TraceEvent`, `SPANS_SQL` | SQL / skills |
+
+```python
+from probing.tracing import register_backend, configure_backends
+
+with probing.span("forward", phase=probing.FORWARD, source="my_trainer"):
     ...
-probing.event("batch.stats", attributes=[{"loss": 1.25}])
+
+register_backend("my_sink", factory)
+configure_backends(["memtable", "logger"])  # terminal + memtable
+configure_backends(["memtable", "my_sink"])
 ```
 
 ### @table (dataclass plugins)
@@ -137,14 +174,10 @@ probing.current_role()
 probing.clear_role()
 ```
 
-### probing.tracing.step_snapshot
+### probing.step
 
-```python
-from probing.tracing import step_snapshot
-
-snap = step_snapshot()
-# snap.local_step, snap.global_step — use in SQL filters and custom tables
-```
+Use ``probing.step()`` instead of the removed ``step_snapshot`` / ``sync_local_step`` helpers.
+See **probing.span / probing.event / probing.record_span / probing.step** above.
 
 ---
 

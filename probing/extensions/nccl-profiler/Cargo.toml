@@ -8,7 +8,8 @@ license.workspace = true
 
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+# rlib for workspace linking; cdylib plugin is probing-nccl-profiler-cdylib.
+crate-type = ["rlib"]
 
 [dependencies]
 probing-memtable = { path = "../../memtable" }

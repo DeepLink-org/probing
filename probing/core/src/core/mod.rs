@@ -6,8 +6,10 @@ mod engine;
 mod error;
 pub mod federation;
 pub mod memtable_sql;
+mod metadata_rewrite;
 mod plugin_advanced;
 pub mod probe_extension;
+mod semantic_catalog;
 
 pub use data_source::ProbeDataSource;
 pub use data_source::ProbeDataSourceKind;
@@ -100,5 +102,72 @@ mod tests {
         assert_eq!(df.names.len(), 1, "Should have one column");
         assert_eq!(df.names[0], "val", "Column name should match");
         assert!(!df.cols.is_empty(), "Should have data columns");
+    }
+
+    #[tokio::test]
+    async fn describe_rewrite_includes_comment() {
+        let engine = Engine::builder().build().await.unwrap();
+        let df = engine
+            .async_query("DESCRIBE probing.column_docs")
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            df.names.iter().any(|n| n == "comment"),
+            "DESCRIBE rewrite should expose comment column, got {:?}",
+            df.names
+        );
+        assert!(
+            df.names.iter().any(|n| n == "table_comment"),
+            "DESCRIBE rewrite should expose table_comment column, got {:?}",
+            df.names
+        );
+    }
+
+    #[tokio::test]
+    async fn engine_column_docs_serves_code_first_hccl() {
+        use probing_proto::prelude::Seq;
+
+        let engine = Engine::builder().build().await.unwrap();
+        let df = engine
+            .async_query(
+                "SELECT description FROM probe.probing.column_docs \
+                 WHERE table_schema = 'hccl' AND table_name = 'tasks' AND column_name = 'task_name'",
+            )
+            .await
+            .unwrap()
+            .expect("column_docs query should return rows");
+        assert_eq!(df.names, vec!["description"]);
+        let desc = match &df.cols[0] {
+            Seq::SeqText(values) => values.first().cloned().expect("task_name description row"),
+            other => panic!("expected SeqText, got {other:?}"),
+        };
+        assert!(
+            desc.contains("Memcpy"),
+            "expected code-first column doc, got {desc}"
+        );
+    }
+
+    #[tokio::test]
+    async fn engine_table_docs_serves_code_first_hccl() {
+        use probing_proto::prelude::Seq;
+
+        let engine = Engine::builder().build().await.unwrap();
+        let df = engine
+            .async_query(
+                "SELECT description FROM probe.probing.table_docs \
+                 WHERE table_schema = 'hccl' AND table_name = 'tasks'",
+            )
+            .await
+            .unwrap()
+            .expect("table_docs query should return rows");
+        let desc = match &df.cols[0] {
+            Seq::SeqText(values) => values.first().cloned().expect("hccl.tasks description row"),
+            other => panic!("expected SeqText, got {other:?}"),
+        };
+        assert!(
+            desc.contains("MsprofHcclInfo"),
+            "expected code-first table doc, got {desc}"
+        );
     }
 }

@@ -6,13 +6,9 @@ from typing import Optional
 import probing
 from probing.core import table
 from probing.parallel import current_role
-from probing.tracing import (
-    TRAIN_STEP_KIND,
-    current_local_step,
-    module_stage_kind,
-    recorded_span,
-    step_snapshot,
-)
+from probing.tracing import span, step
+from probing.tracing.coordinates import row_fields
+from probing.tracing.phases import OPTIMIZER, infer_from_stage, is_training_phase
 
 from .torch.module_utils import module_name
 from .types import BaseTracer
@@ -40,7 +36,10 @@ backend = _get_backend()
 @table
 @dataclass
 class TorchTrace:
-    step: Optional[int] = None
+    micro_step: Optional[int] = None
+    local_step: int = -1
+    global_step: int = -1
+    micro_batches: int = 1
     seq: Optional[int] = None
     module: Optional[str] = None
     stage: Optional[str] = None
@@ -52,10 +51,7 @@ class TorchTrace:
     duration: float = 0.0
     allocated_delta: float = 0.0
     max_allocated_delta: float = 0.0
-    # Step coordinate + parallel role, so module-level local work can be aligned
-    # across ranks by role and joined with comm_collective. ``role`` is an
-    # extensible KV string (e.g. "dp=2,pp=1,tp=0"); see probing.parallel.role_key.
-    global_step: int = -1
+    # Step coordinate + parallel role (see probing.step).
     rank: int = -1
     world_size: int = -1
     role: str = ""
@@ -64,7 +60,7 @@ class TorchTrace:
 @table
 @dataclass
 class Variables:
-    step: Optional[int] = None
+    micro_step: Optional[int] = None
     func: Optional[str] = None
     name: Optional[str] = None
     value: Optional[str] = None
@@ -659,7 +655,7 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
 
         self.config = config
         self.enabled = config.enabled
-        self.curr_step = current_local_step()
+        self.curr_step = step.micro_step
         self.pending = []
         self._open_spans = {}
         self._train_step_cm = None
@@ -673,30 +669,27 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
         )
 
     def _stamp_step_role(self, record) -> None:
-        """Fill step coordinate (local/global/rank) and parallel role on a record."""
-        snap = step_snapshot()
-        if snap is not None:
-            record.step = int(snap.local_step)
-            record.global_step = int(snap.global_step)
-            record.rank = int(snap.rank)
-            record.world_size = int(snap.world_size)
+        """Fill step coordinate and parallel role on a torch_trace record."""
+        for key, value in row_fields(step.snapshot()).items():
+            setattr(record, key, value)
         record.role = current_role()
 
-    def _begin_train_step_span(self) -> None:
+    def _begin_train_step_span(self, optimizer=None) -> None:
         if self._train_step_cm is not None:
             return
-        # Do not sync_local_step here — curr_step is often stale and would reset
-        # the global coordinate back to 0/1 across batches.
-        self._train_step_cm = recorded_span(
-            "step", kind=TRAIN_STEP_KIND, source="torch_probe"
-        )
-        self._train_step_cm.__enter__()
+        from probing.tracing.hooks import owns_training_phases
+
+        if optimizer is not None and owns_training_phases(optimizer=optimizer):
+            return
+        handle = span(phase=OPTIMIZER, source="torch_probe")
+        handle.__enter__()
+        self._train_step_cm = handle
 
     def _end_train_step_span(self) -> None:
         if self._train_step_cm is None:
             return
-        # Reentrant: outer span (e.g. manual train.step) owns the lifecycle.
-        if getattr(self._train_step_cm, "_reentrant", False):
+        inner = getattr(self._train_step_cm, "_inner", None)
+        if inner is not None and getattr(inner, "_reentrant", False):
             self._train_step_cm = None
             return
         self._train_step_cm.__exit__(None, None, None)
@@ -727,7 +720,8 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
             pre_max_allocated = entry[4]
             record.allocated_delta = record.allocated - pre_allocated
             record.max_allocated_delta = record.max_allocated - pre_max_allocated
-            span_cm.__exit__(None, None, None)
+            if span_cm is not None:
+                span_cm.__exit__(None, None, None)
         self.pending.append(DelayedRecord(record, events))
 
     def _finish_open_stages(self) -> None:
@@ -782,19 +776,30 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
         module_name_str = self._module_display_name(mod)
         record.module = module_name_str
         record.stage = stage
-        span_kind = module_stage_kind(stage)
+        span_phase = infer_from_stage(stage)
+
+        emit_trace_span = True
+        if is_training_phase(span_phase):
+            from probing.tracing.hooks import owns_training_phases
+
+            if owns_training_phases(module=mod):
+                emit_trace_span = False
 
         if stage.startswith("pre"):
             record.time_offset = self.begin_timing(mod, stage)
-            span_cm = recorded_span(
-                module_name_str,
-                kind=span_kind,
-                module=module_name_str,
-                stage=mapped_stage,
-                seq=record.seq,
-                source="torch_probe",
-            )
-            span_cm.__enter__()
+            span_cm = None
+            if emit_trace_span:
+                span_kwargs = dict(
+                    module=module_name_str,
+                    stage=mapped_stage,
+                    seq=record.seq,
+                    source="torch_probe",
+                )
+                if is_training_phase(span_phase):
+                    span_cm = span(module_name_str, phase=span_phase, **span_kwargs)
+                else:
+                    span_cm = span(module_name_str, **span_kwargs)
+                span_cm.__enter__()
             self._open_spans[span_key] = (
                 span_cm,
                 mod,
@@ -812,13 +817,13 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
             return
         if not self.finalized:
             self.finalize_discovery()
-            self.curr_step = current_local_step()
-            self._begin_train_step_span()
+            self.curr_step = step.micro_step
+            self._begin_train_step_span(optimizer=opt)
         else:
             self._end_train_step_span()
             self.next_mod()
-            self.curr_step = current_local_step()
-            self._begin_train_step_span()
+            self.curr_step = step.micro_step
+            self._begin_train_step_span(optimizer=opt)
 
         # Ensure backend operations are complete before processing traces
         if self.has_backend and self.pending:

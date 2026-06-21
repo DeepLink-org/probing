@@ -1,162 +1,179 @@
 # 核心概念
 
-本页是教程、指南与设计文档共用的**术语锚点**。建议先读这里，再进入
-[SQL 分析](sql-analytics.zh.md) 或 [分布式](../design/distributed.zh.md)。
+逐步构建 Probing 的心理模型——endpoint 是什么、数据如何流入表、step 坐标如何
+组织状态、以及联邦查询如何跨节点工作。在深入 [SQL 分析](sql-analytics.zh.md)或
+[分布式](../design/distributed.zh.md)之前请先阅读本文。
 
-## 1. Endpoint（端点）
+## Endpoint：如何访问 probing 服务器
 
-**CLI** 通过 **endpoint** 连接目标进程上的 probing 服务：
-
-| 形式 | 示例 | 说明 |
-|------|------|------|
-| 本地 PID | `12345` | `probing -t 12345 query "…"` |
-| host:port | `node-a:8080` | 远程 TCP；训练启动时设 `PROBING_PORT` |
+每个启用 probing 的进程都运行一个嵌入式 HTTP 服务器。从外部与其通信需要一个
+**endpoint**——可以是本地 PID 或 `host:port` 对。
 
 ```bash
-export ENDPOINT=12345   # 或 host:8080
-probing $ENDPOINT query "SELECT 1"
+# 本地进程——probing 从 PID 解析 Unix socket
+probing -t 12345 query "SELECT 1"
+
+# 远程进程——TCP 连接到已知地址
+probing -t node-a:8080 query "SELECT 1"
 ```
 
-**进程内**（训练脚本）：`PROBING=1`（或 Linux 上 inject）后 `import probing`，直接用
-`probing.query()`，无需 endpoint 字符串。
+CLI 从不直接与引擎交互。它通过 Unix socket（本地）或 TCP（远程）向目标进程
+中嵌入的服务器发送 HTTP 请求。不存在 `probing.connect()` Python API——
+远程访问始终通过 CLI 的 `-t` 参数。
 
-**没有** `probing.connect()`；访问远程进程一律用 CLI `-t <endpoint>`。
+在训练脚本内部（in-process 模式），则完全跳过 CLI，直接调用 `probing.query()`。
+引擎已经在同一进程中运行。
 
----
+启动时设置 `PROBING=1` 通过 `.pth` 钩子激活进程内服务器——无需 import、无需
+修改代码。在 Linux 上，`probing inject` 也可以通过 ptrace 附着到已运行的进程。
 
-## 2. 三种 CLI 命令
+概念上：
 
-| 命令 | 用法 | 数据 |
-|------|------|------|
-| **query** | `probing $ENDPOINT query "<sql>"` | 已采集的表数据 |
-| **eval** | `probing $ENDPOINT eval "<code>"` | 在目标进程执行一次性 Python |
-| **backtrace** | `probing $ENDPOINT backtrace` | 瞬时栈 → `python.backtrace` |
+```
+CLI  ──(HTTP over Unix socket/TCP)──▶  probing server（目标进程内）
+                                          │
+                                          ├── Engine（DataFusion）
+                                          ├── Config
+                                          └── Extensions（CPU、GPU、Python、NCCL...）
+```
 
-它们是进程外的**主要 CLI 入口**，不等于 Probing 的全部能力（持续采集、联邦、`global.*`、
-skill 等见下文各节）。典型组合：`backtrace` 抓现场 → `eval` 看 live 对象 → `query` 做历史分析。
+## 数据表：只追加、持续写入
 
----
+Probing 将性能数据存储在 mmap 环形缓冲支持的**只追加 SQL 表**中。事件发生时
+写入——模块 hook 触发、collective 完成、span 结束。不存在轮询，不按需快照。
+数据已经在那里了。
 
-## 3. 数据表（`python.*`）
+最重要的表位于 `python` schema 下，因为这里是训练语义所在：
 
-探针数据在 **`python` schema** 下的 **append-only** SQL 表中（另有 `cpu.utilization`、
-`cluster.nodes`、`nccl.proxy_ops` 等内置/扩展表）。
+`python.torch_trace`
+: 模块级 forward/backward/step hook 耗时与 GPU 显存快照。每次 hook 触发一行。
+列包括 `local_step`、`module`、`stage`、`duration`、`allocated`。
 
-| 表 | 记录内容 |
-|----|----------|
-| `python.torch_trace` | 模块 hook 耗时 + GPU 显存 |
-| `python.comm_collective` | `torch.distributed` collective 墙钟时间 |
-| `python.trace_event` | Span 起止与自定义事件 |
-| `python.backtrace` | 最近一次捕获的栈（非全历史） |
-| `python.variables` | 监视变量快照（启用时） |
+`python.comm_collective`
+: 每个 `torch.distributed` 集合调用（all_reduce、broadcast、all_gather 等）。
+记录 `op`、`tensor_shape`、`bytes`、`duration_ms` 以及进程组上下文。
 
-自定义插件同样：`@table` dataclass + `.save()` → `python.<表名>`。
-列说明见 **[SQL 表目录](../reference/sql-tables.zh.md)**。
+`python.trace_event`
+: Span 起止事件和自定义 trace 事件。在 `span_id` 上 join `span_start` / `span_end`
+计算耗时。Span 可以嵌套——forward pass span 包含多个 layer span。
 
-表**不是**懒加载快照——事件发生时推送行（hook、collective、span 结束等）。
+`python.backtrace`
+: 最新捕获的调用栈，混合 Python 和原生帧。**瞬时数据**，不是历史全量。
+先用 `probing backtrace` 填充，再查询。用于 hang 诊断。
 
----
+`python.variables`
+: 变量快照（需显式启用变量追踪）。轻量级：值以字符串方式存储，不序列化。
 
-## 4. Step 坐标
+除 `python.*` 之外，主机级数据在 `cpu.*` 和 `gpu.*`，集群元数据在 `cluster.*`，
+NCCL profiler 输出在 `nccl.*`。完整的列定义见 [SQL 表目录](../reference/sql-tables.zh.md)。
 
-训练分析需要统一的 **step 索引**。权威来源是 Rust `step_snapshot()`（不是单独的 Python 计数器）。
+自定义表遵循相同模型。用 `@table("my_metrics")` 定义 dataclass，在训练循环中
+追加行，表即显示为 `python.my_metrics`——与内置表一同查询。见 [扩展机制](../design/extensibility.zh.md)。
 
-| 字段 | 含义 |
-|------|------|
-| `local_step` | 每 rank 本地步（与 optimizer step 对齐） |
-| `global_step` | 集群全局步（协调时） |
+## Step 坐标：训练分析的共享索引
 
-数据行上：
+训练分析中，关联不同表的数据需要一个共享的时间轴。Probing 使用 **step 坐标**
+而非时间戳——它们具有确定性，且与训练语义天然对齐。
 
-- `python.torch_trace.step` → 本地步
-- `python.torch_trace.global_step`、`python.comm_collective` 的 `local_step` / `global_step`
+有三个层级：
 
-进程内：
+**micro_step** —— 最细粒度计数器。每次调用 `probing.step()` 加一。
+**local_step** —— optimizer step。`micro_step // micro_batches`。
+**global_step** —— 集群范围的 step。rank 对齐时等同于 `local_step`。
 
 ```python
-from probing.tracing import step_snapshot
-s = step_snapshot()
-print(s.local_step, s.global_step, s.rank)
+import probing
+
+probing.step(micro_batches=10)   # 10 个 micro-batch = 1 个 optimizer step
+probing.step()                   # micro_step += 1
+probing.step(42)                 # 直接设置 micro_step
+
+print(probing.step.micro_step)   # 原始计数器
+print(probing.step.local_step)   # micro_step // 10
+print(probing.step.global_step)  # 集群 step
 ```
 
-SQL 与 skill 请用上述字段，**不要**用 `trainer.current_step`。
+所有训练相关表都携带 step 列：`python.torch_trace` 有 `local_step` 和 `global_step`；
+`python.comm_collective` 同样具备，外加 `group_rank` 和 `group_size`。编写查询时，
+用 `local_step` 或 `global_step` 过滤——不要用 `trainer.current_step`。
 
----
+## Role：编码并行拓扑
 
-## 5. Parallel role（并行角色）
+分布式训练将每个 rank 置于并行拓扑中——tensor parallel、pipeline parallel、data
+parallel、expert parallel 或它们的组合。Probing 将其编码为一个紧凑字符串，而非
+每个维度一列。
 
-分布式训练里每个进程有并行拓扑（TP / PP / DP / EP / …）。Probing 用可扩展字符串 **`role`**
-表示，而不是每种维度一列。
+格式为排序的 `name=value` 对：`dp=2,pp=1,tp=0`。空字符串表示 role 未设置。
 
-**格式：** 按名字排序的 `name=value`，如 `dp=2,pp=1,tp=0`；未设置时为 `""`。
+可通过环境变量（Megatron 风格的 `*_PARALLEL_RANK` 或 `PROBING_ROLE_<NAME>=<int>`）
+或 Python 设置：
 
-| 来源 | 方式 |
-|------|------|
-| 环境变量 | Megatron 风格 `*_PARALLEL_RANK`，或 `PROBING_ROLE_<NAME>=<int>` |
-| 运行时 | `probing.set_role("dp=2,pp=1,tp=0")` 或 `set_role(dp=2, pp=1)` |
-| 读取 | `probing.current_role()`；`clear_role()` 恢复 env 推导 |
+```python
+import probing
+probing.set_role(dp=2, pp=1, tp=0)
+# 或: probing.set_role("dp=2,pp=1,tp=0")
 
-`role` 写入 **`python.torch_trace`**、**`python.comm_collective`**，便于同 rank 上按 role
-JOIN / GROUP BY。
+print(probing.current_role())   # "dp=2,pp=1,tp=0"
+probing.clear_role()            # 恢复为环境变量默认值
+```
 
-与 torchrun 的 **`role_name`** / `role_rank`（`cluster.nodes` 上）不同——那是 Elastic 作业
-字段；Probing 的 `role` 是**并行放置 key**，用于分析对齐。
+`role` 被标记在所有 `python.torch_trace` 和 `python.comm_collective` 行上。
+这让你可以 GROUP BY role 来对比，比如跨所有 data-parallel 副本比较 TP rank 0
+和 TP rank 1。需区分 torchrun 的 `role_name` / `role_rank`（`cluster.nodes` 上
+的字段）——这些是 launcher 字段；`role` 是用于分析的 key。
 
----
+## 联邦查询：跨节点查询
 
-## 6. 联邦查询（`global.*` 与标签）
+当多个 rank 注册到集群时，`global.<schema>.<table>` 将查询 fan-out 到每个节点
+并合并结果。查询在每个节点上独立执行；master 收集并拼接。
 
-跨 rank SQL 使用 **`global` catalog**，例如 `global.python.comm_collective`：向已注册节点
-fan-out 后合并。
+每个返回行附带四个联邦标签：
 
-每行附加**联邦标签**，标识数据来源：
+`_host`
+: 生成行的 probing 节点主机名。
 
-| 标签 | 含义 |
-|------|------|
-| `_host` | 来源主机名 |
-| `_addr` | 来源 `host:port` |
-| `_rank` | `torch.distributed` rank（节点注册表） |
-| `_role` | 并行角色 key（注册表 / `set_role`） |
+`_addr`
+: 该节点的 `host:port` probing 地址。
 
-示例：
+`_rank`
+: 来自集群节点注册的 `torch.distributed` rank。
+
+`_role`
+: 来自节点注册的并行 role key（与 `set_role` 保持同步）。
+
+典型的联邦查询：
 
 ```sql
-SELECT _role, _rank, avg(duration_ms) AS avg_ms
+SELECT _role, _rank, op, AVG(duration_ms) AS avg_ms
 FROM global.python.comm_collective
-WHERE global_step > 100
-GROUP BY _role, _rank
+WHERE local_step > 100
+GROUP BY _role, _rank, op
 ORDER BY avg_ms DESC;
 ```
 
-节点通过 torchrun（`setup_torchrun_cluster`）或 `PUT /apis/nodes` 注册。CLI：
-`probing -t <master> cluster nodes` / `cluster query "…"`。详见
-[分布式](../design/distributed.zh.md)。
+通过 torchrun（`setup_torchrun_cluster`）或 POST `/apis/nodes` 注册节点。
+用 `probing -t <master> cluster nodes` 验证。详见 [分布式](../design/distributed.zh.md)。
 
-行内列 **`role`** = 该 rank **写入时**的值；标签 **`_role`** = **联邦查询时**节点注册表
-的值（`set_role` 后会 best-effort 重注册以保持一致）。
+## 表插件 vs 诊断 skill
 
----
+Probing 有两条扩展路径，选择哪条取决于你的目的：
 
-## 7. 表插件 vs 诊断 skill
+**表插件**添加新数据——用 `@table` 定义 dataclass，从代码追加行，数据以
+`python.<name>` 出现。用于存储和查询新的指标或事件。
 
-| | **表插件**（路径 1） | **诊断 skill**（路径 2） |
-|--|---------------------|-------------------------|
-| 贡献 | dataclass 表 + 写行 | `SKILL.md` + 可选 `steps.yaml` |
-| 产出 | `python.my_table` | 结论 + SQL 步骤 / Agent 指引 |
-| 使用 | `SELECT …` | `probing skill run <id>` |
-| 适用 | 新**指标/事件**要落库 | 新**排查配方** |
+**诊断 skill** 添加新分析——`SKILL.md` 文件配合可选的 `steps.yaml`，描述基于
+现有表的诊断工作流。Skill 运行 SQL 查询、应用解释规则、产出诊断结论。用于
+沉淀排查方案。用 `probing skill run <id>` 运行。
 
-可选**路径 3**：NCCL profiler cdylib → `nccl.proxy_ops`（culprit/victim）。见
-[扩展机制](../design/extensibility.zh.md)。
-
----
+NCCL profiler 是第三条路径——编译好的 cdylib，写入 `nccl.proxy_ops` 用于
+culprit/victim 等待分解。它是 Rust 扩展，而非 Python @table。见 [NCCL Profiler](../design/nccl-profiler.zh.md)。
 
 ## 下一步
 
 | 目标 | 文档 |
 |------|------|
-| SQL 模式 | [SQL 分析](sql-analytics.zh.md) |
-| 表结构 | [SQL 表目录](../reference/sql-tables.zh.md) |
-| 多机 | [分布式](../design/distributed.zh.md) |
-| 写插件 | [扩展机制](../design/extensibility.zh.md) |
-| CLI / API | [API 参考](../api-reference.zh.md) |
+| 训练分析的 SQL 模式 | [SQL 分析](sql-analytics.zh.md) |
+| 每张表的列定义 | [SQL 表目录](../reference/sql-tables.zh.md) |
+| 多节点配置和 torchrun | [分布式](../design/distributed.zh.md) |
+| 编写自定义表或 skill | [扩展机制](../design/extensibility.zh.md) |
+| CLI 命令和 Python API | [API 参考](../api-reference.zh.md) |

@@ -22,6 +22,8 @@ from typing import Any, Iterable, Type
 
 import pytest
 
+import probing
+
 # Same shape as probing/server/src/server/training.rs STEP_MATRIX_SQL (local window).
 STEP_MATRIX_SQL = """
 SELECT
@@ -32,7 +34,7 @@ SELECT
 FROM python.trace_event s
 JOIN python.trace_event e
   ON s.span_id = e.span_id AND e.record_type = 'span_end'
-WHERE s.record_type = 'span_start' AND s.kind = 'train.step'
+WHERE s.record_type = 'span_start' AND s.name = 'train.step'
 ORDER BY s.time ASC
 """
 
@@ -45,13 +47,9 @@ ORDER BY timestamp DESC
 
 @pytest.fixture(autouse=True)
 def _reset_step_coordinates():
-    from probing.tracing import set_step_bucket_size, sync_local_step
-
-    sync_local_step(0)
-    set_step_bucket_size(1)
+    probing.step(0)
     yield
-    sync_local_step(0)
-    set_step_bucket_size(1)
+    probing.step(0)
 
 
 @pytest.fixture(autouse=True)
@@ -80,25 +78,25 @@ def rank_env(monkeypatch):
     ) -> None:
         from unittest.mock import MagicMock
 
-        from probing.tracing import step_snapshot as real_step_snapshot
+        from probing.tracing.coordinates import step_snapshot as real_step_snapshot
 
         def _fake_snapshot():
             base = real_step_snapshot()
             snap = MagicMock()
-            snap.local_step = local_step if local_step is not None else base.local_step
-            snap.global_step = base.global_step
-            snap.bucket_size = base.bucket_size
+            micro = local_step if local_step is not None else base.micro_step
+            batches = base.micro_batches
+            training = micro // max(batches, 1)
+            snap.micro_step = micro
+            snap.local_step = training
+            snap.global_step = training
+            snap.micro_batches = batches
             snap.rank = rank
             snap.world_size = world_size
             return snap
 
         monkeypatch.setenv("RANK", str(rank))
         monkeypatch.setenv("WORLD_SIZE", str(world_size))
-        for target in (
-            "probing.tracing.step_snapshot",
-            "probing.profiling.collective.record.step_snapshot",
-        ):
-            monkeypatch.setattr(target, _fake_snapshot)
+        monkeypatch.setattr("probing.tracing.coordinates.step_snapshot", _fake_snapshot)
 
     return _apply
 
@@ -159,7 +157,7 @@ def train_step_samples_from_memtable(limit: int = 500) -> list[dict[str, Any]]:
     starts = {
         e["span_id"]: e
         for e in events
-        if e.get("record_type") == "span_start" and e.get("kind") == "train.step"
+        if e.get("record_type") == "span_start" and e.get("name") == "train.step"
     }
     ends = {e["span_id"]: e for e in events if e.get("record_type") == "span_end"}
     out: list[dict[str, Any]] = []
