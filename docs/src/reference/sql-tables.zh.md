@@ -1,27 +1,34 @@
 # SQL 表目录
 
-可通过 `probing query` 或进程内 `probing.query()` 查询的内置 SQL 表权威目录。
-与 `skills/semantic/tables.yaml` 保持同步（诊断 skill 与 Web Agent 使用）。
+本页列出 Probing 中可通过 `probing query` 或 `probing.query()` 查询的所有内置
+SQL 表。这是一份参考手册——如果你需要查询模式和操作指南，从 [SQL 分析](../guide/sql-analytics.zh.md)
+开始。
 
-术语说明见 [核心概念](../guide/concepts.zh.md)。
+每张表由 mmap 环形缓冲（MEMT）承载或由扩展 crate 动态注册。表按 schema 前缀
+组织，反映数据来源：`python.*` 是训练和 Python 运行时数据，`cpu.*` / `gpu.*`
+是主机和设备采样，`cluster.*` 是节点注册信息，`nccl.*` 是 NCCL profiler 插件
+输出，`global.<schema>.<table>` 是跨 rank 的联邦查询。
 
-## Schema 前缀
+Schema 定义以 `skills/semantic/tables.yaml` 为权威来源（诊断 skill 与 Web Agent
+使用该文件定义），本页与其保持同步。
 
-| 前缀 | 含义 |
-|------|------|
-| `python.*` | Python / 训练探针表（memtable） |
-| `cpu.*`、`gpu.*`、`process.*` | 主机 / 设备采样（扩展） |
-| `cluster.*` | 集群注册表 |
-| `nccl.*` | NCCL profiler 插件（可选） |
-| `global.<schema>.<table>` | 跨已注册节点联邦 fan-out |
-| `information_schema.*` | 引擎元数据 |
-
-列出当前端点上的表：
+在真实端点上查看当前可用表：
 
 ```bash
 probing $ENDPOINT tables
 probing $ENDPOINT tables --all
 ```
+
+## Schema 前缀
+
+| 前缀 | 数据来源 |
+|------|----------|
+| `python.*` | 训练和 Python 运行时（memtable） |
+| `cpu.*`、`gpu.*`、`process.*` | 主机和设备采样（扩展 crate） |
+| `cluster.*` | 集群节点注册表 |
+| `nccl.*` | NCCL profiler 插件（可选，cdylib） |
+| `global.<schema>.<table>` | 跨已注册节点联邦 fan-out |
+| `information_schema.*` | 引擎元数据和配置 |
 
 ## 联邦查询
 

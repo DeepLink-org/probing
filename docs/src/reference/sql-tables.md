@@ -1,28 +1,41 @@
 # SQL Tables
 
-Authoritative catalog of built-in SQL tables queryable via `probing query` or in-process
-`probing.query()`. Kept in sync with `skills/semantic/tables.yaml` (used by
-diagnostic skills and the Web Agent).
+This page catalogs every built-in SQL table you can query through Probing. It's a
+reference — if you're looking for query patterns and how-to, start with [SQL
+Analytics](../guide/sql-analytics.md).
 
-Terminology: [Core Concepts](../guide/concepts.md) (endpoint, steps, `role`, federation).
+Each table is backed by an mmap ring buffer (MEMT) or registered dynamically by an
+extension crate. Tables live under schema prefixes that reflect their data source:
+`python.*` for training and Python runtime data, `cpu.*` / `gpu.*` for host and
+device sampling, `cluster.*` for node registry, `nccl.*` for the NCCL profiler
+plugin, and `global.<schema>.<table>` for federated cross-rank queries.
 
-## Schemas
+The authoritative schema definitions live in `skills/semantic/tables.yaml` (used by
+diagnostic skills and the Web Agent). The tables on this page are kept in sync with
+that file.
 
-| Prefix | Meaning |
-|--------|---------|
-| `python.*` | Python / training probe tables (memtable) |
-| `cpu.*`, `gpu.*`, `process.*` | Host / device sampling (extensions) |
-| `cluster.*` | Cluster registry |
-| `nccl.*` | NCCL profiler plugin (optional) |
-| `global.<schema>.<table>` | Federated fan-out across registered peers |
-| `information_schema.*` | Engine metadata |
-
-List tables on a live endpoint:
+To see what tables are actually available on a live endpoint:
 
 ```bash
 probing $ENDPOINT tables
 probing $ENDPOINT tables --all
 ```
+
+Terminology: [Core Concepts](../guide/concepts.md) (endpoint, steps, `role`, federation).
+
+## Schema prefixes
+
+Each schema represents a category of data source. The tables listed below are organized
+by these prefixes so you know where to look:
+
+| Prefix | Data source |
+|--------|-------------|
+| `python.*` | Training and Python runtime (memtable-backed) |
+| `cpu.*`, `gpu.*`, `process.*` | Host and device sampling (extension crates) |
+| `cluster.*` | Cluster node registry |
+| `nccl.*` | NCCL profiler plugin (optional, cdylib) |
+| `global.<schema>.<table>` | Federated fan-out across registered peers |
+| `information_schema.*` | Engine metadata and configuration |
 
 ## Federation
 
