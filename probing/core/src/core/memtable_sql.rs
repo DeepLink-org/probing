@@ -29,7 +29,7 @@
 use std::collections::{BTreeSet, HashSet};
 use std::panic::AssertUnwindSafe;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
@@ -1104,6 +1104,18 @@ pub struct ColdCompactor {
     handle: Mutex<Option<JoinHandle<()>>>,
 }
 
+fn lock_compactor_handle(
+    m: &Mutex<Option<JoinHandle<()>>>,
+) -> MutexGuard<'_, Option<JoinHandle<()>>> {
+    match m.lock() {
+        Ok(guard) => guard,
+        Err(e) => {
+            log::debug!("ColdCompactor handle mutex poisoned; recovering");
+            e.into_inner()
+        }
+    }
+}
+
 impl ColdCompactor {
     pub fn instance() -> &'static Self {
         static INSTANCE: Lazy<ColdCompactor> = Lazy::new(|| ColdCompactor {
@@ -1176,7 +1188,7 @@ impl ColdCompactor {
                 }
             })
             .expect("spawn memc-compactor thread");
-        *self.handle.lock().unwrap() = Some(handle);
+        *lock_compactor_handle(&self.handle) = Some(handle);
     }
 
     /// Signal the thread to flush and exit, then join it.
@@ -1184,7 +1196,7 @@ impl ColdCompactor {
         if !self.running.swap(false, Ordering::SeqCst) {
             return;
         }
-        if let Some(h) = self.handle.lock().unwrap().take() {
+        if let Some(h) = lock_compactor_handle(&self.handle).take() {
             let _ = h.join();
         }
     }

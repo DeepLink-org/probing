@@ -641,10 +641,10 @@ impl MemTable {
     /// MEMT is single-writer: the `&mut self` borrow guarantees exclusive
     /// access, so no lock is taken.
     pub fn push_row(&mut self, values: &[Value]) {
-        assert!(
-            validate_row_schema(self.backing.bytes(), values),
-            "value types do not match schema"
-        );
+        if !validate_row_schema(self.backing.bytes(), values) {
+            log::warn!("push_row: value types do not match schema");
+            return;
+        }
         self.push_row_unchecked(values);
     }
     pub fn push_row_unchecked(&mut self, values: &[Value]) {
@@ -1683,19 +1683,19 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "value types do not match schema")]
     fn push_row_rejects_wrong_column_count() {
         let schema = Schema::new().col("a", DType::U32).col("b", DType::I64);
         let mut t = MemTable::new(&schema, 256, 2);
         t.push_row(&[Value::U32(1)]); // only 1 value for 2 columns
+        assert_eq!(t.num_rows(0), 0);
     }
 
     #[test]
-    #[should_panic(expected = "value types do not match schema")]
     fn push_row_rejects_wrong_dtype() {
         let schema = Schema::new().col("a", DType::U32);
         let mut t = MemTable::new(&schema, 256, 2);
         t.push_row(&[Value::Str("oops")]); // Str instead of U32
+        assert_eq!(t.num_rows(0), 0);
     }
 
     // ── MemTableWriter tests ──────────────────────────

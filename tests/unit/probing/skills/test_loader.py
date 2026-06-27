@@ -26,10 +26,11 @@ def test_skills_root_exists():
     assert root.is_dir()
 
 
-def test_catalog_loads_eight_skills():
+def test_catalog_loads_nine_skills():
     catalog = load_catalog()
-    assert len(catalog.skills) == 8
+    assert len(catalog.skills) == 9
     ids = {p.id for p in catalog.skills}
+    assert "crash_triage" in ids
     assert "slow_rank" in ids
     assert "nccl_culprit_victim" in ids
     assert "health_overview" in ids

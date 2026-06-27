@@ -41,14 +41,14 @@ def test_skill_roots_include_bundled():
     assert "bundled" in labels or "repo" in labels
 
 
-def test_merged_catalog_has_eight_skills():
+def test_merged_catalog_has_nine_skills():
     catalog = load_catalog()
-    assert len(catalog.skills) == 8
+    assert len(catalog.skills) == 9
 
 
 def test_list_skills_tool():
     skills = list_skills(limit=10)
-    assert len(skills) >= 8
+    assert len(skills) >= 9
     assert any(s.id == "health_overview" for s in skills)
 
 

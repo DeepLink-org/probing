@@ -550,6 +550,24 @@ def get_magics_list() -> str:
         return json.dumps({"error": str(e), "traceback": traceback.format_exc()})
 
 
+@ext_handler("pythonext", "crash/hold")
+def crash_hold() -> str:
+    """Extend grace hold for post-crash debugging."""
+    import probing._core as core
+
+    core.request_crash_hold()
+    return '{"ok":true,"held":true}'
+
+
+@ext_handler("pythonext", "crash/release")
+def crash_release() -> str:
+    """Release grace hold and exit the process."""
+    import probing._core as core
+
+    core.request_crash_release(True)
+    return '{"ok":true,"released":true}'
+
+
 @ext_handler("pythonext", "trace/variables")
 def get_trace_variables(function: Optional[str] = None, limit: int = 100) -> str:
     """Get trace variables from database.

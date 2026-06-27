@@ -109,6 +109,17 @@ def record_comm_lite(
         async_op=async_op,
     )
     CommCollective(duration_ms=duration_ms, **fields).save()
+    try:
+        from probing._core import note_last_comm
+
+        note_last_comm(
+            op,
+            group_size,
+            nbytes,
+            int(fields.get("global_step", -1)),
+        )
+    except Exception:
+        pass
     if write_trace_event:
         record_span(
             op,

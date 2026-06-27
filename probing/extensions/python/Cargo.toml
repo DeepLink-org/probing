@@ -25,7 +25,10 @@ ctor = { workspace = true }
 log = { workspace = true }
 nix = { workspace = true }
 once_cell = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
+sha2 = "0.10"
+uuid = { version = "1.0", features = ["v4"] }
 tokio = { workspace = true }
 html-escape = "0.2"
 

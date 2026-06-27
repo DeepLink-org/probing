@@ -38,6 +38,7 @@ pub mod profiling;
 pub mod profiling_sidebar_hint;
 pub mod sidebar;
 pub mod source_viewer;
+pub mod span_timeline;
 pub mod stat_card;
 pub mod table_view;
 pub mod timeline_viewer;
