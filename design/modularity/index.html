@@ -1238,6 +1238,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="8. Known boundary violations (technical debt)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cluster-membership-torchrun-heartbeat-vs-pulsing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cluster membership: Torchrun heartbeat vs Pulsing
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2224,6 +2241,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="8. Known boundary violations (technical debt)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cluster-membership-torchrun-heartbeat-vs-pulsing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cluster membership: Torchrun heartbeat vs Pulsing
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2506,7 +2540,7 @@ do not call each other.</p>
 <tr>
 <td><strong>probing-server</strong></td>
 <td><code>probing/server/</code></td>
-<td>Axum routes, auth, <code>initialize_engine()</code>, cluster fan-out</td>
+<td>Axum routes, auth, <code>initialize_engine()</code>, cluster fan-out, <strong>torchrun heartbeat</strong> (<code>torchrun_cluster.rs</code>)</td>
 </tr>
 <tr>
 <td><strong>probing-cli</strong></td>
@@ -2874,14 +2908,29 @@ commands, rather than letting <code>probing-python</code> spread imports across 
 <td><code>Engine::async_query</code></td>
 </tr>
 <tr>
+<td>Table/column semantic docs</td>
+<td>probing-core</td>
+<td><code>semantic_catalog</code> → <code>probe.probing.table_docs</code> / <code>column_docs</code></td>
+</tr>
+<tr>
 <td>mmap format, compaction</td>
 <td>probing-memtable</td>
 <td><code>RowWriter</code>, <code>ColdStore</code></td>
 </tr>
 <tr>
+<td>Torchrun cluster heartbeat</td>
+<td>probing-server</td>
+<td><code>torchrun_cluster.rs</code>, <code>cluster_report_backoff.rs</code>, PUT <code>/apis/nodes</code></td>
+</tr>
+<tr>
 <td>Mixed Python/C stack</td>
 <td>probing-python/features</td>
 <td><code>python.backtrace</code>, pprof</td>
+</tr>
+<tr>
+<td>macOS per-thread SIGUSR2</td>
+<td>probing-core</td>
+<td><code>signal::send_sigusr2_to_thread_id</code></td>
 </tr>
 <tr>
 <td>Torch module sampling</td>
@@ -3024,6 +3073,21 @@ commands, rather than letting <code>probing-python</code> spread imports across 
 <td><strong>Accepted</strong> for maturin wheel (<code>cli_main</code> only); keep import surface minimal</td>
 </tr>
 <tr>
+<td>Python ext → CC</td>
+<td>~~<code>probing-python</code> → <code>probing-cc</code>~~</td>
+<td><strong>Done</strong> — <code>send_sigusr2_to_thread_id</code> moved to <code>probing-core::signal</code></td>
+</tr>
+<tr>
+<td>Core → NCCL/HCCL</td>
+<td><code>probing-core</code> → <code>probing-nccl-profiler</code> / <code>probing-hccl-shim</code> (<code>builtin-schema-docs</code> feature) for <code>semantic_catalog</code></td>
+<td>Register docs via collector hooks or manifest; drop L1→L2 compile deps</td>
+</tr>
+<tr>
+<td>Core → skills YAML</td>
+<td><code>semantic_catalog.rs</code> <code>include_str!(skills/semantic/tables.yaml)</code></td>
+<td>Accept as L4 overlay SSOT, or move YAML under <code>probing/core/resources/</code></td>
+</tr>
+<tr>
 <td>Server → python <code>features/*</code></td>
 <td>~~<code>server/profiling.rs</code>~~ removed</td>
 <td>Flamegraphs via <code>torchextension</code> / <code>pprofextension</code> <code>ProbeExtensionCall</code></td>
@@ -3055,6 +3119,35 @@ commands, rather than letting <code>probing-python</code> spread imports across 
 </tr>
 </tbody>
 </table>
+<h3 id="cluster-membership-torchrun-heartbeat-vs-pulsing">Cluster membership: Torchrun heartbeat vs Pulsing<a class="headerlink" href="#cluster-membership-torchrun-heartbeat-vs-pulsing" title="Permanent link">&para;</a></h3>
+<p>Two <strong>complementary</strong> paths populate <code>cluster.nodes</code> and power <code>global.*</code> federation.
+They do not replace each other.</p>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Layer</th>
+<th>When</th>
+<th>Mechanism</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Torchrun cluster heartbeat</strong></td>
+<td>L3 <code>probing-server</code></td>
+<td>Default for <code>torchrun</code> / elastic jobs (<code>WORLD_SIZE &gt; 1</code>, <code>PROBING=1/2</code>)</td>
+<td>Hierarchical HTTP PUT + TCPStore side channel (<code>probing/torchrun/&lt;run_id&gt;/…</code>). Does <strong>not</strong> touch torch rendezvous keys. See <a href="../torchrun-cluster/">Torchrun cluster heartbeat</a>.</td>
+</tr>
+<tr>
+<td><strong>Pulsing integration</strong></td>
+<td>L4 passive + external runtime</td>
+<td>Another process already runs <a href="../cluster-pulsing/">Pulsing</a> and writes <code>pulsing.*</code> memtables</td>
+<td>Probing discovers <code>pulsing.*</code> mmap tables; no probing-owned heartbeat thread. Optional bootstrap via Pulsing APIs.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Default for torchrun users:</strong> heartbeat auto-starts from the Rust ctor (<code>maybe_start_torchrun_cluster()</code>).
+<strong>Pulsing:</strong> use when the job already centers on Pulsing for membership/failure detection, or you need Pulsing actors alongside probing tables.</p>
 <hr />
 <h2 id="9-adding-a-new-feature-decision-tree">9. Adding a new feature (decision tree)<a class="headerlink" href="#9-adding-a-new-feature-decision-tree" title="Permanent link">&para;</a></h2>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>Need new raw signals?
@@ -3101,6 +3194,14 @@ commands, rather than letting <code>probing-python</code> spread imports across 
 <tr>
 <td><a href="../distributed/">Distributed</a></td>
 <td>Federation &amp; cluster</td>
+</tr>
+<tr>
+<td><a href="../torchrun-cluster/">Torchrun cluster heartbeat</a></td>
+<td>Hierarchical torchrun membership</td>
+</tr>
+<tr>
+<td><a href="../cluster-pulsing/">Cluster with Pulsing</a></td>
+<td>Optional Pulsing-based membership</td>
 </tr>
 <tr>
 <td><a href="../nccl-profiler/">NCCL Profiler</a></td>
