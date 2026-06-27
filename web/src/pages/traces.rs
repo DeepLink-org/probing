@@ -7,11 +7,11 @@ use crate::components::card::Card;
 use crate::components::colors::colors;
 use crate::components::common::{query_result, AsyncBoundary, EmptyState};
 use crate::components::icon::Icon;
+use crate::components::page::{PageContainer, PageTitle};
+use crate::components::poll_status::{ManualRefreshStatus, RefreshButton};
 use crate::components::span_timeline::{
     SpanTimelineBar, SpanTimelineHeader, SpanTimelineLegend, SpanTimelineSpacer, TraceTimeWindow,
 };
-use crate::components::page::{PageContainer, PageTitle};
-use crate::components::poll_status::{ManualRefreshStatus, RefreshButton};
 use crate::hooks::use_app_resource;
 use crate::state::investigation::{
     clear_spans_investigation_filters, investigation_context_key, set_trace_context,
@@ -755,9 +755,8 @@ fn EventView(event: EventInfo, time_window: TraceTimeWindow, span_start: i64) ->
     let offset = crate::components::span_timeline::format_axis_label(
         (event.timestamp - time_window.start_ns) as f64,
     );
-    let rel = crate::components::span_timeline::format_axis_label(
-        (event.timestamp - span_start) as f64,
-    );
+    let rel =
+        crate::components::span_timeline::format_axis_label((event.timestamp - span_start) as f64);
     rsx! {
         div {
             class: "flex flex-wrap items-baseline gap-x-2 gap-y-0 py-0.5 text-gray-600",

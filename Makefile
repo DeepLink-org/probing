@@ -47,6 +47,9 @@ CLIPPY_WORKSPACE := cargo clippy --workspace --all-targets --no-default-features
 CLIPPY_CORE := cargo clippy -p probing-core --all-targets --no-default-features $(CLIPPY_DENY)
 CLIPPY_WEB := cd web && cargo clippy --all-targets $(CLIPPY_DENY)
 
+FMT_WORKSPACE := cargo fmt --all
+FMT_WEB := cd web && cargo fmt --all
+
 # ==============================================================================
 .PHONY: help
 help:
@@ -60,6 +63,7 @@ help:
 	@echo "  install-wheel     pip install dist/probing-*.whl"
 	@echo "  venv              create/refresh project .venv (used by develop and CI)"
 	@echo "  test / lint       Full test and lint suites"
+	@echo "  fmt               rustfmt workspace + web (same paths as CI)"
 	@echo "  check-dev         Quick env sanity check"
 	@echo "  clean             Remove build artifacts"
 	@echo ""
@@ -203,7 +207,7 @@ PYTEST_WHEEL_FLAGS := --import-mode=importlib -o pythonpath= -o "addopts=--verbo
 PYTEST_WHEEL_EXTRA ?=
 
 .PHONY: test test-rust test-rust-unit test-rust-regression test-python test-python-unit test-python-regression test-doctest test-python-wheel coverage-python-wheel
-.PHONY: lint lint-python lint-rust lint-core clippy clippy-fix coverage coverage-rust coverage-python bootstrap clean docs-install docs docs-serve docs-clean
+.PHONY: fmt fmt-check lint lint-python lint-rust lint-core clippy clippy-fix coverage coverage-rust coverage-python bootstrap clean docs-install docs docs-serve docs-clean
 
 test: test-rust test-python
 test-rust: test-rust-unit test-rust-regression
@@ -241,6 +245,12 @@ coverage-python-wheel:
 	$(MAKE) test-python-wheel PYTEST_WHEEL_EXTRA="--cov=probing --cov=tests --cov-report=xml:coverage.xml"
 
 lint: lint-python lint-rust
+fmt:
+	$(FMT_WORKSPACE)
+	$(FMT_WEB)
+fmt-check:
+	$(FMT_WORKSPACE) -- --check
+	$(FMT_WEB) -- --check
 lint-core:
 	$(CLIPPY_CORE)
 lint-python:
