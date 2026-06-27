@@ -113,7 +113,7 @@ Python-side collectors (same layer, different language):
 
 | Unit | Path | Responsibility |
 |------|------|----------------|
-| **probing-server** | `probing/server/` | Axum routes, auth, `initialize_engine()`, cluster fan-out |
+| **probing-server** | `probing/server/` | Axum routes, auth, `initialize_engine()`, cluster fan-out, **torchrun heartbeat** (`torchrun_cluster.rs`) |
 | **probing-cli** | `probing/cli/` | HTTP client to probe; inject/list/query/repl/**skill** |
 
 Stable HTTP surface: `probing/server/API.md`, enforced by `tests/regression/spec/api_spec.json`.
@@ -325,7 +325,9 @@ Use this table to decide **where a change belongs**:
 | Concern | Owner module | Interface |
 |---------|--------------|-----------|
 | SQL parsing, federation rewrite | probing-core | `Engine::async_query` |
+| Table/column semantic docs | probing-core | `semantic_catalog` → `probe.probing.table_docs` / `column_docs` |
 | mmap format, compaction | probing-memtable | `RowWriter`, `ColdStore` |
+| Torchrun cluster heartbeat | probing-server | `torchrun_cluster.rs`, `cluster_report_backoff.rs`, PUT `/apis/nodes` |
 | Mixed Python/C stack | probing-python/features | `python.backtrace`, pprof |
 | Torch module sampling | python/probing/profiling | `python.torch_trace` |
 | Collective wall time | python/probing/profiling/collective | `python.comm_collective` |
@@ -372,12 +374,28 @@ Track and fix incrementally:
 | Issue | Current | Target |
 |-------|---------|--------|
 | Python ext → CLI | `probing-python` → `probing-cli` | **Accepted** for maturin wheel (`cli_main` only); keep import surface minimal |
+| Python ext → CC | `probing-python` → `probing-cc` (stack tracer SIGUSR2) | Move signal helper to L1 shared util or thin `probing-signals` crate |
+| Core → NCCL/HCCL | `probing-core` → `probing-nccl-profiler` / `probing-hccl-shim` (`builtin-schema-docs` feature) for `semantic_catalog` | Register docs via collector hooks or manifest; drop L1→L2 compile deps |
+| Core → skills YAML | `semantic_catalog.rs` `include_str!(skills/semantic/tables.yaml)` | Accept as L4 overlay SSOT, or move YAML under `probing/core/resources/` |
 | Server → python `features/*` | ~~`server/profiling.rs`~~ removed | Flamegraphs via `torchextension` / `pprofextension` `ProbeExtensionCall` |
 | Server → python REPL internals | ~~`PythonRepl` in server~~ | `/ws` uses `ReplSession` facade only |
 | Composition sprawl | All wiring in `server/engine.rs` | Optional: manifest TOML listing enabled extensions |
 | Skills triple loader | Rust + Python + Web embed `skills/` | Keep `skills/` SSOT; loaders versioned together in CI |
 | kmsg collector | Registered (Linux/kmsg feature gate) | Done |
 | Architecture doc | 2-layer diagram | Superseded by this doc + [Data Layer](data-layer.md) |
+
+### Cluster membership: Torchrun heartbeat vs Pulsing
+
+Two **complementary** paths populate `cluster.nodes` and power `global.*` federation.
+They do not replace each other.
+
+| Path | Layer | When | Mechanism |
+|------|-------|------|-----------|
+| **Torchrun cluster heartbeat** | L3 `probing-server` | Default for `torchrun` / elastic jobs (`WORLD_SIZE > 1`, `PROBING=1/2`) | Hierarchical HTTP PUT + TCPStore side channel (`probing/torchrun/<run_id>/…`). Does **not** touch torch rendezvous keys. See [Torchrun cluster heartbeat](torchrun-cluster.md). |
+| **Pulsing integration** | L4 passive + external runtime | Another process already runs [Pulsing](cluster-pulsing.md) and writes `pulsing.*` memtables | Probing discovers `pulsing.*` mmap tables; no probing-owned heartbeat thread. Optional bootstrap via Pulsing APIs. |
+
+**Default for torchrun users:** heartbeat auto-starts from the Rust ctor (`maybe_start_torchrun_cluster()`).
+**Pulsing:** use when the job already centers on Pulsing for membership/failure detection, or you need Pulsing actors alongside probing tables.
 
 ---
 
@@ -414,6 +432,8 @@ Need new raw signals?
 | [Data Layer](data-layer.md) | MEMT/MEMC internals |
 | [Extensibility](extensibility.md) | Public extension paths (table + skill) |
 | [Distributed](distributed.md) | Federation & cluster |
+| [Torchrun cluster heartbeat](torchrun-cluster.md) | Hierarchical torchrun membership |
+| [Cluster with Pulsing](cluster-pulsing.md) | Optional Pulsing-based membership |
 | [NCCL Profiler](nccl-profiler.md) | NCCL plugin boundary |
 | [web/DESIGN.md](https://github.com/DeepLink-org/probing/blob/main/web/DESIGN.md) | UI module layout |
 | [AGENTS.md](https://github.com/DeepLink-org/probing/blob/main/AGENTS.md) | Agent skill usage |
