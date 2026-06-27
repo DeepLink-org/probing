@@ -16,7 +16,7 @@
         <link rel="prev" href="../reference/sql-tables/">
       
       
-        <link rel="next" href="../versions/">
+        <link rel="next" href="../reference/env-vars/">
       
       
         
@@ -886,6 +886,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1095,6 +1099,62 @@
     
   
     分布式
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design/torchrun-cluster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    torchrun 集群心跳
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design/federation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    联邦查询引擎
   
 
     
@@ -1384,6 +1444,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1631,10 +1695,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#probingspan-probingevent" class="md-nav__link">
+  <a href="#probingspan-probingevent-probingrecord_span-probingstep" class="md-nav__link">
     <span class="md-ellipsis">
       
-        probing.span / probing.event
+        probing.span / probing.event / probing.record_span / probing.step
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#probingtracing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        probing.tracing 原语（集成 / 插件）
       
     </span>
   </a>
@@ -1722,6 +1797,62 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/env-vars/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    环境变量
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/skill-format/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skill 格式规范
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1911,10 +2042,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#probingspan-probingevent" class="md-nav__link">
+  <a href="#probingspan-probingevent-probingrecord_span-probingstep" class="md-nav__link">
     <span class="md-ellipsis">
       
-        probing.span / probing.event
+        probing.span / probing.event / probing.record_span / probing.step
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#probingtracing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        probing.tracing 原语（集成 / 插件）
       
     </span>
   </a>
@@ -2199,39 +2341,104 @@
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">df</span> <span class="o">=</span> <span class="n">probing</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s2">&quot;SELECT * FROM python.torch_trace LIMIT 10&quot;</span><span class="p">)</span>
 </span></code></pre></div>
-<h3 id="probingspan-probingevent">probing.span / probing.event<a class="headerlink" href="#probingspan-probingevent" title="Permanent link">&para;</a></h3>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">with</span> <span class="n">probing</span><span class="o">.</span><span class="n">span</span><span class="p">(</span><span class="s2">&quot;forward&quot;</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="s2">&quot;nn.forward&quot;</span><span class="p">):</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="o">...</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">probing</span><span class="o">.</span><span class="n">event</span><span class="p">(</span><span class="s2">&quot;batch.stats&quot;</span><span class="p">,</span> <span class="n">attributes</span><span class="o">=</span><span class="p">[{</span><span class="s2">&quot;loss&quot;</span><span class="p">:</span> <span class="mf">1.25</span><span class="p">}])</span>
+<h3 id="probingspan-probingevent-probingrecord_span-probingstep">probing.span / probing.event / probing.record_span / probing.step<a class="headerlink" href="#probingspan-probingevent-probingrecord_span-probingstep" title="Permanent link">&para;</a></h3>
+<p>用户面四个动词：</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">probing</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="k">with</span> <span class="n">probing</span><span class="o">.</span><span class="n">span</span><span class="p">(</span><span class="s2">&quot;forward&quot;</span><span class="p">,</span> <span class="n">phase</span><span class="o">=</span><span class="n">probing</span><span class="o">.</span><span class="n">FORWARD</span><span class="p">):</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="n">probing</span><span class="o">.</span><span class="n">event</span><span class="p">(</span><span class="s2">&quot;batch.stats&quot;</span><span class="p">,</span> <span class="n">attributes</span><span class="o">=</span><span class="p">[{</span><span class="s2">&quot;loss&quot;</span><span class="p">:</span> <span class="mf">1.25</span><span class="p">}])</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="n">probing</span><span class="o">.</span><span class="n">record_span</span><span class="p">(</span><span class="s2">&quot;all_reduce&quot;</span><span class="p">,</span> <span class="n">duration_ns</span><span class="o">=</span><span class="mi">1_000_000</span><span class="p">)</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="n">probing</span><span class="o">.</span><span class="n">attach_training_phases</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">)</span>  <span class="c1"># hook 驱动 forward/backward/optimizer</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="n">probing</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">micro_step</span>              <span class="c1"># 最细计数</span>
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="n">probing</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>                       <span class="c1"># micro_step +1</span>
+</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="n">probing</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>                     <span class="c1"># 设置 micro_step</span>
+</span><span id="__span-6-13"><a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="n">probing</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">micro_batches</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>       <span class="c1"># 梯度累积分组</span>
+</span><span id="__span-6-14"><a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="n">probing</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">local_step</span>              <span class="c1"># micro_step // micro_batches</span>
+</span><span id="__span-6-15"><a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="n">probing</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">global_step</span>             <span class="c1"># = local_step</span>
+</span></code></pre></div>
+<h3 id="probingtracing">probing.tracing 原语（集成 / 插件）<a class="headerlink" href="#probingtracing" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>导入</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Span</td>
+<td><code>span</code>, <code>event</code>, <code>record_span</code>, <code>current_span</code></td>
+<td>插桩</td>
+</tr>
+<tr>
+<td>Step</td>
+<td><code>step</code>, <code>step_fields</code></td>
+<td>训练坐标</td>
+</tr>
+<tr>
+<td>Phase</td>
+<td><code>FORWARD</code>, <code>BACKWARD</code>, <code>OPTIMIZER</code>, <code>phases</code>, <code>attach_training_phases</code></td>
+<td>训练阶段</td>
+</tr>
+<tr>
+<td>Integrator</td>
+<td><code>phases.infer_from_stage()</code></td>
+<td>Torch stage → 训练 phase</td>
+</tr>
+<tr>
+<td>Context</td>
+<td><code>span_attrs</code>, <code>row_fields</code>, <code>step_fields</code></td>
+<td>span 与表行上下文字段</td>
+</tr>
+<tr>
+<td>Backend</td>
+<td><code>register_backend</code>, <code>configure_backends</code>, <code>list_backends</code>, <code>reset_backends</code></td>
+<td>导出插件；内置：<code>memtable</code>、<code>logger</code>、<code>otel</code></td>
+</tr>
+<tr>
+<td>Table</td>
+<td><code>TraceEvent</code>, <code>SPANS_SQL</code></td>
+<td>SQL / skill</td>
+</tr>
+</tbody>
+</table>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">probing.tracing</span><span class="w"> </span><span class="kn">import</span> <span class="n">register_backend</span><span class="p">,</span> <span class="n">configure_backends</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="k">with</span> <span class="n">probing</span><span class="o">.</span><span class="n">span</span><span class="p">(</span><span class="s2">&quot;forward&quot;</span><span class="p">,</span> <span class="n">phase</span><span class="o">=</span><span class="n">probing</span><span class="o">.</span><span class="n">FORWARD</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="s2">&quot;my_trainer&quot;</span><span class="p">):</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="o">...</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="n">register_backend</span><span class="p">(</span><span class="s2">&quot;my_sink&quot;</span><span class="p">,</span> <span class="n">factory</span><span class="p">)</span>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="n">configure_backends</span><span class="p">([</span><span class="s2">&quot;memtable&quot;</span><span class="p">,</span> <span class="s2">&quot;logger&quot;</span><span class="p">])</span>  <span class="c1"># 终端 + memtable</span>
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="n">configure_backends</span><span class="p">([</span><span class="s2">&quot;memtable&quot;</span><span class="p">,</span> <span class="s2">&quot;my_sink&quot;</span><span class="p">])</span>
 </span></code></pre></div>
 <h3 id="tabledataclass">@table（dataclass 插件）<a class="headerlink" href="#tabledataclass" title="Permanent link">&para;</a></h3>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">probing</span><span class="w"> </span><span class="kn">import</span> <span class="n">table</span>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="nd">@table</span>
-</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="nd">@dataclass</span>
-</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyMetrics</span><span class="p">:</span>
-</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>    <span class="n">step</span><span class="p">:</span> <span class="nb">int</span>
-</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>    <span class="n">loss</span><span class="p">:</span> <span class="nb">float</span>
-</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>
-</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">init</span><span class="p">():</span>
-</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>    <span class="n">MyMetrics</span><span class="o">.</span><span class="n">init_table</span><span class="p">()</span>
-</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>
-</span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="n">MyMetrics</span><span class="p">(</span><span class="n">step</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">loss</span><span class="o">=</span><span class="mf">0.42</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">probing</span><span class="w"> </span><span class="kn">import</span> <span class="n">table</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="nd">@table</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="nd">@dataclass</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyMetrics</span><span class="p">:</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>    <span class="n">step</span><span class="p">:</span> <span class="nb">int</span>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>    <span class="n">loss</span><span class="p">:</span> <span class="nb">float</span>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">init</span><span class="p">():</span>
+</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>    <span class="n">MyMetrics</span><span class="o">.</span><span class="n">init_table</span><span class="p">()</span>
+</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>
+</span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="n">MyMetrics</span><span class="p">(</span><span class="n">step</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">loss</span><span class="o">=</span><span class="mf">0.42</span><span class="p">)</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
 </span></code></pre></div>
 <p>见 <strong><a href="../design/extensibility/">扩展机制</a></strong>。</p>
 <h3 id="probingset_role-current_role-clear_role">probing.set_role / current_role / clear_role<a class="headerlink" href="#probingset_role-current_role-clear_role" title="Permanent link">&para;</a></h3>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">probing</span><span class="o">.</span><span class="n">set_role</span><span class="p">(</span><span class="s2">&quot;dp=2,pp=1,tp=0&quot;</span><span class="p">)</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">probing</span><span class="o">.</span><span class="n">set_role</span><span class="p">(</span><span class="n">dp</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">pp</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">tp</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">probing</span><span class="o">.</span><span class="n">current_role</span><span class="p">()</span>
-</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">probing</span><span class="o">.</span><span class="n">clear_role</span><span class="p">()</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">probing</span><span class="o">.</span><span class="n">set_role</span><span class="p">(</span><span class="s2">&quot;dp=2,pp=1,tp=0&quot;</span><span class="p">)</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">probing</span><span class="o">.</span><span class="n">set_role</span><span class="p">(</span><span class="n">dp</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">pp</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">tp</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">probing</span><span class="o">.</span><span class="n">current_role</span><span class="p">()</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">probing</span><span class="o">.</span><span class="n">clear_role</span><span class="p">()</span>
 </span></code></pre></div>
 <h3 id="probingtracingstep_snapshot">probing.tracing.step_snapshot<a class="headerlink" href="#probingtracingstep_snapshot" title="Permanent link">&para;</a></h3>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">probing.tracing</span><span class="w"> </span><span class="kn">import</span> <span class="n">step_snapshot</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">snap</span> <span class="o">=</span> <span class="n">step_snapshot</span><span class="p">()</span>
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c1"># snap.local_step, snap.global_step — 用于 SQL 过滤与自定义表</span>
-</span></code></pre></div>
+<p>已合并为 <code>probing.step()</code> — 见上文 <strong>probing.step</strong>。</p>
 <hr />
 <h2 id="_5">配置<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
 <table>

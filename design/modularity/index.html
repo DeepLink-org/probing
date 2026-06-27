@@ -886,6 +886,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1414,6 +1418,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../torchrun-cluster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Torchrun Cluster Heartbeat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../federation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Federated Query Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../nccl-profiler/" class="md-nav__link">
         
   
@@ -1681,6 +1741,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1778,6 +1842,62 @@
     
   
     API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/env-vars/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Environment Variables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/skill-format/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skill Format
   
 
     
@@ -2288,7 +2408,7 @@ call lower; never the reverse).</p>
 <tr>
 <td>Federation</td>
 <td><code>core/federation/</code></td>
-<td><code>global.*</code> catalog, tags <code>_host/_addr/_rank/_role</code></td>
+<td><code>global.*</code> catalog, tags <code>_host/_addr/_rank/_role</code> — see <a href="../federation/">Federated query engine</a></td>
 </tr>
 <tr>
 <td>Memtable SQL</td>
@@ -2358,7 +2478,7 @@ do not call each other.</p>
 </tr>
 <tr>
 <td>Tracing spans</td>
-<td><code>python/probing/tracing.py</code></td>
+<td><code>python/probing/tracing/</code></td>
 <td><code>python.trace_event</code></td>
 </tr>
 <tr>
@@ -2925,8 +3045,8 @@ commands, rather than letting <code>probing-python</code> spread imports across 
 </tr>
 <tr>
 <td>kmsg collector</td>
-<td>Implemented, not registered</td>
-<td>Register in engine or delete</td>
+<td>Registered (Linux/kmsg feature gate)</td>
+<td>Done</td>
 </tr>
 <tr>
 <td>Architecture doc</td>

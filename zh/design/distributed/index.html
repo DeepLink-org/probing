@@ -16,7 +16,7 @@
         <link rel="prev" href="../debugging/">
       
       
-        <link rel="next" href="../nccl-profiler/">
+        <link rel="next" href="../torchrun-cluster/">
       
       
         
@@ -888,6 +888,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1517,6 +1521,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../torchrun-cluster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    torchrun 集群心跳
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../federation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    联邦查询引擎
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../nccl-profiler/" class="md-nav__link">
         
   
@@ -1784,6 +1844,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1881,6 +1945,62 @@
     
   
     API 参考
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/env-vars/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    环境变量
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/skill-format/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skill 格式规范
   
 
     
@@ -2423,7 +2543,8 @@
 </span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="s2">GROUP BY _role, _rank</span>
 </span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="s2">ORDER BY avg_ms DESC&quot;</span>
 </span></code></pre></div>
-<p>通过 torchrun（<code>setup_torchrun_cluster</code>）或 <code>PUT /apis/nodes</code> 注册节点，<code>_rank</code> / <code>_role</code> 才能正确解析。训练脚本中可用 <code>probing.set_role(...)</code> 运行时覆盖 role。</p>
+<p>通过 torchrun 注入后 Rust ctor <strong>默认</strong>启动分层集群心跳（见 <a href="../torchrun-cluster/">torchrun 集群心跳</a>），或手动 <code>setup_torchrun_cluster()</code> / <code>PUT /apis/nodes</code> 注册节点，<code>_rank</code> / <code>_role</code> 才能正确解析。训练脚本中可用 <code>probing.set_role(...)</code> 运行时覆盖 role。</p>
+<p>引擎实现与正确性测试要求见 <strong><a href="../federation/">联邦查询引擎</a></strong>。</p>
 <h2 id="_10">同步调试<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h2>
 <h3 id="_11">捕获所有堆栈<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># 从所有 rank 捕获堆栈跟踪</span>

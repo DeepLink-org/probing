@@ -886,6 +886,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1095,6 +1099,62 @@
     
   
     分布式
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/torchrun-cluster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    torchrun 集群心跳
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/federation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    联邦查询引擎
   
 
     
@@ -1376,6 +1436,10 @@
       
         
           
+        
+      
+        
+      
         
       
         
@@ -1812,6 +1876,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../env-vars/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    环境变量
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skill-format/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skill 格式规范
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../versions/" class="md-nav__link">
         
   
@@ -2175,33 +2295,43 @@
 
 
 <h1 id="sql">SQL 表目录<a class="headerlink" href="#sql" title="Permanent link">&para;</a></h1>
-<p>可通过 <code>probing query</code> 或进程内 <code>probing.query()</code> 查询的内置 SQL 表权威目录。
-与 <code>python/probing/_skills/semantic/tables.yaml</code> 保持同步（诊断 skill 与 Web Agent 使用）。</p>
-<p>术语说明见 <a href="../../guide/concepts/">核心概念</a>。</p>
+<p>本页列出 Probing 中可通过 <code>probing query</code> 或 <code>probing.query()</code> 查询的所有内置
+SQL 表。这是一份参考手册——如果你需要查询模式和操作指南，从 <a href="../../guide/sql-analytics/">SQL 分析</a>
+开始。</p>
+<p>每张表由 mmap 环形缓冲（MEMT）承载或由扩展 crate 动态注册。表按 schema 前缀
+组织，反映数据来源：<code>python.*</code> 是训练和 Python 运行时数据，<code>cpu.*</code> / <code>gpu.*</code>
+是主机和设备采样，<code>cluster.*</code> 是节点注册信息，<code>nccl.*</code> 是 NCCL profiler 插件
+输出，<code>global.&lt;schema&gt;.&lt;table&gt;</code> 是跨 rank 的联邦查询。</p>
+<p>Schema 定义以 <code>skills/semantic/tables.yaml</code> 为权威来源（诊断 skill 与 Web Agent
+使用该文件定义），本页与其保持同步。</p>
+<p>在真实端点上查看当前可用表：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>tables
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>tables<span class="w"> </span>--all
+</span></code></pre></div>
 <h2 id="schema">Schema 前缀<a class="headerlink" href="#schema" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
 <th>前缀</th>
-<th>含义</th>
+<th>数据来源</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>python.*</code></td>
-<td>Python / 训练探针表（memtable）</td>
+<td>训练和 Python 运行时（memtable）</td>
 </tr>
 <tr>
 <td><code>cpu.*</code>、<code>gpu.*</code>、<code>process.*</code></td>
-<td>主机 / 设备采样（扩展）</td>
+<td>主机和设备采样（扩展 crate）</td>
 </tr>
 <tr>
 <td><code>cluster.*</code></td>
-<td>集群注册表</td>
+<td>集群节点注册表</td>
 </tr>
 <tr>
 <td><code>nccl.*</code></td>
-<td>NCCL profiler 插件（可选）</td>
+<td>NCCL profiler 插件（可选，cdylib）</td>
 </tr>
 <tr>
 <td><code>global.&lt;schema&gt;.&lt;table&gt;</code></td>
@@ -2209,14 +2339,10 @@
 </tr>
 <tr>
 <td><code>information_schema.*</code></td>
-<td>引擎元数据</td>
+<td>引擎元数据和配置</td>
 </tr>
 </tbody>
 </table>
-<p>列出当前端点上的表：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>tables
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>tables<span class="w"> </span>--all
-</span></code></pre></div>
 <h2 id="_1">联邦查询<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
 <p>带 <strong><code>global_name</code></strong> 的表可用 <code>global.&lt;路径&gt;</code> 查询（如 <code>global.python.comm_collective</code>）。
 Master 合并各节点结果并可能附加：</p>
@@ -2265,7 +2391,7 @@ Master 合并各节点结果并可能附加：</p>
 </thead>
 <tbody>
 <tr>
-<td><code>step</code></td>
+<td><code>local_step</code></td>
 <td>本地训练步（每 rank）</td>
 </tr>
 <tr>
@@ -2431,8 +2557,8 @@ Master 合并各节点结果并可能附加：</p>
 <td>Span / 事件名</td>
 </tr>
 <tr>
-<td><code>kind</code></td>
-<td>语义类型（如 <code>train.step</code>、<code>comm.all_reduce</code>）</td>
+<td><code>phase</code></td>
+<td>训练阶段（<code>forward</code>、<code>backward</code>、<code>optimizer</code>）或空</td>
 </tr>
 <tr>
 <td><code>time</code></td>
@@ -2491,8 +2617,8 @@ Master 合并各节点结果并可能附加：</p>
 </thead>
 <tbody>
 <tr>
-<td><code>step</code></td>
-<td>训练步</td>
+<td><code>micro_step</code></td>
+<td>训练 micro-step</td>
 </tr>
 <tr>
 <td><code>func</code></td>

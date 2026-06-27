@@ -886,6 +886,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1348,6 +1352,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../torchrun-cluster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Torchrun Cluster Heartbeat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../federation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Federated Query Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../nccl-profiler/" class="md-nav__link">
         
   
@@ -1615,6 +1675,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1712,6 +1776,62 @@
     
   
     API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/env-vars/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Environment Variables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/skill-format/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skill Format
   
 
     
@@ -2149,33 +2269,33 @@
 <h2 id="security-considerations">Security Considerations<a class="headerlink" href="#security-considerations" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Local mode</strong>: Unix socket permissions (process owner only)</li>
-<li><strong>Remote mode</strong>: Optional authentication</li>
-<li><strong>Network</strong>: Support for TLS encryption</li>
+<li><strong>Remote mode</strong>: Optional authentication token via <code>PROBING_TOKEN</code></li>
 </ul>
 <h2 id="performance-characteristics">Performance Characteristics<a class="headerlink" href="#performance-characteristics" title="Permanent link">&para;</a></h2>
+<p>Probing is designed for minimal overhead on training workloads:</p>
 <table>
 <thead>
 <tr>
 <th>Aspect</th>
-<th>Target</th>
+<th>Design approach</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Overhead</td>
-<td>&lt; 5% in typical workloads</td>
+<td>Lock-free mmap writes on hot path; sampling in background threads</td>
 </tr>
 <tr>
 <td>Memory</td>
-<td>&lt; 50MB additional</td>
+<td>Fixed-size ring buffers per table (MEMT); bounded by retention config</td>
 </tr>
 <tr>
 <td>Latency</td>
-<td>&lt; 10ms for queries</td>
+<td>Queries execute against in-process DataFusion; no network round-trip for local access</td>
 </tr>
 <tr>
 <td>Throughput</td>
-<td>1000+ queries/sec</td>
+<td>Columnar (Arrow) scan; <code>information_schema</code> for introspection</td>
 </tr>
 </tbody>
 </table>
