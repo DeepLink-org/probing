@@ -49,6 +49,7 @@ Shared vocabulary (endpoint, steps, role, federation): **[Core Concepts](../guid
 | [Profiling](profiling.md) | Performance data collection |
 | [Debugging](debugging.md) | Debugging capabilities |
 | [Distributed](distributed.md) | Multi-node support |
+| [Torchrun cluster heartbeat](torchrun-cluster.md) | Hierarchical registration, backoff, env presets |
 | [Federated query engine](federation.md) | Cross-rank SQL: scenarios, execution paths, acceptance bar |
 | [NCCL Profiler](nccl-profiler.md) | NCCL plugin, culprit/victim, `nccl.proxy_ops` |
 | [Cluster with Pulsing](cluster-pulsing.md) | Using Pulsing for membership and failure detection |

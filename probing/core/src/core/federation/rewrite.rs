@@ -1,10 +1,8 @@
 //! SQL rewrite helpers for the `probe` / `global` catalog split.
 
-use datafusion::sql::sqlparser::ast::{Query, SetExpr, Statement};
+use datafusion::sql::sqlparser::ast::{Query, SelectItem, SetExpr, Statement};
 use datafusion::sql::sqlparser::dialect::GenericDialect;
 use datafusion::sql::sqlparser::parser::Parser;
-
-use super::convert::FEDERATION_TAG_COLUMNS;
 
 const KNOWN_SCHEMAS: &[&str] = &[
     "cluster", "process", "files", "python", "memtable", "gpu", "rdma",
@@ -100,96 +98,40 @@ fn references_global_catalog(sql: &str) -> bool {
     sql.to_lowercase().contains("global.")
 }
 
-/// Find the start of the top-level ` FROM ` clause (paren depth 0).
-///
-/// Iterates by `char` so all indexing stays on UTF-8 boundaries (SQL may contain
-/// multi-byte identifiers or string literals), and matches the keyword
-/// case-insensitively on raw bytes to avoid `to_lowercase()` length skew.
-fn find_top_level_from(sql: &str) -> Option<usize> {
-    let bytes = sql.as_bytes();
-    let mut depth = 0i32;
-    for (i, ch) in sql.char_indices() {
-        match ch {
-            '(' => depth += 1,
-            ')' => depth = depth.saturating_sub(1),
-            _ if depth == 0 && byte_window_eq_ci(bytes, i, b" from ") => return Some(i),
-            _ => {}
-        }
-    }
-    None
-}
-
-/// Case-insensitive comparison of `needle` against the byte window starting at `at`.
-fn byte_window_eq_ci(bytes: &[u8], at: usize, needle: &[u8]) -> bool {
-    bytes
-        .get(at..at + needle.len())
-        .is_some_and(|window| window.eq_ignore_ascii_case(needle))
-}
-
-fn select_list_includes_wildcard(sql: &str) -> bool {
-    match find_top_level_from(sql) {
-        // `from_idx` is a char boundary, so slicing the select list is panic-safe.
-        Some(from_idx) => sql[..from_idx].contains('*'),
-        None => false,
-    }
-}
-
-fn federation_tags_already_expanded(lower: &str) -> bool {
-    FEDERATION_TAG_COLUMNS.iter().all(|col| lower.contains(col))
-}
-
-fn federation_tag_exclude_list() -> String {
-    FEDERATION_TAG_COLUMNS
-        .iter()
-        .map(|col| col.to_string())
-        .collect::<Vec<_>>()
-        .join(", ")
-}
-
-fn expand_global_select_star(sql: &str) -> String {
-    let trimmed = sql.trim();
-    let lower = trimmed.to_lowercase();
-    if federation_tags_already_expanded(&lower) {
-        return sql.to_string();
-    }
-    let Some(from_idx) = find_top_level_from(trimmed) else {
-        return sql.to_string();
+fn select_list_includes_wildcard(query: &Query) -> bool {
+    let SetExpr::Select(select) = query.body.as_ref() else {
+        return false;
     };
-    let select_part = &trimmed[..from_idx];
-    let from_part = &trimmed[from_idx..];
-    if !select_part.contains('*') {
-        return sql.to_string();
-    }
+    select.projection.iter().any(|item| {
+        matches!(
+            item,
+            SelectItem::Wildcard(_) | SelectItem::QualifiedWildcard(_, _)
+        )
+    })
+}
 
-    let exclude = format!(
-        " EXCLUDE ({tags}), {tags}",
-        tags = federation_tag_exclude_list()
-    );
-    let new_select = if let Some(dot_star) = select_part.rfind(".*") {
-        let before = &select_part[..dot_star + 2];
-        let after = &select_part[dot_star + 2..];
-        format!("{before}{exclude}{after}")
-    } else {
-        select_part.replacen('*', &format!("*{exclude}"), 1)
-    };
-    format!("{new_select}{from_part}")
+fn expand_global_select_star(_sql: &str) -> String {
+    // Federation tags are appended by `GlobalFederatedTable` / `FederatedScanExec`
+    // (`federated_output_schema`). DataFusion does not support `SELECT * EXCLUDE (...)`.
+    _sql.to_string()
 }
 
 /// Ensure `global.*` `SELECT *` queries expose which node each row came from.
 ///
-/// Rewrites `SELECT *` so the logical projection always includes `_host`,
-/// `_addr` and `_rank`. Explicit column lists are left unchanged.
+/// Tag columns are injected at the table-provider layer; this pass intentionally
+/// does not rewrite SQL (avoids breaking `count(*)` and unsupported EXCLUDE syntax).
 pub fn ensure_global_node_columns(sql: &str) -> String {
     let trimmed = sql.trim();
-    let lower = trimmed.to_lowercase();
     if !references_global_catalog(trimmed) {
         return sql.to_string();
     }
-    if !lower.starts_with("select") {
+    if !trimmed.to_lowercase().starts_with("select") {
         return sql.to_string();
     }
-    if select_list_includes_wildcard(trimmed) {
-        return expand_global_select_star(trimmed);
+    if let Some(query) = parse_single_query(trimmed) {
+        if select_list_includes_wildcard(&query) {
+            return expand_global_select_star(trimmed);
+        }
     }
     sql.to_string()
 }
@@ -288,10 +230,15 @@ mod tests {
 
     #[test]
     fn ensure_global_node_columns_handles_non_ascii_without_panic() {
-        // Multi-byte identifiers/literals must not cause byte-boundary panics.
         let sql = "SELECT * FROM global.process.envs WHERE 名称 = '值'";
-        let rewritten = ensure_global_node_columns(sql);
-        assert!(rewritten.contains("EXCLUDE"));
+        assert_eq!(ensure_global_node_columns(sql), sql);
+    }
+
+    #[test]
+    fn count_star_aggregate_is_not_treated_as_select_star() {
+        let sql = "SELECT _rank, op, avg(duration_ms) AS avg_ms, count(*) AS n \
+                    FROM global.python.comm_collective GROUP BY _rank, op ORDER BY avg_ms DESC LIMIT 8";
+        assert_eq!(ensure_global_node_columns(sql), sql);
     }
 
     #[test]
@@ -307,32 +254,14 @@ mod tests {
     }
 
     #[test]
-    fn rewrites_select_star_with_exclude_and_probe_tags() {
+    fn select_star_global_query_is_unchanged() {
         let sql = "SELECT * FROM global.process.envs";
-        assert_eq!(
-            ensure_global_node_columns(sql),
-            "SELECT * EXCLUDE (_host, _addr, _rank, _node_rank, _local_rank, _role), _host, _addr, _rank, _node_rank, _local_rank, _role FROM global.process.envs"
-        );
-    }
-
-    #[test]
-    fn rewrites_qualified_select_star_with_probe_tags() {
-        let sql = "SELECT e.* FROM global.process.envs e";
-        assert_eq!(
-            ensure_global_node_columns(sql),
-            "SELECT e.* EXCLUDE (_host, _addr, _rank, _node_rank, _local_rank, _role), _host, _addr, _rank, _node_rank, _local_rank, _role FROM global.process.envs e"
-        );
-    }
-
-    #[test]
-    fn skips_select_star_wildcard_when_tags_already_present() {
-        let sql = "SELECT * EXCLUDE (_host, _addr, _rank, _node_rank, _local_rank, _role), _host, _addr, _rank, _node_rank, _local_rank, _role FROM global.process.envs";
         assert_eq!(ensure_global_node_columns(sql), sql);
     }
 
     #[test]
-    fn skips_qualified_select_star_when_already_expanded() {
-        let sql = "SELECT e.* EXCLUDE (_host, _addr, _rank, _node_rank, _local_rank, _role), _host, _addr, _rank, _node_rank, _local_rank, _role FROM global.process.envs e";
+    fn qualified_select_star_global_query_is_unchanged() {
+        let sql = "SELECT e.* FROM global.process.envs e";
         assert_eq!(ensure_global_node_columns(sql), sql);
     }
 
@@ -357,8 +286,9 @@ mod tests {
         let user = "SELECT * FROM python.comm_collective WHERE rank > 0 LIMIT 10";
         let global_sql = rewrite_sql_for_global_fanout(user);
         let prepared = prepare_global_query(&global_sql);
-        assert!(prepared.contains("EXCLUDE"));
-        assert!(prepared.contains(PROBE_ADDR_COL));
-        assert!(prepared.contains(PROBE_RANK_COL));
+        assert_eq!(
+            prepared,
+            "SELECT * FROM global.python.comm_collective WHERE rank > 0 LIMIT 10"
+        );
     }
 }

@@ -278,7 +278,7 @@ fn run_torch_query(query: &str) -> Result<probing_proto::types::DataFrame> {
         let engine = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
-            .unwrap()
+            .map_err(|e| anyhow::anyhow!("failed to build tokio runtime: {e}"))?
             .block_on(async {
                 probing_core::create_engine()
                     .with_data_source(PythonProbeDataSource::create("python"))
@@ -288,7 +288,7 @@ fn run_torch_query(query: &str) -> Result<probing_proto::types::DataFrame> {
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
-            .unwrap();
+            .map_err(|e| anyhow::anyhow!("failed to build tokio runtime: {e}"))?;
         Ok(rt
             .block_on(async { engine.async_query(&query).await })?
             .unwrap_or_default())

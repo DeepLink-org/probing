@@ -53,6 +53,27 @@ def test_load_slow_rank_local():
     assert "python.comm_collective" in rank_latency.sql
 
 
+def _normalize_sql(sql: str) -> str:
+    return " ".join(sql.split())
+
+
+def test_slow_rank_rank_latency_sql_golden_parity():
+    """Rust cli/skill/loader.rs tests must produce the same expanded SQL."""
+    skill = load_skill("slow_rank")
+    steps = expand_skill(skill, {"use_global": False, "step_window": 5})
+    rank_latency = next(s for s in steps if s.id == "rank_latency")
+    normalized = _normalize_sql(rank_latency.sql or "")
+    assert "FROM python.comm_collective" in normalized
+    assert "global.python.comm_collective" not in normalized
+    assert "- 5" in normalized
+
+    steps_global = expand_skill(skill, {"use_global": True, "step_window": 10})
+    rank_latency_global = next(s for s in steps_global if s.id == "rank_latency")
+    normalized_global = _normalize_sql(rank_latency_global.sql or "")
+    assert "FROM global.python.comm_collective" in normalized_global
+    assert "- 10" in normalized_global
+
+
 def test_match_skills_hang():
     matched = match_skills("训练卡住了 hang")
     assert "training_hang" in matched

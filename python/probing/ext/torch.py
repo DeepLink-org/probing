@@ -58,33 +58,6 @@ def collective_hook():
 
 
 _hook_registered = False
-_dist_init_patched = False
-
-
-def _patch_dist_init_process_group() -> None:
-    global _dist_init_patched
-    if _dist_init_patched:
-        return
-    try:
-        import torch.distributed as dist
-    except ImportError:
-        return
-
-    _dist_init_patched = True
-    original = dist.init_process_group
-
-    def init_process_group(*args, **kwargs):
-        original(*args, **kwargs)
-        try:
-            from probing.torchrun_cluster import maybe_setup_torchrun_cluster
-
-            maybe_setup_torchrun_cluster()
-        except Exception as exc:
-            logging.getLogger(__name__).debug(
-                "probing torchrun cluster setup skipped: %s", exc
-            )
-
-    dist.init_process_group = init_process_group  # type: ignore[assignment]
 
 
 def init():
@@ -97,7 +70,6 @@ def init():
 
     register_optimizer_step_post_hook(optimizer_step_post_hook)
 
-    _patch_dist_init_process_group()
     collective_hook()
     try:
         from probing.crash import install

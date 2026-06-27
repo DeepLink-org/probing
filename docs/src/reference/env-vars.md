@@ -121,11 +121,27 @@ Non-PROBING-prefixed aliases are also recognized for Megatron compatibility:
 
 ## PyTorch integration
 
-| Variable | Description |
-|----------|-------------|
-| `PROBING_TORCH_PROFILING` | Set to `on` to activate PyTorch module hooks and write `python.torch_trace`. Required for module timing and memory data. |
-| `PROBING_TORCHRUN_CLUSTER` | Enable automatic cluster registration via torchrun. |
-| `PROBING_TORCHRUN_STORE_TIMEOUT` | Timeout for torchrun distributed store operations. |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PROBING_TORCH_PROFILING` | — | Set to `on` to activate PyTorch module hooks and write `python.torch_trace`. Required for module timing and memory data. |
+| `PROBING_TORCHRUN_CLUSTER` | `1` | Enable automatic torchrun cluster registration. Set to `0` to disable. |
+| `PROBING_TORCHRUN_STORE_TIMEOUT` | — | Timeout for torchrun distributed store operations. |
+
+## Cluster heartbeat (torchrun)
+
+Hierarchical side-channel registration when `WORLD_SIZE > 1`. See [torchrun cluster heartbeat](../design/torchrun-cluster.md).
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PROBING_CLUSTER_REPORT` | `1` | Periodic heartbeat worker. `0` = HTTP only, no periodic PUT. |
+| `PROBING_CLUSTER_REPORT_INTERVAL_SEC` | `10` | Base heartbeat interval (seconds). |
+| `PROBING_CLUSTER_REPORT_MAX_INTERVAL_SEC` | `120` | Backoff cap (clamped below stale TTL). |
+| `PROBING_CLUSTER_REPORT_BACKOFF_FACTOR` | `2` | Multiplier per stable tick. |
+| `PROBING_CLUSTER_REPORT_BACKOFF` | `1` | Set to `0` to disable exponential backoff when stable. |
+| `PROBING_CLUSTER_STALE_SEC` | `25` | Mark node `dead` after this many seconds without heartbeat. Should exceed max interval. |
+| `PROBING_CLUSTER_DISCOVER_TIMEOUT_SEC` | `2` | Timeout per master/local0 discovery attempt. |
+| `PROBING_CLUSTER_REPORT_TIMEOUT_SEC` | `5` | HTTP PUT timeout for cluster report. |
+| `PROBING_CLUSTER_PRESET` | — | Used by `examples/run_cluster_multinode.sh`: `demo`, `fast`, or `steady`. |
 
 ## Debugging & diagnostics
 

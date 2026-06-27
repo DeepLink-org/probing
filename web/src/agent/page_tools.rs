@@ -82,7 +82,7 @@ pub async fn fetch_page_snapshot(route: &Route) -> Result<String> {
             }
             if let Some(p) = query_preview(
                 &client,
-                "SELECT max(step) AS latest_step FROM python.torch_trace",
+                "SELECT max(local_step) AS latest_step FROM python.torch_trace",
                 1,
             )
             .await
@@ -97,9 +97,9 @@ pub async fn fetch_page_snapshot(route: &Route) -> Result<String> {
             if cluster.has_peers() {
                 if let Ok(resp) = client
                     .cluster_query(
-                        "SELECT rank, op, avg(duration_ms) AS avg_ms, count(*) AS n \
+                        "SELECT _rank, op, avg(duration_ms) AS avg_ms, count(*) AS n \
                          FROM global.python.comm_collective \
-                         GROUP BY rank, op ORDER BY avg_ms DESC LIMIT 8",
+                         GROUP BY _rank, op ORDER BY avg_ms DESC LIMIT 8",
                         true,
                     )
                     .await
@@ -153,7 +153,7 @@ pub async fn fetch_page_snapshot(route: &Route) -> Result<String> {
                 "torch" => {
                     if let Some(p) = query_preview(
                         &client,
-                        "SELECT max(step) AS latest_step, count(*) AS rows FROM python.torch_trace",
+                        "SELECT max(local_step) AS latest_step, count(*) AS rows FROM python.torch_trace",
                         1,
                     )
                     .await
@@ -200,9 +200,9 @@ pub async fn fetch_page_snapshot(route: &Route) -> Result<String> {
             if cluster.has_peers() {
                 if let Ok(resp) = client
                     .cluster_query(
-                        "SELECT rank, op, avg(duration_ms) AS avg_ms, count(*) AS n \
+                        "SELECT _rank, op, avg(duration_ms) AS avg_ms, count(*) AS n \
                          FROM global.python.comm_collective \
-                         GROUP BY rank, op ORDER BY avg_ms DESC LIMIT 8",
+                         GROUP BY _rank, op ORDER BY avg_ms DESC LIMIT 8",
                         true,
                     )
                     .await
@@ -224,7 +224,7 @@ pub async fn fetch_page_snapshot(route: &Route) -> Result<String> {
             }
             if let Some(p) = query_preview(
                 &client,
-                "SELECT max(step) AS latest_step FROM python.torch_trace",
+                "SELECT max(local_step) AS latest_step FROM python.torch_trace",
                 1,
             )
             .await

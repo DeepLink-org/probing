@@ -1,11 +1,12 @@
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    Arc, Mutex,
+    Arc, Mutex, MutexGuard,
 };
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use once_cell::sync::Lazy;
+use probing_core::sync::lock_mutex;
 use probing_memtable::discover::ExposedTable;
 use probing_memtable::{DType, Schema, Value};
 use thiserror::Error;
@@ -141,7 +142,7 @@ fn ts_micros() -> i64 {
 
 fn push_utilization_row(table: &mut ExposedTable, ts: i64, wall_ns: u64, sample: &GpuMemorySample) {
     let used = sample.used_bytes();
-    table.push_row(&[
+    if !table.push_row(&[
         Value::I64(ts),
         Value::Str(sample.backend.as_str()),
         Value::I32(sample.ordinal),
@@ -158,7 +159,9 @@ fn push_utilization_row(table: &mut ExposedTable, ts: i64, wall_ns: u64, sample:
         Value::F32(opt_f32(sample.tiler_util_pct)),
         Value::I64(sample.driver_mem_bytes.unwrap_or(0) as i64),
         Value::I64(wall_ns as i64),
-    ]);
+    ]) {
+        log::warn!("gpu collector: push_row failed for gpu.utilization");
+    }
 }
 
 fn opt_f32(v: Option<f32>) -> f32 {
@@ -197,6 +200,14 @@ fn sample_all(backends: &[Box<dyn GpuBackend>]) -> Vec<GpuMemorySample> {
     samples
 }
 
+fn lock_gpu_table(m: &Mutex<ExposedTable>) -> MutexGuard<'_, ExposedTable> {
+    lock_mutex(m, "gpu memtable")
+}
+
+fn lock_gpu_collector<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+    lock_mutex(m, "gpu collector")
+}
+
 pub struct GpuCollector {
     running: Arc<AtomicBool>,
     handle: Mutex<Option<JoinHandle<()>>>,
@@ -214,7 +225,7 @@ impl GpuCollector {
     }
 
     fn shared_table(&self) -> Result<Arc<Mutex<ExposedTable>>, std::io::Error> {
-        let mut guard = self.table.lock().unwrap();
+        let mut guard = lock_gpu_collector(&self.table);
         if guard.is_none() {
             *guard = Some(Arc::new(Mutex::new(ExposedTable::create(
                 "gpu.utilization",
@@ -256,10 +267,9 @@ impl GpuCollector {
                 let samples = sample_all(&backends);
                 let wall_ns = wall_start.elapsed().as_nanos() as u64;
 
-                if let Ok(mut exposed) = table.lock() {
-                    for sample in &samples {
-                        push_utilization_row(&mut exposed, ts, wall_ns, sample);
-                    }
+                let mut exposed = lock_gpu_table(&table);
+                for sample in &samples {
+                    push_utilization_row(&mut exposed, ts, wall_ns, sample);
                 }
 
                 thread::sleep(config.interval);
@@ -267,7 +277,7 @@ impl GpuCollector {
             running.store(false, Ordering::SeqCst);
         });
 
-        *self.handle.lock().unwrap() = Some(handle);
+        *lock_gpu_collector(&self.handle) = Some(handle);
         Ok(())
     }
 }
@@ -283,6 +293,9 @@ pub fn cached_devices() -> Vec<super::backend::GpuDeviceInfo> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    static ENV_TEST_LOCK: Mutex<()> = Mutex::new(());
 
     fn clear_gpu_env() {
         std::env::remove_var("PROBING_GPU");
@@ -291,6 +304,7 @@ mod tests {
 
     #[test]
     fn autostart_respects_explicit_off() {
+        let _guard = ENV_TEST_LOCK.lock().unwrap();
         clear_gpu_env();
         std::env::set_var("PROBING_GPU", "off");
         assert!(autostart_interval_ms().is_none());
@@ -299,6 +313,7 @@ mod tests {
 
     #[test]
     fn autostart_force_on_without_backend_probe() {
+        let _guard = ENV_TEST_LOCK.lock().unwrap();
         clear_gpu_env();
         std::env::set_var("PROBING_GPU", "on");
         assert_eq!(autostart_interval_ms(), Some(DEFAULT_SAMPLE_INTERVAL_MS));
@@ -307,6 +322,7 @@ mod tests {
 
     #[test]
     fn autostart_honors_sample_ms_override() {
+        let _guard = ENV_TEST_LOCK.lock().unwrap();
         clear_gpu_env();
         std::env::set_var("PROBING_GPU_SAMPLE_MS", "250");
         assert_eq!(autostart_interval_ms(), Some(250));
@@ -316,6 +332,7 @@ mod tests {
     #[test]
     #[cfg(target_os = "macos")]
     fn autostart_auto_when_backend_present() {
+        let _guard = ENV_TEST_LOCK.lock().unwrap();
         clear_gpu_env();
         if discover_backends().is_empty() {
             return;
@@ -327,6 +344,7 @@ mod tests {
     #[test]
     #[cfg(all(not(target_os = "macos"), not(feature = "cuda")))]
     fn autostart_auto_off_without_backend() {
+        let _guard = ENV_TEST_LOCK.lock().unwrap();
         clear_gpu_env();
         assert!(autostart_interval_ms().is_none());
     }

@@ -840,6 +840,41 @@ fn memh_view_to_recordbatch(view: &MemhView<'_>) -> Vec<RecordBatch> {
     }
 }
 
+// ── Python extern mmap schema repair ──────────────────────────────────
+
+/// Row count for a MEMT ring mmap (0 when the file is missing or invalid).
+fn mmap_ring_row_count(mapped: &MappedFile) -> usize {
+    MemTableView::new(mapped.as_bytes())
+        .map(|view| (0..view.num_chunks()).map(|c| view.num_rows(c)).sum())
+        .unwrap_or(0)
+}
+
+/// Prefer semantic empty-table schema when a placeholder mmap used all-Str dtypes.
+fn prefer_semantic_python_table(
+    name: &str,
+    mapped: MappedFile,
+    basename: String,
+) -> Arc<dyn TableProvider> {
+    let row_count = mmap_ring_row_count(&mapped);
+    let provider: Arc<dyn TableProvider> =
+        if let Some(TableKind::Ring) = detect_table(mapped.as_bytes()) {
+            match RingMmapTable::try_new(mapped) {
+                Ok(ring) => Arc::new(HotColdTable::new(ring, cold_dir(), basename)),
+                Err(_) => Arc::new(PluginAdvancedTable::empty_sentinel(name)),
+            }
+        } else {
+            mapped_file_to_table(mapped, name)
+        };
+    if row_count == 0
+        && super::semantic_catalog::python_extern_schema_mismatch(name, provider.schema().as_ref())
+    {
+        if let Some(semantic) = super::semantic_catalog::empty_python_extern_table(name) {
+            return semantic;
+        }
+    }
+    provider
+}
+
 // ── Dynamic schemas from mmap filenames ───────────────────────────────
 
 /// One DataFusion schema combining mmap-backed tables with an optional inner
@@ -894,6 +929,9 @@ impl SchemaProvider for MmapFileSchemaProvider {
             // is unioned with its cold MEMC segments (keyed by the unique
             // on-disk basename) so one query spans both tiers.
             if let Ok(mapped) = MappedFile::open(&path) {
+                if self.schema == "python" && name != "backtrace" {
+                    return Ok(Some(prefer_semantic_python_table(name, mapped, basename)));
+                }
                 if let Some(TableKind::Ring) = detect_table(mapped.as_bytes()) {
                     return Ok(Some(match RingMmapTable::try_new(mapped) {
                         Ok(ring) => Arc::new(HotColdTable::new(ring, cold_dir(), basename)),
@@ -901,6 +939,11 @@ impl SchemaProvider for MmapFileSchemaProvider {
                     }));
                 }
                 return Ok(Some(mapped_file_to_table(mapped, name)));
+            }
+        }
+        if self.schema == "python" && name != "backtrace" {
+            if let Some(table) = super::semantic_catalog::empty_python_extern_table(name) {
+                return Ok(Some(table));
             }
         }
         match &self.inner {
@@ -933,6 +976,7 @@ impl SchemaProvider for MmapFileSchemaProvider {
 
     fn table_exist(&self, name: &str) -> bool {
         mmap_table_exists(&self.schema, name)
+            || (self.schema == "python" && super::semantic_catalog::known_python_extern_table(name))
             || self
                 .inner
                 .as_ref()
@@ -1107,13 +1151,7 @@ pub struct ColdCompactor {
 fn lock_compactor_handle(
     m: &Mutex<Option<JoinHandle<()>>>,
 ) -> MutexGuard<'_, Option<JoinHandle<()>>> {
-    match m.lock() {
-        Ok(guard) => guard,
-        Err(e) => {
-            log::debug!("ColdCompactor handle mutex poisoned; recovering");
-            e.into_inner()
-        }
-    }
+    crate::sync::lock_mutex(m, "ColdCompactor handle")
 }
 
 impl ColdCompactor {

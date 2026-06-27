@@ -120,13 +120,10 @@ pub async fn remote_server(addr: Option<String>) -> Result<()> {
     match listener.local_addr() {
         Ok(addr) => {
             {
-                let mut probing_address =
-                    crate::vars::PROBING_ADDRESS.write().unwrap_or_else(|e| {
-                        log::error!("Failed to acquire write lock on PROBING_ADDRESS: {e}");
-                        panic!("Lock poisoned: {e}")
-                    });
+                let mut probing_address = crate::vars::write_probing_address();
                 *probing_address = addr.to_string();
             }
+            probing_core::core::cluster::set_local_listen_addrs(vec![addr.to_string()]);
             eprintln!("{}", Red.bold().paint("probing server is available on:"));
             eprintln!("\t{}", Green.bold().underline().paint(addr.to_string()));
             probing_core::config::write("server.address", &addr.to_string()).await?;

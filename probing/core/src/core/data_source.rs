@@ -409,6 +409,8 @@ impl<T: CustomNamespace + Default + Debug + Send + Sync + 'static> SchemaProvide
         ))
     }
     fn table_exist(&self, _name: &str) -> bool {
-        true
+        // Only tables in [`CustomNamespace::list`] are resolved here; extern mmap
+        // tables are handled by [`MmapFileSchemaProvider`].
+        T::list().iter().any(|n| n == _name)
     }
 }

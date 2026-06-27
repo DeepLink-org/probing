@@ -357,3 +357,51 @@ pub fn expand_template(template: &str, ctx: &HashMap<String, String>) -> String 
     }
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn normalize_sql(sql: &str) -> String {
+        sql.split_whitespace().collect::<Vec<_>>().join(" ")
+    }
+
+    #[test]
+    fn slow_rank_rank_latency_sql_golden() {
+        let skill = load_skill("slow_rank").expect("slow_rank skill");
+        let overrides = HashMap::from([
+            ("use_global".to_string(), "false".to_string()),
+            ("step_window".to_string(), "5".to_string()),
+        ]);
+        let ctx = build_context(&skill, &overrides);
+        let step = skill
+            .steps
+            .iter()
+            .find(|s| s.id == "rank_latency")
+            .expect("rank_latency step");
+        let sql = expand_template(step.sql.as_ref().expect("sql"), &ctx);
+        let normalized = normalize_sql(&sql);
+        assert!(normalized.contains("FROM python.comm_collective"));
+        assert!(!normalized.contains("global.python.comm_collective"));
+        assert!(normalized.contains("- 5"));
+    }
+
+    #[test]
+    fn slow_rank_rank_latency_global_sql_golden() {
+        let skill = load_skill("slow_rank").expect("slow_rank skill");
+        let overrides = HashMap::from([
+            ("use_global".to_string(), "true".to_string()),
+            ("step_window".to_string(), "10".to_string()),
+        ]);
+        let ctx = build_context(&skill, &overrides);
+        let step = skill
+            .steps
+            .iter()
+            .find(|s| s.id == "rank_latency")
+            .expect("rank_latency step");
+        let sql = expand_template(step.sql.as_ref().expect("sql"), &ctx);
+        let normalized = normalize_sql(&sql);
+        assert!(normalized.contains("FROM global.python.comm_collective"));
+        assert!(normalized.contains("- 10"));
+    }
+}

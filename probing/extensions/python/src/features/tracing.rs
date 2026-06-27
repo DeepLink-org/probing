@@ -4,6 +4,7 @@ use pyo3::IntoPyObjectExt;
 use std::cell::RefCell;
 use std::sync::{Arc, Mutex, MutexGuard};
 
+use probing_core::sync::lock_mutex;
 use probing_core::trace::Span as RawSpan;
 use probing_core::trace::{
     advance_micro_step, attr, set_micro_batches, step_snapshot, sync_micro_step, Attribute,
@@ -13,13 +14,7 @@ use probing_core::trace::{
 use crate::features::convert::{ele_to_python, python_to_ele};
 
 fn lock_span(m: &Mutex<RawSpan>) -> MutexGuard<'_, RawSpan> {
-    match m.lock() {
-        Ok(guard) => guard,
-        Err(e) => {
-            log::debug!("span mutex poisoned; recovering");
-            e.into_inner()
-        }
-    }
+    lock_mutex(m, "span")
 }
 
 fn parse_py_attributes(py: Python, attributes: Vec<Py<PyAny>>) -> PyResult<Vec<Attribute>> {

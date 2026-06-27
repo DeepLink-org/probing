@@ -180,6 +180,38 @@ class TestDetermineItemType:
         assert _TraceableCollector.determine_item_type([1, 2, 3]) == "V"
 
 
+class TestTorchReduceOpDeprecation:
+    """Regression: traversing torch.distributed must not spam FutureWarning."""
+
+    def test_should_skip_reduce_op_attr(self):
+        from probing.inspect.trace import _should_skip_traversal_attr
+
+        assert _should_skip_traversal_attr("torch.distributed", "reduce_op")
+        assert not _should_skip_traversal_attr("torch.distributed", "ReduceOp")
+        assert not _should_skip_traversal_attr("torch.nn", "reduce_op")
+
+    def test_list_traceable_torch_distributed_no_reduce_op_warning(self):
+        pytest.importorskip("torch")
+        import warnings
+
+        from probing.inspect.trace import list_traceable
+
+        if "torch.distributed" not in sys.modules:
+            import torch.distributed  # noqa: F401
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", FutureWarning)
+            list_traceable("torch.distributed", depth=1)
+
+        reduce_op_warnings = [
+            w
+            for w in caught
+            if issubclass(w.category, FutureWarning)
+            and "torch.distributed.reduce_op" in str(w.message)
+        ]
+        assert reduce_op_warnings == []
+
+
 class TestShouldIncludeModule:
     """Test _TraceableCollector.should_include_module method."""
 

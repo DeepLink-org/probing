@@ -4,7 +4,7 @@ pub mod types;
 
 pub mod prelude {
     // --- Protocol Structures ---
-    pub use crate::protocol::cluster::{Cluster, Node};
+    pub use crate::protocol::cluster::{Cluster, Node, NodeReportRequest, NodeReportResponse};
     pub use crate::protocol::message::Message;
     pub use crate::protocol::process::{CallFrame, Process};
 

@@ -99,7 +99,7 @@ GROUP BY _role, _rank
 ORDER BY avg_ms DESC"
 ```
 
-通过 torchrun（`setup_torchrun_cluster`）或 `PUT /apis/nodes` 注册节点，`_rank` / `_role` 才能正确解析。训练脚本中可用 `probing.set_role(...)` 运行时覆盖 role。
+通过 torchrun 注入后 Rust ctor **默认**启动分层集群心跳（见 [torchrun 集群心跳](torchrun-cluster.zh.md)），或手动 `setup_torchrun_cluster()` / `PUT /apis/nodes` 注册节点，`_rank` / `_role` 才能正确解析。训练脚本中可用 `probing.set_role(...)` 运行时覆盖 role。
 
 引擎实现与正确性测试要求见 **[联邦查询引擎](federation.zh.md)**。
 
