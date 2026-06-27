@@ -15,6 +15,7 @@ use std::sync::{LazyLock, Mutex};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
+use probing_core::sync::lock_mutex;
 use probing_proto::prelude::Node;
 use probing_store::store::TCPStore;
 use serde::{Deserialize, Serialize};
@@ -198,10 +199,7 @@ fn store_client() -> Option<TCPStore> {
 
 async fn store_set(key: &str, value: &str) -> Result<()> {
     let store = store_client().context("MASTER_ADDR/MASTER_PORT not set")?;
-    store
-        .set(key, value)
-        .await
-        .map_err(|e| anyhow::anyhow!("{e}"))
+    store.set(key, value).await.map_err(anyhow::Error::new)
 }
 
 async fn store_get(key: &str) -> Result<Option<String>> {
@@ -242,7 +240,7 @@ async fn publish_master() -> Result<()> {
         &serde_json::to_string(&info).context("serialize master info")?,
     )
     .await?;
-    *MASTER_INFO.lock().unwrap() = Some(info);
+    *lock_mutex(&MASTER_INFO, "torchrun MASTER_INFO") = Some(info);
     log::info!(
         "probing torchrun: published master at {} (key={})",
         reachable,
@@ -366,25 +364,23 @@ fn nodes_for_upstream_report() -> Vec<Node> {
 
 fn report_parent_http() -> Option<String> {
     if local_rank() != 0 {
-        return LOCAL0_PARENT.lock().unwrap().clone();
+        return lock_mutex(&LOCAL0_PARENT, "torchrun LOCAL0_PARENT").clone();
     }
     if is_global_rank0() {
         return Some(local_http_base());
     }
-    MASTER_INFO
-        .lock()
-        .unwrap()
+    lock_mutex(&MASTER_INFO, "torchrun MASTER_INFO")
         .as_ref()
         .map(|m| m.http_base.clone())
 }
 
 fn ensure_master_info() -> bool {
-    if MASTER_INFO.lock().unwrap().is_some() {
+    if lock_mutex(&MASTER_INFO, "torchrun MASTER_INFO").is_some() {
         return true;
     }
     let timeout = Duration::from_secs_f64(discover_timeout_secs());
     if let Some(info) = SERVER_RUNTIME.block_on(poll_master_info(timeout)) {
-        *MASTER_INFO.lock().unwrap() = Some(info);
+        *lock_mutex(&MASTER_INFO, "torchrun MASTER_INFO") = Some(info);
         return true;
     }
     false
@@ -394,12 +390,12 @@ fn ensure_local0_parent() -> bool {
     if local_rank() == 0 {
         return true;
     }
-    if LOCAL0_PARENT.lock().unwrap().is_some() {
+    if lock_mutex(&LOCAL0_PARENT, "torchrun LOCAL0_PARENT").is_some() {
         return true;
     }
     let timeout = Duration::from_secs_f64(discover_timeout_secs());
     if let Some(base) = SERVER_RUNTIME.block_on(poll_local0_parent(timeout)) {
-        *LOCAL0_PARENT.lock().unwrap() = Some(base);
+        *lock_mutex(&LOCAL0_PARENT, "torchrun LOCAL0_PARENT") = Some(base);
         return true;
     }
     false
@@ -451,7 +447,7 @@ async fn hierarchical_report_worker() {
             .await
             .unwrap_or(ReportOutcome::Failed);
         let sleep_for = {
-            let mut backoff = REPORT_BACKOFF.lock().unwrap();
+            let mut backoff = lock_mutex(&REPORT_BACKOFF, "torchrun REPORT_BACKOFF");
             backoff.record(outcome);
             backoff.sleep_duration()
         };
@@ -512,12 +508,12 @@ pub fn refresh_torchrun_role() -> bool {
     if !STARTED.load(Ordering::SeqCst) {
         return false;
     }
-    REPORT_BACKOFF.lock().unwrap().reset();
+    lock_mutex(&REPORT_BACKOFF, "torchrun REPORT_BACKOFF").reset();
     SERVER_RUNTIME.spawn(async {
         let outcome = tokio::task::spawn_blocking(report_once)
             .await
             .unwrap_or(ReportOutcome::Failed);
-        let mut backoff = REPORT_BACKOFF.lock().unwrap();
+        let mut backoff = lock_mutex(&REPORT_BACKOFF, "torchrun REPORT_BACKOFF");
         backoff.record(outcome);
     });
     true
@@ -525,9 +521,7 @@ pub fn refresh_torchrun_role() -> bool {
 
 /// Master HTTP base URL when this process is global rank 0.
 pub fn master_http_base() -> Option<String> {
-    MASTER_INFO
-        .lock()
-        .unwrap()
+    lock_mutex(&MASTER_INFO, "torchrun MASTER_INFO")
         .as_ref()
         .map(|m| m.http_base.clone())
 }
@@ -557,7 +551,7 @@ mod tests {
 
     #[test]
     fn run_prefix_uses_rdzv_id() {
-        let _guard = ENV_LOCK.lock().unwrap();
+        let _guard = lock_mutex(&ENV_LOCK, "torchrun test ENV_LOCK");
         clear_torchrun_env();
         std::env::set_var("RDZV_ID", "probing-29680");
         assert_eq!(run_prefix(), "probing/torchrun/probing-29680");
@@ -565,7 +559,7 @@ mod tests {
 
     #[test]
     fn local0_store_key_includes_node_rank() {
-        let _guard = ENV_LOCK.lock().unwrap();
+        let _guard = lock_mutex(&ENV_LOCK, "torchrun test ENV_LOCK");
         clear_torchrun_env();
         std::env::set_var("TORCHELASTIC_RUN_ID", "job-x");
         std::env::set_var("NODE_RANK", "3");
@@ -574,7 +568,7 @@ mod tests {
 
     #[test]
     fn merge_self_is_idempotent() {
-        let _guard = ENV_LOCK.lock().unwrap();
+        let _guard = lock_mutex(&ENV_LOCK, "torchrun test ENV_LOCK");
         clear_torchrun_env();
         std::env::set_var("RANK", "0");
         std::env::set_var("LOCAL_RANK", "0");
@@ -596,7 +590,7 @@ mod tests {
 
     #[test]
     fn local_group_and_leaf_filters() {
-        let _guard = ENV_LOCK.lock().unwrap();
+        let _guard = lock_mutex(&ENV_LOCK, "torchrun test ENV_LOCK");
         clear_torchrun_env();
         std::env::set_var("GROUP_RANK", "3");
         std::env::set_var("RANK", "24");
@@ -621,7 +615,7 @@ mod tests {
 
     #[test]
     fn reachable_addr_maps_unspecified_bind() {
-        let _guard = ENV_LOCK.lock().unwrap();
+        let _guard = lock_mutex(&ENV_LOCK, "torchrun test ENV_LOCK");
         clear_torchrun_env();
         std::env::set_var("MASTER_ADDR", "10.0.0.1");
         assert_eq!(reachable_addr("0.0.0.0:9922"), "10.0.0.1:9922");
@@ -629,7 +623,7 @@ mod tests {
 
     #[test]
     fn bind_spec_global_rank0_uses_probing_port() {
-        let _guard = ENV_LOCK.lock().unwrap();
+        let _guard = lock_mutex(&ENV_LOCK, "torchrun test ENV_LOCK");
         clear_torchrun_env();
         std::env::set_var("RANK", "0");
         std::env::set_var("PROBING_PORT", "18080");

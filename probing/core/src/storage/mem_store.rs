@@ -1,6 +1,6 @@
 // probing/core/src/storage/sled_store.rs
 use super::entity::{EntityId, EntityStore, PersistentEntity};
-use anyhow::Result;
+use crate::core::Result;
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;

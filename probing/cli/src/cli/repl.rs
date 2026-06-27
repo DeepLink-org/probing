@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use futures_util::sink::Sink;
 use futures_util::stream::Stream;
 use futures_util::{SinkExt, StreamExt};
@@ -45,7 +45,7 @@ pub async fn start_repl(ctrl: ProbeEndpoint) -> Result<()> {
             editor.read_line(&prompt)
         })
         .await
-        .map_err(|e| anyhow::anyhow!("Error reading input task: {}", e))?;
+        .context("Error reading input task")?;
 
         match sig {
             Ok(Signal::Success(line)) => {
@@ -155,7 +155,7 @@ async fn connect_tcp_websocket(addr: &str) -> Result<WsConnection> {
     let url = format!("ws://{}/ws", addr);
     let (ws_stream, _) = connect_async(&url)
         .await
-        .map_err(|e| anyhow::anyhow!("WebSocket connection failed: {}", e))?;
+        .context("WebSocket connection failed")?;
 
     Ok(boxed_connection(ws_stream))
 }
@@ -182,7 +182,7 @@ async fn connect_unix_websocket(pid: i32) -> Result<WsConnection> {
 
     let (ws_stream, _) = client_async("ws://localhost/ws", stream)
         .await
-        .map_err(|e| anyhow::anyhow!("WebSocket connection failed: {}", e))?;
+        .context("WebSocket connection failed")?;
 
     Ok(boxed_connection(ws_stream))
 }

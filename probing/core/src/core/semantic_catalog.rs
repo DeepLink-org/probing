@@ -202,8 +202,13 @@ use datafusion::catalog::TableProvider;
 
 static SEMANTIC_COLUMN_INDEX: LazyLock<HashMap<(String, String), Vec<String>>> =
     LazyLock::new(|| {
-        let yaml = parse_semantic_catalog_yaml(TABLES_YAML)
-            .expect("skills/semantic/tables.yaml must parse");
+        let yaml = match parse_semantic_catalog_yaml(TABLES_YAML) {
+            Ok(yaml) => yaml,
+            Err(e) => {
+                log::error!("skills/semantic/tables.yaml failed to parse: {e}");
+                return HashMap::new();
+            }
+        };
         let mut map: HashMap<(String, String), Vec<String>> = HashMap::new();
         for row in yaml.column_rows {
             map.entry((row.table_schema, row.table_name))

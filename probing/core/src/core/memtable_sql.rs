@@ -56,7 +56,9 @@ use probing_memtable::discover::{default_dir, MappedFile};
 use probing_memtable::memc::{
     ColdStats, ColdStore, ColumnData, Compactor, CompactorConfig, SegmentReader,
 };
-use probing_memtable::{detect_table, DType, MemTableView, MemhView, TableKind, TypedValue};
+use probing_memtable::{
+    detect_table, DType, MemTableView, MemhView, MemtableError, TableKind, TypedValue,
+};
 
 use super::plugin_advanced::{scan_memory_partitions, supports_filters_pushdown_for_schema};
 use super::{
@@ -532,7 +534,7 @@ pub struct RingMmapTable {
 }
 
 impl RingMmapTable {
-    pub fn try_new(mapped: MappedFile) -> Result<Self, &'static str> {
+    pub fn try_new(mapped: MappedFile) -> Result<Self, MemtableError> {
         let view = MemTableView::new(mapped.as_bytes())?;
         let schema = view_to_arrow_schema(&view);
         Ok(Self {
@@ -1199,7 +1201,7 @@ impl ColdCompactor {
 
         let running = self.running.clone();
         let poll = cfg.poll;
-        let handle = std::thread::Builder::new()
+        match std::thread::Builder::new()
             .name("memc-compactor".into())
             .spawn(move || {
                 while running.load(Ordering::SeqCst) {
@@ -1224,9 +1226,15 @@ impl ColdCompactor {
                 if let Err(e) = compactor.flush() {
                     log::debug!("cold compactor: final flush: {e}");
                 }
-            })
-            .expect("spawn memc-compactor thread");
-        *lock_compactor_handle(&self.handle) = Some(handle);
+            }) {
+            Ok(handle) => {
+                *lock_compactor_handle(&self.handle) = Some(handle);
+            }
+            Err(e) => {
+                log::error!("cold compactor: failed to spawn background thread: {e}");
+                self.running.store(false, Ordering::SeqCst);
+            }
+        }
     }
 
     /// Signal the thread to flush and exit, then join it.
@@ -1925,7 +1933,7 @@ mod tests {
         let schema = MtSchema::new().col("ts", DType::I64).col("msg", DType::Str);
         let mut table = ExposedTable::create("test_metrics", &schema, 4096, 2).unwrap();
         {
-            let mut w = table.writer();
+            let mut w = table.writer().expect("valid mmap table");
             w.push_row(&[Value::I64(100), Value::Str("alpha")]);
             w.push_row(&[Value::I64(200), Value::Str("beta")]);
         }
@@ -1980,7 +1988,7 @@ mod tests {
         let dotted = mmap_filename_for("acme", "metrics_demo");
         let mut ring = ExposedTable::create(&dotted, &schema, 4096, 2).unwrap();
         {
-            let mut w = ring.writer();
+            let mut w = ring.writer().expect("valid mmap table");
             w.push_row(&[Value::I64(1), Value::Str("x")]);
         }
 

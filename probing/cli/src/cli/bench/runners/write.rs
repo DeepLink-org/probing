@@ -7,7 +7,7 @@
 use std::sync::Barrier;
 use std::time::Instant;
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use probing_memtable::MemTable;
 
 use super::common;
@@ -94,7 +94,7 @@ pub fn run(args: &WriteArgs, json: bool, seed: u64) -> Result<()> {
             )?;
             let path = creator
                 .path()
-                .expect("shared table has a path")
+                .context("shared memtable has no file path")?
                 .to_path_buf();
             (Source::File(path), Some(creator))
         }

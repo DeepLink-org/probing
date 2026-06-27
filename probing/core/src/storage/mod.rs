@@ -10,7 +10,7 @@ pub use entity::{EntityId, EntityStore, PersistentEntity};
 pub use mem_store::MemoryStore;
 
 // Distributed storage exports
-pub use addressing::{Address, AddressAllocator};
+pub use addressing::{Address, AddressAllocator, AddressError};
 pub use distributed::{ConsistencyLevel, DistributedEntityStore, RemoteStoreClient};
 pub use remote_client::MemoryRemoteClient;
 pub use topology::{TopologyStats, TopologyView};

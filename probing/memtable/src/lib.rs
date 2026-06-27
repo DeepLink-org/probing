@@ -101,6 +101,7 @@ mod cache;
 mod dedup;
 pub mod discover;
 pub mod docs;
+pub mod error;
 mod layout;
 pub mod memc;
 pub mod memh;
@@ -109,10 +110,12 @@ mod raw;
 mod refcount;
 mod row;
 mod schema;
+mod sync;
 mod writer;
 
 pub use cache::{CachedCursor, CachedReader};
 pub use docs::infer_extern_column_dtype;
+pub use error::{MemtableError, Result as MemtableResult};
 pub use layout::MAGIC_MEMT;
 pub use memh::{
     init_buf as init_memh_buf, validate_memh, InsertError, InsertResult, MemhInitError,
@@ -150,7 +153,7 @@ pub fn detect_table(buf: &[u8]) -> Option<TableKind> {
     if buf.len() < 4 {
         return None;
     }
-    let magic = u32::from_le_bytes(buf[..4].try_into().unwrap());
+    let magic = u32::from_le_bytes([buf[0], buf[1], buf[2], buf[3]]);
     match magic {
         MAGIC_MEMT => Some(TableKind::Ring),
         MAGIC_MEMH => Some(TableKind::Hash),

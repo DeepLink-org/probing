@@ -353,6 +353,13 @@ fn shm_name_cstring(name: &str) -> io::Result<std::ffi::CString> {
         .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "shm name contains NUL"))
 }
 
+fn cstring_to_shm_name(cname: std::ffi::CString) -> io::Result<String> {
+    cname.into_string().map_err(|e| {
+        log::error!("shm name is not valid UTF-8: {e:?}");
+        io::Error::new(io::ErrorKind::InvalidInput, "shm name is not valid UTF-8")
+    })
+}
+
 /// `shm_open` wrapper returning an owned [`std::fs::File`].
 fn shm_open_file(name: &std::ffi::CString, oflag: libc::c_int) -> io::Result<std::fs::File> {
     use std::os::fd::FromRawFd;
@@ -398,7 +405,7 @@ impl MemTable {
     }
 
     /// Adopt an existing heap buffer (validates the MEMT layout).
-    pub fn from_buf(buf: Vec<u8>) -> Result<Self, &'static str> {
+    pub fn from_buf(buf: Vec<u8>) -> Result<Self, crate::error::MemtableError> {
         validate_buf(&buf)?;
         Ok(Self {
             backing: Backing::Heap(buf),
@@ -429,7 +436,7 @@ impl MemTable {
         Ok(Self {
             backing: Backing::Shm {
                 mmap,
-                name: cname.into_string().expect("validated utf-8"),
+                name: cstring_to_shm_name(cname)?,
                 unlink_on_drop: true,
             },
         })
@@ -444,12 +451,12 @@ impl MemTable {
         let file = shm_open_file(&cname, libc::O_RDWR)?;
 
         let mmap = unsafe { MmapMut::map_mut(&file)? };
-        validate_buf(&mmap).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        validate_buf(&mmap)?;
 
         Ok(Self {
             backing: Backing::Shm {
                 mmap,
-                name: cname.into_string().expect("validated utf-8"),
+                name: cstring_to_shm_name(cname)?,
                 unlink_on_drop: false,
             },
         })
@@ -502,7 +509,7 @@ impl MemTable {
         let file = OpenOptions::new().read(true).write(true).open(&path)?;
 
         let mmap = unsafe { MmapMut::map_mut(&file)? };
-        validate_buf(&mmap).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        validate_buf(&mmap)?;
 
         Ok(Self {
             backing: Backing::File {
@@ -529,7 +536,7 @@ impl MemTable {
         schema: &Schema,
         chunk_size: u32,
         num_chunks: u32,
-    ) -> io::Result<Self> {
+    ) -> crate::error::Result<Self> {
         Self::shared_in(
             &crate::discover::default_dir(),
             name,
@@ -547,7 +554,7 @@ impl MemTable {
         schema: &Schema,
         chunk_size: u32,
         num_chunks: u32,
-    ) -> io::Result<Self> {
+    ) -> crate::error::Result<Self> {
         let dir = base_dir.join(std::process::id().to_string());
         std::fs::create_dir_all(&dir)?;
 
@@ -708,7 +715,7 @@ pub struct MemTableView<'a> {
 }
 
 impl<'a> MemTableView<'a> {
-    pub fn new(buf: &'a [u8]) -> Result<Self, &'static str> {
+    pub fn new(buf: &'a [u8]) -> Result<Self, crate::error::MemtableError> {
         validate_buf(buf)?;
         Ok(Self { buf })
     }
@@ -752,7 +759,7 @@ pub struct MemTableWriter<'a> {
 }
 
 impl<'a> MemTableWriter<'a> {
-    pub fn new(buf: &'a mut [u8]) -> Result<Self, &'static str> {
+    pub fn new(buf: &'a mut [u8]) -> Result<Self, crate::error::MemtableError> {
         validate_buf(buf)?;
         Ok(Self { buf, dedup: None })
     }

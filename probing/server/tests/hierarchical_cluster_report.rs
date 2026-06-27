@@ -5,6 +5,7 @@ use std::sync::{Arc, LazyLock, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::{extract::State, routing::get, Json, Router};
+use probing_core::sync::lock_mutex;
 use probing_proto::prelude::{Cluster, Node, NodeReportRequest, NodeReportResponse};
 use probing_server::cluster_http::{fetch_nodes_blocking, put_nodes_blocking};
 use probing_server::server::SERVER_RUNTIME;
@@ -44,7 +45,7 @@ async fn put_nodes_handler(
     State(state): State<AppState>,
     Json(body): Json<NodeReportRequest>,
 ) -> Json<NodeReportResponse> {
-    let mut cluster = state.cluster.lock().unwrap();
+    let mut cluster = lock_mutex(&state.cluster, "hierarchical_cluster_report cluster");
     for mut node in body.nodes {
         if node.timestamp == 0 {
             node.timestamp = now_micros();
@@ -66,7 +67,7 @@ async fn put_nodes_handler(
 }
 
 async fn get_nodes_handler(State(state): State<AppState>) -> Json<Vec<Node>> {
-    let cluster = state.cluster.lock().unwrap();
+    let cluster = lock_mutex(&state.cluster, "hierarchical_cluster_report cluster");
     let mut nodes = cluster.list();
     nodes.sort_by_key(|n| n.rank.unwrap_or(i32::MAX));
     Json(nodes)
@@ -122,7 +123,7 @@ fn local_group_ranks(store: &[Node], group_rank: i32) -> Vec<i32> {
 
 #[test]
 fn hierarchical_two_nodes_times_two_gpus_converges_on_master() {
-    let _guard = ENV_LOCK.lock().unwrap();
+    let _guard = lock_mutex(&ENV_LOCK, "hierarchical_cluster_report ENV_LOCK");
     for key in ["RANK", "GROUP_RANK", "LOCAL_RANK"] {
         std::env::remove_var(key);
     }

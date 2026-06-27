@@ -64,7 +64,7 @@ pub fn register_qualified(table_schema: &str, table_name: &str, schema: &Schema)
         }
     }
 
-    let mut reg = registry().lock().expect("table doc registry lock");
+    let mut reg = crate::sync::lock_mutex(registry(), "table doc registry");
     reg.insert(key, entry);
 }
 
@@ -79,7 +79,7 @@ pub fn register_from_name(name: &str, schema: &Schema) {
 
 /// Snapshot all registered docs (sorted by qualified name).
 pub fn snapshot() -> Vec<TableDocs> {
-    let reg = registry().lock().expect("table doc registry lock");
+    let reg = crate::sync::lock_mutex(registry(), "table doc registry");
     let mut rows: Vec<TableDocs> = reg.values().cloned().collect();
     rows.sort_by(|a, b| (&a.table_schema, &a.table_name).cmp(&(&b.table_schema, &b.table_name)));
     rows
@@ -88,7 +88,7 @@ pub fn snapshot() -> Vec<TableDocs> {
 /// Column names registered for `schema.table` (sorted, deduplicated).
 pub fn registered_column_names(table_schema: &str, table_name: &str) -> Vec<String> {
     let key = qualified_key(table_schema, table_name);
-    let reg = registry().lock().expect("table doc registry lock");
+    let reg = crate::sync::lock_mutex(registry(), "table doc registry");
     let Some(entry) = reg.get(&key) else {
         return Vec::new();
     };
@@ -106,7 +106,7 @@ pub fn register_column_docs(
     columns: &[(String, String)],
 ) {
     let key = qualified_key(table_schema, table_name);
-    let mut reg = registry().lock().expect("table doc registry lock");
+    let mut reg = crate::sync::lock_mutex(registry(), "table doc registry");
     let entry = reg.entry(key).or_insert_with(|| TableDocs {
         table_schema: table_schema.to_string(),
         table_name: table_name.to_string(),

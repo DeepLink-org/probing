@@ -13,14 +13,14 @@ tracing = []
 default = ["extension-module", "tracing"]
 
 [dependencies]
-probing-cc = { path = "../cc" }
-probing-core = { path = "../../core" }
+probing-core = { path = "../../core", features = ["python-bridge"] }
 probing-memtable = { path = "../../memtable" }
 probing-proto = { path = "../../proto" }
 probing-store = { path = "../../crates/store" }
 probing-cli = { path = "../../cli" }
 
 anyhow = { workspace = true }
+thiserror = { workspace = true }
 ctor = { workspace = true }
 log = { workspace = true }
 nix = { workspace = true }

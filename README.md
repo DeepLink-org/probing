@@ -16,7 +16,7 @@
 
 > Uncover the Hidden Truth of AI Performance
 
-Probing is a production-grade performance profiler designed specifically for distributed AI workloads. Built on dynamic probe injection technology, it delivers zero-overhead runtime introspection with SQL-queryable performance metrics and cross-node correlation analysis.
+Probing is a production-grade performance profiler designed specifically for distributed AI workloads. Built on dynamic probe injection technology, it delivers **minimal-overhead** runtime introspection—lock-free mmap writes on the hot path, background sampling—with SQL-queryable performance metrics and cross-node correlation analysis.
 
 ### What probing delivers...
 
