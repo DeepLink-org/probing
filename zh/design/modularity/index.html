@@ -1240,6 +1240,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="8. 已知边界违规（技术债）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchrun-vs-pulsing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        集群成员：Torchrun 心跳 vs Pulsing
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2226,6 +2243,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="8. 已知边界违规（技术债）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#torchrun-vs-pulsing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        集群成员：Torchrun 心跳 vs Pulsing
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2503,7 +2537,7 @@
 <tr>
 <td><strong>probing-server</strong></td>
 <td><code>probing/server/</code></td>
-<td>路由、认证、<code>initialize_engine()</code>、fan-out</td>
+<td>路由、认证、<code>initialize_engine()</code>、fan-out、<strong>torchrun 心跳</strong>（<code>torchrun_cluster.rs</code>）</td>
 </tr>
 <tr>
 <td><strong>probing-cli</strong></td>
@@ -2821,14 +2855,29 @@ python ext 扩散 import cli crate 内部。</p>
 <td><code>Engine::async_query</code></td>
 </tr>
 <tr>
+<td>表/列语义文档</td>
+<td>probing-core</td>
+<td><code>semantic_catalog</code> → <code>probe.probing.table_docs</code> / <code>column_docs</code></td>
+</tr>
+<tr>
 <td>mmap 格式、冷压缩</td>
 <td>probing-memtable</td>
 <td><code>RowWriter</code>, <code>ColdStore</code></td>
 </tr>
 <tr>
+<td>Torchrun 集群心跳</td>
+<td>probing-server</td>
+<td><code>torchrun_cluster.rs</code>、<code>cluster_report_backoff.rs</code>、<code>PUT /apis/nodes</code></td>
+</tr>
+<tr>
 <td>混合 Python/C 栈</td>
 <td>probing-python/features</td>
 <td><code>python.backtrace</code>、pprof</td>
+</tr>
+<tr>
+<td>macOS 线程 SIGUSR2</td>
+<td>probing-core</td>
+<td><code>signal::send_sigusr2_to_thread_id</code></td>
 </tr>
 <tr>
 <td>Torch 模块采样</td>
@@ -2965,6 +3014,21 @@ python ext 扩散 import cli crate 内部。</p>
 <td><strong>可接受</strong>（maturin wheel，仅 <code>cli_main</code>）；禁止扩散 import</td>
 </tr>
 <tr>
+<td>python → cc</td>
+<td>~~<code>probing-python</code> → <code>probing-cc</code>~~</td>
+<td><strong>已完成</strong> — <code>send_sigusr2_to_thread_id</code> 迁至 <code>probing-core::signal</code></td>
+</tr>
+<tr>
+<td>core → NCCL/HCCL</td>
+<td><code>probing-core</code> → nccl/hccl shim（<code>builtin-schema-docs</code>）供 <code>semantic_catalog</code></td>
+<td>改由采集器注册 docs，去掉 L1→L2 编译依赖</td>
+</tr>
+<tr>
+<td>core → skills YAML</td>
+<td><code>semantic_catalog</code> <code>include_str!(skills/semantic/tables.yaml)</code></td>
+<td>接受为 L4 overlay SSOT，或迁到 <code>probing/core/resources/</code></td>
+</tr>
+<tr>
 <td>server → python features</td>
 <td>~~<code>server/profiling.rs</code>~~ 已删</td>
 <td>火焰图走 Extension</td>
@@ -2986,8 +3050,8 @@ python ext 扩散 import cli crate 内部。</p>
 </tr>
 <tr>
 <td>kmsg 采集器</td>
-<td>已实现未注册</td>
-<td>在 engine 注册或删除</td>
+<td>已注册（Linux/kmsg feature gate）</td>
+<td>Done</td>
 </tr>
 <tr>
 <td>Architecture 文档</td>
@@ -2996,6 +3060,34 @@ python ext 扩散 import cli crate 内部。</p>
 </tr>
 </tbody>
 </table>
+<h3 id="torchrun-vs-pulsing">集群成员：Torchrun 心跳 vs Pulsing<a class="headerlink" href="#torchrun-vs-pulsing" title="Permanent link">&para;</a></h3>
+<p>两条<strong>互补</strong>路径填充 <code>cluster.nodes</code> 并支撑 <code>global.*</code> 联邦，互不取代。</p>
+<table>
+<thead>
+<tr>
+<th>路径</th>
+<th>层</th>
+<th>适用场景</th>
+<th>机制</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Torchrun 集群心跳</strong></td>
+<td>L3 <code>probing-server</code></td>
+<td>默认：<code>torchrun</code>/elastic（<code>WORLD_SIZE &gt; 1</code>，<code>PROBING=1/2</code>）</td>
+<td>分层 HTTP PUT + TCPStore 旁路键（<code>probing/torchrun/&lt;run_id&gt;/…</code>），<strong>不</strong>写 rendezvous 键。见 <a href="../torchrun-cluster/">Torchrun 集群心跳</a>。</td>
+</tr>
+<tr>
+<td><strong>Pulsing 集成</strong></td>
+<td>L4 被动 + 外部运行时</td>
+<td>作业已跑 <a href="../cluster-pulsing/">Pulsing</a> 并写 <code>pulsing.*</code> memtable</td>
+<td>Probing 发现 mmap 表；无 probing 自有心跳线程。</td>
+</tr>
+</tbody>
+</table>
+<p><strong>torchrun 用户默认</strong>：Rust ctor 自动 <code>maybe_start_torchrun_cluster()</code>。
+<strong>Pulsing</strong>：作业以 Pulsing 为中心做成员/故障检测，或需要 Pulsing actor 与 probing 表并存时使用。</p>
 <hr />
 <h2 id="9">9. 新功能决策树<a class="headerlink" href="#9" title="Permanent link">&para;</a></h2>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>要新原始信号？
@@ -3033,6 +3125,14 @@ python ext 扩散 import cli crate 内部。</p>
 <tr>
 <td><a href="../distributed/">分布式</a></td>
 <td>联邦与集群</td>
+</tr>
+<tr>
+<td><a href="../torchrun-cluster/">Torchrun 集群心跳</a></td>
+<td>分层 torchrun 成员注册</td>
+</tr>
+<tr>
+<td><a href="../cluster-pulsing/">基于 Pulsing 的集群</a></td>
+<td>可选 Pulsing 成员发现</td>
 </tr>
 <tr>
 <td><a href="../nccl-profiler/">NCCL Profiler</a></td>
