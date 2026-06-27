@@ -108,7 +108,7 @@ Python 侧采集（同层，不同语言）：
 
 | 单元 | 路径 | 职责 |
 |------|------|------|
-| **probing-server** | `probing/server/` | 路由、认证、`initialize_engine()`、fan-out |
+| **probing-server** | `probing/server/` | 路由、认证、`initialize_engine()`、fan-out、**torchrun 心跳**（`torchrun_cluster.rs`） |
 | **probing-cli** | `probing/cli/` | HTTP 客户端；inject/query/repl/**skill** |
 
 HTTP 契约：`probing/server/API.md` + `tests/regression/spec/api_spec.json`。
@@ -269,7 +269,9 @@ sequenceDiagram
 | 关注点 | 归属 | 接口 |
 |--------|------|------|
 | SQL 解析、federation 重写 | probing-core | `Engine::async_query` |
+| 表/列语义文档 | probing-core | `semantic_catalog` → `probe.probing.table_docs` / `column_docs` |
 | mmap 格式、冷压缩 | probing-memtable | `RowWriter`, `ColdStore` |
+| Torchrun 集群心跳 | probing-server | `torchrun_cluster.rs`、`cluster_report_backoff.rs`、`PUT /apis/nodes` |
 | 混合 Python/C 栈 | probing-python/features | `python.backtrace`、pprof |
 | Torch 模块采样 | python/profiling | `python.torch_trace` |
 | Collective 墙钟 | python/profiling/collective | `python.comm_collective` |
@@ -313,12 +315,27 @@ sequenceDiagram
 | 问题 | 现状 | 目标 |
 |------|------|------|
 | python → cli | `probing-python` → `probing-cli` | **可接受**（maturin wheel，仅 `cli_main`）；禁止扩散 import |
+| python → cc | `probing-python` → `probing-cc`（stack tracer 发 SIGUSR2） | 信号 helper 下沉 L1 或独立 `probing-signals` |
+| core → NCCL/HCCL | `probing-core` → nccl/hccl shim（`builtin-schema-docs`）供 `semantic_catalog` | 改由采集器注册 docs，去掉 L1→L2 编译依赖 |
+| core → skills YAML | `semantic_catalog` `include_str!(skills/semantic/tables.yaml)` | 接受为 L4 overlay SSOT，或迁到 `probing/core/resources/` |
 | server → python features | ~~`server/profiling.rs`~~ 已删 | 火焰图走 Extension |
 | server → REPL 内部 | ~~`PythonRepl`~~ | `/ws` 仅用 `ReplSession` 门面 |
 | 组装集中 | 全在 server/engine.rs | 可选 extension manifest |
 | Skill 三份 loader | Rust/Python/Web | `skills/` 为 SSOT，CI 同步校验 |
-| kmsg 采集器 | 已实现未注册 | 在 engine 注册或删除 |
+| kmsg 采集器 | 已注册（Linux/kmsg feature gate） | Done |
 | Architecture 文档 | 二层旧图 | 以本文 + [数据层](data-layer.zh.md) 为准 |
+
+### 集群成员：Torchrun 心跳 vs Pulsing
+
+两条**互补**路径填充 `cluster.nodes` 并支撑 `global.*` 联邦，互不取代。
+
+| 路径 | 层 | 适用场景 | 机制 |
+|------|-----|----------|------|
+| **Torchrun 集群心跳** | L3 `probing-server` | 默认：`torchrun`/elastic（`WORLD_SIZE > 1`，`PROBING=1/2`） | 分层 HTTP PUT + TCPStore 旁路键（`probing/torchrun/<run_id>/…`），**不**写 rendezvous 键。见 [Torchrun 集群心跳](torchrun-cluster.zh.md)。 |
+| **Pulsing 集成** | L4 被动 + 外部运行时 | 作业已跑 [Pulsing](cluster-pulsing.zh.md) 并写 `pulsing.*` memtable | Probing 发现 mmap 表；无 probing 自有心跳线程。 |
+
+**torchrun 用户默认**：Rust ctor 自动 `maybe_start_torchrun_cluster()`。
+**Pulsing**：作业以 Pulsing 为中心做成员/故障检测，或需要 Pulsing actor 与 probing 表并存时使用。
 
 ---
 
@@ -347,6 +364,8 @@ sequenceDiagram
 | [数据层](data-layer.zh.md) | MEMT/MEMC 内部实现 |
 | [扩展机制](extensibility.zh.md) | 对外扩展路径（表 + skill + NCCL） |
 | [分布式](distributed.zh.md) | 联邦与集群 |
+| [Torchrun 集群心跳](torchrun-cluster.zh.md) | 分层 torchrun 成员注册 |
+| [基于 Pulsing 的集群](cluster-pulsing.zh.md) | 可选 Pulsing 成员发现 |
 | [NCCL Profiler](nccl-profiler.zh.md) | NCCL 插件边界 |
 | [web/DESIGN.md](https://github.com/DeepLink-org/probing/blob/main/web/DESIGN.md) | 前端模块布局 |
 | [AGENTS.md](https://github.com/DeepLink-org/probing/blob/main/AGENTS.md) | Agent 使用 skill |
