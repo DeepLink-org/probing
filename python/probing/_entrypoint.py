@@ -34,6 +34,33 @@ def is_probing_cli() -> bool:
 _LIGHTWEIGHT_MODULES = ("probing.nccl", "probing.skills", "probing.dev_pth")
 
 
+def should_activate_probing() -> bool:
+    """True when ``PROBING`` / ``PROBING_ORIGINAL`` targets this process."""
+    raw = os.environ.get("PROBING_ORIGINAL") or os.environ.get("PROBING", "0")
+    token = raw.strip().lower()
+    if token in ("0", "", "false", "no", "off"):
+        return False
+    if token in ("1", "followed", "2", "nested"):
+        return True
+    if raw.lower().startswith("regex:"):
+        import re
+
+        pattern = raw.split(":", 1)[1]
+        candidates: list[str] = [c for c in sys.argv if c]
+        candidates.append(current_script_name())
+        try:
+            import __main__
+
+            main_file = getattr(__main__, "__file__", None)
+            if main_file:
+                candidates.append(main_file)
+                candidates.append(os.path.basename(main_file))
+        except Exception:
+            pass
+        return any(re.search(pattern, c) for c in candidates if c)
+    return raw == current_script_name()
+
+
 def is_lightweight_module() -> bool:
     """``python -m probing.nccl|skills|dev_pth`` must not start the engine."""
     helper_suffixes = (

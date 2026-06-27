@@ -1,4 +1,15 @@
 use std::cell::RefCell;
+use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
+
+static GLOBAL_MICRO_STEP: AtomicU64 = AtomicU64::new(0);
+static GLOBAL_MICRO_BATCHES: AtomicU64 = AtomicU64::new(1);
+static CACHED_RANK: AtomicI64 = AtomicI64::new(0);
+static CACHED_WORLD_SIZE: AtomicI64 = AtomicI64::new(1);
+
+fn refresh_cached_dist() {
+    CACHED_RANK.store(read_rank(), Ordering::Relaxed);
+    CACHED_WORLD_SIZE.store(read_world_size(), Ordering::Relaxed);
+}
 
 /// Training step coordinates.
 ///
@@ -25,6 +36,7 @@ struct StepContext {
 
 impl Default for StepContext {
     fn default() -> Self {
+        refresh_cached_dist();
         Self {
             micro_step: 0,
             micro_batches: read_micro_batches(),
@@ -49,16 +61,53 @@ impl StepContext {
 
     fn sync_micro_step(&mut self, step: u64) -> StepSnapshot {
         self.micro_step = step;
+        publish_global(self.micro_step, self.micro_batches);
         self.snapshot()
     }
 
     fn advance_micro_step(&mut self) -> StepSnapshot {
         self.micro_step = self.micro_step.saturating_add(1);
+        publish_global(self.micro_step, self.micro_batches);
         self.snapshot()
     }
 
     fn set_micro_batches(&mut self, micro_batches: u64) {
         self.micro_batches = micro_batches.max(1);
+        GLOBAL_MICRO_BATCHES.store(self.micro_batches, Ordering::Relaxed);
+    }
+}
+
+fn publish_global(micro_step: u64, micro_batches: u64) {
+    GLOBAL_MICRO_STEP.fetch_max(micro_step, Ordering::Relaxed);
+    GLOBAL_MICRO_BATCHES.store(micro_batches.max(1), Ordering::Relaxed);
+}
+
+/// Best-effort step coordinates for crash reporting (prefers thread-local, falls
+/// back to process-wide high-water mark when the crashing thread never advanced step).
+pub fn crash_step_snapshot() -> StepSnapshot {
+    let local = step_snapshot();
+    if local.micro_step > 0 {
+        return local;
+    }
+    atomic_step_snapshot()
+}
+
+/// Async-signal-safe: global high-water step only (no thread-local / env reads).
+pub fn crash_atomic_step() -> StepSnapshot {
+    atomic_step_snapshot()
+}
+
+fn atomic_step_snapshot() -> StepSnapshot {
+    let micro = GLOBAL_MICRO_STEP.load(Ordering::Relaxed);
+    let batches = GLOBAL_MICRO_BATCHES.load(Ordering::Relaxed).max(1);
+    let training = training_step_for(micro, batches);
+    StepSnapshot {
+        micro_step: micro,
+        local_step: training,
+        global_step: training,
+        micro_batches: batches,
+        rank: CACHED_RANK.load(Ordering::Relaxed),
+        world_size: CACHED_WORLD_SIZE.load(Ordering::Relaxed),
     }
 }
 

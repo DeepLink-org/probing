@@ -88,7 +88,11 @@ def _reachable_addr(bound: str) -> str:
     host, port = bound.rsplit(":", 1)
     host = host.strip().strip("[]")
     if host in ("0.0.0.0", "::", "", "*"):
-        host = os.environ.get("MASTER_ADDR") or socket.gethostname()
+        master = os.environ.get("MASTER_ADDR", "").strip()
+        if master in ("127.0.0.1", "localhost"):
+            host = master
+        else:
+            host = master or socket.gethostname()
     return f"{host}:{port}"
 
 
@@ -293,6 +297,11 @@ def refresh_node_role() -> bool:
     except Exception as exc:  # pragma: no cover - network best-effort
         logger.debug("probing torchrun: role refresh failed: %s", exc)
         return False
+
+
+def master_info() -> dict[str, str] | None:
+    """Return cluster master HTTP info after ``setup_torchrun_cluster()``."""
+    return _MASTER_INFO
 
 
 def maybe_setup_torchrun_cluster() -> dict[str, str] | None:

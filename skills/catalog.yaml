@@ -36,7 +36,20 @@ skills:
   - module_bottleneck
   - training_hang
   - memory_leak
+  - crash_triage
   path: health_overview/steps.yaml
+- id: crash_triage
+  category: triage
+  priority: 1
+  entry: true
+  description: Crash triage — grep PROBING CRASH in logs; read spill JSON files
+  tables: []
+  pages:
+  - agent
+  related:
+  - health_overview
+  - training_hang
+  path: crash_triage/steps.yaml
 - id: training_hang
   category: reliability
   priority: 1

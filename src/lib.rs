@@ -174,6 +174,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Register all classes
     m.add_class::<ExternalTable>()?;
     m.add_function(wrap_pyfunction!(register_table_docs, m)?)?;
+    m.add_function(wrap_pyfunction!(start_local, m)?)?;
     m.add_class::<TCPStore>()?;
 
     // Register all functions
@@ -191,7 +192,14 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     use probing_python::features::python_api::{is_enabled, should_enable_probing};
     m.add_function(wrap_pyfunction!(is_enabled, m)?)?;
     m.add_function(wrap_pyfunction!(should_enable_probing, m)?)?;
-    m.add_function(wrap_pyfunction!(start_local, m)?)?;
+    use probing_python::features::crash::{
+        crash_enabled, note_last_comm, record_crash, request_crash_hold, request_crash_release,
+    };
+    m.add_function(wrap_pyfunction!(record_crash, m)?)?;
+    m.add_function(wrap_pyfunction!(crash_enabled, m)?)?;
+    m.add_function(wrap_pyfunction!(note_last_comm, m)?)?;
+    m.add_function(wrap_pyfunction!(request_crash_hold, m)?)?;
+    m.add_function(wrap_pyfunction!(request_crash_release, m)?)?;
 
     // Register config functions directly to the module (flattened)
     config::register_config_functions(m)?;

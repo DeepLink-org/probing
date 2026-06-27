@@ -3,8 +3,8 @@ mod step;
 
 pub use span::{attr, Attribute, Ele, Event, Location, Span, SpanStatus, Timestamp};
 pub use step::{
-    advance_micro_step, current_micro_step, set_micro_batches, step_snapshot, sync_micro_step,
-    StepSnapshot,
+    advance_micro_step, crash_atomic_step, crash_step_snapshot, current_micro_step,
+    set_micro_batches, step_snapshot, sync_micro_step, StepSnapshot,
 };
 
 // --- Custom Error Type ---

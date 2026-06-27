@@ -79,6 +79,16 @@ else:
     except Exception:
         pass
 
+    try:
+        from probing._entrypoint import should_activate_probing
+
+        if should_activate_probing():
+            from probing.crash import install
+
+            install()
+    except Exception:
+        pass
+
     __all__ = [
         "VERSION",
         "ExternalTable",

@@ -7,6 +7,9 @@ use crate::components::card::Card;
 use crate::components::colors::colors;
 use crate::components::common::{query_result, AsyncBoundary, EmptyState};
 use crate::components::icon::Icon;
+use crate::components::span_timeline::{
+    SpanTimelineBar, SpanTimelineHeader, SpanTimelineLegend, SpanTimelineSpacer, TraceTimeWindow,
+};
 use crate::components::page::{PageContainer, PageTitle};
 use crate::components::poll_status::{ManualRefreshStatus, RefreshButton};
 use crate::hooks::use_app_resource;
@@ -64,7 +67,7 @@ pub fn Traces() -> Element {
             PageTitle {
                 title: "Spans".to_string(),
                 subtitle: Some(
-                    "Hierarchical tracing spans from python.trace_event. For chrome trace timelines, use Profiling → Chrome trace.".to_string(),
+                    "Span tree with an aligned timeline lane — expand nodes to grow both views. For kernel-level chrome traces, use Profiling → Chrome trace.".to_string(),
                 ),
                 icon: Some(&icondata::AiApiOutlined),
                 header_right: Some(rsx! {
@@ -353,15 +356,25 @@ fn TraceTreePanel(
                         }
                     }
                 } else {
-                    div { class: "px-2 py-2 max-h-[calc(100vh-14rem)] overflow-y-auto font-mono text-xs leading-5",
-                        for span in filtered {
-                            SpanView {
-                                key: "{span.span_id}",
-                                span: span.clone(),
-                                depth: 0,
-                                highlight: highlight.clone(),
-                                expand_all,
-                                collapse_all,
+                    {
+                        let time_window = TraceTimeWindow::from_spans(&filtered);
+                        rsx! {
+                            div { class: "max-h-[calc(100vh-14rem)] overflow-y-auto font-mono text-xs leading-5",
+                                SpanTimelineHeader { window: time_window }
+                                SpanTimelineLegend {}
+                                div { class: "px-0 py-1",
+                                    for span in filtered {
+                                        SpanView {
+                                            key: "{span.span_id}",
+                                            span: span.clone(),
+                                            depth: 0,
+                                            highlight: highlight.clone(),
+                                            expand_all,
+                                            collapse_all,
+                                            time_window,
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -560,6 +573,7 @@ fn SpanView(
     highlight: SpanHighlight,
     expand_all: Signal<u32>,
     collapse_all: Signal<u32>,
+    time_window: TraceTimeWindow,
 ) -> Element {
     let mut expanded = use_signal(|| depth < 2);
     let has_children = !span.children.is_empty();
@@ -590,83 +604,105 @@ fn SpanView(
     rsx! {
         div { class: "min-w-0",
             div {
-                class: "{row_class}",
-                style: if indent > 0 { format!("padding-left: {indent}px") } else { String::new() },
-                onclick: move |_| {
-                    set_trace_context(trace_id, Some(&span_name), Some(thread_id));
-                },
-                if has_details {
-                    button {
-                        class: "shrink-0 w-4 h-4 flex items-center justify-center text-gray-400 hover:text-gray-700",
-                        onclick: move |e| {
-                            e.stop_propagation();
-                            expanded.set(!expanded());
+                class: "flex items-stretch min-w-0 hover:bg-gray-50/50",
+                div {
+                    class: "flex flex-1 min-w-0 items-stretch",
+                    SpanTimelineBar {
+                        span: span.clone(),
+                        window: time_window,
+                        depth,
+                    }
+                    div {
+                        class: "{row_class} flex-1 min-w-0 border-b border-gray-50",
+                        style: if indent > 0 { format!("padding-left: {indent}px") } else { String::new() },
+                        onclick: move |_| {
+                            set_trace_context(trace_id, Some(&span_name), Some(thread_id));
                         },
-                        if expanded() {
-                            Icon { icon: &icondata::AiCaretDownOutlined, class: "w-3 h-3" }
+                        if has_details {
+                            button {
+                                class: "shrink-0 w-4 h-4 flex items-center justify-center text-gray-400 hover:text-gray-700",
+                                onclick: move |e| {
+                                    e.stop_propagation();
+                                    expanded.set(!expanded());
+                                },
+                                if expanded() {
+                                    Icon { icon: &icondata::AiCaretDownOutlined, class: "w-3 h-3" }
+                                } else {
+                                    Icon { icon: &icondata::AiCaretRightOutlined, class: "w-3 h-3" }
+                                }
+                            }
                         } else {
-                            Icon { icon: &icondata::AiCaretRightOutlined, class: "w-3 h-3" }
+                            span { class: "w-4 shrink-0" }
+                        }
+                        span { class: "font-semibold text-gray-900 shrink-0", "{span.name}" }
+                        if let Some(ref phase) = span.phase {
+                            span {
+                                class: format!(
+                                    "shrink-0 px-1.5 py-px rounded text-[10px] font-sans font-medium bg-{} text-{}",
+                                    colors::CONTENT_ACCENT_BG,
+                                    colors::CONTENT_ACCENT_TEXT,
+                                ),
+                                "{phase}"
+                            }
+                        }
+                        if let Some(ref location) = span.location {
+                            if !location.is_empty() {
+                                span { class: "text-gray-500 truncate max-w-[14rem]", "{location}" }
+                            }
+                        }
+                        span { class: "text-gray-400 shrink-0", "id:{span.span_id}" }
+                        if let Some(parent) = span.parent_id {
+                            span { class: "text-gray-400 shrink-0", "↑{parent}" }
+                        }
+                        span { class: "text-gray-400 shrink-0", "t:{span.thread_id}" }
+                        if let Some(dur) = duration {
+                            span { class: "text-emerald-700 font-medium shrink-0", "{duration_label(dur)}" }
+                        } else {
+                            span { class: "text-amber-600 shrink-0", "active" }
+                        }
+                        if has_events {
+                            span { class: "text-gray-400 shrink-0", "{span.events.len()}evt" }
+                        }
+                        if has_children {
+                            span { class: "text-gray-400 shrink-0", "{span.children.len()}↓" }
                         }
                     }
-                } else {
-                    span { class: "w-4 shrink-0" }
-                }
-                span { class: "font-semibold text-gray-900 shrink-0", "{span.name}" }
-                if let Some(ref phase) = span.phase {
-                    span {
-                        class: format!(
-                            "shrink-0 px-1.5 py-px rounded text-[10px] font-sans font-medium bg-{} text-{}",
-                            colors::CONTENT_ACCENT_BG,
-                            colors::CONTENT_ACCENT_TEXT,
-                        ),
-                        "{phase}"
-                    }
-                }
-                if let Some(ref location) = span.location {
-                    if !location.is_empty() {
-                        span { class: "text-gray-500 truncate max-w-[14rem]", "{location}" }
-                    }
-                }
-                span { class: "text-gray-400 shrink-0", "id:{span.span_id}" }
-                if let Some(parent) = span.parent_id {
-                    span { class: "text-gray-400 shrink-0", "↑{parent}" }
-                }
-                span { class: "text-gray-400 shrink-0", "t:{span.thread_id}" }
-                if let Some(dur) = duration {
-                    span { class: "text-emerald-700 font-medium shrink-0", "{duration_label(dur)}" }
-                } else {
-                    span { class: "text-amber-600 shrink-0", "active" }
-                }
-                if has_events {
-                    span { class: "text-gray-400 shrink-0", "{span.events.len()}evt" }
-                }
-                if has_children {
-                    span { class: "text-gray-400 shrink-0", "{span.children.len()}↓" }
                 }
             }
 
             if expanded() && has_details {
-                div {
-                    class: "space-y-0.5 pb-1",
-                    style: format!("padding-left: {}px", indent + 20),
-                    if has_attrs {
-                        AttributesInline { raw: span.attributes.clone().unwrap_or_default() }
-                    }
-                    if has_events {
-                        for event in span.events.iter() {
-                            EventView { event: event.clone() }
+                if has_attrs {
+                    div { class: "flex items-stretch min-w-0",
+                        SpanTimelineSpacer {}
+                        div {
+                            class: "flex-1 min-w-0 pb-0.5",
+                            style: format!("padding-left: {}px", indent + 20),
+                            AttributesInline { raw: span.attributes.clone().unwrap_or_default() }
                         }
                     }
-                    if has_children {
-                        for child in span.children.iter() {
-                            SpanView {
-                                key: "{child.span_id}",
-                                span: child.clone(),
-                                depth: depth + 1,
-                                highlight: highlight.clone(),
-                                expand_all,
-                                collapse_all,
+                }
+                if has_events {
+                    for event in span.events.iter() {
+                        div { class: "flex items-stretch min-w-0",
+                            SpanTimelineSpacer {}
+                            div {
+                                class: "flex-1 min-w-0",
+                                style: format!("padding-left: {}px", indent + 20),
+                                EventView { event: event.clone(), time_window, span_start: span.start_timestamp }
                             }
+                        }
+                    }
+                }
+                if has_children {
+                    for child in span.children.iter() {
+                        SpanView {
+                            key: "{child.span_id}",
+                            span: child.clone(),
+                            depth: depth + 1,
+                            highlight: highlight.clone(),
+                            expand_all,
+                            collapse_all,
+                            time_window,
                         }
                     }
                 }
@@ -715,11 +751,20 @@ fn attribute_value(val: &serde_json::Value) -> String {
 }
 
 #[component]
-fn EventView(event: EventInfo) -> Element {
+fn EventView(event: EventInfo, time_window: TraceTimeWindow, span_start: i64) -> Element {
+    let offset = crate::components::span_timeline::format_axis_label(
+        (event.timestamp - time_window.start_ns) as f64,
+    );
+    let rel = crate::components::span_timeline::format_axis_label(
+        (event.timestamp - span_start) as f64,
+    );
     rsx! {
-        div { class: "flex flex-wrap items-baseline gap-x-2 gap-y-0 py-0.5 text-gray-600",
+        div {
+            class: "flex flex-wrap items-baseline gap-x-2 gap-y-0 py-0.5 text-gray-600",
+            title: "t+{rel} from span start · {offset} from trace origin",
             span { class: "text-blue-500 shrink-0", "●" }
             span { class: "text-gray-800", "{event.name}" }
+            span { class: "text-gray-400 shrink-0 font-mono text-[10px]", "+{rel}" }
             if let Some(ref attrs) = event.attributes {
                 if !attrs.is_empty() {
                     span { class: "text-gray-500 break-all", "{attrs}" }
