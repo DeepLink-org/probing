@@ -29,6 +29,25 @@ pub struct Node {
     pub timestamp: u64,
 }
 
+/// Batch node registration / heartbeat (hierarchical cluster report).
+#[derive(Debug, Default, Deserialize, Serialize, PartialEq, Eq, Clone)]
+pub struct NodeReportRequest {
+    #[serde(default)]
+    pub nodes: Vec<Node>,
+    #[serde(default)]
+    pub seen_version: u64,
+}
+
+/// Cluster snapshot returned after PUT /apis/nodes (merge + TTL sweep).
+#[derive(Debug, Default, Deserialize, Serialize, PartialEq, Eq, Clone)]
+pub struct NodeReportResponse {
+    pub ok: bool,
+    pub version: u64,
+    pub nodes: Vec<Node>,
+    #[serde(default)]
+    pub removed: Vec<String>,
+}
+
 impl Display for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(

@@ -441,15 +441,13 @@ fn cluster_fanout_join_uses_legacy_broadcast() {
 }
 
 #[tokio::test]
-async fn global_select_star_exclude_rewrite_works() {
+async fn global_select_star_leaves_sql_unchanged() {
     let _lock = federation_test_lock().await;
     use probing_core::core::federation::prepare_global_query;
 
     let sql = "SELECT * FROM global.process.envs";
     let prepared = prepare_global_query(sql);
-    assert!(prepared.contains("EXCLUDE"));
-    assert!(prepared.contains(PROBE_ADDR_COL));
-    assert!(prepared.contains(PROBE_RANK_COL));
+    assert_eq!(prepared, sql);
 }
 
 #[tokio::test]

@@ -68,6 +68,12 @@ impl TCPStore {
         self
     }
 
+    /// Set key prefix sent before each key (PyTorch rendezvous store uses ``""``).
+    pub fn with_key_prefix(mut self, prefix: impl Into<String>) -> Self {
+        self.keyprefix = prefix.into();
+        self
+    }
+
     /// Connect to the target server
     async fn connect(&self) -> Result<TcpStream, TCPStoreError> {
         let connect_future = TcpStream::connect(&self.endpoint);

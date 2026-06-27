@@ -244,12 +244,6 @@ def main_worker(gpu, ngpus_per_node, args):
             world_size=args.world_size,
             rank=args.rank,
         )
-        try:
-            from probing.torchrun_cluster import maybe_setup_torchrun_cluster
-
-            maybe_setup_torchrun_cluster()
-        except Exception:
-            pass
     # create model
     with probing.span("model.init"):
         if args.pretrained:

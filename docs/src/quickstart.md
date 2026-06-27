@@ -175,5 +175,5 @@ day-to-day diagnostic work. Each is documented in detail in the [API
 Reference](api-reference.md).
 
 For deeper analysis patterns (JOINs across tables, time-series bucketing,
-statistical aggregation), read [SQL Analytics](sql-analytics.md). For
-multi-node debugging, start with [Distributed](../design/distributed.md).
+statistical aggregation), read [SQL Analytics](guide/sql-analytics.md). For
+multi-node debugging, start with [Distributed](design/distributed.md).

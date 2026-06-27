@@ -6,7 +6,7 @@
 //! Single-table queries route through the `global` catalog (DataFusion federation).
 //! JOIN / multi-statement SQL still uses the legacy per-node broadcast path.
 
-use probing_core::core::cluster::get_nodes;
+use probing_core::core::cluster::{get_nodes, is_node_alive, local_addr_label, local_listen_addrs};
 use probing_core::core::federation::{
     can_fanout_via_global_catalog, remote_query_timeout, reset_fanout_stats,
     rewrite_sql_for_global_fanout, take_fanout_stats,
@@ -15,25 +15,8 @@ use probing_proto::prelude::*;
 
 use crate::engine::handle_query;
 
-pub fn local_listen_addrs() -> Vec<String> {
-    let mut addrs = Vec::new();
-    if let Ok(addr) = crate::vars::PROBING_ADDRESS.read() {
-        if !addr.is_empty() {
-            addrs.push(addr.clone());
-        }
-    }
-    addrs
-}
-
-pub fn local_host_label() -> String {
+fn local_host_label() -> String {
     crate::report::get_hostname().unwrap_or_else(|_| "localhost".into())
-}
-
-pub fn local_addr_label() -> String {
-    local_listen_addrs()
-        .into_iter()
-        .next()
-        .unwrap_or_else(|| "127.0.0.1:8080".into())
 }
 
 pub async fn query_local_df(sql: &str) -> anyhow::Result<DataFrame> {
@@ -159,6 +142,7 @@ async fn broadcast_fanout_query(sql: &str) -> anyhow::Result<FanoutQueryResponse
     let local_addrs = local_listen_addrs();
     let peers: Vec<_> = get_nodes()
         .into_iter()
+        .filter(is_node_alive)
         .filter(|node| !local_addrs.contains(&node.addr))
         .collect();
 
@@ -211,50 +195,7 @@ fn tag_dataframe(mut df: DataFrame, host: &str, addr: &str, rank: Option<i32>) -
 }
 
 fn merge_tagged_dataframes(parts: &[DataFrame]) -> DataFrame {
-    let mut out = DataFrame::default();
-    for df in parts {
-        if df.is_empty() {
-            continue;
-        }
-        if out.is_empty() {
-            out = df.clone();
-            continue;
-        }
-        append_dataframe(&mut out, df);
-    }
-    out.size = out.len() as u64;
-    out
-}
-
-fn append_dataframe(base: &mut DataFrame, other: &DataFrame) {
-    if other.is_empty() {
-        return;
-    }
-    if base.is_empty() {
-        *base = other.clone();
-        return;
-    }
-
-    let other_rows = other.len();
-    for name in &other.names {
-        if !base.names.contains(name) {
-            base.names.push(name.clone());
-            base.cols
-                .push(Seq::SeqText(vec![String::new(); base.len()]));
-        }
-    }
-    for (col_idx, name) in base.names.clone().iter().enumerate() {
-        let src_idx = other.names.iter().position(|n| n == name);
-        for row in 0..other_rows {
-            let ele = src_idx
-                .and_then(|i| other.cols.get(i).map(|c| c.get(row)))
-                .unwrap_or(Ele::Nil);
-            if let Some(col) = base.cols.get_mut(col_idx) {
-                let _ = col.append(ele);
-            }
-        }
-    }
-    base.size = base.len() as u64;
+    probing_proto::types::merge_dataframes(parts)
 }
 
 #[cfg(test)]

@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
-use crate::schema::Schema;
+use crate::schema::{DType, Schema};
 
 /// Documentation for one SQL table (`schema.table`).
 #[derive(Debug, Clone, Default)]
@@ -25,6 +25,28 @@ fn registry() -> &'static Mutex<HashMap<String, TableDocs>> {
 
 fn qualified_key(table_schema: &str, table_name: &str) -> String {
     format!("{table_schema}.{table_name}")
+}
+
+/// Infer memtable dtype for a documented extern column from its name alone.
+pub fn infer_extern_column_dtype(name: &str) -> DType {
+    match name {
+        "timestamp" => DType::I64,
+        "duration" | "duration_ms" => DType::F64,
+        "allocated"
+        | "max_allocated"
+        | "cached"
+        | "max_cached"
+        | "time_offset"
+        | "allocated_delta"
+        | "max_allocated_delta" => DType::F64,
+        "rank" | "world_size" | "group_rank" | "group_size" | "bytes" | "async_op"
+        | "micro_batches" | "micro_step" | "local_step" | "global_step" | "seq" | "role_rank"
+        | "role_world_size" | "lineno" | "depth" | "ts" | "used_bytes" | "total_bytes"
+        | "mem_used_pct" | "gpu_util_pct" | "rss_kb" | "thread_count" | "cpu_total_pct" => {
+            DType::I64
+        }
+        _ => DType::Str,
+    }
 }
 
 /// Register table/column docs for a qualified SQL name (`hccl.host_ops`, `python.foo`, …).
@@ -61,6 +83,19 @@ pub fn snapshot() -> Vec<TableDocs> {
     let mut rows: Vec<TableDocs> = reg.values().cloned().collect();
     rows.sort_by(|a, b| (&a.table_schema, &a.table_name).cmp(&(&b.table_schema, &b.table_name)));
     rows
+}
+
+/// Column names registered for `schema.table` (sorted, deduplicated).
+pub fn registered_column_names(table_schema: &str, table_name: &str) -> Vec<String> {
+    let key = qualified_key(table_schema, table_name);
+    let reg = registry().lock().expect("table doc registry lock");
+    let Some(entry) = reg.get(&key) else {
+        return Vec::new();
+    };
+    let mut cols: Vec<String> = entry.columns.keys().cloned().collect();
+    cols.sort();
+    cols.dedup();
+    cols
 }
 
 /// Register column docs without a full schema (e.g. Python `@table` before first append).
@@ -126,6 +161,32 @@ mod tests {
                 && r.description.as_deref() == Some("undotted metrics")
                 && r.columns.get("v") == Some(&"sample value".to_string())
         }));
+    }
+
+    #[test]
+    fn infer_extern_column_dtype_maps_duration_ms_to_f64() {
+        assert_eq!(infer_extern_column_dtype("duration_ms"), DType::F64);
+        assert_eq!(infer_extern_column_dtype("rank"), DType::I64);
+        assert_eq!(infer_extern_column_dtype("op"), DType::Str);
+    }
+
+    #[test]
+    fn registered_column_names_sorted() {
+        let table = unique_table("col_names");
+        register_column_docs(
+            "unittest",
+            &table,
+            None,
+            &[
+                ("z".to_string(), "last".to_string()),
+                ("a".to_string(), "first".to_string()),
+            ],
+        );
+        assert_eq!(
+            registered_column_names("unittest", &table),
+            vec!["a".to_string(), "z".to_string()]
+        );
+        assert!(registered_column_names("unittest", "missing").is_empty());
     }
 
     #[test]

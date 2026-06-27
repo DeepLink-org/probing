@@ -194,15 +194,17 @@ fn row_data_size(values: &[Value]) -> usize {
     values.iter().map(|v| v.encoded_size()).sum()
 }
 
-pub(crate) fn push_plain_row(buf: &mut [u8], values: &[Value]) {
+pub(crate) fn push_plain_row(buf: &mut [u8], values: &[Value]) -> bool {
     let row_data = row_data_size(values);
-    if !write_row_bytes(buf, values, row_data) {
-        advance_chunk_raw(buf);
-        assert!(
-            write_row_bytes(buf, values, row_data),
-            "row exceeds chunk capacity"
-        );
+    if write_row_bytes(buf, values, row_data) {
+        return true;
     }
+    advance_chunk_raw(buf);
+    if write_row_bytes(buf, values, row_data) {
+        return true;
+    }
+    log::warn!("push_plain_row: row exceeds chunk capacity");
+    false
 }
 
 const MAX_DEDUP_COLS: usize = 64;
@@ -626,10 +628,10 @@ impl MemTable {
         make_row_writer(self.backing.bytes_mut(), None)
     }
     pub fn append_row(&mut self, values: &[Value]) -> bool {
-        assert!(
-            validate_row_schema(self.backing.bytes(), values),
-            "value types do not match schema"
-        );
+        if !validate_row_schema(self.backing.bytes(), values) {
+            log::warn!("append_row: value types do not match schema");
+            return false;
+        }
         write_row_bytes(self.backing.bytes_mut(), values, row_data_size(values))
     }
     pub fn advance_chunk(&mut self) {
@@ -640,15 +642,15 @@ impl MemTable {
     ///
     /// MEMT is single-writer: the `&mut self` borrow guarantees exclusive
     /// access, so no lock is taken.
-    pub fn push_row(&mut self, values: &[Value]) {
+    pub fn push_row(&mut self, values: &[Value]) -> bool {
         if !validate_row_schema(self.backing.bytes(), values) {
             log::warn!("push_row: value types do not match schema");
-            return;
+            return false;
         }
-        self.push_row_unchecked(values);
+        self.push_row_unchecked(values)
     }
-    pub fn push_row_unchecked(&mut self, values: &[Value]) {
-        push_plain_row(self.backing.bytes_mut(), values);
+    pub fn push_row_unchecked(&mut self, values: &[Value]) -> bool {
+        push_plain_row(self.backing.bytes_mut(), values)
     }
 }
 
@@ -786,16 +788,16 @@ impl<'a> MemTableWriter<'a> {
         make_row_writer(self.buf, self.dedup.as_mut())
     }
 
-    pub fn push_row(&mut self, values: &[Value]) {
-        assert!(
-            validate_row_schema(self.buf, values),
-            "value types do not match schema"
-        );
-        self.push_inner(values);
+    pub fn push_row(&mut self, values: &[Value]) -> bool {
+        if !validate_row_schema(self.buf, values) {
+            log::warn!("push_row: value types do not match schema");
+            return false;
+        }
+        self.push_inner(values)
     }
 
-    pub fn push_row_unchecked(&mut self, values: &[Value]) {
-        self.push_inner(values);
+    pub fn push_row_unchecked(&mut self, values: &[Value]) -> bool {
+        self.push_inner(values)
     }
 
     pub fn advance_chunk(&mut self) {
@@ -806,10 +808,10 @@ impl<'a> MemTableWriter<'a> {
     }
 
     pub fn append_row(&mut self, values: &[Value]) -> bool {
-        assert!(
-            validate_row_schema(self.buf, values),
-            "value types do not match schema"
-        );
+        if !validate_row_schema(self.buf, values) {
+            log::warn!("append_row: value types do not match schema");
+            return false;
+        }
         if let Some(ref mut state) = self.dedup {
             append_row_dedup_bytes(self.buf, state, values)
         } else {
@@ -817,18 +819,20 @@ impl<'a> MemTableWriter<'a> {
         }
     }
 
-    fn push_inner(&mut self, values: &[Value]) {
+    fn push_inner(&mut self, values: &[Value]) -> bool {
         if let Some(ref mut state) = self.dedup {
-            if !append_row_dedup_bytes(self.buf, state, values) {
-                advance_chunk_raw(self.buf);
-                state.clear();
-                assert!(
-                    append_row_dedup_bytes(self.buf, state, values),
-                    "row exceeds chunk capacity"
-                );
+            if append_row_dedup_bytes(self.buf, state, values) {
+                return true;
             }
+            advance_chunk_raw(self.buf);
+            state.clear();
+            if append_row_dedup_bytes(self.buf, state, values) {
+                return true;
+            }
+            log::warn!("push_row: row exceeds chunk capacity");
+            false
         } else {
-            push_plain_row(self.buf, values);
+            push_plain_row(self.buf, values)
         }
     }
 }
@@ -1686,7 +1690,7 @@ mod tests {
     fn push_row_rejects_wrong_column_count() {
         let schema = Schema::new().col("a", DType::U32).col("b", DType::I64);
         let mut t = MemTable::new(&schema, 256, 2);
-        t.push_row(&[Value::U32(1)]); // only 1 value for 2 columns
+        assert!(!t.push_row(&[Value::U32(1)])); // only 1 value for 2 columns
         assert_eq!(t.num_rows(0), 0);
     }
 
@@ -1694,7 +1698,7 @@ mod tests {
     fn push_row_rejects_wrong_dtype() {
         let schema = Schema::new().col("a", DType::U32);
         let mut t = MemTable::new(&schema, 256, 2);
-        t.push_row(&[Value::Str("oops")]); // Str instead of U32
+        assert!(!t.push_row(&[Value::Str("oops")])); // Str instead of U32
         assert_eq!(t.num_rows(0), 0);
     }
 

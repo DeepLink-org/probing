@@ -112,8 +112,11 @@ impl PluginStateInner {
                 } else if let Some(coll_idx) =
                     self.coll_pool.index_of(descr.parent_obj as *mut CollSlot)
                 {
-                    let coll_slot = self.coll_pool.get_mut(coll_idx).unwrap();
-                    (coll_slot.ctx, coll_idx)
+                    if let Some(coll_slot) = self.coll_pool.get_mut(coll_idx) {
+                        (coll_slot.ctx, coll_idx)
+                    } else {
+                        (coll_context_fallback(descr), INVALID_IDX)
+                    }
                 } else {
                     (coll_context_fallback(descr), INVALID_IDX)
                 };
@@ -228,7 +231,9 @@ impl PluginStateInner {
                     return;
                 }
                 let (parent_proxy, step) = {
-                    let slot = self.step_pool.get_mut(step_idx).unwrap();
+                    let Some(slot) = self.step_pool.get_mut(step_idx) else {
+                        return;
+                    };
                     slot.step.stop_ns = now_ns();
                     (slot.parent_proxy, slot.step)
                 };
@@ -250,7 +255,9 @@ impl PluginStateInner {
                     return;
                 }
                 let (parent_coll, row) = {
-                    let slot = self.proxy_pool.get_mut(proxy_idx).unwrap();
+                    let Some(slot) = self.proxy_pool.get_mut(proxy_idx) else {
+                        return;
+                    };
                     slot.op.stop_ns = now_ns();
                     let parent = slot.op.parent_coll;
                     let row = std::mem::take(&mut slot.op).into_completed();
@@ -280,7 +287,9 @@ impl PluginStateInner {
                     return;
                 }
                 let pending: Vec<CompletedProxyOp> = {
-                    let slot = self.coll_pool.get_mut(coll_idx).unwrap();
+                    let Some(slot) = self.coll_pool.get_mut(coll_idx) else {
+                        return;
+                    };
                     slot.stop_ns = now_ns();
                     slot.pending[..slot.pending_len as usize].to_vec()
                 };
@@ -296,7 +305,9 @@ impl PluginStateInner {
                     return;
                 }
                 let row = {
-                    let slot = self.net_pool.get_mut(net_idx).unwrap();
+                    let Some(slot) = self.net_pool.get_mut(net_idx) else {
+                        return;
+                    };
                     slot.stop_ns = now_ns();
                     CompletedNetQp {
                         ts_ns: slot.stop_ns,
@@ -355,7 +366,9 @@ impl PluginStateInner {
                 if step_idx == INVALID_IDX {
                     return;
                 }
-                let slot = self.step_pool.get_mut(step_idx).unwrap();
+                let Some(slot) = self.step_pool.get_mut(step_idx) else {
+                    return;
+                };
                 if let Some(idx) = proxy_step_state_index(state) {
                     slot.step.state_ts[idx] = ts;
                 }
@@ -368,7 +381,9 @@ impl PluginStateInner {
                 if proxy_idx == INVALID_IDX {
                     return;
                 }
-                let slot = self.proxy_pool.get_mut(proxy_idx).unwrap();
+                let Some(slot) = self.proxy_pool.get_mut(proxy_idx) else {
+                    return;
+                };
                 if !args.is_null() {
                     unsafe {
                         let a = &*args;

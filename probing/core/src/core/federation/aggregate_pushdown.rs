@@ -120,7 +120,7 @@ pub async fn try_execute_aggregate_pushdown(
     } else if proto_parts.len() == 1 {
         proto_parts.remove(0)
     } else {
-        merge_proto_dataframes(&proto_parts)?
+        probing_proto::types::merge_dataframes(&proto_parts)
     };
 
     let result = if let Some(tail) = plan.post_merge_tail {
@@ -516,58 +516,6 @@ fn batches_to_dataframe(batches: Vec<RecordBatch>) -> Result<probing_proto::prel
         .collect();
     let cols = batch.columns().iter().map(arrow_array_to_seq).collect();
     Ok(probing_proto::prelude::DataFrame::new(names, cols))
-}
-
-fn merge_proto_dataframes(
-    parts: &[probing_proto::prelude::DataFrame],
-) -> Result<probing_proto::prelude::DataFrame> {
-    let mut out = probing_proto::prelude::DataFrame::default();
-    for df in parts {
-        if df.is_empty() {
-            continue;
-        }
-        if out.is_empty() {
-            out = df.clone();
-            continue;
-        }
-        append_proto_dataframe(&mut out, df)?;
-    }
-    out.size = out.len() as u64;
-    Ok(out)
-}
-
-fn append_proto_dataframe(
-    base: &mut probing_proto::prelude::DataFrame,
-    other: &probing_proto::prelude::DataFrame,
-) -> Result<()> {
-    use probing_proto::prelude::{Ele, Seq};
-    if other.is_empty() {
-        return Ok(());
-    }
-    if base.is_empty() {
-        *base = other.clone();
-        return Ok(());
-    }
-    let other_rows = other.len();
-    for name in &other.names {
-        if !base.names.contains(name) {
-            base.names.push(name.clone());
-            base.cols
-                .push(Seq::SeqText(vec![String::new(); base.len()]));
-        }
-    }
-    for (col_idx, name) in base.names.clone().iter().enumerate() {
-        let src_idx = other.names.iter().position(|n| n == name);
-        for row in 0..other_rows {
-            let ele = src_idx
-                .and_then(|i| other.cols.get(i).map(|c| c.get(row)))
-                .unwrap_or(Ele::Nil);
-            if let Some(col) = base.cols.get_mut(col_idx) {
-                let _ = col.append(ele);
-            }
-        }
-    }
-    Ok(())
 }
 
 #[cfg(test)]

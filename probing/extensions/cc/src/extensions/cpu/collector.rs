@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    Arc, Mutex,
+    Arc, Mutex, MutexGuard,
 };
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use once_cell::sync::Lazy;
+use probing_core::sync::lock_mutex;
 use probing_memtable::discover::ExposedTable;
 use probing_memtable::{DType, Schema, Value};
 use thiserror::Error;
@@ -192,7 +193,7 @@ fn push_utilization_row(
     wchan: &str,
 ) {
     let delta_total = delta_user_ns.saturating_add(delta_sys_ns);
-    table.push_row(&[
+    if !table.push_row(&[
         Value::I64(ts),
         Value::Str(scope),
         Value::Str(platform),
@@ -213,7 +214,9 @@ fn push_utilization_row(
         Value::I64(delta_invol_ctxt),
         Value::Str(state),
         Value::Str(wchan),
-    ]);
+    ]) {
+        log::warn!("cpu collector: push_row failed for cpu.processes");
+    }
 }
 
 fn push_tasks_row(
@@ -228,7 +231,7 @@ fn push_tasks_row(
     let state = thread.state.as_deref().unwrap_or("");
     let wchan = thread.wchan.as_deref().unwrap_or("");
     let delta_total = delta_user_ns.saturating_add(delta_sys_ns);
-    table.push_row(&[
+    if !table.push_row(&[
         Value::I64(ts),
         Value::Str(platform),
         Value::I32(thread.tid),
@@ -239,13 +242,23 @@ fn push_tasks_row(
         Value::I64(delta_user_ns as i64),
         Value::I64(delta_sys_ns as i64),
         Value::I64(delta_total as i64),
-    ]);
+    ]) {
+        log::warn!("cpu collector: push_row failed for cpu.tasks");
+    }
 }
 
 pub struct CpuCollector {
     running: Arc<AtomicBool>,
     handle: Mutex<Option<JoinHandle<()>>>,
     tables: Mutex<Option<Arc<CollectorTables>>>,
+}
+
+fn lock_cpu_table(m: &Mutex<ExposedTable>) -> MutexGuard<'_, ExposedTable> {
+    lock_mutex(m, "cpu memtable")
+}
+
+fn lock_cpu_collector<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+    lock_mutex(m, "cpu collector")
 }
 
 struct CollectorTables {
@@ -283,7 +296,7 @@ impl CpuCollector {
     }
 
     fn shared_tables(&self) -> Result<Arc<CollectorTables>, std::io::Error> {
-        let mut guard = self.tables.lock().unwrap();
+        let mut guard = lock_cpu_collector(&self.tables);
         if guard.is_none() {
             *guard = Some(Arc::new(CollectorTables::open()?));
         }
@@ -292,11 +305,12 @@ impl CpuCollector {
 
     #[cfg_attr(not(test), allow(dead_code))]
     pub fn utilization_row_count(&self) -> usize {
-        let tables = match self.tables.lock().unwrap().as_ref() {
+        let guard = lock_cpu_collector(&self.tables);
+        let tables = match guard.as_ref() {
             Some(t) => Arc::clone(t),
             None => return 0,
         };
-        let table = tables.utilization.lock().unwrap();
+        let table = lock_cpu_table(&tables.utilization);
         let view = table.view();
         (0..view.num_chunks()).map(|c| view.num_rows(c)).sum()
     }
@@ -341,7 +355,7 @@ impl CpuCollector {
                                 let delta_invol =
                                     curr.invol_ctxt.saturating_sub(prev.invol_ctxt) as i64;
                                 push_utilization_row(
-                                    &mut tables.utilization.lock().unwrap(),
+                                    &mut lock_cpu_table(&tables.utilization),
                                     ts,
                                     &platform,
                                     "process",
@@ -379,7 +393,7 @@ impl CpuCollector {
                                     .saturating_sub(prev.map(|p| p.cputime_sys_ns).unwrap_or(0));
 
                                 push_utilization_row(
-                                    &mut tables.utilization.lock().unwrap(),
+                                    &mut lock_cpu_table(&tables.utilization),
                                     ts,
                                     &platform,
                                     "thread",
@@ -398,7 +412,7 @@ impl CpuCollector {
                                     thread.wchan.as_deref().unwrap_or(""),
                                 );
                                 push_tasks_row(
-                                    &mut tables.tasks.lock().unwrap(),
+                                    &mut lock_cpu_table(&tables.tasks),
                                     ts,
                                     &platform,
                                     thread,
@@ -420,7 +434,7 @@ impl CpuCollector {
             running.store(false, Ordering::SeqCst);
         });
 
-        *self.handle.lock().unwrap() = Some(handle);
+        *lock_cpu_collector(&self.handle) = Some(handle);
         Ok(())
     }
 
@@ -430,7 +444,7 @@ impl CpuCollector {
             return Ok(());
         }
 
-        if let Some(handle) = self.handle.lock().unwrap().take() {
+        if let Some(handle) = lock_cpu_collector(&self.handle).take() {
             handle
                 .join()
                 .map_err(|_| CollectorError::StopFailed("thread join failed".into()))?;
@@ -443,9 +457,13 @@ impl CpuCollector {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    static ENV_TEST_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn autostart_defaults_to_one_second() {
+        let _guard = ENV_TEST_LOCK.lock().unwrap();
         std::env::remove_var("PROBING_CPU");
         std::env::remove_var("PROBING_CPU_SAMPLE_MS");
         assert_eq!(autostart_interval_ms(), Some(1000));
@@ -453,6 +471,7 @@ mod tests {
 
     #[test]
     fn autostart_respects_disable_env() {
+        let _guard = ENV_TEST_LOCK.lock().unwrap();
         std::env::set_var("PROBING_CPU", "off");
         assert_eq!(autostart_interval_ms(), None);
         std::env::remove_var("PROBING_CPU");
@@ -460,6 +479,7 @@ mod tests {
 
     #[test]
     fn autostart_creates_cpu_memtable_files() {
+        let _guard = ENV_TEST_LOCK.lock().unwrap();
         use probing_memtable::discover::default_dir;
 
         let dir = std::env::temp_dir().join(format!(
@@ -491,6 +511,7 @@ mod tests {
 
     #[test]
     fn collector_writes_bounded_utilization_rows() {
+        let _guard = ENV_TEST_LOCK.lock().unwrap();
         let collector = CpuCollector::instance();
         let _ = collector.stop();
 

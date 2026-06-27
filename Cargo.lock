@@ -3557,6 +3557,7 @@ dependencies = [
  "probing-memtable",
  "probing-proto",
  "probing-python",
+ "probing-store",
  "procfs",
  "serde",
  "serde_json",

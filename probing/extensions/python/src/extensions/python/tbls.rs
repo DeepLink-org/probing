@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 
-use log::error;
+use log::{debug, error};
 use probing_core::core::{
     ArrayRef, CustomNamespace, DataType, Field, Float64Array, Int64Array, NamespaceProbeDataSource,
     RecordBatch, Schema, SchemaRef, StringArray,
@@ -187,11 +187,15 @@ impl CustomNamespace for PythonNamespace {
                     vec![]
                 }
             }
+        } else if !expr.contains('.') {
+            // Extern mmap tables (`comm_collective`, `torch_trace`, …) — not Python imports.
+            debug!("python.{expr}: no live data (mmap empty or not created yet)");
+            vec![]
         } else {
             match Self::data_from_python(expr) {
                 Ok(batches) => batches,
                 Err(e) => {
-                    error!("Error getting data from Python: {e:?}");
+                    debug!("Python dynamic expr {expr}: {e:?}");
                     vec![]
                 }
             }

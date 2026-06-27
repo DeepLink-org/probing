@@ -172,5 +172,10 @@ def install():
     return finder
 
 
-# Automatically install the hook
-finder = install()
+def install_and_run_pending():
+    """Install the hook and run callbacks for modules already in ``sys.modules``."""
+    install()
+    for module_name in list(register.keys()):
+        if module_name in sys.modules and module_name not in triggered:
+            triggered[module_name] = True
+            _run_callbacks(module_name)

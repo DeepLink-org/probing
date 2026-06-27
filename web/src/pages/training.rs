@@ -33,22 +33,22 @@ const COMM_SUMMARY_SQL: &str = "SELECT op, count(*) AS n, \
      sum(bytes) AS total_bytes \
      FROM python.comm_collective GROUP BY op ORDER BY avg_ms DESC LIMIT 10";
 
-const MODULE_HOTSPOTS_SQL: &str = "SELECT module, stage, count(DISTINCT step) AS steps, \
+const MODULE_HOTSPOTS_SQL: &str = "SELECT module, stage, count(DISTINCT local_step) AS steps, \
      count(*) AS hooks, round(avg(duration), 4) AS avg_sec, round(sum(duration), 4) AS total_sec \
      FROM python.torch_trace \
-     WHERE step >= GREATEST(COALESCE((SELECT max(step) FROM python.torch_trace), 0) - 9, 1) \
+     WHERE local_step >= GREATEST(COALESCE((SELECT max(local_step) FROM python.torch_trace), 0) - 9, 1) \
        AND stage LIKE 'post %' AND duration > 0 \
        AND module IS NOT NULL AND module != '' AND module != 'None' \
      GROUP BY module, stage ORDER BY total_sec DESC LIMIT 12";
 
-const STEP_PHASE_SQL: &str = "SELECT step, \
+const STEP_PHASE_SQL: &str = "SELECT local_step, \
      round(sum(CASE WHEN stage = 'post forward' THEN duration ELSE 0 END), 4) AS forward_sec, \
      round(sum(CASE WHEN stage = 'post step' THEN duration ELSE 0 END), 4) AS optim_sec \
      FROM python.torch_trace \
-     WHERE step >= GREATEST(COALESCE((SELECT max(step) FROM python.torch_trace), 0) - 15, 1) \
+     WHERE local_step >= GREATEST(COALESCE((SELECT max(local_step) FROM python.torch_trace), 0) - 15, 1) \
        AND stage LIKE 'post %' AND duration > 0 \
        AND module IS NOT NULL AND module != '' AND module != 'None' \
-     GROUP BY step ORDER BY step";
+     GROUP BY local_step ORDER BY local_step";
 
 const QUICK_SKILLS: &[(&str, &str)] = &[
     ("slow_rank", "Slow rank"),
@@ -104,7 +104,7 @@ fn step_module_sql(coord_step: i64) -> String {
     format!(
         "SELECT module, stage, round(duration, 4) AS sec \
          FROM python.torch_trace \
-         WHERE step = {coord_step} AND stage LIKE 'post %' AND duration > 0 \
+         WHERE local_step = {coord_step} AND stage LIKE 'post %' AND duration > 0 \
            AND module IS NOT NULL AND module != '' AND module != 'None' \
          ORDER BY duration DESC LIMIT 12"
     )

@@ -99,6 +99,7 @@ plugins:
             Data Layer: 数据层
             Profiling: 性能分析
             Distributed: 分布式
+            Torchrun Cluster Heartbeat: torchrun 集群心跳
             Federated Query Engine: 联邦查询引擎
             Cluster with Pulsing: 基于 Pulsing 的集群
             Extensibility: 扩展机制
@@ -146,6 +147,7 @@ nav:
     - Profiling: design/profiling.md
     - Debugging: design/debugging.md
     - Distributed: design/distributed.md
+    - Torchrun Cluster Heartbeat: design/torchrun-cluster.md
     - Federated Query Engine: design/federation.md
     - NCCL Profiler: design/nccl-profiler.md
     - Cluster with Pulsing: design/cluster-pulsing.md

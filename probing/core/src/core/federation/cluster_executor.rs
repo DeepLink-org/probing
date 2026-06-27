@@ -1,4 +1,4 @@
-use std::sync::{LazyLock, Mutex};
+use std::sync::{LazyLock, Mutex, MutexGuard};
 use std::time::Duration;
 
 use datafusion::error::{DataFusionError, Result};
@@ -16,7 +16,7 @@ static REMOTE_QUERY_HOOK: LazyLock<Mutex<Option<RemoteQueryHook>>> =
 /// Install an in-process remote query handler for federation integration tests.
 #[cfg(any(test, feature = "test-utils"))]
 pub fn set_remote_query_hook(hook: Option<RemoteQueryHook>) {
-    *REMOTE_QUERY_HOOK.lock().unwrap() = hook;
+    *lock_remote_query_hook() = hook;
 }
 
 /// Default per-node timeout for remote federated queries (seconds).
@@ -56,34 +56,39 @@ pub struct FanoutStats {
 static LAST_FANOUT_STATS: LazyLock<Mutex<FanoutStats>> =
     LazyLock::new(|| Mutex::new(FanoutStats::default()));
 
+fn lock_fanout_stats() -> MutexGuard<'static, FanoutStats> {
+    crate::sync::lock_mutex(&LAST_FANOUT_STATS, "LAST_FANOUT_STATS")
+}
+
+#[cfg(any(test, feature = "test-utils"))]
+fn lock_remote_query_hook() -> MutexGuard<'static, Option<RemoteQueryHook>> {
+    crate::sync::lock_mutex(&REMOTE_QUERY_HOOK, "REMOTE_QUERY_HOOK")
+}
+
 pub fn reset_fanout_stats() {
-    *LAST_FANOUT_STATS.lock().unwrap() = FanoutStats::default();
+    *lock_fanout_stats() = FanoutStats::default();
 }
 
 /// Record the fan-out outcome so callers (e.g. cluster fan-out meta) can report
 /// how many peers were actually queried and which ones failed.
 pub fn set_fanout_stats(stats: FanoutStats) {
-    *LAST_FANOUT_STATS.lock().unwrap() = stats;
+    *lock_fanout_stats() = stats;
 }
 
 /// Increment the success counter for one peer (concurrency-safe).
 ///
 /// Used by streaming fan-out where each peer partition reports its own outcome.
 pub fn record_fanout_success() {
-    LAST_FANOUT_STATS.lock().unwrap().nodes_succeeded += 1;
+    lock_fanout_stats().nodes_succeeded += 1;
 }
 
 /// Record a failed peer (concurrency-safe).
 pub fn record_fanout_failure(addr: &str) {
-    LAST_FANOUT_STATS
-        .lock()
-        .unwrap()
-        .nodes_failed
-        .push(addr.to_string());
+    lock_fanout_stats().nodes_failed.push(addr.to_string());
 }
 
 pub fn take_fanout_stats() -> FanoutStats {
-    std::mem::take(&mut *LAST_FANOUT_STATS.lock().unwrap())
+    std::mem::take(&mut *lock_fanout_stats())
 }
 
 pub struct ProbeClusterExecutor;
@@ -96,16 +101,11 @@ impl ProbeClusterExecutor {
     }
 
     pub fn local_listen_addrs() -> Vec<String> {
-        std::env::var("PROBING_ADDRESS")
-            .map(|addr| vec![addr])
-            .unwrap_or_else(|_| vec!["127.0.0.1:8080".into()])
+        crate::core::cluster::local_listen_addrs()
     }
 
     pub fn local_addr_label() -> String {
-        Self::local_listen_addrs()
-            .into_iter()
-            .next()
-            .unwrap_or_else(|| "127.0.0.1:8080".into())
+        crate::core::cluster::local_addr_label()
     }
 
     /// Peer nodes that are not the local node (deduplicated against listen addrs).
@@ -113,6 +113,7 @@ impl ProbeClusterExecutor {
         let local_addrs = Self::local_listen_addrs();
         get_nodes()
             .into_iter()
+            .filter(crate::core::cluster::is_node_alive)
             .filter(|node| !local_addrs.iter().any(|local| local == &node.addr))
             .collect()
     }
@@ -169,7 +170,7 @@ impl ProbeClusterExecutor {
 
     fn execute_remote(addr: &str, sql: &str) -> Result<DataFrame> {
         #[cfg(any(test, feature = "test-utils"))]
-        if let Some(hook) = REMOTE_QUERY_HOOK.lock().unwrap().as_ref() {
+        if let Some(hook) = lock_remote_query_hook().as_ref() {
             return hook(addr, sql);
         }
 

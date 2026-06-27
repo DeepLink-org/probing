@@ -64,8 +64,8 @@ pub async fn get_step_matrix(
     let sql = STEP_MATRIX_SQL.to_string();
 
     let fanout = cluster_fanout::fanout_query(&sql, cluster).await?;
-    let host = cluster_fanout::local_host_label();
-    let addr = cluster_fanout::local_addr_label();
+    let host = crate::report::get_hostname().unwrap_or_else(|_| "localhost".into());
+    let addr = probing_core::core::cluster::local_addr_label();
     let samples =
         aggregate_step_samples(&parse_step_df(&fanout.dataframe, &host, &addr), step_window);
 

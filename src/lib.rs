@@ -69,19 +69,44 @@ fn get_network_interfaces() -> Result<Vec<String>> {
     Ok(ips)
 }
 
+/// True for the torchrun/elastic supervisor process (not a training worker).
+fn is_elastic_supervisor() -> bool {
+    if std::env::var("LOCAL_RANK").is_ok() || std::env::var("RANK").is_ok() {
+        return false;
+    }
+    if std::env::var("TORCHELASTIC_RUN_ID").is_ok() {
+        return true;
+    }
+    std::env::args().any(|arg| {
+        let a = arg.as_str();
+        a.ends_with("torchrun") || a.contains("torch/distributed/run")
+    })
+}
+
+/// Multi-process torchrun jobs: bind HTTP and start Rust-side cluster heartbeat.
+fn setup_torchrun_cluster_env() {
+    if is_elastic_supervisor() {
+        log::debug!("torchrun/elastic supervisor: skip cluster setup");
+        return;
+    }
+    probing_server::maybe_start_torchrun_cluster();
+}
+
 /// Setup environment variables for server configuration (single-process only).
 ///
-/// Multi-process torchrun jobs defer HTTP bind and master discovery to
-/// ``probing.torchrun_cluster`` after ``init_process_group``.
+/// Multi-process torchrun jobs bind HTTP and run hierarchical cluster report in Rust.
 fn setup_env_settings() {
     let world_size: i32 = std::env::var("WORLD_SIZE")
         .unwrap_or_else(|_| "1".to_string())
         .parse()
         .unwrap_or(1);
     if world_size > 1 {
-        log::debug!(
-            "WORLD_SIZE={world_size}: defer probing HTTP bind to torchrun_cluster (Python)"
-        );
+        setup_torchrun_cluster_env();
+        return;
+    }
+
+    if is_elastic_supervisor() {
+        log::debug!("torchrun/elastic supervisor: defer probing HTTP bind to worker ranks");
         return;
     }
 
@@ -200,6 +225,20 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(note_last_comm, m)?)?;
     m.add_function(wrap_pyfunction!(request_crash_hold, m)?)?;
     m.add_function(wrap_pyfunction!(request_crash_release, m)?)?;
+
+    #[pyfunction]
+    fn start_torchrun_cluster() -> PyResult<Option<String>> {
+        probing_server::maybe_start_torchrun_cluster();
+        Ok(probing_server::master_http_base())
+    }
+
+    #[pyfunction]
+    fn refresh_torchrun_cluster_role() -> PyResult<bool> {
+        Ok(probing_server::refresh_torchrun_role())
+    }
+
+    m.add_function(wrap_pyfunction!(start_torchrun_cluster, m)?)?;
+    m.add_function(wrap_pyfunction!(refresh_torchrun_cluster_role, m)?)?;
 
     // Register config functions directly to the module (flattened)
     config::register_config_functions(m)?;

@@ -31,9 +31,13 @@ pub fn snapshot() -> RoleRanks {
 #[cfg(test)]
 mod tests {
     use super::snapshot;
+    use std::sync::Mutex;
+
+    static ENV_TEST_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn default_role_ranks_are_negative() {
+        let _guard = ENV_TEST_LOCK.lock().unwrap();
         for key in [
             "TENSOR_MODEL_PARALLEL_RANK",
             "TP_RANK",
@@ -55,6 +59,7 @@ mod tests {
 
     #[test]
     fn snapshot_reads_tp_rank_env() {
+        let _guard = ENV_TEST_LOCK.lock().unwrap();
         std::env::set_var("TP_RANK", "3");
         let r = snapshot();
         assert_eq!(r.tp_rank, 3);
