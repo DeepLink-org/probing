@@ -10,9 +10,10 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+#[cfg(test)]
 use datafusion::arrow::array::Int64Array;
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
-use datafusion::arrow::record_batch::{RecordBatch, RecordBatchOptions};
+use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::catalog::Session;
 use datafusion::common::tree_node::TreeNode;
 use datafusion::common::DFSchema;
@@ -92,12 +93,7 @@ impl PluginAdvancedTable {
             DataType::Int64,
             true,
         )]));
-        let empty = RecordBatch::try_new_with_options(
-            Arc::clone(&schema),
-            vec![Arc::new(Int64Array::from(Vec::<i64>::new()))],
-            &RecordBatchOptions::new().with_row_count(Some(0)),
-        )
-        .expect("empty batch");
+        let empty = RecordBatch::new_empty(Arc::clone(&schema));
         Self {
             label,
             schema,

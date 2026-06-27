@@ -10,8 +10,9 @@ pub use step::{
 // --- Custom Error Type ---
 
 /// Represents errors that can occur during tracing operations.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum TraceError {
     /// Indicates that an operation was attempted on a span that has already been closed.
+    #[error("span already closed")]
     SpanAlreadyClosed,
 }

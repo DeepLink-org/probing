@@ -20,23 +20,26 @@
 //! use probing_memtable::discover::{ExposedTable, discover};
 //! use probing_memtable::{Schema, DType, Value};
 //!
-//! // Writer: expose a table as an mmap'd file
-//! let schema = Schema::new().col("ts", DType::I64).col("cpu", DType::F64);
-//! let mut table = ExposedTable::create("metrics", &schema, 4096, 8).unwrap();
-//! {
-//!     let mut w = table.writer();
-//!     w.push_row(&[Value::I64(1000), Value::F64(0.85)]);
-//! }
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     // Writer: expose a table as an mmap'd file
+//!     let schema = Schema::new().col("ts", DType::I64).col("cpu", DType::F64);
+//!     let mut table = ExposedTable::create("metrics", &schema, 4096, 8)?;
+//!     {
+//!         let mut w = table.writer()?;
+//!         w.push_row(&[Value::I64(1000), Value::F64(0.85)]);
+//!     }
 //!
-//! // Reader (same or different process): discover and read
-//! for t in discover().unwrap() {
-//!     if t.is_alive() {
-//!         let view = t.view().unwrap();
-//!         for row in view.rows(view.write_chunk()) {
-//!             let mut c = row.cursor();
-//!             println!("{} {}", c.next_i64(), c.next_f64());
+//!     // Reader (same or different process): discover and read
+//!     for t in discover()? {
+//!         if t.is_alive() {
+//!             let view = t.view()?;
+//!             for row in view.rows(view.write_chunk()) {
+//!                 let mut c = row.cursor();
+//!                 println!("{} {}", c.next_i64(), c.next_f64());
+//!             }
 //!         }
 //!     }
+//!     Ok(())
 //! }
 //! ```
 
@@ -117,7 +120,7 @@ impl ExposedTable {
         schema: &Schema,
         chunk_size: u32,
         num_chunks: u32,
-    ) -> io::Result<Self> {
+    ) -> crate::error::Result<Self> {
         Self::create_in(&default_dir(), name, schema, chunk_size, num_chunks)
     }
 
@@ -130,7 +133,7 @@ impl ExposedTable {
         schema: &Schema,
         chunk_size: u32,
         num_chunks: u32,
-    ) -> io::Result<Self> {
+    ) -> crate::error::Result<Self> {
         let inner = MemTable::shared_in(base_dir, name, schema, chunk_size, num_chunks)?;
         crate::docs::register_from_name(name, schema);
         Ok(Self { inner })
@@ -144,17 +147,34 @@ impl ExposedTable {
         self.inner.as_bytes_mut()
     }
 
-    /// File path of this table.
-    pub fn path(&self) -> &Path {
-        self.inner.path().expect("ExposedTable is always shared")
+    /// File path of this table, when backed by a mmap file.
+    ///
+    /// Returns [`None`] if the inner table is not file-backed (should not happen
+    /// for tables created via [`Self::create`] / [`Self::create_in`]).
+    pub fn path(&self) -> Option<&Path> {
+        self.inner.path()
+    }
+
+    /// File path of this table, logging when the backing is not a file.
+    pub fn try_path(&self) -> Result<&Path, crate::error::MemtableError> {
+        self.inner
+            .path()
+            .ok_or(crate::error::MemtableError::NotFileBacked)
+            .inspect_err(|e| {
+                log::error!("ExposedTable::path: {e}");
+            })
     }
 
     /// Create a [`MemTableWriter`] backed by the mmap'd region.
     ///
     /// **Note**: this re-validates the entire buffer on every call.
     /// Prefer [`push_row`](Self::push_row) for hot-path writes.
-    pub fn writer(&mut self) -> MemTableWriter<'_> {
-        MemTableWriter::new(self.inner.as_bytes_mut()).expect("mmap buffer validated at creation")
+    pub fn writer(&mut self) -> Result<MemTableWriter<'_>, crate::error::MemtableError> {
+        MemTableWriter::new(self.inner.as_bytes_mut()).inspect_err(|e| {
+            log::error!(
+                "ExposedTable::writer: mmap buffer invalid ({e}); table writes unavailable"
+            );
+        })
     }
 
     /// Append a row without re-validating the buffer.
@@ -190,7 +210,7 @@ impl ExposedHashTable {
         num_buckets: u32,
         arena_cap: usize,
         hash_seed: u64,
-    ) -> io::Result<Self> {
+    ) -> crate::error::Result<Self> {
         Self::create_in(&default_dir(), name, num_buckets, arena_cap, hash_seed)
     }
 
@@ -201,7 +221,7 @@ impl ExposedHashTable {
         num_buckets: u32,
         arena_cap: usize,
         hash_seed: u64,
-    ) -> io::Result<Self> {
+    ) -> crate::error::Result<Self> {
         let dir = base_dir.join(std::process::id().to_string());
         fs::create_dir_all(&dir)?;
 
@@ -217,8 +237,7 @@ impl ExposedHashTable {
         file.set_len(size as u64)?;
 
         let mut mmap = unsafe { MmapMut::map_mut(&file)? };
-        memh_init_buf(&mut mmap, num_buckets, arena_cap, hash_seed)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("{e}")))?;
+        memh_init_buf(&mut mmap, num_buckets, arena_cap, hash_seed)?;
 
         Ok(Self { mmap, path, dir })
     }
@@ -235,12 +254,20 @@ impl ExposedHashTable {
         &self.path
     }
 
-    pub fn writer(&mut self) -> MemhWriter<'_> {
-        MemhWriter::new(&mut self.mmap).expect("mmap buffer validated at creation")
+    pub fn writer(&mut self) -> Result<MemhWriter<'_>, crate::error::MemtableError> {
+        MemhWriter::new(&mut self.mmap)
+            .inspect_err(|e| {
+                log::error!("ExposedHashTable::writer: buffer invalid ({e}); writes unavailable");
+            })
+            .map_err(Into::into)
     }
 
-    pub fn view(&self) -> MemhView<'_> {
-        MemhView::new(&self.mmap).expect("mmap buffer validated at creation")
+    pub fn view(&self) -> Result<MemhView<'_>, crate::error::MemtableError> {
+        MemhView::new(&self.mmap)
+            .inspect_err(|e| {
+                log::error!("ExposedHashTable::view: buffer invalid ({e}); reads unavailable");
+            })
+            .map_err(Into::into)
     }
 }
 
@@ -315,7 +342,7 @@ impl DiscoveredTable {
     }
 
     /// Wrap the mmap'd region as a [`MemTableView`].
-    pub fn view(&self) -> Result<MemTableView<'_>, &'static str> {
+    pub fn view(&self) -> Result<MemTableView<'_>, crate::error::MemtableError> {
         MemTableView::new(&self.mmap)
     }
 
@@ -520,10 +547,10 @@ mod tests {
 
         {
             let mut table = ExposedTable::create_in(&dir, "metrics", &schema, 4096, 4).unwrap();
-            assert!(table.path().exists());
+            assert!(table.path().is_some_and(|p| p.exists()));
 
             {
-                let mut w = table.writer();
+                let mut w = table.writer().expect("valid mmap table");
                 w.push_row(&[Value::I64(1000), Value::F64(3.14)]);
                 w.push_row(&[Value::I64(2000), Value::F64(2.72)]);
             }
@@ -545,7 +572,7 @@ mod tests {
 
         let mut table = ExposedTable::create_in(&dir, "test_table", &schema, 1024, 2).unwrap();
         {
-            let mut w = table.writer();
+            let mut w = table.writer().expect("valid mmap table");
             w.push_row(&[Value::I32(42)]);
         }
 
@@ -620,7 +647,7 @@ mod tests {
         let path;
         {
             let table = ExposedTable::create_in(&dir, "ephemeral", &schema, 256, 1).unwrap();
-            path = table.path().to_owned();
+            path = table.path().expect("file-backed ExposedTable").to_owned();
             assert!(path.exists());
         }
         assert!(!path.exists());

@@ -32,7 +32,7 @@ use std::sync::{Mutex, RwLock};
 use std::thread;
 use std::time::Duration;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use core::ffi::{c_int, c_void};
 use nix::libc;
 use once_cell::sync::Lazy;
@@ -884,7 +884,7 @@ pub fn setup(freq: u64) -> Result<()> {
     thread::Builder::new()
         .name("probing-sampler".into())
         .spawn(move || consumer_loop(my_gen))
-        .map_err(|e| anyhow!("failed to spawn sampler consumer thread: {e}"))?;
+        .context("failed to spawn sampler consumer thread")?;
 
     arm_timer(freq);
     log::info!("probing: SIGPROF CPU sampler started ({freq} Hz, Python+native)");

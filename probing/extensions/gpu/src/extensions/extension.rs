@@ -57,12 +57,8 @@ impl GpuProbeExtension {
             std::env::set_var("PROBING_GPU_BACKEND", backend);
         }
 
-        start_gpu_sampling(interval as u64).map_err(|e| {
-            EngineError::InvalidOptionValue(
-                Self::OPTION_GPU_SAMPLE_INTERVAL_MS.to_string(),
-                format!("{e}"),
-            )
-        })?;
+        start_gpu_sampling(interval as u64)
+            .map_err(|e| EngineError::invalid_option(Self::OPTION_GPU_SAMPLE_INTERVAL_MS, e))?;
 
         self.gpu_sample_interval_ms = gpu_sample_interval_ms;
         Ok(())

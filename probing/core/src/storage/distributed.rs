@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
@@ -12,6 +11,7 @@ use super::entity::{EntityId, EntityStore, PersistentEntity};
 use super::mem_store::MemoryStore;
 use super::topology::TopologyView;
 use crate::core::cluster_model::{NodeId, WorkerId};
+use crate::core::{EngineError, Result};
 
 #[async_trait]
 pub trait RemoteStoreClient: Send + Sync {
@@ -107,32 +107,53 @@ impl DistributedEntityStore {
     async fn get_remote_client(&self, location: &Address) -> Result<Arc<dyn RemoteStoreClient>> {
         let shard_key = location
             .shard_key()
-            .ok_or_else(|| anyhow!("Invalid address for remote operation"))?;
+            .ok_or_else(|| EngineError::storage("Invalid address for remote operation"))?;
         let clients = self.remote_clients.read().await;
         clients
             .get(&shard_key)
             .cloned()
-            .ok_or_else(|| anyhow!("No remote client for shard: {}", shard_key))
+            .ok_or_else(|| EngineError::storage(format!("No remote client for shard: {shard_key}")))
+    }
+
+    /// Delete `key`/`id` at a single location, dispatching to the local store or
+    /// the matching remote client. `?` carries any addressing/client error.
+    async fn del_at<T: PersistentEntity>(
+        &self,
+        id: &T::Id,
+        key: &str,
+        location: &Address,
+    ) -> Result<()> {
+        if location.is_local(&self.worker_id) {
+            self.local_store.del::<T>(id).await
+        } else {
+            self.get_remote_client(location).await?.del(key).await
+        }
+    }
+
+    /// Write a serialized entity at a single location.
+    async fn put_at<T: PersistentEntity>(
+        &self,
+        entity: &T,
+        key: &str,
+        serialized: &[u8],
+        location: &Address,
+    ) -> Result<()> {
+        if location.is_local(&self.worker_id) {
+            self.local_store.put(entity).await
+        } else {
+            self.get_remote_client(location)
+                .await?
+                .put(key, serialized)
+                .await
+        }
     }
 
     async fn remove<T: PersistentEntity>(&self, id: &T::Id, locations: &[&Address]) -> Result<()> {
         let key = format!("{}::{}", T::entity_type(), id.as_str());
-
-        let mut results = Vec::new();
-
         for location in locations {
-            let result = if location.is_local(&self.worker_id) {
-                self.local_store.del::<T>(id).await
-            } else {
-                match self.get_remote_client(location).await {
-                    Ok(client) => client.del(&key).await,
-                    Err(e) => Err(e),
-                }
-            };
-
-            results.push(result);
+            // Per-location failures are tolerated (best-effort fan-out delete).
+            let _ = self.del_at::<T>(id, &key, location).await;
         }
-
         Ok(())
     }
 
@@ -144,21 +165,10 @@ impl DistributedEntityStore {
         let serialized = bincode::serialize(entity)?;
         let key = format!("{}::{}", T::entity_type(), entity.id().as_str());
 
-        let mut results = Vec::new();
-
+        let mut results = Vec::with_capacity(locations.len());
         for location in locations {
-            let result = if location.is_local(&self.worker_id) {
-                self.local_store.put(entity).await
-            } else {
-                match self.get_remote_client(location).await {
-                    Ok(client) => client.put(&key, &serialized).await,
-                    Err(e) => Err(e),
-                }
-            };
-
-            results.push(result);
+            results.push(self.put_at(entity, &key, &serialized, location).await);
         }
-
         Ok(results)
     }
 
@@ -208,12 +218,14 @@ impl EntityStore for DistributedEntityStore {
         );
 
         if write_locations.is_empty() && !locations.is_empty() {
-            return Err(anyhow!(
-                "No suitable write locations found, though addresses were allocated."
+            return Err(EngineError::storage(
+                "No suitable write locations found, though addresses were allocated.",
             ));
         }
         if write_locations.is_empty() && locations.is_empty() {
-            return Err(anyhow!("No addresses allocated for the entity."));
+            return Err(EngineError::storage(
+                "No addresses allocated for the entity.",
+            ));
         }
 
         let write_results = self.write(entity, &write_locations).await?;

@@ -51,7 +51,7 @@ pub async fn remote_query_df(addr: &str, sql: &str) -> anyhow::Result<DataFrame>
             .timeout_global(Some(timeout))
             .build()
             .send(body)
-            .map_err(|e| anyhow::anyhow!("{e}"))
+            .map_err(anyhow::Error::new)
     })
     .await??;
 
