@@ -103,6 +103,18 @@
       "method": "GET",
       "uses_body": false,
       "response": { "content_type": "application/json", "cors": false }
+    },
+    {
+      "local_path": "crash/hold",
+      "method": "GET",
+      "uses_body": false,
+      "response": { "content_type": "application/json", "cors": false }
+    },
+    {
+      "local_path": "crash/release",
+      "method": "GET",
+      "uses_body": false,
+      "response": { "content_type": "application/json", "cors": false }
     }
   ],
   "other_extensions": [

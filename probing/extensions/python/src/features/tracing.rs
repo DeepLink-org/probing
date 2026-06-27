@@ -2,7 +2,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyModule};
 use pyo3::IntoPyObjectExt;
 use std::cell::RefCell;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use probing_core::trace::Span as RawSpan;
 use probing_core::trace::{
@@ -12,7 +12,15 @@ use probing_core::trace::{
 
 use crate::features::convert::{ele_to_python, python_to_ele};
 
-const SPAN_LOCK_POISONED: &str = "Failed to acquire lock on span (lock poisoned)";
+fn lock_span(m: &Mutex<RawSpan>) -> MutexGuard<'_, RawSpan> {
+    match m.lock() {
+        Ok(guard) => guard,
+        Err(e) => {
+            log::debug!("span mutex poisoned; recovering");
+            e.into_inner()
+        }
+    }
+}
 
 fn parse_py_attributes(py: Python, attributes: Vec<Py<PyAny>>) -> PyResult<Vec<Attribute>> {
     let mut converted = Vec::new();
@@ -57,6 +65,83 @@ where
 // Thread-local storage for span context
 thread_local! {
     static SPAN_STACK: RefCell<Vec<Py<PyAny>>> = const { RefCell::new(Vec::new()) };
+    static SPAN_HINT_STACK: RefCell<Vec<SpanHint>> = const { RefCell::new(Vec::new()) };
+    static CRASH_SPAN_CAPTURE: RefCell<Option<CrashSpanSnapshot>> = const { RefCell::new(None) };
+}
+
+#[derive(Clone, Debug, Default)]
+struct SpanHint {
+    trace_id: u64,
+    span_id: u64,
+    name: String,
+    phase: Option<String>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct CrashSpanSnapshot {
+    pub active_name: String,
+    pub trace_id: u64,
+    pub span_id: u64,
+    pub training_phase: String,
+    pub stack: Vec<String>,
+}
+
+pub fn crash_span_snapshot() -> CrashSpanSnapshot {
+    if let Some(captured) = CRASH_SPAN_CAPTURE.with(|cap| cap.borrow_mut().take()) {
+        return captured;
+    }
+    snapshot_from_hint_stack()
+}
+
+fn snapshot_from_hint_stack() -> CrashSpanSnapshot {
+    SPAN_HINT_STACK.with(|stack| {
+        let stack = stack.borrow();
+        if stack.is_empty() {
+            return CrashSpanSnapshot::default();
+        }
+        let names: Vec<String> = stack.iter().map(|h| h.name.clone()).collect();
+        let active = stack.last().cloned().unwrap_or_default();
+        let training_phase = stack
+            .iter()
+            .rev()
+            .filter_map(|h| h.phase.as_deref())
+            .find(|p| matches!(*p, "forward" | "backward" | "optimizer"))
+            .unwrap_or("")
+            .to_string();
+        CrashSpanSnapshot {
+            active_name: active.name,
+            trace_id: active.trace_id,
+            span_id: active.span_id,
+            training_phase,
+            stack: names,
+        }
+    })
+}
+
+fn capture_span_snapshot_for_crash() {
+    let snap = snapshot_from_hint_stack();
+    if !snap.active_name.is_empty() {
+        CRASH_SPAN_CAPTURE.with(|cap| *cap.borrow_mut() = Some(snap));
+    }
+}
+
+fn push_span_hint(span: &Span) {
+    let hint = SpanHint {
+        trace_id: span.with_inner(|s| s.trace_id),
+        span_id: span.with_inner(|s| s.span_id),
+        name: span.with_inner(|s| s.name.clone()),
+        phase: span.with_inner(|s| s.phase.clone()),
+    };
+    SPAN_HINT_STACK.with(|stack| stack.borrow_mut().push(hint));
+}
+
+fn pop_span_hint(span_id: u64) {
+    SPAN_HINT_STACK.with(|stack| {
+        let mut stack = stack.borrow_mut();
+        if let Some(pos) = stack.iter().rposition(|h| h.span_id == span_id) {
+            stack.remove(pos);
+        }
+    });
 }
 
 /// Python binding for Span
@@ -68,11 +153,11 @@ pub struct Span {
 
 impl Span {
     fn with_inner<R>(&self, f: impl FnOnce(&RawSpan) -> R) -> R {
-        f(&self.inner.lock().expect(SPAN_LOCK_POISONED))
+        f(&lock_span(&self.inner))
     }
 
     fn with_inner_mut<R>(&mut self, f: impl FnOnce(&mut RawSpan) -> R) -> R {
-        f(&mut self.inner.lock().expect(SPAN_LOCK_POISONED))
+        f(&mut lock_span(&self.inner))
     }
 }
 
@@ -238,7 +323,7 @@ impl Span {
     /// Gets all events as a list.
     fn get_events(&self, py: Python) -> PyResult<Py<PyAny>> {
         let list = PyList::empty(py);
-        let inner = self.inner.lock().expect(SPAN_LOCK_POISONED);
+        let inner = lock_span(&self.inner);
         for event in &inner.events {
             let event_dict = PyDict::new(py);
             event_dict.set_item("name", &event.name)?;
@@ -287,6 +372,7 @@ impl Span {
     /// Context manager entry (for `with` statement support).
     fn __enter__(slf: PyRef<Self>) -> PyResult<PyRef<Self>> {
         let py = slf.py();
+        push_span_hint(&slf);
         let span_obj: Py<PyAny> = Py::new(py, slf.clone())?.into();
         SPAN_STACK.with(|stack| {
             stack.borrow_mut().push(span_obj);
@@ -297,12 +383,16 @@ impl Span {
     /// Context manager exit (for `with` statement support).
     fn __exit__(
         slf: PyRef<Self>,
-        _exc_type: Option<&Bound<'_, PyAny>>,
+        exc_type: Option<&Bound<'_, PyAny>>,
         _exc_val: Option<&Bound<'_, PyAny>>,
         _exc_tb: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<bool> {
+        if exc_type.is_some() && !exc_type.unwrap().is_none() {
+            capture_span_snapshot_for_crash();
+        }
         let self_id = slf.span_id();
-        slf.inner.lock().expect(SPAN_LOCK_POISONED).end();
+        lock_span(&slf.inner).end();
+        pop_span_hint(self_id);
 
         SPAN_STACK.with(|stack| {
             let mut stack = stack.borrow_mut();

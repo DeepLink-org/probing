@@ -57,18 +57,19 @@ impl<'a> RowWriter<'a> {
 
     fn write_str_dedup(&mut self, data: &[u8]) {
         if !self.overflow {
-            if let Some(off) = self.dedup.as_ref().unwrap().lookup(self.col_idx, data) {
-                self.write_raw(&(-(off as i32)).to_le_bytes());
-                return;
+            if let Some(dedup) = self.dedup.as_ref() {
+                if let Some(off) = dedup.lookup(self.col_idx, data) {
+                    self.write_raw(&(-(off as i32)).to_le_bytes());
+                    return;
+                }
             }
         }
         let chunk_off = self.pos - self.chunk_start;
         self.write_lp(data);
         if !self.overflow {
-            self.dedup
-                .as_mut()
-                .unwrap()
-                .insert(self.col_idx, data, chunk_off);
+            if let Some(dedup) = self.dedup.as_mut() {
+                dedup.insert(self.col_idx, data, chunk_off);
+            }
         }
     }
 

@@ -13,7 +13,7 @@
 //! epoch, `I64`) is always present, matching the previous TimeSeries layout.
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::features::native_bridge::with_detached_native;
 use once_cell::sync::Lazy;
@@ -404,6 +404,26 @@ impl std::fmt::Debug for ExternBacking {
 pub static EXTERN_TABLES: Lazy<Mutex<HashMap<String, Arc<Mutex<ExternBacking>>>>> =
     Lazy::new(|| Mutex::new(Default::default()));
 
+fn lock_extern_tables() -> MutexGuard<'static, HashMap<String, Arc<Mutex<ExternBacking>>>> {
+    match EXTERN_TABLES.lock() {
+        Ok(guard) => guard,
+        Err(e) => {
+            log::warn!("EXTERN_TABLES mutex poisoned; recovering");
+            e.into_inner()
+        }
+    }
+}
+
+fn lock_backing(backing: &Mutex<ExternBacking>) -> MutexGuard<'_, ExternBacking> {
+    match backing.lock() {
+        Ok(guard) => guard,
+        Err(e) => {
+            log::warn!("ExternBacking mutex poisoned; recovering");
+            e.into_inner()
+        }
+    }
+}
+
 #[pyclass(from_py_object)]
 #[derive(Clone, Debug)]
 pub struct ExternalTable(Arc<Mutex<ExternBacking>>, usize);
@@ -437,9 +457,7 @@ impl ExternalTable {
             table_doc,
             column_docs,
         )));
-        backing
-            .lock()
-            .expect("extern table lock")
+        lock_backing(backing.as_ref())
             .ensure_registered()
             .expect("failed to register extern table for SQL catalog");
         backing
@@ -471,7 +489,7 @@ impl ExternalTable {
                 table_doc,
                 column_docs.unwrap_or_default(),
             );
-            EXTERN_TABLES.lock().unwrap().insert(name, backing.clone());
+            lock_extern_tables().insert(name, backing.clone());
             ExternalTable(backing, ncolumn)
         })
     }
@@ -480,9 +498,9 @@ impl ExternalTable {
     fn get(_cls: &Bound<'_, PyType>, name: &str) -> PyResult<ExternalTable> {
         let name = name.to_string();
         with_detached_native(move || {
-            let binding = EXTERN_TABLES.lock().unwrap();
+            let binding = lock_extern_tables();
             if let Some(backing) = binding.get(&name) {
-                let ncolumn = backing.lock().unwrap().columns.len();
+                let ncolumn = lock_backing(backing.as_ref()).columns.len();
                 Ok(ExternalTable(backing.clone(), ncolumn))
             } else {
                 Err(pyo3::exceptions::PyValueError::new_err(format!(
@@ -508,9 +526,9 @@ impl ExternalTable {
         let _ = chunk_size;
         let name = name.to_string();
         with_detached_native(move || {
-            let mut binding = EXTERN_TABLES.lock().unwrap();
+            let mut binding = lock_extern_tables();
             if let Some(backing) = binding.get(&name) {
-                let ncolumn = backing.lock().unwrap().columns.len();
+                let ncolumn = lock_backing(backing.as_ref()).columns.len();
                 Ok(ExternalTable(backing.clone(), ncolumn))
             } else {
                 let ncolumn = columns.len();
@@ -532,14 +550,14 @@ impl ExternalTable {
     fn drop(_cls: &Bound<'_, PyType>, name: &str) -> PyResult<()> {
         let name = name.to_string();
         with_detached_native(move || {
-            let _ = EXTERN_TABLES.lock().unwrap().remove(&name);
+            let _ = lock_extern_tables().remove(&name);
             Ok(())
         })
     }
 
     fn names(&self) -> Vec<String> {
         let backing = self.0.clone();
-        with_detached_native(move || backing.lock().unwrap().columns.clone())
+        with_detached_native(move || lock_backing(backing.as_ref()).columns.clone())
     }
 
     fn append(&mut self, values: Vec<Py<PyAny>>) -> PyResult<()> {
@@ -551,9 +569,7 @@ impl ExternalTable {
         let eles = Self::extract_eles(values);
         let backing = self.0.clone();
         with_detached_native(move || {
-            backing
-                .lock()
-                .unwrap()
+            lock_backing(backing.as_ref())
                 .append(now_micros(), &eles)
                 .map_err(pyo3::exceptions::PyValueError::new_err)
         })
@@ -568,9 +584,7 @@ impl ExternalTable {
         let eles = Self::extract_eles(values);
         let backing = self.0.clone();
         with_detached_native(move || {
-            backing
-                .lock()
-                .unwrap()
+            lock_backing(backing.as_ref())
                 .append(t, &eles)
                 .map_err(pyo3::exceptions::PyValueError::new_err)
         })
@@ -587,7 +601,7 @@ impl ExternalTable {
     fn take(&self, limit: Option<usize>) -> PyResult<Vec<PyTableRow>> {
         let backing = self.0.clone();
         with_detached_native(move || {
-            let rows = backing.lock().unwrap().take(limit);
+            let rows = lock_backing(backing.as_ref()).take(limit);
             let result = rows
                 .iter()
                 .map(|(t, vals)| {

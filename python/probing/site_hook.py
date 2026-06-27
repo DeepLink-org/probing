@@ -13,6 +13,7 @@ from probing._entrypoint import (
     current_script_name,
     is_lightweight_module,
     is_probing_cli,
+    should_activate_probing,
 )
 
 _RAN = False
@@ -66,6 +67,7 @@ def _init_probing() -> None:
             import probing  # noqa: F401
 
             _execute_init_script(script_init)
+            _install_crash_handler()
 
         elif probe_value.lower() in ("2", "nested"):
             print(
@@ -76,13 +78,12 @@ def _init_probing() -> None:
 
             os.environ["PROBING"] = probe_value
             _execute_init_script(script_init)
+            _install_crash_handler()
 
         elif probe_value.lower().startswith("regex:"):
             pattern = probe_value.split(":", 1)[1]
             try:
-                import re
-
-                if re.search(pattern, current_script) is not None:
+                if should_activate_probing():
                     print(
                         f"Activating probing for script matching '{pattern}'",
                         file=sys.stderr,
@@ -90,6 +91,7 @@ def _init_probing() -> None:
                     import probing  # noqa: F401
 
                     _execute_init_script(script_init)
+                    _install_crash_handler()
                 os.environ["PROBING"] = probe_value
             except Exception as exc:
                 print(f"Error in regex pattern '{pattern}': {exc}", file=sys.stderr)
@@ -103,12 +105,22 @@ def _init_probing() -> None:
                 import probing  # noqa: F401
 
                 _execute_init_script(script_init)
+                _install_crash_handler()
             os.environ["PROBING"] = probe_value
 
     except ImportError as exc:
         print(f"Error loading probing library: {exc}", file=sys.stderr)
     except Exception as exc:
         print(f"Unexpected error in probing site hook: {exc}", file=sys.stderr)
+
+
+def _install_crash_handler() -> None:
+    try:
+        from probing.crash import install
+
+        install()
+    except Exception as exc:
+        print(f"probing crash handler install skipped: {exc}", file=sys.stderr)
 
 
 def _execute_init_script(script_init: str | None) -> None:

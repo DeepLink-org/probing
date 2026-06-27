@@ -99,6 +99,12 @@ def init():
 
     _patch_dist_init_process_group()
     collective_hook()
+    try:
+        from probing.crash import install
+
+        install()
+    except Exception:
+        pass
 
 
 def deinit():

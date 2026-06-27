@@ -22,7 +22,6 @@ pub use tbls::PythonProbeDataSource;
 use crate::features::stack_tracer::{SignalTracer, StackTracer};
 use crate::python::enable_crash_handler;
 use crate::python::enable_monitoring;
-use crate::python::CRASH_HANDLER;
 
 mod exttbls;
 mod tbls;
@@ -51,8 +50,8 @@ impl Display for PyExtList {
 /// Python integration with the probing system
 #[derive(Debug, Default, ProbeExtension)]
 pub struct PythonExt {
-    /// Path to Python crash handler script (executed when interpreter crashes)
-    #[option(aliases = ["crash.handler"])]
+    /// Enable the crash handler module (`probing.crash`). Aliases: `crash.handler`.
+    #[option(aliases = ["crash.handler", "crash.enabled"])]
     crash_handler: Maybe<String>,
 
     /// Path to Python monitoring handler script
@@ -84,6 +83,10 @@ impl ProbeExtensionCall for PythonExt {
         );
 
         let normalized_path = path.trim_start_matches('/');
+        if normalized_path.starts_with("crash/") {
+            return crate::features::crash::handle_http(normalized_path, params, body)
+                .map_err(EngineError::PluginError);
+        }
         call_python_handler(normalized_path, params, body)
     }
 }
@@ -102,7 +105,11 @@ impl PythonExt {
                 )),
                 Maybe::Just(handler) => {
                     self.crash_handler = crash_handler.clone();
-                    CRASH_HANDLER.lock().unwrap().replace(handler.to_string());
+                    let lowered = handler.trim().to_ascii_lowercase();
+                    if lowered == "off" || lowered == "0" || lowered == "false" {
+                        log::info!("Python crash handler disabled");
+                        return Ok(());
+                    }
                     match enable_crash_handler() {
                         Ok(_) => {
                             log::info!("Python crash handler enabled: {handler}");

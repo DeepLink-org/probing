@@ -10,11 +10,77 @@ pub(crate) fn panic_stale(context: &str) -> ! {
     panic!("stale read: chunk recycled ({context})")
 }
 
-fn var_field_size(buf: &[u8], off: usize) -> usize {
-    if off + 4 > buf.len() {
-        panic_stale("var_field_size");
+fn read_i32(data: &[u8], off: usize) -> i32 {
+    if off + 4 > data.len() {
+        panic_stale("read_i32");
     }
-    let raw = i32::from_le_bytes(buf[off..off + 4].try_into().unwrap());
+    i32::from_le_bytes([data[off], data[off + 1], data[off + 2], data[off + 3]])
+}
+
+fn read_u32(data: &[u8], off: usize) -> u32 {
+    if off + 4 > data.len() {
+        panic_stale("read_u32");
+    }
+    u32::from_le_bytes([data[off], data[off + 1], data[off + 2], data[off + 3]])
+}
+
+fn read_i64(data: &[u8], off: usize) -> i64 {
+    if off + 8 > data.len() {
+        panic_stale("read_i64");
+    }
+    i64::from_le_bytes([
+        data[off],
+        data[off + 1],
+        data[off + 2],
+        data[off + 3],
+        data[off + 4],
+        data[off + 5],
+        data[off + 6],
+        data[off + 7],
+    ])
+}
+
+fn read_u64(data: &[u8], off: usize) -> u64 {
+    if off + 8 > data.len() {
+        panic_stale("read_u64");
+    }
+    u64::from_le_bytes([
+        data[off],
+        data[off + 1],
+        data[off + 2],
+        data[off + 3],
+        data[off + 4],
+        data[off + 5],
+        data[off + 6],
+        data[off + 7],
+    ])
+}
+
+fn read_f32(data: &[u8], off: usize) -> f32 {
+    if off + 4 > data.len() {
+        panic_stale("read_f32");
+    }
+    f32::from_le_bytes([data[off], data[off + 1], data[off + 2], data[off + 3]])
+}
+
+fn read_f64(data: &[u8], off: usize) -> f64 {
+    if off + 8 > data.len() {
+        panic_stale("read_f64");
+    }
+    f64::from_le_bytes([
+        data[off],
+        data[off + 1],
+        data[off + 2],
+        data[off + 3],
+        data[off + 4],
+        data[off + 5],
+        data[off + 6],
+        data[off + 7],
+    ])
+}
+
+fn var_field_size(buf: &[u8], off: usize) -> usize {
+    let raw = read_i32(buf, off);
     if raw < 0 {
         4
     } else {
@@ -23,10 +89,7 @@ fn var_field_size(buf: &[u8], off: usize) -> usize {
 }
 
 fn resolve_var(buf: &[u8], off: usize, chunk_start: usize) -> &[u8] {
-    if off + 4 > buf.len() {
-        panic_stale("resolve_var offset");
-    }
-    let raw = i32::from_le_bytes(buf[off..off + 4].try_into().unwrap());
+    let raw = read_i32(buf, off);
     if raw < 0 {
         let ref_off = chunk_start + (-raw) as usize;
         if ref_off + 4 > buf.len() {
@@ -100,31 +163,29 @@ impl<'a> Row<'a> {
     }
 
     pub fn col_u8(&self, col: usize) -> u8 {
-        self.data[self.col_offset(col)]
+        let off = self.col_offset(col);
+        if off >= self.data.len() {
+            panic_stale("col_u8");
+        }
+        self.data[off]
     }
     pub fn col_u32(&self, col: usize) -> u32 {
-        let off = self.col_offset(col);
-        u32::from_le_bytes(self.data[off..off + 4].try_into().unwrap())
+        read_u32(self.data, self.col_offset(col))
     }
     pub fn col_i32(&self, col: usize) -> i32 {
-        let off = self.col_offset(col);
-        i32::from_le_bytes(self.data[off..off + 4].try_into().unwrap())
+        read_i32(self.data, self.col_offset(col))
     }
     pub fn col_i64(&self, col: usize) -> i64 {
-        let off = self.col_offset(col);
-        i64::from_le_bytes(self.data[off..off + 8].try_into().unwrap())
+        read_i64(self.data, self.col_offset(col))
     }
     pub fn col_f32(&self, col: usize) -> f32 {
-        let off = self.col_offset(col);
-        f32::from_le_bytes(self.data[off..off + 4].try_into().unwrap())
+        read_f32(self.data, self.col_offset(col))
     }
     pub fn col_f64(&self, col: usize) -> f64 {
-        let off = self.col_offset(col);
-        f64::from_le_bytes(self.data[off..off + 8].try_into().unwrap())
+        read_f64(self.data, self.col_offset(col))
     }
     pub fn col_u64(&self, col: usize) -> u64 {
-        let off = self.col_offset(col);
-        u64::from_le_bytes(self.data[off..off + 8].try_into().unwrap())
+        read_u64(self.data, self.col_offset(col))
     }
     pub fn col_str(&self, col: usize) -> &str {
         let b = self.resolve_var_col(col);
@@ -175,7 +236,12 @@ impl<'a> RowCursor<'a> {
     }
 
     fn read_fixed<const N: usize>(&mut self) -> [u8; N] {
-        let v: [u8; N] = self.data[self.pos..self.pos + N].try_into().unwrap();
+        let end = self.pos + N;
+        if end > self.data.len() {
+            panic_stale("read_fixed");
+        }
+        let mut v = [0u8; N];
+        v.copy_from_slice(&self.data[self.pos..end]);
         self.pos += N;
         v
     }
