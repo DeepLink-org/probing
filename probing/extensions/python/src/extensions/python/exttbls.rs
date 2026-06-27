@@ -17,6 +17,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::features::native_bridge::with_detached_native;
 use once_cell::sync::Lazy;
+use probing_core::runtime::{BlockOnFallback, RuntimeError};
 use probing_core::sync::lock_mutex;
 use probing_memtable::discover::ExposedTable;
 use probing_memtable::docs;
@@ -25,10 +26,23 @@ use probing_proto::prelude::Ele;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyType};
 use pyo3::{pyclass, pymethods, Bound, PyResult, Python};
+use thiserror::Error;
 
 use crate::features::convert::{ele_to_python, python_to_ele};
 
 type PyTableRow = (Py<PyAny>, Vec<Py<PyAny>>);
+
+#[derive(Debug, Error)]
+enum ExternTableError {
+    #[error("column count mismatch")]
+    ColumnMismatch,
+    #[error("table not initialized")]
+    NotInitialized,
+    #[error("push_row failed: schema mismatch or row too large")]
+    PushFailed,
+    #[error(transparent)]
+    Memtable(#[from] probing_memtable::MemtableError),
+}
 
 /// SQL schema (and filename prefix) for Python extern tables.
 pub const EXTERN_TABLE_SCHEMA: &str = "python";
@@ -143,11 +157,15 @@ impl PyExternalTableConfig {
     #[allow(clippy::wrong_self_convention)] // Python-facing method name, kept for API compat
     fn into_py(&self, py: Python<'_>) -> Py<PyAny> {
         let dict = PyDict::new(py);
-        dict.set_item("chunk_size", self.chunk_size).unwrap();
-        dict.set_item("discard_threshold", self.discard_threshold)
-            .unwrap();
-        dict.set_item("discard_strategy", &self.discard_strategy)
-            .unwrap();
+        if let Err(e) = dict.set_item("chunk_size", self.chunk_size) {
+            log::error!("PyExternalTableConfig::into_py chunk_size: {e}");
+        }
+        if let Err(e) = dict.set_item("discard_threshold", self.discard_threshold) {
+            log::error!("PyExternalTableConfig::into_py discard_threshold: {e}");
+        }
+        if let Err(e) = dict.set_item("discard_strategy", &self.discard_strategy) {
+            log::error!("PyExternalTableConfig::into_py discard_strategy: {e}");
+        }
         dict.into()
     }
 }
@@ -270,7 +288,7 @@ impl ExternBacking {
         }
     }
 
-    fn ensure_registered(&mut self) -> Result<(), String> {
+    fn ensure_registered(&mut self) -> Result<(), ExternTableError> {
         if self.table.is_some() {
             return Ok(());
         }
@@ -288,8 +306,7 @@ impl ExternBacking {
         );
         let chunk_bytes = ring_chunk_bytes(self.capacity_bytes);
         let filename = mmap_basename(&self.name);
-        let table = ExposedTable::create(&filename, &schema, chunk_bytes, NUM_CHUNKS)
-            .map_err(|e| format!("failed to register mmap table {filename}: {e}"))?;
+        let table = ExposedTable::create(&filename, &schema, chunk_bytes, NUM_CHUNKS)?;
         self.table = Some(table);
         Ok(())
     }
@@ -301,7 +318,7 @@ impl ExternBacking {
         })
     }
 
-    fn ensure_table(&mut self, first_row: &[Ele]) -> Result<(), String> {
+    fn ensure_table(&mut self, first_row: &[Ele]) -> Result<(), ExternTableError> {
         if self.table.is_some() && self.row_count() > 0 {
             return Ok(());
         }
@@ -318,16 +335,15 @@ impl ExternBacking {
         );
         let chunk_bytes = ring_chunk_bytes(self.capacity_bytes);
         let filename = mmap_basename(&self.name);
-        let table = ExposedTable::create(&filename, &schema, chunk_bytes, NUM_CHUNKS)
-            .map_err(|e| format!("failed to create mmap table {filename}: {e}"))?;
+        let table = ExposedTable::create(&filename, &schema, chunk_bytes, NUM_CHUNKS)?;
         self.dtypes = dtypes;
         self.table = Some(table);
         Ok(())
     }
 
-    fn append(&mut self, timestamp: i64, values: &[Ele]) -> Result<(), String> {
+    fn append(&mut self, timestamp: i64, values: &[Ele]) -> Result<(), ExternTableError> {
         if values.len() != self.columns.len() {
-            return Err("column count mismatch".to_string());
+            return Err(ExternTableError::ColumnMismatch);
         }
         self.ensure_table(values)?;
 
@@ -344,10 +360,10 @@ impl ExternBacking {
 
         // ExposedTable::push_row validates schema and auto-advances chunks.
         let Some(table) = self.table.as_mut() else {
-            return Err("table not initialized".to_string());
+            return Err(ExternTableError::NotInitialized);
         };
         if !table.push_row(&row) {
-            return Err("push_row failed: schema mismatch or row too large".to_string());
+            return Err(ExternTableError::PushFailed);
         }
         Ok(())
     }
@@ -425,6 +441,21 @@ fn lock_backing(backing: &Mutex<ExternBacking>) -> MutexGuard<'_, ExternBacking>
 #[pyclass(from_py_object)]
 #[derive(Clone, Debug)]
 pub struct ExternalTable(Arc<Mutex<ExternBacking>>, usize);
+
+impl BlockOnFallback for ExternalTable {
+    fn on_block_on_failure(err: RuntimeError) -> Self {
+        log::error!("ExternalTable bridge degraded: {err}; using no-op table");
+        let backing = ExternalTable::create_backing(
+            "__probing_degraded__",
+            Vec::new(),
+            4096,
+            "BaseMemorySize",
+            Some("probing degraded placeholder".into()),
+            HashMap::new(),
+        );
+        ExternalTable(backing, 0)
+    }
+}
 
 impl ExternalTable {
     fn extract_eles(values: Vec<Py<PyAny>>) -> Vec<Ele> {
@@ -571,7 +602,7 @@ impl ExternalTable {
         with_detached_native(move || {
             lock_backing(backing.as_ref())
                 .append(now_micros(), &eles)
-                .map_err(pyo3::exceptions::PyValueError::new_err)
+                .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
         })
     }
 
@@ -586,7 +617,7 @@ impl ExternalTable {
         with_detached_native(move || {
             lock_backing(backing.as_ref())
                 .append(t, &eles)
-                .map_err(pyo3::exceptions::PyValueError::new_err)
+                .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
         })
     }
 

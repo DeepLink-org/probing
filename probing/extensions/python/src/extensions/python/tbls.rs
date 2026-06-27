@@ -2,8 +2,6 @@ use std::collections::HashMap;
 use std::ffi::CString;
 use std::sync::Arc;
 
-use anyhow::Result;
-
 use log::{debug, error};
 use probing_core::core::{
     ArrayRef, CustomNamespace, DataType, Field, Float64Array, Int64Array, NamespaceProbeDataSource,
@@ -20,13 +18,41 @@ use pyo3::types::PyString;
 use pyo3::Bound;
 use pyo3::PyAny;
 use pyo3::Python;
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum PythonTableError {
+    #[error("invalid Python expression: {0}")]
+    InvalidExpression(String),
+    #[error("internal error building record batch: missing column {0}")]
+    MissingColumn(String),
+    #[error("record batch build failed: {0}")]
+    BatchBuild(String),
+    #[error(transparent)]
+    Py(#[from] pyo3::PyErr),
+    #[error(transparent)]
+    Nul(#[from] std::ffi::NulError),
+}
+
+pub type TableResult<T> = std::result::Result<T, PythonTableError>;
+
+impl From<pyo3::CastError<'_, '_>> for PythonTableError {
+    fn from(err: pyo3::CastError<'_, '_>) -> Self {
+        Self::Py(err.into())
+    }
+}
+
+fn try_record_batch(schema: SchemaRef, columns: Vec<ArrayRef>) -> TableResult<RecordBatch> {
+    RecordBatch::try_new(schema, columns).map_err(|e| PythonTableError::BatchBuild(e.to_string()))
+}
 
 #[derive(Default, Debug)]
 pub struct PythonNamespace {}
 
 impl PythonNamespace {
-    fn get_backtrace_data() -> Result<Vec<RecordBatch>> {
-        let frames = crate::extensions::python::backtrace(None)?;
+    fn get_backtrace_data() -> TableResult<Vec<RecordBatch>> {
+        let frames = crate::extensions::python::backtrace(None)
+            .map_err(|e| PythonTableError::BatchBuild(e.to_string()))?;
 
         if frames.is_empty() {
             return Ok(vec![]);
@@ -97,10 +123,10 @@ impl PythonNamespace {
             Arc::new(StringArray::from(frame_types)), // Added frame_type array
         ];
 
-        Ok(vec![RecordBatch::try_new(schema, columns)?])
+        Ok(vec![try_record_batch(schema, columns)?])
     }
 
-    fn data_from_python(expr: &str) -> Result<Vec<RecordBatch>> {
+    fn data_from_python(expr: &str) -> TableResult<Vec<RecordBatch>> {
         Python::attach(|py| {
             let import_path = expr.split(['(', '[']).next().unwrap_or(expr);
 
@@ -110,20 +136,16 @@ impl PythonNamespace {
                 .collect();
 
             if parts.is_empty() {
-                return Err(anyhow::anyhow!("Invalid Python expression: {}", expr));
+                return Err(PythonTableError::InvalidExpression(expr.to_string()));
             }
 
             // Import the top-level package first.
             let pkg_name = parts[0];
-            let pkg = py
-                .import(pkg_name)
-                .map_err(|e| anyhow::anyhow!("Failed to import {}: {:?}", pkg_name, e))?;
+            let pkg = py.import(pkg_name)?;
 
             // Set up locals dict with the imported package
             let locals = PyDict::new(py);
-            locals
-                .set_item(pkg_name, pkg)
-                .map_err(|e| anyhow::anyhow!("Failed to set up Python locals: {:?}", e))?;
+            locals.set_item(pkg_name, pkg)?;
 
             // Ensure intermediate submodules are imported so attribute access works.
             for depth in 2..=parts.len() {
@@ -132,11 +154,7 @@ impl PythonNamespace {
                     Ok(_) => {}
                     Err(err) => {
                         if depth < parts.len() {
-                            return Err(anyhow::anyhow!(
-                                "Failed to import {}: {:?}",
-                                candidate,
-                                err
-                            ));
+                            return Err(err.into());
                         }
                         break;
                     }
@@ -144,12 +162,9 @@ impl PythonNamespace {
             }
 
             // Evaluate the expression
-            let expr = CString::new(expr)
-                .map_err(|e| anyhow::anyhow!("Failed to convert expression to CString: {:?}", e))?;
+            let expr = CString::new(expr)?;
 
-            let result = py
-                .eval(&expr, None, Some(&locals))
-                .map_err(|e| anyhow::anyhow!("Failed to evaluate Python expression: {:?}", e))?;
+            let result = py.eval(&expr, None, Some(&locals))?;
 
             // Handle different Python types
             if let Ok(list) = result.cast::<PyList>() {
@@ -204,12 +219,12 @@ impl CustomNamespace for PythonNamespace {
 }
 
 impl PythonNamespace {
-    pub fn object_to_recordbatch(obj: Bound<'_, PyAny>) -> Result<Vec<RecordBatch>> {
+    pub fn object_to_recordbatch(obj: Bound<'_, PyAny>) -> TableResult<Vec<RecordBatch>> {
         let mut fields: Vec<Field> = vec![];
         let mut columns: Vec<ArrayRef> = vec![];
 
         if obj.is_instance_of::<PyDict>() {
-            let item = obj.cast::<PyDict>().unwrap();
+            let item = obj.cast::<PyDict>()?;
             for (key, value) in item.iter() {
                 let key_str = key.extract::<String>()?;
                 Self::add_field_and_array(&mut fields, &mut columns, key_str, value)?;
@@ -225,7 +240,7 @@ impl PythonNamespace {
         }
 
         let schema = SchemaRef::new(Schema::new(fields));
-        let batches = vec![RecordBatch::try_new(schema, columns)?];
+        let batches = vec![try_record_batch(schema, columns)?];
 
         Ok(batches)
     }
@@ -236,7 +251,7 @@ impl PythonNamespace {
         columns: &mut Vec<ArrayRef>,
         name: String,
         value: Bound<'_, PyAny>,
-    ) -> Result<()> {
+    ) -> TableResult<()> {
         if value.is_instance_of::<PyInt>() {
             let array = Int64Array::from(vec![value.extract::<i64>()?]);
             columns.push(Arc::new(array));
@@ -257,7 +272,7 @@ impl PythonNamespace {
         Ok(())
     }
 
-    pub fn dict_to_recordbatch(dict: &Bound<'_, PyDict>) -> Result<Vec<RecordBatch>> {
+    pub fn dict_to_recordbatch(dict: &Bound<'_, PyDict>) -> TableResult<Vec<RecordBatch>> {
         let mut fields: Vec<Field> = vec![];
         let mut columns: Vec<ArrayRef> = vec![];
 
@@ -267,12 +282,12 @@ impl PythonNamespace {
         }
 
         let schema = SchemaRef::new(Schema::new(fields));
-        let batches = vec![RecordBatch::try_new(schema, columns)?];
+        let batches = vec![try_record_batch(schema, columns)?];
 
         Ok(batches)
     }
 
-    pub fn list_to_recordbatch(list: &Bound<'_, PyList>) -> Result<Vec<RecordBatch>> {
+    pub fn list_to_recordbatch(list: &Bound<'_, PyList>) -> TableResult<Vec<RecordBatch>> {
         let mut names: Vec<String> = vec![];
         let mut datas: HashMap<String, Vec<Option<Bound<'_, PyAny>>>> = Default::default();
 
@@ -282,10 +297,10 @@ impl PythonNamespace {
                 Some(dict.clone())
             } else {
                 match item.getattr("__dict__") {
-                    Ok(dict) => Some(dict.cast::<PyDict>().unwrap().clone()),
+                    Ok(dict) => Some(dict.cast::<PyDict>()?.clone()),
                     Err(_) => {
                         let dict = PyDict::new(item.py());
-                        dict.set_item("value", item).unwrap();
+                        dict.set_item("value", item)?;
                         Some(dict)
                     }
                 }
@@ -321,7 +336,10 @@ impl PythonNamespace {
         let mut columns: Vec<ArrayRef> = vec![];
 
         for name in names.iter() {
-            let values = datas.get(name).unwrap();
+            let values = datas.get(name).ok_or_else(|| {
+                error!("list_to_recordbatch: internal column map missing key {name}");
+                PythonTableError::MissingColumn(name.clone())
+            })?;
             let array = StringArray::from(
                 values
                     .iter()
@@ -342,7 +360,7 @@ impl PythonNamespace {
         }
 
         let schema = SchemaRef::new(Schema::new(fields));
-        let batches = vec![RecordBatch::try_new(schema, columns).unwrap()];
+        let batches = vec![try_record_batch(schema, columns)?];
 
         Ok(batches)
     }

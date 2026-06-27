@@ -21,21 +21,20 @@ impl CustomNamespace for FileList {
     }
 
     fn list() -> Vec<String> {
-        let direntries = std::fs::read_dir(".").unwrap();
+        let direntries = match std::fs::read_dir(".") {
+            Ok(entries) => entries,
+            Err(e) => {
+                log::error!("file namespace: read_dir failed: {e}");
+                return Vec::new();
+            }
+        };
         direntries
             .filter_map(|entry| {
-                if let Ok(entry) = entry {
-                    let filename = entry.file_name().into_string().unwrap();
-                    if filename.ends_with(".csv") {
-                        Some(filename)
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
+                let entry = entry.ok()?;
+                let filename = entry.file_name().into_string().ok()?;
+                filename.ends_with(".csv").then_some(filename)
             })
-            .collect::<Vec<_>>()
+            .collect()
     }
 
     async fn table(expr: String) -> Result<Option<Arc<dyn TableProvider>>> {

@@ -14,6 +14,8 @@ use pyo3::Python;
 use probing_proto::prelude::CallFrame;
 
 use probing_core::is_python_main_thread;
+#[cfg(target_os = "macos")]
+use probing_core::signal::send_sigusr2_to_thread_id;
 
 use crate::features::vm_tracer::{get_python_frames_raw, get_python_stacks_raw};
 
@@ -222,7 +224,7 @@ impl SignalTracer {
                     Ok(())
                 }
             } else {
-                probing_cc::extensions::send_sigusr2_to_thread_id(tid)
+                send_sigusr2_to_thread_id(tid)
             };
             if let Err(e) = signal_result {
                 Self::clear_sender_slot();

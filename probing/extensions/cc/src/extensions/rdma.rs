@@ -2,6 +2,7 @@ use probing_core::core::EngineError;
 use probing_core::core::Maybe;
 use probing_core::core::ProbeExtension;
 use probing_core::core::ProbeExtensionOption;
+use probing_core::sync::lock_mutex;
 
 use datafusion::arrow::array::{GenericStringBuilder, RecordBatch};
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
@@ -20,6 +21,20 @@ use std::time::{Duration, Instant};
 
 static GLOBAL_HCA_NAME: OnceLock<Mutex<String>> = OnceLock::new();
 static GLOBAL_HCA_SAMPLE_RATE: OnceLock<Mutex<f64>> = OnceLock::new();
+
+fn lock_hca_name() -> std::sync::MutexGuard<'static, String> {
+    lock_mutex(
+        GLOBAL_HCA_NAME.get_or_init(|| Mutex::new(String::new())),
+        "rdma HCA name",
+    )
+}
+
+fn lock_sample_rate() -> std::sync::MutexGuard<'static, f64> {
+    lock_mutex(
+        GLOBAL_HCA_SAMPLE_RATE.get_or_init(|| Mutex::new(0.0)),
+        "rdma sample rate",
+    )
+}
 
 #[derive(Default, Debug)]
 pub struct RdmaTable {}
@@ -45,9 +60,7 @@ impl CustomTable for RdmaTable {
     }
 
     fn data() -> Vec<datafusion::arrow::array::RecordBatch> {
-        let string = GLOBAL_HCA_NAME.get_or_init(|| Mutex::new(String::new()));
-        let guard = string.lock().unwrap();
-        let hca_name = guard.clone();
+        let hca_name = lock_hca_name().clone();
 
         let mut monitor = RDMAMonitor::new(&hca_name);
         monitor.obtain_newset();
@@ -71,9 +84,7 @@ impl CustomTable for RdmaTable {
         np_cnp_sent.append_value(monitor.read_counter("np_cnp_sent"));
         np_ecn_marked_roce_packets.append_value(monitor.read_counter("np_ecn_marked_roce_packets"));
 
-        let f64_val = GLOBAL_HCA_SAMPLE_RATE.get_or_init(|| Mutex::new(0.0));
-        let guard = f64_val.lock().unwrap();
-        let sleep_time = *guard as u64;
+        let sleep_time = *lock_sample_rate() as u64;
 
         thread::sleep(Duration::from_secs(sleep_time));
 
@@ -141,14 +152,12 @@ fn resolve_hca_name(body: &[u8]) -> Result<String, EngineError> {
     if !body.is_empty() {
         let name = String::from_utf8_lossy(body).trim().to_string();
         if !name.is_empty() {
-            let global = GLOBAL_HCA_NAME.get_or_init(|| Mutex::new(String::new()));
-            *global.lock().unwrap() = name.clone();
+            *lock_hca_name() = name.clone();
             return Ok(name);
         }
     }
 
-    let global = GLOBAL_HCA_NAME.get_or_init(|| Mutex::new(String::new()));
-    let name = global.lock().unwrap().clone();
+    let name = lock_hca_name().clone();
     if name.is_empty() {
         return Err(EngineError::InvalidOptionValue(
             RdmaProbeExtension::OPTION_HCA_NAME.to_string(),
@@ -162,11 +171,7 @@ fn format_rdma_snapshot(hca_name: &str) -> Result<String, EngineError> {
     let mut monitor = RDMAMonitor::new(hca_name);
     monitor.obtain_newset();
 
-    let sleep_secs = GLOBAL_HCA_SAMPLE_RATE
-        .get_or_init(|| Mutex::new(0.0))
-        .lock()
-        .unwrap()
-        .max(0.0) as u64;
+    let sleep_secs = lock_sample_rate().max(0.0) as u64;
     if sleep_secs > 0 {
         thread::sleep(Duration::from_secs(sleep_secs));
     }
@@ -213,9 +218,7 @@ impl RdmaProbeExtension {
                 ));
             }
 
-            let f64_val = GLOBAL_HCA_SAMPLE_RATE.get_or_init(|| Mutex::new(0.0));
-            let mut guard = f64_val.lock().unwrap();
-            *guard = rate;
+            *lock_sample_rate() = rate;
         }
 
         self.sample_rate = sample_rate;
@@ -234,9 +237,7 @@ impl RdmaProbeExtension {
                 ));
             }
 
-            let string = GLOBAL_HCA_NAME.get_or_init(|| Mutex::new(String::new()));
-            let mut guard = string.lock().unwrap();
-            *guard = name.clone();
+            *lock_hca_name() = name.clone();
         }
 
         Ok(())
@@ -283,13 +284,10 @@ impl RDMAMonitor {
         previous: Option<f64>,
         interval: Option<Duration>,
     ) -> f64 {
-        if current.is_none() || previous.is_none() || interval.is_none() {
+        let (Some(current), Some(previous), Some(interval)) = (current, previous, interval) else {
             return 0.0;
-        }
-
-        let current = current.unwrap();
-        let previous = previous.unwrap();
-        let interval = interval.unwrap().as_secs_f64();
+        };
+        let interval = interval.as_secs_f64();
 
         let diff = if current < previous {
             current + 2u64.pow(64) as f64 - previous
@@ -313,8 +311,5 @@ fn read_file_to_f64(path: &str) -> io::Result<f64> {
     let mut file = File::open(path)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
-    contents
-        .trim()
-        .parse::<f64>()
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+    contents.trim().parse::<f64>().map_err(io::Error::other)
 }

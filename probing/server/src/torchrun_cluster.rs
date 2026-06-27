@@ -199,10 +199,7 @@ fn store_client() -> Option<TCPStore> {
 
 async fn store_set(key: &str, value: &str) -> Result<()> {
     let store = store_client().context("MASTER_ADDR/MASTER_PORT not set")?;
-    store
-        .set(key, value)
-        .await
-        .map_err(|e| anyhow::anyhow!("{e}"))
+    store.set(key, value).await.map_err(anyhow::Error::new)
 }
 
 async fn store_get(key: &str) -> Result<Option<String>> {

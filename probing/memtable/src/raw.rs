@@ -1,3 +1,4 @@
+use crate::error::{MemtableError, Result};
 use crate::layout::{
     chunk_header, col_desc, col_desc_mut, compute_data_offset, header, header_mut, r32, w32,
     ChunkHeader, ChunkState, Header, BYTE_ORDER_MARK, CHUNK_HEADER_SIZE, FLAGS_KNOWN, FLAG_DEDUP,
@@ -163,13 +164,15 @@ fn validate_chunk_rows(
     used: usize,
     nc: usize,
     has_dedup: bool,
-) -> Result<(), &'static str> {
+) -> Result<()> {
     let data_base = cs + CHUNK_HEADER_SIZE;
     let mut pos = 0usize;
     while pos + 4 <= used {
         let row_len = r32(buf, data_base + pos) as usize;
         if pos + 4 + row_len > used {
-            return Err("row extends beyond chunk used region");
+            return Err(MemtableError::InvalidBuffer(
+                "row extends beyond chunk used region",
+            ));
         }
         let row_start = data_base + pos + 4;
         let mut col_off = 0usize;
@@ -190,11 +193,13 @@ fn validate_chunk_rows(
                 );
                 if raw < 0 {
                     if !has_dedup {
-                        return Err("dedup ref in non-dedup table");
+                        return Err(MemtableError::InvalidBuffer("dedup ref in non-dedup table"));
                     }
                     let ref_off = (-raw) as usize;
                     if ref_off < CHUNK_HEADER_SIZE || ref_off >= CHUNK_HEADER_SIZE + used {
-                        return Err("dedup ref outside chunk data region");
+                        return Err(MemtableError::InvalidBuffer(
+                            "dedup ref outside chunk data region",
+                        ));
                     }
                     col_off += 4;
                 } else {
@@ -214,57 +219,61 @@ fn validate_chunk_rows(
 /// integrity, and dedup ref ranges.
 ///
 /// All `from_buf` / `new` constructors funnel through this function.
-pub fn validate_buf(buf: &[u8]) -> Result<(), &'static str> {
+pub fn validate_buf(buf: &[u8]) -> Result<()> {
     if buf.len() < mem::size_of::<Header>() {
-        return Err("buffer too small for header");
+        return Err(MemtableError::InvalidBuffer("buffer too small for header"));
     }
     let h = header(buf);
     if h.magic != MAGIC {
-        return Err("invalid magic");
+        return Err(MemtableError::InvalidBuffer("invalid magic"));
     }
     if h.version != VERSION {
-        return Err("unsupported version");
+        return Err(MemtableError::InvalidBuffer("unsupported version"));
     }
     if (h.header_size as usize) < mem::size_of::<Header>() {
-        return Err("header_size too small");
+        return Err(MemtableError::InvalidBuffer("header_size too small"));
     }
     let bom = u16::from_ne_bytes(BYTE_ORDER_MARK);
     if h.byte_order != bom {
-        return Err("byte order mismatch (buffer written on different-endian host)");
+        return Err(MemtableError::InvalidBuffer(
+            "byte order mismatch (buffer written on different-endian host)",
+        ));
     }
     if h.flags & !FLAGS_KNOWN != 0 {
-        return Err("unknown feature flags set");
+        return Err(MemtableError::InvalidBuffer("unknown feature flags set"));
     }
     let has_dedup = h.flags & FLAG_DEDUP != 0;
     let nc = h.num_cols as usize;
     if h.num_chunks == 0 {
-        return Err("num_chunks must be > 0");
+        return Err(MemtableError::InvalidBuffer("num_chunks must be > 0"));
     }
     let csz = h.chunk_size as usize;
     if csz < CHUNK_HEADER_SIZE + 8 {
-        return Err("chunk_size too small");
+        return Err(MemtableError::InvalidBuffer("chunk_size too small"));
     }
     let expected_off = compute_data_offset(nc);
     if h.data_offset as usize != expected_off {
-        return Err("invalid data_offset");
+        return Err(MemtableError::InvalidBuffer("invalid data_offset"));
     }
     let required = expected_off + csz * h.num_chunks as usize;
     if buf.len() < required {
-        return Err("buffer too small for data");
+        return Err(MemtableError::InvalidBuffer("buffer too small for data"));
     }
     for i in 0..nc {
         let dt = col_desc(buf, i).dtype;
         if !(1..=9).contains(&dt) {
-            return Err("invalid column dtype");
+            return Err(MemtableError::InvalidBuffer("invalid column dtype"));
         }
     }
     let ts_col = h.ts_col as usize;
     if ts_col != 0 {
         if ts_col > nc {
-            return Err("ts_col out of range");
+            return Err(MemtableError::InvalidBuffer("ts_col out of range"));
         }
         if DType::from_u32(col_desc(buf, ts_col - 1).dtype) != Some(DType::I64) {
-            return Err("ts_col must reference an I64 column");
+            return Err(MemtableError::InvalidBuffer(
+                "ts_col must reference an I64 column",
+            ));
         }
     }
     let payload_cap = csz - CHUNK_HEADER_SIZE;
@@ -273,11 +282,13 @@ pub fn validate_buf(buf: &[u8]) -> Result<(), &'static str> {
         let ch = chunk_header(buf, cs);
         let state = ch.state.load(Ordering::Acquire);
         if state > 2 {
-            return Err("invalid chunk state");
+            return Err(MemtableError::InvalidBuffer("invalid chunk state"));
         }
         let used = ch.used.load(Ordering::Acquire) as usize;
         if used > payload_cap {
-            return Err("chunk used exceeds payload capacity");
+            return Err(MemtableError::InvalidBuffer(
+                "chunk used exceeds payload capacity",
+            ));
         }
         if state == ChunkState::Sealed as u32 && used > 0 {
             let gen_before = ch.generation.load(Ordering::Acquire);

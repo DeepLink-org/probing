@@ -1,6 +1,6 @@
 use super::distributed::RemoteStoreClient;
 use super::mem_store::MemoryStore; // Add this line
-use anyhow::Result;
+use crate::core::Result;
 use async_trait::async_trait;
 use std::sync::Arc; // Add this line
 

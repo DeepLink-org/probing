@@ -46,7 +46,7 @@ async fn mmap_schema_docs_visible_in_semantic_catalog() -> Result<()> {
 
     {
         let mut exposed = ExposedTable::create(&qualified, &schema, 4096, 4)?;
-        let mut writer = exposed.writer();
+        let mut writer = exposed.writer()?;
         writer.push_row(&[Value::F64(12.5), Value::I32(0)]);
     }
 

@@ -1,5 +1,5 @@
 // probing/core/src/storage/entity.rs
-use anyhow::Result;
+use crate::core::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

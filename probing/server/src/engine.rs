@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::{self, Result};
+use anyhow::{Context, Result};
 use probing_proto::prelude::*;
 
 use crate::extensions as se;
@@ -53,7 +53,7 @@ pub async fn initialize_engine() -> Result<()> {
         #[cfg(feature = "gpu")]
         gpu::start_gpu_sampling_from_env();
     }
-    result
+    result.map_err(anyhow::Error::new)
 }
 
 /// Parse `SET key = value` (value may be quoted).
@@ -95,9 +95,8 @@ async fn execute_set_via_config(key: &str, value: &str) -> Result<()> {
     } else {
         format!("probing.{key}")
     };
-    config::write(&probe_key, value)
-        .await
-        .map_err(|e| anyhow::anyhow!("{e}"))
+    config::write(&probe_key, value).await?;
+    Ok(())
 }
 
 pub async fn handle_query(request: Query) -> Result<QueryDataFormat> {
@@ -106,30 +105,23 @@ pub async fn handle_query(request: Query) -> Result<QueryDataFormat> {
     // We are already running within the Axum/Tokio runtime.
 
     if is_set_expr(&expr) {
-        for q in expr.split(';').filter(|s| !s.trim().is_empty()) {
-            let trimmed_q = q.trim();
-            if trimmed_q.is_empty() {
-                continue;
-            }
-            log::debug!("Executing SET statement: {trimmed_q}");
-            if let Some((key, value)) = parse_set_assignment(trimmed_q) {
-                match execute_set_via_config(key, value).await {
-                    Ok(()) => log::debug!("Successfully configured: {key}={value}"),
-                    Err(e) => {
-                        log::error!("Error executing SET statement '{trimmed_q}': {e}");
-                        return Err(anyhow::anyhow!("Failed SET query '{trimmed_q}': {e}"));
-                    }
-                }
+        for q in expr.split(';').map(str::trim).filter(|s| !s.is_empty()) {
+            log::debug!("Executing SET statement: {q}");
+            // NOTE: `config::write` acquires the engine write lock, so the
+            // `engine.sql` branch must scope its read lock to that iteration only.
+            let outcome = if let Some((key, value)) = parse_set_assignment(q) {
+                execute_set_via_config(key, value).await
             } else {
-                let engine = ENGINE.read().await;
-                match engine.sql(trimmed_q).await {
-                    Ok(_) => log::debug!("Successfully executed: {trimmed_q}"),
-                    Err(e) => {
-                        log::error!("Error executing SET statement '{trimmed_q}': {e}");
-                        return Err(anyhow::anyhow!("Failed SET query '{trimmed_q}': {e}"));
-                    }
-                }
-            }
+                ENGINE
+                    .read()
+                    .await
+                    .sql(q)
+                    .await
+                    .map(|_| ())
+                    .map_err(Into::into)
+            };
+            outcome.with_context(|| format!("Failed SET query '{q}'"))?;
+            log::debug!("Successfully executed SET statement: {q}");
         }
         return Ok(QueryDataFormat::Nil);
     }
@@ -176,8 +168,7 @@ pub async fn query(req: String) -> ApiResult<String> {
     let reply_message = Message::new(reply_payload);
 
     // Serialize the response message
-    serde_json::to_string(&reply_message).map_err(|e| {
-        log::error!("Failed to serialize query response: {e}");
-        anyhow::anyhow!("Failed to create response: {}", e).into() // Convert to ApiError
-    })
+    serde_json::to_string(&reply_message)
+        .inspect_err(|e| log::error!("Failed to serialize query response: {e}"))
+        .map_err(|e| ApiError::internal(format!("Failed to create response: {e}")))
 }

@@ -78,7 +78,10 @@ fn orchestrate(args: &MpArgs, json: bool, seed: u64) -> Result<()> {
                 args.ring.chunk_size,
                 args.ring.chunks,
             )?;
-            let path = creator.path().expect("shared path").to_path_buf();
+            let path = creator
+                .path()
+                .context("shared memtable has no file path")?
+                .to_path_buf();
             (Attach::File(path), creator)
         }
     };

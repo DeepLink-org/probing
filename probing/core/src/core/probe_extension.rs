@@ -422,8 +422,7 @@ impl ExtensionOptions for ProbeExtensionManager {
 
     fn set(&mut self, key: &str, value: &str) -> datafusion::error::Result<()> {
         use futures::executor::block_on;
-        block_on(self.set_option(key, value))
-            .map_err(|e| datafusion::error::DataFusionError::Execution(e.to_string()))
+        block_on(self.set_option(key, value)).map_err(datafusion::error::DataFusionError::from)
     }
 
     fn entries(&self) -> Vec<datafusion::config::ConfigEntry> {

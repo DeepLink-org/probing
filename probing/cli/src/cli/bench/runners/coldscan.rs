@@ -6,7 +6,7 @@
 
 use std::time::Instant;
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use probing_memtable::memc::{ColdStore, SegmentReader};
 
 use crate::cli::bench::args::ColdscanArgs;
@@ -48,8 +48,8 @@ pub fn run(args: &ColdscanArgs, json: bool, seed: u64) -> Result<()> {
         let mut rows = 0u64;
         let mut disk = 0u64;
         for path in &segments {
-            let reader = SegmentReader::open(path)
-                .map_err(|e| anyhow::anyhow!("open {}: {e}", path.display()))?;
+            let reader =
+                SegmentReader::open(path).with_context(|| format!("open {}", path.display()))?;
             for (i, page) in reader.pages().iter().enumerate() {
                 disk += page.block_len as u64;
                 let cols = reader

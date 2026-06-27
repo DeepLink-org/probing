@@ -6,6 +6,7 @@ use probing_core::runtime::block_on;
 
 use crate::features::convert::{ele_to_python, python_to_ele};
 use crate::features::native_bridge::with_detached_native;
+use crate::features::py_result::runtime_err;
 
 /// Get a configuration value.
 ///
@@ -14,12 +15,10 @@ use crate::features::native_bridge::with_detached_native;
 #[pyfunction(name = "config_get")]
 fn get(_py: Python, key: String) -> PyResult<Option<Py<PyAny>>> {
     with_detached_native(move || {
-        Python::attach(|py| {
-            let ele = block_on(async move { config::get(&key).await });
-            match ele {
-                Some(val) => Ok(Some(ele_to_python(py, &val)?)),
-                None => Ok(None),
-            }
+        let ele = block_on(async move { config::get(&key).await }).map_err(runtime_err)?;
+        Python::attach(|py| match ele {
+            Some(val) => Ok(Some(ele_to_python(py, &val)?)),
+            None => Ok(None),
         })
     })
 }
@@ -28,11 +27,9 @@ fn get(_py: Python, key: String) -> PyResult<Option<Py<PyAny>>> {
 #[pyfunction(name = "config_write")]
 fn write(_py: Python, key: String, value: String) -> PyResult<()> {
     with_detached_native(move || {
-        block_on(async move {
-            config::write(&key, &value)
-                .await
-                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
-        })
+        block_on(async move { config::write(&key, &value).await })
+            .map_err(runtime_err)?
+            .map_err(runtime_err)
     })
 }
 
@@ -43,11 +40,8 @@ fn write(_py: Python, key: String, value: String) -> PyResult<()> {
 fn set(_py: Python, key: String, value: Bound<'_, PyAny>) -> PyResult<()> {
     let value = value.unbind();
     with_detached_native(move || {
-        Python::attach(|py| {
-            let ele = python_to_ele(value.bind(py))?;
-            block_on(async move { config::set(&key, ele).await });
-            Ok(())
-        })
+        let ele = Python::attach(|py| python_to_ele(value.bind(py)))?;
+        block_on(async move { config::set(&key, ele).await }).map_err(runtime_err)
     })
 }
 
@@ -57,53 +51,53 @@ fn set(_py: Python, key: String, value: Bound<'_, PyAny>) -> PyResult<()> {
 /// converted to string.
 #[pyfunction(name = "config_get_str")]
 fn get_str(_py: Python, key: String) -> PyResult<Option<String>> {
-    Ok(with_detached_native(move || {
-        block_on(async move { config::get_str(&key).await })
-    }))
+    with_detached_native(move || {
+        block_on(async move { config::get_str(&key).await }).map_err(runtime_err)
+    })
 }
 
 /// Check if a configuration key exists.
 #[pyfunction(name = "config_contains_key")]
-fn contains_key(_py: Python, key: String) -> bool {
-    with_detached_native(move || block_on(async move { config::contains_key(&key).await }))
+fn contains_key(_py: Python, key: String) -> PyResult<bool> {
+    with_detached_native(move || {
+        block_on(async move { config::contains_key(&key).await }).map_err(runtime_err)
+    })
 }
 
 /// Remove a configuration key and return its value.
 #[pyfunction(name = "config_remove")]
 fn remove(_py: Python, key: String) -> PyResult<Option<Py<PyAny>>> {
     with_detached_native(move || {
-        Python::attach(|py| {
-            let ele = block_on(async move { config::remove(&key).await });
-            match ele {
-                Some(val) => Ok(Some(ele_to_python(py, &val)?)),
-                None => Ok(None),
-            }
+        let ele = block_on(async move { config::remove(&key).await }).map_err(runtime_err)?;
+        Python::attach(|py| match ele {
+            Some(val) => Ok(Some(ele_to_python(py, &val)?)),
+            None => Ok(None),
         })
     })
 }
 
 /// Get all configuration keys.
 #[pyfunction(name = "config_keys")]
-fn keys(_py: Python) -> Vec<String> {
-    with_detached_native(|| block_on(config::keys()))
+fn keys(_py: Python) -> PyResult<Vec<String>> {
+    with_detached_native(|| block_on(config::keys()).map_err(runtime_err))
 }
 
 /// Clear all configuration.
 #[pyfunction(name = "config_clear")]
-fn clear(_py: Python) {
-    with_detached_native(|| block_on(config::clear()));
+fn clear(_py: Python) -> PyResult<()> {
+    with_detached_native(|| block_on(config::clear()).map_err(runtime_err))
 }
 
 /// Get the number of configuration entries.
 #[pyfunction(name = "config_len")]
-fn len(_py: Python) -> usize {
-    with_detached_native(|| block_on(config::len()))
+fn len(_py: Python) -> PyResult<usize> {
+    with_detached_native(|| block_on(config::len()).map_err(runtime_err))
 }
 
 /// Check if the configuration store is empty.
 #[pyfunction(name = "config_is_empty")]
-fn is_empty(_py: Python) -> bool {
-    with_detached_native(|| block_on(config::is_empty()))
+fn is_empty(_py: Python) -> PyResult<bool> {
+    with_detached_native(|| block_on(config::is_empty()).map_err(runtime_err))
 }
 
 /// Register the config functions directly to the probing Python module.

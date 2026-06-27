@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use std::io::Write;
 
 use http_body_util::{BodyExt, Full};
@@ -232,13 +232,13 @@ pub async fn request(ctrl: ProbeEndpoint, url: &str, body: Option<String>) -> Re
             .method("POST")
             .uri(url)
             .body(Full::<Bytes>::from(body))
-            .map_err(|e| anyhow::anyhow!("Failed to build POST request: {e}"))?
+            .context("Failed to build POST request")?
     } else {
         Request::builder()
             .method("GET")
             .uri(url)
             .body(Full::<Bytes>::default())
-            .map_err(|e| anyhow::anyhow!("Failed to build GET request: {e}"))?
+            .context("Failed to build GET request")?
     };
 
     let res = sender.send_request(request).await?;

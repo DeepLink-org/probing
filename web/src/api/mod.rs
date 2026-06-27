@@ -37,10 +37,7 @@ impl ApiClient {
         let response = reqwest::get(&url).await?;
 
         let status = response.status();
-        let body = response
-            .text()
-            .await
-            .map_err(|e| AppError::Api(e.to_string()))?;
+        let body = response.text().await?;
 
         if !status.is_success() {
             if let Ok(value) = serde_json::from_str::<serde_json::Value>(&body) {
@@ -69,10 +66,7 @@ impl ApiClient {
             return Err(AppError::Api(format!("HTTP error: {}", response.status())));
         }
 
-        response
-            .text()
-            .await
-            .map_err(|e| AppError::Api(e.to_string()))
+        Ok(response.text().await?)
     }
 
     /// Send GET request (public wrapper for agent / extensions).

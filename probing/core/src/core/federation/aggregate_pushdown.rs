@@ -426,10 +426,10 @@ fn build_global_merge_sql(
 }
 
 fn quote_ident(name: &str) -> String {
-    if name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
-        && !name.is_empty()
-        && !name.chars().next().unwrap().is_ascii_digit()
-    {
+    let safe_unquoted = !name.is_empty()
+        && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        && !name.as_bytes().first().is_some_and(|b| b.is_ascii_digit());
+    if safe_unquoted {
         name.to_string()
     } else {
         format!("\"{name}\"")

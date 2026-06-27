@@ -329,6 +329,7 @@ Use this table to decide **where a change belongs**:
 | mmap format, compaction | probing-memtable | `RowWriter`, `ColdStore` |
 | Torchrun cluster heartbeat | probing-server | `torchrun_cluster.rs`, `cluster_report_backoff.rs`, PUT `/apis/nodes` |
 | Mixed Python/C stack | probing-python/features | `python.backtrace`, pprof |
+| macOS per-thread SIGUSR2 | probing-core | `signal::send_sigusr2_to_thread_id` |
 | Torch module sampling | python/probing/profiling | `python.torch_trace` |
 | Collective wall time | python/probing/profiling/collective | `python.comm_collective` |
 | NCCL wait decomposition | probing-nccl-profiler | `nccl.proxy_ops` |
@@ -374,7 +375,7 @@ Track and fix incrementally:
 | Issue | Current | Target |
 |-------|---------|--------|
 | Python ext → CLI | `probing-python` → `probing-cli` | **Accepted** for maturin wheel (`cli_main` only); keep import surface minimal |
-| Python ext → CC | `probing-python` → `probing-cc` (stack tracer SIGUSR2) | Move signal helper to L1 shared util or thin `probing-signals` crate |
+| Python ext → CC | ~~`probing-python` → `probing-cc`~~ | **Done** — `send_sigusr2_to_thread_id` moved to `probing-core::signal` |
 | Core → NCCL/HCCL | `probing-core` → `probing-nccl-profiler` / `probing-hccl-shim` (`builtin-schema-docs` feature) for `semantic_catalog` | Register docs via collector hooks or manifest; drop L1→L2 compile deps |
 | Core → skills YAML | `semantic_catalog.rs` `include_str!(skills/semantic/tables.yaml)` | Accept as L4 overlay SSOT, or move YAML under `probing/core/resources/` |
 | Server → python `features/*` | ~~`server/profiling.rs`~~ removed | Flamegraphs via `torchextension` / `pprofextension` `ProbeExtensionCall` |

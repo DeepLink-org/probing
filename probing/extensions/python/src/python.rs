@@ -1,6 +1,7 @@
 use std::ffi::CString;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use anyhow::Context;
 use pyo3::prelude::*;
 use pyo3::{types::PyDict, Bound, Python};
 
@@ -108,7 +109,7 @@ pub fn enable_monitoring(filename: &str) -> anyhow::Result<()> {
             )
         })?;
         run_embedded(py, &code, None, None)
-            .map_err(|err| anyhow::anyhow!("error apply monitoring {filename}: {err}"))?;
+            .with_context(|| format!("error apply monitoring {filename}"))?;
         Ok(())
     })
 }
