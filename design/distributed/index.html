@@ -16,7 +16,7 @@
         <link rel="prev" href="../debugging/">
       
       
-        <link rel="next" href="../nccl-profiler/">
+        <link rel="next" href="../torchrun-cluster/">
       
       
         
@@ -886,6 +886,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1515,6 +1519,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../torchrun-cluster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Torchrun Cluster Heartbeat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../federation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Federated Query Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../nccl-profiler/" class="md-nav__link">
         
   
@@ -1782,6 +1842,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1879,6 +1943,62 @@
     
   
     API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/env-vars/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Environment Variables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/skill-format/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skill Format
   
 
     
@@ -2422,7 +2542,9 @@ key from the node registry, e.g. <code>dp=2,pp=1,tp=0</code>).</p>
 </span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="s2">GROUP BY _role, _rank</span>
 </span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="s2">ORDER BY avg_ms DESC&quot;</span>
 </span></code></pre></div>
-<p>Register peers with torchrun (<code>setup_torchrun_cluster</code>) or <code>PUT /apis/nodes</code> so <code>_rank</code> and
+<p>Register peers via torchrun (Rust ctor starts hierarchical heartbeat by default — see
+<a href="../torchrun-cluster/">torchrun cluster heartbeat</a>), explicit <code>setup_torchrun_cluster()</code>, or
+<code>PUT /apis/nodes</code> so <code>_rank</code> and
 <code>_role</code> resolve correctly. Override role at runtime with <code>probing.set_role(...)</code> in training
 scripts.</p>
 <h2 id="synchronized-debugging">Synchronized Debugging<a class="headerlink" href="#synchronized-debugging" title="Permanent link">&para;</a></h2>

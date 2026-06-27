@@ -884,6 +884,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1093,6 +1097,62 @@
     
   
     Distributed
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/torchrun-cluster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Torchrun Cluster Heartbeat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/federation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Federated Query Engine
   
 
     
@@ -1382,6 +1442,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1506,10 +1570,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#schemas" class="md-nav__link">
+  <a href="#schema-prefixes" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Schemas
+        Schema prefixes
       
     </span>
   </a>
@@ -1810,6 +1874,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../env-vars/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Environment Variables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skill-format/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skill Format
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../versions/" class="md-nav__link">
         
   
@@ -1892,10 +2012,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#schemas" class="md-nav__link">
+  <a href="#schema-prefixes" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Schemas
+        Schema prefixes
       
     </span>
   </a>
@@ -2173,34 +2293,48 @@
 
 
 <h1 id="sql-tables">SQL Tables<a class="headerlink" href="#sql-tables" title="Permanent link">&para;</a></h1>
-<p>Authoritative catalog of built-in SQL tables queryable via <code>probing query</code> or in-process
-<code>probing.query()</code>. Kept in sync with <code>python/probing/_skills/semantic/tables.yaml</code> (used by
-diagnostic skills and the Web Agent).</p>
+<p>This page catalogs every built-in SQL table you can query through Probing. It's a
+reference — if you're looking for query patterns and how-to, start with <a href="../../guide/sql-analytics/">SQL
+Analytics</a>.</p>
+<p>Each table is backed by an mmap ring buffer (MEMT) or registered dynamically by an
+extension crate. Tables live under schema prefixes that reflect their data source:
+<code>python.*</code> for training and Python runtime data, <code>cpu.*</code> / <code>gpu.*</code> for host and
+device sampling, <code>cluster.*</code> for node registry, <code>nccl.*</code> for the NCCL profiler
+plugin, and <code>global.&lt;schema&gt;.&lt;table&gt;</code> for federated cross-rank queries.</p>
+<p>The authoritative schema definitions live in <code>skills/semantic/tables.yaml</code> (used by
+diagnostic skills and the Web Agent). The tables on this page are kept in sync with
+that file.</p>
+<p>To see what tables are actually available on a live endpoint:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>tables
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>tables<span class="w"> </span>--all
+</span></code></pre></div>
 <p>Terminology: <a href="../../guide/concepts/">Core Concepts</a> (endpoint, steps, <code>role</code>, federation).</p>
-<h2 id="schemas">Schemas<a class="headerlink" href="#schemas" title="Permanent link">&para;</a></h2>
+<h2 id="schema-prefixes">Schema prefixes<a class="headerlink" href="#schema-prefixes" title="Permanent link">&para;</a></h2>
+<p>Each schema represents a category of data source. The tables listed below are organized
+by these prefixes so you know where to look:</p>
 <table>
 <thead>
 <tr>
 <th>Prefix</th>
-<th>Meaning</th>
+<th>Data source</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>python.*</code></td>
-<td>Python / training probe tables (memtable)</td>
+<td>Training and Python runtime (memtable-backed)</td>
 </tr>
 <tr>
 <td><code>cpu.*</code>, <code>gpu.*</code>, <code>process.*</code></td>
-<td>Host / device sampling (extensions)</td>
+<td>Host and device sampling (extension crates)</td>
 </tr>
 <tr>
 <td><code>cluster.*</code></td>
-<td>Cluster registry</td>
+<td>Cluster node registry</td>
 </tr>
 <tr>
 <td><code>nccl.*</code></td>
-<td>NCCL profiler plugin (optional)</td>
+<td>NCCL profiler plugin (optional, cdylib)</td>
 </tr>
 <tr>
 <td><code>global.&lt;schema&gt;.&lt;table&gt;</code></td>
@@ -2208,14 +2342,10 @@ diagnostic skills and the Web Agent).</p>
 </tr>
 <tr>
 <td><code>information_schema.*</code></td>
-<td>Engine metadata</td>
+<td>Engine metadata and configuration</td>
 </tr>
 </tbody>
 </table>
-<p>List tables on a live endpoint:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>tables
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>tables<span class="w"> </span>--all
-</span></code></pre></div>
 <h2 id="federation">Federation<a class="headerlink" href="#federation" title="Permanent link">&para;</a></h2>
 <p>Tables with a <strong><code>global_name</code></strong> can be queried as <code>global.&lt;path&gt;</code> (e.g.
 <code>global.python.comm_collective</code>). The master merges peer results and may attach:</p>
@@ -2264,7 +2394,7 @@ diagnostic skills and the Web Agent).</p>
 </thead>
 <tbody>
 <tr>
-<td><code>step</code></td>
+<td><code>local_step</code></td>
 <td>Local training step (per rank)</td>
 </tr>
 <tr>
@@ -2432,8 +2562,8 @@ by default.</p>
 <td>Span or event name</td>
 </tr>
 <tr>
-<td><code>kind</code></td>
-<td>Semantic kind (e.g. <code>train.step</code>, <code>comm.all_reduce</code>)</td>
+<td><code>phase</code></td>
+<td>Training phase (<code>forward</code>, <code>backward</code>, <code>optimizer</code>) or empty</td>
 </tr>
 <tr>
 <td><code>time</code></td>
@@ -2493,8 +2623,8 @@ by default.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>step</code></td>
-<td>Training step</td>
+<td><code>micro_step</code></td>
+<td>Training micro-step</td>
 </tr>
 <tr>
 <td><code>func</code></td>
