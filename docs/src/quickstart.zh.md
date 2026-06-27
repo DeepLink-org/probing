@@ -157,4 +157,4 @@ probing -t <master> query "
 见 [API 参考](api-reference.zh.md)。
 
 更深入的分析模式（跨表 JOIN、时间分桶、统计聚合）见 [SQL 分析](guide/sql-analytics.zh.md)。
-多节点调试从[分布式](../design/distributed.zh.md)开始。
+多节点调试从[分布式](design/distributed.zh.md)开始。
