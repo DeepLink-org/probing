@@ -6,6 +6,7 @@
 use std::sync::atomic::Ordering;
 
 use crate::schema::Value;
+use crate::sync::lock_mutex;
 
 use super::codec::{
     encode_inline_bytes, encode_put_inline_record, encode_put_record, encode_tombstone_record,
@@ -28,6 +29,8 @@ pub enum MemhInitError {
     BucketsZero,
     ArenaTooSmall,
 }
+
+impl std::error::Error for MemhInitError {}
 
 impl std::fmt::Display for MemhInitError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -64,6 +67,8 @@ impl std::fmt::Display for MemhValidateError {
         }
     }
 }
+
+impl std::error::Error for MemhValidateError {}
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum InsertResult {
@@ -710,32 +715,38 @@ impl SharedMemhWriter {
         })
     }
 
+    fn lock_buf(&self) -> std::sync::MutexGuard<'_, Vec<u8>> {
+        lock_mutex(&self.buf, "SharedMemhWriter")
+    }
+
     /// Insert or update `key` → `val`.  Acquires the internal mutex for the
     /// duration of the operation.
     pub fn insert(&self, key: &str, val: &Value<'_>) -> Result<InsertResult, InsertError> {
-        let mut guard = self.buf.lock().expect("SharedMemhWriter mutex poisoned");
+        let mut guard = self.lock_buf();
         // SAFETY: buffer was validated in new(); Mutex provides exclusive access.
         unsafe { MemhWriter::new_unchecked(&mut guard) }.insert(key, val)
     }
 
     /// Remove `key`.  Acquires the internal mutex.
     pub fn remove(&self, key: &str) -> bool {
-        let mut guard = self.buf.lock().expect("SharedMemhWriter mutex poisoned");
+        let mut guard = self.lock_buf();
         unsafe { MemhWriter::new_unchecked(&mut guard) }.remove(key)
     }
 
     /// Snapshot-read: calls `f` with a [`MemhView`] built from the locked buffer.
     ///
     /// Holds the mutex for the duration of `f`; keep the closure short.
-    pub fn with_view<R>(&self, f: impl FnOnce(&MemhView<'_>) -> R) -> R {
-        let guard = self.buf.lock().expect("SharedMemhWriter mutex poisoned");
-        let view = MemhView::new(&guard).expect("SharedMemhWriter: corrupt buffer");
-        f(&view)
+    pub fn with_view<R>(&self, f: impl FnOnce(&MemhView<'_>) -> R) -> Result<R, MemhValidateError> {
+        let guard = self.lock_buf();
+        let view = MemhView::new(&guard).inspect_err(|e| {
+            log::error!("SharedMemhWriter: corrupt buffer: {e}");
+        })?;
+        Ok(f(&view))
     }
 
     /// Access the raw buffer under the mutex.
     pub fn with_buf<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
-        let guard = self.buf.lock().expect("SharedMemhWriter mutex poisoned");
+        let guard = self.lock_buf();
         f(&guard)
     }
 }
@@ -988,7 +999,8 @@ mod tests {
         sw.with_view(|v| {
             assert_eq!(v.get("k1"), Some(TypedValue::U64(1)));
             assert_eq!(v.get("k2"), Some(TypedValue::I32(-5)));
-        });
+        })
+        .unwrap();
     }
 
     #[test]
@@ -1027,7 +1039,8 @@ mod tests {
                     assert_eq!(v.get(&key), Some(expected), "missing {key}");
                 }
             }
-        });
+        })
+        .unwrap();
     }
 
     #[test]
@@ -1078,6 +1091,7 @@ mod tests {
                     "key shared{k} missing"
                 );
             }
-        });
+        })
+        .unwrap();
     }
 }

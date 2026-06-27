@@ -19,6 +19,8 @@ pub use engine::EngineBuilder;
 pub use error::EngineError;
 pub use error::Result;
 
+pub use probing_memtable::MemtableError;
+
 pub use data_source::CustomNamespace;
 pub use data_source::CustomNamespaceDataSource;
 pub use data_source::CustomTable;

@@ -5,6 +5,7 @@ pub mod crash;
 pub mod flamegraph;
 pub mod native_bridge;
 pub mod pprof;
+pub mod py_result;
 pub mod python_api;
 pub mod spy;
 /// Native stack capture, Python/native merge, and signal handling (`SIGUSR2`).

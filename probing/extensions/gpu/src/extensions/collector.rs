@@ -127,8 +127,8 @@ pub enum CollectorError {
     AlreadyRunning,
     #[error("No GPU backend available")]
     NoBackend,
-    #[error("Failed to open GPU memtable: {0}")]
-    OpenFailed(String),
+    #[error("Failed to open GPU memtable")]
+    OpenFailed(#[from] probing_memtable::MemtableError),
     #[error("GPU collector stop failed: {0}")]
     StopFailed(String),
 }
@@ -224,7 +224,7 @@ impl GpuCollector {
         &INSTANCE
     }
 
-    fn shared_table(&self) -> Result<Arc<Mutex<ExposedTable>>, std::io::Error> {
+    fn shared_table(&self) -> probing_memtable::MemtableResult<Arc<Mutex<ExposedTable>>> {
         let mut guard = lock_gpu_collector(&self.table);
         if guard.is_none() {
             *guard = Some(Arc::new(Mutex::new(ExposedTable::create(
@@ -234,7 +234,10 @@ impl GpuCollector {
                 NUM_CHUNKS,
             )?)));
         }
-        Ok(Arc::clone(guard.as_ref().unwrap()))
+        guard.as_ref().cloned().ok_or_else(|| {
+            log::error!("gpu collector: shared table slot empty after init");
+            probing_memtable::MemtableError::InvalidBuffer("gpu table unavailable")
+        })
     }
 
     pub fn start(&self, config: GpuCollectorConfig) -> Result<(), CollectorError> {
@@ -248,9 +251,7 @@ impl GpuCollector {
         }
 
         let running = self.running.clone();
-        let table = self
-            .shared_table()
-            .map_err(|e| CollectorError::OpenFailed(e.to_string()))?;
+        let table = self.shared_table()?;
 
         let handle = thread::spawn(move || {
             let mut iterations = config.iterations;

@@ -193,6 +193,7 @@ pub fn classify_report_outcome(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use probing_core::sync::lock_mutex;
     use std::sync::{LazyLock, Mutex};
 
     static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
@@ -210,7 +211,7 @@ mod tests {
     }
 
     fn with_env<F: FnOnce()>(vars: &[(&str, &str)], f: F) {
-        let _guard = ENV_LOCK.lock().unwrap();
+        let _guard = lock_mutex(&ENV_LOCK, "cluster_report_backoff test ENV_LOCK");
         clear_backoff_env();
         for (k, v) in vars {
             std::env::set_var(k, v);

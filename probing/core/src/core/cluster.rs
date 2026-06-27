@@ -59,8 +59,8 @@ static CLUSTER_VERSION: AtomicU64 = AtomicU64::new(0);
 fn now_micros() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_micros() as u64
+        .map(|d| d.as_micros() as u64)
+        .unwrap_or(0)
 }
 
 fn stale_threshold_micros() -> u64 {

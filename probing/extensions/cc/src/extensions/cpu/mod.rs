@@ -12,7 +12,7 @@ mod unsupported;
 pub use collector::{autostart_interval_ms, start_cpu_sampling, start_cpu_sampling_from_env};
 pub use extension::CpuProbeExtension;
 #[cfg(target_os = "macos")]
-pub use macos::send_sigusr2_to_thread_id;
+pub use probing_core::signal::send_sigusr2_to_thread_id;
 pub use sample::{ProcessSample, ThreadSample};
 pub use sampler::{host_sampler, CpuHostSampler};
 

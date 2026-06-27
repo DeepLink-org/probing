@@ -136,8 +136,8 @@ impl Default for CpuCollectorConfig {
 pub enum CollectorError {
     #[error("CPU collector already running")]
     AlreadyRunning,
-    #[error("Failed to open CPU memtables: {0}")]
-    OpenFailed(String),
+    #[error("Failed to open CPU memtables")]
+    OpenFailed(#[from] probing_memtable::MemtableError),
     #[error("CPU collector stop failed: {0}")]
     StopFailed(String),
 }
@@ -267,7 +267,7 @@ struct CollectorTables {
 }
 
 impl CollectorTables {
-    fn open() -> Result<Self, std::io::Error> {
+    fn open() -> probing_memtable::MemtableResult<Self> {
         Ok(Self {
             utilization: Mutex::new(ExposedTable::create(
                 "cpu.utilization",
@@ -295,12 +295,15 @@ impl CpuCollector {
         &INSTANCE
     }
 
-    fn shared_tables(&self) -> Result<Arc<CollectorTables>, std::io::Error> {
+    fn shared_tables(&self) -> probing_memtable::MemtableResult<Arc<CollectorTables>> {
         let mut guard = lock_cpu_collector(&self.tables);
         if guard.is_none() {
             *guard = Some(Arc::new(CollectorTables::open()?));
         }
-        Ok(Arc::clone(guard.as_ref().unwrap()))
+        guard.as_ref().cloned().ok_or_else(|| {
+            log::error!("cpu collector: shared tables slot empty after init");
+            probing_memtable::MemtableError::InvalidBuffer("cpu tables unavailable")
+        })
     }
 
     #[cfg_attr(not(test), allow(dead_code))]
@@ -321,9 +324,7 @@ impl CpuCollector {
         }
 
         let running = self.running.clone();
-        let tables = self
-            .shared_tables()
-            .map_err(|e| CollectorError::OpenFailed(e.to_string()))?;
+        let tables = self.shared_tables()?;
         let handle = thread::spawn(move || {
             let sampler = host_sampler();
             let platform = sampler.platform().to_string();

@@ -1,6 +1,10 @@
 //! SQL rewrite helpers for the `probe` / `global` catalog split.
 
-use datafusion::sql::sqlparser::ast::{Query, SelectItem, SetExpr, Statement};
+use std::ops::ControlFlow;
+
+use datafusion::sql::sqlparser::ast::{
+    visit_relations_mut, Ident, ObjectName, ObjectNamePart, Query, SelectItem, SetExpr, Statement,
+};
 use datafusion::sql::sqlparser::dialect::GenericDialect;
 use datafusion::sql::sqlparser::parser::Parser;
 
@@ -10,12 +14,98 @@ const KNOWN_SCHEMAS: &[&str] = &[
 
 /// Rewrite federated SQL so remote probing nodes execute against the local `probe` catalog.
 pub fn rewrite_global_catalog_to_probe(sql: &str) -> String {
-    sql.replace("global.", "probe.")
-        .replace("GLOBAL.", "probe.")
+    rewrite_catalog_relations(sql, rewrite_relation_global_to_probe)
+        .unwrap_or_else(|| rewrite_global_catalog_to_probe_legacy(sql))
 }
 
 /// Rewrite a user/cluster SQL string to reference the `global` catalog.
 pub fn rewrite_sql_for_global_fanout(sql: &str) -> String {
+    rewrite_catalog_relations(sql, rewrite_relation_to_global)
+        .unwrap_or_else(|| rewrite_sql_for_global_fanout_legacy(sql))
+}
+
+fn rewrite_catalog_relations<F>(sql: &str, mut rewrite_fn: F) -> Option<String>
+where
+    F: FnMut(&mut ObjectName),
+{
+    let dialect = GenericDialect {};
+    let mut stmts = Parser::parse_sql(&dialect, sql).ok()?;
+    if stmts.is_empty() {
+        return None;
+    }
+    for stmt in &mut stmts {
+        let _ = visit_relations_mut(stmt, |name| {
+            rewrite_fn(name);
+            ControlFlow::<(), ()>::Continue(())
+        });
+    }
+    Some(
+        stmts
+            .iter()
+            .map(|stmt| stmt.to_string())
+            .collect::<Vec<_>>()
+            .join("; "),
+    )
+}
+
+fn relation_ident_parts(name: &ObjectName) -> Vec<String> {
+    name.0
+        .iter()
+        .filter_map(|part| part.as_ident().map(|ident| ident.value.clone()))
+        .collect()
+}
+
+fn set_relation_parts(name: &mut ObjectName, parts: &[&str]) {
+    name.0 = parts
+        .iter()
+        .map(|part| ObjectNamePart::Identifier(Ident::new(*part)))
+        .collect();
+}
+
+fn first_ident_eq(parts: &[String], expected: &str) -> bool {
+    parts
+        .first()
+        .is_some_and(|part| part.eq_ignore_ascii_case(expected))
+}
+
+fn rewrite_relation_global_to_probe(name: &mut ObjectName) {
+    let parts = relation_ident_parts(name);
+    if !first_ident_eq(&parts, "global") {
+        return;
+    }
+    let mut rewritten = vec!["probe"];
+    rewritten.extend(parts.iter().skip(1).map(String::as_str));
+    set_relation_parts(name, &rewritten);
+}
+
+fn rewrite_relation_to_global(name: &mut ObjectName) {
+    let parts = relation_ident_parts(name);
+    if parts.is_empty() || first_ident_eq(&parts, "global") {
+        return;
+    }
+    if first_ident_eq(&parts, "probe") {
+        let mut rewritten = vec!["global"];
+        rewritten.extend(parts.iter().skip(1).map(String::as_str));
+        set_relation_parts(name, &rewritten);
+        return;
+    }
+    if parts.first().is_some_and(|part| {
+        KNOWN_SCHEMAS
+            .iter()
+            .any(|schema| part.eq_ignore_ascii_case(schema))
+    }) {
+        let mut rewritten = vec!["global"];
+        rewritten.extend(parts.iter().map(String::as_str));
+        set_relation_parts(name, &rewritten);
+    }
+}
+
+fn rewrite_global_catalog_to_probe_legacy(sql: &str) -> String {
+    sql.replace("global.", "probe.")
+        .replace("GLOBAL.", "probe.")
+}
+
+fn rewrite_sql_for_global_fanout_legacy(sql: &str) -> String {
     if sql.to_lowercase().contains("global.") {
         return sql.to_string();
     }
@@ -289,6 +379,34 @@ mod tests {
         assert_eq!(
             prepared,
             "SELECT * FROM global.python.comm_collective WHERE rank > 0 LIMIT 10"
+        );
+    }
+
+    #[test]
+    fn global_fanout_does_not_rewrite_catalog_prefix_in_string_literals() {
+        let sql = "SELECT 'probe.python.secret' AS note FROM python.metrics LIMIT 1";
+        let out = rewrite_sql_for_global_fanout(sql);
+        assert!(out.contains("'probe.python.secret'"));
+        assert!(out.contains("global.python.metrics"));
+        assert!(!out.contains("'global.python.secret'"));
+    }
+
+    #[test]
+    fn global_to_probe_does_not_rewrite_catalog_prefix_in_string_literals() {
+        let sql = "SELECT 'global.python.metrics' AS note FROM global.python.metrics LIMIT 1";
+        let out = rewrite_global_catalog_to_probe(sql);
+        assert!(out.contains("'global.python.metrics'"));
+        assert!(out.contains("probe.python.metrics"));
+        assert!(!out.contains("'probe.python.metrics'"));
+    }
+
+    #[test]
+    fn global_fanout_still_rewrites_unqualified_table_when_literal_mentions_global() {
+        let sql = "SELECT name FROM python.metrics WHERE name = 'see global.python.b'";
+        let out = rewrite_sql_for_global_fanout(sql);
+        assert_eq!(
+            out,
+            "SELECT name FROM global.python.metrics WHERE name = 'see global.python.b'"
         );
     }
 }

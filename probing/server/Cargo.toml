@@ -31,7 +31,7 @@ nix = { workspace = true }
 once_cell = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["fs"] }
 
 async-trait = "0.1.83"
 bytes = "1"

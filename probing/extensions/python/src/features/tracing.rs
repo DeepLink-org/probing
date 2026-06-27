@@ -382,7 +382,7 @@ impl Span {
         _exc_val: Option<&Bound<'_, PyAny>>,
         _exc_tb: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<bool> {
-        if exc_type.is_some() && !exc_type.unwrap().is_none() {
+        if exc_type.is_some_and(|t| !t.is_none()) {
             capture_span_snapshot_for_crash();
         }
         let self_id = slf.span_id();

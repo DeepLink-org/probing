@@ -5,6 +5,7 @@ use probing_core::runtime::block_on;
 use probing_core::ENGINE;
 
 use crate::features::native_bridge::with_detached_native;
+use crate::features::py_result::runtime_err;
 use crate::features::stack_tracer::{SignalTracer, StackTracer};
 use crate::repl::PythonRepl;
 
@@ -22,10 +23,10 @@ pub fn is_enabled() -> bool {
 pub fn query_json(_py: Python, sql: String) -> PyResult<String> {
     with_detached_native(move || {
         let df = block_on(async move { ENGINE.read().await.async_query(sql.as_str()).await })
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?
+            .map_err(runtime_err)?
+            .map_err(runtime_err)?
             .unwrap_or_default();
-        serde_json::to_string(&df)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+        serde_json::to_string(&df).map_err(runtime_err)
     })
 }
 
@@ -34,11 +35,8 @@ pub fn query_json(_py: Python, sql: String) -> PyResult<String> {
 #[pyo3(signature = (tid=None))]
 pub fn api_callstack(tid: Option<i32>) -> PyResult<String> {
     let tid = tid.filter(|&t| t != 0);
-    let frames = SignalTracer
-        .trace(tid)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-    serde_json::to_string(&frames)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    let frames = SignalTracer.trace(tid).map_err(runtime_err)?;
+    serde_json::to_string(&frames).map_err(runtime_err)
 }
 
 /// HTTP `POST /apis/pythonext/eval` backend.

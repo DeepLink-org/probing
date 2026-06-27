@@ -29,7 +29,14 @@ impl Default for PythonRepl {
 
 impl PythonRepl {
     pub fn process(&mut self, cmd: &str) -> Option<String> {
-        self.console.lock().unwrap().try_execute(cmd.to_string())
+        let mut guard = match self.console.lock() {
+            Ok(guard) => guard,
+            Err(poison) => {
+                log::warn!("python repl console mutex poisoned; recovering");
+                poison.into_inner()
+            }
+        };
+        guard.try_execute(cmd.to_string())
     }
 }
 
