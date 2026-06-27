@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use probing_memtable::memc::{ColdStore, Compactor, CompactorConfig};
 use probing_memtable::{DType, MemTable};
 
@@ -58,7 +58,10 @@ pub fn run(args: &MixedArgs, json: bool, seed: u64) -> Result<()> {
                 args.ring.chunk_size,
                 args.ring.chunks,
             )?;
-            let path = creator.path().expect("shared path").to_path_buf();
+            let path = creator
+                .path()
+                .context("shared memtable has no file path")?
+                .to_path_buf();
             (Attach::File(path), creator)
         }
     };

@@ -36,19 +36,13 @@ impl PprofProbeExtension {
     fn set_sample_freq(&mut self, pprof_sample_freq: Maybe<i32>) -> Result<(), EngineError> {
         // Clearing the option (`set probing.pprof.sample_freq=;`) or a value < 1
         // disables sampling and tears the sampler down.
-        let disable = match pprof_sample_freq {
-            Maybe::Nothing => true,
-            Maybe::Just(freq) => freq < 1,
-        };
-        if disable {
-            crate::features::pprof::reset();
-            self.sample_freq = Maybe::Nothing;
-            return Ok(());
-        }
-
         let freq = match pprof_sample_freq {
-            Maybe::Just(freq) => freq,
-            Maybe::Nothing => unreachable!(),
+            Maybe::Just(freq) if freq >= 1 => freq,
+            _ => {
+                crate::features::pprof::reset();
+                self.sample_freq = Maybe::Nothing;
+                return Ok(());
+            }
         };
         // Re-settable: `setup` bumps the sampler generation, retires the old
         // consumer thread, and re-arms the timer at the new rate.

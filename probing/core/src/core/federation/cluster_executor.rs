@@ -24,6 +24,10 @@ const DEFAULT_REMOTE_QUERY_TIMEOUT_SECS: u64 = 2;
 /// Env var to override the per-node remote query timeout (seconds).
 const REMOTE_QUERY_TIMEOUT_ENV: &str = "PROBING_REMOTE_QUERY_TIMEOUT_SECS";
 
+fn external<E: std::error::Error + Send + Sync + 'static>(err: E) -> DataFusionError {
+    DataFusionError::External(Box::new(err))
+}
+
 /// Per-node timeout for remote federated queries.
 ///
 /// Defaults to [`DEFAULT_REMOTE_QUERY_TIMEOUT_SECS`]; override via the
@@ -179,29 +183,24 @@ impl ProbeClusterExecutor {
             expr: sql.to_string(),
             ..Default::default()
         });
-        let body =
-            serde_json::to_string(&request).map_err(|e| DataFusionError::External(Box::new(e)))?;
+        let body = serde_json::to_string(&request).map_err(external)?;
         let addr_owned = addr.to_string();
         let response = ureq::post(&url)
             .config()
             .timeout_global(Some(remote_query_timeout()))
             .build()
             .send(body)
-            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+            .map_err(external)?;
 
         let status = response.status().as_u16();
-        let text = response
-            .into_body()
-            .read_to_string()
-            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+        let text = response.into_body().read_to_string().map_err(external)?;
         if status >= 400 {
             return Err(DataFusionError::Execution(format!(
                 "remote query {addr_owned} failed: HTTP {status}: {text}"
             )));
         }
 
-        let msg: Message<QueryDataFormat> =
-            serde_json::from_str(&text).map_err(|e| DataFusionError::External(Box::new(e)))?;
+        let msg: Message<QueryDataFormat> = serde_json::from_str(&text).map_err(external)?;
         match msg.payload {
             QueryDataFormat::DataFrame(df) => Ok(df),
             QueryDataFormat::Nil => Ok(DataFrame::default()),

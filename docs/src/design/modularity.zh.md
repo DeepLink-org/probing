@@ -273,6 +273,7 @@ sequenceDiagram
 | mmap 格式、冷压缩 | probing-memtable | `RowWriter`, `ColdStore` |
 | Torchrun 集群心跳 | probing-server | `torchrun_cluster.rs`、`cluster_report_backoff.rs`、`PUT /apis/nodes` |
 | 混合 Python/C 栈 | probing-python/features | `python.backtrace`、pprof |
+| macOS 线程 SIGUSR2 | probing-core | `signal::send_sigusr2_to_thread_id` |
 | Torch 模块采样 | python/profiling | `python.torch_trace` |
 | Collective 墙钟 | python/profiling/collective | `python.comm_collective` |
 | NCCL wait 分解 | nccl-profiler | `nccl.proxy_ops` |
@@ -315,7 +316,7 @@ sequenceDiagram
 | 问题 | 现状 | 目标 |
 |------|------|------|
 | python → cli | `probing-python` → `probing-cli` | **可接受**（maturin wheel，仅 `cli_main`）；禁止扩散 import |
-| python → cc | `probing-python` → `probing-cc`（stack tracer 发 SIGUSR2） | 信号 helper 下沉 L1 或独立 `probing-signals` |
+| python → cc | ~~`probing-python` → `probing-cc`~~ | **已完成** — `send_sigusr2_to_thread_id` 迁至 `probing-core::signal` |
 | core → NCCL/HCCL | `probing-core` → nccl/hccl shim（`builtin-schema-docs`）供 `semantic_catalog` | 改由采集器注册 docs，去掉 L1→L2 编译依赖 |
 | core → skills YAML | `semantic_catalog` `include_str!(skills/semantic/tables.yaml)` | 接受为 L4 overlay SSOT，或迁到 `probing/core/resources/` |
 | server → python features | ~~`server/profiling.rs`~~ 已删 | 火焰图走 Extension |

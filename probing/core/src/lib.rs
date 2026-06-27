@@ -4,6 +4,7 @@ pub mod config;
 pub mod core;
 pub mod diagnostics;
 pub mod runtime;
+pub mod signal;
 pub mod storage;
 pub mod sync;
 pub mod trace;
@@ -12,7 +13,7 @@ mod tracing;
 pub use diagnostics::install_panic_hook;
 pub use runtime::{
     block_on, is_python_main_thread, register_python_main_thread, run_on_native_thread,
-    CORE_RUNTIME,
+    runtime_operational, BlockOnFallback, RuntimeError, CORE_RUNTIME,
 };
 
 use self::core::Engine;
@@ -22,23 +23,19 @@ pub fn create_engine() -> EngineBuilder {
     Engine::builder().with_default_namespace("probe")
 }
 
-use anyhow::Result;
 use once_cell::sync::Lazy;
 use tokio::sync::RwLock;
+
+use self::core::Result;
 
 pub static ENGINE: Lazy<RwLock<Engine>> = Lazy::new(|| RwLock::new(Engine::default()));
 
 pub async fn initialize_engine(builder: EngineBuilder) -> Result<()> {
-    let engine = match builder.build().await {
-        Ok(engine) => engine,
-        Err(e) => {
-            log::error!("Error creating engine: {e}");
-            return Err(e.into());
-        }
-    };
+    let engine = builder
+        .build()
+        .await
+        .inspect_err(|e| log::error!("Error creating engine: {e}"))?;
 
-    let mut global_engine = ENGINE.write().await;
-    *global_engine = engine;
-
+    *ENGINE.write().await = engine;
     Ok(())
 }

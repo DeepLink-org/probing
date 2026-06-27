@@ -1,6 +1,7 @@
 use std::sync::Mutex;
 
 use once_cell::sync::Lazy;
+use probing_core::sync::lock_mutex;
 
 use super::traits::{GpuBackend, GpuBackendKind};
 
@@ -14,12 +15,12 @@ static BACKEND_FILTER: Lazy<Mutex<Option<Vec<GpuBackendKind>>>> = Lazy::new(|| M
 
 /// Restrict which backends are active (`None` = auto-discover all available).
 pub fn set_backend_filter(kinds: Option<Vec<GpuBackendKind>>) {
-    *BACKEND_FILTER.lock().unwrap() = kinds;
+    *lock_mutex(&BACKEND_FILTER, "GPU backend filter") = kinds;
 }
 
 #[cfg_attr(not(any(feature = "cuda", target_os = "macos")), allow(dead_code))]
 fn filter_allows(kind: GpuBackendKind) -> bool {
-    match BACKEND_FILTER.lock().unwrap().as_ref() {
+    match lock_mutex(&BACKEND_FILTER, "GPU backend filter").as_ref() {
         None => true,
         Some(list) => list.contains(&kind),
     }

@@ -77,43 +77,6 @@ mod mach {
             -> i32;
     }
 
-    pub fn thread_id_for_port(port: thread_act_t) -> Option<u64> {
-        let mut ident: thread_identifier_info = unsafe { std::mem::zeroed() };
-        let mut ident_count =
-            (std::mem::size_of::<thread_identifier_info>() / std::mem::size_of::<i32>()) as u32;
-        let kr = unsafe {
-            thread_info(
-                port,
-                THREAD_IDENTIFIER_INFO,
-                &mut ident as *mut _ as *mut i32,
-                &mut ident_count,
-            )
-        };
-        if kr == KERN_SUCCESS {
-            Some(ident.thread_id)
-        } else {
-            None
-        }
-    }
-
-    pub fn signal_sigusr2_on_port(port: thread_act_t) -> std::io::Result<()> {
-        extern "C" {
-            fn pthread_kill(thread: libc::pthread_t, sig: i32) -> i32;
-        }
-        unsafe {
-            let pthread = pthread_from_mach_thread_np(port);
-            if pthread == 0 {
-                return Err(std::io::Error::other(
-                    "pthread_from_mach_thread_np returned null",
-                ));
-            }
-            if pthread_kill(pthread, libc::SIGUSR2) != 0 {
-                return Err(std::io::Error::last_os_error());
-            }
-        }
-        Ok(())
-    }
-
     pub fn pthread_name(port: thread_act_t) -> Option<String> {
         unsafe {
             let pthread = pthread_from_mach_thread_np(port);
@@ -300,41 +263,6 @@ impl CpuHostSampler for MacSampler {
 
         Ok(threads)
     }
-}
-
-/// Deliver `SIGUSR2` to a live thread by Mach/pthread thread id (as stored in `cpu.tasks`).
-pub fn send_sigusr2_to_thread_id(thread_id: i32) -> io::Result<()> {
-    if thread_id <= 0 {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!("invalid thread id {thread_id}"),
-        ));
-    }
-    let task = unsafe { mach_task_self() };
-    let ports = mach::list_thread_ports()?;
-    let target = thread_id as u64;
-
-    for port in ports {
-        let matched = mach::thread_id_for_port(port)
-            .map(|id| id == target)
-            .unwrap_or(false);
-        let result = if matched {
-            mach::signal_sigusr2_on_port(port)
-        } else {
-            Ok(())
-        };
-        unsafe {
-            let _ = mach_port_deallocate(task, port);
-        }
-        if matched {
-            return result;
-        }
-    }
-
-    Err(io::Error::new(
-        io::ErrorKind::NotFound,
-        format!("no live thread with id {thread_id}"),
-    ))
 }
 
 #[cfg(test)]

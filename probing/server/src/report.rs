@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 
 use super::vars::read_probing_address;
 use crate::cluster_http::{get_i32_env, put_nodes_blocking};
@@ -110,7 +110,7 @@ async fn request_remote(url: &str, nodes: Vec<Node>) -> Result<NodeReportRespons
     let url = url.to_string();
     tokio::task::spawn_blocking(move || request_remote_blocking(&url, nodes))
         .await
-        .map_err(|e| anyhow::anyhow!("cluster report spawn_blocking failed: {e}"))?
+        .context("cluster report spawn_blocking failed")?
 }
 
 fn request_remote_blocking(url: &str, nodes: Vec<Node>) -> Result<NodeReportResponse> {

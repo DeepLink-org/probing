@@ -32,6 +32,11 @@ pub const FEDERATION_TAG_COLUMNS: &[&str] = &[
     PROBE_ROLE_COL,
 ];
 
+fn record_batch(schema: Schema, columns: Vec<ArrayRef>, ctx: &'static str) -> Result<RecordBatch> {
+    RecordBatch::try_new(Arc::new(schema), columns)
+        .map_err(|e| DataFusionError::Execution(format!("{ctx}: {e}")))
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FederationEndpointTags {
     pub host: String,
@@ -189,8 +194,11 @@ pub fn proto_dataframe_to_record_batch(df: &DataFrame) -> Result<RecordBatch> {
         fields.push(Field::new(name, array_data_type(col), true));
         columns.push(seq_to_array(col)?);
     }
-    RecordBatch::try_new(Arc::new(Schema::new(fields)), columns)
-        .map_err(|e| DataFusionError::Execution(format!("proto dataframe conversion failed: {e}")))
+    record_batch(
+        Schema::new(fields),
+        columns,
+        "proto dataframe conversion failed",
+    )
 }
 
 /// Honor the caller's column projection for `global.*` scans.
@@ -252,8 +260,7 @@ pub fn dataframe_to_record_batch(
     columns.push(Arc::new(Int32Array::from(vec![tags.local_rank; rows])));
     columns.push(Arc::new(StringArray::from(vec![tags.role; rows])));
 
-    RecordBatch::try_new(Arc::new(Schema::new(fields)), columns)
-        .map_err(|e| DataFusionError::Execution(format!("dataframe conversion failed: {e}")))
+    record_batch(Schema::new(fields), columns, "dataframe conversion failed")
 }
 
 pub fn tag_record_batch(
@@ -276,8 +283,7 @@ pub fn tag_record_batch(
 
     append_batch_tags(&mut fields, &mut columns, rows, &tags)?;
 
-    RecordBatch::try_new(Arc::new(Schema::new(fields)), columns)
-        .map_err(|e| DataFusionError::Execution(format!("tagging batch failed: {e}")))
+    record_batch(Schema::new(fields), columns, "tagging batch failed")
 }
 
 fn append_batch_tags(
@@ -338,8 +344,7 @@ pub fn align_batch_to_schema(batch: RecordBatch, schema: &Schema) -> Result<Reco
         columns.push(empty_array_for_field(field, batch.num_rows())?);
     }
 
-    RecordBatch::try_new(Arc::new(schema.clone()), columns)
-        .map_err(|e| DataFusionError::Execution(format!("align batch failed: {e}")))
+    record_batch(schema.clone(), columns, "align batch failed")
 }
 
 fn array_data_type(seq: &Seq) -> DataType {

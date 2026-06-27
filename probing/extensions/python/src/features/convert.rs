@@ -25,12 +25,15 @@ pub fn ele_to_python(py: Python, ele: &Ele) -> PyResult<Py<PyAny>> {
             // Convert microsecond timestamp to string representation
             use std::time::{Duration, UNIX_EPOCH};
             let datetime = UNIX_EPOCH + Duration::from_micros(*t);
-            let s = datetime
+            let secs = datetime
                 .duration_since(UNIX_EPOCH)
-                .unwrap()
+                .unwrap_or_else(|e| {
+                    log::error!("DataTime before UNIX epoch ({t} µs): {e}; using 0");
+                    Duration::ZERO
+                })
                 .as_secs()
                 .to_string();
-            PyString::new(py, &s).to_owned().unbind().into()
+            PyString::new(py, &secs).to_owned().unbind().into()
         }
     };
     Ok(obj)
