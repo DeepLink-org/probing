@@ -17,9 +17,10 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::features::native_bridge::with_detached_native;
 use once_cell::sync::Lazy;
+use probing_core::sync::lock_mutex;
 use probing_memtable::discover::ExposedTable;
 use probing_memtable::docs;
-use probing_memtable::{DType, Schema as MtSchema, Value};
+use probing_memtable::{infer_extern_column_dtype, DType, Schema as MtSchema, Value};
 use probing_proto::prelude::Ele;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyType};
@@ -273,7 +274,11 @@ impl ExternBacking {
         if self.table.is_some() {
             return Ok(());
         }
-        self.dtypes = vec![DType::Str; self.columns.len()];
+        self.dtypes = self
+            .columns
+            .iter()
+            .map(|col| infer_extern_column_dtype(col))
+            .collect();
         let schema = build_schema_with_docs(
             &self.name,
             &self.columns,
@@ -338,7 +343,12 @@ impl ExternBacking {
         row.extend(owned.iter().map(owned_to_value));
 
         // ExposedTable::push_row validates schema and auto-advances chunks.
-        self.table.as_mut().expect("ensured above").push_row(&row);
+        let Some(table) = self.table.as_mut() else {
+            return Err("table not initialized".to_string());
+        };
+        if !table.push_row(&row) {
+            return Err("push_row failed: schema mismatch or row too large".to_string());
+        }
         Ok(())
     }
 
@@ -405,23 +415,11 @@ pub static EXTERN_TABLES: Lazy<Mutex<HashMap<String, Arc<Mutex<ExternBacking>>>>
     Lazy::new(|| Mutex::new(Default::default()));
 
 fn lock_extern_tables() -> MutexGuard<'static, HashMap<String, Arc<Mutex<ExternBacking>>>> {
-    match EXTERN_TABLES.lock() {
-        Ok(guard) => guard,
-        Err(e) => {
-            log::warn!("EXTERN_TABLES mutex poisoned; recovering");
-            e.into_inner()
-        }
-    }
+    lock_mutex(&EXTERN_TABLES, "EXTERN_TABLES")
 }
 
 fn lock_backing(backing: &Mutex<ExternBacking>) -> MutexGuard<'_, ExternBacking> {
-    match backing.lock() {
-        Ok(guard) => guard,
-        Err(e) => {
-            log::warn!("ExternBacking mutex poisoned; recovering");
-            e.into_inner()
-        }
-    }
+    lock_mutex(backing, "ExternBacking")
 }
 
 #[pyclass(from_py_object)]
@@ -459,7 +457,9 @@ impl ExternalTable {
         )));
         lock_backing(backing.as_ref())
             .ensure_registered()
-            .expect("failed to register extern table for SQL catalog");
+            .unwrap_or_else(|e| {
+                log::error!("failed to register extern table for SQL catalog: {e}");
+            });
         backing
     }
 }
@@ -744,6 +744,33 @@ if not hasattr(probing, "_made_{name}"):
             None,
         );
         assert_eq!(table.names(), vec!["a", "b"]);
+    }
+
+    #[test]
+    fn ensure_registered_infers_numeric_dtypes() {
+        setup();
+        let name = format!("comm_like_{}", std::process::id());
+        let _table = ExternalTable::new(
+            &name,
+            vec![
+                "rank".to_string(),
+                "duration_ms".to_string(),
+                "op".to_string(),
+            ],
+            10000,
+            20_000_000,
+            "BaseMemorySize".to_string(),
+            None,
+            None,
+        );
+        let binding = lock_extern_tables();
+        let backing = binding.get(&name).expect("backing");
+        let guard = lock_backing(backing.as_ref());
+        assert_eq!(
+            guard.dtypes,
+            vec![DType::I64, DType::F64, DType::Str],
+            "placeholder mmap must not default all columns to Str"
+        );
     }
 
     #[test]

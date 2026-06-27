@@ -20,13 +20,13 @@ pub struct TopologyView {
 impl TopologyView {
     /// 创建新的拓扑视图
     pub fn new(workers_per_node: HashMap<NodeId, Vec<WorkerId>>, estimated_total: usize) -> Self {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_else(|e| {
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or_else(
+            |e| {
                 log::error!("System time error: {e}");
-                panic!("System time is before UNIX epoch: {e}")
-            })
-            .as_secs();
+                0
+            },
+            |d| d.as_secs(),
+        );
 
         Self {
             version: now,
@@ -54,13 +54,13 @@ impl TopologyView {
     ) -> Self {
         Self {
             version,
-            timestamp: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_else(|e| {
+            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).map_or_else(
+                |e| {
                     log::error!("System time error: {e}");
-                    panic!("System time is before UNIX epoch: {e}")
-                })
-                .as_secs(),
+                    0
+                },
+                |d| d.as_secs(),
+            ),
             workers_per_node,
             estimated_total_nodes: estimated_total,
         }
@@ -79,13 +79,13 @@ impl TopologyView {
 
     /// 检查拓扑视图是否新鲜（未过期）
     pub fn is_fresh(&self, ttl_seconds: u64) -> bool {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_else(|e| {
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or_else(
+            |e| {
                 log::error!("System time error: {e}");
-                panic!("System time is before UNIX epoch: {e}")
-            })
-            .as_secs();
+                0
+            },
+            |d| d.as_secs(),
+        );
 
         now - self.timestamp <= ttl_seconds
     }
@@ -132,13 +132,13 @@ impl TopologyView {
 
     /// 更新拓扑视图的时间戳
     pub fn refresh_timestamp(&mut self) {
-        self.timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_else(|e| {
+        self.timestamp = SystemTime::now().duration_since(UNIX_EPOCH).map_or_else(
+            |e| {
                 log::error!("System time error: {e}");
-                panic!("System time is before UNIX epoch: {e}")
-            })
-            .as_secs();
+                0
+            },
+            |d| d.as_secs(),
+        );
     }
 
     /// 合并另一个拓扑视图

@@ -1,4 +1,5 @@
 import ctypes
+import contextlib
 import fnmatch
 import functools
 import inspect
@@ -58,6 +59,26 @@ TRACE_BLOCKLIST_TOPLEVEL = frozenset(
 )
 # Pattern: only allow dotted identifiers (letters, digits, underscore, dot)
 TRACE_NAME_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_.]*$")
+
+# torch.distributed.reduce_op emits FutureWarning on isinstance/inspect checks.
+_SKIP_TRAVERSAL_ATTRS = frozenset({"reduce_op"})
+
+
+@contextlib.contextmanager
+def _ignore_torch_reduce_op_deprecation():
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            category=FutureWarning,
+            message=".*torch\\.distributed\\.reduce_op.*",
+        )
+        yield
+
+
+def _should_skip_traversal_attr(prefix: str, key: str) -> bool:
+    if key not in _SKIP_TRAVERSAL_ATTRS:
+        return False
+    return prefix == "torch.distributed" or prefix.startswith("torch.distributed.")
 
 
 def _validate_trace_name(name: str) -> None:
@@ -148,13 +169,8 @@ class _TraceableCollector:
             The object's __name__ if it's a string, None otherwise
         """
         try:
-            if hasattr(obj, "__name__"):
-                with warnings.catch_warnings():
-                    warnings.filterwarnings(
-                        "ignore",
-                        category=FutureWarning,
-                        message=".*torch.distributed.reduce_op.*",
-                    )
+            with _ignore_torch_reduce_op_deprecation():
+                if hasattr(obj, "__name__"):
                     name = obj.__name__
                     if isinstance(name, str):
                         return name
@@ -203,16 +219,16 @@ class _TraceableCollector:
         Returns:
             A single character string: "F", "C", "M", or "V"
         """
-        if inspect.isfunction(obj) or (
-            isinstance(obj, FunctionType) and hasattr(obj, "__code__")
-        ):
-            return "F"
-        elif inspect.isclass(obj):
-            return "C"
-        elif isinstance(obj, ModuleType):
-            return "M"
-        else:
-            return "V"
+        with _ignore_torch_reduce_op_deprecation():
+            if inspect.isfunction(obj) or (
+                isinstance(obj, FunctionType) and hasattr(obj, "__code__")
+            ):
+                return "F"
+            if inspect.isclass(obj):
+                return "C"
+            if isinstance(obj, ModuleType):
+                return "M"
+        return "V"
 
     @staticmethod
     def should_include_module(
@@ -287,6 +303,8 @@ class _TraceableCollector:
                 for k, v in obj.__dict__.items():
                     try:
                         if k.startswith("__"):
+                            continue
+                        if _should_skip_traversal_attr(prefix, k):
                             continue
 
                         full_path = f"{prefix}.{k}" if prefix else k
@@ -481,7 +499,6 @@ class _TraceableCollector:
                 return
             pass
 
-    @classmethod
     def collect_traceable_items(
         cls, depth: int, filter_func: Callable[[str], bool]
     ) -> List[Dict]:

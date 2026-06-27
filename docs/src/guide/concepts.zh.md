@@ -151,7 +151,7 @@ GROUP BY _role, _rank, op
 ORDER BY avg_ms DESC;
 ```
 
-通过 torchrun（`setup_torchrun_cluster`）或 POST `/apis/nodes` 注册节点。
+通过 torchrun 注入（Rust ctor 默认启动集群心跳，见 [torchrun 集群心跳](../design/torchrun-cluster.zh.md)）或 `PUT /apis/nodes` 注册节点。
 用 `probing -t <master> cluster nodes` 验证。详见 [分布式](../design/distributed.zh.md)。
 
 ## 表插件 vs 诊断 skill

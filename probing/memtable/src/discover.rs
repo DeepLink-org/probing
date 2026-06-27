@@ -162,7 +162,7 @@ impl ExposedTable {
     /// This is the fast path for high-frequency writes — it skips the
     /// O(rows × chunks) `validate_buf` that `writer()` performs on every call.
     /// MEMT is single-writer, so no lock is taken (see [`MemTable::push_row`]).
-    pub fn push_row(&mut self, values: &[Value]) {
+    pub fn push_row(&mut self, values: &[Value]) -> bool {
         self.inner.push_row(values)
     }
 

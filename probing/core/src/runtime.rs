@@ -1,27 +1,46 @@
 use std::cell::Cell;
 use std::future::Future;
-use std::sync::{mpsc, OnceLock};
+use std::sync::{mpsc, Arc, Mutex, OnceLock};
 use std::thread::{self, ThreadId};
 
 use log;
 use once_cell::sync::Lazy;
 
-/// Shared Tokio runtime for all sync→async bridges (Python bindings, local server, etc.).
-///
-/// ENGINE and CONFIG_STORE must only be accessed from this runtime. Creating ad-hoc
-/// runtimes (especially when Python already has an asyncio loop) can cause SIGSEGV.
-pub static CORE_RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
+fn build_core_runtime() -> tokio::runtime::Runtime {
     let worker_threads = std::env::var("PROBING_SERVER_WORKER_THREADS")
         .unwrap_or_else(|_| "4".to_string())
         .parse::<usize>()
         .unwrap_or(4);
-    tokio::runtime::Builder::new_multi_thread()
+    match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .worker_threads(worker_threads)
         .thread_name("probing-runtime")
         .build()
-        .unwrap_or_else(|e| panic!("Failed to create probing runtime: {e}"))
-});
+    {
+        Ok(rt) => rt,
+        Err(e) => {
+            log::error!("Failed to create probing multi-thread runtime: {e}; trying current-thread fallback");
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .thread_name("probing-runtime")
+                .build()
+                .unwrap_or_else(|e2| {
+                    log::error!(
+                        "Failed to create probing fallback runtime: {e2}; using minimal runtime"
+                    );
+                    tokio::runtime::Builder::new_current_thread()
+                        .build()
+                        .expect("unable to create minimal tokio runtime")
+                })
+        }
+    }
+}
+
+/// Shared Tokio runtime for all sync→async bridges (Python bindings, local server, etc.).
+///
+/// ENGINE and CONFIG_STORE must only be accessed from this runtime. Creating ad-hoc
+/// runtimes (especially when Python already has an asyncio loop) can cause SIGSEGV.
+pub static CORE_RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(build_core_runtime);
 
 /// Python main thread id, registered when `probing._core` loads.
 static PYTHON_MAIN_THREAD: OnceLock<ThreadId> = OnceLock::new();
@@ -42,23 +61,69 @@ fn is_inside_core_runtime() -> bool {
     tokio::runtime::Handle::try_current().is_ok()
 }
 
+fn block_on_ephemeral<F, T>(future: F) -> T
+where
+    F: Future<Output = T>,
+{
+    match tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(rt) => rt.block_on(future),
+        Err(e) => {
+            log::error!("failed to create ephemeral block_on runtime: {e}; using futures executor");
+            futures::executor::block_on(future)
+        }
+    }
+}
+
+fn recover_block_on_from_cell<F, T>(future_cell: &Arc<Mutex<Option<F>>>) -> T
+where
+    F: Future<Output = T>,
+{
+    let fut = future_cell
+        .lock()
+        .ok()
+        .and_then(|mut guard| guard.take())
+        .expect("block_on future missing");
+    block_on_ephemeral(fut)
+}
+
 fn spawn_block_on_thread<F, T>(future: F) -> T
 where
     F: Future<Output = T> + Send + 'static,
     T: Send + 'static,
 {
-    thread::Builder::new()
+    let future_cell = Arc::new(Mutex::new(Some(future)));
+    let worker_cell = Arc::clone(&future_cell);
+    match thread::Builder::new()
         .name("probing-block-on".into())
-        .spawn(move || CORE_RUNTIME.block_on(future))
-        .expect("failed to spawn block_on thread")
-        .join()
-        .expect("block_on thread panicked")
+        .spawn(move || {
+            let fut = worker_cell
+                .lock()
+                .ok()
+                .and_then(|mut guard| guard.take())
+                .expect("block_on future missing");
+            CORE_RUNTIME.block_on(fut)
+        }) {
+        Ok(handle) => match handle.join() {
+            Ok(v) => v,
+            Err(_) => {
+                log::error!("block_on thread panicked; using ephemeral runtime");
+                recover_block_on_from_cell(&future_cell)
+            }
+        },
+        Err(e) => {
+            log::error!("failed to spawn block_on thread: {e}; using ephemeral runtime");
+            recover_block_on_from_cell(&future_cell)
+        }
+    }
 }
 
 /// Single worker for Python↔Rust calls that must not run on the Python main thread
 /// (macOS/PyArrow) or on Tokio workers (nested Python callbacks).
 struct NativeBridge {
-    tx: mpsc::Sender<BridgeJob>,
+    tx: Option<mpsc::Sender<BridgeJob>>,
 }
 
 struct BridgeJob {
@@ -69,7 +134,7 @@ struct BridgeJob {
 impl NativeBridge {
     fn new() -> Self {
         let (tx, rx) = mpsc::channel::<BridgeJob>();
-        thread::Builder::new()
+        match thread::Builder::new()
             .name("probing-native".into())
             .spawn(move || {
                 while let Ok(job) = rx.recv() {
@@ -81,29 +146,58 @@ impl NativeBridge {
                     }
                     let _ = job.done.send(());
                 }
-            })
-            .expect("failed to spawn probing-native bridge");
-        Self { tx }
+            }) {
+            Ok(_) => Self { tx: Some(tx) },
+            Err(e) => {
+                log::error!("failed to spawn probing-native bridge: {e}; using direct calls");
+                Self { tx: None }
+            }
+        }
     }
 
     fn call<R: Send + 'static>(&self, f: impl FnOnce() -> R + Send + 'static) -> R {
+        let Some(tx) = &self.tx else {
+            return f();
+        };
         let (result_tx, result_rx) = mpsc::channel();
         let (done_tx, done_rx) = mpsc::channel();
-        self.tx
+        let func_cell = Arc::new(Mutex::new(Some(f)));
+        let worker_cell = Arc::clone(&func_cell);
+        if tx
             .send(BridgeJob {
                 func: Box::new(move || {
-                    let r = f();
+                    let r = worker_cell
+                        .lock()
+                        .ok()
+                        .and_then(|mut guard| guard.take())
+                        .expect("bridge func missing")();
                     let _ = result_tx.send(r);
                 }),
                 done: done_tx,
             })
-            .expect("probing-native bridge thread exited");
-        done_rx
-            .recv()
-            .expect("probing-native bridge worker dropped completion");
-        result_rx
-            .recv()
-            .expect("probing-native bridge worker returned no value")
+            .is_err()
+        {
+            log::error!("probing-native bridge thread exited; using direct call");
+            return func_cell
+                .lock()
+                .ok()
+                .and_then(|mut guard| guard.take())
+                .expect("bridge func missing")();
+        }
+        if done_rx.recv().is_err() {
+            log::error!("probing-native bridge worker dropped completion");
+        }
+        match result_rx.recv() {
+            Ok(r) => r,
+            Err(_) => {
+                log::error!("probing-native bridge worker returned no value; using direct call");
+                func_cell
+                    .lock()
+                    .ok()
+                    .and_then(|mut guard| guard.take())
+                    .expect("bridge func missing")()
+            }
+        }
     }
 }
 

@@ -89,6 +89,13 @@ else:
     except Exception:
         pass
 
+    try:
+        from probing.hooks.import_hook import install_and_run_pending
+
+        install_and_run_pending()
+    except ImportError:
+        pass
+
     __all__ = [
         "VERSION",
         "ExternalTable",

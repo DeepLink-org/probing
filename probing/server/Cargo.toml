@@ -21,6 +21,7 @@ probing-memtable = { path = "../memtable" }
 probing-python = { path = "../extensions/python", default-features = false }
 probing-proto = { path = "../proto" }
 probing-core = { path = "../core" }
+probing-store = { path = "../crates/store" }
 
 datafusion = { workspace = true }
 
@@ -55,3 +56,11 @@ procfs = { version = "0.17.0", default-features = false, features = ["chrono"] }
 
 [dev-dependencies]
 tempfile = "3.8"
+probing-proto = { path = "../proto" }
+axum = { version = "0.8.1", default-features = false, features = [
+    "tokio",
+    "http1",
+    "json",
+    "macros",
+] }
+tokio = { workspace = true, features = ["rt-multi-thread", "net"] }

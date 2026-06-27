@@ -100,7 +100,9 @@ GROUP BY _role, _rank
 ORDER BY avg_ms DESC"
 ```
 
-Register peers with torchrun (`setup_torchrun_cluster`) or `PUT /apis/nodes` so `_rank` and
+Register peers via torchrun (Rust ctor starts hierarchical heartbeat by default — see
+[torchrun cluster heartbeat](torchrun-cluster.md)), explicit `setup_torchrun_cluster()`, or
+`PUT /apis/nodes` so `_rank` and
 `_role` resolve correctly. Override role at runtime with `probing.set_role(...)` in training
 scripts.
 

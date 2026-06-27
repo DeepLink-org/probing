@@ -17,6 +17,8 @@ use datafusion::catalog::{
 use datafusion::error::{DataFusionError, Result};
 use datafusion::prelude::SessionContext;
 use probing_memtable::docs;
+use probing_memtable::infer_extern_column_dtype;
+use probing_memtable::DType;
 use serde::Deserialize;
 
 use super::plugin_advanced::PluginAdvancedTable;
@@ -192,6 +194,100 @@ pub fn build_semantic_catalog() -> Result<ParsedSemanticCatalog> {
         table_rows,
         column_rows,
     })
+}
+
+use std::sync::LazyLock;
+
+use datafusion::catalog::TableProvider;
+
+static SEMANTIC_COLUMN_INDEX: LazyLock<HashMap<(String, String), Vec<String>>> =
+    LazyLock::new(|| {
+        let yaml = parse_semantic_catalog_yaml(TABLES_YAML)
+            .expect("skills/semantic/tables.yaml must parse");
+        let mut map: HashMap<(String, String), Vec<String>> = HashMap::new();
+        for row in yaml.column_rows {
+            map.entry((row.table_schema, row.table_name))
+                .or_default()
+                .push(row.column_name);
+        }
+        for cols in map.values_mut() {
+            cols.sort();
+            cols.dedup();
+        }
+        map
+    });
+
+/// Merge YAML `key_columns` with runtime [`docs`] registry (e.g. Python `@table`).
+fn python_extern_table_column_names(table_name: &str) -> Option<Vec<String>> {
+    let mut cols = SEMANTIC_COLUMN_INDEX
+        .get(&("python".into(), table_name.into()))
+        .cloned()
+        .unwrap_or_default();
+    for col in docs::registered_column_names("python", table_name) {
+        if !cols.iter().any(|c| c == &col) {
+            cols.push(col);
+        }
+    }
+    if cols.is_empty() {
+        None
+    } else {
+        cols.sort();
+        cols.dedup();
+        Some(cols)
+    }
+}
+
+/// Whether `python.<name>` is a documented extern mmap table (not live `backtrace`).
+pub fn known_python_extern_table(table_name: &str) -> bool {
+    table_name != "backtrace" && python_extern_table_column_names(table_name).is_some()
+}
+
+/// Infer Arrow type for a documented `python.*` extern column (mmap placeholder or empty table).
+pub fn infer_python_extern_arrow_dtype(name: &str) -> DataType {
+    match infer_extern_column_dtype(name) {
+        DType::I64 | DType::I32 | DType::U32 | DType::U64 => DataType::Int64,
+        DType::F64 | DType::F32 => DataType::Float64,
+        DType::U8 => DataType::UInt8,
+        DType::Str | DType::Bytes => DataType::Utf8,
+    }
+}
+
+/// True when an on-disk mmap schema disagrees with the semantic catalog for known columns.
+pub fn python_extern_schema_mismatch(table_name: &str, actual: &Schema) -> bool {
+    let Some(expected) = empty_python_extern_table(table_name) else {
+        return false;
+    };
+    for field in expected.schema().fields() {
+        let Ok(actual_field) = actual.field_with_name(field.name()) else {
+            continue;
+        };
+        if actual_field.data_type() != field.data_type() {
+            return true;
+        }
+    }
+    false
+}
+
+fn infer_semantic_column_type(name: &str) -> DataType {
+    infer_python_extern_arrow_dtype(name)
+}
+
+/// Zero-row table with schema from the semantic catalog (avoids Python import fallback).
+pub fn empty_python_extern_table(table_name: &str) -> Option<Arc<dyn TableProvider>> {
+    let cols = python_extern_table_column_names(table_name)?;
+    let mut fields = vec![Field::new("timestamp", DataType::Int64, true)];
+    for col in &cols {
+        fields.push(Field::new(
+            col.as_str(),
+            infer_semantic_column_type(col),
+            true,
+        ));
+    }
+    let schema = Arc::new(Schema::new(fields));
+    let label = format!("python.{table_name}");
+    PluginAdvancedTable::try_new(label, schema, vec![])
+        .ok()
+        .map(|t| Arc::new(t) as Arc<dyn TableProvider>)
 }
 
 fn table_docs_schema() -> SchemaRef {
@@ -407,6 +503,71 @@ mod tests {
             })
             .expect("nccl.proxy_ops.send_gpu_wait_ns");
         assert!(row.description.contains("Culprit"));
+    }
+
+    #[test]
+    fn empty_python_extern_table_has_comm_collective_columns() {
+        let table = empty_python_extern_table("comm_collective").expect("comm_collective schema");
+        assert!(table.schema().field_with_name("rank").is_ok());
+        assert!(table.schema().field_with_name("duration_ms").is_ok());
+        assert!(table.schema().field_with_name("op").is_ok());
+        assert_eq!(
+            table
+                .schema()
+                .field_with_name("duration_ms")
+                .unwrap()
+                .data_type(),
+            &DataType::Float64
+        );
+    }
+
+    #[test]
+    fn python_extern_schema_mismatch_detects_str_duration_ms() {
+        use arrow::datatypes::{Field, Schema};
+        let wrong = Schema::new(vec![
+            Field::new("timestamp", DataType::Int64, true),
+            Field::new("duration_ms", DataType::Utf8, true),
+            Field::new("op", DataType::Utf8, true),
+        ]);
+        assert!(python_extern_schema_mismatch("comm_collective", &wrong));
+        let right = empty_python_extern_table("comm_collective")
+            .expect("comm_collective")
+            .schema()
+            .as_ref()
+            .clone();
+        assert!(!python_extern_schema_mismatch("comm_collective", &right));
+    }
+
+    #[test]
+    fn empty_python_extern_table_from_docs_registry_only() {
+        let table = format!("registry_only_{}", std::process::id());
+        docs::register_column_docs(
+            "python",
+            &table,
+            Some("custom @table"),
+            &[
+                ("custom_id".to_string(), "primary id".to_string()),
+                ("payload".to_string(), "json blob".to_string()),
+            ],
+        );
+        let provider = empty_python_extern_table(&table).expect("registry-only schema");
+        assert!(known_python_extern_table(&table));
+        assert!(provider.schema().field_with_name("timestamp").is_ok());
+        assert!(provider.schema().field_with_name("custom_id").is_ok());
+        assert!(provider.schema().field_with_name("payload").is_ok());
+    }
+
+    #[test]
+    fn empty_python_extern_table_merges_yaml_and_docs_columns() {
+        docs::register_column_docs(
+            "python",
+            "torch_trace",
+            None,
+            &[("extra_metric".to_string(), "runtime-only col".to_string())],
+        );
+        let provider = empty_python_extern_table("torch_trace").expect("torch_trace schema");
+        assert!(provider.schema().field_with_name("module").is_ok());
+        assert!(provider.schema().field_with_name("extra_metric").is_ok());
     }
 
     #[test]

@@ -87,7 +87,7 @@ impl NcclWriter {
             counters.write_errors.fetch_add(1, Ordering::Relaxed);
             return false;
         };
-        table.push_row(&[
+        if !table.push_row(&[
             Value::I64(row.ts_ns),
             Value::I32(row.rank),
             Value::I32(row.roles.tp_rank),
@@ -105,7 +105,10 @@ impl NcclWriter {
             Value::I64(row.send_wait_ns),
             Value::I64(row.recv_wait_ns),
             Value::I64(row.recv_flush_wait_ns),
-        ]);
+        ]) {
+            counters.write_errors.fetch_add(1, Ordering::Relaxed);
+            return false;
+        }
         counters.rows_written.fetch_add(1, Ordering::Relaxed);
         true
     }
@@ -129,7 +132,7 @@ impl NcclWriter {
             counters.write_errors.fetch_add(1, Ordering::Relaxed);
             return false;
         };
-        table.push_row(&[
+        if !table.push_row(&[
             Value::I64(row.ts_ns),
             Value::I32(row.rank),
             Value::I32(row.device),
@@ -138,7 +141,10 @@ impl NcclWriter {
             Value::I32(row.opcode),
             Value::U64(row.length),
             Value::I64(row.duration_ns),
-        ]);
+        ]) {
+            counters.write_errors.fetch_add(1, Ordering::Relaxed);
+            return false;
+        }
         counters.rows_written.fetch_add(1, Ordering::Relaxed);
         true
     }

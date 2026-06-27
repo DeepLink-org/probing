@@ -177,7 +177,8 @@ ORDER BY avg_ms DESC;
 ...runs on every registered rank, then the master merges all results into one result
 set with `_rank` telling you which row came from where.
 
-Nodes register via torchrun (`setup_torchrun_cluster`) or by POSTing to
+Nodes register via torchrun (Rust ctor starts cluster heartbeat by default — see
+[torchrun cluster heartbeat](../design/torchrun-cluster.md)) or by PUTting to
 `/apis/nodes`. Check current registration with `probing -t <master> cluster nodes`.
 
 The `_role` tag uses the value from the **node registry**, which is kept in sync

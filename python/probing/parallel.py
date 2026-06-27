@@ -188,6 +188,11 @@ def set_role(role=None, **dims) -> str:
     global _ROLE_OVERRIDE
     spec = dict(dims) if dims else role
     _ROLE_OVERRIDE = _normalize_role(spec)
+    role = _ROLE_OVERRIDE or role_key()
+    if role:
+        os.environ["PROBING_NODE_ROLE"] = role
+    else:
+        os.environ.pop("PROBING_NODE_ROLE", None)
     _refresh_cluster_role()
     return _ROLE_OVERRIDE
 

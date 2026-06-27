@@ -75,6 +75,7 @@ pub enum InsertResult {
 pub enum InsertError {
     TableFull,
     ArenaFull,
+    InvalidValue,
 }
 
 impl std::fmt::Display for InsertError {
@@ -82,6 +83,7 @@ impl std::fmt::Display for InsertError {
         match self {
             InsertError::TableFull => write!(f, "hash table is full"),
             InsertError::ArenaFull => write!(f, "arena is full"),
+            InsertError::InvalidValue => write!(f, "value cannot be stored inline"),
         }
     }
 }
@@ -521,7 +523,9 @@ impl<'a> MemhWriter<'a> {
         let head_off = abs as u32;
 
         if is_scalar {
-            let (dtype_u8, inline_bytes) = encode_inline_bytes(val).unwrap();
+            let Some((dtype_u8, inline_bytes)) = encode_inline_bytes(val) else {
+                return Err(InsertError::InvalidValue);
+            };
             commit_slot(
                 self.buf,
                 self.data_off,
@@ -564,7 +568,9 @@ impl<'a> MemhWriter<'a> {
     ) -> Result<(), InsertError> {
         // Hot path: scalar → scalar update on INLINE slot — zero arena writes.
         if old_tag == SLOT_INLINE && is_scalar {
-            let (dtype_u8, inline_bytes) = encode_inline_bytes(val).unwrap();
+            let Some((dtype_u8, inline_bytes)) = encode_inline_bytes(val) else {
+                return Err(InsertError::InvalidValue);
+            };
             update_slot_inline_value(self.buf, self.data_off, slot_idx, dtype_u8, &inline_bytes);
             return Ok(());
         }
@@ -594,7 +600,9 @@ impl<'a> MemhWriter<'a> {
         let new_head_off = abs as u32;
 
         if is_scalar {
-            let (dtype_u8, inline_bytes) = encode_inline_bytes(val).unwrap();
+            let Some((dtype_u8, inline_bytes)) = encode_inline_bytes(val) else {
+                return Err(InsertError::InvalidValue);
+            };
             // key_len is known from `key.len()` (key match was verified in the probe loop).
             commit_slot(
                 self.buf,

@@ -1,3 +1,7 @@
+// Thread-local span tracing infrastructure. Not wired into production paths yet;
+// GLOBAL_TRACER is reserved for future distributed trace aggregation.
+#![allow(dead_code)]
+
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU16, Ordering}; // For unique tracer ID generation
@@ -67,18 +71,13 @@ pub struct Event {
 }
 
 // --- Span Status ---
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum SpanStatus {
-    Running,               // This span is the currently active one on its thread.
+    #[default]
+    Running, // This span is the currently active one on its thread.
     Open,                  // This span is active, but one of its children is currently Running.
     Close,                 // This span has completed successfully.
     Error(Option<String>), // This span has completed with an error.
-}
-
-impl Default for SpanStatus {
-    fn default() -> Self {
-        SpanStatus::Running
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -151,27 +150,38 @@ impl LocalSpanManager {
         self.next_span_seq = self.next_span_seq.wrapping_add(1);
         let span_id = SpanId(current_span_sequence);
 
-        let (trace_id_to_use, parent_span_id_to_store) =
-            if let Some(active_parent_span_id) = self.span_stack.last() {
-                let parent_span = self
-                    .spans
-                    .get_mut(active_parent_span_id)
-                    .expect("Invariant violated: Active parent span not found in spans.");
-
-                if parent_span.status == SpanStatus::Running {
-                    parent_span.status = SpanStatus::Open;
+        let (trace_id_to_use, parent_span_id_to_store) = if let Some(active_parent_span_id) =
+            self.span_stack.last().copied()
+        {
+            match self.spans.get_mut(&active_parent_span_id) {
+                Some(parent_span) => {
+                    if parent_span.status == SpanStatus::Running {
+                        parent_span.status = SpanStatus::Open;
+                    }
+                    (parent_span.trace_id, Some(active_parent_span_id))
                 }
+                None => {
+                    log::warn!(
+                            "start_span: active parent {:?} missing from spans map; treating as new root",
+                            active_parent_span_id
+                        );
+                    self.span_stack.pop();
+                    let current_trace_sequence = self.next_trace_seq;
+                    self.next_trace_seq = self.next_trace_seq.wrapping_add(1);
+                    let new_trace_id_val = ((self.tracer_id as u128) << TRACE_ID_PREFIX_SHIFT)
+                        | (current_trace_sequence as u128 & MAX_TRACE_SEQ);
+                    (TraceId(new_trace_id_val), None)
+                }
+            }
+        } else {
+            // No active parent span, so this is the start of a new trace.
+            let current_trace_sequence = self.next_trace_seq;
+            self.next_trace_seq = self.next_trace_seq.wrapping_add(1);
 
-                (parent_span.trace_id, Some(*active_parent_span_id))
-            } else {
-                // No active parent span, so this is the start of a new trace.
-                let current_trace_sequence = self.next_trace_seq;
-                self.next_trace_seq = self.next_trace_seq.wrapping_add(1);
-
-                let new_trace_id_val = ((self.tracer_id as u128) << TRACE_ID_PREFIX_SHIFT)
-                    | (current_trace_sequence as u128 & MAX_TRACE_SEQ);
-                (TraceId(new_trace_id_val), None)
-            };
+            let new_trace_id_val = ((self.tracer_id as u128) << TRACE_ID_PREFIX_SHIFT)
+                | (current_trace_sequence as u128 & MAX_TRACE_SEQ);
+            (TraceId(new_trace_id_val), None)
+        };
 
         let location = location.map(|loc_val| Location::UnknownLocation(loc_val.into()));
 
@@ -308,7 +318,7 @@ impl GlobalSpanManager {
     fn register_tracer(&self, thread_id: ThreadId, tracer: Weak<RwLock<LocalSpanManager>>) {
         match self.local_tracers.lock() {
             Ok(mut tracers) => {
-                GlobalSpanManager::cleanup_locked_tracers(&mut *tracers);
+                GlobalSpanManager::cleanup_locked_tracers(&mut tracers);
                 tracers.insert(thread_id, tracer);
             }
             Err(e) => {
@@ -325,7 +335,7 @@ impl GlobalSpanManager {
     pub fn all_thread_spans(&self) -> HashMap<ThreadId, Vec<Span>> {
         let weak_tracers_to_process = match self.local_tracers.lock() {
             Ok(mut tracers_map) => {
-                GlobalSpanManager::cleanup_locked_tracers(&mut *tracers_map);
+                GlobalSpanManager::cleanup_locked_tracers(&mut tracers_map);
                 tracers_map.clone()
             }
             Err(e) => {
@@ -338,7 +348,7 @@ impl GlobalSpanManager {
         for (tid, weak_tracer) in weak_tracers_to_process {
             if let Some(tracer_arc) = weak_tracer.upgrade() {
                 // Lock individual LocalTracer; this lock is fine as it's per-tracer.
-                let tracer_lock = tracer_arc.read().unwrap();
+                let tracer_lock = read_tracer(&tracer_arc);
                 result.insert(tid, tracer_lock.active_spans()); // active_spans() involves cloning
             }
         }
@@ -348,7 +358,7 @@ impl GlobalSpanManager {
     pub fn thread_spans(&self, thread_id: ThreadId) -> Option<Vec<Span>> {
         let weak_tracer_option = match self.local_tracers.lock() {
             Ok(mut tracers_map) => {
-                GlobalSpanManager::cleanup_locked_tracers(&mut *tracers_map);
+                GlobalSpanManager::cleanup_locked_tracers(&mut tracers_map);
                 tracers_map.get(&thread_id).cloned()
             }
             Err(e) => {
@@ -361,7 +371,7 @@ impl GlobalSpanManager {
             .and_then(|weak_tracer| weak_tracer.upgrade())
             .map(|tracer_arc| {
                 // Lock individual LocalTracer.
-                let tracer_lock = tracer_arc.read().unwrap();
+                let tracer_lock = read_tracer(&tracer_arc);
                 tracer_lock.active_spans() // active_spans() involves cloning
             })
     }
@@ -369,10 +379,21 @@ impl GlobalSpanManager {
 
 pub static GLOBAL_TRACER: Lazy<GlobalSpanManager> = Lazy::new(GlobalSpanManager::new);
 
+fn read_tracer(
+    tracer: &RwLock<LocalSpanManager>,
+) -> std::sync::RwLockReadGuard<'_, LocalSpanManager> {
+    match tracer.read() {
+        Ok(guard) => guard,
+        Err(e) => {
+            log::warn!("LocalSpanManager RwLock poisoned; recovering");
+            e.into_inner()
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::thread;
     use std::time::Duration as StdDuration; // Renamed to avoid conflict with super::Duration
 
     fn setup_tracer() -> LocalSpanManager {
@@ -387,6 +408,24 @@ mod tests {
     }
 
     // --- 1. Basic Span Functionality ---
+
+    #[test]
+    fn test_start_span_missing_parent_degrades_to_root() {
+        let mut tracer = setup_tracer();
+        let ghost_parent = SpanId(999);
+        tracer.span_stack.push(ghost_parent);
+
+        let (span_id, trace_id) = tracer.start_span("orphan_child", None, None, None);
+
+        assert_eq!(tracer.span_stack.len(), 1);
+        assert_eq!(tracer.active_id(), Some(span_id));
+        let span = tracer.spans.get(&span_id).unwrap();
+        assert_eq!(span.parent_span_id, None, "missing parent → new root");
+        assert_eq!(
+            trace_id.0,
+            (tracer.tracer_id as u128) << TRACE_ID_PREFIX_SHIFT
+        );
+    }
 
     #[test]
     fn test_start_root_span_example() {
@@ -431,8 +470,7 @@ mod tests {
         }
 
         // Verify TraceId incorporates the tracer's ID and the trace sequence number (0 for the first trace)
-        let expected_trace_id_val =
-            ((tracer_id_for_assertion as u128) << TRACE_ID_PREFIX_SHIFT) | 0;
+        let expected_trace_id_val = (tracer_id_for_assertion as u128) << TRACE_ID_PREFIX_SHIFT;
         assert_eq!(
             trace_id.0, expected_trace_id_val,
             "Trace ID mismatch for root span"
@@ -601,7 +639,7 @@ mod tests {
         let (_, trace_id1) = tracer.start_span("span1", None, None, None);
         assert_eq!(
             trace_id1.0,
-            (tracer_id_val << TRACE_ID_PREFIX_SHIFT) | 0,
+            tracer_id_val << TRACE_ID_PREFIX_SHIFT,
             "Trace ID for first trace"
         );
         tracer.end_span(SpanStatus::Close);
@@ -616,13 +654,13 @@ mod tests {
         tracer.end_span(SpanStatus::Close);
 
         // Force next_trace_seq to max value
-        tracer.next_trace_seq = u64::MAX-1;
+        tracer.next_trace_seq = u64::MAX - 1;
 
         let (_, trace_id_before_wrap) = tracer.start_span("span_before_u64_wrap", None, None, None);
         // The sequence part of trace_id is (self.next_trace_seq as u128 & MAX_TRACE_SEQ)
         assert_eq!(
             trace_id_before_wrap.0,
-            (tracer_id_val << TRACE_ID_PREFIX_SHIFT) | ((u64::MAX-1) as u128 & MAX_TRACE_SEQ),
+            (tracer_id_val << TRACE_ID_PREFIX_SHIFT) | ((u64::MAX - 1) as u128 & MAX_TRACE_SEQ),
             "Trace ID before u64 wrap"
         );
         tracer.end_span(SpanStatus::Close);
@@ -639,7 +677,7 @@ mod tests {
         let (_, trace_id_after_wrap) = tracer.start_span("span_after_u64_wrap", None, None, None);
         assert_eq!(
             trace_id_after_wrap.0,
-            (tracer_id_val << TRACE_ID_PREFIX_SHIFT) | (0u128 & MAX_TRACE_SEQ),
+            tracer_id_val << TRACE_ID_PREFIX_SHIFT,
             "Trace ID after u64 wrap"
         );
         tracer.end_span(SpanStatus::Close);

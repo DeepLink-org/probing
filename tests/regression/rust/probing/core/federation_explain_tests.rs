@@ -204,19 +204,6 @@ async fn explain_select_star_rewrite_before_plan() {
         .await
         .expect("report");
 
-    assert!(report.global_sql.contains("EXCLUDE"));
-    for col in [
-        "_host",
-        "_addr",
-        "_rank",
-        "_node_rank",
-        "_local_rank",
-        "_role",
-    ] {
-        assert!(
-            report.global_sql.contains(col),
-            "SELECT * rewrite missing {col}"
-        );
-    }
+    assert_eq!(report.global_sql, "SELECT * FROM global.demo.metrics");
     assert_eq!(report.execution_path, FederatedQueryPath::FederatedScan);
 }

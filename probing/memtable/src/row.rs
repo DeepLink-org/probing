@@ -163,31 +163,55 @@ impl<'a> Row<'a> {
     }
 
     pub fn col_u8(&self, col: usize) -> u8 {
+        if !self.is_valid() {
+            return 0;
+        }
         let off = self.col_offset(col);
         if off >= self.data.len() {
-            panic_stale("col_u8");
+            return 0;
         }
         self.data[off]
     }
     pub fn col_u32(&self, col: usize) -> u32 {
+        if !self.is_valid() {
+            return 0;
+        }
         read_u32(self.data, self.col_offset(col))
     }
     pub fn col_i32(&self, col: usize) -> i32 {
+        if !self.is_valid() {
+            return 0;
+        }
         read_i32(self.data, self.col_offset(col))
     }
     pub fn col_i64(&self, col: usize) -> i64 {
+        if !self.is_valid() {
+            return 0;
+        }
         read_i64(self.data, self.col_offset(col))
     }
     pub fn col_f32(&self, col: usize) -> f32 {
+        if !self.is_valid() {
+            return 0.0;
+        }
         read_f32(self.data, self.col_offset(col))
     }
     pub fn col_f64(&self, col: usize) -> f64 {
+        if !self.is_valid() {
+            return 0.0;
+        }
         read_f64(self.data, self.col_offset(col))
     }
     pub fn col_u64(&self, col: usize) -> u64 {
+        if !self.is_valid() {
+            return 0;
+        }
         read_u64(self.data, self.col_offset(col))
     }
     pub fn col_str(&self, col: usize) -> &str {
+        if !self.is_valid() {
+            return "";
+        }
         let b = self.resolve_var_col(col);
         if b.is_empty() {
             ""
@@ -196,6 +220,9 @@ impl<'a> Row<'a> {
         }
     }
     pub fn col_bytes(&self, col: usize) -> &[u8] {
+        if !self.is_valid() {
+            return &[];
+        }
         self.resolve_var_col(col)
     }
 
@@ -206,6 +233,7 @@ impl<'a> Row<'a> {
             buf: self.buf,
             chunk_start: self.chunk_start,
             generation: self.generation,
+            stale: !self.is_valid(),
         }
     }
 }
@@ -213,13 +241,15 @@ impl<'a> Row<'a> {
 /// Sequential cursor over columns within a row — O(1) per column.
 ///
 /// Generation is validated once per row by [`RowIter::next()`].
-/// Column reads do **not** re-check, keeping the hot path branch-free.
+/// If the chunk is recycled mid-read, the cursor is marked stale and
+/// subsequent reads return zero / empty values instead of panicking.
 pub struct RowCursor<'a> {
     data: &'a [u8],
     pos: usize,
     buf: &'a [u8],
     chunk_start: usize,
     generation: u64,
+    stale: bool,
 }
 
 impl<'a> RowCursor<'a> {
@@ -229,16 +259,30 @@ impl<'a> RowCursor<'a> {
 
     /// Check whether the underlying chunk is still at the same generation.
     pub fn is_valid(&self) -> bool {
-        chunk_header(self.buf, self.chunk_start)
-            .generation
-            .load(Ordering::Acquire)
-            == self.generation
+        !self.stale
+            && chunk_header(self.buf, self.chunk_start)
+                .generation
+                .load(Ordering::Acquire)
+                == self.generation
+    }
+
+    /// Returns `true` if the chunk was recycled or a torn read was detected.
+    pub fn is_stale(&self) -> bool {
+        self.stale
+    }
+
+    fn mark_stale(&mut self) {
+        self.stale = true;
     }
 
     fn read_fixed<const N: usize>(&mut self) -> [u8; N] {
+        if self.stale {
+            return [0u8; N];
+        }
         let end = self.pos + N;
         if end > self.data.len() {
-            panic_stale("read_fixed");
+            self.mark_stale();
+            return [0u8; N];
         }
         let mut v = [0u8; N];
         v.copy_from_slice(&self.data[self.pos..end]);
@@ -247,22 +291,31 @@ impl<'a> RowCursor<'a> {
     }
 
     fn read_lp(&mut self) -> &'a [u8] {
+        if self.stale {
+            return &[];
+        }
         let raw = i32::from_le_bytes(self.read_fixed::<4>());
+        if self.stale {
+            return &[];
+        }
         if raw < 0 {
             let ref_off = self.chunk_start + (-raw) as usize;
             if ref_off + 4 > self.buf.len() {
-                panic_stale("RowCursor dedup ref header");
+                self.mark_stale();
+                return &[];
             }
             let len = r32(self.buf, ref_off) as usize;
             let end = ref_off + 4 + len;
             if end > self.buf.len() {
-                panic_stale("RowCursor dedup ref payload");
+                self.mark_stale();
+                return &[];
             }
             &self.buf[ref_off + 4..end]
         } else {
             let len = raw as usize;
             if self.pos + len > self.data.len() {
-                panic_stale("RowCursor inline str");
+                self.mark_stale();
+                return &[];
             }
             let data = &self.data[self.pos..self.pos + len];
             self.pos += len;
@@ -338,28 +391,30 @@ impl<'a> RowIter<'a> {
 impl<'a> Iterator for RowIter<'a> {
     type Item = Row<'a>;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.pos + 4 > self.end {
-            return None;
+        while self.pos + 4 <= self.end {
+            if !self.is_valid() {
+                return None;
+            }
+            let row_len = r32(self.buf, self.pos) as usize;
+            let row_total = 4usize.saturating_add(row_len);
+            if row_total > self.end.saturating_sub(self.pos) {
+                return None;
+            }
+            let row_end = self.pos + row_total;
+            let data_offset = self.pos + 4;
+            self.pos = row_end;
+            if self.is_valid() {
+                return Some(Row {
+                    data: &self.buf[data_offset..row_end],
+                    buf: self.buf,
+                    data_offset,
+                    chunk_start: self.chunk_start,
+                    generation: self.generation,
+                });
+            }
+            // Chunk recycled while parsing this row — skip it and continue.
         }
-        if !self.is_valid() {
-            return None;
-        }
-        let row_len = r32(self.buf, self.pos) as usize;
-        let row_total = 4usize.saturating_add(row_len);
-        if row_total > self.end.saturating_sub(self.pos) {
-            return None;
-        }
-        let row_end = self.pos + row_total;
-        let data_offset = self.pos + 4;
-        let data = &self.buf[data_offset..row_end];
-        self.pos = row_end;
-        Some(Row {
-            data,
-            buf: self.buf,
-            data_offset,
-            chunk_start: self.chunk_start,
-            generation: self.generation,
-        })
+        None
     }
 }
 
@@ -444,9 +499,9 @@ mod tests {
         let schema = Schema::new().col("v", DType::I64);
         let mut t = MemTable::new(&schema, 80, 2);
         t.push_row(&[Value::I64(1)]);
-        let rows: Vec<_> = t.rows(0).collect();
-        assert_eq!(rows[0].col_i64(0), 1);
-        let gen_before = rows[0].generation();
+        let row = t.rows(0).next().unwrap();
+        let gen_before = row.generation();
+        assert_eq!(row.col_i64(0), 1);
 
         // wrap chunk 0 twice: 0→1→0 so chunk 0 gets a new generation
         t.advance_chunk();
@@ -456,5 +511,87 @@ mod tests {
             gen_before, gen_after,
             "generation should have changed after wrap"
         );
+    }
+
+    #[test]
+    fn row_col_degrades_on_stale_chunk_without_panic() {
+        use crate::memtable::MemTableView;
+
+        let schema = Schema::new().col("v", DType::I64);
+        let size = MemTable::required_size(&schema, 80, 2);
+        let mut buf = vec![0u8; size];
+        {
+            let mut mt = MemTableWriter::init(&mut buf, &schema, 80, 2);
+            mt.push_row(&[Value::I64(42)]);
+        }
+        let reader: &[u8] = unsafe { std::slice::from_raw_parts(buf.as_ptr(), buf.len()) };
+        let view = MemTableView::new(reader).unwrap();
+        let row = view.rows(0).next().unwrap();
+
+        {
+            let mut w = MemTableWriter::new(&mut buf).unwrap();
+            w.advance_chunk();
+            w.advance_chunk();
+        }
+        assert!(!row.is_valid());
+        assert_eq!(row.col_i64(0), 0);
+    }
+
+    #[test]
+    fn row_cursor_degrades_on_stale_chunk_without_panic() {
+        use crate::memtable::MemTableView;
+
+        let schema = Schema::new().col("v", DType::I64).col("tag", DType::Str);
+        let size = MemTable::required_size(&schema, 80, 2);
+        let mut buf = vec![0u8; size];
+        {
+            let mut mt = MemTableWriter::init(&mut buf, &schema, 80, 2);
+            mt.push_row(&[Value::I64(42), Value::Str("hello")]);
+        }
+        let reader: &[u8] = unsafe { std::slice::from_raw_parts(buf.as_ptr(), buf.len()) };
+        let view = MemTableView::new(reader).unwrap();
+        let gen = view.chunk_generation(0);
+        let row = view.rows(0).next().unwrap();
+
+        {
+            let mut w = MemTableWriter::new(&mut buf).unwrap();
+            w.advance_chunk();
+            w.advance_chunk();
+        }
+        assert_ne!(MemTableView::new(reader).unwrap().chunk_generation(0), gen);
+        assert!(!row.is_valid());
+
+        let mut c = row.cursor();
+        assert!(c.is_stale());
+        assert_eq!(c.next_i64(), 0);
+        assert_eq!(c.next_str(), "");
+    }
+
+    #[test]
+    fn row_iter_skips_row_when_chunk_recycled_mid_parse() {
+        use crate::memtable::MemTableView;
+
+        let schema = Schema::new().col("v", DType::I32);
+        let size = MemTable::required_size(&schema, 80, 2);
+        let mut buf = vec![0u8; size];
+        {
+            let mut mt = MemTableWriter::init(&mut buf, &schema, 80, 2);
+            for i in 0..3 {
+                mt.push_row(&[Value::I32(i)]);
+            }
+        }
+        let reader: &[u8] = unsafe { std::slice::from_raw_parts(buf.as_ptr(), buf.len()) };
+        let view = MemTableView::new(reader).unwrap();
+        let gen = view.chunk_generation(0);
+        let mut iter = view.rows(0);
+        let _ = iter.next().unwrap();
+
+        {
+            let mut w = MemTableWriter::new(&mut buf).unwrap();
+            w.advance_chunk();
+            w.advance_chunk();
+        }
+        assert_ne!(MemTableView::new(reader).unwrap().chunk_generation(0), gen);
+        assert!(iter.next().is_none());
     }
 }
