@@ -9,6 +9,7 @@ Thank you for contributing to Probing. This document is the **canonical developm
 | Daily dev bootstrap | [Development setup](#development-setup) |
 | Agent diagnostic skills | [Skills & agents](#skills-agents) + [AGENTS.md](https://github.com/DeepLink-org/probing/blob/main/AGENTS.md) |
 | PR / style / conduct | [Submitting changes](#submitting-changes) |
+| Documentation tone | [WRITING.md](../WRITING.md) |
 
 ## Welcome — get started {#getting-started}
 

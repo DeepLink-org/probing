@@ -58,7 +58,10 @@ docs/
 
 ## Writing Documentation
 
-- All documentation is written in Markdown
+See **[WRITING.md](WRITING.md)** for tone and structure (logical / technical narrative;
+avoid product and persona routing).
+
+All documentation is written in Markdown
 - Use [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/reference/) extensions
 - Admonitions, code blocks with copy button, and Mermaid diagrams are supported
 

@@ -43,14 +43,19 @@ fn step_matrix_response_fields_serializable() {
 
 #[test]
 fn cluster_query_request_roundtrip() {
+    use probing_server::server::cluster_fanout::ClusterFanoutScope;
     use probing_server::server::cluster_query::ClusterQueryRequest;
 
     let req = ClusterQueryRequest {
         expr: "SELECT 1".into(),
         cluster: true,
+        hierarchical: true,
+        scope: ClusterFanoutScope::Auto,
     };
     let body = serde_json::to_string(&req).unwrap();
     let back: ClusterQueryRequest = serde_json::from_str(&body).unwrap();
     assert!(back.cluster);
+    assert!(back.hierarchical);
     assert_eq!(back.expr, "SELECT 1");
+    assert_eq!(back.scope, ClusterFanoutScope::Auto);
 }

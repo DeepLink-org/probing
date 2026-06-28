@@ -12,7 +12,8 @@ extension-module = ["probing-python/extension-module"]
 gpu = ["dep:probing-gpu"]
 gpu-cuda = ["gpu", "probing-gpu/cuda"]
 kmsg = ["probing-cc/kmsg"]
-default = ["extension-module", "kmsg"]
+default = ["extension-module", "kmsg", "rmcp"]
+rmcp = ["dep:rmcp", "dep:probing-cli"]
 
 [dependencies]
 probing-cc = { path = "../extensions/cc", default-features = false }
@@ -22,6 +23,7 @@ probing-python = { path = "../extensions/python", default-features = false }
 probing-proto = { path = "../proto" }
 probing-core = { path = "../core" }
 probing-store = { path = "../crates/store" }
+probing-cli = { path = "../cli", optional = true }
 
 datafusion = { workspace = true }
 
@@ -50,6 +52,7 @@ axum = { version = "0.8.1", default-features = false, features = [
 http-body-util = { version = "0.1" }
 serde_urlencoded = "0.7.1"
 futures-util = "0.3"
+rmcp = { version = "1.8.0", features = ["server", "macros", "transport-streamable-http-server", "schemars"], optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 procfs = { version = "0.17.0", default-features = false, features = ["chrono"] }

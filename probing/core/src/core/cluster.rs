@@ -178,6 +178,101 @@ pub fn get_nodes() -> Vec<Node> {
     nodes
 }
 
+fn prefer_node_representative(candidate: &Node, existing: &Node) -> bool {
+    match (candidate.local_rank, existing.local_rank) {
+        (Some(0), Some(0)) => {
+            candidate.rank.unwrap_or(i32::MAX) < existing.rank.unwrap_or(i32::MAX)
+        }
+        (Some(0), _) => true,
+        (_, Some(0)) => false,
+        _ => candidate.rank.unwrap_or(i32::MAX) < existing.rank.unwrap_or(i32::MAX),
+    }
+}
+
+/// Alive peers excluding this process's listen addresses.
+pub fn remote_peers_excluding_local() -> Vec<Node> {
+    let local_addrs = local_listen_addrs();
+    get_nodes()
+        .into_iter()
+        .filter(is_node_alive)
+        .filter(|node| !local_addrs.iter().any(|local| local == &node.addr))
+        .collect()
+}
+
+/// One node-aggregator endpoint per ``group_rank`` (prefers ``local_rank == 0``).
+///
+/// Used at the coordinator tier so fan-out is O(nodes) not O(world_size).
+pub fn node_aggregator_peers() -> Vec<Node> {
+    use std::collections::HashMap;
+
+    let local_addrs = local_listen_addrs();
+    let mut by_group: HashMap<i32, Node> = HashMap::new();
+
+    for node in get_nodes().into_iter().filter(is_node_alive) {
+        if node.local_rank != Some(0) {
+            continue;
+        }
+        if local_addrs.iter().any(|local| local == &node.addr) {
+            continue;
+        }
+        let Some(group_rank) = node.group_rank else {
+            continue;
+        };
+        by_group
+            .entry(group_rank)
+            .and_modify(|existing| {
+                if prefer_node_representative(&node, existing) {
+                    *existing = node.clone();
+                }
+            })
+            .or_insert(node);
+    }
+
+    let mut peers: Vec<Node> = by_group.into_values().collect();
+    peers.sort_by_key(|n| n.group_rank.unwrap_or(i32::MAX));
+    peers
+}
+
+/// Leaf ranks on this node (same ``group_rank``, excluding self).
+pub fn local_leaf_peers() -> Vec<Node> {
+    let local_addrs = local_listen_addrs();
+    let group_rank = env_i32("GROUP_RANK").or_else(|| env_i32("NODE_RANK"));
+    let self_rank = env_i32("RANK");
+
+    get_nodes()
+        .into_iter()
+        .filter(is_node_alive)
+        .filter(|node| {
+            if local_addrs.iter().any(|local| local == &node.addr) {
+                return false;
+            }
+            if let (Some(g), Some(expected)) = (node.group_rank, group_rank) {
+                if g != expected {
+                    return false;
+                }
+            }
+            if let (Some(r), Some(self_r)) = (node.rank, self_rank) {
+                if r == self_r {
+                    return false;
+                }
+            }
+            true
+        })
+        .collect()
+}
+
+fn env_i32(name: &str) -> Option<i32> {
+    std::env::var(name).ok().and_then(|v| v.trim().parse().ok())
+}
+
+/// Whether ``cluster.nodes`` has enough metadata for hierarchical fan-out.
+pub fn hierarchical_metadata_available() -> bool {
+    get_nodes()
+        .iter()
+        .filter(|n| is_node_alive(n))
+        .any(|n| n.group_rank.is_some() && n.local_rank.is_some())
+}
+
 #[cfg(any(test, feature = "test-utils"))]
 pub fn reset_cluster_for_tests() {
     *write_cluster() = Cluster::default();
@@ -243,5 +338,63 @@ mod tests {
         }
         let ranks: Vec<i32> = get_nodes().into_iter().filter_map(|n| n.rank).collect();
         assert_eq!(ranks, vec![0, 1, 2, 3]);
+    }
+
+    #[test]
+    fn node_aggregator_peers_one_per_group_rank() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        reset_cluster_for_tests();
+        set_local_listen_addrs(vec!["127.0.0.1:9000".into()]);
+        write_cluster().put(Node {
+            host: "h".into(),
+            addr: "127.0.0.1:9000".into(),
+            rank: Some(0),
+            group_rank: Some(0),
+            local_rank: Some(0),
+            status: Some("running".into()),
+            ..Default::default()
+        });
+        for (rank, group, local) in [(1, 0, 1), (8, 1, 0), (9, 1, 1)] {
+            let port = 8080 + rank;
+            write_cluster().put(Node {
+                host: "h".into(),
+                addr: format!("10.0.0.{rank}:{port}"),
+                rank: Some(rank),
+                group_rank: Some(group),
+                local_rank: Some(local),
+                status: Some("running".into()),
+                ..Default::default()
+            });
+        }
+        let peers = node_aggregator_peers();
+        assert_eq!(peers.len(), 1);
+        assert_eq!(peers[0].rank, Some(8));
+        assert_eq!(peers[0].local_rank, Some(0));
+    }
+
+    #[test]
+    fn local_leaf_peers_same_group_only() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        reset_cluster_for_tests();
+        set_local_listen_addrs(vec!["127.0.0.1:9000".into()]);
+        std::env::set_var("GROUP_RANK", "0");
+        std::env::set_var("RANK", "0");
+        for (rank, group, local) in [(0, 0, 0), (1, 0, 1), (8, 1, 0)] {
+            let port = 8080 + rank;
+            write_cluster().put(Node {
+                host: "h".into(),
+                addr: format!("10.0.0.{rank}:{port}"),
+                rank: Some(rank),
+                group_rank: Some(group),
+                local_rank: Some(local),
+                status: Some("running".into()),
+                ..Default::default()
+            });
+        }
+        let leaves = local_leaf_peers();
+        assert_eq!(leaves.len(), 1);
+        assert_eq!(leaves[0].rank, Some(1));
+        std::env::remove_var("GROUP_RANK");
+        std::env::remove_var("RANK");
     }
 }

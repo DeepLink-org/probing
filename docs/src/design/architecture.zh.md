@@ -1,5 +1,8 @@
 # 系统架构
 
+!!! warning "旧版文档"
+    本页的两层概览已被 **[模块化与边界](modularity.zh.md)**（四层模型、crate 地图、依赖规则与归属）**取代**。仅保留历史示意图。**新贡献者请从 [模块化](modularity.zh.md)** 入手，再读 [数据层](data-layer.zh.md) 与 [分布式概览](distributed.zh.md)。
+
 Probing 采用简洁的两层架构设计，以最小化复杂性和部署难度。
 
 ## 高层架构

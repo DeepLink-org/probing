@@ -13,13 +13,13 @@ pages:
     title: Investigate
     path: /agent
     description: "Skill-driven investigation; optional LLM diagnostic agent summarizes SQL evidence."
-    skills: [health_overview]
+    skills: [health_overview, job_health]
 
   cluster:
     title: Cluster
     path: /cluster
     description: "Distributed training cluster nodes and rank status."
-    skills: [slow_rank, comm_bottleneck]
+    skills: [slow_rank, comm_bottleneck, job_health, persistent_straggler]
 
   stacks:
     title: Stacks
@@ -49,7 +49,7 @@ pages:
     title: Analytics
     path: /analytics
     description: "Ad-hoc SQL analytics and time-series charts."
-    skills: [health_overview, comm_bottleneck, slow_rank]
+    skills: [health_overview, job_health, comm_bottleneck, slow_rank, persistent_straggler]
 
   spans:
     title: Spans
@@ -61,7 +61,7 @@ pages:
     title: Training
     path: /training
     description: "Training step metrics and collective communication latency."
-    skills: [slow_rank, comm_bottleneck, module_bottleneck]
+    skills: [job_health, slow_rank, persistent_straggler, comm_bottleneck, module_bottleneck]
 
   pulsing:
     title: Pulsing

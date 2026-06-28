@@ -23,6 +23,7 @@ pub fn is_api_path(path: &str) -> bool {
         || path == "/query/dto"
         || path.starts_with("/apis/")
         || path.starts_with("/config/")
+        || path.starts_with("/mcp")
         || path == "/ws"
 }
 
@@ -65,6 +66,7 @@ mod tests {
         assert!(is_api_path("/apis/nodes"));
         assert!(is_api_path("/config/server.address"));
         assert!(is_api_path("/ws"));
+        assert!(is_api_path("/mcp"));
     }
 
     #[test]

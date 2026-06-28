@@ -186,9 +186,13 @@ impl SignalTracer {
     fn trace_thread_signal(tid: i32) -> Result<Vec<CallFrame>> {
         let pid = nix::unistd::getpid().as_raw();
 
+        // Only one signal-based capture can run at a time (shared SIGUSR2 +
+        // sender slot). Concurrent requests losing the race is a benign "busy"
+        // state — the outer `trace()` already downgrades it to an empty result —
+        // so log at debug to avoid flooding training output with errors.
         let _guard = BACKTRACE_MUTEX.try_lock().map_err(|e| {
-            log::error!("Failed to acquire BACKTRACE_MUTEX: {e}");
-            anyhow::anyhow!("Failed to acquire backtrace lock: {}", e)
+            log::debug!("backtrace capture busy, skipping concurrent request: {e}");
+            anyhow::anyhow!("backtrace capture busy: {e}")
         })?;
 
         let (tx, rx) = mpsc::channel::<Vec<CallFrame>>();
