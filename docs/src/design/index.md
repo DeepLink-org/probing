@@ -1,59 +1,48 @@
-# Design Overview
+# Architecture Overview
 
-## Why Probing?
+Contributor-facing design docs. Operators: **[User Guide](../guide/index.md)**.
+Contracts: **[Reference](../reference/index.md)**.
 
-### The Pythonic Advantage
+Vocabulary: **[Core model](../guide/concepts.md)**.
 
-Python's dominance in AI stems from one core principle: **everything feels like Python**. Whether you're using pandas, PyTorch, or NumPy, you can **talk to them pythonically**—the same `print()`, iteration, and attribute access patterns work everywhere.
+## Reading order
 
-### How Distributed Systems Break This
+1. **[Modularity & boundaries](modularity.md)** — four-layer model, crate map, dependency rules (start here)
+2. **[Data Layer](data-layer.md)** — MEMT/MEMC, mmap, SQL integration
+3. **[Distributed → Overview](distributed.md)** — multi-node mental model, then nested pages below
 
-As AI models scale to distributed clusters, something fundamental breaks: **distributed systems aren't Pythonic**. Single-machine debugging feels natural—`print(model.parameters())`, `loss.item()`, `torch.cuda.memory_allocated()`—but distributed debugging forces you into system administration tools: `kubectl get nodes`, SSH sessions, log file parsing, monitoring dashboards.
-
-### Probing's Mission
-
-Probing's core mission is simple: **make distributed systems feel Pythonic again**. Your cluster, nodes, and distributed processes become accessible through familiar interfaces. Instead of context-switching between tools, you stay in Python and **talk to your distributed system pythonically**.
-
-## Design Principles
-
-### 🔍 Zero Intrusion
-
-- No code modifications required
-- No environment setup changes needed
-- No workflow disruptions
-- Dynamic probe injection into running processes
-
-### 🎯 Zero Learning Curve
-
-- Standard SQL interface for data analysis
-- Familiar database query patterns
-- Intuitive command-line tools
-- Web-based dashboard for visualization
-
-### 📦 Zero Deployment Burden
-
-- Single binary deployment (Rust-based)
-- Static compilation with minimal dependencies
-- Linux-first design with query/eval support on other platforms
-- Elastic scaling capabilities
-
-## Design Documents
-
-Shared vocabulary (endpoint, steps, role, federation): **[Core Concepts](../guide/concepts.md)**.
+## Platform core
 
 | Document | Description |
 |----------|-------------|
-| [Modularity & boundaries](modularity.md) | **Core vs feature modules**, interfaces, dependency rules, ownership |
-| [Architecture](architecture.md) | System structure and components |
+| [Modularity & boundaries](modularity.md) | L1–L4 layers, public contracts, ownership |
 | [Data Layer](data-layer.md) | Hot/cold columnar store and SQL integration |
-| [Profiling](profiling.md) | Performance data collection |
-| [Debugging](debugging.md) | Debugging capabilities |
-| [Distributed](distributed.md) | Multi-node support |
-| [Torchrun cluster heartbeat](torchrun-cluster.md) | Hierarchical registration, backoff, env presets |
-| [Federated query engine](federation.md) | Cross-rank SQL: scenarios, execution paths, acceptance bar |
-| [NCCL Profiler](nccl-profiler.md) | NCCL plugin, culprit/victim, `nccl.proxy_ops` |
-| [Cluster with Pulsing](cluster-pulsing.md) | Using Pulsing for membership and failure detection |
-| [Extensibility](extensibility.md) | Custom tables and metrics |
+| [Extensibility](extensibility.md) | `@table` plugins, skills, NCCL profiler hook-in |
+| [CLI command tree](cli.md) | Command grouping, target rules, migration (draft) |
 
-User-facing workflows: **[User Guide](../guide/index.md)** (SQL, skills, debugging).
-Reference: **[SQL Tables](../reference/sql-tables.md)** · **[API Reference](../api-reference.md)**.
+## Collectors & profiling
+
+| Document | Description |
+|----------|-------------|
+| [Profiling](profiling.md) | Torch hooks, sampling, table write path |
+| [NCCL Profiler](nccl-profiler.md) | Plugin ABI, proxy-op wait decomposition |
+| [Debugging Engine](debugging.md) | eval / backtrace / REPL implementation |
+| [Training Phases](/zh/design/training-phase/) | Phase transitions and span model *(中文)* |
+
+## Distributed
+
+| Document | Description |
+|----------|-------------|
+| [Overview](distributed.md) | Multi-node topology, control plane, federation intro |
+| [Torchrun cluster heartbeat](torchrun-cluster.md) | Hierarchical registration, backoff, env presets |
+| [Federated query engine](federation.md) | Cross-rank SQL paths A/B/C, tags, regression queries |
+| [Hierarchical fan-out](hierarchical-fanout.md) | Coordinator → local0 → leaf query aggregation |
+| [Cluster with Pulsing](cluster-pulsing.md) | Optional Pulsing-based membership |
+
+## Legacy
+
+| Document | Description |
+|----------|-------------|
+| [System Architecture (legacy)](architecture.md) | Two-layer overview — superseded by [Modularity](modularity.md); kept for historical diagrams |
+
+User-facing workflows: **[User Guide](../guide/index.md)** · Reference: **[SQL Tables](../reference/sql-tables.md)** · **[CLI & Python API](../api-reference.md)**

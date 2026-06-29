@@ -123,11 +123,12 @@ impl Settings {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
+    /// Inject libprobing into a running process (Linux ptrace)
     #[cfg(target_os = "linux")]
     #[command(visible_aliases = ["in", "i"])]
     Inject(super::inject::InjectCommand),
 
-    /// List all processes with injected probes
+    /// List processes that already have probing enabled
     #[command(visible_aliases = ["ls", "l"])]
     List {
         #[arg(short, long, help = "Show detailed information")]
@@ -216,7 +217,8 @@ pub enum Commands {
     #[command(visible_aliases = ["r"])]
     Repl,
 
-    /// Launch new Python process
+    /// Launch a command with probing enabled (Linux)
+    #[cfg(target_os = "linux")]
     #[command()]
     Launch {
         #[arg(short, long)]
@@ -244,4 +246,8 @@ pub enum Commands {
     /// Run structured diagnostic skills (shared with Web Agent)
     #[command(subcommand, visible_aliases = ["doc", "dr"])]
     Skill(super::skill::SkillCommand),
+
+    /// MCP endpoint URL and agent config for the target probing server
+    #[command(subcommand, visible_aliases = ["agent-mcp"])]
+    Mcp(super::mcp::McpCommand),
 }

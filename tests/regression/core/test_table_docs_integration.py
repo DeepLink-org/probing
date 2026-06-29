@@ -8,8 +8,6 @@ import subprocess
 import sys
 import tempfile
 
-import probing
-
 
 def _python_path_env(*, defer_engine_init: bool = False) -> dict[str, str]:
     env = os.environ.copy()
@@ -141,33 +139,50 @@ print("OK")
     assert "OK" in result.stdout
 
 
-def test_describe_builtin_hccl_via_query():
-    df = probing.query("DESCRIBE probe.probing.column_docs")
-    assert "comment" in df.columns
-    assert "table_comment" in df.columns
-    assert "column_name" in df.columns
-    assert "description" in df["column_name"].tolist()
+def test_describe_builtin_hccl_via_query_subprocess():
+    """DESCRIBE rewrite on static catalog — isolated process (wheel/Linux + torch safe)."""
+    result = _run_fresh_probing_script(
+        """
+import probing
+df = probing.query("DESCRIBE probe.probing.column_docs")
+assert "comment" in df.columns
+assert "table_comment" in df.columns
+assert "column_name" in df.columns
+assert "description" in df["column_name"].tolist()
+print("OK")
+"""
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "OK" in result.stdout
 
 
-def test_hccl_catalog_and_select_roundtrip():
+def test_hccl_catalog_and_select_roundtrip_subprocess():
     """Builtin HCCL docs are queryable; YAML synonyms remain on table_docs."""
-    col = probing.query(
-        "SELECT description FROM probe.probing.column_docs "
-        "WHERE table_schema = 'hccl' AND table_name = 'tasks' "
-        "AND column_name = 'local_rank'"
-    )
-    assert len(col) == 1
-    assert "rank" in str(col["description"].iloc[0]).lower()
+    result = _run_fresh_probing_script(
+        """
+import probing
+col = probing.query(
+    "SELECT description FROM probe.probing.column_docs "
+    "WHERE table_schema = 'hccl' AND table_name = 'tasks' "
+    "AND column_name = 'local_rank'"
+)
+assert len(col) == 1
+assert "rank" in str(col["description"].iloc[0]).lower()
 
-    meta = probing.query(
-        "SELECT description, synonyms FROM probe.probing.table_docs "
-        "WHERE table_schema = 'nccl' AND table_name = 'proxy_ops'"
+meta = probing.query(
+    "SELECT description, synonyms FROM probe.probing.table_docs "
+    "WHERE table_schema = 'nccl' AND table_name = 'proxy_ops'"
+)
+assert len(meta) == 1
+assert "culprit" in str(meta["description"].iloc[0]).lower() or "NCCL" in str(
+    meta["description"].iloc[0]
+)
+assert "proxy" in str(meta["synonyms"].iloc[0]).lower()
+print("OK")
+"""
     )
-    assert len(meta) == 1
-    assert "culprit" in str(meta["description"].iloc[0]).lower() or "NCCL" in str(
-        meta["description"].iloc[0]
-    )
-    assert "proxy" in str(meta["synonyms"].iloc[0]).lower()
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "OK" in result.stdout
 
 
 def test_describe_json_shape_subprocess():

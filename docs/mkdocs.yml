@@ -82,40 +82,47 @@ plugins:
             Home: 首页
             Getting Started: 入门
             Installation: 安装指南
-            Development Setup: 开发环境
-            Welcome Contributors: 欢迎参与开发
-            Welcome: 欢迎参与
-            Submitting Changes: 提交变更
             Quick Start: 快速开始
+            Core model: 核心模型
             User Guide: 用户指南
-            Core Concepts: 核心概念
             SQL Analytics: SQL 分析
             Diagnostic Skills: 诊断 Skill
             Memory Analysis: 内存分析
-            Debugging: 调试指南
+            Live Debugging: 现场调试
             Troubleshooting: 常见问题
-            Design: 设计文档
-            Architecture: 系统架构
-            Data Layer: 数据层
-            Profiling: 性能分析
+            Architecture: 架构
+            Platform: 平台核心
+            Collectors & Profiling: 采集与 Profiling
             Distributed: 分布式
+            Modularity & Boundaries: 模块化与边界
+            Data Layer: 数据层
+            Extensibility: 扩展机制
+            CLI Command Tree: CLI 命令树
+            Profiling: 性能分析
+            NCCL Profiler: NCCL Profiler
+            Debugging Engine: 调试引擎
+            Training Phases: 训练阶段
+            Overview: 概览
             Torchrun Cluster Heartbeat: torchrun 集群心跳
             Federated Query Engine: 联邦查询引擎
+            Hierarchical Fan-out: 分层集群查询
             Cluster with Pulsing: 基于 Pulsing 的集群
-            Extensibility: 扩展机制
-            Modularity: 模块化与边界
+            System Architecture (legacy): 系统架构（旧版）
             Examples: 示例
             Training Debugging: 训练调试
             Memory Leak: 内存泄漏
             Performance Analysis: 性能分析
-            API Reference: API 参考
             Reference: 参考手册
             SQL Tables: SQL 表目录
-            API Reference: API 参考
+            CLI & Python API: CLI 与 Python API
             Environment Variables: 环境变量
             Skill Format: Skill 格式规范
             Versions: 版本兼容性
             Contributing: 贡献指南
+            Development Setup: 开发环境
+            Welcome Contributors: 欢迎参与开发
+            Welcome: 欢迎参与
+            Submitting Changes: 提交变更
   - mkdocstrings:
       handlers:
         python:
@@ -131,27 +138,33 @@ nav:
   - Getting Started:
     - Installation: installation.md
     - Quick Start: quickstart.md
-    - Core Concepts: guide/concepts.md
+    - Core model: guide/concepts.md
   - User Guide:
     - guide/index.md
     - SQL Analytics: guide/sql-analytics.md
     - Diagnostic Skills: guide/skills.md
     - Memory Analysis: guide/memory-analysis.md
-    - Debugging: guide/debugging.md
+    - Live Debugging: guide/debugging.md
     - Troubleshooting: guide/troubleshooting.md
-  - Design:
+  - Architecture:
     - design/index.md
-    - Modularity: design/modularity.md
-    - Architecture: design/architecture.md
-    - Data Layer: design/data-layer.md
-    - Profiling: design/profiling.md
-    - Debugging: design/debugging.md
-    - Distributed: design/distributed.md
-    - Torchrun Cluster Heartbeat: design/torchrun-cluster.md
-    - Federated Query Engine: design/federation.md
-    - NCCL Profiler: design/nccl-profiler.md
-    - Cluster with Pulsing: design/cluster-pulsing.md
-    - Extensibility: design/extensibility.md
+    - Platform:
+      - Modularity & Boundaries: design/modularity.md
+      - Data Layer: design/data-layer.md
+      - Extensibility: design/extensibility.md
+      - CLI Command Tree: design/cli.md
+    - Collectors & Profiling:
+      - Profiling: design/profiling.md
+      - NCCL Profiler: design/nccl-profiler.md
+      - Debugging Engine: design/debugging.md
+      - Training Phases: design/training-phase.md
+    - Distributed:
+      - Overview: design/distributed.md
+      - Torchrun Cluster Heartbeat: design/torchrun-cluster.md
+      - Federated Query Engine: design/federation.md
+      - Hierarchical Fan-out: design/hierarchical-fanout.md
+      - Cluster with Pulsing: design/cluster-pulsing.md
+    - System Architecture (legacy): design/architecture.md
   - Examples:
     - examples/index.md
     - Training Debugging: examples/training-debugging.md
@@ -160,7 +173,7 @@ nav:
   - Reference:
     - reference/index.md
     - SQL Tables: reference/sql-tables.md
-    - API Reference: api-reference.md
+    - CLI & Python API: api-reference.md
     - Environment Variables: reference/env-vars.md
     - Skill Format: reference/skill-format.md
     - Versions: versions.md

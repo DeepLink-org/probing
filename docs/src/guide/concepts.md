@@ -1,10 +1,9 @@
-# How Probing Works
+# Core model
 
-This page builds the mental model you need to use Probing effectively. It's not a
-reference — it explains the architecture, the data flow, and the key design decisions
-from a user's perspective. Read this before anything else.
+Runtime layout, catalogs, and coordinates used across CLI, SQL, and architecture docs.
+For column definitions see **[SQL Tables](../reference/sql-tables.md)**.
 
-## The two modes: in-process vs attach
+## In-process vs attach
 
 Probing works in two fundamentally different ways. Understanding the difference avoids
 a lot of confusion.

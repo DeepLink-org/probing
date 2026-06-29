@@ -102,6 +102,7 @@ spec:
     若某项为空，按 empty_message 提示开启对应采集。
 
   next_steps:
+    - "多机训练 job 级诊断 → skill: job_health --global"
     - "训练变慢 → skill: module_bottleneck 或 slow_rank"
     - "显存上涨 → skill: memory_leak"
     - "进程卡住 → skill: training_hang"

@@ -78,6 +78,10 @@ name = "server_file_api_complex"
 path = "probing/server/file_api_complex_tests.rs"
 
 [[test]]
+name = "server_hierarchical_fanout_query"
+path = "probing/server/hierarchical_fanout_query.rs"
+
+[[test]]
 name = "memtable_chaos_stress"
 path = "probing/memtable/chaos_stress.rs"
 

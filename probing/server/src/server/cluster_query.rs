@@ -3,7 +3,7 @@
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
-use super::cluster_fanout::{self, FanoutQueryResponse};
+use super::cluster_fanout::{self, ClusterFanoutScope, FanoutQueryResponse};
 use super::error::ApiResult;
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -11,6 +11,16 @@ pub struct ClusterQueryRequest {
     pub expr: String,
     #[serde(default)]
     pub cluster: bool,
+    /// Hierarchical fan-out: coordinator → node local0 → on-node leaf ranks.
+    #[serde(default = "default_true")]
+    pub hierarchical: bool,
+    /// Override fan-out tier (`auto` picks coordinator on local0, local on leaf ranks).
+    #[serde(default)]
+    pub scope: ClusterFanoutScope,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Serialize)]
@@ -37,6 +47,7 @@ pub async fn post_cluster_query(
             "missing SQL expression",
         ));
     }
-    let result = cluster_fanout::fanout_query(expr, body.cluster).await?;
+    let result =
+        cluster_fanout::fanout_query(expr, body.cluster, body.hierarchical, body.scope).await?;
     Ok(Json(result.into()))
 }

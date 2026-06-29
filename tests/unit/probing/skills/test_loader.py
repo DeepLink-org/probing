@@ -26,14 +26,24 @@ def test_skills_root_exists():
     assert root.is_dir()
 
 
-def test_catalog_loads_nine_skills():
+def test_catalog_loads_all_skills():
     catalog = load_catalog()
-    assert len(catalog.skills) == 9
+    expected_ids = {
+        "health_overview",
+        "job_health",
+        "crash_triage",
+        "training_hang",
+        "slow_rank",
+        "persistent_straggler",
+        "memory_leak",
+        "module_bottleneck",
+        "comm_bottleneck",
+        "gpu_pressure",
+        "nccl_culprit_victim",
+    }
     ids = {p.id for p in catalog.skills}
-    assert "crash_triage" in ids
-    assert "slow_rank" in ids
-    assert "nccl_culprit_victim" in ids
-    assert "health_overview" in ids
+    assert ids == expected_ids
+    assert len(catalog.skills) == len(expected_ids)
 
 
 def test_load_slow_rank_global():
