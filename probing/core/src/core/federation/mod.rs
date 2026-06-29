@@ -1,6 +1,7 @@
 mod aggregate_pushdown;
 mod cluster_executor;
 mod convert;
+mod fanout_scope;
 mod federated_scan_exec;
 mod global_catalog;
 mod global_table;
@@ -23,6 +24,10 @@ pub use convert::{
     is_federation_tag_column, tag_proto_dataframe, FederationEndpointTags, FEDERATION_TAG_COLUMNS,
     PROBE_ADDR_COL, PROBE_HOST_COL, PROBE_LOCAL_RANK_COL, PROBE_NODE_COL, PROBE_NODE_RANK_COL,
     PROBE_RANK_COL, PROBE_ROLE_COL,
+};
+pub use fanout_scope::{
+    current_fanout_scope, hierarchical_fanout_enabled, is_local0_from_env, resolve_fanout_scope,
+    set_fanout_scope, take_fanout_scope, with_fanout_scope, FanoutScope,
 };
 pub use global_catalog::{install_global_catalog, GLOBAL_CATALOG};
 pub use rewrite::{

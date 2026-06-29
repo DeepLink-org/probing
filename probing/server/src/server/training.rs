@@ -63,7 +63,13 @@ pub async fn get_step_matrix(
     // Fetch all completed train.step pairs; aggregate to unique local_step in Rust.
     let sql = STEP_MATRIX_SQL.to_string();
 
-    let fanout = cluster_fanout::fanout_query(&sql, cluster).await?;
+    let fanout = cluster_fanout::fanout_query(
+        &sql,
+        cluster,
+        true,
+        cluster_fanout::ClusterFanoutScope::Auto,
+    )
+    .await?;
     let host = crate::report::get_hostname().unwrap_or_else(|_| "localhost".into());
     let addr = probing_core::core::cluster::local_addr_label();
     let samples =

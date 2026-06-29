@@ -1,4 +1,4 @@
-# Probing - AI应用性能分析和调试工具
+# Probing — Agent Native 的分布式性能分析与诊断工具
 
 <div align="center">
   <img src="probing.svg" alt="Probing Logo" width="200"/>
@@ -14,9 +14,28 @@
 [![Downloads](https://pepy.tech/badge/probing)](https://pepy.tech/project/probing)
 [![codecov](https://codecov.io/gh/DeepLink-org/probing/graph/badge.svg?token=IRH3F0OI56)](https://codecov.io/gh/DeepLink-org/probing)
 
-> 揭开AI应用性能的真相
+> **让你的 coding agent 长出看穿分布式训练的眼睛和手。**
+>
+> 揭开 AI 应用性能的真相。
 
-Probing是一个专为AI应用设计的运行时性能分析和调试工具。基于动态探针注入技术，它提供零侵入的运行时内省能力，支持SQL查询的性能指标和跨节点关联分析。
+Probing 是一个面向分布式 AI 的 **Agent Native 性能分析与诊断工具**。它不产出给人盯着看的火焰图，而是把正在运行的训练任务变成 **可查询、可动手的证据**——agent（或你）可以 `SELECT`、join、并据此操作的关系型遥测。
+
+它**从系统层做起**：免插桩探针注入、SQL 化遥测、NCCL 等待分解、跨节点联邦——数据天生是给 agent 消费的结构，而不只是给人阅读的图表。
+
+而且它不是又一个 AI 助手。Probing **嵌进你已经在用的 coding agent**——Codex、Claude Code、Cursor——做它们看穿分布式训练所需的眼睛和手。Skills 提供诊断 playbook；训练进程内的 HTTP server 还在 **`/mcp`** 暴露 MCP tools（`query`、`list_skills`、`plan_skill`、`run_skill`）。
+
+## Probing 如何与你的 agent 协作
+
+Probing 为你的 coding agent 提供一个对运行中训练任务的闭环诊断回路：
+
+1. **观测** — 用 SQL 查询活体遥测（`python.torch_trace`、`nccl.proxy_ops`、`gpu.utilization` …）。
+2. **诊断** — 运行结构化 **skill**（`health_overview`、`slow_rank`、`nccl_culprit_victim` …），把 SQL 证据转成确定性结论。
+3. **动手** — 在不停止任务的前提下干预活体进程（`eval`、`config`、inject）。
+4. **复查** — 再次查询，确认问题已解决。
+
+护城河在底下的系统层——活体注入、关系型遥测、NCCL 等待分解、跨节点联邦——这些是套壳工具伪造不出来的部分；agent 集成只是触达它的方式：`./skills/install.sh` 让 Probing 的 skill 在 `.cursor/`、`.claude/`、`.agents/` 中可被发现。
+
+> **安全边界：** MCP 默认**只读**——`query` / `cluster_query` 仅接受 `SELECT`/`WITH`/`SHOW`/`DESCRIBE`，且结果有大小上限。干预类工具（`set_config`、`eval_python`）虽已暴露，但**需显式设置 `PROBING_MCP_ALLOW_WRITE=1` 才启用**，且每次写入都有审计日志。这样 agent 能放手诊断，只有在你明确授权时才可改动正在运行的训练任务。
 
 ## Probing 提供什么...
 
@@ -77,6 +96,30 @@ probing $ENDPOINT eval "import torch; print(f'GPU available: {torch.cuda.is_avai
 
 # 查询性能数据
 probing $ENDPOINT query "SELECT func, file, lineno FROM python.backtrace LIMIT 5"
+```
+
+### 在你的 coding agent 里使用
+
+```bash
+# 让 Probing 的诊断 skill 对 Cursor / Claude Code / Codex 可见
+./skills/install.sh
+```
+
+或通过 **MCP** 接入你的 agent——把它指向 probing server 的 `/mcp` 端点：
+
+```json
+{
+  "mcpServers": {
+    "probing": { "url": "http://127.0.0.1:8080/mcp" }
+  }
+}
+```
+
+然后用自然语言问你的 agent——"这个训练好像卡住了，帮我找慢的 rank"——它会替你驱动 Probing 的 skill 和 SQL（直接调用，或经由 `run_skill` / `query` 这些 MCP 工具）：
+
+```bash
+probing -t <pid> skill run health_overview
+probing -t <pid> skill run nccl_culprit_victim --global
 ```
 
 ## 核心功能

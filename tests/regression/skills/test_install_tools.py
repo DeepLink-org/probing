@@ -41,9 +41,12 @@ def test_skill_roots_include_bundled():
     assert "bundled" in labels or "repo" in labels
 
 
-def test_merged_catalog_has_nine_skills():
+def test_merged_catalog_has_eleven_skills():
     catalog = load_catalog()
-    assert len(catalog.skills) == 9
+    assert len(catalog.skills) == 11
+    ids = {e.id for e in catalog.skills}
+    assert "job_health" in ids
+    assert "persistent_straggler" in ids
 
 
 def test_list_skills_tool():
@@ -57,6 +60,23 @@ def test_plan_skill_run():
     assert plan.skill_id == "health_overview"
     assert plan.steps
     assert "probing" in plan.cli_command
+
+
+def test_plan_job_health_skill():
+    plan = plan_skill_run("job_health", {"use_global": True})
+    assert plan.skill_id == "job_health"
+    assert any(s["id"] == "job_slowdown_proxy" for s in plan.steps)
+    assert any(
+        "global.python.comm_collective" in (s.get("sql") or "") for s in plan.steps
+    )
+
+
+def test_plan_persistent_straggler_skill():
+    plan = plan_skill_run("persistent_straggler", {"step_window": 100})
+    assert plan.skill_id == "persistent_straggler"
+    worst = next(s for s in plan.steps if s["id"] == "worst_fraction")
+    assert "worst_fraction" in worst["sql"]
+    assert "100" in worst["sql"]
 
 
 def test_run_skill_plan_only():

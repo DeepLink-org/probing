@@ -3,37 +3,31 @@ Probing - Dynamic Performance Profiler for Distributed AI
 
 Spec
 ----
-This is the top-level package for the Probing library. It serves as the main entry point
-for users and integrations.
+This is the top-level package for the main entry point for users and integrations.
 
-Responsibilities:
-1.  Export core primitives for operating probing, including `query` and `load_extension`.
-2.  Export control functions (enable/disable tracer, CLI main) for runtime management.
-3.  Export high-level APIs for tracing (span, event) and engine queries.
-4.  Initialize configuration and environment settings.
-
-Public Interfaces:
+Public Interfaces (full import):
 - Engine: `query`, `load_extension`
 - Control: `cli_main`, `enable_tracer`, `disable_tracer`, `is_enabled`
 - Tracing: `span`, `event`, `record_span`, `step`
-- Engine: `query`, `load_extension`
-
-Pulsing integration is passive: when another runtime writes ``pulsing.*`` memtables
-under the shared data directory, probing exposes them as SQL tables. Probing does not
-discover, bootstrap, or sync Pulsing cluster membership.
 """
 
 from __future__ import annotations
 
-from probing._entrypoint import is_lightweight_module
-from probing.web_assets import configure_assets_root
+from probing._entrypoint import is_lightweight_module, is_probing_cli
 
 VERSION = "0.2.5"
 
-
 if is_lightweight_module():
     __all__ = ["VERSION"]
+elif is_probing_cli():
+    # Must set PROBING_CLI_MODE before loading _core so #[ctor] skips engine startup.
+    from probing import _core
+
+    cli_main = _core.cli_main
+    __all__ = ["VERSION", "cli_main"]
 else:
+    from probing.web_assets import configure_assets_root
+
     configure_assets_root()
     import probing.config as config
     from probing import _core
@@ -41,7 +35,6 @@ else:
 
     TCPStore = _core.TCPStore
 
-    # Control Functions
     cli_main = _core.cli_main
     enable_tracer = _core.enable_tracer
     disable_tracer = _core.disable_tracer
@@ -49,12 +42,10 @@ else:
     def is_enabled():
         return _core.is_enabled()
 
-    # Internal Accessors
     _get_python_stacks = _core._get_python_stacks
     _get_python_frames = _core._get_python_frames
     register_table_docs = _core.register_table_docs
 
-    # Submodules with side effects (must be imported after Core Primitives)
     from probing.core.engine import load_extension, query
     from probing.parallel import clear_role, current_role, set_role
     from probing.tracing import (
