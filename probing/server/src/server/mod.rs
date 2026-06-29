@@ -56,6 +56,11 @@ fn build_app(auth: bool) -> axum::Router {
         .route("/ws", axum::routing::get(ws_handler))
         .fallback(spa::fallback);
 
+    #[cfg(feature = "rmcp")]
+    {
+        app = app.merge(crate::mcp::router());
+    }
+
     if auth {
         app = app.layer(axum::middleware::from_fn(
             crate::auth::selective_auth_middleware,

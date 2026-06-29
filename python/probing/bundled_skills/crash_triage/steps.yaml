@@ -1,0 +1,28 @@
+apiVersion: probing.dev/v1
+kind: Skill
+
+metadata:
+  id: crash_triage
+  title: "崩溃 / 启动失败诊断"
+  title_en: "Crash and startup failure triage"
+  category: triage
+  tags: [crash, error, exception, startup, 报错, 崩溃]
+  triggers:
+    keywords:
+      zh: ["崩溃", "报错", "异常", "启动失败", "挂了", "exit code"]
+      en: ["crash", "error", "exception", "failed", "startup failure"]
+  docs: |
+    查 rank 日志中的 ``PROBING CRASH``，或 spill：
+    ``{PROBING_DATA_DIR}/crash/<pid>/latest.json``
+
+spec:
+  steps: []
+
+  summary_template: |
+    ## Crash 诊断
+    1. grep 各 rank 日志 ``PROBING CRASH``
+    2. 读 spill ``$PROBING_DATA_DIR/crash/<pid>/latest.json``
+
+  next_steps:
+    - "全 rank 同一 fingerprint → 检查代码/环境"
+    - "无 exception 但卡住 → skill: training_hang"

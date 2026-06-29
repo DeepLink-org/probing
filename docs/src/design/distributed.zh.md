@@ -1,19 +1,25 @@
 # 分布式架构
 
-Probing 支持监控和调试跨多节点的分布式 AI 工作负载。
+多节点 probing：各 rank 写本地 memtable；`cluster.nodes` 注册表；coordinator 通过
+`global.*` 与 `/apis/cluster/query` 做 SQL fan-out。
 
-## 概览
+## 相关文档
 
-分布式训练带来了挑战：
+| 文档 | 范围 |
+|------|------|
+| [torchrun 集群心跳](torchrun-cluster.zh.md) | TCPStore 旁路、分层 PUT、退避 |
+| [联邦查询引擎](federation.zh.md) | Catalog 改写、路径 A/B/C、标签注入 |
+| [分层集群查询](hierarchical-fanout.zh.md) | coordinator → local0 → leaf HTTP 拓扑 |
+| [基于 Pulsing 的集群](cluster-pulsing.zh.md) | 可选 `pulsing.*` memtable 成员 |
+| [NCCL Profiler](nccl-profiler.zh.md) | `nccl.proxy_ops` 插件 ABI |
 
-- 跨节点的多进程
-- Rank 之间的通信
-- 同步调试需求
-- 跨节点数据关联
+依赖顺序：[核心模型](../guide/concepts.zh.md) → 本页 → torchrun 心跳 → 联邦 → 分层 fan-out。
 
-Probing 通过分布式架构解决这些问题。
+参考：[SQL 表目录](../reference/sql-tables.zh.md)（`cluster.nodes`、联邦标签）。
 
-## 架构
+---
+
+## 拓扑
 
 ```mermaid
 graph TB
@@ -102,6 +108,8 @@ ORDER BY avg_ms DESC"
 通过 torchrun 注入后 Rust ctor **默认**启动分层集群心跳（见 [torchrun 集群心跳](torchrun-cluster.zh.md)），或手动 `setup_torchrun_cluster()` / `PUT /apis/nodes` 注册节点，`_rank` / `_role` 才能正确解析。训练脚本中可用 `probing.set_role(...)` 运行时覆盖 role。
 
 引擎实现与正确性测试要求见 **[联邦查询引擎](federation.zh.md)**。
+
+万卡场景下 `cluster query` 默认走 **[分层 fan-out](hierarchical-fanout.zh.md)**（coordinator 仅联系各机 local0，local0 再聚合本机 leaf rank），可用 `PROBING_CLUSTER_FANOUT_HIERARCHICAL=0` 或 CLI `--flat` 恢复扁平 fan-out。
 
 ## 同步调试
 
@@ -233,30 +241,19 @@ probing -t host:8080 --token secret query "..."
 
 ## 最佳实践
 
-### 1. 一致的配置
+### 一致的环境变量
 
-在所有节点上使用相同配置：
+各 rank 使用相同配置（示例）：
 
 ```bash
 export PROBING_PORT=8080
 export PROBING_TORCH_PROFILING=on
 ```
 
-### 2. 集中收集
+### 跨节点时间戳
 
-对于大型集群，考虑聚合：
+使用 NTP；memtable 的 `ts` 列为各进程 wall-clock 微秒。
 
-```bash
-# 导出数据到中心位置
-probing -t $node query "SELECT * FROM python.torch_trace" >> /shared/traces.json
-```
+### 网络
 
-### 3. 时间戳同步
-
-确保配置 NTP 以获得准确的跨节点时间。
-
-### 4. 网络考虑
-
-- 尽可能使用专用网络进行 probing 流量
-- 考虑 probing 端口的防火墙规则
-- 监控 probing 对训练网络的开销
+Probing HTTP 属控制面流量。大集群上应隔离或限制 fan-out 速率；见 [分层 fan-out](hierarchical-fanout.zh.md)。

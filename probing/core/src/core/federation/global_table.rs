@@ -100,7 +100,7 @@ impl TableProvider for GlobalFederatedTable {
         let local_rank = cluster_rank_for_endpoint(&host, &addr);
 
         reset_fanout_stats();
-        let remote_nodes = ProbeClusterExecutor::remote_nodes();
+        let (remote_nodes, remote_scope) = ProbeClusterExecutor::federated_scan_targets();
         // With peers registered, LIMIT is global top-K at the coordinator only.
         let scan_limit = if remote_nodes.is_empty() { limit } else { None };
 
@@ -130,6 +130,7 @@ impl TableProvider for GlobalFederatedTable {
             scan_projection,
             remote_sql,
             remote_nodes,
+            remote_scope,
             host,
             addr,
             local_rank,

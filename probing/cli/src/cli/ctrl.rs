@@ -94,9 +94,14 @@ impl ProbeEndpoint {
         Ok(())
     }
 
-    pub async fn eval(&self, code: String) -> Result<()> {
+    /// Run Python in the target process and return the raw JSON response body.
+    pub async fn eval_json(&self, code: String) -> Result<String> {
         let reply = request(self.clone(), "/apis/pythonext/eval", Some(code)).await?;
-        let reply_str = String::from_utf8(reply)?;
+        Ok(String::from_utf8(reply)?)
+    }
+
+    pub async fn eval(&self, code: String) -> Result<()> {
+        let reply_str = self.eval_json(code).await?;
 
         // Parse JSON response and handle output similar to repl
         match serde_json::from_str::<serde_json::Value>(&reply_str) {

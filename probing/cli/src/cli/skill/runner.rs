@@ -411,3 +411,139 @@ pub async fn run_skill(
     }
     Ok(())
 }
+
+/// Execute a skill and return structured JSON for MCP / agent consumers.
+pub async fn run_skill_json(
+    ctrl: ProbeEndpoint,
+    skill_id: &str,
+    mut overrides: HashMap<String, String>,
+) -> Result<serde_json::Value> {
+    let pb = load_skill(skill_id)?;
+    resolve_use_global(&ctrl, &pb, &mut overrides).await;
+    let ctx = build_context(&pb, &overrides);
+
+    let mut steps_out = Vec::new();
+    let mut evidence = Vec::new();
+    let mut abort = false;
+
+    for step in &pb.steps {
+        if abort {
+            break;
+        }
+        let outcome = run_step(&ctrl, step, &ctx).await;
+        if let Some(ev) = outcome_to_evidence(&outcome) {
+            evidence.push(ev);
+        }
+        steps_out.push(outcome_to_json(&outcome));
+        if matches!(
+            &outcome,
+            StepOutcome::Error { .. } if step.on_empty == "abort"
+        ) {
+            abort = true;
+        }
+    }
+
+    let findings = evaluate_rules(&pb.interpretation, &evidence, &ctx);
+    let findings_json: Vec<serde_json::Value> = findings
+        .iter()
+        .map(|f| {
+            serde_json::json!({
+                "rule_id": f.rule_id,
+                "severity": f.severity,
+                "message": f.message,
+            })
+        })
+        .collect();
+
+    let mut summary_ctx = ctx.clone();
+    for ev in &evidence {
+        summary_ctx.insert(
+            format!("{}.row_count", ev.step_id),
+            ev.row_count.to_string(),
+        );
+    }
+    let summary = if pb.summary_template.is_empty() {
+        String::new()
+    } else {
+        expand_template(&pb.summary_template, &summary_ctx)
+    };
+
+    let had_error = steps_out.iter().any(|s| {
+        s.get("status")
+            .and_then(|v| v.as_str())
+            .is_some_and(|st| st == "error")
+    });
+
+    let payload = serde_json::json!({
+        "skill_id": pb.id,
+        "title": pb.title,
+        "parameters": overrides,
+        "steps": steps_out,
+        "findings": findings_json,
+        "summary": summary,
+        "next_steps": pb.next_steps,
+        "status": if had_error { "error" } else { "ok" },
+    });
+
+    if had_error {
+        anyhow::bail!(payload.to_string());
+    }
+    Ok(payload)
+}
+
+fn outcome_to_json(outcome: &StepOutcome) -> serde_json::Value {
+    match outcome {
+        StepOutcome::Sql {
+            step_id,
+            title,
+            dataframe,
+            row_count,
+            note,
+        } => {
+            serde_json::json!({
+                "step_id": step_id,
+                "title": title,
+                "status": "ok",
+                "row_count": row_count,
+                "note": note,
+                "dataframe": dataframe,
+            })
+        }
+        StepOutcome::ApiText {
+            step_id,
+            title,
+            text,
+        } => {
+            serde_json::json!({
+                "step_id": step_id,
+                "title": title,
+                "status": "ok",
+                "text": text,
+            })
+        }
+        StepOutcome::Skipped {
+            step_id,
+            title,
+            reason,
+        } => {
+            serde_json::json!({
+                "step_id": step_id,
+                "title": title,
+                "status": "skipped",
+                "reason": reason,
+            })
+        }
+        StepOutcome::Error {
+            step_id,
+            title,
+            message,
+        } => {
+            serde_json::json!({
+                "step_id": step_id,
+                "title": title,
+                "status": "error",
+                "message": message,
+            })
+        }
+    }
+}

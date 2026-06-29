@@ -6,6 +6,8 @@ pub mod bench;
 pub mod cluster;
 pub mod commands;
 pub mod ctrl;
+pub mod help;
+pub mod mcp;
 pub mod repl;
 pub mod skill;
 
@@ -45,7 +47,7 @@ static BUILD_INFO: Lazy<String> = Lazy::new(get_build_info);
 
 /// Probing CLI - A performance and stability diagnostic tool for AI applications
 #[derive(Parser, Debug)]
-#[command(version = BUILD_INFO.as_str())]
+#[command(version = BUILD_INFO.as_str(), arg_required_else_help = true)]
 pub struct Cli {
     /// Enable verbose mode
     #[arg(short, long, global = true)]
@@ -60,6 +62,14 @@ pub struct Cli {
 }
 
 impl Cli {
+    /// Build the clap [`Command`] with grouped root `--help` (see [`help`]).
+    pub fn build_command() -> clap::Command {
+        let mut cmd = <Self as clap::CommandFactory>::command();
+        cmd = cmd.subcommand_required(true).arg_required_else_help(true);
+        help::apply_grouped_root_help(&mut cmd);
+        cmd
+    }
+
     pub async fn run(&mut self) -> Result<()> {
         // Handle external commands first to avoid target requirement
         if let Some(Commands::External(args)) = &self.command {
@@ -216,13 +226,10 @@ impl Cli {
     }
 
     async fn execute_command(&self, ctrl: ProbeEndpoint) -> Result<()> {
-        if self.command.is_none() {
-            #[cfg(target_os = "linux")]
-            inject::InjectCommand::default().run(ctrl.clone()).await?;
-
-            return Ok(());
-        }
-        let command = self.command.as_ref().unwrap();
+        let command = self
+            .command
+            .as_ref()
+            .expect("subcommand required (clap arg_required_else_help)");
         match command {
             #[cfg(target_os = "linux")]
             Commands::Inject(cmd) => cmd.run(ctrl).await,
@@ -284,10 +291,19 @@ impl Cli {
             }
             Commands::Cluster(cmd) => cluster::run(ctrl, cmd.clone()).await,
             Commands::Skill(cmd) => skill::run(ctrl, cmd.clone()).await,
+            Commands::Mcp(cmd) => mcp::run(ctrl, cmd.clone()).await,
             Commands::Repl => repl::start_repl(ctrl).await,
             // These commands are handled in run() method and don't need a target
+            #[cfg(target_os = "linux")]
             Commands::Launch { .. }
             | Commands::List { .. }
+            | Commands::Store(..)
+            | Commands::Bench(..)
+            | Commands::External(..) => {
+                unreachable!("These commands should be handled in run() method")
+            }
+            #[cfg(not(target_os = "linux"))]
+            Commands::List { .. }
             | Commands::Store(..)
             | Commands::Bench(..)
             | Commands::External(..) => {

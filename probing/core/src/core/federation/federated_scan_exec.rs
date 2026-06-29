@@ -29,6 +29,7 @@ use probing_proto::prelude::{DataFrame, Node};
 
 use super::cluster_executor::{record_fanout_failure, record_fanout_success, ProbeClusterExecutor};
 use super::convert::{align_batch_to_schema, dataframe_to_record_batch, tag_record_batch};
+use super::fanout_scope::FanoutScope;
 
 /// Federated scan plan combining the local table with lazily fetched peers.
 #[derive(Debug)]
@@ -45,6 +46,8 @@ pub struct FederatedScanExec {
     remote_sql: String,
     /// Snapshot of peer nodes captured at planning time (one partition each).
     remote_nodes: Vec<Node>,
+    /// How [`Self::execute_remote`] talks to each peer (plain SQL vs node aggregate API).
+    remote_scope: FanoutScope,
     local_host: String,
     local_addr: String,
     local_rank: Option<i32>,
@@ -59,6 +62,7 @@ impl FederatedScanExec {
         projection: Vec<usize>,
         remote_sql: String,
         remote_nodes: Vec<Node>,
+        remote_scope: FanoutScope,
         local_host: String,
         local_addr: String,
         local_rank: Option<i32>,
@@ -82,6 +86,7 @@ impl FederatedScanExec {
             projection,
             remote_sql,
             remote_nodes,
+            remote_scope,
             local_host,
             local_addr,
             local_rank,
@@ -123,6 +128,7 @@ impl FederatedScanExec {
         };
         let rank = node.rank;
         let sql = self.remote_sql.clone();
+        let remote_scope = self.remote_scope;
         let full = self.output_schema.clone();
         let projection = self.projection.clone();
         let projected_schema = self.projected_schema.clone();
@@ -132,7 +138,7 @@ impl FederatedScanExec {
         // failing the whole query, matching the legacy partial-result behavior.
         let fut = async move {
             let joined = tokio::task::spawn_blocking(move || {
-                ProbeClusterExecutor::execute_remote_query(&addr_query, &sql)
+                ProbeClusterExecutor::execute_remote_for_scope(&addr_query, &sql, remote_scope)
             })
             .await;
             match joined {
@@ -248,6 +254,7 @@ impl ExecutionPlan for FederatedScanExec {
             projection: self.projection.clone(),
             remote_sql: self.remote_sql.clone(),
             remote_nodes: self.remote_nodes.clone(),
+            remote_scope: self.remote_scope,
             local_host: self.local_host.clone(),
             local_addr: self.local_addr.clone(),
             local_rank: self.local_rank,

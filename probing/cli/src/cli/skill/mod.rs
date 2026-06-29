@@ -1,10 +1,14 @@
 //! Structured diagnostic skills (``probing skill``).
 
-mod interpret;
-mod loader;
+pub mod interpret;
+pub mod loader;
 mod runner;
 
-pub use runner::{list_skills as list_skills_sync, run_skill};
+pub use loader::{
+    build_context, default_parameters, expand_template, list_skill_ids, load_skill, Skill,
+    SkillStep,
+};
+pub use runner::{list_skills as list_skills_sync, run_skill, run_skill_json};
 
 use std::collections::HashMap;
 

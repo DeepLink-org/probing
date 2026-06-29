@@ -88,6 +88,59 @@ Rust-backed endpoints (`callstack`, `eval`) are thin `@ext_handler` wrappers aro
 | POST | `/query/dto` | SQL (JSON DTO, external clients) |
 | GET | `/config/{config_key}` | Read config value |
 | GET | `/ws` | WebSocket REPL |
+| * | `/mcp` | MCP Streamable HTTP (agent tools + schema resources) |
+
+### MCP (Model Context Protocol)
+
+When built with the `rmcp` feature (default in the PyPI wheel), the server exposes MCP at **`/mcp`** using [Streamable HTTP](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http).
+
+#### Read tools (always enabled)
+
+| Tool | Purpose |
+|------|---------|
+| `query` | Read-only SQL against the in-process engine (`limit` caps rows) |
+| `describe_tables` | Semantic docs from `probe.probing.table_docs` / `column_docs` |
+| `list_skills` | List bundled diagnostic skills |
+| `plan_skill` | Expand a skill into SQL/API steps without executing |
+| `run_skill` | Execute a diagnostic skill (local process; optional `use_global`) |
+| `list_cluster_nodes` | `GET /apis/nodes` — registered cluster members |
+| `cluster_query` | Read-only SQL with optional cluster fan-out (`cluster` default `true`) |
+
+#### Write tools (disabled unless `PROBING_MCP_ALLOW_WRITE=1`)
+
+| Tool | Purpose |
+|------|---------|
+| `set_config` | `SET probing.* = …` runtime config |
+| `eval_python` | `POST /apis/pythonext/eval` — run Python in the training process |
+
+Write calls are logged at `info` as `MCP write audit: …`.
+
+#### Resources
+
+| URI | Content |
+|-----|---------|
+| `probing://schema/catalog` | All table docs (JSON) |
+| `probing://schema/{schema}/{table}` | One table doc + column docs (JSON) |
+
+Cursor / Claude Code example (remote training agent on `host:8080`):
+
+```json
+{
+  "mcpServers": {
+    "probing": {
+      "url": "http://127.0.0.1:8080/mcp"
+    }
+  }
+}
+```
+
+Enable intervention tools for an on-call agent:
+
+```bash
+export PROBING_MCP_ALLOW_WRITE=1
+```
+
+For the in-process unix-socket server (same PID as training), point MCP at the TCP address from `server.address` config after `PROBING=1` startup.
 
 ## Adding endpoints
 

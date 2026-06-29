@@ -2,7 +2,7 @@
 
 PYTHON ?= $(shell test -x ../.venv/bin/python && echo ../.venv/bin/python || echo python3)
 
-.PHONY: help install serve build clean deploy
+.PHONY: help install serve build lint clean deploy
 
 # Default target
 help:
@@ -12,6 +12,7 @@ help:
 	@echo "  make install   Install documentation dependencies"
 	@echo "  make serve     Start live preview server with auto-reload"
 	@echo "  make build     Build static documentation site"
+	@echo "  make lint      Check links and build (--strict)"
 	@echo "  make clean     Remove built documentation"
 	@echo "  make deploy    Deploy to GitHub Pages"
 
@@ -30,6 +31,11 @@ serve:
 build:
 	@echo "Building documentation..."
 	mkdocs build
+
+# Strict build (broken links fail) — used by root `make lint`
+lint:
+	@echo "Linting documentation (mkdocs --strict)..."
+	$(PYTHON) -m mkdocs build --strict
 
 # Clean build artifacts
 clean:

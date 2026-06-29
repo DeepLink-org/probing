@@ -89,7 +89,9 @@ default = ["extension-module", "gpu", "kmsg"] # "use-mimalloc",
 
 [dependencies]
 probing-core = { path = "probing/core" }
-probing-server = { path = "probing/server", default-features = false }
+probing-server = { path = "probing/server", default-features = false, features = [
+    "rmcp",
+] }
 probing-python = { path = "probing/extensions/python", default-features = false, features = [
     "tracing",
 ] }
@@ -119,8 +121,8 @@ split-debuginfo = "unpacked"
 codegen-units = 16
 
 [profile.release]
-opt-level = "z"    # Optimize for size.
+opt-level = "z"  # Optimize for size.
 panic = "unwind"
-strip = false      # Automatically strip symbols from the binary.
+strip = false    # Automatically strip symbols from the binary.
 # lto = "thin"
 codegen-units = 16

@@ -26,6 +26,9 @@ use super::convert::{
     cluster_rank_for_endpoint, is_federation_tag_column, proto_dataframe_to_record_batch,
     tag_proto_dataframe,
 };
+use super::fanout_scope::{
+    current_fanout_scope, is_local0_from_env, resolve_fanout_scope, FanoutScope,
+};
 
 static PARTIAL_TABLE_ID: AtomicU64 = AtomicU64::new(0);
 
@@ -69,6 +72,7 @@ pub async fn try_execute_aggregate_pushdown(
 
     reset_fanout_stats();
     let mut proto_parts = Vec::new();
+    let scope = resolve_fanout_scope(current_fanout_scope());
 
     let host = ProbeClusterExecutor::local_host_label();
     let addr = ProbeClusterExecutor::local_addr_label();
@@ -83,28 +87,26 @@ pub async fn try_execute_aggregate_pushdown(
     }
 
     let per_node_sql = plan.per_node_sql.clone();
+    let mut stats = FanoutStats::default();
+
+    if scope == FanoutScope::Coordinator && is_local0_from_env() {
+        let leaf_sql = per_node_sql.clone();
+        let leaf_outcomes = tokio::task::spawn_blocking(move || {
+            ProbeClusterExecutor::fanout_query_to_peers_scoped(&leaf_sql, FanoutScope::Node)
+        })
+        .await
+        .map_err(|e| DataFusionError::Execution(format!("local leaf fan-out failed: {e}")))?;
+        append_fanout_outcomes(&mut proto_parts, &mut stats, &plan, leaf_outcomes);
+    }
+
+    let remote_scope = scope;
+    let remote_sql = per_node_sql.clone();
     let outcomes = tokio::task::spawn_blocking(move || {
-        ProbeClusterExecutor::fanout_query_to_peers(&per_node_sql)
+        ProbeClusterExecutor::fanout_query_to_peers_scoped(&remote_sql, remote_scope)
     })
     .await
     .map_err(|e| DataFusionError::Execution(format!("aggregate fan-out join failed: {e}")))?;
-
-    let mut stats = FanoutStats::default();
-    for outcome in outcomes {
-        match outcome.result {
-            Ok(mut df) => {
-                stats.nodes_succeeded += 1;
-                if plan.inject_tags {
-                    tag_proto_dataframe(&mut df, &outcome.host, &outcome.addr, outcome.rank);
-                }
-                proto_parts.push(df);
-            }
-            Err(err) => {
-                log::debug!("aggregate pushdown skipped {}: {err}", outcome.addr);
-                stats.nodes_failed.push(outcome.addr);
-            }
-        }
-    }
+    append_fanout_outcomes(&mut proto_parts, &mut stats, &plan, outcomes);
     set_fanout_stats(stats);
 
     if proto_parts.is_empty() {
@@ -130,6 +132,29 @@ pub async fn try_execute_aggregate_pushdown(
     };
 
     Ok(Some(result))
+}
+
+fn append_fanout_outcomes(
+    proto_parts: &mut Vec<probing_proto::prelude::DataFrame>,
+    stats: &mut FanoutStats,
+    plan: &FederatedAggregatePlan,
+    outcomes: Vec<super::cluster_executor::RemoteFanoutResult>,
+) {
+    for outcome in outcomes {
+        match outcome.result {
+            Ok(mut df) => {
+                stats.nodes_succeeded += 1;
+                if plan.inject_tags {
+                    tag_proto_dataframe(&mut df, &outcome.host, &outcome.addr, outcome.rank);
+                }
+                proto_parts.push(df);
+            }
+            Err(err) => {
+                log::debug!("aggregate pushdown skipped {}: {err}", outcome.addr);
+                stats.nodes_failed.push(outcome.addr);
+            }
+        }
+    }
 }
 
 async fn sql_to_proto_dataframe(

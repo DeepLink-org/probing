@@ -183,3 +183,4 @@ spec:
     - "栈卡在 collective → skill: training_hang"
     - "模块级热点 → skill: module_bottleneck (在慢 rank 上 inject)"
     - "有 nccl.proxy_ops → skill: nccl_culprit_victim (culprit/victim 归因)"
+    - "长期最慢 rank (worst_fraction) → skill: persistent_straggler --global"

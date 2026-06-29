@@ -1,0 +1,194 @@
+apiVersion: probing.dev/v1
+kind: Skill
+
+metadata:
+  id: persistent_straggler
+  title: "长期 straggler / worst_fraction"
+  title_en: "Persistent straggler (worst_fraction)"
+  category: distributed
+  tags: [straggler, persistent, worst_fraction, rank, 拖后腿]
+  triggers:
+    keywords:
+      zh: ["长期慢", "一直慢", "worst_fraction", "persistent straggler", "总是最慢", "慢性 straggler"]
+      en: ["persistent straggler", "worst fraction", "always slow", "chronic straggler", "worst_fraction"]
+  docs: |
+    找出 **在多少 step 上是最慢 rank**（worst_fraction），区分「偶发慢一次」与「长期拖后腿」。
+    对标 federation 文档 §3.2；万卡场景请在 rank0 上 `--global` fan-out。
+
+spec:
+  parameters:
+    - name: step_window
+      type: integer
+      default: 300
+      description: "Steps included in worst_fraction calculation"
+    - name: worst_fraction_threshold
+      type: number
+      default: 0.25
+      description: "Flag ranks whose worst_fraction exceeds this (0–1)"
+    - name: use_global
+      type: boolean
+      default: true
+      description: "Query global.python.comm_collective with cluster fan-out"
+
+  requires:
+    any_tables:
+      - python.comm_collective
+      - global.python.comm_collective
+
+  steps:
+    - id: worst_fraction
+      title: "各 rank 的 worst_fraction"
+      type: sql
+      cluster: true
+      when: "{use_global}"
+      sql: |
+        WITH per_step AS (
+          SELECT global_step, _rank, _host, sum(duration_ms) AS step_ms
+          FROM global.python.comm_collective
+          WHERE global_step >= (
+            SELECT max(global_step) - {step_window}
+            FROM global.python.comm_collective
+          )
+          GROUP BY global_step, _rank, _host
+        )
+        SELECT
+          _rank,
+          _host,
+          count(*) AS steps_seen,
+          sum(
+            CASE
+              WHEN step_ms = max(step_ms) OVER (PARTITION BY global_step) THEN 1
+              ELSE 0
+            END
+          ) * 1.0 / count(*) AS worst_fraction,
+          avg(step_ms) AS avg_step_comm_ms
+        FROM per_step
+        GROUP BY _rank, _host
+        ORDER BY worst_fraction DESC, avg_step_comm_ms DESC
+      on_empty: abort
+      empty_message: |
+        无 global comm_collective 数据。确认:
+        - rank0 上运行且 cluster.nodes 已注册
+        - probing -t rank0:8080 skill run persistent_straggler --global
+
+    - id: persistent_offenders
+      title: "worst_fraction 超过阈值的 rank"
+      type: sql
+      cluster: true
+      when: "{use_global}"
+      sql: |
+        WITH per_step AS (
+          SELECT global_step, _rank, _host, sum(duration_ms) AS step_ms
+          FROM global.python.comm_collective
+          WHERE global_step >= (
+            SELECT max(global_step) - {step_window}
+            FROM global.python.comm_collective
+          )
+          GROUP BY global_step, _rank, _host
+        ),
+        scored AS (
+          SELECT
+            _rank,
+            _host,
+            count(*) AS steps_seen,
+            sum(
+              CASE
+                WHEN step_ms = max(step_ms) OVER (PARTITION BY global_step) THEN 1
+                ELSE 0
+              END
+            ) * 1.0 / count(*) AS worst_fraction,
+            avg(step_ms) AS avg_step_comm_ms
+          FROM per_step
+          GROUP BY _rank, _host
+        )
+        SELECT *
+        FROM scored
+        WHERE worst_fraction >= {worst_fraction_threshold}
+        ORDER BY worst_fraction DESC, avg_step_comm_ms DESC
+      on_empty: skip
+      empty_message: "无 rank 的 worst_fraction 超过阈值 — straggler 可能是偶发的"
+
+    - id: recent_step_lag
+      title: "最近 step 上 lag 最大的 rank"
+      type: sql
+      sql: |
+        WITH per_step AS (
+          SELECT
+            global_step,
+            rank,
+            sum(duration_ms) AS step_ms
+          FROM {table_comm}
+          WHERE global_step >= (
+            SELECT max(global_step) - LEAST({step_window}, 50)
+            FROM {table_comm}
+          )
+          GROUP BY global_step, rank
+        ),
+        ranked AS (
+          SELECT
+            global_step,
+            rank,
+            step_ms,
+            step_ms - min(step_ms) OVER (PARTITION BY global_step) AS lag_ms
+          FROM per_step
+        )
+        SELECT global_step, rank, step_ms, lag_ms
+        FROM ranked
+        WHERE lag_ms = max(lag_ms) OVER (PARTITION BY global_step)
+        ORDER BY global_step DESC
+        LIMIT 15
+      on_empty: skip
+
+    - id: rank_latency_context
+      title: "各 rank 平均 collective 延迟（对照）"
+      type: sql
+      cluster: true
+      when: "{use_global}"
+      sql: |
+        SELECT
+          _host,
+          _rank,
+          count(*) AS calls,
+          avg(duration_ms) AS avg_ms,
+          max(duration_ms) AS max_ms
+        FROM global.python.comm_collective
+        WHERE global_step >= (
+          SELECT max(global_step) - {step_window}
+          FROM global.python.comm_collective
+        )
+        GROUP BY _host, _rank
+        ORDER BY avg_ms DESC
+      on_empty: skip
+
+  variables:
+    table_comm: "{comm_table}"
+
+  interpretation:
+    rules:
+      - id: chronic_straggler
+        when: "step:persistent_offenders | rows >= 1"
+        severity: warning
+        message: "存在 worst_fraction ≥ 阈值的 rank — 长期 straggler，优先查对应节点"
+
+      - id: high_worst_fraction
+        when: "step:worst_fraction | column:worst_fraction | max > 0.5"
+        severity: warning
+        message: "有 rank 在超过一半 step 上是最慢 — 强烈怀疑节点/网络/数据问题"
+
+      - id: single_dominant
+        when: "step:worst_fraction | rows >= 2 | top(row).worst_fraction > 2 * median(worst_fraction)"
+        severity: info
+        message: "worst_fraction 头部 rank 明显突出 — 见 persistent_offenders 表"
+
+  summary_template: |
+    ## 长期 straggler
+    - **worst_fraction**: 每个 rank 在多少比例的 step 上是最慢
+    - **persistent_offenders**: 超过 `{worst_fraction_threshold}` 阈值的 rank
+    - **recent_step_lag**: 最近 step 的单次 lag（偶发 vs 长期对照）
+    - **rank_latency_context**: 窗口内平均 collective 延迟
+
+  next_steps:
+    - "对应节点 GPU/显存 → skill: gpu_pressure"
+    - "NCCL wait 分解 → skill: nccl_culprit_victim"
+    - "模块热点 → 在慢 rank inject 后 skill: module_bottleneck"
+    - "整 job 变慢趋势 → skill: job_health"

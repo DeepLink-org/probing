@@ -1,8 +1,6 @@
-# 核心概念
+# 核心模型
 
-逐步构建 Probing 的心理模型——endpoint 是什么、数据如何流入表、step 坐标如何
-组织状态、以及联邦查询如何跨节点工作。在深入 [SQL 分析](sql-analytics.zh.md)或
-[分布式](../design/distributed.zh.md)之前请先阅读本文。
+运行时布局、catalog 与坐标；CLI、SQL 与架构文档共用。列定义见 **[SQL 表目录](../reference/sql-tables.zh.md)**。
 
 ## Endpoint：如何访问 probing 服务器
 
