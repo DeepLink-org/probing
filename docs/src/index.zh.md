@@ -50,4 +50,4 @@ probing -t $(pgrep -f train.py) query "
 | [架构](design/index.zh.md) | 分层、存储、联邦、采集器 |
 | [参考手册](reference/index.zh.md) | SQL 表、CLI/API、环境变量 |
 
-贡献者：[贡献指南](contributing.zh.md) · 文档风格：[WRITING.md](../WRITING.md)
+贡献者：[贡献指南](contributing.zh.md) · 文档风格：[writing.md](writing.md)

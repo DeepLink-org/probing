@@ -58,7 +58,7 @@ docs/
 
 ## Writing Documentation
 
-See **[WRITING.md](WRITING.md)** for tone and structure (logical / technical narrative;
+See **[src/writing.md](src/writing.md)** for tone and structure (logical / technical narrative;
 avoid product and persona routing).
 
 All documentation is written in Markdown

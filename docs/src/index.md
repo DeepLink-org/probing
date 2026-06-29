@@ -51,4 +51,4 @@ catalog; `global.*` fans out when cluster membership is configured (see [Distrib
 | [Architecture](design/index.md) | Layers, storage, federation, collectors |
 | [Reference](reference/index.md) | SQL tables, CLI/API, env vars |
 
-Contributors: [Contributing](contributing.md) · Doc style: [WRITING.md](../WRITING.md)
+Contributors: [Contributing](contributing.md) · Doc style: [writing.md](writing.md)

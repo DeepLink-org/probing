@@ -9,7 +9,7 @@
 | 日常开发 bootstrap | [开发环境](#development-setup) |
 | Agent 诊断 skill | [Skills 与 Agent](#skills-agents) + [AGENTS.md](https://github.com/DeepLink-org/probing/blob/main/AGENTS.md) |
 | PR / 规范 / 行为准则 | [提交变更](#submitting-changes) |
-| 文档风格 | [WRITING.md](../WRITING.md) |
+| 文档风格 | [writing.md](writing.md) |
 
 ## 欢迎参与开发 {#getting-started}
 
