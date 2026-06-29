@@ -16,7 +16,7 @@
         <link rel="prev" href="../torchrun-cluster/">
       
       
-        <link rel="next" href="../nccl-profiler/">
+        <link rel="next" href="../hierarchical-fanout/">
       
       
         
@@ -337,7 +337,7 @@
   
     
   
-  设计文档
+  架构
 
         </a>
       </li>
@@ -610,7 +610,7 @@
   <span class="md-ellipsis">
     
   
-    核心概念
+    核心模型
   
 
     
@@ -806,7 +806,7 @@
   <span class="md-ellipsis">
     
   
-    调试指南
+    现场调试
   
 
     
@@ -878,20 +878,6 @@
       
         
       
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
     
     
     
@@ -919,7 +905,7 @@
   <span class="md-ellipsis">
     
   
-    设计文档
+    架构
   
 
     
@@ -941,13 +927,78 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    设计文档
+    架构
   
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
               
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    平台核心
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    平台核心
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
             
               
                 
@@ -964,34 +1015,6 @@
     
   
     模块化与边界
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    系统架构
   
 
     
@@ -1040,6 +1063,135 @@
   
   
     <li class="md-nav__item">
+      <a href="../extensibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    扩展机制
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI 命令树
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    采集与 Profiling
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    采集与 Profiling
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../profiling/" class="md-nav__link">
         
   
@@ -1068,14 +1220,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../debugging/" class="md-nav__link">
+      <a href="../nccl-profiler/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    调试指南
+    NCCL Profiler
   
 
     
@@ -1096,6 +1248,139 @@
   
   
     <li class="md-nav__item">
+      <a href="../debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    调试引擎
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../training-phase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    训练阶段
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    分布式
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    分布式
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../distributed/" class="md-nav__link">
         
   
@@ -1103,7 +1388,7 @@
   <span class="md-ellipsis">
     
   
-    分布式
+    概览
   
 
     
@@ -1215,10 +1500,27 @@
   <a href="#1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. 问题与原则
+        1. 执行模型
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="1. 执行模型">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        不变量
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1265,19 +1567,19 @@
   <a href="#3-sql" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3. 诊断场景（用户要什么 → 用什么 SQL）
+        3. 示例 SQL
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="3. 诊断场景（用户要什么 → 用什么 SQL）">
+    <nav class="md-nav" aria-label="3. 示例 SQL">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#31-straggler-rank" class="md-nav__link">
+  <a href="#31-globalpythoncomm_collective-rank-host" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3.1 Straggler：从 rank 到机器到热力图
+        3.1 global.python.comm_collective — rank 与 host 聚合
       
     </span>
   </a>
@@ -1337,12 +1639,12 @@
   <a href="#4" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4. 引擎行为规格
+        4. 引擎规格
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="4. 引擎行为规格">
+    <nav class="md-nav" aria-label="4. 引擎规格">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1464,7 +1766,7 @@
   <a href="#5" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5. 万卡验收（最小五连）
+        5. 回归查询
       
     </span>
   </a>
@@ -1498,14 +1800,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../nccl-profiler/" class="md-nav__link">
+      <a href="../hierarchical-fanout/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    NCCL Profiler
+    分层集群查询
   
 
     
@@ -1547,6 +1849,14 @@
 
               
             
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
               
                 
   
@@ -1554,14 +1864,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensibility/" class="md-nav__link">
+      <a href="../architecture/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    扩展机制
+    系统架构（旧版）
   
 
     
@@ -1865,7 +2175,7 @@
   <span class="md-ellipsis">
     
   
-    API 参考
+    CLI 与 Python API
   
 
     
@@ -2027,10 +2337,27 @@
   <a href="#1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. 问题与原则
+        1. 执行模型
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="1. 执行模型">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        不变量
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2077,19 +2404,19 @@
   <a href="#3-sql" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3. 诊断场景（用户要什么 → 用什么 SQL）
+        3. 示例 SQL
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="3. 诊断场景（用户要什么 → 用什么 SQL）">
+    <nav class="md-nav" aria-label="3. 示例 SQL">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#31-straggler-rank" class="md-nav__link">
+  <a href="#31-globalpythoncomm_collective-rank-host" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3.1 Straggler：从 rank 到机器到热力图
+        3.1 global.python.comm_collective — rank 与 host 聚合
       
     </span>
   </a>
@@ -2149,12 +2476,12 @@
   <a href="#4" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4. 引擎行为规格
+        4. 引擎规格
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="4. 引擎行为规格">
+    <nav class="md-nav" aria-label="4. 引擎规格">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2276,7 +2603,7 @@
   <a href="#5" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5. 万卡验收（最小五连）
+        5. 回归查询
       
     </span>
   </a>
@@ -2315,41 +2642,41 @@
 
 
 <h1 id="_1">联邦查询引擎<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
-<p><strong>产品定位：</strong> 在 coordinator（通常是 rank 0 / master 探针）上用 <strong>一条 SQL</strong> 问整个训练集群——「谁慢、慢在哪一步、是算力还是网络、是哪台机器」——而不必 SSH 逐 rank 拉日志。</p>
-<p><strong>设计契约：</strong> 本文定义用户可见语义；实现以 <code>probing/core/src/core/federation/</code> 为准，不一致时以本文推进对齐。</p>
-<p>术语：<a href="../../guide/concepts/">核心概念</a> · 用法：<a href="../distributed/">分布式</a> · <a href="../../guide/sql-analytics/">SQL 分析</a></p>
+<p><code>global</code> catalog 的跨 rank SQL 语义。本文定义用户可见行为；实现位于
+<code>probing/core/src/core/federation/</code>。冲突时以本文为准对齐代码。</p>
+<p>参见：<a href="../../guide/concepts/">核心模型</a> · <a href="../distributed/">分布式概览</a> · <a href="../../guide/sql-analytics/">SQL 分析</a></p>
 <hr />
-<h2 id="1">1. 问题与原则<a class="headerlink" href="#1" title="Permanent link">&para;</a></h2>
-<p>每个 rank 的探针 <strong>只写本地 memtable</strong>（<code>python.comm_collective</code>、<code>nccl.proxy_ops</code>、<code>python.trace_event</code> 等）。跨 rank 分析 = coordinator 把查询拆成：</p>
+<h2 id="1">1. 执行模型<a class="headerlink" href="#1" title="Permanent link">&para;</a></h2>
+<p>每个 rank 仅写本地 memtable（<code>python.comm_collective</code>、<code>nccl.proxy_ops</code> 等）。Coordinator 查询：</p>
 <ol>
-<li>各 peer 本地执行 <code>probe.*</code></li>
-<li>HTTP fan-out 拉结果</li>
-<li>合并行并注入 <strong>联邦标签</strong>（标明行来自哪台机器、哪个 rank）</li>
+<li>在各 peer 执行 <code>probe.*</code>（HTTP）</li>
+<li>合并 partial 结果</li>
+<li>注入联邦标签列（<code>_host</code>、<code>_addr</code> 等）</li>
 </ol>
-<p><strong>原则</strong></p>
+<h3 id="_2">不变量<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
-<th>原则</th>
-<th>含义</th>
+<th>不变量</th>
+<th>定义</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>本地写、按需读</td>
-<td>训练路径零额外中心存储；只有显式 <code>cluster query</code> / <code>global.*</code> 才 fan-out</td>
+<td>训练路径无中心存储；仅 <code>cluster query</code> / <code>global.*</code> fan-out</td>
 </tr>
 <tr>
-<td>SQL 统一入口</td>
-<td>CLI、Web、Skill、进程内 <code>probing.query()</code> 最终都走同一套 Engine</td>
+<td>单一引擎入口</td>
+<td>CLI、Web、skill、<code>probing.query()</code> 共用 <code>Engine::async_query</code></td>
 </tr>
 <tr>
-<td>部分失败可接受</td>
-<td>单个 peer 超时/不可达：丢弃该分片，返回 <code>nodes_failed</code>，不拖垮整查</td>
+<td>部分失败</td>
+<td>peer 超时 → 丢弃分片，记录 <code>nodes_failed</code>；查询继续</td>
 </tr>
 <tr>
-<td>不做跨 rank JOIN</td>
-<td>两张表要在 <strong>同一进程</strong> 内 join；不支持 <code>global.a JOIN global.b</code></td>
+<td>无跨 rank JOIN</td>
+<td>不支持 <code>global.a JOIN global.b</code>；单进程内 join（路径 C）</td>
 </tr>
 </tbody>
 </table>
@@ -2459,11 +2786,9 @@
 <li>标签在 <strong>coordinator 合并时</strong> inject，不写入 peer memtable</li>
 </ul>
 <hr />
-<h2 id="3-sql">3. 诊断场景（用户要什么 → 用什么 SQL）<a class="headerlink" href="#3-sql" title="Permanent link">&para;</a></h2>
-<p>复杂问题用 <strong>诊断链</strong> 分步收窄，而不是一条 SQL 扫全集群 raw 行。下列场景对标生产 LLM 集群实践（<a href="https://www.usenix.org/conference/osdi25/presentation/lin-jinkun">OSDI'25 Straggler / SMon</a>、<a href="https://arxiv.org/pdf/2402.15627">MegaScale</a>、NCCL collective 归因），语义对齐即可，非复刻某套系统。</p>
-<h3 id="31-straggler-rank">3.1 Straggler：从 rank 到机器到热力图<a class="headerlink" href="#31-straggler-rank" title="Permanent link">&para;</a></h3>
-<p><strong>链：</strong> rank 榜 → 慢节点 → step×rank 热力图 → 按 op 分解 → NCCL culprit/victim</p>
-<p><strong>① 各 rank collective 谁最慢</strong></p>
+<h2 id="3-sql">3. 示例 SQL<a class="headerlink" href="#3-sql" title="Permanent link">&para;</a></h2>
+<p>联邦表上的参考查询。满足 §4.2 条件时优先走路径 A（聚合下推）。</p>
+<h3 id="31-globalpythoncomm_collective-rank-host">3.1 <code>global.python.comm_collective</code> — rank 与 host 聚合<a class="headerlink" href="#31-globalpythoncomm_collective-rank-host" title="Permanent link">&para;</a></h3>
 <div class="language-sql highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">_role</span><span class="p">,</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="n">rank</span><span class="p">,</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">       </span><span class="k">avg</span><span class="p">(</span><span class="n">duration_ms</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">avg_ms</span><span class="p">,</span><span class="w"> </span><span class="k">max</span><span class="p">(</span><span class="n">duration_ms</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">max_ms</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span>
@@ -2576,8 +2901,9 @@
 </span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">func</span><span class="w"> </span><span class="k">LIKE</span><span class="w"> </span><span class="s1">&#39;%collective%&#39;</span><span class="w"> </span><span class="k">OR</span><span class="w"> </span><span class="n">func</span><span class="w"> </span><span class="k">LIKE</span><span class="w"> </span><span class="s1">&#39;%nccl%&#39;</span><span class="p">;</span>
 </span></code></pre></div>
 <hr />
-<h2 id="4">4. 引擎行为规格<a class="headerlink" href="#4" title="Permanent link">&para;</a></h2>
-<p>本节从 §3 诊断需求反推 <strong>引擎必须保证的用户可见语义</strong>。实现入口：<code>probing/core/src/core/federation/</code>（执行）、<code>probing/server/src/server/cluster_fanout.rs</code>（<code>cluster=true</code> 路由）。</p>
+<h2 id="4">4. 引擎规格<a class="headerlink" href="#4" title="Permanent link">&para;</a></h2>
+<p>实现：<code>probing/core/src/core/federation/</code>；<code>cluster=true</code> 路由：
+<code>probing/server/src/server/cluster_fanout.rs</code>。</p>
 <h3 id="41">4.1 处理流水线<a class="headerlink" href="#41" title="Permanent link">&para;</a></h3>
 <pre class="mermaid"><code>flowchart LR
     IN[用户 SQL] --&gt; CF{cluster?}
@@ -2616,6 +2942,10 @@
 <tr>
 <td>超时</td>
 <td>单 peer 超时记 <code>nodes_failed</code>，不拖垮整查（默认 2s，可 <code>PROBING_REMOTE_QUERY_TIMEOUT_SECS</code> 覆盖）</td>
+</tr>
+<tr>
+<td>分层 fan-out</td>
+<td>默认开启：<code>coordinator → 各机 local0 → 本机 leaf</code>；见 <a href="../hierarchical-fanout/">分层集群查询</a></td>
 </tr>
 </tbody>
 </table>
@@ -2954,8 +3284,8 @@
 </tbody>
 </table>
 <hr />
-<h2 id="5">5. 万卡验收（最小五连）<a class="headerlink" href="#5" title="Permanent link">&para;</a></h2>
-<p>增强引擎时，<strong>先保证这五条</strong>在 mock 多节点与真 cluster 上数值正确：</p>
+<h2 id="5">5. 回归查询<a class="headerlink" href="#5" title="Permanent link">&para;</a></h2>
+<p>引擎变更须在 mock 多节点与真实集群上通过：</p>
 <table>
 <thead>
 <tr>
@@ -3015,8 +3345,8 @@
 <td><code>cluster query</code> 用法</td>
 </tr>
 <tr>
-<td><a href="../../guide/concepts/">核心概念</a></td>
-<td>用户向联邦说明</td>
+<td><a href="../../guide/concepts/">核心模型</a></td>
+<td>Catalog、联邦标签</td>
 </tr>
 <tr>
 <td><a href="../../reference/sql-tables/">SQL 表目录</a></td>

@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://github.com/DeepLink-org/probing/design/distributed/">
       
       
-        <link rel="prev" href="../debugging/">
+        <link rel="prev" href="../training-phase/">
       
       
         <link rel="next" href="../torchrun-cluster/">
@@ -31,7 +31,7 @@
     
     
       
-        <title>Distributed - Probing Documentation</title>
+        <title>Overview - Probing Documentation</title>
       
     
     
@@ -120,7 +120,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Distributed
+              Overview
             
           </span>
         </div>
@@ -335,7 +335,7 @@
   
     
   
-  Design
+  Architecture
 
         </a>
       </li>
@@ -608,7 +608,7 @@
   <span class="md-ellipsis">
     
   
-    Core Concepts
+    Core model
   
 
     
@@ -804,7 +804,7 @@
   <span class="md-ellipsis">
     
   
-    Debugging
+    Live Debugging
   
 
     
@@ -876,20 +876,6 @@
       
         
       
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
     
     
     
@@ -917,7 +903,7 @@
   <span class="md-ellipsis">
     
   
-    Design
+    Architecture
   
 
     
@@ -939,13 +925,78 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Design
+    Architecture
   
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
               
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Platform
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Platform
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
             
               
                 
@@ -961,35 +1012,7 @@
   <span class="md-ellipsis">
     
   
-    Modularity
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Architecture
+    Modularity & Boundaries
   
 
     
@@ -1038,6 +1061,135 @@
   
   
     <li class="md-nav__item">
+      <a href="../extensibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extensibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Command Tree
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Collectors & Profiling
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Collectors & Profiling
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../profiling/" class="md-nav__link">
         
   
@@ -1066,14 +1218,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../debugging/" class="md-nav__link">
+      <a href="../nccl-profiler/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Debugging
+    NCCL Profiler
   
 
     
@@ -1086,6 +1238,139 @@
   
 
               
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Debugging Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../training-phase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training Phases
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Distributed
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Distributed
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
             
               
                 
@@ -1110,7 +1395,7 @@
   <span class="md-ellipsis">
     
   
-    Distributed
+    Overview
   
 
     
@@ -1128,7 +1413,7 @@
   <span class="md-ellipsis">
     
   
-    Distributed
+    Overview
   
 
     
@@ -1154,10 +1439,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#overview" class="md-nav__link">
+  <a href="#related-documents" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Overview
+        Related documents
       
     </span>
   </a>
@@ -1165,10 +1450,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#architecture" class="md-nav__link">
+  <a href="#topology" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Architecture
+        Topology
       
     </span>
   </a>
@@ -1455,10 +1740,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#1-consistent-configuration" class="md-nav__link">
+  <a href="#consistent-environment" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. Consistent Configuration
+        Consistent environment
       
     </span>
   </a>
@@ -1466,10 +1751,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#2-centralized-collection" class="md-nav__link">
+  <a href="#cross-node-timestamps" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2. Centralized Collection
+        Cross-node timestamps
       
     </span>
   </a>
@@ -1477,21 +1762,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#3-timestamp-synchronization" class="md-nav__link">
+  <a href="#network" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3. Timestamp Synchronization
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#4-network-considerations" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4. Network Considerations
+        Network
       
     </span>
   </a>
@@ -1575,14 +1849,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../nccl-profiler/" class="md-nav__link">
+      <a href="../hierarchical-fanout/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    NCCL Profiler
+    Hierarchical Fan-out
   
 
     
@@ -1624,6 +1898,14 @@
 
               
             
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
               
                 
   
@@ -1631,14 +1913,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensibility/" class="md-nav__link">
+      <a href="../architecture/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Extensibility
+    System Architecture (legacy)
   
 
     
@@ -1942,7 +2224,7 @@
   <span class="md-ellipsis">
     
   
-    API Reference
+    CLI & Python API
   
 
     
@@ -2101,10 +2383,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#overview" class="md-nav__link">
+  <a href="#related-documents" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Overview
+        Related documents
       
     </span>
   </a>
@@ -2112,10 +2394,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#architecture" class="md-nav__link">
+  <a href="#topology" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Architecture
+        Topology
       
     </span>
   </a>
@@ -2402,10 +2684,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#1-consistent-configuration" class="md-nav__link">
+  <a href="#consistent-environment" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. Consistent Configuration
+        Consistent environment
       
     </span>
   </a>
@@ -2413,10 +2695,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#2-centralized-collection" class="md-nav__link">
+  <a href="#cross-node-timestamps" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2. Centralized Collection
+        Cross-node timestamps
       
     </span>
   </a>
@@ -2424,21 +2706,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#3-timestamp-synchronization" class="md-nav__link">
+  <a href="#network" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3. Timestamp Synchronization
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#4-network-considerations" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4. Network Considerations
+        Network
       
     </span>
   </a>
@@ -2471,17 +2742,43 @@
 
 
 <h1 id="distributed-architecture">Distributed Architecture<a class="headerlink" href="#distributed-architecture" title="Permanent link">&para;</a></h1>
-<p>Probing supports monitoring and debugging distributed AI workloads across multiple nodes.</p>
-<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
-<p>Distributed training introduces challenges:</p>
-<ul>
-<li>Multiple processes across nodes</li>
-<li>Communication between ranks</li>
-<li>Synchronized debugging needs</li>
-<li>Cross-node data correlation</li>
-</ul>
-<p>Probing addresses these through a distributed architecture.</p>
-<h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h2>
+<p>Multi-node probing: per-rank memtable writers, <code>cluster.nodes</code> registry, coordinator-side
+SQL fan-out via <code>global.*</code> and <code>/apis/cluster/query</code>.</p>
+<h2 id="related-documents">Related documents<a class="headerlink" href="#related-documents" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Document</th>
+<th>Scope</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../torchrun-cluster/">Torchrun cluster heartbeat</a></td>
+<td>TCPStore side channel, hierarchical PUT, backoff</td>
+</tr>
+<tr>
+<td><a href="../federation/">Federated query engine</a></td>
+<td>Catalog rewrite, paths A/B/C, tag injection</td>
+</tr>
+<tr>
+<td><a href="../hierarchical-fanout/">Hierarchical fan-out</a></td>
+<td>coordinator → local0 → leaf HTTP topology</td>
+</tr>
+<tr>
+<td><a href="../cluster-pulsing/">Cluster with Pulsing</a></td>
+<td>Optional <code>pulsing.*</code> memtable membership</td>
+</tr>
+<tr>
+<td><a href="../nccl-profiler/">NCCL Profiler</a></td>
+<td><code>nccl.proxy_ops</code> plugin ABI</td>
+</tr>
+</tbody>
+</table>
+<p>Dependency order: <a href="../../guide/concepts/">Core model</a> → this page → torchrun heartbeat → federation → hierarchical fan-out.</p>
+<p>Reference: <a href="../../reference/sql-tables/">SQL Tables</a> (<code>cluster.nodes</code>, federation tags).</p>
+<hr />
+<h2 id="topology">Topology<a class="headerlink" href="#topology" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>graph TB
     subgraph "Node 1"
         P1[Process Rank 0]
@@ -2547,6 +2844,8 @@ key from the node registry, e.g. <code>dp=2,pp=1,tp=0</code>).</p>
 <code>PUT /apis/nodes</code> so <code>_rank</code> and
 <code>_role</code> resolve correctly. Override role at runtime with <code>probing.set_role(...)</code> in training
 scripts.</p>
+<p>See <a href="../federation/">Federated query engine</a> for engine paths and acceptance tests.</p>
+<p>At wan scale, <strong><code>cluster query</code> defaults to <a href="../hierarchical-fanout/">hierarchical fan-out</a></strong> (coordinator → per-machine local0 → on-node leaves). Set <code>PROBING_CLUSTER_FANOUT_HIERARCHICAL=0</code> or use CLI <code>--flat</code> for legacy flat fan-out.</p>
 <h2 id="synchronized-debugging">Synchronized Debugging<a class="headerlink" href="#synchronized-debugging" title="Permanent link">&para;</a></h2>
 <h3 id="capture-all-stacks">Capture All Stacks<a class="headerlink" href="#capture-all-stacks" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Capture stack traces from all ranks</span>
@@ -2637,24 +2936,16 @@ scripts.</p>
 </span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>probing<span class="w"> </span>-t<span class="w"> </span>host:8080<span class="w"> </span>--token<span class="w"> </span>secret<span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;...&quot;</span>
 </span></code></pre></div>
 <h2 id="best-practices">Best Practices<a class="headerlink" href="#best-practices" title="Permanent link">&para;</a></h2>
-<h3 id="1-consistent-configuration">1. Consistent Configuration<a class="headerlink" href="#1-consistent-configuration" title="Permanent link">&para;</a></h3>
-<p>Use same configuration across all nodes:</p>
+<h3 id="consistent-environment">Consistent environment<a class="headerlink" href="#consistent-environment" title="Permanent link">&para;</a></h3>
+<p>Same env on all ranks (example):</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PROBING_PORT</span><span class="o">=</span><span class="m">8080</span>
 </span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span>on
 </span></code></pre></div>
-<h3 id="2-centralized-collection">2. Centralized Collection<a class="headerlink" href="#2-centralized-collection" title="Permanent link">&para;</a></h3>
-<p>For large clusters, consider aggregation:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="c1"># Export data to central location</span>
-</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$node</span><span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;SELECT * FROM python.torch_trace&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>/shared/traces.json
-</span></code></pre></div>
-<h3 id="3-timestamp-synchronization">3. Timestamp Synchronization<a class="headerlink" href="#3-timestamp-synchronization" title="Permanent link">&para;</a></h3>
-<p>Ensure NTP is configured for accurate cross-node timing.</p>
-<h3 id="4-network-considerations">4. Network Considerations<a class="headerlink" href="#4-network-considerations" title="Permanent link">&para;</a></h3>
-<ul>
-<li>Use dedicated network for probing traffic if possible</li>
-<li>Consider firewall rules for probing ports</li>
-<li>Monitor probing overhead on training network</li>
-</ul>
+<h3 id="cross-node-timestamps">Cross-node timestamps<a class="headerlink" href="#cross-node-timestamps" title="Permanent link">&para;</a></h3>
+<p>Use NTP; memtable <code>ts</code> columns are wall-clock microseconds per process.</p>
+<h3 id="network">Network<a class="headerlink" href="#network" title="Permanent link">&para;</a></h3>
+<p>Probing HTTP is control-plane traffic. Isolate or rate-limit fan-out on large clusters;
+see <a href="../hierarchical-fanout/">Hierarchical fan-out</a>.</p>
 
 
 

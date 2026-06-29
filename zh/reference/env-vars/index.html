@@ -88,7 +88,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#environment-variables" class="md-skip">
+        <a href="#_1" class="md-skip">
           跳转至
         </a>
       
@@ -335,7 +335,7 @@
   
     
   
-  设计文档
+  架构
 
         </a>
       </li>
@@ -610,7 +610,7 @@
   <span class="md-ellipsis">
     
   
-    核心概念
+    核心模型
   
 
     
@@ -806,7 +806,7 @@
   <span class="md-ellipsis">
     
   
-    调试指南
+    现场调试
   
 
     
@@ -876,20 +876,6 @@
       
         
       
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
     
     
     
@@ -914,7 +900,7 @@
   <span class="md-ellipsis">
     
   
-    设计文档
+    架构
   
 
     
@@ -936,13 +922,75 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    设计文档
+    架构
   
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
               
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    平台核心
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    平台核心
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
             
               
                 
@@ -959,34 +1007,6 @@
     
   
     模块化与边界
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    系统架构
   
 
     
@@ -1035,6 +1055,132 @@
   
   
     <li class="md-nav__item">
+      <a href="../../design/extensibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    扩展机制
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI 命令树
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    采集与 Profiling
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    采集与 Profiling
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../design/profiling/" class="md-nav__link">
         
   
@@ -1063,14 +1209,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/debugging/" class="md-nav__link">
+      <a href="../../design/nccl-profiler/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    调试指南
+    NCCL Profiler
   
 
     
@@ -1091,6 +1237,134 @@
   
   
     <li class="md-nav__item">
+      <a href="../../design/debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    调试引擎
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/training-phase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    训练阶段
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    分布式
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    分布式
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../design/distributed/" class="md-nav__link">
         
   
@@ -1098,7 +1372,7 @@
   <span class="md-ellipsis">
     
   
-    分布式
+    概览
   
 
     
@@ -1175,14 +1449,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/nccl-profiler/" class="md-nav__link">
+      <a href="../../design/hierarchical-fanout/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    NCCL Profiler
+    分层集群查询
   
 
     
@@ -1224,6 +1498,14 @@
 
               
             
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
               
                 
   
@@ -1231,14 +1513,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/extensibility/" class="md-nav__link">
+      <a href="../../design/architecture/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    扩展机制
+    系统架构（旧版）
   
 
     
@@ -1547,7 +1829,7 @@
   <span class="md-ellipsis">
     
   
-    API 参考
+    CLI 与 Python API
   
 
     
@@ -1628,10 +1910,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#activation" class="md-nav__link">
+  <a href="#_2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Activation
+        激活
       
     </span>
   </a>
@@ -1639,10 +1921,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#data-storage" class="md-nav__link">
+  <a href="#集群" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Data storage
+        集群
       
     </span>
   </a>
@@ -1650,142 +1932,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#server-networking" class="md-nav__link">
+  <a href="#_3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Server &amp; networking
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#authentication" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Authentication
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#tracing-spans" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Tracing &amp; spans
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#step-coordinates" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Step coordinates
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#parallel-topology-role" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Parallel topology (role)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#cpu-sampling" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        CPU sampling
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#gpu-sampling" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        GPU sampling
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#nccl-hccl" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        NCCL &amp; HCCL
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rdma" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        RDMA
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#pytorch-integration" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        PyTorch integration
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#cluster-heartbeat-torchrun" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Cluster heartbeat (torchrun)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#debugging-diagnostics" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Debugging &amp; diagnostics
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#skill-tool-paths" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Skill &amp; tool paths
+        其余变量
       
     </span>
   </a>
@@ -1918,10 +2068,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#activation" class="md-nav__link">
+  <a href="#_2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Activation
+        激活
       
     </span>
   </a>
@@ -1929,10 +2079,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#data-storage" class="md-nav__link">
+  <a href="#集群" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Data storage
+        集群
       
     </span>
   </a>
@@ -1940,142 +2090,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#server-networking" class="md-nav__link">
+  <a href="#_3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Server &amp; networking
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#authentication" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Authentication
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#tracing-spans" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Tracing &amp; spans
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#step-coordinates" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Step coordinates
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#parallel-topology-role" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Parallel topology (role)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#cpu-sampling" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        CPU sampling
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#gpu-sampling" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        GPU sampling
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#nccl-hccl" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        NCCL &amp; HCCL
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rdma" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        RDMA
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#pytorch-integration" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        PyTorch integration
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#cluster-heartbeat-torchrun" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Cluster heartbeat (torchrun)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#debugging-diagnostics" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Debugging &amp; diagnostics
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#skill-tool-paths" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Skill &amp; tool paths
+        其余变量
       
     </span>
   </a>
@@ -2102,532 +2120,103 @@
   
 
 
-<h1 id="environment-variables">Environment Variables<a class="headerlink" href="#environment-variables" title="Permanent link">&para;</a></h1>
-<p>Complete reference of every environment variable Probing reads. Variables are grouped
-by subsystem.</p>
-<h2 id="activation">Activation<a class="headerlink" href="#activation" title="Permanent link">&para;</a></h2>
+<h1 id="_1">环境变量<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
+<p>Probing 读取的全部 <code>PROBING_*</code> 环境变量参考（按子系统分组）。英文版见 <a href="./">Environment Variables</a>。</p>
+<h2 id="_2">激活<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>Variable</th>
-<th>Values</th>
-<th>Default</th>
-<th>Description</th>
+<th>变量</th>
+<th>取值</th>
+<th>默认</th>
+<th>说明</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>PROBING</code></td>
 <td><code>0</code>, <code>1</code>/<code>followed</code>, <code>2</code>/<code>nested</code>, <code>regex:PATTERN</code>, <code>SCRIPT.py</code></td>
-<td>unset (disabled)</td>
-<td>Controls whether probing activates. <code>1</code> activates the current process. <code>2</code> activates current + child processes. <code>regex:PATTERN</code> activates when the script basename matches. <code>SCRIPT.py</code> activates when the script basename equals the value exactly.</td>
+<td>未设置（禁用）</td>
+<td>是否启用 probing。<code>1</code> 仅当前进程；<code>2</code> 当前及子进程；<code>regex:</code> 脚本名匹配时启用。</td>
 </tr>
 <tr>
 <td><code>PROBING_ORIGINAL</code></td>
-<td>(set automatically)</td>
+<td>（自动设置）</td>
 <td>—</td>
-<td>Backs up the original <code>PROBING</code> value before probing modifies it. Set by site_hook; don't set manually.</td>
+<td>备份原始 <code>PROBING</code> 值；由 site_hook 设置，勿手动设置。</td>
 </tr>
 </tbody>
 </table>
-<p><strong>Child-process propagation:</strong> In <code>nested</code> mode, the original <code>PROBING</code> value is propagated to children. In <code>regex:</code> mode, non-matching children inherit <code>PROBING=1</code> so they can be inspected but won't re-trigger site hooks.</p>
-<p>Prefix syntax: <code>init:SCRIPT+&lt;mode&gt;</code> runs <code>exec(open(SCRIPT).read())</code> after activation.</p>
-<h2 id="data-storage">Data storage<a class="headerlink" href="#data-storage" title="Permanent link">&para;</a></h2>
+<h2 id="集群">集群<a class="headerlink" href="#集群" title="Permanent link">&para;</a></h2>
+<p><code>WORLD_SIZE &gt; 1</code> 时的分层 side-channel 注册。详见 <a href="../../design/torchrun-cluster/">torchrun 集群心跳</a> 与 <a href="../../design/hierarchical-fanout/">分层 fan-out</a>。</p>
 <table>
 <thead>
 <tr>
-<th>Variable</th>
-<th>Default</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>PROBING_DATA_DIR</code></td>
-<td>Platform-specific</td>
-<td>Root directory for mmap ring buffer files (MEMT tables). Each process creates a subdirectory named by its PID.</td>
-</tr>
-<tr>
-<td><code>PROBING_COLD</code></td>
-<td>unset</td>
-<td>Set to <code>on</code> to enable hot-to-cold compaction of mmap tables.</td>
-</tr>
-<tr>
-<td><code>PROBING_COLD_TARGET_MB</code></td>
-<td>—</td>
-<td>Target size per cold chunk after compaction.</td>
-</tr>
-<tr>
-<td><code>PROBING_COLD_MAX_TOTAL_MB</code></td>
-<td>—</td>
-<td>Maximum total size of all cold storage files.</td>
-</tr>
-<tr>
-<td><code>PROBING_COLD_TTL_SECS</code></td>
-<td>—</td>
-<td>Minimum age of a chunk before it's eligible for cold compaction.</td>
-</tr>
-<tr>
-<td><code>PROBING_COLD_POLL_MS</code></td>
-<td>—</td>
-<td>Interval between compaction poll cycles.</td>
-</tr>
-<tr>
-<td><code>PROBING_COLD_MAX_AGE_SECS</code></td>
-<td>—</td>
-<td>Maximum age of a chunk before forced compaction.</td>
-</tr>
-<tr>
-<td><code>PROBING_COLD_DIR</code></td>
-<td>—</td>
-<td>Directory for cold storage files (defaults under <code>PROBING_DATA_DIR</code>).</td>
-</tr>
-</tbody>
-</table>
-<h2 id="server-networking">Server &amp; networking<a class="headerlink" href="#server-networking" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Variable</th>
-<th>Default</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>PROBING_PORT</code></td>
-<td>unset</td>
-<td>TCP port for the embedded HTTP server. Set to <code>RANDOM</code> for automatic port selection. Required for remote access.</td>
-</tr>
-<tr>
-<td><code>PROBING_SERVER_ADDR</code></td>
-<td>Inferred from port</td>
-<td>Explicit bind address (e.g. <code>0.0.0.0:8080</code>).</td>
-</tr>
-<tr>
-<td><code>PROBING_SERVER_ADDRPATTERN</code></td>
-<td>unset</td>
-<td>IP pattern filter for multi-homed hosts. Selects the first matching interface.</td>
-</tr>
-<tr>
-<td><code>PROBING_SERVER_WORKER_THREADS</code></td>
-<td>auto</td>
-<td>Number of Tokio worker threads.</td>
-</tr>
-<tr>
-<td><code>PROBING_CTRL_ROOT</code></td>
-<td><code>/tmp/probing/</code></td>
-<td>Directory for Unix domain sockets (local PID-based connections).</td>
-</tr>
-<tr>
-<td><code>PROBING_MAX_REQUEST_SIZE</code></td>
-<td>server default</td>
-<td>Maximum HTTP request body size in bytes.</td>
-</tr>
-<tr>
-<td><code>PROBING_MAX_FILE_SIZE</code></td>
-<td>server default</td>
-<td>Maximum file upload size in bytes.</td>
-</tr>
-<tr>
-<td><code>PROBING_ALLOWED_FILE_DIRS</code></td>
-<td>server default</td>
-<td>Colon-separated list of directories allowed for file reads.</td>
-</tr>
-<tr>
-<td><code>PROBING_BASE_PATH</code></td>
-<td>unset</td>
-<td>URL path prefix for reverse proxy deployments (e.g. <code>/probing</code>).</td>
-</tr>
-<tr>
-<td><code>PROBING_REMOTE_QUERY_TIMEOUT_SECS</code></td>
-<td>server default</td>
-<td>Timeout for remote fan-out queries (federation).</td>
-</tr>
-<tr>
-<td><code>PROBING_ASSETS_ROOT</code></td>
-<td>built-in default</td>
-<td>Path to the web UI static assets directory.</td>
-</tr>
-</tbody>
-</table>
-<h2 id="authentication">Authentication<a class="headerlink" href="#authentication" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Variable</th>
-<th>Default</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>PROBING_AUTH_TOKEN</code></td>
-<td>unset</td>
-<td>Bearer token for HTTP authentication. Required for remote access when set.</td>
-</tr>
-<tr>
-<td><code>PROBING_AUTH_USERNAME</code></td>
-<td>unset</td>
-<td>Username for Basic authentication.</td>
-</tr>
-<tr>
-<td><code>PROBING_AUTH_REALM</code></td>
-<td>unset</td>
-<td>Authentication realm string for Basic auth.</td>
-</tr>
-</tbody>
-</table>
-<h2 id="tracing-spans">Tracing &amp; spans<a class="headerlink" href="#tracing-spans" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Variable</th>
-<th>Default</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>PROBING_SPAN_BACKENDS</code></td>
-<td><code>memtable</code></td>
-<td>Comma-separated list of span backends. Built-in: <code>memtable</code> (writes to <code>python.trace_event</code>), <code>logger</code> (writes to stderr), <code>otel</code> (OpenTelemetry export). Custom backends can be registered via <code>probing.span_backends</code> entry point.</td>
-</tr>
-<tr>
-<td><code>PROBING_SPAN_LOG_LEVEL</code></td>
-<td><code>INFO</code></td>
-<td>Log level for the <code>logger</code> span backend.</td>
-</tr>
-<tr>
-<td><code>PROBING_SPAN_LOCATION</code></td>
-<td>unset</td>
-<td>Enable automatic location capture via <code>inspect.stack()</code> for every span. Adds overhead; use sparingly.</td>
-</tr>
-</tbody>
-</table>
-<h2 id="step-coordinates">Step coordinates<a class="headerlink" href="#step-coordinates" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Variable</th>
-<th>Default</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>PROBING_MICRO_BATCHES</code></td>
-<td><code>1</code></td>
-<td>Initial gradient accumulation factor. Controls <code>local_step = micro_step // micro_batches</code>.</td>
-</tr>
-<tr>
-<td><code>PROBING_STEP_BUCKET</code></td>
-<td>—</td>
-<td>Step bucket size for grouped storage.</td>
-</tr>
-<tr>
-<td><code>PROBING_GLOBAL_STEP_BUCKET</code></td>
-<td>—</td>
-<td>Global step bucket size (falls back to <code>PROBING_STEP_BUCKET</code>).</td>
-</tr>
-</tbody>
-</table>
-<h2 id="parallel-topology-role">Parallel topology (role)<a class="headerlink" href="#parallel-topology-role" title="Permanent link">&para;</a></h2>
-<p>Set these to describe your training's parallelism configuration. Probing combines
-them into a <code>role</code> string like <code>dp=2,pp=1,tp=0</code>.</p>
-<table>
-<thead>
-<tr>
-<th>Variable</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>PROBING_TP_RANK</code> / <code>PROBING_TP_SIZE</code></td>
-<td>Tensor parallelism rank and size.</td>
-</tr>
-<tr>
-<td><code>PROBING_PP_RANK</code> / <code>PROBING_PP_SIZE</code></td>
-<td>Pipeline parallelism rank and size.</td>
-</tr>
-<tr>
-<td><code>PROBING_DP_RANK</code> / <code>PROBING_DP_SIZE</code></td>
-<td>Data parallelism rank and size.</td>
-</tr>
-<tr>
-<td><code>PROBING_EP_RANK</code></td>
-<td>Expert parallelism rank.</td>
-</tr>
-<tr>
-<td><code>PROBING_CP_RANK</code></td>
-<td>Context parallelism rank.</td>
-</tr>
-<tr>
-<td><code>PROBING_ROLE_&lt;NAME&gt;</code></td>
-<td>Arbitrary named parallelism dimension (e.g. <code>PROBING_ROLE_SP=8</code>).</td>
-</tr>
-</tbody>
-</table>
-<p>Non-PROBING-prefixed aliases are also recognized for Megatron compatibility:
-<code>TP_RANK</code>, <code>TP_SIZE</code>, <code>PP_RANK</code>, <code>PP_SIZE</code>, <code>DP_RANK</code>, <code>DP_SIZE</code>,
-<code>TENSOR_MODEL_PARALLEL_RANK</code>, <code>PIPELINE_MODEL_PARALLEL_RANK</code>,
-<code>DATA_PARALLEL_RANK</code>, and more.</p>
-<h2 id="cpu-sampling">CPU sampling<a class="headerlink" href="#cpu-sampling" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Variable</th>
-<th>Default</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>PROBING_CPU</code></td>
-<td>enabled</td>
-<td>Set to <code>0</code>, <code>off</code>, <code>false</code>, or <code>no</code> to disable CPU sampling.</td>
-</tr>
-<tr>
-<td><code>PROBING_CPU_SAMPLE_MS</code></td>
-<td><code>1000</code></td>
-<td>Sampling interval in milliseconds. Set to <code>0</code> to disable.</td>
-</tr>
-<tr>
-<td><code>PROBING_CPU_THREAD_TOP_N</code></td>
-<td><code>8</code></td>
-<td>Maximum number of threads to sample per process per interval.</td>
-</tr>
-</tbody>
-</table>
-<h2 id="gpu-sampling">GPU sampling<a class="headerlink" href="#gpu-sampling" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Variable</th>
-<th>Default</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>PROBING_GPU</code></td>
-<td>enabled</td>
-<td>Set to <code>0</code>, <code>off</code>, <code>false</code>, or <code>no</code> to disable GPU sampling.</td>
-</tr>
-<tr>
-<td><code>PROBING_GPU_SAMPLE_MS</code></td>
-<td>—</td>
-<td>GPU sampling interval in milliseconds.</td>
-</tr>
-<tr>
-<td><code>PROBING_GPU_BACKEND</code></td>
-<td><code>auto</code></td>
-<td>GPU backend filter: <code>auto</code>, <code>cuda</code>, <code>rocm</code>, <code>metal</code>.</td>
-</tr>
-</tbody>
-</table>
-<h2 id="nccl-hccl">NCCL &amp; HCCL<a class="headerlink" href="#nccl-hccl" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Variable</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>PROBING_NCCL_MOCK</code></td>
-<td>Enable mock NCCL proxy data for testing without GPUs.</td>
-</tr>
-<tr>
-<td><code>PROBING_NCCL_PROFILER</code></td>
-<td>Path to the NCCL profiler shared library.</td>
-</tr>
-<tr>
-<td><code>PROBING_HCCL_PROFAPI_REAL</code></td>
-<td>Path to the real HCCL profapi library (Ascend NPU).</td>
-</tr>
-<tr>
-<td><code>PROBING_HCCL_SHIM</code></td>
-<td>Path to the HCCL shim library.</td>
-</tr>
-<tr>
-<td><code>PROBING_HCCL_SHIM_LOG</code></td>
-<td>Enable HCCL shim debug logging.</td>
-</tr>
-</tbody>
-</table>
-<h2 id="rdma">RDMA<a class="headerlink" href="#rdma" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Variable</th>
-<th>Default</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>PROBING_RDMA_HCA_NAME</code></td>
-<td>—</td>
-<td>HCA device name filter for RDMA counter sampling.</td>
-</tr>
-<tr>
-<td><code>PROBING_RDMA_SAMPLE_RATE</code></td>
-<td>—</td>
-<td>RDMA counter sampling rate in seconds.</td>
-</tr>
-</tbody>
-</table>
-<h2 id="pytorch-integration">PyTorch integration<a class="headerlink" href="#pytorch-integration" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Variable</th>
-<th>Default</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>PROBING_TORCH_PROFILING</code></td>
-<td>—</td>
-<td>Set to <code>on</code> to activate PyTorch module hooks and write <code>python.torch_trace</code>. Required for module timing and memory data.</td>
-</tr>
-<tr>
-<td><code>PROBING_TORCHRUN_CLUSTER</code></td>
-<td><code>1</code></td>
-<td>Enable automatic torchrun cluster registration. Set to <code>0</code> to disable.</td>
-</tr>
-<tr>
-<td><code>PROBING_TORCHRUN_STORE_TIMEOUT</code></td>
-<td>—</td>
-<td>Timeout for torchrun distributed store operations.</td>
-</tr>
-</tbody>
-</table>
-<h2 id="cluster-heartbeat-torchrun">Cluster heartbeat (torchrun)<a class="headerlink" href="#cluster-heartbeat-torchrun" title="Permanent link">&para;</a></h2>
-<p>Hierarchical side-channel registration when <code>WORLD_SIZE &gt; 1</code>. See <a href="../../design/torchrun-cluster/">torchrun cluster heartbeat</a>.</p>
-<table>
-<thead>
-<tr>
-<th>Variable</th>
-<th>Default</th>
-<th>Description</th>
+<th>变量</th>
+<th>默认</th>
+<th>说明</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>PROBING_CLUSTER_REPORT</code></td>
 <td><code>1</code></td>
-<td>Periodic heartbeat worker. <code>0</code> = HTTP only, no periodic PUT.</td>
+<td>周期性心跳 worker；<code>0</code> = 仅 HTTP，无周期 PUT。</td>
 </tr>
 <tr>
 <td><code>PROBING_CLUSTER_REPORT_INTERVAL_SEC</code></td>
 <td><code>10</code></td>
-<td>Base heartbeat interval (seconds).</td>
+<td>基础心跳间隔（秒）。</td>
 </tr>
 <tr>
 <td><code>PROBING_CLUSTER_REPORT_MAX_INTERVAL_SEC</code></td>
 <td><code>120</code></td>
-<td>Backoff cap (clamped below stale TTL).</td>
+<td>退避上限（低于 stale TTL）。</td>
 </tr>
 <tr>
 <td><code>PROBING_CLUSTER_REPORT_BACKOFF_FACTOR</code></td>
 <td><code>2</code></td>
-<td>Multiplier per stable tick.</td>
+<td>稳定 tick 的倍增因子。</td>
 </tr>
 <tr>
 <td><code>PROBING_CLUSTER_REPORT_BACKOFF</code></td>
 <td><code>1</code></td>
-<td>Set to <code>0</code> to disable exponential backoff when stable.</td>
+<td>设为 <code>0</code> 禁用稳定时的指数退避。</td>
 </tr>
 <tr>
 <td><code>PROBING_CLUSTER_STALE_SEC</code></td>
 <td><code>25</code></td>
-<td>Mark node <code>dead</code> after this many seconds without heartbeat. Should exceed max interval.</td>
+<td>无心跳超过此秒数标记为 <code>dead</code>；应大于最大间隔。</td>
 </tr>
 <tr>
 <td><code>PROBING_CLUSTER_DISCOVER_TIMEOUT_SEC</code></td>
 <td><code>2</code></td>
-<td>Timeout per master/local0 discovery attempt.</td>
+<td>每次 master/local0 发现超时。</td>
 </tr>
 <tr>
 <td><code>PROBING_CLUSTER_REPORT_TIMEOUT_SEC</code></td>
 <td><code>5</code></td>
-<td>HTTP PUT timeout for cluster report.</td>
+<td>集群 report HTTP PUT 超时。</td>
 </tr>
 <tr>
 <td><code>PROBING_CLUSTER_PRESET</code></td>
 <td>—</td>
-<td>Used by <code>examples/run_cluster_multinode.sh</code>: <code>demo</code>, <code>fast</code>, or <code>steady</code>.</td>
+<td><code>examples/run_cluster_multinode.sh</code> 使用：<code>demo</code>、<code>fast</code>、<code>steady</code>。</td>
+</tr>
+<tr>
+<td><code>PROBING_CLUSTER_FANOUT_HIERARCHICAL</code></td>
+<td><code>1</code></td>
+<td>分层集群查询 fan-out；<code>0</code> = 扁平 fan-out 到所有 peer。</td>
+</tr>
+<tr>
+<td><code>PROBING_REMOTE_QUERY_TIMEOUT_SECS</code></td>
+<td><code>2</code></td>
+<td>远程联邦 / 集群查询的单 peer 超时（秒）。</td>
 </tr>
 </tbody>
 </table>
-<h2 id="debugging-diagnostics">Debugging &amp; diagnostics<a class="headerlink" href="#debugging-diagnostics" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Variable</th>
-<th>Default</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>PROBING_LOGLEVEL</code></td>
-<td><code>info</code></td>
-<td>Rust-side log level: <code>trace</code>, <code>debug</code>, <code>info</code>, <code>warn</code>, <code>error</code>.</td>
-</tr>
-<tr>
-<td><code>PROBING_CRASH_BACKTRACE</code></td>
-<td>enabled</td>
-<td>Print a backtrace on fatal signals (SIGSEGV, SIGABRT, etc.). Set to <code>0</code> to disable.</td>
-</tr>
-<tr>
-<td><code>PROBING_RUST_BACKTRACE</code></td>
-<td>—</td>
-<td>Rust error backtrace detail (similar to <code>RUST_BACKTRACE</code>).</td>
-</tr>
-<tr>
-<td><code>PROBING_SAFE_DEMO</code></td>
-<td>—</td>
-<td>Safe demonstration mode that restricts dangerous operations.</td>
-</tr>
-</tbody>
-</table>
-<h2 id="skill-tool-paths">Skill &amp; tool paths<a class="headerlink" href="#skill-tool-paths" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Variable</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>PROBING_PROJECT_SKILLS_DIR</code></td>
-<td>Per-project skill directory (overrides <code>$PWD/.probing/skills/</code>).</td>
-</tr>
-<tr>
-<td><code>PROBING_USER_SKILLS_DIR</code></td>
-<td>Per-user skill directory (overrides <code>$HOME/.probing/skills/</code>).</td>
-</tr>
-<tr>
-<td><code>PROBING_CODE_ROOT</code></td>
-<td>Root directory for embedded Python monitoring code.</td>
-</tr>
-<tr>
-<td><code>PROBING_CLI_MODE</code></td>
-<td>Set automatically by the CLI to prevent recursive engine initialization.</td>
-</tr>
-<tr>
-<td><code>PROBING_PYTHON</code></td>
-<td>Path to the Python interpreter used by the CLI. Set automatically.</td>
-</tr>
-</tbody>
-</table>
+<h2 id="_3">其余变量<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<p>激活、存储、Server、认证、Tracing、采样、NCCL、RDMA、PyTorch、调试等章节与 <a href="./">英文 env-vars</a> 同步；尚未单独翻译。</p>
 
 
 
