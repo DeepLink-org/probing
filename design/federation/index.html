@@ -16,7 +16,7 @@
         <link rel="prev" href="../torchrun-cluster/">
       
       
-        <link rel="next" href="../nccl-profiler/">
+        <link rel="next" href="../hierarchical-fanout/">
       
       
         
@@ -335,7 +335,7 @@
   
     
   
-  Design
+  Architecture
 
         </a>
       </li>
@@ -608,7 +608,7 @@
   <span class="md-ellipsis">
     
   
-    Core Concepts
+    Core model
   
 
     
@@ -804,7 +804,7 @@
   <span class="md-ellipsis">
     
   
-    Debugging
+    Live Debugging
   
 
     
@@ -876,20 +876,6 @@
       
         
       
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
     
     
     
@@ -917,7 +903,7 @@
   <span class="md-ellipsis">
     
   
-    Design
+    Architecture
   
 
     
@@ -939,13 +925,78 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Design
+    Architecture
   
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
               
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Platform
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Platform
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
             
               
                 
@@ -961,35 +1012,7 @@
   <span class="md-ellipsis">
     
   
-    Modularity
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Architecture
+    Modularity & Boundaries
   
 
     
@@ -1038,6 +1061,135 @@
   
   
     <li class="md-nav__item">
+      <a href="../extensibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extensibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Command Tree
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Collectors & Profiling
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Collectors & Profiling
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../profiling/" class="md-nav__link">
         
   
@@ -1066,14 +1218,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../debugging/" class="md-nav__link">
+      <a href="../nccl-profiler/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Debugging
+    NCCL Profiler
   
 
     
@@ -1094,6 +1246,139 @@
   
   
     <li class="md-nav__item">
+      <a href="../debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Debugging Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../training-phase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training Phases
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Distributed
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Distributed
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../distributed/" class="md-nav__link">
         
   
@@ -1101,7 +1386,7 @@
   <span class="md-ellipsis">
     
   
-    Distributed
+    Overview
   
 
     
@@ -1210,10 +1495,309 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#summary" class="md-nav__link">
+  <a href="#1-execution-model" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Summary
+        1. Execution model
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Execution model">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#invariants" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Invariants
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-two-catalogs-and-federation-tags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Two catalogs and federation tags
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Two catalogs and federation tags">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-probe-vs-global" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 probe vs global
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-six-federation-tag-columns-fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 Six federation tag columns (fixed)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-example-sql" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Example SQL
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Example SQL">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-globalpythoncomm_collective-rank-and-host-aggregates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 global.python.comm_collective — rank and host aggregates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-pythontrace_event-step-duration-path-c-same-rank-join" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 python.trace_event — step duration (path C, same-rank JOIN)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-globalpythoncomm_collective-step-rank-long-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 global.python.comm_collective — step × rank long format
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34-globalncclproxy_ops-wait-decomposition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4 global.nccl.proxy_ops — wait decomposition
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#35-slowdown-ratios-window-functions-path-c" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.5 Slowdown ratios (window functions → path C)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#36-parallel-topology-columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.6 Parallel topology columns
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#37-same-rank-join-comm_collective-torch_trace-path-c" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.7 Same-rank JOIN — comm_collective × torch_trace (path C)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#38-step-lag-and-backtrace-filters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.8 Step lag and backtrace filters
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-engine-specification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Engine specification
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Engine specification">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Pipeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-path-selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 Path selection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-catalog-rewrite" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 Catalog rewrite
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#44-federation-tags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4 Federation tags
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#45-path-a-aggregate-pushdown" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.5 Path A — aggregate pushdown
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#46-path-b-federated-scan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.6 Path B — federated scan
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#path-c-broadcast" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.7 Path C — broadcast
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#48-degradation-and-edge-cases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.8 Degradation and edge cases
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#49-explicit-non-goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.9 Explicit non-goals
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#410-sql-pattern-path-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.10 SQL pattern → path reference
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-regression-queries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Regression queries
       
     </span>
   </a>
@@ -1221,10 +1805,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#related" class="md-nav__link">
+  <a href="#6-related" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Related
+        6. Related
       
     </span>
   </a>
@@ -1247,14 +1831,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../nccl-profiler/" class="md-nav__link">
+      <a href="../hierarchical-fanout/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    NCCL Profiler
+    Hierarchical Fan-out
   
 
     
@@ -1296,6 +1880,14 @@
 
               
             
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
               
                 
   
@@ -1303,14 +1895,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../extensibility/" class="md-nav__link">
+      <a href="../architecture/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Extensibility
+    System Architecture (legacy)
   
 
     
@@ -1614,7 +2206,7 @@
   <span class="md-ellipsis">
     
   
-    API Reference
+    CLI & Python API
   
 
     
@@ -1773,10 +2365,309 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#summary" class="md-nav__link">
+  <a href="#1-execution-model" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Summary
+        1. Execution model
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Execution model">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#invariants" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Invariants
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-two-catalogs-and-federation-tags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Two catalogs and federation tags
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Two catalogs and federation tags">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-probe-vs-global" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 probe vs global
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-six-federation-tag-columns-fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 Six federation tag columns (fixed)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-example-sql" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Example SQL
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Example SQL">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-globalpythoncomm_collective-rank-and-host-aggregates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 global.python.comm_collective — rank and host aggregates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-pythontrace_event-step-duration-path-c-same-rank-join" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 python.trace_event — step duration (path C, same-rank JOIN)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-globalpythoncomm_collective-step-rank-long-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 global.python.comm_collective — step × rank long format
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34-globalncclproxy_ops-wait-decomposition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4 global.nccl.proxy_ops — wait decomposition
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#35-slowdown-ratios-window-functions-path-c" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.5 Slowdown ratios (window functions → path C)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#36-parallel-topology-columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.6 Parallel topology columns
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#37-same-rank-join-comm_collective-torch_trace-path-c" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.7 Same-rank JOIN — comm_collective × torch_trace (path C)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#38-step-lag-and-backtrace-filters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.8 Step lag and backtrace filters
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-engine-specification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Engine specification
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Engine specification">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Pipeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-path-selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 Path selection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-catalog-rewrite" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 Catalog rewrite
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#44-federation-tags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4 Federation tags
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#45-path-a-aggregate-pushdown" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.5 Path A — aggregate pushdown
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#46-path-b-federated-scan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.6 Path B — federated scan
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#path-c-broadcast" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.7 Path C — broadcast
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#48-degradation-and-edge-cases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.8 Degradation and edge cases
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#49-explicit-non-goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.9 Explicit non-goals
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#410-sql-pattern-path-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.10 SQL pattern → path reference
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-regression-queries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Regression queries
       
     </span>
   </a>
@@ -1784,10 +2675,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#related" class="md-nav__link">
+  <a href="#6-related" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Related
+        6. Related
       
     </span>
   </a>
@@ -1815,54 +2706,682 @@
 
 
 <h1 id="federated-query-engine">Federated Query Engine<a class="headerlink" href="#federated-query-engine" title="Permanent link">&para;</a></h1>
-<p>Product design for cross-rank SQL in probing: ask the whole training cluster from a
-coordinator with one query — who is slow, on which step, compute vs network, which machine.</p>
-<div class="admonition note">
-<p class="admonition-title">Language</p>
-<p>Full design (scenarios, SQL, execution paths, acceptance bar) is in
-<strong><a href="/zh/design/federation/">中文版 / Chinese</a></strong>.</p>
-</div>
-<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
+<p>Cross-rank SQL semantics for the <code>global</code> catalog. User-visible behavior is specified here;
+implementation: <code>probing/core/src/core/federation/</code>. On conflict, align code to this document.</p>
+<p>See also: <a href="../../guide/concepts/">Core model</a> · <a href="../distributed/">Distributed overview</a> · <a href="../../guide/sql-analytics/">SQL Analytics</a></p>
+<hr />
+<h2 id="1-execution-model">1. Execution model<a class="headerlink" href="#1-execution-model" title="Permanent link">&para;</a></h2>
+<p>Each rank writes only to local memtables (<code>python.comm_collective</code>, <code>nccl.proxy_ops</code>, …).
+A coordinator query:</p>
+<ol>
+<li>Executes <code>probe.*</code> on each peer (via HTTP)</li>
+<li>Merges partial results</li>
+<li>Injects federation tag columns (<code>_host</code>, <code>_addr</code>, …)</li>
+</ol>
+<h3 id="invariants">Invariants<a class="headerlink" href="#invariants" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Invariant</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Write local, read on demand</td>
+<td>No central store on the training path; fan-out only for <code>cluster query</code> / <code>global.*</code></td>
+</tr>
+<tr>
+<td>Single engine entry</td>
+<td>CLI, Web, skills, <code>probing.query()</code> share <code>Engine::async_query</code></td>
+</tr>
+<tr>
+<td>Partial failure</td>
+<td>Peer timeout → omit shard, record <code>nodes_failed</code>; query continues</td>
+</tr>
+<tr>
+<td>No cross-rank JOIN</td>
+<td><code>global.a JOIN global.b</code> unsupported; join inside one process (path C)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Entry points</strong></p>
+<table>
+<thead>
+<tr>
+<th>Caller</th>
+<th>How</th>
+<th>Fan-out?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Single-rank debug</td>
+<td><code>probing -t &lt;pid&gt; query "…"</code></td>
+<td>No</td>
+</tr>
+<tr>
+<td>Cluster diagnosis</td>
+<td><code>probing -t rank0:8080 cluster query "…"</code></td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Web training heatmap</td>
+<td><code>GET /apis/training/step_matrix?cluster=true</code></td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>In-process</td>
+<td><code>probing.query("… global.…")</code> on rank 0</td>
+<td>Depends on SQL</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="2-two-catalogs-and-federation-tags">2. Two catalogs and federation tags<a class="headerlink" href="#2-two-catalogs-and-federation-tags" title="Permanent link">&para;</a></h2>
+<h3 id="21-probe-vs-global">2.1 <code>probe</code> vs <code>global</code><a class="headerlink" href="#21-probe-vs-global" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Catalog</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>probe.*</code></strong></td>
+<td>Tables in the <strong>current process</strong></td>
+</tr>
+<tr>
+<td><strong><code>global.*</code></strong></td>
+<td><strong>Federated mirror</strong> of the same table: local scan + lazy peer fetch, merged</td>
+</tr>
+</tbody>
+</table>
+<p>When the user writes <code>FROM python.comm_collective</code> with <code>cluster=true</code>, the engine rewrites to <code>global.python.comm_collective</code> and routes accordingly.</p>
+<p>Peers <strong>always</strong> execute <code>probe.*</code> to prevent recursive federation.</p>
+<h3 id="22-six-federation-tag-columns-fixed">2.2 Six federation tag columns (fixed)<a class="headerlink" href="#22-six-federation-tag-columns-fixed" title="Permanent link">&para;</a></h3>
+<p>Distinct from in-table <code>rank</code>, <code>role</code>, etc. — tags mean <strong>which probe endpoint returned the row</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Tag</th>
+<th>Meaning</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>_host</code></td>
+<td>Source hostname</td>
+<td><code>cluster.nodes.host</code></td>
+</tr>
+<tr>
+<td><code>_addr</code></td>
+<td>Probe <code>host:port</code></td>
+<td><code>cluster.nodes.addr</code></td>
+</tr>
+<tr>
+<td><code>_rank</code></td>
+<td>Global torch rank</td>
+<td><code>RANK</code></td>
+</tr>
+<tr>
+<td><code>_node_rank</code></td>
+<td>Node / worker group rank</td>
+<td><code>GROUP_RANK</code></td>
+</tr>
+<tr>
+<td><code>_local_rank</code></td>
+<td>GPU index on node</td>
+<td><code>LOCAL_RANK</code></td>
+</tr>
+<tr>
+<td><code>_role</code></td>
+<td>Parallel key, e.g. <code>dp=2,pp=1,tp=0</code></td>
+<td>Registry / <code>set_role</code></td>
+</tr>
+</tbody>
+</table>
+<p>Missing integers → <code>-1</code>; missing <code>_role</code> → <code>""</code>.</p>
+<p><strong>Projection rules</strong></p>
+<ul>
+<li><code>SELECT * FROM global.t</code> → auto-expand six tag columns (<code>EXCLUDE</code> rewrite)</li>
+<li><code>SELECT rank, avg_ms …</code> → tags <strong>not</strong> auto-appended; list <code>_rank</code> explicitly if needed</li>
+<li>Tags are injected at <strong>coordinator merge</strong>, not stored in peer memtables</li>
+</ul>
+<hr />
+<h2 id="3-example-sql">3. Example SQL<a class="headerlink" href="#3-example-sql" title="Permanent link">&para;</a></h2>
+<p>Reference queries against federated tables. Prefer path A (aggregate pushdown) when the
+SQL matches §4.2 conditions.</p>
+<h3 id="31-globalpythoncomm_collective-rank-and-host-aggregates">3.1 <code>global.python.comm_collective</code> — rank and host aggregates<a class="headerlink" href="#31-globalpythoncomm_collective-rank-and-host-aggregates" title="Permanent link">&para;</a></h3>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">_role</span><span class="p">,</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="n">rank</span><span class="p">,</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">       </span><span class="k">avg</span><span class="p">(</span><span class="n">duration_ms</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">avg_ms</span><span class="p">,</span><span class="w"> </span><span class="k">max</span><span class="p">(</span><span class="n">duration_ms</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">max_ms</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">global_step</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="k">max</span><span class="p">(</span><span class="n">global_step</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">50</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span><span class="p">)</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">_role</span><span class="p">,</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="n">rank</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">avg_ms</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+</span></code></pre></div>
+<p><strong>Per-host aggregate</strong></p>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">_host</span><span class="p">,</span><span class="w"> </span><span class="n">_node_rank</span><span class="p">,</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">       </span><span class="k">count</span><span class="p">(</span><span class="k">DISTINCT</span><span class="w"> </span><span class="n">_rank</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">ranks_on_host</span><span class="p">,</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">       </span><span class="k">avg</span><span class="p">(</span><span class="n">duration_ms</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">avg_comm_ms</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">global_step</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="k">max</span><span class="p">(</span><span class="n">global_step</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">100</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span><span class="p">)</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">_host</span><span class="p">,</span><span class="w"> </span><span class="n">_node_rank</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">avg_comm_ms</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+</span></code></pre></div>
+<h3 id="32-pythontrace_event-step-duration-path-c-same-rank-join">3.2 <code>python.trace_event</code> — step duration (path C, same-rank JOIN)<a class="headerlink" href="#32-pythontrace_event-step-duration-path-c-same-rank-join" title="Permanent link">&para;</a></h3>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">attributes</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="k">time</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">start_time</span><span class="p">,</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">       </span><span class="k">CAST</span><span class="p">((</span><span class="n">e</span><span class="p">.</span><span class="k">time</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="k">time</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">1000</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">DOUBLE</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">duration_us</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">trace_event</span><span class="w"> </span><span class="n">s</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="k">JOIN</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">trace_event</span><span class="w"> </span><span class="n">e</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="k">ON</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">span_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">span_id</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">record_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;span_end&#39;</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">record_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;span_start&#39;</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;train.step&#39;</span><span class="p">;</span>
+</span></code></pre></div>
+<p>Coordinator aggregates to <code>(rank, step) → duration_ms</code> for UI coloring. HTTP: <code>GET /apis/training/step_matrix?cluster=true</code>.</p>
+<h3 id="33-globalpythoncomm_collective-step-rank-long-format">3.3 <code>global.python.comm_collective</code> — step × rank long format<a class="headerlink" href="#33-globalpythoncomm_collective-step-rank-long-format" title="Permanent link">&para;</a></h3>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">global_step</span><span class="p">,</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="n">_host</span><span class="p">,</span><span class="w"> </span><span class="n">op</span><span class="p">,</span><span class="w"> </span><span class="k">sum</span><span class="p">(</span><span class="n">duration_ms</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">comm_ms</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">global_step</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="k">max</span><span class="p">(</span><span class="n">global_step</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">120</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span><span class="p">)</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">global_step</span><span class="p">,</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="n">_host</span><span class="p">,</span><span class="w"> </span><span class="n">op</span><span class="p">;</span>
+</span></code></pre></div>
+<h3 id="34-globalncclproxy_ops-wait-decomposition">3.4 <code>global.nccl.proxy_ops</code> — wait decomposition<a class="headerlink" href="#34-globalncclproxy_ops-wait-decomposition" title="Permanent link">&para;</a></h3>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">seq</span><span class="p">,</span><span class="w"> </span><span class="n">coll_func</span><span class="p">,</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">       </span><span class="k">sum</span><span class="p">(</span><span class="n">send_gpu_wait_ns</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">gpu_wait</span><span class="p">,</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">       </span><span class="k">sum</span><span class="p">(</span><span class="n">recv_wait_ns</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">recv_wait</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">nccl</span><span class="p">.</span><span class="n">proxy_ops</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">seq</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="k">max</span><span class="p">(</span><span class="n">seq</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">50</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">nccl</span><span class="p">.</span><span class="n">proxy_ops</span><span class="p">)</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">seq</span><span class="p">,</span><span class="w"> </span><span class="n">coll_func</span><span class="p">,</span><span class="w"> </span><span class="n">_rank</span><span class="p">;</span>
+</span></code></pre></div>
+<h3 id="35-slowdown-ratios-window-functions-path-c">3.5 Slowdown ratios (window functions → path C)<a class="headerlink" href="#35-slowdown-ratios-window-functions-path-c" title="Permanent link">&para;</a></h3>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">WITH</span><span class="w"> </span><span class="n">per_rank_step</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="k">SELECT</span><span class="w"> </span><span class="n">global_step</span><span class="p">,</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="k">max</span><span class="p">(</span><span class="n">duration_ms</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">max_op_ms</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="k">WHERE</span><span class="w"> </span><span class="n">global_step</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="k">max</span><span class="p">(</span><span class="n">global_step</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">500</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span><span class="p">)</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">global_step</span><span class="p">,</span><span class="w"> </span><span class="n">_rank</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="p">),</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="n">step_cp</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">  </span><span class="k">SELECT</span><span class="w"> </span><span class="n">global_step</span><span class="p">,</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">         </span><span class="k">avg</span><span class="p">(</span><span class="n">max_op_ms</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="k">NULLIF</span><span class="p">(</span><span class="k">min</span><span class="p">(</span><span class="n">max_op_ms</span><span class="p">),</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">step_slowdown_ratio</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">  </span><span class="k">FROM</span><span class="w"> </span><span class="n">per_rank_step</span>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">  </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">global_step</span>
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="p">)</span>
+</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="k">SELECT</span><span class="w"> </span><span class="k">avg</span><span class="p">(</span><span class="n">step_slowdown_ratio</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">job_slowdown_proxy</span><span class="p">,</span>
+</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="w">       </span><span class="k">count</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="n">FILTER</span><span class="w"> </span><span class="p">(</span><span class="k">WHERE</span><span class="w"> </span><span class="n">step_slowdown_ratio</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="p">.</span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">slow_steps</span>
+</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="k">FROM</span><span class="w"> </span><span class="n">step_cp</span><span class="p">;</span>
+</span></code></pre></div>
+<p><strong>Per-step max-op ratio across ranks</strong></p>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">WITH</span><span class="w"> </span><span class="n">per_step</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="k">SELECT</span><span class="w"> </span><span class="n">global_step</span><span class="p">,</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="n">_host</span><span class="p">,</span><span class="w"> </span><span class="k">sum</span><span class="p">(</span><span class="n">duration_ms</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">step_ms</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="k">WHERE</span><span class="w"> </span><span class="n">global_step</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="k">max</span><span class="p">(</span><span class="n">global_step</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">300</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span><span class="p">)</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">global_step</span><span class="p">,</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="n">_host</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="p">)</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="n">_host</span><span class="p">,</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">       </span><span class="k">sum</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">step_ms</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">max</span><span class="p">(</span><span class="n">step_ms</span><span class="p">)</span><span class="w"> </span><span class="n">OVER</span><span class="w"> </span><span class="p">(</span><span class="n">PARTITION</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">global_step</span><span class="p">)</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">ELSE</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">END</span><span class="p">)</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">         </span><span class="o">*</span><span class="w"> </span><span class="mi">1</span><span class="p">.</span><span class="mi">0</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="k">count</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">worst_fraction</span>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="k">FROM</span><span class="w"> </span><span class="n">per_step</span>
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="n">_host</span>
+</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">worst_fraction</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+</span></code></pre></div>
+<p>At wan scale, split into two steps: path A for <code>per_step</code>, then coordinator aggregation.</p>
+<h3 id="36-parallel-topology-columns">3.6 Parallel topology columns<a class="headerlink" href="#36-parallel-topology-columns" title="Permanent link">&para;</a></h3>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">_role</span><span class="p">,</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="n">global_step</span><span class="p">,</span><span class="w"> </span><span class="k">sum</span><span class="p">(</span><span class="n">duration_ms</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">comm_ms</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">global_step</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="k">max</span><span class="p">(</span><span class="n">global_step</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">80</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span><span class="p">)</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">_role</span><span class="p">,</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="n">global_step</span><span class="p">;</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">pp_rank</span><span class="p">,</span><span class="w"> </span><span class="n">tp_rank</span><span class="p">,</span><span class="w"> </span><span class="n">dp_rank</span><span class="p">,</span><span class="w"> </span><span class="n">rank</span><span class="p">,</span><span class="w"> </span><span class="n">seq</span><span class="p">,</span><span class="w"> </span><span class="n">coll_func</span><span class="p">,</span>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">       </span><span class="k">sum</span><span class="p">(</span><span class="n">send_gpu_wait_ns</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">gpu_wait</span><span class="p">,</span><span class="w"> </span><span class="k">sum</span><span class="p">(</span><span class="n">recv_wait_ns</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">net_wait</span>
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">nccl</span><span class="p">.</span><span class="n">proxy_ops</span>
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">seq</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="k">max</span><span class="p">(</span><span class="n">seq</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">100</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">nccl</span><span class="p">.</span><span class="n">proxy_ops</span><span class="p">)</span>
+</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">pp_rank</span><span class="p">,</span><span class="w"> </span><span class="n">tp_rank</span><span class="p">,</span><span class="w"> </span><span class="n">dp_rank</span><span class="p">,</span><span class="w"> </span><span class="n">rank</span><span class="p">,</span><span class="w"> </span><span class="n">seq</span><span class="p">,</span><span class="w"> </span><span class="n">coll_func</span><span class="p">;</span>
+</span></code></pre></div>
+<h3 id="37-same-rank-join-comm_collective-torch_trace-path-c">3.7 Same-rank JOIN — <code>comm_collective</code> × <code>torch_trace</code> (path C)<a class="headerlink" href="#37-same-rank-join-comm_collective-torch_trace-path-c" title="Permanent link">&para;</a></h3>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="n">global_step</span><span class="p">,</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="n">rank</span><span class="p">,</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="k">role</span><span class="p">,</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">       </span><span class="k">sum</span><span class="p">(</span><span class="k">c</span><span class="p">.</span><span class="n">duration_ms</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">comm_ms</span><span class="p">,</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">       </span><span class="k">sum</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="n">stage</span><span class="w"> </span><span class="k">LIKE</span><span class="w"> </span><span class="s1">&#39;post forward&#39;</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="n">duration</span><span class="w"> </span><span class="k">ELSE</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">END</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">compute_sec</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span><span class="w"> </span><span class="k">c</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="k">JOIN</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span><span class="w"> </span><span class="n">t</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">  </span><span class="k">ON</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="n">global_step</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="n">global_step</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="n">rank</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="n">rank</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="k">role</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="k">role</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="k">WHERE</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="n">global_step</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="k">max</span><span class="p">(</span><span class="n">global_step</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">50</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span><span class="p">)</span>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="n">global_step</span><span class="p">,</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="n">rank</span><span class="p">,</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="k">role</span><span class="p">;</span>
+</span></code></pre></div>
+<p>Coordinator receives per-peer results, then <code>GROUP BY _rank</code>. <code>comm + gpu</code> alignment needs coordinator-side merge of two aggregation passes (v2); <code>global.comm JOIN global.gpu</code> is not supported yet.</p>
+<h3 id="38-step-lag-and-backtrace-filters">3.8 Step lag and backtrace filters<a class="headerlink" href="#38-step-lag-and-backtrace-filters" title="Permanent link">&para;</a></h3>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">_host</span><span class="p">,</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="n">_local_rank</span><span class="p">,</span><span class="w"> </span><span class="k">max</span><span class="p">(</span><span class="n">global_step</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">last_step</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">_host</span><span class="p">,</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="n">_local_rank</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="k">HAVING</span><span class="w"> </span><span class="k">max</span><span class="p">(</span><span class="n">global_step</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="k">max</span><span class="p">(</span><span class="n">global_step</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">5</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span><span class="p">);</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">_host</span><span class="p">,</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="n">func</span><span class="p">,</span><span class="w"> </span><span class="n">file</span><span class="p">,</span><span class="w"> </span><span class="n">lineno</span>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">python</span><span class="p">.</span><span class="n">backtrace</span>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">func</span><span class="w"> </span><span class="k">LIKE</span><span class="w"> </span><span class="s1">&#39;%collective%&#39;</span><span class="w"> </span><span class="k">OR</span><span class="w"> </span><span class="n">func</span><span class="w"> </span><span class="k">LIKE</span><span class="w"> </span><span class="s1">&#39;%nccl%&#39;</span><span class="p">;</span>
+</span></code></pre></div>
+<hr />
+<h2 id="4-engine-specification">4. Engine specification<a class="headerlink" href="#4-engine-specification" title="Permanent link">&para;</a></h2>
+<p>Implementation: <code>probing/core/src/core/federation/</code>; <code>cluster=true</code> routing:
+<code>probing/server/src/server/cluster_fanout.rs</code>.</p>
+<h3 id="41-pipeline">4.1 Pipeline<a class="headerlink" href="#41-pipeline" title="Permanent link">&para;</a></h3>
+<pre class="mermaid"><code>flowchart LR
+    IN[User SQL] --&gt; CF{cluster?}
+    CF --&gt;|no| L0[Local DataFusion / probe.*]
+    CF --&gt;|yes| RT[Path A/B/C]
+    RT --&gt; RW[Catalog rewrite]
+    RW --&gt; EX[Execute shards]
+    EX --&gt; TG[Inject federation tags]
+    TG --&gt; MG[Merge / re-aggregate]
+    MG --&gt; OUT[DataFrame + FanoutMeta]</code></pre>
+<p><strong>Conventions</strong></p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Semantics</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Response</td>
+<td><code>dataframe</code> + <code>meta.nodes_queried</code> + <code>meta.nodes_failed</code></td>
+</tr>
+<tr>
+<td>Peer set</td>
+<td>Snapshot of <code>cluster.nodes</code>, <strong>excluding</strong> coordinator listen addrs</td>
+</tr>
+<tr>
+<td>Peer execution</td>
+<td>Always <code>probe.*</code>; peers must not fan-out again</td>
+</tr>
+<tr>
+<td>Concurrency</td>
+<td>Parallel peer requests; latency ≈ slowest peer + coordinator merge</td>
+</tr>
+<tr>
+<td>Timeout</td>
+<td>Failed peer → <code>nodes_failed</code>; default 2s (<code>PROBING_REMOTE_QUERY_TIMEOUT_SECS</code>)</td>
+</tr>
+<tr>
+<td>Hierarchical fan-out</td>
+<td>Default on: coordinator → local0 → leaves; see <a href="../hierarchical-fanout/">Hierarchical fan-out</a></td>
+</tr>
+</tbody>
+</table>
+<h3 id="42-path-selection">4.2 Path selection<a class="headerlink" href="#42-path-selection" title="Permanent link">&para;</a></h3>
+<p><code>cluster=false</code> → local only.</p>
+<p><code>cluster=true</code> — <strong>AST-based</strong> (not substring):</p>
+<pre class="mermaid"><code>flowchart TD
+    Q[SQL] --&gt; P{Single SELECT?}
+    P --&gt;|no| C[Path C]
+    P --&gt;|yes| M{Single table, no JOIN/CTE/UNION/subquery?}
+    M --&gt;|no| C
+    M --&gt;|yes| A{global.* + pushdown-safe GROUP BY/agg?}
+    A --&gt;|yes| PA[Path A]
+    A --&gt;|no| PB[Path B]</code></pre>
 <table>
 <thead>
 <tr>
 <th>Path</th>
 <th>When</th>
-<th>Module</th>
+<th>§3 examples</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Local <code>probe</code></td>
-<td>Single-process query</td>
-<td>DataFusion</td>
+<td><strong>A — aggregate pushdown</strong></td>
+<td>Single-table <code>global.*</code>; <code>GROUP BY</code> and/or <code>count/sum/min/max/avg</code>; merge-safe</td>
+<td>①②④⑤, role views</td>
 </tr>
 <tr>
-<td><strong>Aggregate pushdown (A)</strong></td>
-<td>Single-table <code>global.*</code> + <code>GROUP BY</code> / safe aggregates</td>
-<td><code>aggregate_pushdown.rs</code></td>
+<td><strong>B — federated scan</strong></td>
+<td>Single-table <code>global.*</code>; not A (no agg, non-merge agg, or <code>ORDER BY</code>/<code>LIMIT</code> when A cannot apply)</td>
+<td>Raw row probes with filters</td>
 </tr>
 <tr>
-<td><strong>Federated scan (B)</strong></td>
-<td>Single-table scan, filters, raw rows</td>
-<td><code>FederatedScanExec</code></td>
-</tr>
-<tr>
-<td><strong>Broadcast (C)</strong></td>
-<td>JOIN / CTE / multi-table on each rank</td>
-<td><code>cluster_fanout.rs</code></td>
+<td><strong>C — broadcast</strong></td>
+<td>JOIN, comma join, UNION, CTE, scalar/IN/EXISTS subqueries, multi-statement, parse failure</td>
+<td>③ span heatmap, compute join, window CTE</td>
 </tr>
 </tbody>
 </table>
-<p>Federation tags (fixed): <code>_host</code>, <code>_addr</code>, <code>_rank</code>, <code>_node_rank</code>, <code>_local_rank</code>, <code>_role</code>.</p>
-<p>Chinese doc covers: diagnostic scenarios (straggler, heatmap, slowdown, topology, hang),
-engine behavior spec (routing, rewrite, tags, paths A/B/C), and the wan-scale «five SQL» bar.</p>
-<h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
-<ul>
-<li><strong><a href="/zh/design/federation/">Federation (中文)</a></strong></li>
-<li><a href="../distributed/">Distributed</a></li>
-<li><a href="../modularity/">Modularity</a></li>
-</ul>
+<p>Parse failure → <strong>conservative path C</strong> (correctness over speed).</p>
+<h3 id="43-catalog-rewrite">4.3 Catalog rewrite<a class="headerlink" href="#43-catalog-rewrite" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Input</th>
+<th>Output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>User → coordinator</td>
+<td><code>python.t</code> / <code>probe.t</code></td>
+<td><code>global.{schema}.t</code> (known schemas: <code>cluster/process/files/python/memtable/gpu/rdma</code>)</td>
+</tr>
+<tr>
+<td>User already uses <code>global.*</code></td>
+<td>unchanged</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Coordinator → peer</td>
+<td>any <code>global.*</code></td>
+<td><code>probe.*</code></td>
+</tr>
+<tr>
+<td><code>SELECT *</code> + <code>global.*</code></td>
+<td><code>SELECT * FROM global.t</code></td>
+<td><code>SELECT * EXCLUDE (six tags), six tags FROM global.t</code></td>
+</tr>
+<tr>
+<td>Explicit column list</td>
+<td><code>SELECT rank, avg_ms …</code></td>
+<td>tags <strong>not</strong> auto-appended</td>
+</tr>
+</tbody>
+</table>
+<p>Path A per-node SQL: strip tag columns from SELECT/GROUP BY; inject after coordinator merge.</p>
+<h3 id="44-federation-tags">4.4 Federation tags<a class="headerlink" href="#44-federation-tags" title="Permanent link">&para;</a></h3>
+<p>Fixed six columns, stable order: <code>_host</code>, <code>_addr</code>, <code>_rank</code>, <code>_node_rank</code>, <code>_local_rank</code>, <code>_role</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Injection timing</td>
+<td>Before merge, one value per shard</td>
+</tr>
+<tr>
+<td>Missing values</td>
+<td>Int tags → <code>-1</code>; <code>_role</code> → <code>""</code></td>
+</tr>
+<tr>
+<td>vs data columns</td>
+<td>Table <code>rank</code>/<code>role</code> = collected values; <code>_rank</code>/<code>_role</code> = probe identity</td>
+</tr>
+<tr>
+<td>Path consistency</td>
+<td>Same semantics on A / B / C</td>
+</tr>
+</tbody>
+</table>
+<h3 id="45-path-a-aggregate-pushdown">4.5 Path A — aggregate pushdown<a class="headerlink" href="#45-path-a-aggregate-pushdown" title="Permanent link">&para;</a></h3>
+<p><strong>Goal:</strong> ~80% of cluster diagnostics without pulling raw rows from every rank.</p>
+<p><strong>Per-node SQL</strong></p>
+<ol>
+<li><code>FROM probe.{schema}.{table}</code></li>
+<li>Push full WHERE</li>
+<li>SELECT: drop tag columns; keep aggs and data GROUP BY columns</li>
+<li>GROUP BY data columns only</li>
+</ol>
+<p><strong>Coordinator merge</strong></p>
+<table>
+<thead>
+<tr>
+<th>Original agg</th>
+<th>Merge function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>count</code>, <code>sum</code></td>
+<td><code>sum</code></td>
+</tr>
+<tr>
+<td><code>min</code></td>
+<td><code>min</code></td>
+</tr>
+<tr>
+<td><code>max</code></td>
+<td><code>max</code></td>
+</tr>
+<tr>
+<td><code>avg</code></td>
+<td>not exact distributed merge → <strong>not path A</strong></td>
+</tr>
+<tr>
+<td><code>count(distinct)</code> with data GROUP BY</td>
+<td>not supported → <strong>not path A</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>ORDER BY / LIMIT:</strong> applied on coordinator <strong>after</strong> merge; global top-K for LIMIT.</p>
+<p><strong>Partial failure:</strong> successful partials still merge; failed addrs in <code>nodes_failed</code>.</p>
+<h3 id="46-path-b-federated-scan">4.6 Path B — federated scan<a class="headerlink" href="#46-path-b-federated-scan" title="Permanent link">&para;</a></h3>
+<p>Lazy partitions: partition 0 = local scan; 1..N = one peer each, fetched on first poll.</p>
+<table>
+<thead>
+<tr>
+<th>Operator</th>
+<th>Rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Filter</td>
+<td>Push only if exactly translatable to peer SQL</td>
+</tr>
+<tr>
+<td>Projection</td>
+<td>User-selected columns only; tags appended at coordinator</td>
+</tr>
+<tr>
+<td><code>LIMIT</code></td>
+<td><strong>Global top-K</strong> at coordinator only — never per-peer LIMIT</td>
+</tr>
+</tbody>
+</table>
+<p>Remaining DataFusion plan runs above the federated scan at coordinator scope.</p>
+<h3 id="path-c-broadcast">4.7 Path C — broadcast<a class="headerlink" href="#path-c-broadcast" title="Permanent link">&para;</a></h3>
+<p><strong>Goal:</strong> SQL that must run on <strong>one process memtable set</strong> (JOIN, CTE, windows).</p>
+<ol>
+<li>Same user SQL on coordinator and each peer (<code>global.*</code> → <code>probe.*</code> on peer)</li>
+<li>Independent result sets per shard</li>
+<li>Row concat with column alignment</li>
+<li>Inject six tags per shard</li>
+</ol>
+<p>No second relational algebra at coordinator — result is concat, not join across shards.</p>
+<p>At large <code>world_size</code>, prefer path A partials plus coordinator re-aggregation over a single path C query with windows.</p>
+<h3 id="48-degradation-and-edge-cases">4.8 Degradation and edge cases<a class="headerlink" href="#48-degradation-and-edge-cases" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>No peers registered</td>
+<td>Single-node; <code>nodes_queried=1</code></td>
+</tr>
+<tr>
+<td>All peers fail</td>
+<td>Local shard only, or empty + correct schema</td>
+</tr>
+<tr>
+<td>Partial peer failure</td>
+<td>Merge successes; <code>nodes_failed</code> lists addrs</td>
+</tr>
+<tr>
+<td>Empty table</td>
+<td>Empty DataFrame; schema includes requested cols + tags if applicable</td>
+</tr>
+<tr>
+<td><code>cluster.nodes</code> ≠ torch ranks</td>
+<td>Tags reflect probe registration, not ideal rank layout</td>
+</tr>
+</tbody>
+</table>
+<h3 id="49-explicit-non-goals">4.9 Explicit non-goals<a class="headerlink" href="#49-explicit-non-goals" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Not supported</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>global.a JOIN global.b</code></td>
+<td>No co-located join key across ranks; use path C same-process join</td>
+</tr>
+<tr>
+<td>Filters that cannot translate exactly</td>
+<td>Avoid silent wrong results</td>
+</tr>
+<tr>
+<td>Distributed <code>count(distinct)</code> merge</td>
+<td>Not decomposable</td>
+</tr>
+<tr>
+<td>One raw + multi-CTE query at wan scale</td>
+<td>Memory/latency; use diagnostic chains</td>
+</tr>
+<tr>
+<td>Peer recursive fan-out</td>
+<td>HTTP loops and amplification</td>
+</tr>
+</tbody>
+</table>
+<h3 id="410-sql-pattern-path-reference">4.10 SQL pattern → path reference<a class="headerlink" href="#410-sql-pattern-path-reference" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>§3 pattern</th>
+<th>Path</th>
+<th>Engine note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>---------</td>
+<td>------</td>
+<td>---------------------</td>
+</tr>
+<tr>
+<td>Rank / slow-node leaderboard</td>
+<td>A</td>
+<td><code>GROUP BY _rank</code> / <code>_host</code>; merge + inject</td>
+</tr>
+<tr>
+<td>step×rank comm heatmap long</td>
+<td>A</td>
+<td><code>GROUP BY global_step, _rank, _host, op</code></td>
+</tr>
+<tr>
+<td>Span heatmap</td>
+<td>C</td>
+<td>Same-rank <code>trace_event</code> self-join; concat + tag</td>
+</tr>
+<tr>
+<td>Job slowdown / worst_fraction</td>
+<td>C or two-step A</td>
+<td>Windows → C; or split chain</td>
+</tr>
+<tr>
+<td>Compute vs comm</td>
+<td>C</td>
+<td><code>probe.comm JOIN probe.torch_trace</code>; then <code>GROUP BY _rank</code></td>
+</tr>
+<tr>
+<td>Hang / backtrace</td>
+<td>A or B</td>
+<td>Single-table <code>GROUP BY _rank</code> or filtered raw</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="5-regression-queries">5. Regression queries<a class="headerlink" href="#5-regression-queries" title="Permanent link">&para;</a></h2>
+<p>Engine changes must pass these on mock multi-node and real clusters:</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Pattern</th>
+<th>SQL reference</th>
+<th>Path</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>step×rank comm heatmap</td>
+<td>§3.1 ④</td>
+<td>A</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Slow-node leaderboard</td>
+<td>§3.1 ②</td>
+<td>A</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Job slowdown proxy</td>
+<td>§3.2 first query</td>
+<td>C or two-step A</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Compute vs comm</td>
+<td>§3.4</td>
+<td>C + coordinator re-agg</td>
+</tr>
+<tr>
+<td>5</td>
+<td>NCCL compute/network</td>
+<td>§3.1 ⑤</td>
+<td>A</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Tags:</strong> six columns consistent on A/B/C; stable <code>SELECT *</code> expansion; broadcast JOIN tags match scan tags.</p>
+<p><strong>Federation:</strong> mock ≥2 peers — row counts, <code>_addr</code> provenance, <code>nodes_failed</code>; path A <code>sum</code> matches naive full <code>GROUP BY</code>; path B <code>LIMIT</code> is global top-K.</p>
+<hr />
+<h2 id="6-related">6. Related<a class="headerlink" href="#6-related" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Document</th>
+<th>Content</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../distributed/">Distributed overview</a></td>
+<td><code>cluster query</code> usage</td>
+</tr>
+<tr>
+<td><a href="../hierarchical-fanout/">Hierarchical fan-out</a></td>
+<td>Wan-scale HTTP topology</td>
+</tr>
+<tr>
+<td><a href="../../guide/concepts/">Core model</a></td>
+<td>Catalogs, federation tags</td>
+</tr>
+<tr>
+<td><a href="../../reference/sql-tables/">SQL Tables</a></td>
+<td>Columns and <code>cluster.nodes</code></td>
+</tr>
+<tr>
+<td><a href="../nccl-profiler/">NCCL Profiler</a></td>
+<td>§3.1 ⑤, <code>nccl.proxy_ops</code></td>
+</tr>
+<tr>
+<td><a href="../../api-reference/">API — step_matrix</a></td>
+<td>§3.1 ③ heatmap</td>
+</tr>
+</tbody>
+</table>
+<p>Implementation: <code>probing/core/src/core/federation/</code> · Control plane: <code>probing/server/src/server/cluster_fanout.rs</code></p>
 
 
 

@@ -1,42 +1,44 @@
 
 <!doctype html>
-<html lang="zh" class="no-js">
+<html lang="en" class="no-js">
   <head>
     
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="面向 Python 训练负载的进程内 profiler，提供 SQL 查询接口。">
+        <meta name="description" content="Dynamic Performance Profiler for Distributed AI">
       
       
       
-        <link rel="canonical" href="https://github.com/DeepLink-org/probing/zh/">
+        <link rel="canonical" href="https://github.com/DeepLink-org/probing/design/cli/">
       
       
+        <link rel="prev" href="../extensibility/">
       
-        <link rel="next" href="installation/">
+      
+        <link rel="next" href="../profiling/">
       
       
         
-          <link rel="alternate" href="/DeepLink-org/probing/" hreflang="en">
+          <link rel="alternate" href="./" hreflang="en">
         
-          <link rel="alternate" href="/DeepLink-org/probing/zh/" hreflang="zh">
+          <link rel="alternate" href="../../zh/design/cli/" hreflang="zh">
         
       
       
-      <link rel="icon" href="../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>Probing - 分布式 AI 动态性能分析器 - Probing 文档</title>
+        <title>CLI Command Tree - Probing Documentation</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -55,13 +57,11 @@
       
     
     
-      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
     
-      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/home.css">
     
-      <link rel="stylesheet" href="../assets/stylesheets/home.css">
-    
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -86,8 +86,8 @@
     <div data-md-component="skip">
       
         
-        <a href="#probing" class="md-skip">
-          跳转至
+        <a href="#cli-command-tree" class="md-skip">
+          Skip to content
         </a>
       
     </div>
@@ -99,8 +99,8 @@
       
 
 <header class="md-header" data-md-component="header">
-  <nav class="md-header__inner md-grid" aria-label="页眉">
-    <a href="./" title="Probing 文档" class="md-header__button md-logo" aria-label="Probing 文档" data-md-component="logo">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Probing Documentation" class="md-header__button md-logo" aria-label="Probing Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -114,13 +114,13 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Probing 文档
+            Probing Documentation
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Probing - 分布式 AI 动态性能分析器
+              CLI Command Tree
             
           </span>
         </div>
@@ -160,20 +160,20 @@
       <div class="md-header__option">
   <div class="md-select">
     
-    <button class="md-header__button md-icon" aria-label="选择当前语言">
+    <button class="md-header__button md-icon" aria-label="Select language">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
     </button>
     <div class="md-select__inner">
       <ul class="md-select__list">
         
           <li class="md-select__item">
-            <a href="/DeepLink-org/probing/" hreflang="en" class="md-select__link">
+            <a href="./" hreflang="en" class="md-select__link">
               English
             </a>
           </li>
         
           <li class="md-select__item">
-            <a href="/DeepLink-org/probing/zh/" hreflang="zh" class="md-select__link">
+            <a href="../../zh/design/cli/" hreflang="zh" class="md-select__link">
               中文
             </a>
           </li>
@@ -194,21 +194,21 @@
   <label class="md-search__overlay" for="__search"></label>
   <div class="md-search__inner" role="search">
     <form class="md-search__form" name="search">
-      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
       <label class="md-search__icon md-icon" for="__search">
         
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
         
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
       </label>
-      <nav class="md-search__options" aria-label="查找">
+      <nav class="md-search__options" aria-label="Search">
         
-          <a href="javascript:void(0)" class="md-search__icon md-icon" title="分享" aria-label="分享" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
             
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
           </a>
         
-        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
           
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
         </button>
@@ -219,7 +219,7 @@
       <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
         <div class="md-search-result" data-md-component="search-result">
           <div class="md-search-result__meta">
-            正在初始化搜索引擎
+            Initializing search
           </div>
           <ol class="md-search-result__list" role="presentation"></ol>
         </div>
@@ -231,7 +231,7 @@
     
     
       <div class="md-header__source">
-        <a href="https://github.com/DeepLink-org/probing" title="前往仓库" class="md-source" data-md-component="source">
+        <a href="https://github.com/DeepLink-org/probing" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
@@ -249,11 +249,10 @@
     <div class="md-container" data-md-component="container">
       
       
-  
         
           
             
-<nav class="md-tabs" aria-label="标签" data-md-component="tabs">
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
   <div class="md-grid">
     <ul class="md-tabs__list">
       
@@ -261,17 +260,15 @@
   
   
   
-    
   
-  
-    <li class="md-tabs__item md-tabs__item--active">
-      <a href="./" class="md-tabs__link">
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
         
   
   
     
   
-  首页
+  Home
 
       </a>
     </li>
@@ -286,13 +283,13 @@
     
     
       <li class="md-tabs__item">
-        <a href="installation/" class="md-tabs__link">
+        <a href="../../installation/" class="md-tabs__link">
           
   
   
     
   
-  入门
+  Getting Started
 
         </a>
       </li>
@@ -308,13 +305,37 @@
     
     
       <li class="md-tabs__item">
-        <a href="guide/" class="md-tabs__link">
+        <a href="../../guide/" class="md-tabs__link">
           
   
   
     
   
-  用户指南
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Architecture
 
         </a>
       </li>
@@ -330,13 +351,13 @@
     
     
       <li class="md-tabs__item">
-        <a href="design/" class="md-tabs__link">
+        <a href="../../examples/" class="md-tabs__link">
           
   
   
     
   
-  架构
+  Examples
 
         </a>
       </li>
@@ -352,35 +373,13 @@
     
     
       <li class="md-tabs__item">
-        <a href="examples/" class="md-tabs__link">
+        <a href="../../reference/" class="md-tabs__link">
           
   
   
     
   
-  示例
-
-        </a>
-      </li>
-    
-  
-
-      
-        
-  
-  
-  
-  
-    
-    
-      <li class="md-tabs__item">
-        <a href="reference/" class="md-tabs__link">
-          
-  
-  
-    
-  
-  参考手册
+  Reference
 
         </a>
       </li>
@@ -394,13 +393,13 @@
   
   
     <li class="md-tabs__item">
-      <a href="contributing/" class="md-tabs__link">
+      <a href="../../contributing/" class="md-tabs__link">
         
   
   
     
   
-  贡献指南
+  Contributing
 
       </a>
     </li>
@@ -413,718 +412,10 @@
           
         
       
-
-  <style>
-    /* Prevent horizontal overflow */
-    body {
-      overflow-x: hidden;
-    }
-
-    /* Hide main content for home page */
-    .md-content {
-      display: none;
-    }
-
-    /* Hide table of contents */
-    @media screen and (min-width: 60em) {
-      .md-sidebar--secondary {
-        display: none;
-      }
-    }
-
-    /* Hide navigation */
-    @media screen and (min-width: 76.25em) {
-      .md-sidebar--primary {
-        display: none;
-      }
-    }
-
-    /* Make header static */
-    .md-header {
-      position: initial;
-    }
-
-    .md-main__inner {
-      margin: 0;
-    }
-
-    /* Feature Cards Section */
-    .probing-features-grid {
-      padding: 80px 0;
-      background: linear-gradient(180deg, rgba(16, 185, 129, 0.02) 0%, transparent 100%);
-    }
-
-    .probing-features-grid .container {
-      width: 100%;
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 0 20px;
-    }
-
-    .probing-features-grid h2 {
-      text-align: center;
-      font-size: 2.5rem;
-      font-weight: 600;
-      margin-bottom: 16px;
-      color: var(--md-primary-fg-color);
-    }
-
-    .probing-features-grid .section-subtitle {
-      text-align: center;
-      font-size: 1.1rem;
-      opacity: 0.7;
-      margin-bottom: 48px;
-      max-width: 600px;
-      margin-left: auto;
-      margin-right: auto;
-    }
-
-    .features-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 24px;
-    }
-
-    .feature-card {
-      background: var(--md-default-bg-color);
-      border: 1px solid rgba(16, 185, 129, 0.1);
-      border-radius: 16px;
-      padding: 32px;
-      transition: all 0.3s ease;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .feature-card::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 4px;
-      background: linear-gradient(90deg, #10B981, #34D399);
-      opacity: 0;
-      transition: opacity 0.3s ease;
-    }
-
-    .feature-card:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 12px 40px rgba(16, 185, 129, 0.15);
-      border-color: rgba(16, 185, 129, 0.3);
-    }
-
-    .feature-card:hover::before {
-      opacity: 1;
-    }
-
-    .feature-icon {
-      font-size: 2.5rem;
-      margin-bottom: 16px;
-      display: block;
-    }
-
-    .feature-card h3 {
-      font-size: 1.25rem;
-      font-weight: 600;
-      margin-bottom: 12px;
-      color: var(--md-typeset-color);
-    }
-
-    .feature-card p {
-      font-size: 0.95rem;
-      line-height: 1.6;
-      opacity: 0.8;
-      margin: 0;
-    }
-
-    /* Quick Start Section */
-    .probing-quickstart {
-      padding: 80px 0;
-      background-color: var(--md-default-bg-color);
-    }
-
-    .probing-quickstart .container {
-      width: 100%;
-      max-width: 1000px;
-      margin: 0 auto;
-      padding: 0 20px;
-    }
-
-    .probing-quickstart h2 {
-      text-align: center;
-      font-size: 2.5rem;
-      font-weight: 600;
-      margin-bottom: 48px;
-      color: var(--md-primary-fg-color);
-    }
-
-    .quickstart-steps {
-      display: flex;
-      flex-direction: column;
-      gap: 32px;
-    }
-
-    .quickstart-step {
-      display: flex;
-      gap: 24px;
-      align-items: flex-start;
-    }
-
-    .step-number {
-      width: 48px;
-      height: 48px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #10B981, #34D399);
-      color: white;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.25rem;
-      font-weight: 700;
-      flex-shrink: 0;
-    }
-
-    .step-content {
-      flex: 1;
-    }
-
-    .step-content h3 {
-      font-size: 1.25rem;
-      font-weight: 600;
-      margin-bottom: 12px;
-      color: var(--md-typeset-color);
-    }
-
-    .step-content .code-block {
-      background: #1e1e2e;
-      border-radius: 12px;
-      padding: 20px;
-      overflow-x: auto;
-    }
-
-    .step-content .code-block pre {
-      margin: 0;
-      background: transparent;
-    }
-
-    .step-content .code-block code {
-      font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
-      font-size: 0.9rem;
-      line-height: 1.6;
-      color: #cdd6f4;
-    }
-
-    /* Use Cases Section */
-    .probing-usecases {
-      padding: 80px 0;
-      background: linear-gradient(180deg, transparent 0%, rgba(16, 185, 129, 0.03) 100%);
-    }
-
-    .probing-usecases .container {
-      width: 100%;
-      max-width: 1140px;
-      margin: 0 auto;
-      padding: 0 20px;
-    }
-
-    .probing-usecases h2 {
-      text-align: center;
-      font-size: 2.5rem;
-      font-weight: 600;
-      margin-bottom: 48px;
-      color: var(--md-primary-fg-color);
-    }
-
-    .usecases-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 24px;
-    }
-
-    .usecase-card {
-      background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(52, 211, 153, 0.05) 100%);
-      border-radius: 16px;
-      padding: 32px;
-      border: 1px solid rgba(16, 185, 129, 0.1);
-    }
-
-    .usecase-icon {
-      font-size: 2rem;
-      margin-bottom: 16px;
-    }
-
-    .usecase-card h3 {
-      font-size: 1.25rem;
-      font-weight: 600;
-      margin-bottom: 12px;
-      color: var(--md-typeset-color);
-    }
-
-    .usecase-card p {
-      font-size: 0.95rem;
-      line-height: 1.6;
-      opacity: 0.8;
-      margin: 0;
-    }
-
-    /* Feature Sections */
-    .probing-feature-section {
-      padding: 80px 0;
-      border-bottom: 1px solid rgba(128, 128, 128, 0.08);
-    }
-
-    .probing-feature-section .container {
-      width: 100%;
-      max-width: 1140px;
-      margin: 0 auto;
-      padding: 0 20px;
-    }
-
-    .probing-feature-content {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 60px;
-    }
-
-    .probing-feature-text {
-      flex: 1;
-      min-width: 300px;
-    }
-
-    .probing-feature-text h2 {
-      font-size: 1.8rem;
-      font-weight: 600;
-      margin-bottom: 20px;
-      color: var(--md-primary-fg-color);
-    }
-
-    .probing-feature-text p {
-      font-size: 1rem;
-      line-height: 1.7;
-      opacity: 0.85;
-      margin-bottom: 16px;
-    }
-
-    .probing-feature-demo {
-      flex: 1;
-      min-width: 400px;
-      display: flex;
-      justify-content: center;
-      overflow: hidden;
-    }
-
-    .code-preview {
-      width: 100%;
-      max-width: 500px;
-      background: #1e1e2e;
-      border-radius: 12px;
-      padding: 24px;
-      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-      overflow: hidden;
-    }
-
-    .code-preview pre {
-      margin: 0;
-      padding: 0;
-      background: transparent;
-      overflow-x: auto;
-    }
-
-    .code-preview code {
-      font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
-      font-size: 0.85rem;
-      line-height: 1.6;
-      color: #cdd6f4;
-    }
-
-    .probing-feature-section.reverse .probing-feature-content {
-      flex-direction: row-reverse;
-    }
-
-    /* Community Section */
-    .probing-community {
-      padding: 80px 0;
-      background: linear-gradient(135deg, #064e3b 0%, #065f46 50%, #047857 100%);
-      color: white;
-    }
-
-    .probing-community .container {
-      width: 100%;
-      max-width: 1000px;
-      margin: 0 auto;
-      padding: 0 20px;
-      text-align: center;
-    }
-
-    .probing-community h2 {
-      font-size: 2.5rem;
-      font-weight: 600;
-      margin-bottom: 16px;
-    }
-
-    .probing-community .section-subtitle {
-      font-size: 1.1rem;
-      opacity: 0.8;
-      margin-bottom: 40px;
-    }
-
-    .community-links {
-      display: flex;
-      justify-content: center;
-      gap: 20px;
-      flex-wrap: wrap;
-    }
-
-    .community-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      padding: 16px 32px;
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 12px;
-      color: white;
-      text-decoration: none;
-      font-weight: 500;
-      transition: all 0.3s ease;
-    }
-
-    .community-link:hover {
-      background: rgba(255, 255, 255, 0.2);
-      transform: translateY(-2px);
-      color: white;
-    }
-
-    .community-link svg {
-      width: 24px;
-      height: 24px;
-      fill: currentColor;
-    }
-
-    /* Responsive */
-    @media (max-width: 768px) {
-      .probing-features-grid h2,
-      .probing-quickstart h2,
-      .probing-usecases h2,
-      .probing-community h2 {
-        font-size: 2rem;
-      }
-
-      .quickstart-step {
-        flex-direction: column;
-        gap: 16px;
-      }
-
-      .probing-feature-content {
-        flex-direction: column;
-        gap: 40px;
-      }
-
-      .probing-feature-section.reverse .probing-feature-content {
-        flex-direction: column;
-      }
-
-      .probing-feature-demo {
-        min-width: 100%;
-      }
-
-      .community-links {
-        flex-direction: column;
-        align-items: center;
-      }
-
-      .community-link {
-        width: 100%;
-        max-width: 300px;
-        justify-content: center;
-      }
-    }
-  </style>
-
-  <!-- Hero Section -->
-  <section class="mdx-container">
-    <div class="container">
-      <div class="intro-message">
-        <div class="hero-logo">
-          <span class="hero-icon">🔬</span>
-          <h1>Probing</h1>
-        </div>
-        
-        <h3>分布式 AI 动态性能分析器</h3>
-        
-        <hr class="intro-divider" />
-        <ul class="list-inline">
-          <li>
-            <a href="quickstart/" class="md-button md-button--primary">快速开始</a>
-          </li>
-          <li>
-            <a href="guide/" class="md-button">用户指南</a>
-          </li>
-          <li>
-            <a href="design/" class="md-button">设计文档</a>
-          </li>
-          <li>
-            <a href="https://github.com/DeepLink-org/probing" class="md-button" target="_blank" rel="noopener">GitHub</a>
-          </li>
-        </ul>
-      </div>
-    </div>
-  </section>
-
-  <!-- Core Features Grid -->
-  <section class="probing-features-grid">
-    <div class="container">
-      
-      <h2>核心特性</h2>
-      <p class="section-subtitle">SQL tables, live introspection, cluster federation, and diagnostic skills</p>
-      
-      <div class="features-grid">
-        <div class="feature-card">
-          <span class="feature-icon">🔍</span>
-          
-          <h3>零侵入</h3>
-          <p>无需修改代码即可附加到运行中的进程。无需插桩、无需重启、不中断工作流。</p>
-          
-        </div>
-        <div class="feature-card">
-          <span class="feature-icon">📊</span>
-          
-          <h3>SQL 分析</h3>
-          <p>使用标准 SQL 查询性能数据。用熟悉的语法分析 torch 追踪、内存使用等。</p>
-          
-        </div>
-        <div class="feature-card">
-          <span class="feature-icon">🎯</span>
-          
-          <h3>实时执行</h3>
-          <p>直接在目标进程中运行 Python 代码。检查变量、修改状态、实时调试。</p>
-          
-        </div>
-        <div class="feature-card">
-          <span class="feature-icon">📈</span>
-          
-          <h3>堆栈分析</h3>
-          <p>捕获带有变量值的执行堆栈。精确了解代码在任何时刻的执行状态。</p>
-          
-        </div>
-        <div class="feature-card">
-          <span class="feature-icon">🌐</span>
-          
-          <h3>分布式支持</h3>
-          <p>监控跨多节点的进程。通过跨节点关联调试分布式训练问题。</p>
-          
-        </div>
-        <div class="feature-card">
-          <span class="feature-icon">🧩</span>
-          
-          <h3>诊断 Skill</h3>
-          <p>内置多步 SQL 剧本：<code>health_overview</code>、<code>slow_rank</code> 等，CLI 与 Web Agent 共用。</p>
-          
-        </div>
-        <div class="feature-card">
-          <span class="feature-icon">🔗</span>
-          
-          <h3>联邦查询</h3>
-          <p><code>global.*</code> 跨 rank 聚合，<code>_rank</code> / <code>_role</code> 标签，<code>cluster query</code> 扇出。</p>
-          
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Quick Start Section -->
-  <section class="probing-quickstart">
-    <div class="container">
-      <h2>快速开始</h2>
-      <div class="quickstart-steps">
-        <div class="quickstart-step">
-          <div class="step-number">1</div>
-          <div class="step-content">
-            <h3>安装 Probing</h3>
-            <div class="code-block">
-              <pre><code class="language-bash">pip install probing</code></pre>
-            </div>
-          </div>
-        </div>
-        <div class="quickstart-step">
-          <div class="step-number">2</div>
-          <div class="step-content">
-            <h3>启用 Probing</h3>
-            <div class="code-block">
-              <pre><code class="language-bash"># 训练推荐
-PROBING=1 PROBING_TORCH_PROFILING=on python train.py
-
-# 或 Linux 附着
-pgrep -f "python.*train"
-probing -t &lt;pid&gt; inject</code></pre>
-            </div>
-          </div>
-        </div>
-        <div class="quickstart-step">
-          <div class="step-number">3</div>
-          <div class="step-content">
-            <h3>开始分析</h3>
-            <div class="code-block">
-              <pre><code class="language-bash"># 查询性能数据
-probing -t &lt;pid&gt; query "SELECT * FROM python.torch_trace LIMIT 10"
-
-# 在进程中执行代码
-probing -t &lt;pid&gt; eval "print(torch.cuda.memory_allocated())"
-
-# 捕获堆栈跟踪
-probing -t &lt;pid&gt; backtrace</code></pre>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- SQL Analytics Feature -->
-  <section class="probing-feature-section">
-    <div class="container">
-      <div class="probing-feature-content">
-        <div class="probing-feature-text">
-          
-          <h2>SQL 驱动的分析</h2>
-          <p>
-            使用熟悉的 SQL 语法查询您的 AI 工作负载数据。使用标准数据库操作
-            分析 PyTorch 追踪、内存使用和自定义指标。
-          </p>
-          <p>
-            基于 Apache DataFusion 构建的高性能分析引擎，支持
-            聚合、窗口函数和复杂连接。
-          </p>
-          <a href="guide/sql-analytics/" class="md-button">了解更多 →</a>
-          
-        </div>
-        <div class="probing-feature-demo">
-          <div class="code-preview">
-            <pre><code class="language-sql">-- 查找最慢操作
-SELECT
-    module,
-    AVG(duration) as avg_time,
-    MAX(allocated) as peak_memory
-FROM python.torch_trace
-WHERE step > 100
-GROUP BY module
-ORDER BY avg_time DESC
-LIMIT 10;</code></pre>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Live Debugging Feature -->
-  <section class="probing-feature-section reverse">
-    <div class="container">
-      <div class="probing-feature-content">
-        <div class="probing-feature-text">
-          
-          <h2>实时进程调试</h2>
-          <p>
-            在运行中的进程中执行任意 Python 代码而无需停止它们。
-            检查变量、查看 GPU 内存、实时修改行为。
-          </p>
-          <p>
-            交互式 REPL 模式用于探索性调试。Tab 补全和
-            完全访问进程上下文。
-          </p>
-          <a href="guide/debugging/" class="md-button">了解更多 →</a>
-          
-        </div>
-        <div class="probing-feature-demo">
-          <div class="code-preview">
-            <pre><code class="language-bash"># 检查 GPU 内存
-probing -t &lt;pid&gt; eval "
-import torch
-print(f'Allocated: {torch.cuda.memory_allocated()/1024**3:.2f} GB')
-print(f'Cached: {torch.cuda.memory_reserved()/1024**3:.2f} GB')"
-
-# 交互式 REPL
-probing -t &lt;pid&gt; repl</code></pre>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Use Cases Section -->
-  <section class="probing-usecases">
-    <div class="container">
-      <h2>使用场景</h2>
-      <div class="usecases-grid">
-        <div class="usecase-card">
-          <div class="usecase-icon">🎓</div>
-          
-          <h3>训练调试</h3>
-          <p>调试训练不稳定、卡住和性能下降问题。实时了解训练为何发散或停止。</p>
-          
-        </div>
-        <div class="usecase-card">
-          <div class="usecase-icon">💾</div>
-          
-          <h3>内存分析</h3>
-          <p>追踪训练步骤中的 GPU/CPU 内存使用。检测内存泄漏并优化内存效率。</p>
-          
-        </div>
-        <div class="usecase-card">
-          <div class="usecase-icon">🚀</div>
-          
-          <h3>性能分析</h3>
-          <p>识别前向/反向传播中的瓶颈。找到慢操作并优化模型性能。</p>
-          
-        </div>
-        <div class="usecase-card">
-          <div class="usecase-icon">🔧</div>
-          
-          <h3>生产监控</h3>
-          <p>无需重启即可监控 AI 服务。收集自定义指标并实时调试生产问题。</p>
-          
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Community Section -->
-  <section class="probing-community">
-    <div class="container">
-      
-      <h2>加入社区</h2>
-      <p class="section-subtitle">Probing 是开源的，欢迎参与！</p>
-      
-      <div class="community-links">
-        <a href="https://github.com/DeepLink-org/probing" class="community-link" target="_blank" rel="noopener">
-          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-          </svg>
-          GitHub
-        </a>
-        <a href="https://github.com/DeepLink-org/probing/issues" class="community-link" target="_blank" rel="noopener">
-          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-          </svg>
-          问题反馈
-        </a>
-        <a href="https://pypi.org/project/probing/" class="community-link" target="_blank" rel="noopener">
-          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 0L1.5 6v12L12 24l10.5-6V6L12 0zm0 2.25l7.5 4.32v8.63l-7.5 4.32-7.5-4.32V6.57l7.5-4.32z"/>
-          </svg>
-          PyPI
-        </a>
-      </div>
-    </div>
-  </section>
-
-
       <main class="md-main" data-md-component="main">
         <div class="md-main__inner md-grid">
           
             
-              
-                
               
               <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
                 <div class="md-sidebar__scrollwrap">
@@ -1135,19 +426,19 @@ probing -t &lt;pid&gt; repl</code></pre>
   
 
 
-<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="导航栏" data-md-level="0">
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./" title="Probing 文档" class="md-nav__button md-logo" aria-label="Probing 文档" data-md-component="logo">
+    <a href="../.." title="Probing Documentation" class="md-nav__button md-logo" aria-label="Probing Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
 
     </a>
-    Probing 文档
+    Probing Documentation
   </label>
   
     <div class="md-nav__source">
-      <a href="https://github.com/DeepLink-org/probing" title="前往仓库" class="md-source" data-md-component="source">
+      <a href="https://github.com/DeepLink-org/probing" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
@@ -1164,44 +455,17 @@ probing -t &lt;pid&gt; repl</code></pre>
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    首页
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    首页
+    Home
   
 
     
@@ -1210,59 +474,6 @@ probing -t &lt;pid&gt; repl</code></pre>
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="目录">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      目录
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        组件
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_2" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        最小示例
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_3" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        文档
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1305,7 +516,7 @@ probing -t &lt;pid&gt; repl</code></pre>
   <span class="md-ellipsis">
     
   
-    入门
+    Getting Started
   
 
     
@@ -1321,7 +532,7 @@ probing -t &lt;pid&gt; repl</code></pre>
             <span class="md-nav__icon md-icon"></span>
             
   
-    入门
+    Getting Started
   
 
           </label>
@@ -1334,14 +545,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="installation/" class="md-nav__link">
+      <a href="../../installation/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    安装指南
+    Installation
   
 
     
@@ -1362,14 +573,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="quickstart/" class="md-nav__link">
+      <a href="../../quickstart/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    快速开始
+    Quick Start
   
 
     
@@ -1390,14 +601,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="guide/concepts/" class="md-nav__link">
+      <a href="../../guide/concepts/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    核心模型
+    Core model
   
 
     
@@ -1458,14 +669,14 @@ probing -t &lt;pid&gt; repl</code></pre>
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="guide/" class="md-nav__link ">
+            <a href="../../guide/" class="md-nav__link ">
               
   
   
   <span class="md-ellipsis">
     
   
-    用户指南
+    User Guide
   
 
     
@@ -1487,7 +698,7 @@ probing -t &lt;pid&gt; repl</code></pre>
             <span class="md-nav__icon md-icon"></span>
             
   
-    用户指南
+    User Guide
   
 
           </label>
@@ -1502,14 +713,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="guide/sql-analytics/" class="md-nav__link">
+      <a href="../../guide/sql-analytics/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    SQL 分析
+    SQL Analytics
   
 
     
@@ -1530,14 +741,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="guide/skills/" class="md-nav__link">
+      <a href="../../guide/skills/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    诊断 Skill
+    Diagnostic Skills
   
 
     
@@ -1558,14 +769,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="guide/memory-analysis/" class="md-nav__link">
+      <a href="../../guide/memory-analysis/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    内存分析
+    Memory Analysis
   
 
     
@@ -1586,14 +797,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="guide/debugging/" class="md-nav__link">
+      <a href="../../guide/debugging/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    现场调试
+    Live Debugging
   
 
     
@@ -1614,14 +825,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="guide/troubleshooting/" class="md-nav__link">
+      <a href="../../guide/troubleshooting/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    常见问题
+    Troubleshooting
   
 
     
@@ -1646,6 +857,8 @@ probing -t &lt;pid&gt; repl</code></pre>
       
   
   
+    
+  
   
   
     
@@ -1667,27 +880,30 @@ probing -t &lt;pid&gt; repl</code></pre>
     
     
       
+        
+        
+      
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="design/" class="md-nav__link ">
+            <a href="../" class="md-nav__link ">
               
   
   
   <span class="md-ellipsis">
     
   
-    架构
+    Architecture
   
 
     
@@ -1698,18 +914,18 @@ probing -t &lt;pid&gt; repl</code></pre>
             </a>
             
               
-              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
   
-    架构
+    Architecture
   
 
           </label>
@@ -1721,8 +937,10 @@ probing -t &lt;pid&gt; repl</code></pre>
                 
   
   
+    
   
   
+  
     
     
       
@@ -1739,25 +957,28 @@ probing -t &lt;pid&gt; repl</code></pre>
     
       
       
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
         
           
-          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="0">
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="">
             
   
   
   <span class="md-ellipsis">
     
   
-    平台核心
+    Platform
   
 
     
@@ -1768,12 +989,12 @@ probing -t &lt;pid&gt; repl</code></pre>
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4_2">
             <span class="md-nav__icon md-icon"></span>
             
   
-    平台核心
+    Platform
   
 
           </label>
@@ -1786,14 +1007,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="design/modularity/" class="md-nav__link">
+      <a href="../modularity/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    模块化与边界
+    Modularity & Boundaries
   
 
     
@@ -1814,14 +1035,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="design/data-layer/" class="md-nav__link">
+      <a href="../data-layer/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    数据层
+    Data Layer
   
 
     
@@ -1842,14 +1063,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="design/extensibility/" class="md-nav__link">
+      <a href="../extensibility/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    扩展机制
+    Extensibility
   
 
     
@@ -1867,17 +1088,44 @@ probing -t &lt;pid&gt; repl</code></pre>
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="design/cli/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Command Tree
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
   <span class="md-ellipsis">
     
   
-    CLI 命令树
+    CLI Command Tree
   
 
     
@@ -1886,6 +1134,98 @@ probing -t &lt;pid&gt; repl</code></pre>
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#principle-flat-invocation-grouped-help" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Principle: flat invocation, grouped help
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Principle: flat invocation, grouped help">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#help-implementation-option-b-adopted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Help implementation (option B, adopted)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#help-sections-rationale" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Help sections (rationale)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#target-invocation-tree" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Target invocation tree
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#maintenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Maintenance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1922,24 +1262,27 @@ probing -t &lt;pid&gt; repl</code></pre>
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
         
           
-          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="">
             
   
   
   <span class="md-ellipsis">
     
   
-    采集与 Profiling
+    Collectors & Profiling
   
 
     
@@ -1955,7 +1298,7 @@ probing -t &lt;pid&gt; repl</code></pre>
             <span class="md-nav__icon md-icon"></span>
             
   
-    采集与 Profiling
+    Collectors & Profiling
   
 
           </label>
@@ -1968,14 +1311,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="design/profiling/" class="md-nav__link">
+      <a href="../profiling/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    性能分析
+    Profiling
   
 
     
@@ -1996,7 +1339,7 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="design/nccl-profiler/" class="md-nav__link">
+      <a href="../nccl-profiler/" class="md-nav__link">
         
   
   
@@ -2024,14 +1367,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="design/debugging/" class="md-nav__link">
+      <a href="../debugging/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    调试引擎
+    Debugging Engine
   
 
     
@@ -2052,14 +1395,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="design/training-phase/" class="md-nav__link">
+      <a href="../training-phase/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    训练阶段
+    Training Phases
   
 
     
@@ -2106,24 +1449,27 @@ probing -t &lt;pid&gt; repl</code></pre>
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_4" >
         
           
-          <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="">
             
   
   
   <span class="md-ellipsis">
     
   
-    分布式
+    Distributed
   
 
     
@@ -2139,7 +1485,7 @@ probing -t &lt;pid&gt; repl</code></pre>
             <span class="md-nav__icon md-icon"></span>
             
   
-    分布式
+    Distributed
   
 
           </label>
@@ -2152,14 +1498,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="design/distributed/" class="md-nav__link">
+      <a href="../distributed/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    概览
+    Overview
   
 
     
@@ -2180,14 +1526,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="design/torchrun-cluster/" class="md-nav__link">
+      <a href="../torchrun-cluster/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    torchrun 集群心跳
+    Torchrun Cluster Heartbeat
   
 
     
@@ -2208,14 +1554,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="design/federation/" class="md-nav__link">
+      <a href="../federation/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    联邦查询引擎
+    Federated Query Engine
   
 
     
@@ -2236,14 +1582,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="design/hierarchical-fanout/" class="md-nav__link">
+      <a href="../hierarchical-fanout/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    分层集群查询
+    Hierarchical Fan-out
   
 
     
@@ -2264,14 +1610,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="design/cluster-pulsing/" class="md-nav__link">
+      <a href="../cluster-pulsing/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    基于 Pulsing 的集群
+    Cluster with Pulsing
   
 
     
@@ -2300,14 +1646,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="design/architecture/" class="md-nav__link">
+      <a href="../architecture/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    系统架构（旧版）
+    System Architecture (legacy)
   
 
     
@@ -2364,14 +1710,14 @@ probing -t &lt;pid&gt; repl</code></pre>
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="examples/" class="md-nav__link ">
+            <a href="../../examples/" class="md-nav__link ">
               
   
   
   <span class="md-ellipsis">
     
   
-    示例
+    Examples
   
 
     
@@ -2393,7 +1739,7 @@ probing -t &lt;pid&gt; repl</code></pre>
             <span class="md-nav__icon md-icon"></span>
             
   
-    示例
+    Examples
   
 
           </label>
@@ -2408,14 +1754,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="examples/training-debugging/" class="md-nav__link">
+      <a href="../../examples/training-debugging/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    训练调试
+    Training Debugging
   
 
     
@@ -2436,14 +1782,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="examples/memory-leak/" class="md-nav__link">
+      <a href="../../examples/memory-leak/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    内存泄漏
+    Memory Leak
   
 
     
@@ -2464,14 +1810,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="examples/performance-analysis/" class="md-nav__link">
+      <a href="../../examples/performance-analysis/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    性能分析
+    Performance Analysis
   
 
     
@@ -2532,14 +1878,14 @@ probing -t &lt;pid&gt; repl</code></pre>
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="reference/" class="md-nav__link ">
+            <a href="../../reference/" class="md-nav__link ">
               
   
   
   <span class="md-ellipsis">
     
   
-    参考手册
+    Reference
   
 
     
@@ -2561,7 +1907,7 @@ probing -t &lt;pid&gt; repl</code></pre>
             <span class="md-nav__icon md-icon"></span>
             
   
-    参考手册
+    Reference
   
 
           </label>
@@ -2576,14 +1922,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="reference/sql-tables/" class="md-nav__link">
+      <a href="../../reference/sql-tables/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    SQL 表目录
+    SQL Tables
   
 
     
@@ -2604,14 +1950,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="api-reference/" class="md-nav__link">
+      <a href="../../api-reference/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    CLI 与 Python API
+    CLI & Python API
   
 
     
@@ -2632,14 +1978,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="reference/env-vars/" class="md-nav__link">
+      <a href="../../reference/env-vars/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    环境变量
+    Environment Variables
   
 
     
@@ -2660,14 +2006,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="reference/skill-format/" class="md-nav__link">
+      <a href="../../reference/skill-format/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Skill 格式规范
+    Skill Format
   
 
     
@@ -2688,14 +2034,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="versions/" class="md-nav__link">
+      <a href="../../versions/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    版本兼容性
+    Versions
   
 
     
@@ -2723,14 +2069,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="contributing/" class="md-nav__link">
+      <a href="../../contributing/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    贡献指南
+    Contributing
   
 
     
@@ -2751,14 +2097,12 @@ probing -t &lt;pid&gt; repl</code></pre>
             
             
               
-                
-              
-              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" hidden>
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
                     
 
-<nav class="md-nav md-nav--secondary" aria-label="目录">
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
   
   
   
@@ -2767,15 +2111,43 @@ probing -t &lt;pid&gt; repl</code></pre>
   
     <label class="md-nav__title" for="__toc">
       <span class="md-nav__icon md-icon"></span>
-      目录
+      Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#_1" class="md-nav__link">
+  <a href="#principle-flat-invocation-grouped-help" class="md-nav__link">
     <span class="md-ellipsis">
       
-        组件
+        Principle: flat invocation, grouped help
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Principle: flat invocation, grouped help">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#help-implementation-option-b-adopted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Help implementation (option B, adopted)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#help-sections-rationale" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Help sections (rationale)
       
     </span>
   </a>
@@ -2783,10 +2155,10 @@ probing -t &lt;pid&gt; repl</code></pre>
 </li>
       
         <li class="md-nav__item">
-  <a href="#_2" class="md-nav__link">
+  <a href="#target-invocation-tree" class="md-nav__link">
     <span class="md-ellipsis">
       
-        最小示例
+        Target invocation tree
       
     </span>
   </a>
@@ -2794,10 +2166,21 @@ probing -t &lt;pid&gt; repl</code></pre>
 </li>
       
         <li class="md-nav__item">
-  <a href="#_3" class="md-nav__link">
+  <a href="#maintenance" class="md-nav__link">
     <span class="md-ellipsis">
       
-        文档
+        Maintenance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related
       
     </span>
   </a>
@@ -2817,6 +2200,130 @@ probing -t &lt;pid&gt; repl</code></pre>
               
               <article class="md-content__inner md-typeset">
                 
+                  
+
+
+  
+  
+
+
+<h1 id="cli-command-tree">CLI command tree<a class="headerlink" href="#cli-command-tree" title="Permanent link">&para;</a></h1>
+<p><strong>Status:</strong> draft · <strong>SSOT</strong> for grouping and migration · Code: <code>probing/cli/src/cli/{commands,help,mod}.rs</code></p>
+<p><strong>Legend:</strong> <code>T</code> = <code>-t/--target</code> · <code>*</code> = needs T · <code>—</code> = no T · <code>L</code> = Linux only · <code>H</code> = hidden</p>
+<hr />
+<h2 id="principle-flat-invocation-grouped-help">Principle: flat invocation, grouped help<a class="headerlink" href="#principle-flat-invocation-grouped-help" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th>Rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Invocation</strong></td>
+<td>Single-level: <code>probing [-v] [-t T] &lt;cmd&gt; [args…]</code></td>
+</tr>
+<tr>
+<td><strong>Help</strong></td>
+<td><code>probing --help</code> grouped under Processes / Analyze / Diagnose / Runtime / Agent</td>
+</tr>
+<tr>
+<td><strong>Consolidation</strong></td>
+<td>Merge <code>cluster query</code> → <code>query --global</code>; <code>cluster nodes</code> → top-level <code>nodes</code> (TBD)</td>
+</tr>
+<tr>
+<td><strong>Exceptions</strong></td>
+<td><code>skill</code> keeps subcommands; <code>bench</code> / <code>store</code> hidden</td>
+</tr>
+</tbody>
+</table>
+<h3 id="help-implementation-option-b-adopted">Help implementation (option B, adopted)<a class="headerlink" href="#help-implementation-option-b-adopted" title="Permanent link">&para;</a></h3>
+<p>clap 4.5–4.6 does <strong>not</strong> support multiple subcommand headings (<a href="https://github.com/clap-rs/clap/issues/1553">clap#1553</a> still open). We use a <strong>custom root help template</strong>:</p>
+<ol>
+<li>Root <code>help_template</code> <strong>omits <code>{subcommands}</code></strong>; keeps <code>{about}</code> / <code>{usage}</code> / <code>{options}</code>.</li>
+<li><code>{after-help}</code> injects grouped command tables from <code>help.rs</code>.</li>
+<li>Section titles and blurbs in <strong><code>help.rs</code> → <code>SECTIONS</code></strong>; per-command one-liners from clap <code>about</code> on each subcommand (<code>commands.rs</code> remains per-command wording SSOT).</li>
+<li><code>probing &lt;cmd&gt; --help</code> still uses default clap per-command help.</li>
+</ol>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Cli::build_command()
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  → CommandFactory::command()
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>  → help::apply_grouped_root_help()
+</span></code></pre></div>
+<hr />
+<h2 id="help-sections-rationale">Help sections (rationale)<a class="headerlink" href="#help-sections-rationale" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Section</th>
+<th>Commands</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Processes</strong></td>
+<td><code>inject</code>, <code>launch</code>, <code>list</code></td>
+<td>Establish or discover probing on a process; avoid “Attach” (ptrace jargon)</td>
+</tr>
+<tr>
+<td><strong>Analyze</strong></td>
+<td><code>query</code>, <code>tables</code>, <code>cluster</code></td>
+<td>SQL and catalog; <code>cluster</code> until merged into <code>query --global</code> / <code>nodes</code></td>
+</tr>
+<tr>
+<td><strong>Diagnose</strong></td>
+<td><code>eval</code>, <code>repl</code>, <code>backtrace</code></td>
+<td>Interactive, immediate inspection</td>
+</tr>
+<tr>
+<td><strong>Runtime</strong></td>
+<td><code>memory</code>, <code>config</code>, <code>flamegraph</code>, <code>rdma</code></td>
+<td>Runtime state and profiling</td>
+</tr>
+<tr>
+<td><strong>Agent</strong></td>
+<td><code>skill</code>, <code>mcp</code></td>
+<td>Coding-agent integration: skills and MCP config</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="target-invocation-tree">Target invocation tree<a class="headerlink" href="#target-invocation-tree" title="Permanent link">&para;</a></h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>probing [-v] [-t T] &lt;cmd&gt; …
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>inject(L*)*  launch(L)—  list—
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>query*  tables*  nodes*          # TBD: merge cluster into query/nodes
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>eval*  repl*  backtrace*  flamegraph*  rdma*
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>memory*  config*
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>skill  list— | install— | update— | run* …
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>mcp  url* | config*
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>bench(H)—  store(H)—
+</span></code></pre></div>
+<hr />
+<h2 id="maintenance">Maintenance<a class="headerlink" href="#maintenance" title="Permanent link">&para;</a></h2>
+<p>When adding or moving a top-level subcommand:</p>
+<ol>
+<li>Register in <code>commands.rs</code> (with <code>about</code>)</li>
+<li>Add name to <code>help.rs</code> → <code>SECTIONS</code></li>
+<li>Update this doc</li>
+</ol>
+<hr />
+<h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
+<p><a href="../federation/">federation.md</a> · <a href="../../guide/skills/">skills</a> · <a href="../../api-reference/">api-reference</a></p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
               </article>
             </div>
           
@@ -2827,12 +2334,11 @@ probing -t &lt;pid&gt; repl</code></pre>
           <button type="button" class="md-top md-icon" data-md-component="top" hidden>
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
-  回到页面顶部
+  Back to top
 </button>
         
       </main>
       
-  
         <footer class="md-footer">
   
   <div class="md-footer-meta md-typeset">
@@ -2877,7 +2383,6 @@ probing -t &lt;pid&gt; repl</code></pre>
   </div>
 </footer>
       
-
     </div>
     <div class="md-dialog" data-md-component="dialog">
       <div class="md-dialog__inner md-typeset"></div>
@@ -2887,10 +2392,10 @@ probing -t &lt;pid&gt; repl</code></pre>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.indexes", "navigation.tracking", "navigation.top", "search.highlight", "search.share", "content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.indexes", "navigation.tracking", "navigation.top", "search.highlight", "search.share", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>
