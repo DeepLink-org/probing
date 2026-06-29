@@ -142,6 +142,8 @@ Hierarchical side-channel registration when `WORLD_SIZE > 1`. See [torchrun clus
 | `PROBING_CLUSTER_DISCOVER_TIMEOUT_SEC` | `2` | Timeout per master/local0 discovery attempt. |
 | `PROBING_CLUSTER_REPORT_TIMEOUT_SEC` | `5` | HTTP PUT timeout for cluster report. |
 | `PROBING_CLUSTER_PRESET` | — | Used by `examples/run_cluster_multinode.sh`: `demo`, `fast`, or `steady`. |
+| `PROBING_CLUSTER_FANOUT_HIERARCHICAL` | `1` | Hierarchical cluster query fan-out (coordinator → local0 → leaves). `0` = flat fan-out to every peer. See [Hierarchical fan-out](../design/hierarchical-fanout.md). |
+| `PROBING_REMOTE_QUERY_TIMEOUT_SECS` | `2` | Per-peer timeout for remote federated / cluster queries (seconds). |
 
 ## Debugging & diagnostics
 

@@ -1,19 +1,25 @@
 # Distributed Architecture
 
-Probing supports monitoring and debugging distributed AI workloads across multiple nodes.
+Multi-node probing: per-rank memtable writers, `cluster.nodes` registry, coordinator-side
+SQL fan-out via `global.*` and `/apis/cluster/query`.
 
-## Overview
+## Related documents
 
-Distributed training introduces challenges:
+| Document | Scope |
+|----------|-------|
+| [Torchrun cluster heartbeat](torchrun-cluster.md) | TCPStore side channel, hierarchical PUT, backoff |
+| [Federated query engine](federation.md) | Catalog rewrite, paths A/B/C, tag injection |
+| [Hierarchical fan-out](hierarchical-fanout.md) | coordinator → local0 → leaf HTTP topology |
+| [Cluster with Pulsing](cluster-pulsing.md) | Optional `pulsing.*` memtable membership |
+| [NCCL Profiler](nccl-profiler.md) | `nccl.proxy_ops` plugin ABI |
 
-- Multiple processes across nodes
-- Communication between ranks
-- Synchronized debugging needs
-- Cross-node data correlation
+Dependency order: [Core model](../guide/concepts.md) → this page → torchrun heartbeat → federation → hierarchical fan-out.
 
-Probing addresses these through a distributed architecture.
+Reference: [SQL Tables](../reference/sql-tables.md) (`cluster.nodes`, federation tags).
 
-## Architecture
+---
+
+## Topology
 
 ```mermaid
 graph TB
@@ -105,6 +111,10 @@ Register peers via torchrun (Rust ctor starts hierarchical heartbeat by default 
 `PUT /apis/nodes` so `_rank` and
 `_role` resolve correctly. Override role at runtime with `probing.set_role(...)` in training
 scripts.
+
+See [Federated query engine](federation.md) for engine paths and acceptance tests.
+
+At wan scale, **`cluster query` defaults to [hierarchical fan-out](hierarchical-fanout.md)** (coordinator → per-machine local0 → on-node leaves). Set `PROBING_CLUSTER_FANOUT_HIERARCHICAL=0` or use CLI `--flat` for legacy flat fan-out.
 
 ## Synchronized Debugging
 
@@ -236,30 +246,20 @@ probing -t host:8080 --token secret query "..."
 
 ## Best Practices
 
-### 1. Consistent Configuration
+### Consistent environment
 
-Use same configuration across all nodes:
+Same env on all ranks (example):
 
 ```bash
 export PROBING_PORT=8080
 export PROBING_TORCH_PROFILING=on
 ```
 
-### 2. Centralized Collection
+### Cross-node timestamps
 
-For large clusters, consider aggregation:
+Use NTP; memtable `ts` columns are wall-clock microseconds per process.
 
-```bash
-# Export data to central location
-probing -t $node query "SELECT * FROM python.torch_trace" >> /shared/traces.json
-```
+### Network
 
-### 3. Timestamp Synchronization
-
-Ensure NTP is configured for accurate cross-node timing.
-
-### 4. Network Considerations
-
-- Use dedicated network for probing traffic if possible
-- Consider firewall rules for probing ports
-- Monitor probing overhead on training network
+Probing HTTP is control-plane traffic. Isolate or rate-limit fan-out on large clusters;
+see [Hierarchical fan-out](hierarchical-fanout.md).

@@ -1,0 +1,176 @@
+apiVersion: probing.dev/v1
+kind: Skill
+
+metadata:
+  id: job_health
+  title: "Job 健康度 / 训练作业诊断"
+  title_en: "Job health & slowdown"
+  category: triage
+  tags: [job, slowdown, health, straggler, 作业, 变慢]
+  triggers:
+    keywords:
+      zh: ["作业健康", "job 慢", "整体变慢", "训练变慢", "slowdown", "worst_fraction", "掉队 rank", "step 落后"]
+      en: ["job health", "job slow", "slowdown", "training degraded", "persistent slow", "step lag"]
+  docs: |
+    从 **job 级** 视角评估训练是否健康：集群节点存活、rank step 是否同步、
+    collective 驱动的 slowdown proxy、最近 step 通信趋势。
+    适合多机训练 first look，或在 slow_rank 之前判断「是偶发还是整体变慢」。
+
+spec:
+  parameters:
+    - name: step_window
+      type: integer
+      default: 200
+      description: "Recent global_steps to include in slowdown / lag checks"
+    - name: step_lag_threshold
+      type: integer
+      default: 5
+      description: "Flag ranks whose max(global_step) trails cluster max by this many steps"
+    - name: use_global
+      type: boolean
+      default: true
+      description: "Use global.* federation on rank0 for cross-node checks"
+
+  requires:
+    any_tables:
+      - python.comm_collective
+      - global.python.comm_collective
+      - cluster.nodes
+
+  steps:
+    - id: cluster_snapshot
+      title: "集群节点存活"
+      type: sql
+      sql: |
+        SELECT
+          count(*) AS nodes_total,
+          count(*) FILTER (WHERE status = 'running') AS nodes_running,
+          count(*) FILTER (WHERE status = 'dead') AS nodes_dead
+        FROM cluster.nodes
+      on_empty: warn
+      empty_message: "cluster.nodes 为空 — 单机或未注册集群"
+
+    - id: rank_step_lag
+      title: "rank global_step 是否落后"
+      type: sql
+      cluster: true
+      when: "{use_global}"
+      sql: |
+        WITH bounds AS (
+          SELECT max(global_step) AS max_step
+          FROM global.python.comm_collective
+        )
+        SELECT
+          _host,
+          _rank,
+          _local_rank,
+          max(global_step) AS last_step,
+          (SELECT max_step FROM bounds) - max(global_step) AS steps_behind
+        FROM global.python.comm_collective, bounds
+        WHERE global_step >= (SELECT max_step - {step_window} FROM bounds)
+        GROUP BY _host, _rank, _local_rank, bounds.max_step
+        HAVING max(global_step) < (SELECT max_step - {step_lag_threshold} FROM bounds)
+        ORDER BY steps_behind DESC
+      on_empty: skip
+      empty_message: "未发现明显 step 落后的 rank（或仅有单 rank 数据）"
+
+    - id: job_slowdown_proxy
+      title: "Job slowdown proxy（per-step straggler 比值）"
+      type: sql
+      cluster: true
+      when: "{use_global}"
+      sql: |
+        WITH per_rank_step AS (
+          SELECT global_step, _rank, max(duration_ms) AS max_op_ms
+          FROM global.python.comm_collective
+          WHERE global_step >= (
+            SELECT max(global_step) - {step_window}
+            FROM global.python.comm_collective
+          )
+          GROUP BY global_step, _rank
+        ),
+        step_cp AS (
+          SELECT global_step,
+                 avg(max_op_ms) / NULLIF(min(max_op_ms), 0) AS step_slowdown_ratio
+          FROM per_rank_step
+          GROUP BY global_step
+        )
+        SELECT
+          avg(step_slowdown_ratio) AS job_slowdown_proxy,
+          count(*) FILTER (WHERE step_slowdown_ratio > 1.1) AS slow_steps,
+          count(*) AS steps_in_window
+        FROM step_cp
+      on_empty: skip
+      empty_message: "global comm_collective 无足够 step 数据"
+
+    - id: comm_trend_by_step
+      title: "最近 step 通信总耗时趋势"
+      type: sql
+      sql: |
+        SELECT
+          global_step,
+          sum(duration_ms) AS comm_ms,
+          count(*) AS calls,
+          count(DISTINCT rank) AS ranks_seen
+        FROM {table_comm}
+        WHERE global_step >= (
+          SELECT max(global_step) - {step_window}
+          FROM {table_comm}
+        )
+        GROUP BY global_step
+        ORDER BY global_step DESC
+        LIMIT 30
+      on_empty: skip
+
+    - id: train_step_pacing
+      title: "train.step wall time（若已 attach phase hook）"
+      type: sql
+      sql: |
+        SELECT
+          count(*) AS step_spans,
+          avg(duration_ns) / 1e6 AS avg_step_ms,
+          max(duration_ns) / 1e6 AS max_step_ms
+        FROM python.trace_event
+        WHERE name = 'train.step'
+          AND duration_ns IS NOT NULL
+      on_empty: skip
+      empty_message: "无 train.step span — attach_training_phases 或 TorchProbe 未写入 trace_event"
+
+  variables:
+    table_comm: "{comm_table}"
+
+  interpretation:
+    rules:
+      - id: dead_nodes
+        when: "step:cluster_snapshot | column:nodes_dead | value > 0"
+        severity: error
+        message: "集群有 {nodes_dead} 个 dead 节点 — 检查 torchrun 心跳或进程是否退出"
+
+      - id: step_lag
+        when: "step:rank_step_lag | rows >= 1"
+        severity: warning
+        message: "存在 global_step 明显落后的 rank — 可能 hang 或极慢 straggler"
+
+      - id: job_slow
+        when: "step:job_slowdown_proxy | column:job_slowdown_proxy | value > 1.15"
+        severity: warning
+        message: "Job slowdown proxy > 1.15 — 多数 step 上最慢 rank 拖慢整体"
+
+      - id: many_slow_steps
+        when: "step:job_slowdown_proxy | column:slow_steps | ratio(slow_steps/steps_in_window) > 0.3"
+        severity: warning
+        message: "超过 30% 的 step 出现 straggler 比值 > 1.1 — 考虑 skill: persistent_straggler"
+
+  summary_template: |
+    ## Job 健康度
+    - **cluster_snapshot**: 存活节点 vs dead
+    - **rank_step_lag**: 是否有 rank 的 global_step 落后
+    - **job_slowdown_proxy**: 理想 step 时间 vs 实际的 proxy（>1.1 表示 straggler 影响）
+    - **comm_trend_by_step**: 通信耗时是否随 step 上升
+
+  next_steps:
+    - "某 rank 长期最慢 → skill: persistent_straggler"
+    - "单次 step 谁最慢 → skill: slow_rank"
+    - "loss 不更新 / 栈卡住 → skill: training_hang"
+    - "通信热点 op → skill: comm_bottleneck"
+    - "NCCL wait 分解 → skill: nccl_culprit_victim"

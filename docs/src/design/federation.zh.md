@@ -1,29 +1,28 @@
 # 联邦查询引擎
 
-**产品定位：** 在 coordinator（通常是 rank 0 / master 探针）上用 **一条 SQL** 问整个训练集群——「谁慢、慢在哪一步、是算力还是网络、是哪台机器」——而不必 SSH 逐 rank 拉日志。
+`global` catalog 的跨 rank SQL 语义。本文定义用户可见行为；实现位于
+`probing/core/src/core/federation/`。冲突时以本文为准对齐代码。
 
-**设计契约：** 本文定义用户可见语义；实现以 `probing/core/src/core/federation/` 为准，不一致时以本文推进对齐。
-
-术语：[核心概念](../guide/concepts.zh.md) · 用法：[分布式](distributed.zh.md) · [SQL 分析](../guide/sql-analytics.zh.md)
+参见：[核心模型](../guide/concepts.zh.md) · [分布式概览](distributed.zh.md) · [SQL 分析](../guide/sql-analytics.zh.md)
 
 ---
 
-## 1. 问题与原则
+## 1. 执行模型
 
-每个 rank 的探针 **只写本地 memtable**（`python.comm_collective`、`nccl.proxy_ops`、`python.trace_event` 等）。跨 rank 分析 = coordinator 把查询拆成：
+每个 rank 仅写本地 memtable（`python.comm_collective`、`nccl.proxy_ops` 等）。Coordinator 查询：
 
-1. 各 peer 本地执行 `probe.*`
-2. HTTP fan-out 拉结果
-3. 合并行并注入 **联邦标签**（标明行来自哪台机器、哪个 rank）
+1. 在各 peer 执行 `probe.*`（HTTP）
+2. 合并 partial 结果
+3. 注入联邦标签列（`_host`、`_addr` 等）
 
-**原则**
+### 不变量
 
-| 原则 | 含义 |
-|------|------|
-| 本地写、按需读 | 训练路径零额外中心存储；只有显式 `cluster query` / `global.*` 才 fan-out |
-| SQL 统一入口 | CLI、Web、Skill、进程内 `probing.query()` 最终都走同一套 Engine |
-| 部分失败可接受 | 单个 peer 超时/不可达：丢弃该分片，返回 `nodes_failed`，不拖垮整查 |
-| 不做跨 rank JOIN | 两张表要在 **同一进程** 内 join；不支持 `global.a JOIN global.b` |
+| 不变量 | 定义 |
+|--------|------|
+| 本地写、按需读 | 训练路径无中心存储；仅 `cluster query` / `global.*` fan-out |
+| 单一引擎入口 | CLI、Web、skill、`probing.query()` 共用 `Engine::async_query` |
+| 部分失败 | peer 超时 → 丢弃分片，记录 `nodes_failed`；查询继续 |
+| 无跨 rank JOIN | 不支持 `global.a JOIN global.b`；单进程内 join（路径 C） |
 
 **入口**
 
@@ -72,15 +71,11 @@ Peer 上 **永远** 执行 `probe.*`，避免递归联邦。
 
 ---
 
-## 3. 诊断场景（用户要什么 → 用什么 SQL）
+## 3. 示例 SQL
 
-复杂问题用 **诊断链** 分步收窄，而不是一条 SQL 扫全集群 raw 行。下列场景对标生产 LLM 集群实践（[OSDI'25 Straggler / SMon](https://www.usenix.org/conference/osdi25/presentation/lin-jinkun)、[MegaScale](https://arxiv.org/pdf/2402.15627)、NCCL collective 归因），语义对齐即可，非复刻某套系统。
+联邦表上的参考查询。满足 §4.2 条件时优先走路径 A（聚合下推）。
 
-### 3.1 Straggler：从 rank 到机器到热力图
-
-**链：** rank 榜 → 慢节点 → step×rank 热力图 → 按 op 分解 → NCCL culprit/victim
-
-**① 各 rank collective 谁最慢**
+### 3.1 `global.python.comm_collective` — rank 与 host 聚合
 
 ```sql
 SELECT _role, _rank, rank,
@@ -229,9 +224,10 @@ WHERE func LIKE '%collective%' OR func LIKE '%nccl%';
 
 ---
 
-## 4. 引擎行为规格
+## 4. 引擎规格
 
-本节从 §3 诊断需求反推 **引擎必须保证的用户可见语义**。实现入口：`probing/core/src/core/federation/`（执行）、`probing/server/src/server/cluster_fanout.rs`（`cluster=true` 路由）。
+实现：`probing/core/src/core/federation/`；`cluster=true` 路由：
+`probing/server/src/server/cluster_fanout.rs`。
 
 ### 4.1 处理流水线
 
@@ -256,6 +252,7 @@ flowchart LR
 | Peer 执行 | 永远 `probe.*`；禁止 peer 再 fan-out（防递归） |
 | 并发 | 各 peer 并行请求；总延迟 ≈ 最慢 peer + coordinator 合并 |
 | 超时 | 单 peer 超时记 `nodes_failed`，不拖垮整查（默认 2s，可 `PROBING_REMOTE_QUERY_TIMEOUT_SECS` 覆盖） |
+| 分层 fan-out | 默认开启：`coordinator → 各机 local0 → 本机 leaf`；见 [分层集群查询](hierarchical-fanout.zh.md) |
 
 ### 4.2 路径选型
 
@@ -410,9 +407,9 @@ merge 后再 `GROUP BY` 数据列 + 用户请求的标签列（若有）。
 
 ---
 
-## 5. 万卡验收（最小五连）
+## 5. 回归查询
 
-增强引擎时，**先保证这五条**在 mock 多节点与真 cluster 上数值正确：
+引擎变更须在 mock 多节点与真实集群上通过：
 
 | # | 场景 | 核心 SQL | 路径 |
 |---|------|----------|------|
@@ -433,7 +430,7 @@ merge 后再 `GROUP BY` 数据列 + 用户请求的标签列（若有）。
 | 文档 | 内容 |
 |------|------|
 | [分布式架构](distributed.zh.md) | `cluster query` 用法 |
-| [核心概念](../guide/concepts.zh.md) | 用户向联邦说明 |
+| [核心模型](../guide/concepts.zh.md) | Catalog、联邦标签 |
 | [SQL 表目录](../reference/sql-tables.zh.md) | 表列与 `cluster.nodes` |
 | [NCCL Profiler](nccl-profiler.zh.md) | §3.1 ⑤、`nccl.proxy_ops` |
 | [API — step_matrix](../api-reference.zh.md) | §3.1 ③ 热力图 |

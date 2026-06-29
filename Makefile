@@ -207,7 +207,7 @@ PYTEST_WHEEL_FLAGS := --import-mode=importlib -o pythonpath= -o "addopts=--verbo
 PYTEST_WHEEL_EXTRA ?=
 
 .PHONY: test test-rust test-rust-unit test-rust-regression test-python test-python-unit test-python-regression test-doctest test-python-wheel coverage-python-wheel
-.PHONY: fmt fmt-check lint lint-python lint-rust lint-core clippy clippy-fix coverage coverage-rust coverage-python bootstrap clean docs-install docs docs-serve docs-clean
+.PHONY: fmt fmt-check lint lint-python lint-rust lint-docs lint-core clippy clippy-fix coverage coverage-rust coverage-python bootstrap clean docs-install docs docs-serve docs-clean
 
 test: test-rust test-python
 test-rust: test-rust-unit test-rust-regression
@@ -244,7 +244,7 @@ test-python-wheel: venv install-wheel-test-deps
 coverage-python-wheel:
 	$(MAKE) test-python-wheel PYTEST_WHEEL_EXTRA="--cov=probing --cov=tests --cov-report=xml:coverage.xml"
 
-lint: lint-python lint-rust
+lint: lint-python lint-rust lint-docs
 fmt:
 	$(FMT_WORKSPACE)
 	$(FMT_WEB)
@@ -261,6 +261,13 @@ lint-python:
 lint-rust:
 	$(CLIPPY_WORKSPACE)
 	$(CLIPPY_WEB)
+lint-docs:
+	@PY=$$(test -x $(VENV_PYTHON) && echo $(VENV_PYTHON) || echo $(PYTHON)); \
+	if $$PY -c "import mkdocs" 2>/dev/null; then \
+		cd docs && $$PY -m mkdocs build --strict; \
+	else \
+		echo "install docs deps: make docs-install"; exit 1; \
+	fi
 clippy: lint-rust
 clippy-fix:
 	cargo clippy --workspace --all-targets --no-default-features --fix --allow-dirty --allow-staged $(CLIPPY_DENY)

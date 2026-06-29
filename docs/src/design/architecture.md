@@ -1,5 +1,8 @@
 # System Architecture
 
+!!! warning "Legacy document"
+    This two-layer overview is **superseded** by **[Modularity & Boundaries](modularity.md)** (four-layer model, crate map, dependency rules, and ownership). It is kept for historical diagrams only. **New contributors should start with [Modularity](modularity.md)**, then [Data Layer](data-layer.md) and [Distributed overview](distributed.md).
+
 Probing is designed as a simple two-layer structure to minimize complexity and deployment difficulty.
 
 ## High-Level Architecture

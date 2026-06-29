@@ -37,7 +37,29 @@ skills:
   - training_hang
   - memory_leak
   - crash_triage
+  - job_health
   path: health_overview/steps.yaml
+- id: job_health
+  category: triage
+  priority: 1
+  entry: true
+  description: 'Job-level health — cluster alive, step lag, slowdown proxy, comm trend'
+  tables:
+  - cluster.nodes
+  - python.comm_collective
+  - global.python.comm_collective
+  - python.trace_event
+  pages:
+  - training
+  - cluster
+  - agent
+  - analytics
+  related:
+  - health_overview
+  - persistent_straggler
+  - slow_rank
+  - training_hang
+  path: job_health/steps.yaml
 - id: crash_triage
   category: triage
   priority: 1
@@ -82,7 +104,26 @@ skills:
   - nccl_culprit_victim
   - gpu_pressure
   - training_hang
+  - persistent_straggler
+  - job_health
   path: slow_rank/steps.yaml
+- id: persistent_straggler
+  category: distributed
+  priority: 2
+  description: 'Persistent straggler — worst_fraction across steps (chronic slow rank)'
+  tables:
+  - python.comm_collective
+  - global.python.comm_collective
+  pages:
+  - training
+  - cluster
+  - analytics
+  related:
+  - slow_rank
+  - job_health
+  - nccl_culprit_victim
+  - gpu_pressure
+  path: persistent_straggler/steps.yaml
 - id: memory_leak
   category: memory
   priority: 3

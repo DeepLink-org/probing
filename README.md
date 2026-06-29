@@ -1,4 +1,4 @@
-# Probing - Dynamic Performance Profiler for Distributed AI
+# Probing — Agent-Native Performance Analysis & Diagnosis for Distributed AI
 
 <div align="center">
   <img src="probing.svg" alt="Probing Logo" width="200"/>
@@ -14,9 +14,28 @@
 [![Downloads](https://pepy.tech/badge/probing)](https://pepy.tech/project/probing)
 [![codecov](https://codecov.io/gh/DeepLink-org/probing/graph/badge.svg?token=IRH3F0OI56)](https://codecov.io/gh/DeepLink-org/probing)
 
-> Uncover the Hidden Truth of AI Performance
+> **Give your coding agent eyes and hands inside distributed training.**
+>
+> Uncover the hidden truth of AI performance.
 
-Probing is a production-grade performance profiler designed specifically for distributed AI workloads. Built on dynamic probe injection technology, it delivers **minimal-overhead** runtime introspection—lock-free mmap writes on the hot path, background sampling—with SQL-queryable performance metrics and cross-node correlation analysis.
+Probing is an **Agent-Native performance analysis & diagnosis tool** for distributed AI. Instead of producing flamegraphs for humans to squint at, it turns a live training job into **queryable, actionable evidence**—relational telemetry that an agent (or you) can `SELECT`, join, and act on.
+
+It's built **from the system layer up**: zero-instrumentation probe injection, SQL-queryable telemetry, NCCL wait decomposition, and cross-node federation—so the data is structured for an agent to consume, not just for a human to read.
+
+And it isn't yet another AI assistant. Probing **plugs into the coding agents you already use**—Codex, Claude Code, Cursor—becoming the eyes and hands they need to see inside distributed training. Skills supply diagnostic playbooks; the in-process HTTP server also exposes MCP tools at **`/mcp`** (`query`, `list_skills`, `plan_skill`, `run_skill`).
+
+## How Probing works with your agent
+
+Probing gives your coding agent a closed diagnostic loop over a running training job:
+
+1. **Observe** — query live telemetry with SQL (`python.torch_trace`, `nccl.proxy_ops`, `gpu.utilization`, …).
+2. **Diagnose** — run structured **skills** (`health_overview`, `slow_rank`, `nccl_culprit_victim`, …) that turn SQL evidence into deterministic findings.
+3. **Act** — intervene in the live process (`eval`, `config`, inject) without stopping the job.
+4. **Verify** — re-query to confirm the fix.
+
+The moat is the system layer underneath—live injection, relational telemetry, NCCL wait decomposition, cross-node federation—the parts a thin wrapper can't fake. The agent integration is how you reach it: `./skills/install.sh` makes Probing's skills discoverable inside `.cursor/`, `.claude/`, and `.agents/`.
+
+> **Safety:** the MCP surface is **read-only by default**—`query` / `cluster_query` accept only `SELECT`/`WITH`/`SHOW`/`DESCRIBE` with bounded result sizes. Intervention tools (`set_config`, `eval_python`) are exposed but **disabled unless you set `PROBING_MCP_ALLOW_WRITE=1`**, and every write is audit-logged. So an agent can diagnose freely, and can only mutate a live training job when you explicitly opt in.
 
 ### What probing delivers...
 
@@ -73,13 +92,37 @@ probing -t <pid> inject
 probing -t <pid> backtrace
 ```
 
+### Use it from your coding agent
+
+```bash
+# Make Probing's diagnostic skills discoverable to Cursor / Claude Code / Codex
+./skills/install.sh
+```
+
+Or connect your agent over **MCP**—point it at the probing server's `/mcp` endpoint:
+
+```json
+{
+  "mcpServers": {
+    "probing": { "url": "http://127.0.0.1:8080/mcp" }
+  }
+}
+```
+
+Then ask your agent in plain language—"this run looks stuck, find the slow rank"—and it drives Probing's skills and SQL for you (directly, or via the `run_skill` / `query` MCP tools):
+
+```bash
+probing -t <pid> skill run health_overview
+probing -t <pid> skill run nccl_culprit_victim --global
+```
+
 ## Core Features
 
 - **Dynamic Probe Injection** - Runtime instrumentation without target application modification
 - **Distributed Performance Aggregation** - Cross-node data collection with unified correlation analysis
 - **SQL Analytics Interface** - Apache DataFusion-powered query engine with standard SQL syntax
 - **Interactive Python REPL** - Live debugging and variable inspection in running processes
-- **Production-Grade Overhead** - Efficient sampling strategies maintaining <1% performance impact
+- **Low-Overhead by Design** - Lock-free mmap hot path and background sampling to minimize impact on the training job
 - **Time-Series Storage** - Columnar data storage with configurable compression and retention
 - **Real-Time Introspection** - Live performance metrics and runtime stack trace analysis
 - **Advanced CLI** - Comprehensive command-line interface with process monitoring and management

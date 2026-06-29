@@ -15,6 +15,16 @@ Before adding code, read **`docs/src/design/modularity.md`** (中文: `modularit
 
 **Contracts:** `ProbeDataSource` (tables), `ProbeExtension` (config/HTTP), `@table` (Python data), `skills/*/steps.yaml` (workflows). Do not add cross-collector calls — use SQL JOINs.
 
+## Error handling & runtime
+
+Keep the propagation chain clean — don't reintroduce scattered `map_err`/`inspect_err`.
+
+- **One error type per crate.** `probing/core` funnels everything into `EngineError` (`probing/core/src/core/error.rs`); app layers (`server`, `cli`) use `anyhow`. Prefer `?` with `#[from]`/`#[source]`; never add `From<String>`, and don't `map_err` an error into a flat string (it drops the cause chain). Attach context with `anyhow::Context` (`.context` / `.with_context`).
+- **One boundary conversion.** `EngineError → DataFusionError` lives in a single `From` impl; DataFusion trait impls just use `?` instead of hand-rolling `DataFusionError::Execution(format!(...))`.
+- **`block_on` never fabricates data.** `probing_core::runtime::block_on` returns `Result<T, RuntimeError>` — on a degraded async bridge it returns `Err`, not an empty/`default` value. Surface it; for a diagnostics tool, a silent "no data" is worse than a clear failure.
+- **No `unwrap`/`expect`/`panic!` on production paths.** Propagate with `?`. Exempt: tests and vendored py-spy bindings under `probing/extensions/python/src/features/spy/python_bindings/`.
+- **Never pollute the host process's stdout.** Use `log` (Rust) / `logging` (Python), not `print!`/`println!`. Expected contention/busy states (e.g. a concurrent stack-trace request) belong at `debug`, not `error`.
+
 ## Skills
 
 All diagnostic skills live under **`skills/`**. Each subdirectory contains:
@@ -47,9 +57,23 @@ Requires a probed training process (`PROBING=1` or `probing -t <pid> inject`):
 ```bash
 probing skill list
 probing -t <pid> skill run health_overview
+probing -t <pid> skill run job_health --global
 probing -t <pid> skill run slow_rank --global
+probing -t <pid> skill run persistent_straggler --global
 probing -t <pid> skill run nccl_culprit_victim
 ```
+
+### MCP (coding agents)
+
+When the probing server is running (e.g. after `PROBING=1`), connect your agent to **`http://<host>:<port>/mcp`** (Streamable HTTP).
+
+**Read tools:** `query`, `describe_tables`, `list_skills`, `plan_skill`, `run_skill`, `list_cluster_nodes`, `cluster_query`
+
+**Write tools (opt-in):** `set_config`, `eval_python` — require `PROBING_MCP_ALLOW_WRITE=1`
+
+**Resources:** `probing://schema/catalog`, `probing://schema/{schema}/{table}`
+
+See `probing/server/API.md`.
 
 From Python (e.g. in agent-generated scripts):
 
@@ -63,8 +87,10 @@ run_skill("health_overview", target="<pid>")
 | id | use when |
 |----|----------|
 | `health_overview` | first look / triage |
+| `job_health` | job-level slowdown, step lag, cluster alive |
 | `training_hang` | stall or hang |
-| `slow_rank` | straggler rank |
+| `slow_rank` | straggler rank (current window) |
+| `persistent_straggler` | chronic straggler (worst_fraction) |
 | `comm_bottleneck` | NCCL / collective slow |
 | `nccl_culprit_victim` | NCCL culprit/victim analysis |
 | `memory_leak` | GPU memory growth |

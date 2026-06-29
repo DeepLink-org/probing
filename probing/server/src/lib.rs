@@ -1,3 +1,6 @@
+#[cfg(feature = "rmcp")]
+pub mod mcp;
+
 mod asset;
 // Make auth module public for integration tests
 pub mod auth;
@@ -12,6 +15,7 @@ pub mod server;
 mod torchrun_cluster;
 mod vars;
 
+pub use self::engine::initialize_engine;
 pub use self::report::start_report_worker;
 pub use self::server::start_local;
 pub use self::server::start_remote;

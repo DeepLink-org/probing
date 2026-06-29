@@ -13,6 +13,9 @@ pub enum ClusterCommand {
         /// Query only the connected endpoint (skip cluster fan-out)
         #[arg(long)]
         local: bool,
+        /// Flat fan-out to every registered peer (disable hierarchical aggregation)
+        #[arg(long)]
+        flat: bool,
     },
     /// List nodes in the cluster view
     Nodes,
@@ -20,15 +23,23 @@ pub enum ClusterCommand {
 
 pub async fn run(ctrl: ProbeEndpoint, cmd: ClusterCommand) -> Result<()> {
     match cmd {
-        ClusterCommand::Query { query, local } => cluster_query(ctrl, &query, !local).await,
+        ClusterCommand::Query { query, local, flat } => {
+            cluster_query(ctrl, &query, !local, !flat).await
+        }
         ClusterCommand::Nodes => cluster_nodes(ctrl).await,
     }
 }
 
-async fn cluster_query(ctrl: ProbeEndpoint, expr: &str, cluster: bool) -> Result<()> {
+async fn cluster_query(
+    ctrl: ProbeEndpoint,
+    expr: &str,
+    cluster: bool,
+    hierarchical: bool,
+) -> Result<()> {
     let body = serde_json::json!({
         "expr": expr,
         "cluster": cluster,
+        "hierarchical": hierarchical,
     });
     let reply = ctrl
         .post_json("/apis/cluster/query", &body.to_string())

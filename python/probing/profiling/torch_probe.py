@@ -1,9 +1,12 @@
+import logging
 import random
 import time
 from dataclasses import dataclass
 from typing import Optional
 
 import probing
+
+logger = logging.getLogger(__name__)
 from probing.core import table
 from probing.parallel import current_role
 from probing.tracing import span, step
@@ -265,13 +268,19 @@ class DelayedRecord:
         self.events = events
 
     def save(self):
-        try:
-            if self.events is not None:
-                start, end = self.events
+        # Duration is best-effort: GPU event timing (notably MPS
+        # `Event.elapsed_time`) can raise when events cannot be correlated.
+        # That must only cost us the duration, never the whole trace record.
+        if self.events is not None:
+            start, end = self.events
+            try:
                 self.record.duration = start.elapsed_time(end) / 1000.0
+            except Exception as e:
+                logger.debug("trace duration unavailable: %s", e)
+        try:
             self.record.save()
         except Exception as e:
-            print(f"Error saving trace: {e}")
+            logger.debug("failed to save trace record: %s", e)
 
 
 def mem_stats() -> TorchTrace:
