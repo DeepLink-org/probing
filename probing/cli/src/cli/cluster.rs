@@ -1,5 +1,5 @@
 use anyhow::Result;
-use probing_proto::prelude::Node;
+use probing_proto::prelude::NodeListResponse;
 
 use crate::cli::ctrl::ProbeEndpoint;
 use crate::table::render_dataframe;
@@ -69,13 +69,25 @@ async fn cluster_query(
 }
 
 async fn cluster_nodes(ctrl: ProbeEndpoint) -> Result<()> {
-    let reply = ctrl.get("/apis/nodes").await?;
-    let nodes: Vec<Node> = serde_json::from_str(&reply)?;
-    if nodes.is_empty() {
+    let mut all = Vec::new();
+    let mut offset = 0usize;
+    loop {
+        let reply = ctrl
+            .get(&format!("/apis/nodes?offset={offset}&limit=1024"))
+            .await?;
+        let page: NodeListResponse = serde_json::from_str(&reply)?;
+        let empty = page.nodes.is_empty();
+        all.extend(page.nodes);
+        if all.len() >= page.total || empty {
+            break;
+        }
+        offset = offset.saturating_add(1024);
+    }
+    if all.is_empty() {
         println!("No cluster nodes registered.");
         return Ok(());
     }
-    for node in nodes {
+    for node in all {
         println!(
             "{}:{} rank={:?} world_size={:?} status={:?}",
             node.host, node.addr, node.rank, node.world_size, node.status

@@ -440,32 +440,32 @@ fn lock_backing(backing: &Mutex<ExternBacking>) -> MutexGuard<'_, ExternBacking>
 
 #[pyclass(from_py_object)]
 #[derive(Clone, Debug)]
-pub struct ExternalTable(Arc<Mutex<ExternBacking>>, usize);
+pub struct ExternalTable(Option<Arc<Mutex<ExternBacking>>>, usize);
+
+const BRIDGE_DEGRADED_MSG: &str =
+    "probing native bridge unavailable; external table operations are disabled";
+
+fn require_backing(
+    backing: &Option<Arc<Mutex<ExternBacking>>>,
+) -> PyResult<&Arc<Mutex<ExternBacking>>> {
+    backing
+        .as_ref()
+        .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err(BRIDGE_DEGRADED_MSG))
+}
 
 impl BlockOnFallback for ExternalTable {
     fn on_block_on_failure(err: RuntimeError) -> Self {
-        log::error!("ExternalTable bridge degraded: {err}; using no-op table");
-        let backing = ExternalTable::create_backing(
-            "__probing_degraded__",
-            Vec::new(),
-            4096,
-            "BaseMemorySize",
-            Some("probing degraded placeholder".into()),
-            HashMap::new(),
-        );
-        ExternalTable(backing, 0)
+        log::error!("ExternalTable bridge degraded: {err}; table unusable");
+        ExternalTable(None, 0)
     }
 }
 
 impl ExternalTable {
-    fn extract_eles(values: Vec<Py<PyAny>>) -> Vec<Ele> {
+    fn extract_eles(values: Vec<Py<PyAny>>) -> PyResult<Vec<Ele>> {
         Python::attach(|py| {
             values
                 .into_iter()
-                .map(|v| {
-                    let bound = v.bind(py);
-                    python_to_ele(bound).unwrap_or(Ele::Nil)
-                })
+                .map(|v| python_to_ele(v.bind(py)))
                 .collect()
         })
     }
@@ -521,7 +521,7 @@ impl ExternalTable {
                 column_docs.unwrap_or_default(),
             );
             lock_extern_tables().insert(name, backing.clone());
-            ExternalTable(backing, ncolumn)
+            ExternalTable(Some(backing), ncolumn)
         })
     }
 
@@ -532,7 +532,7 @@ impl ExternalTable {
             let binding = lock_extern_tables();
             if let Some(backing) = binding.get(&name) {
                 let ncolumn = lock_backing(backing.as_ref()).columns.len();
-                Ok(ExternalTable(backing.clone(), ncolumn))
+                Ok(ExternalTable(Some(backing.clone()), ncolumn))
             } else {
                 Err(pyo3::exceptions::PyValueError::new_err(format!(
                     "table {name} not found"
@@ -560,7 +560,7 @@ impl ExternalTable {
             let mut binding = lock_extern_tables();
             if let Some(backing) = binding.get(&name) {
                 let ncolumn = lock_backing(backing.as_ref()).columns.len();
-                Ok(ExternalTable(backing.clone(), ncolumn))
+                Ok(ExternalTable(Some(backing.clone()), ncolumn))
             } else {
                 let ncolumn = columns.len();
                 let backing = Self::create_backing(
@@ -572,7 +572,7 @@ impl ExternalTable {
                     column_docs.unwrap_or_default(),
                 );
                 binding.insert(name, backing.clone());
-                Ok(ExternalTable(backing, ncolumn))
+                Ok(ExternalTable(Some(backing), ncolumn))
             }
         })
     }
@@ -586,9 +586,9 @@ impl ExternalTable {
         })
     }
 
-    fn names(&self) -> Vec<String> {
-        let backing = self.0.clone();
-        with_detached_native(move || lock_backing(backing.as_ref()).columns.clone())
+    fn names(&self) -> PyResult<Vec<String>> {
+        let backing = require_backing(&self.0)?.clone();
+        with_detached_native(move || Ok(lock_backing(backing.as_ref()).columns.clone()))
     }
 
     fn append(&mut self, values: Vec<Py<PyAny>>) -> PyResult<()> {
@@ -597,8 +597,8 @@ impl ExternalTable {
                 "column count mismatch",
             ));
         }
-        let eles = Self::extract_eles(values);
-        let backing = self.0.clone();
+        let eles = Self::extract_eles(values)?;
+        let backing = require_backing(&self.0)?.clone();
         with_detached_native(move || {
             lock_backing(backing.as_ref())
                 .append(now_micros(), &eles)
@@ -612,8 +612,8 @@ impl ExternalTable {
                 "column count mismatch",
             ));
         }
-        let eles = Self::extract_eles(values);
-        let backing = self.0.clone();
+        let eles = Self::extract_eles(values)?;
+        let backing = require_backing(&self.0)?.clone();
         with_detached_native(move || {
             lock_backing(backing.as_ref())
                 .append(t, &eles)
@@ -630,7 +630,7 @@ impl ExternalTable {
 
     #[pyo3(signature = (limit=None))]
     fn take(&self, limit: Option<usize>) -> PyResult<Vec<PyTableRow>> {
-        let backing = self.0.clone();
+        let backing = require_backing(&self.0)?.clone();
         with_detached_native(move || {
             let rows = lock_backing(backing.as_ref()).take(limit);
             let result = rows
@@ -774,7 +774,7 @@ if not hasattr(probing, "_made_{name}"):
             None,
             None,
         );
-        assert_eq!(table.names(), vec!["a", "b"]);
+        assert_eq!(table.names().unwrap(), vec!["a", "b"]);
     }
 
     #[test]

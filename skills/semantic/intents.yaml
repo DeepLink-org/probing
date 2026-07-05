@@ -5,8 +5,13 @@ kind: IntentCatalog
 intents:
   health_check:
     label: "健康检查 / 不知道从哪查"
-    keywords: [健康, 概览, overview, status, 怎么样, doctor, 体检, checkup, job health, 作业健康]
-    skills: [health_overview, job_health]
+    keywords: [健康, 概览, overview, status, 怎么样, doctor, 体检, checkup, job health, 作业健康, SRE, 值班]
+    skills: [sre_triage, health_overview, job_health]
+
+  sre_oncall:
+    label: "SRE 值班 / 事故第一响应"
+    keywords: [SRE, 值班, oncall, runbook, 应急, 事故, incident, triage, 第一响应, 排查流程]
+    skills: [sre_triage, health_overview, job_health, training_hang, watchdog_timeout]
 
   job_slowdown:
     label: "整 job 变慢 / slowdown"
@@ -20,8 +25,8 @@ intents:
 
   training_hung:
     label: "训练卡住 / 无进展"
-    keywords: [卡住, hang, stall, 不动, deadlock, 死锁, frozen, stuck, loss 不更新]
-    skills: [training_hang, slow_rank]
+    keywords: [卡住, hang, stall, 不动, deadlock, 死锁, frozen, stuck, loss 不更新, watchdog timeout]
+    skills: [sre_triage, training_hang, watchdog_timeout, slow_rank]
 
   training_slow:
     label: "训练变慢 / 瓶颈"
@@ -40,15 +45,15 @@ intents:
 
   comm_slow:
     label: "通信慢 / NCCL"
-    keywords: [通信慢, NCCL, all_reduce, 通信瓶颈, collective, 带宽, culprit, victim, recv_wait, gpu_wait]
-    skills: [comm_bottleneck, nccl_culprit_victim, slow_rank]
+    keywords: [通信慢, NCCL, all_reduce, 通信瓶颈, collective, 带宽, culprit, victim, recv_wait, gpu_wait, watchdog]
+    skills: [sre_triage, comm_bottleneck, watchdog_timeout, nccl_culprit_victim, slow_rank]
 
   nccl_wait:
     label: "NCCL wait 分解 / culprit victim"
-    keywords: [罪魁祸首, 受害者, send_gpu_wait, recv_wait, proxy wait, NCCL 等待, gpu wait]
-    skills: [nccl_culprit_victim, slow_rank]
+    keywords: [罪魁祸首, 受害者, send_gpu_wait, recv_wait, proxy wait, NCCL 等待, gpu wait, flight recorder, desync]
+    skills: [watchdog_timeout, nccl_culprit_victim, slow_rank]
 
   cluster_view:
     label: "集群 / 多机训练"
     keywords: [集群, 多机, 分布式, cluster, multi-node, 跨节点, 所有 rank, all ranks, fan-out]
-    skills: [job_health, slow_rank, persistent_straggler, comm_bottleneck, health_overview]
+    skills: [sre_triage, job_health, slow_rank, persistent_straggler, comm_bottleneck, health_overview]

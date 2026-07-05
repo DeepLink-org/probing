@@ -25,7 +25,11 @@ pub fn query_json(_py: Python, sql: String) -> PyResult<String> {
         let df = block_on(async move { ENGINE.read().await.async_query(sql.as_str()).await })
             .map_err(runtime_err)?
             .map_err(runtime_err)?
-            .unwrap_or_default();
+            .ok_or_else(|| {
+                pyo3::exceptions::PyRuntimeError::new_err(
+                    "query returned no dataframe (engine unavailable or empty response)",
+                )
+            })?;
         serde_json::to_string(&df).map_err(runtime_err)
     })
 }

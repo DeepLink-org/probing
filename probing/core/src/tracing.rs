@@ -218,13 +218,13 @@ impl LocalSpanManager {
                         .push(attr(key, value));
                 }
             } else {
-                eprintln!(
-                    "Error: Active span_id {:?} not found in spans map during add_attr.",
+                log::warn!(
+                    "Active span_id {:?} not found in spans map during add_attr.",
                     active_span_id
                 );
             }
         } else {
-            eprintln!("Error: No active span to add attribute to.");
+            log::warn!("No active span to add attribute to.");
         }
     }
 
@@ -242,13 +242,13 @@ impl LocalSpanManager {
                     });
                 }
             } else {
-                eprintln!(
-                    "Error: Active span_id {:?} not found in spans map during add_event.",
+                log::warn!(
+                    "Active span_id {:?} not found in spans map during add_event.",
                     active_span_id
                 );
             }
         } else {
-            eprintln!("Error: No active span to add event to.");
+            log::warn!("No active span to add event to.");
         }
     }
 
@@ -260,8 +260,8 @@ impl LocalSpanManager {
                 ended_span.end_time = Some(end_time);
                 ended_span.status = final_status;
             } else {
-                eprintln!(
-                    "Error: Popped span_id {:?} not found in spans map during end_span.",
+                log::warn!(
+                    "Popped span_id {:?} not found in spans map during end_span.",
                     active_id_on_stack
                 );
             }
@@ -274,7 +274,7 @@ impl LocalSpanManager {
                 }
             }
         } else {
-            eprintln!("Error: Attempting to end span but span_stack is empty.");
+            log::warn!("Attempting to end span but span_stack is empty.");
         }
     }
 

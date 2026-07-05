@@ -15,6 +15,7 @@ metadata:
     基于 nccl.proxy_ops 的 ProxyStep wait 分解，区分：
     - culprit：send_gpu_wait_ns 高（本 rank GPU/计算慢）
     - victim：recv_wait_ns 高（等 peer / 网络）
+    - send_peer_wait_ns 高（仅 v4 ABI）：等接收端 credits → 对端拥塞信号
     需要 NCCL_PROFILER_PLUGIN 加载 probing-nccl-profiler；开发机可用 PROBING_NCCL_MOCK=1。
 
 spec:
@@ -44,6 +45,7 @@ spec:
           sum(send_gpu_wait_ns) AS total_gpu_wait_ns,
           sum(recv_wait_ns) AS total_recv_wait_ns,
           sum(send_wait_ns) AS total_send_wait_ns,
+          sum(send_peer_wait_ns) AS total_peer_wait_ns,
           avg(send_gpu_wait_ns) AS avg_gpu_wait_ns,
           avg(recv_wait_ns) AS avg_recv_wait_ns
         FROM {nccl_proxy_table}
@@ -57,7 +59,7 @@ spec:
       empty_message: |
         无 nccl.proxy_ops 数据。确认:
         - export NCCL_PROFILER_PLUGIN=$(python -m probing.nccl --plugin-path)
-        - export NCCL_PROFILE_EVENT_MASK=26
+        - export NCCL_PROFILE_EVENT_MASK=94
         - 或 macOS 开发: PROBING_NCCL_MOCK=1 PROBING=1
 
     - id: culprit_ranking
@@ -189,10 +191,12 @@ spec:
     ## NCCL culprit / victim
     - **culprit_ranking**: `send_gpu_wait_ns` 最高 → 本地算力瓶颈
     - **victim_ranking**: `recv_wait_ns` 最高 → 等待他人或网络
+    - **rank_wait_summary.total_peer_wait_ns**（仅 v4 ABI）高 → 对端接收拥塞
     - **role_aligned**: 同 tp/pp/dp 切片对比（Megatron 拓扑）
     - 若仅有 python.comm_collective → skill: comm_bottleneck
 
   next_steps:
     - "culprit 持续同一 rank → gpu_pressure / module_bottleneck"
     - "victim 全体偏高 → 网络/RoCE: comm_bottleneck (rdma.mlx_hca)"
+    - "send_peer_wait_ns 偏高 → 对端 rank 接收侧拥塞，检查该 peer 的 GPU/网络"
     - "单 rank victim + 其他 culprit → 典型 straggler: slow_rank"

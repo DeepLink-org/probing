@@ -1,0 +1,276 @@
+apiVersion: probing.dev/v1
+kind: Skill
+
+metadata:
+  id: sre_triage
+  title: "SRE 训练事故第一响应"
+  title_en: "SRE first-response triage"
+  category: sre
+  tags: [SRE, runbook, oncall, triage, NCCL, hang, OOM, network]
+  triggers:
+    keywords:
+      zh: ["SRE", "值班", "应急", "runbook", "事故", "分诊", "卡住", "NCCL 超时"]
+      en: ["SRE", "oncall", "runbook", "incident", "triage", "NCCL timeout", "hang"]
+  docs: |
+    自动化分布式训练值班第一轮排查：集群存活、训练进展、CPU 阻塞、
+    Flight Recorder collective 对齐、NCCL wait、GPU/RDMA/内核故障线索。
+
+spec:
+  parameters:
+    - name: use_global
+      type: boolean
+      default: true
+      description: "Use global.* tables when cluster fan-out is available"
+    - name: seq_window
+      type: integer
+      default: 200
+      description: "Recent collective sequence ids to inspect"
+    - name: sample_limit
+      type: integer
+      default: 20
+      description: "Rows to show for broad triage steps"
+
+  requires:
+    any_tables:
+      - cluster.nodes
+      - cpu.utilization
+      - gpu.utilization
+      - python.comm_collective
+      - python.torch_nccl_flight_record
+      - nccl.proxy_ops
+
+  steps:
+    - id: incident_snapshot
+      title: "当前可用证据表"
+      type: sql
+      sql: |
+        SELECT table_schema, table_name, table_type
+        FROM information_schema.tables
+        WHERE table_schema NOT IN ('information_schema')
+        ORDER BY table_schema, table_name
+      on_empty: warn
+      empty_message: "没有发现可查询表 — 确认 probing 已注入且目标进程仍存活"
+
+    - id: cluster_nodes
+      title: "集群 / rank 存活状态"
+      type: sql
+      sql: |
+        SELECT rank, local_rank, host, addr, role, status, timestamp
+        FROM cluster.nodes
+        ORDER BY rank
+      on_empty: skip
+      empty_message: "没有 cluster.nodes — 单进程或 torchrun heartbeat 未注册"
+
+    - id: recent_progress
+      title: "最近训练 / 通信进展"
+      type: sql
+      sql: |
+        SELECT
+          max(global_step) AS latest_global_step,
+          count(*) AS collective_rows,
+          max(duration_ms) AS slowest_recent_collective_ms
+        FROM {comm_table}
+      on_empty: skip
+      empty_message: "没有 comm_collective — 非分布式或 collective tracing 尚未写入"
+
+    - id: blocked_threads
+      title: "阻塞线程 / wait channel"
+      type: sql
+      sql: |
+        SELECT tid, comm, state, wchan, cpu_total_pct
+        FROM cpu.utilization
+        WHERE scope = 'thread'
+          AND (state NOT IN ('R', 'S') OR wchan != '')
+        ORDER BY ts DESC
+        LIMIT {sample_limit}
+      on_empty: skip
+      empty_message: "无线程阻塞样本；macOS 或权限受限时 wchan 可能不可用"
+
+    - id: kernel_wait_points
+      title: "常见内核等待点"
+      type: sql
+      sql: |
+        SELECT wchan, count(*) AS samples, max(comm) AS example_thread
+        FROM cpu.utilization
+        WHERE scope = 'thread' AND wchan != ''
+        GROUP BY wchan
+        ORDER BY samples DESC
+        LIMIT 10
+      on_empty: skip
+
+    - id: flight_recorder_snapshot
+      title: "触发本 rank Flight Recorder snapshot"
+      type: api
+      method: GET
+      path: /apis/pythonext/flight-recorder/snapshot?include_stack_traces=true&only_active=false&persist=true
+      on_empty: warn
+      empty_message: "Flight Recorder snapshot 不可用 — PyTorch 版本或 TORCH_NCCL_TRACE_BUFFER_SIZE 可能不满足"
+
+    - id: flight_recorder_alignment
+      title: "Flight Recorder collective 对齐异常"
+      type: sql
+      sql: |
+        WITH latest AS (
+          SELECT rank, max(snapshot_id) AS snapshot_id
+          FROM {fr_table}
+          GROUP BY rank
+        ),
+        recent AS (
+          SELECT f.*
+          FROM {fr_table} f
+          JOIN latest l
+            ON f.rank = l.rank AND f.snapshot_id = l.snapshot_id
+          WHERE f.collective_seq_id >= (
+            SELECT max(collective_seq_id) - {seq_window}
+            FROM {fr_table}
+          )
+        ),
+        aligned AS (
+          SELECT
+            pg_id,
+            collective_seq_id,
+            count(DISTINCT rank) AS ranks_seen,
+            max(world_size) AS expected_world_size,
+            min(profiling_name) AS op_min,
+            max(profiling_name) AS op_max,
+            min(input_sizes) AS input_sizes_min,
+            max(input_sizes) AS input_sizes_max,
+            min(input_dtypes) AS input_dtypes_min,
+            max(input_dtypes) AS input_dtypes_max,
+            min(state) AS state_min,
+            max(state) AS state_max
+          FROM recent
+          GROUP BY pg_id, collective_seq_id
+        )
+        SELECT *
+        FROM aligned
+        WHERE ranks_seen < expected_world_size
+           OR op_min != op_max
+           OR input_sizes_min != input_sizes_max
+           OR input_dtypes_min != input_dtypes_max
+           OR state_min != state_max
+        ORDER BY collective_seq_id
+        LIMIT 20
+      on_empty: skip
+      empty_message: "没有发现 collective seq 对齐异常；若仍 hang，继续看 CPU/NCCL/network 证据"
+
+    - id: suspicious_collective_stacks
+      title: "最近 collective 调用栈"
+      type: sql
+      sql: |
+        WITH latest AS (
+          SELECT rank, max(snapshot_id) AS snapshot_id
+          FROM {fr_table}
+          GROUP BY rank
+        )
+        SELECT rank, pg_id, collective_seq_id, profiling_name, state, top_frame
+        FROM {fr_table} f
+        JOIN latest l
+          ON f.rank = l.rank AND f.snapshot_id = l.snapshot_id
+        ORDER BY collective_seq_id DESC, rank
+        LIMIT {sample_limit}
+      on_empty: skip
+
+    - id: nccl_wait_summary
+      title: "NCCL wait 分解概览"
+      type: sql
+      sql: |
+        SELECT
+          rank,
+          count(*) AS proxy_ops,
+          sum(send_gpu_wait_ns) AS total_gpu_wait_ns,
+          sum(recv_wait_ns) AS total_recv_wait_ns,
+          sum(send_wait_ns) AS total_send_wait_ns
+        FROM {nccl_proxy_table}
+        GROUP BY rank
+        ORDER BY total_recv_wait_ns DESC
+        LIMIT {sample_limit}
+      on_empty: skip
+      empty_message: "无 nccl.proxy_ops — 未加载 NCCL profiler plugin，跳过 culprit/victim 分解"
+
+    - id: gpu_pressure_snapshot
+      title: "GPU 显存 / 利用率快照"
+      type: sql
+      sql: |
+        SELECT device_id, name, used_bytes, total_bytes, mem_used_pct, gpu_util_pct
+        FROM gpu.utilization
+        ORDER BY ts DESC
+        LIMIT {sample_limit}
+      on_empty: skip
+
+    - id: rdma_network_hints
+      title: "RDMA / RoCE 网络线索"
+      type: sql
+      platform: linux
+      sql: |
+        SELECT
+          hca_name,
+          rcv_pkts_rate,
+          snd_pkts_rate,
+          link_downed,
+          np_cnp_sent,
+          np_ecn_marked_roce_packets
+        FROM rdma.mlx_hca
+        ORDER BY np_ecn_marked_roce_packets DESC, link_downed DESC
+        LIMIT {sample_limit}
+      on_empty: skip
+      empty_message: "无 RDMA counters — 非 IB/RoCE 环境或 RDMA 扩展未配置"
+
+    - id: kernel_fault_hints
+      title: "内核 OOM / GPU Xid / IB 错误线索"
+      type: sql
+      platform: linux
+      sql: |
+        SELECT timestamp, level, message
+        FROM process.kmsg
+        WHERE message LIKE '%oom%'
+           OR message LIKE '%Out of memory%'
+           OR message LIKE '%Xid%'
+           OR message LIKE '%NVRM%'
+           OR message LIKE '%mlx%'
+           OR message LIKE '%IB%'
+        ORDER BY timestamp DESC
+        LIMIT {sample_limit}
+      on_empty: skip
+      empty_message: "内核日志中没有发现 OOM/Xid/IB 关键字"
+
+  interpretation:
+    rules:
+      - id: cluster_unhealthy
+        when: "step:cluster_nodes | column:status | any_not_equal('alive')"
+        severity: warning
+        message: "存在非 alive 节点 — 优先确认 rank 是否退出、心跳是否中断"
+
+      - id: collective_desync
+        when: "step:flight_recorder_alignment | rows > 0"
+        severity: warning
+        message: "Flight Recorder 发现 collective 对齐异常 — 继续运行 watchdog_timeout 查看细节"
+
+      - id: nccl_wait_present
+        when: "step:nccl_wait_summary | column:total_recv_wait_ns | max > 1000000"
+        severity: info
+        message: "存在明显 NCCL recv_wait — 继续运行 nccl_culprit_victim 区分 culprit/victim"
+
+      - id: roce_congestion
+        when: "step:rdma_network_hints | column:np_ecn_marked_roce_packets | max > 0"
+        severity: warning
+        message: "RoCE ECN 标记非零 — 网络可能拥塞"
+
+      - id: kernel_fault
+        when: "step:kernel_fault_hints | rows > 0"
+        severity: warning
+        message: "内核日志存在 OOM/Xid/IB 线索 — 可能是资源或硬件/驱动问题"
+
+  summary_template: |
+    ## SRE 第一响应
+    - **cluster_nodes**: rank/host 是否齐，是否有 dead/stale
+    - **flight_recorder_alignment**: NCCL watchdog / collective desync 自动对齐
+    - **blocked_threads**: CPU hang / syscall wait 线索
+    - **nccl_wait_summary**: 进入 NCCL 后的等待分解
+    - **rdma_network_hints** / **kernel_fault_hints**: 网络与硬件线索
+
+  next_steps:
+    - "collective 对齐异常 → watchdog_timeout"
+    - "NCCL wait 明显 → nccl_culprit_victim"
+    - "CPU 栈/线程阻塞明显 → training_hang"
+    - "GPU 显存或 Xid/OOM → gpu_pressure / memory_leak"

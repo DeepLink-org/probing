@@ -17,6 +17,57 @@ _INSTALLED = False
 _PREV_EXCEPTHOOK: Optional[Callable] = None
 _PREV_THREAD_EXCEPTHOOK: Optional[Callable] = None
 
+_TRUE = {"1", "true", "yes", "on", "enable", "enabled"}
+_FALSE = {"0", "false", "no", "off", "disable", "disabled"}
+
+
+def _flag(value: Optional[str]) -> Optional[bool]:
+    if value is None:
+        return None
+    normalized = str(value).strip().lower()
+    if normalized in _TRUE:
+        return True
+    if normalized in _FALSE:
+        return False
+    return None
+
+
+def _flight_recorder_on_watchdog_enabled() -> bool:
+    try:
+        import probing
+
+        explicit = _flag(probing.config.get_str("probing.fr.on_watchdog"))
+        if explicit is not None:
+            return explicit
+    except Exception:
+        explicit = None
+    raw = os.environ.get("PROBING_FR_ON_WATCHDOG", "auto").strip().lower()
+    if raw in _FALSE:
+        return False
+    if raw in _TRUE or raw == "on":
+        return True
+    return raw == "auto"
+
+
+def _looks_like_nccl_watchdog(exc_value: BaseException) -> bool:
+    text = f"{type(exc_value).__name__} {exc_value}".lower()
+    return "watchdog" in text and (
+        "nccl" in text or "worknccl" in text or "collective" in text
+    )
+
+
+def _maybe_snapshot_flight_recorder(exc_value: BaseException) -> None:
+    if not _flight_recorder_on_watchdog_enabled():
+        return
+    if not _looks_like_nccl_watchdog(exc_value):
+        return
+    try:
+        from probing.profiling.flight_recorder import snapshot
+
+        snapshot(only_active=True, persist=True)
+    except Exception:
+        pass
+
 
 def _call_original_excepthook(
     exc_type: Type[BaseException],
@@ -87,6 +138,7 @@ def _dispatch(
         except Exception:
             crash_thread = ""
     thread_stacks = _capture_thread_stacks()
+    _maybe_snapshot_flight_recorder(exc_value)
 
     code = record_crash(
         kind,

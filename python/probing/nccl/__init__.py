@@ -8,8 +8,8 @@ from pathlib import Path
 
 __all__ = ["plugin_path", "DEFAULT_EVENT_MASK", "seed_mock", "maybe_auto_seed"]
 
-# Coll | ProxyOp | ProxyStep
-DEFAULT_EVENT_MASK = 26
+# Coll | P2P | ProxyOp | ProxyStep | KernelCh
+DEFAULT_EVENT_MASK = 94
 
 _LIB_BASENAME = "libprobing_nccl_profiler"
 _ENV_OVERRIDE = "PROBING_NCCL_PROFILER"

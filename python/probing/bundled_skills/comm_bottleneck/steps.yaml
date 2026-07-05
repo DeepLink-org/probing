@@ -15,6 +15,12 @@ metadata:
     按 collective op 聚合延迟与传输量，定位通信热点。
     适用于「计算不慢但 step 时间长」或「通信占比高」的场景。
 
+    数据分两层，勿混淆计时语义：
+    - nccl.coll_perf / nccl.proxy_ops（NCCL profiler 插件）：NCCL 原生事件，
+      执行时间与带宽精准，优先采信；
+    - python.comm_collective（Torch API 层插桩）：Python 墙钟，仅 launch 层
+      粗粒度，插件不可用时的回退，胜在带训练步（global_step）上下文。
+
 spec:
   parameters:
     - name: step_window
@@ -26,12 +32,32 @@ spec:
 
   requires:
     any_tables:
-      - python.comm_collective
+      - nccl.coll_perf
       - nccl.proxy_ops
+      - python.comm_collective
 
   steps:
+    - id: nccl_coll_bw
+      title: "NCCL 精准带宽 (coll_perf, 按 op/消息大小)"
+      type: sql
+      sql: |
+        SELECT
+          coll_func,
+          msg_size_bytes,
+          timing_source,
+          count(*) AS ops,
+          avg(algobw_gbps) AS avg_gbps,
+          min(algobw_gbps) AS min_gbps,
+          avg(exec_time_ns) / 1e6 AS avg_exec_ms
+        FROM {nccl_coll_table}
+        GROUP BY coll_func, msg_size_bytes, timing_source
+        ORDER BY avg_gbps ASC
+        LIMIT 15
+      on_empty: skip
+      empty_message: "无 nccl.coll_perf — 需 NCCL profiler 插件；以下退回 Torch API 层粗粒度数据"
+
     - id: op_summary
-      title: "各 collective op 统计"
+      title: "各 collective op 统计 (Torch API 层, 粗粒度)"
       type: sql
       sql: |
         SELECT
@@ -48,11 +74,11 @@ spec:
         )
         GROUP BY op
         ORDER BY sum(duration_ms) DESC
-      on_empty: abort
-      empty_message: "无 comm_collective 数据"
+      on_empty: skip
+      empty_message: "无 comm_collective 数据（NCCL 插件启用时 Torch 侧插桩默认关闭，属预期）"
 
     - id: op_by_step
-      title: "每 step 通信总耗时"
+      title: "每 step 通信总耗时 (Torch API 层)"
       type: sql
       sql: |
         SELECT
@@ -70,7 +96,7 @@ spec:
       on_empty: skip
 
     - id: slowest_calls
-      title: "最慢的 collective 调用"
+      title: "最慢的 collective 调用 (Torch API 层)"
       type: sql
       sql: |
         SELECT global_step, rank, op, duration_ms, bytes, tensor_shape
@@ -100,7 +126,7 @@ spec:
         GROUP BY coll_func
         ORDER BY total_recv_wait_ns DESC
       on_empty: skip
-      empty_message: "无 nccl.proxy_ops — 仅 python.comm_collective 粗粒度可用"
+      empty_message: "无 nccl.proxy_ops — 仅 Torch API 层粗粒度数据可用"
 
     - id: rdma_hint
       title: "RDMA 端口速率 (Linux)"
@@ -116,6 +142,7 @@ spec:
   variables:
     table_comm: "{comm_table}"
     nccl_proxy_table: "{nccl_proxy_table}"
+    nccl_coll_table: "{nccl_coll_table}"
 
   interpretation:
     rules:
@@ -131,12 +158,14 @@ spec:
 
   summary_template: |
     ## 通信瓶颈
-    - **op_summary**: 哪个 op 总耗时最高
+    - **nccl_coll_bw**: NCCL 精准带宽（有则优先采信；注意 timing_source 列）
+    - **op_summary**: Torch API 层各 op 总耗时（粗粒度回退）
     - **slowest_calls**: 极端慢调用
     - rank 不均衡 → skill: slow_rank
 
   next_steps:
     - "all_reduce 慢 → 检查 bucket 大小、overlap、FP16 compress"
+    - "某消息桶带宽异常低 → 对照 timing_source（enqueue 回退行不代表执行带宽）"
     - "某 step comm_ms 尖峰 → 对照 checkpoint / eval 边界"
     - "RoCE 拥塞 → 查 rdma.mlx_hca 与交换机 ECN 配置"
     - "有 proxy wait 数据 → skill: nccl_culprit_victim"
