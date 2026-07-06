@@ -53,9 +53,9 @@ impl Default for ServerProbeExtension {
             unix_socket: Maybe::Nothing,
             report_addr: Maybe::Nothing,
             auth_token: Maybe::Nothing,
-            max_connections: Maybe::Just(20), // Default to 20 connections
-            timeout: Maybe::Just(30),         // Default timeout of 30 seconds
-            debug: Maybe::Just(false),        // Debug mode off by default
+            max_connections: Maybe::Just(128),
+            timeout: Maybe::Just(30),  // Default timeout of 30 seconds
+            debug: Maybe::Just(false), // Debug mode off by default
             log_level: Maybe::Just("info".to_string()), // Default log level
             assets_root: Maybe::Nothing,
         }

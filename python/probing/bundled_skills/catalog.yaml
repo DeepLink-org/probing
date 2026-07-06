@@ -156,6 +156,8 @@ skills:
   priority: 5
   description: Rank collective ops by total and p99 latency
   tables:
+  - nccl.coll_perf
+  - nccl.proxy_ops
   - python.comm_collective
   - rdma.mlx_hca
   pages:

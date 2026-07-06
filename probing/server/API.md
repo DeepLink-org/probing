@@ -67,6 +67,7 @@ All handlers live in `python/probing/handlers/pythonext.py`, one canonical local
 | GET | `/apis/pythonext/ray/timeline` | `ray/timeline` |
 | GET | `/apis/pythonext/ray/timeline/chrome` | `ray/timeline/chrome` |
 | GET | `/apis/pythonext/magics` | `magics` |
+| GET | `/apis/pythonext/flight-recorder/snapshot?include_stack_traces=&only_active=&persist=` | `flight-recorder/snapshot` |
 
 Rust-backed endpoints (`callstack`, `eval`) are thin `@ext_handler` wrappers around `probing._core.api_callstack` / `api_eval`.
 

@@ -122,19 +122,91 @@ pub fn update_nodes(nodes: Vec<Node>) {
     }
 }
 
-/// Merge reported nodes, sweep stale entries to ``dead``, bump version, return snapshot.
-pub fn apply_node_report(incoming: Vec<Node>) -> NodeReportResponse {
+fn node_key(node: &Node) -> String {
+    format!("{}:{}", node.host, node.addr)
+}
+
+fn delta_nodes(incoming: &[Node], removed: &[String]) -> Vec<Node> {
+    let cluster = read_cluster();
+    let mut delta = Vec::with_capacity(incoming.len() + removed.len());
     for node in incoming {
+        let key = node_key(node);
+        if let Some(stored) = cluster.nodes.get(&key) {
+            delta.push(stored.clone());
+        } else {
+            delta.push(node.clone());
+        }
+    }
+    for key in removed {
+        if let Some(node) = cluster.nodes.get(key) {
+            delta.push(node.clone());
+        }
+    }
+    delta
+}
+
+/// Merge reported nodes, sweep stale entries to ``dead``, bump version, return snapshot.
+pub fn apply_node_report(incoming: Vec<Node>, seen_version: u64) -> NodeReportResponse {
+    let version_before = cluster_version();
+    for node in incoming.iter().cloned() {
         update_node(node);
     }
     let removed = mark_stale_nodes_as_dead();
-    let version = CLUSTER_VERSION.fetch_add(1, Ordering::Relaxed) + 1;
+    let changed = !incoming.is_empty() || !removed.is_empty();
+    let version = if changed {
+        CLUSTER_VERSION.fetch_add(1, Ordering::Relaxed) + 1
+    } else {
+        version_before
+    };
+
+    let nodes = if seen_version >= version_before && seen_version > 0 {
+        delta_nodes(&incoming, &removed)
+    } else if seen_version >= version_before {
+        if changed {
+            delta_nodes(&incoming, &removed)
+        } else {
+            Vec::new()
+        }
+    } else {
+        Vec::new()
+    };
+
     NodeReportResponse {
         ok: true,
         version,
-        nodes: get_nodes(),
+        nodes,
         removed,
     }
+}
+
+/// Apply a delta from a parent coordinator without re-POSTing the full snapshot over HTTP.
+pub fn apply_snapshot_delta(nodes: Vec<Node>, removed: &[String], version: u64) {
+    for node in nodes {
+        update_node(node);
+    }
+    for key in removed {
+        let mut parts = key.splitn(2, ':');
+        if let (Some(host), Some(addr)) = (parts.next(), parts.next()) {
+            write_cluster().remove_by_addr(host, addr);
+        }
+    }
+    CLUSTER_VERSION.store(version, Ordering::Relaxed);
+}
+
+/// Paginated node list; returns empty when ``since_version`` is current.
+pub fn get_nodes_page(
+    offset: usize,
+    limit: usize,
+    since_version: Option<u64>,
+) -> (u64, usize, Vec<Node>) {
+    let version = cluster_version();
+    if since_version.is_some_and(|v| v >= version) {
+        return (version, read_cluster().nodes.len(), Vec::new());
+    }
+    let all = get_nodes();
+    let total = all.len();
+    let page = all.into_iter().skip(offset).take(limit).collect();
+    (version, total, page)
 }
 
 pub fn cluster_version() -> u64 {
@@ -273,6 +345,23 @@ pub fn hierarchical_metadata_available() -> bool {
         .any(|n| n.group_rank.is_some() && n.local_rank.is_some())
 }
 
+/// Error prefix returned when hierarchical fan-out is requested but metadata is missing.
+pub const HIERARCHICAL_METADATA_UNAVAILABLE: &str =
+    "cluster hierarchical fan-out unavailable: cluster.nodes missing group_rank/local_rank metadata";
+
+/// Build a user-facing error for missing hierarchical metadata.
+pub fn hierarchical_metadata_unavailable_err() -> anyhow::Error {
+    anyhow::anyhow!(
+        "{HIERARCHICAL_METADATA_UNAVAILABLE} — wait for torchrun heartbeat to converge, \
+         or set hierarchical=false / PROBING_CLUSTER_FANOUT_HIERARCHICAL=0 for legacy flat fan-out"
+    )
+}
+
+pub fn is_hierarchical_metadata_unavailable(err: &anyhow::Error) -> bool {
+    err.to_string()
+        .starts_with(HIERARCHICAL_METADATA_UNAVAILABLE)
+}
+
 #[cfg(any(test, feature = "test-utils"))]
 pub fn reset_cluster_for_tests() {
     *write_cluster() = Cluster::default();
@@ -300,7 +389,7 @@ mod tests {
             ..Default::default()
         };
         write_cluster().put(old);
-        let resp = apply_node_report(vec![]);
+        let resp = apply_node_report(vec![], cluster_version());
         assert!(resp.nodes.iter().any(|n| n.rank == Some(1)));
         let dead = resp.nodes.iter().find(|n| n.rank == Some(1)).unwrap();
         assert_eq!(dead.status.as_deref(), Some("dead"));
@@ -318,10 +407,47 @@ mod tests {
             status: Some("running".into()),
             ..Default::default()
         };
-        let resp = apply_node_report(vec![node]);
+        let resp = apply_node_report(vec![node], 0);
         assert_eq!(resp.nodes.len(), 1);
         assert_eq!(resp.nodes[0].status.as_deref(), Some("running"));
         assert!(resp.nodes[0].timestamp > 0);
+    }
+
+    #[test]
+    fn incremental_heartbeat_returns_delta_not_full_snapshot() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        reset_cluster_for_tests();
+        let node = Node {
+            host: "h1".into(),
+            addr: "10.0.0.1:3".into(),
+            rank: Some(3),
+            status: Some("running".into()),
+            ..Default::default()
+        };
+        let first = apply_node_report(vec![node.clone()], 0);
+        assert_eq!(first.nodes.len(), 1);
+        let v = first.version;
+        let second = apply_node_report(vec![node], v);
+        assert_eq!(second.nodes.len(), 1);
+        assert!(second.version >= v);
+        let third = apply_node_report(vec![], second.version);
+        assert!(third.nodes.is_empty());
+    }
+
+    #[test]
+    fn get_nodes_page_respects_since_version() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        reset_cluster_for_tests();
+        write_cluster().put(Node {
+            host: "h".into(),
+            addr: "10.0.0.1:0".into(),
+            rank: Some(0),
+            ..Default::default()
+        });
+        let version = cluster_version();
+        let (_, total, page) = get_nodes_page(0, 10, Some(version));
+        assert_eq!(total, 1);
+        assert!(page.is_empty());
     }
 
     #[test]

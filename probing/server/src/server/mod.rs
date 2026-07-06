@@ -12,6 +12,7 @@ pub mod cluster_query;
 pub mod config;
 pub mod error;
 pub mod file_api;
+pub mod health;
 pub mod middleware;
 pub mod system;
 pub mod training;
@@ -23,12 +24,16 @@ use axum::response::IntoResponse;
 use log::error;
 
 use crate::engine::{handle_query, initialize_engine};
-use crate::server::middleware::{request_logging_middleware, request_size_limit_middleware};
+use crate::server::middleware::{
+    connection_limit_middleware, request_logging_middleware, request_size_limit_middleware,
+};
 use crate::server::repl::ws_handler;
 use probing_proto::prelude::Query;
 
 /// Top-level routes outside `/apis`. Keep in sync with `tests/regression/spec/api_spec.json`.
 pub const TOP_LEVEL_ROUTES: &[(&str, &str)] = &[
+    ("GET", "/health"),
+    ("GET", "/ready"),
     ("POST", "/query"),
     ("POST", "/query/dto"),
     ("GET", "/config/{config_key}"),
@@ -46,6 +51,8 @@ async fn get_config_value_handler(
 
 fn build_app(auth: bool) -> axum::Router {
     let mut app = spa::routes()
+        .route("/health", axum::routing::get(health::liveness))
+        .route("/ready", axum::routing::get(health::readiness))
         .route("/query", axum::routing::post(query))
         .route("/query/dto", axum::routing::post(query_dto::query_dto))
         .route(
@@ -67,13 +74,24 @@ fn build_app(auth: bool) -> axum::Router {
         ));
     }
 
-    app.layer(axum::middleware::from_fn(request_logging_middleware))
-        .layer(axum::middleware::from_fn(request_size_limit_middleware))
+    app.layer(axum::middleware::from_fn(request_size_limit_middleware))
+        .layer(axum::middleware::from_fn(request_logging_middleware))
+        .layer(axum::middleware::from_fn(connection_limit_middleware))
 }
 
 async fn query(body: String) -> impl IntoResponse {
+    if let Some(msg) = crate::engine_lifecycle::engine_not_ready_message() {
+        return ApiError::service_unavailable(msg).into_response();
+    }
     match crate::engine::query(body).await {
-        Ok(response) => (StatusCode::OK, response).into_response(),
+        Ok(envelope) => {
+            let status = if envelope.partial {
+                StatusCode::SERVICE_UNAVAILABLE
+            } else {
+                StatusCode::OK
+            };
+            (status, envelope.body).into_response()
+        }
         Err(api_error) => api_error.into_response(),
     }
 }
@@ -92,7 +110,7 @@ pub async fn local_server() -> Result<()> {
         path.to_string_lossy().to_string()
     };
 
-    eprintln!(
+    log::info!(
         "Starting local server at {}",
         socket_path.replace('\0', "@")
     );
@@ -104,9 +122,20 @@ pub async fn local_server() -> Result<()> {
 
 pub fn start_local() {
     SERVER_RUNTIME.block_on(async move {
-        initialize_engine()
-            .await
-            .unwrap_or_else(|err| error!("Failed to initialize engine: {err}"));
+        match initialize_engine().await {
+            Ok(()) => {
+                log::info!("probing engine initialized");
+            }
+            Err(err) => {
+                let msg = err.to_string();
+                error!("Failed to initialize engine: {msg}");
+                crate::engine_lifecycle::mark_engine_failed(msg.clone());
+                if crate::engine_lifecycle::engine_fail_fast_enabled() {
+                    error!("PROBING_ENGINE_FAIL_FAST=1 — exiting");
+                    std::process::exit(1);
+                }
+            }
+        }
     });
     SERVER_RUNTIME.spawn(async move {
         let _ = local_server().await;
@@ -114,8 +143,6 @@ pub fn start_local() {
 }
 
 pub async fn remote_server(addr: Option<String>) -> Result<()> {
-    use nu_ansi_term::Color::{Green, Red};
-
     let addr = addr.unwrap_or_else(|| "0.0.0.0:0".to_string());
     log::info!("Starting probe server at {addr}");
 
@@ -129,16 +156,11 @@ pub async fn remote_server(addr: Option<String>) -> Result<()> {
                 *probing_address = addr.to_string();
             }
             probing_core::core::cluster::set_local_listen_addrs(vec![addr.to_string()]);
-            eprintln!("{}", Red.bold().paint("probing server is available on:"));
-            eprintln!("\t{}", Green.bold().underline().paint(addr.to_string()));
+            log::info!("probing server is available on: {addr}");
             probing_core::config::write("server.address", &addr.to_string()).await?;
         }
         Err(err) => {
-            eprintln!(
-                "{}",
-                Red.bold()
-                    .paint(format!("error getting server address: {err}"))
-            );
+            log::error!("error getting server address: {err}");
         }
     }
     axum::serve(listener, app).await?;

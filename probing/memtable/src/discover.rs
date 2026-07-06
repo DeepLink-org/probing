@@ -190,6 +190,11 @@ impl ExposedTable {
     pub fn view(&self) -> MemTableView<'_> {
         self.inner.view()
     }
+
+    /// Ring-buffer overwrite counters `(chunks_recycled, rows_overwritten)`.
+    pub fn ring_overwrite_stats(&self) -> (u32, u32) {
+        crate::layout::ring_overwrite_stats(self.inner.as_bytes())
+    }
 }
 
 // ── ExposedHashTable ─────────────────────────────────────────────────

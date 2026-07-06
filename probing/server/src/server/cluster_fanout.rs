@@ -14,12 +14,14 @@
 //! JOIN / multi-statement SQL uses the legacy per-node broadcast path.
 
 use probing_core::core::cluster::{
-    hierarchical_metadata_available, local_leaf_peers, local_listen_addrs, node_aggregator_peers,
+    hierarchical_metadata_available, hierarchical_metadata_unavailable_err, local_leaf_peers,
+    local_listen_addrs, node_aggregator_peers,
 };
 use probing_core::core::federation::{
     can_fanout_via_global_catalog, cluster_rank_for_endpoint, is_local0_from_env,
-    remote_query_timeout, reset_fanout_stats, rewrite_sql_for_global_fanout, take_fanout_stats,
-    with_fanout_scope, FanoutScope,
+    remote_fanout_concurrency, remote_query_timeout, reset_fanout_stats,
+    rewrite_sql_for_global_fanout, take_fanout_stats, validate_global_query, with_fanout_scope,
+    FanoutScope,
 };
 use probing_proto::prelude::*;
 
@@ -162,14 +164,91 @@ pub struct FanoutMeta {
     pub scope: String,
     pub nodes_queried: usize,
     pub nodes_failed: Vec<String>,
+    /// Partial peer batches dropped while merging aggregate pushdown results.
+    #[serde(default)]
+    pub peer_batches_dropped: usize,
     pub node_aggregators_queried: usize,
     pub local_ranks_queried: usize,
+    /// True when some peers failed or merge dropped partial batches — dataframe is incomplete.
+    #[serde(default)]
+    pub partial: bool,
+}
+
+impl FanoutMeta {
+    fn finalize(&mut self) {
+        self.partial = !self.nodes_failed.is_empty() || self.peer_batches_dropped > 0;
+    }
+}
+
+fn finish_fanout(dataframe: DataFrame, mut meta: FanoutMeta, context: &str) -> FanoutQueryResponse {
+    meta.finalize();
+    if meta.partial {
+        log::warn!(
+            "cluster fan-out partial ({context}): nodes_queried={} nodes_failed={} peer_batches_dropped={}",
+            meta.nodes_queried,
+            meta.nodes_failed.len(),
+            meta.peer_batches_dropped,
+        );
+    }
+    FanoutQueryResponse { dataframe, meta }
+}
+
+async fn fanout_remote_plain(
+    peers: Vec<Node>,
+    sql: &str,
+) -> Vec<(Node, anyhow::Result<DataFrame>)> {
+    use futures_util::stream::{self, StreamExt};
+    let sql = sql.to_string();
+    let concurrency = remote_fanout_concurrency();
+    stream::iter(peers)
+        .map(|node| {
+            let sql = sql.clone();
+            async move {
+                let result = remote_query_df(&node.addr, &sql).await;
+                (node, result)
+            }
+        })
+        .buffer_unordered(concurrency)
+        .collect()
+        .await
+}
+
+async fn fanout_remote_aggregate(
+    peers: Vec<Node>,
+    sql: &str,
+) -> Vec<(Node, anyhow::Result<DataFrame>)> {
+    use futures_util::stream::{self, StreamExt};
+    let sql = sql.to_string();
+    let concurrency = remote_fanout_concurrency();
+    stream::iter(peers)
+        .map(|node| {
+            let sql = sql.clone();
+            async move {
+                let result = remote_node_aggregate_df(&node.addr, &sql).await;
+                (node, result)
+            }
+        })
+        .buffer_unordered(concurrency)
+        .collect()
+        .await
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct FanoutQueryResponse {
     pub dataframe: DataFrame,
     pub meta: FanoutMeta,
+}
+
+fn hierarchical_fanout_requested(hierarchical: bool) -> bool {
+    hierarchical && probing_core::core::federation::hierarchical_fanout_enabled()
+}
+
+fn require_hierarchical_metadata() -> anyhow::Result<()> {
+    if hierarchical_metadata_available() {
+        Ok(())
+    } else {
+        Err(hierarchical_metadata_unavailable_err())
+    }
 }
 
 /// Run `sql` locally, optionally fanning out to peer nodes in the cluster view.
@@ -179,6 +258,9 @@ pub async fn fanout_query(
     hierarchical: bool,
     scope: ClusterFanoutScope,
 ) -> anyhow::Result<FanoutQueryResponse> {
+    if cluster {
+        validate_global_query(sql)?;
+    }
     if !cluster {
         return Ok(FanoutQueryResponse {
             dataframe: query_local_df(sql).await?,
@@ -188,29 +270,44 @@ pub async fn fanout_query(
                 scope: ClusterFanoutScope::Local.as_str().into(),
                 nodes_queried: 1,
                 nodes_failed: Vec::new(),
+                peer_batches_dropped: 0,
                 node_aggregators_queried: 0,
                 local_ranks_queried: 0,
+                partial: false,
             },
         });
     }
 
-    let resolved_scope = scope.resolve(hierarchical && hierarchical_fanout_requested(hierarchical));
+    let hierarchical_requested = hierarchical_fanout_requested(hierarchical);
+    let resolved_scope = scope.resolve(hierarchical_requested);
+
+    if hierarchical_requested {
+        match resolved_scope {
+            ClusterFanoutScope::Coordinator | ClusterFanoutScope::Node if is_local0_from_env() => {
+                require_hierarchical_metadata()?;
+            }
+            _ => {}
+        }
+    }
 
     match resolved_scope {
         ClusterFanoutScope::Local => {
             let dataframe = query_local_df(sql).await?;
-            Ok(FanoutQueryResponse {
+            Ok(finish_fanout(
                 dataframe,
-                meta: FanoutMeta {
+                FanoutMeta {
                     cluster: true,
                     hierarchical,
                     scope: resolved_scope.as_str().into(),
                     nodes_queried: 1,
                     nodes_failed: Vec::new(),
+                    peer_batches_dropped: 0,
                     node_aggregators_queried: 0,
                     local_ranks_queried: 0,
+                    partial: false,
                 },
-            })
+                "local",
+            ))
         }
         ClusterFanoutScope::Node => fanout_node_tier(sql, hierarchical).await,
         ClusterFanoutScope::Coordinator => fanout_coordinator_tier(sql, hierarchical).await,
@@ -218,26 +315,25 @@ pub async fn fanout_query(
     }
 }
 
-fn hierarchical_fanout_requested(hierarchical: bool) -> bool {
-    hierarchical && probing_core::core::federation::hierarchical_fanout_enabled()
-}
-
 /// Node aggregator: local0 + on-node leaf ranks.
 async fn fanout_node_tier(sql: &str, hierarchical: bool) -> anyhow::Result<FanoutQueryResponse> {
     if !is_local0_from_env() {
         let dataframe = query_local_df(sql).await?;
-        return Ok(FanoutQueryResponse {
+        return Ok(finish_fanout(
             dataframe,
-            meta: FanoutMeta {
+            FanoutMeta {
                 cluster: true,
                 hierarchical,
                 scope: ClusterFanoutScope::Local.as_str().into(),
                 nodes_queried: 1,
                 nodes_failed: Vec::new(),
+                peer_batches_dropped: 0,
                 node_aggregators_queried: 0,
                 local_ranks_queried: 0,
+                partial: false,
             },
-        });
+            "node-tier-local-fallback",
+        ));
     }
 
     let host = local_host_label();
@@ -257,11 +353,7 @@ async fn fanout_node_tier(sql: &str, hierarchical: bool) -> anyhow::Result<Fanou
     let leaves = local_leaf_peers();
     let local_ranks_queried = leaves.len();
     let mut nodes_queried = 1usize;
-    let responses = futures_util::future::join_all(leaves.into_iter().map(|node| async move {
-        let result = remote_query_df(&node.addr, sql).await;
-        (node, result)
-    }))
-    .await;
+    let responses = fanout_remote_plain(leaves, sql).await;
 
     for (node, result) in responses {
         match result {
@@ -279,24 +371,27 @@ async fn fanout_node_tier(sql: &str, hierarchical: bool) -> anyhow::Result<Fanou
                 nodes_queried += 1;
             }
             Err(err) => {
-                log::debug!("local leaf fan-out {} failed: {err}", node.addr);
+                log::warn!("local leaf fan-out {} failed: {err}", node.addr);
                 nodes_failed.push(node.addr);
             }
         }
     }
 
-    Ok(FanoutQueryResponse {
-        dataframe: merge_tagged_dataframes(&parts),
-        meta: FanoutMeta {
+    Ok(finish_fanout(
+        merge_tagged_dataframes(&parts),
+        FanoutMeta {
             cluster: true,
             hierarchical,
             scope: ClusterFanoutScope::Node.as_str().into(),
             nodes_queried,
             nodes_failed,
+            peer_batches_dropped: 0,
             node_aggregators_queried: 0,
             local_ranks_queried,
+            partial: false,
         },
-    })
+        "node-tier",
+    ))
 }
 
 /// Global coordinator: node aggregators (+ on-node leaves via broadcast path).
@@ -304,11 +399,11 @@ async fn fanout_coordinator_tier(
     sql: &str,
     hierarchical: bool,
 ) -> anyhow::Result<FanoutQueryResponse> {
-    if !hierarchical_fanout_requested(hierarchical) || !hierarchical_metadata_available() {
-        return fanout_flat(sql).await;
+    if hierarchical_fanout_requested(hierarchical) {
+        require_hierarchical_metadata()?;
+        return broadcast_fanout_query(sql, FanoutScope::Coordinator).await;
     }
-
-    broadcast_fanout_query(sql, FanoutScope::Coordinator).await
+    fanout_flat(sql).await
 }
 
 /// Legacy flat fan-out to every registered peer.
@@ -332,14 +427,15 @@ async fn fanout_via_global_catalog(
         })
     })?;
     let stats = take_fanout_stats();
-    Ok(FanoutQueryResponse {
+    Ok(finish_fanout(
         dataframe,
-        meta: FanoutMeta {
+        FanoutMeta {
             cluster: true,
             hierarchical: scope != FanoutScope::Flat,
             scope: scope.as_str().into(),
             nodes_queried: 1 + stats.nodes_succeeded,
             nodes_failed: stats.nodes_failed,
+            peer_batches_dropped: stats.peer_batches_dropped,
             node_aggregators_queried: if scope == FanoutScope::Coordinator {
                 stats.nodes_succeeded
             } else {
@@ -350,8 +446,10 @@ async fn fanout_via_global_catalog(
             } else {
                 0
             },
+            partial: false,
         },
-    })
+        "global-catalog",
+    ))
 }
 
 async fn broadcast_fanout_query(
@@ -366,26 +464,24 @@ async fn broadcast_fanout_query(
             scope: scope.as_str().into(),
             nodes_queried: 0,
             nodes_failed: Vec::new(),
+            peer_batches_dropped: 0,
             node_aggregators_queried: 0,
             local_ranks_queried: 0,
+            partial: false,
         };
 
         let node_part = fanout_node_tier(sql, true).await?;
         meta.local_ranks_queried = node_part.meta.local_ranks_queried;
         meta.nodes_queried += node_part.meta.nodes_queried;
         meta.nodes_failed.extend(node_part.meta.nodes_failed);
+        meta.peer_batches_dropped += node_part.meta.peer_batches_dropped;
         if !node_part.dataframe.is_empty() {
             parts.push(node_part.dataframe);
         }
 
         let node_aggs = node_aggregator_peers();
         meta.node_aggregators_queried = node_aggs.len();
-        let responses =
-            futures_util::future::join_all(node_aggs.into_iter().map(|node| async move {
-                let result = remote_node_aggregate_df(&node.addr, sql).await;
-                (node, result)
-            }))
-            .await;
+        let responses = fanout_remote_aggregate(node_aggs, sql).await;
 
         for (node, result) in responses {
             match result {
@@ -403,16 +499,17 @@ async fn broadcast_fanout_query(
                     meta.nodes_queried += 1;
                 }
                 Err(err) => {
-                    log::debug!("node aggregator fan-out {} failed: {err}", node.addr);
+                    log::warn!("node aggregator fan-out {} failed: {err}", node.addr);
                     meta.nodes_failed.push(node.addr);
                 }
             }
         }
 
-        return Ok(FanoutQueryResponse {
-            dataframe: merge_tagged_dataframes(&parts),
+        return Ok(finish_fanout(
+            merge_tagged_dataframes(&parts),
             meta,
-        });
+            "coordinator-broadcast",
+        ));
     }
 
     let host = local_host_label();
@@ -446,15 +543,11 @@ async fn broadcast_fanout_query(
     };
 
     let peer_count = peers.len();
-    let responses = futures_util::future::join_all(peers.into_iter().map(|node| async move {
-        let result = if scope == FanoutScope::Coordinator {
-            remote_node_aggregate_df(&node.addr, sql).await
-        } else {
-            remote_query_df(&node.addr, sql).await
-        };
-        (node, result)
-    }))
-    .await;
+    let responses = if scope == FanoutScope::Coordinator {
+        fanout_remote_aggregate(peers, sql).await
+    } else {
+        fanout_remote_plain(peers, sql).await
+    };
 
     for (node, result) in responses {
         match result {
@@ -472,20 +565,21 @@ async fn broadcast_fanout_query(
                 nodes_queried += 1;
             }
             Err(err) => {
-                log::debug!("cluster fan-out {} failed: {err}", node.addr);
+                log::warn!("cluster fan-out {} failed: {err}", node.addr);
                 nodes_failed.push(node.addr);
             }
         }
     }
 
-    Ok(FanoutQueryResponse {
-        dataframe: merge_tagged_dataframes(&parts),
-        meta: FanoutMeta {
+    Ok(finish_fanout(
+        merge_tagged_dataframes(&parts),
+        FanoutMeta {
             cluster: true,
             hierarchical: scope != FanoutScope::Flat,
             scope: scope.as_str().into(),
             nodes_queried,
             nodes_failed,
+            peer_batches_dropped: 0,
             node_aggregators_queried: if scope == FanoutScope::Coordinator {
                 peer_count
             } else {
@@ -496,8 +590,10 @@ async fn broadcast_fanout_query(
             } else {
                 0
             },
+            partial: false,
         },
-    })
+        "broadcast",
+    ))
 }
 
 fn tag_dataframe(mut df: DataFrame, host: &str, addr: &str, rank: Option<i32>) -> DataFrame {
@@ -561,5 +657,31 @@ mod tests {
         let merged = merge_tagged_dataframes(&[a, b]);
         assert_eq!(merged.len(), 2);
         assert!(merged.names.contains(&"extra".to_string()));
+    }
+
+    #[test]
+    fn fanout_meta_partial_when_peers_fail() {
+        let mut meta = FanoutMeta {
+            cluster: true,
+            hierarchical: true,
+            scope: "flat".into(),
+            nodes_queried: 10,
+            nodes_failed: vec!["10.0.0.2:8080".into()],
+            peer_batches_dropped: 0,
+            node_aggregators_queried: 0,
+            local_ranks_queried: 0,
+            partial: false,
+        };
+        meta.finalize();
+        assert!(meta.partial);
+
+        let mut clean = meta.clone();
+        clean.nodes_failed.clear();
+        clean.finalize();
+        assert!(!clean.partial);
+
+        clean.peer_batches_dropped = 2;
+        clean.finalize();
+        assert!(clean.partial);
     }
 }

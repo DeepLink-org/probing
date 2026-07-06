@@ -31,12 +31,32 @@ def _get_ray_init():
         return lambda: None
 
 
+def _get_megatron_parallel_state_init():
+    try:
+        from probing.ext.megatron import init_parallel_state
+
+        return init_parallel_state
+    except ImportError:
+        return lambda: None
+
+
+def _get_megatron_training_init():
+    try:
+        from probing.ext.megatron import init_training
+
+        return init_training
+    except ImportError:
+        return lambda: None
+
+
 # Mapping from module names to callback functions
 # Callbacks are called when the module is imported
 # Use lazy loading to avoid import errors
 register = {
     "torch": _get_torch_init(),
     "ray": _get_ray_init(),
+    "megatron.core.parallel_state": _get_megatron_parallel_state_init(),
+    "megatron.training.training": _get_megatron_training_init(),
 }
 
 # Record modules that have been triggered

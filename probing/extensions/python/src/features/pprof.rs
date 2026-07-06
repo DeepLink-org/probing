@@ -888,7 +888,6 @@ pub fn setup(freq: u64) -> Result<()> {
 
     arm_timer(freq);
     log::info!("probing: SIGPROF CPU sampler started ({freq} Hz, Python+native)");
-    eprintln!("probing: SIGPROF CPU sampler started ({freq} Hz)");
     Ok(())
 }
 

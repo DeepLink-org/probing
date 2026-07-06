@@ -13,6 +13,7 @@ use probing_core::config;
 
 use crate::server::error::{ApiError, ApiResult};
 
+use probing_core::core::federation::{reset_fanout_stats, take_fanout_stats};
 use probing_core::core::UnifiedMemtableProbeDataSource;
 pub use probing_core::ENGINE;
 use probing_python::extensions::python::PythonProbeDataSource;
@@ -52,6 +53,7 @@ pub async fn initialize_engine() -> Result<()> {
         cc::start_cpu_sampling_from_env();
         #[cfg(feature = "gpu")]
         gpu::start_gpu_sampling_from_env();
+        crate::engine_lifecycle::mark_engine_ready();
     }
     result.map_err(anyhow::Error::new)
 }
@@ -100,6 +102,9 @@ async fn execute_set_via_config(key: &str, value: &str) -> Result<()> {
 }
 
 pub async fn handle_query(request: Query) -> Result<QueryDataFormat> {
+    if let Some(msg) = crate::engine_lifecycle::engine_not_ready_message() {
+        return Err(anyhow::anyhow!(msg));
+    }
     let Query { expr, opts: _ } = request;
 
     // We are already running within the Axum/Tokio runtime.
@@ -126,6 +131,7 @@ pub async fn handle_query(request: Query) -> Result<QueryDataFormat> {
         return Ok(QueryDataFormat::Nil);
     }
 
+    reset_fanout_stats();
     let engine = ENGINE.read().await;
     log::debug!("Executing SELECT query: {expr}");
     match engine.async_query(&expr).await {
@@ -138,8 +144,34 @@ pub async fn handle_query(request: Query) -> Result<QueryDataFormat> {
     }
 }
 
+fn fanout_meta_from_stats(
+    stats: probing_core::core::federation::FanoutStats,
+) -> Option<serde_json::Value> {
+    if stats.nodes_failed.is_empty() && stats.peer_batches_dropped == 0 {
+        return None;
+    }
+    Some(serde_json::json!({
+        "fanout": {
+            "partial": true,
+            "nodes_succeeded": stats.nodes_succeeded,
+            "nodes_failed": stats.nodes_failed,
+            "peer_batches_dropped": stats.peer_batches_dropped,
+        }
+    }))
+}
+
+fn query_response_partial(stats: &probing_core::core::federation::FanoutStats) -> bool {
+    !stats.nodes_failed.is_empty() || stats.peer_batches_dropped > 0
+}
+
+/// Serialized `/query` body plus whether federated fan-out was partial.
+pub struct QueryHttpEnvelope {
+    pub body: String,
+    pub partial: bool,
+}
+
 // 处理Web API查询请求
-pub async fn query(req: String) -> ApiResult<String> {
+pub async fn query(req: String) -> ApiResult<QueryHttpEnvelope> {
     let request = serde_json::from_str::<Message<Query>>(&req);
     let request = match request {
         Ok(request) => request.payload,
@@ -165,10 +197,22 @@ pub async fn query(req: String) -> ApiResult<String> {
     };
 
     // Wrap the payload in a Message
-    let reply_message = Message::new(reply_payload);
+    let stats = take_fanout_stats();
+    let partial = query_response_partial(&stats);
+    if partial {
+        log::warn!(
+            "query fan-out partial: nodes_succeeded={} nodes_failed={} peer_batches_dropped={}",
+            stats.nodes_succeeded,
+            stats.nodes_failed.len(),
+            stats.peer_batches_dropped,
+        );
+    }
+    let mut reply_message = Message::new(reply_payload);
+    reply_message.meta = fanout_meta_from_stats(stats);
 
     // Serialize the response message
-    serde_json::to_string(&reply_message)
+    let body = serde_json::to_string(&reply_message)
         .inspect_err(|e| log::error!("Failed to serialize query response: {e}"))
-        .map_err(|e| ApiError::internal(format!("Failed to create response: {e}")))
+        .map_err(|e| ApiError::internal(format!("Failed to create response: {e}")))?;
+    Ok(QueryHttpEnvelope { body, partial })
 }

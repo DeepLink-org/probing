@@ -61,63 +61,33 @@ struct Frame {
     module: String,
 }
 
-/// Median stage duration on post-hook rows only (pre rows carry timing metadata, not duration).
-const TORCH_DURATION_QUERY: &str = r#"
-    SELECT module, stage, median(CAST(duration AS DOUBLE)) AS value
+/// Recent training steps included in flamegraph aggregates (matches Training page window).
+const TORCH_RECENT_STEP_FILTER: &str =
+    "local_step >= GREATEST(COALESCE((SELECT max(local_step) FROM python.torch_trace), 0) - 99, 1)";
+
+/// Raw post-hook duration rows for Rust-side median aggregation.
+const TORCH_DURATION_ROWS_QUERY: &str = r#"
+    SELECT module, stage, CAST(duration AS DOUBLE) AS duration
     FROM python.torch_trace
     WHERE module <> 'None'
       AND stage LIKE 'post %'
-      AND CAST(duration AS DOUBLE) > 0
-    GROUP BY module, stage
-    ORDER BY stage, module;
 "#;
 
-/// Median post-hook allocated delta (pre→post pair, stored on post rows).
-const TORCH_DELTA_QUERY: &str = r#"
-    SELECT module, stage, median(CAST(allocated_delta AS DOUBLE)) AS value
+/// Post-hook rows including memory columns (may be absent on older mmap tables).
+const TORCH_POST_ROWS_QUERY: &str = r#"
+    SELECT module, stage,
+      CAST(duration AS DOUBLE) AS duration,
+      CAST(allocated_delta AS DOUBLE) AS allocated_delta,
+      CAST(max_allocated_delta AS DOUBLE) AS max_allocated_delta,
+      CAST(allocated AS DOUBLE) AS allocated,
+      CAST(max_allocated AS DOUBLE) AS max_allocated
     FROM python.torch_trace
     WHERE module <> 'None'
       AND stage LIKE 'post %'
-      AND CAST(allocated_delta AS DOUBLE) > 0
-    GROUP BY module, stage
-    ORDER BY stage, module;
-"#;
-
-/// Median post-hook peak-allocated delta (pre→post pair, stored on post rows).
-const TORCH_PEAK_QUERY: &str = r#"
-    SELECT module, stage, median(CAST(max_allocated_delta AS DOUBLE)) AS value
-    FROM python.torch_trace
-    WHERE module <> 'None'
-      AND stage LIKE 'post %'
-      AND CAST(max_allocated_delta AS DOUBLE) > 0
-    GROUP BY module, stage
-    ORDER BY stage, module;
-"#;
-
-/// Fallback when hook deltas are zero: median global GPU allocated at post-hook.
-const TORCH_ALLOCATED_SNAPSHOT_QUERY: &str = r#"
-    SELECT module, stage, median(CAST(allocated AS DOUBLE)) AS value
-    FROM python.torch_trace
-    WHERE module <> 'None'
-      AND stage LIKE 'post %'
-      AND CAST(allocated AS DOUBLE) > 0
-    GROUP BY module, stage
-    ORDER BY stage, module;
-"#;
-
-/// Fallback when peak deltas are zero: median global peak allocated at post-hook.
-const TORCH_MAX_SNAPSHOT_QUERY: &str = r#"
-    SELECT module, stage, median(CAST(max_allocated AS DOUBLE)) AS value
-    FROM python.torch_trace
-    WHERE module <> 'None'
-      AND stage LIKE 'post %'
-      AND CAST(max_allocated AS DOUBLE) > 0
-    GROUP BY module, stage
-    ORDER BY stage, module;
 "#;
 
 const TORCH_MEMORY_ROWS_QUERY: &str = r#"
-    SELECT step, module, stage, allocated, max_allocated
+    SELECT local_step, module, stage, allocated, max_allocated
     FROM python.torch_trace
     WHERE module <> 'None'
       AND (stage LIKE 'pre %' OR stage LIKE 'post %')
@@ -126,10 +96,10 @@ const TORCH_MEMORY_ROWS_QUERY: &str = r#"
 /// Legacy rows without delta columns: SQL join on pre/post allocated.
 const TORCH_DELTA_JOIN_QUERY: &str = r#"
     SELECT post.module, post.stage,
-      median(CAST(post.allocated AS DOUBLE) - CAST(pre.allocated AS DOUBLE)) AS value
+      CAST(post.allocated AS DOUBLE) - CAST(pre.allocated AS DOUBLE) AS value
     FROM python.torch_trace pre
     INNER JOIN python.torch_trace post
-      ON pre.step = post.step
+      ON pre.local_step = post.local_step
       AND pre.module = post.module
       AND (
         (pre.stage = 'pre forward' AND post.stage = 'post forward')
@@ -138,17 +108,16 @@ const TORCH_DELTA_JOIN_QUERY: &str = r#"
       )
     WHERE post.module <> 'None'
       AND (CAST(post.allocated AS DOUBLE) - CAST(pre.allocated AS DOUBLE)) > 0
-    GROUP BY post.module, post.stage
-    ORDER BY post.stage, post.module;
+      AND post.local_step >= GREATEST(COALESCE((SELECT max(local_step) FROM python.torch_trace), 0) - 99, 1)
 "#;
 
 /// Legacy rows without delta columns: SQL join on pre/post peak allocated.
 const TORCH_PEAK_JOIN_QUERY: &str = r#"
     SELECT post.module, post.stage,
-      median(CAST(post.max_allocated AS DOUBLE) - CAST(pre.max_allocated AS DOUBLE)) AS value
+      CAST(post.max_allocated AS DOUBLE) - CAST(pre.max_allocated AS DOUBLE) AS value
     FROM python.torch_trace pre
     INNER JOIN python.torch_trace post
-      ON pre.step = post.step
+      ON pre.local_step = post.local_step
       AND pre.module = post.module
       AND (
         (pre.stage = 'pre forward' AND post.stage = 'post forward')
@@ -157,8 +126,7 @@ const TORCH_PEAK_JOIN_QUERY: &str = r#"
       )
     WHERE post.module <> 'None'
       AND (CAST(post.max_allocated AS DOUBLE) - CAST(pre.max_allocated AS DOUBLE)) > 0
-    GROUP BY post.module, post.stage
-    ORDER BY post.stage, post.module;
+      AND post.local_step >= GREATEST(COALESCE((SELECT max(local_step) FROM python.torch_trace), 0) - 99, 1)
 "#;
 
 /// Map stored hook labels to flamegraph phase names.
@@ -352,15 +320,67 @@ struct ProfilingResult {
     subtitle: String,
 }
 
-fn lines_from_agg_query(query: &str) -> Vec<String> {
-    match run_torch_query(query) {
-        Ok(data) => {
-            let rows = data.iter().map(|line| {
-                let value = parse_value_col(&line[2]);
-                (parse_text_col(&line[0]), parse_text_col(&line[1]), value)
-            });
-            build_folded_lines(rows, value_to_micro_mb, true)
+fn lines_from_value_rows(
+    data: &probing_proto::types::DataFrame,
+    value_col: usize,
+    to_units: fn(f64) -> u64,
+    clamp_non_negative: bool,
+) -> Vec<String> {
+    let module_idx = data.names.iter().position(|n| n == "module").unwrap_or(0);
+    let stage_idx = data.names.iter().position(|n| n == "stage").unwrap_or(1);
+    let mut grouped: HashMap<(String, String), Vec<f64>> = HashMap::new();
+    let rows = data.cols.first().map(|c| c.len()).unwrap_or(0);
+    for row in 0..rows {
+        let module = data
+            .cols
+            .get(module_idx)
+            .map(|c| parse_text_col(&c.get(row)))
+            .unwrap_or_default();
+        let stage = data
+            .cols
+            .get(stage_idx)
+            .map(|c| parse_text_col(&c.get(row)))
+            .unwrap_or_default();
+        let value = data
+            .cols
+            .get(value_col)
+            .map(|c| parse_value_col(&c.get(row)))
+            .unwrap_or(0.0);
+        if value > 0.0 {
+            grouped.entry((module, stage)).or_default().push(value);
         }
+    }
+    let rows = grouped
+        .into_iter()
+        .map(|((module, stage), values)| (module, stage, median_f64(&values)))
+        .filter(|(_, _, v)| *v > 0.0);
+    build_folded_lines(rows, to_units, clamp_non_negative)
+}
+
+fn build_median_lines_from_post_rows(
+    data: &probing_proto::types::DataFrame,
+    value_col: usize,
+    to_units: fn(f64) -> u64,
+    clamp_non_negative: bool,
+) -> Vec<String> {
+    lines_from_value_rows(data, value_col, to_units, clamp_non_negative)
+}
+
+fn torch_rows_query(base: &str) -> String {
+    if base.contains("local_step >=") {
+        return base.to_string();
+    }
+    let trimmed = base.trim_end().trim_end_matches(';');
+    if trimmed.to_uppercase().contains(" WHERE ") {
+        format!("{trimmed} AND {TORCH_RECENT_STEP_FILTER}")
+    } else {
+        format!("{trimmed} WHERE {TORCH_RECENT_STEP_FILTER}")
+    }
+}
+
+fn lines_from_agg_query(query: &str, to_units: fn(f64) -> u64) -> Vec<String> {
+    match run_torch_query(&torch_rows_query(query)) {
+        Ok(data) => lines_from_value_rows(&data, 2, to_units, true),
         Err(err) => {
             log::debug!("Torch aggregate query failed ({err})");
             Vec::new()
@@ -417,18 +437,31 @@ fn build_lines_from_memory_pairs(
 }
 
 fn query_memory_lines(
-    delta_query: &str,
     join_query: &str,
-    snapshot_query: &str,
+    snapshot_value_col: usize,
     use_peak: bool,
     metric: TorchMetric,
 ) -> Result<ProfilingResult> {
-    let mut lines = lines_from_agg_query(delta_query);
+    let post_query = torch_rows_query(TORCH_POST_ROWS_QUERY);
+    let mut lines = if let Ok(data) = run_torch_query(&post_query) {
+        let primary_delta_col = if use_peak { 4 } else { 3 };
+        let snapshot_col = if use_peak { 6 } else { 5 };
+        let mut from_delta =
+            build_median_lines_from_post_rows(&data, primary_delta_col, value_to_micro_mb, true);
+        if from_delta.is_empty() {
+            from_delta =
+                build_median_lines_from_post_rows(&data, snapshot_col, value_to_micro_mb, true);
+        }
+        from_delta
+    } else {
+        Vec::new()
+    };
+
     if lines.is_empty() {
-        lines = lines_from_agg_query(join_query);
+        lines = lines_from_agg_query(join_query, value_to_micro_mb);
     }
     if lines.is_empty() {
-        if let Ok(data) = run_torch_query(TORCH_MEMORY_ROWS_QUERY) {
+        if let Ok(data) = run_torch_query(&torch_rows_query(TORCH_MEMORY_ROWS_QUERY)) {
             lines = build_lines_from_memory_pairs(&data, use_peak);
         }
     }
@@ -440,14 +473,17 @@ fn query_memory_lines(
         });
     }
 
-    let snapshot_lines = lines_from_agg_query(snapshot_query);
+    if let Ok(data) = run_torch_query(&post_query) {
+        lines =
+            build_median_lines_from_post_rows(&data, snapshot_value_col, value_to_micro_mb, true);
+    }
     let subtitle = if use_peak {
         "Median post-hook peak GPU allocated (global MB) · hook deltas were zero · CUDA only"
     } else {
         "Median post-hook GPU allocated (global MB) · hook deltas were zero · CUDA only"
     };
     Ok(ProfilingResult {
-        lines: snapshot_lines,
+        lines,
         subtitle: subtitle.to_string(),
     })
 }
@@ -455,31 +491,17 @@ fn query_memory_lines(
 fn query_profiling(metric: TorchMetric) -> Result<ProfilingResult> {
     match metric {
         TorchMetric::Duration => {
-            let data = run_torch_query(TORCH_DURATION_QUERY)?;
-            let rows = data.iter().map(|line| {
-                let value = parse_value_col(&line[2]);
-                (parse_text_col(&line[0]), parse_text_col(&line[1]), value)
-            });
-            let lines = build_folded_lines(rows, value_to_ns, false);
+            let post_query = torch_rows_query(TORCH_DURATION_ROWS_QUERY);
+            let data = run_torch_query(&post_query)?;
+            let duration_col = data.names.iter().position(|n| n == "duration").unwrap_or(2);
+            let lines = build_median_lines_from_post_rows(&data, duration_col, value_to_ns, false);
             Ok(ProfilingResult {
                 lines,
                 subtitle: metric.subtitle().to_string(),
             })
         }
-        TorchMetric::DeltaMb => query_memory_lines(
-            TORCH_DELTA_QUERY,
-            TORCH_DELTA_JOIN_QUERY,
-            TORCH_ALLOCATED_SNAPSHOT_QUERY,
-            false,
-            metric,
-        ),
-        TorchMetric::PeakMb => query_memory_lines(
-            TORCH_PEAK_QUERY,
-            TORCH_PEAK_JOIN_QUERY,
-            TORCH_MAX_SNAPSHOT_QUERY,
-            true,
-            metric,
-        ),
+        TorchMetric::DeltaMb => query_memory_lines(TORCH_DELTA_JOIN_QUERY, 5, false, metric),
+        TorchMetric::PeakMb => query_memory_lines(TORCH_PEAK_JOIN_QUERY, 6, true, metric),
     }
 }
 
@@ -684,5 +706,80 @@ mod tests {
         assert!(lines
             .iter()
             .any(|l| l.starts_with("forward;layer; 2500000")));
+    }
+
+    #[test]
+    fn torch_rows_query_appends_recent_step_window() {
+        let q = torch_rows_query(TORCH_DURATION_ROWS_QUERY);
+        assert!(q.contains("local_step >="));
+        assert!(q.contains("max(local_step)"));
+        assert!(q.contains("module <> 'None'"));
+    }
+
+    #[test]
+    fn torch_rows_query_is_idempotent_when_filter_present() {
+        let already_filtered =
+            format!("SELECT 1 FROM python.torch_trace WHERE {TORCH_RECENT_STEP_FILTER}");
+        assert_eq!(torch_rows_query(&already_filtered), already_filtered);
+    }
+
+    #[test]
+    fn duration_query_uses_minimal_columns_for_legacy_mmap() {
+        assert!(TORCH_DURATION_ROWS_QUERY.contains("duration"));
+        assert!(!TORCH_DURATION_ROWS_QUERY.contains("allocated_delta"));
+        assert!(!TORCH_DURATION_ROWS_QUERY.contains("max_allocated_delta"));
+    }
+
+    #[test]
+    fn memory_join_queries_use_local_step_not_step() {
+        for sql in [TORCH_DELTA_JOIN_QUERY, TORCH_PEAK_JOIN_QUERY] {
+            assert!(sql.contains("local_step"), "expected local_step in: {sql}");
+            assert!(!sql.contains("pre.step"), "legacy step column in: {sql}");
+            assert!(!sql.contains("post.step"), "legacy step column in: {sql}");
+        }
+        assert!(TORCH_MEMORY_ROWS_QUERY.contains("local_step"));
+        assert!(!TORCH_MEMORY_ROWS_QUERY.contains("SELECT step,"));
+    }
+
+    #[test]
+    fn lines_from_value_rows_median_per_module_stage() {
+        use probing_proto::types::{DataFrame, Seq};
+
+        let df = DataFrame::new(
+            vec!["module".into(), "stage".into(), "duration".into()],
+            vec![
+                Seq::SeqText(vec!["layer".into(), "layer".into(), "layer".into()]),
+                Seq::SeqText(vec![
+                    "post forward".into(),
+                    "post forward".into(),
+                    "post forward".into(),
+                ]),
+                Seq::SeqF64(vec![0.004, 0.006, 0.010]),
+            ],
+        );
+
+        let lines = lines_from_value_rows(&df, 2, value_to_ns, false);
+        assert!(lines
+            .iter()
+            .any(|l| l.starts_with("forward;layer; 6000000")));
+    }
+
+    #[test]
+    fn build_median_lines_duration_only_schema() {
+        use probing_proto::types::{DataFrame, Seq};
+
+        let df = DataFrame::new(
+            vec!["module".into(), "stage".into(), "duration".into()],
+            vec![
+                Seq::SeqText(vec!["conv1".into()]),
+                Seq::SeqText(vec!["post forward".into()]),
+                Seq::SeqF64(vec![0.002]),
+            ],
+        );
+
+        let lines = build_median_lines_from_post_rows(&df, 2, value_to_ns, false);
+        assert!(lines
+            .iter()
+            .any(|l| l.starts_with("forward;conv1; 2000000")));
     }
 }

@@ -57,6 +57,16 @@ def collective_hook():
     maybe_start_collective_tracing()
 
 
+def megatron_hook():
+    """Autostart Megatron role/step sync when Megatron loads before torch hooks."""
+    try:
+        from probing.ext.megatron import maybe_autostart
+
+        maybe_autostart()
+    except Exception:
+        pass
+
+
 _hook_registered = False
 
 
@@ -71,6 +81,7 @@ def init():
     register_optimizer_step_post_hook(optimizer_step_post_hook)
 
     collective_hook()
+    megatron_hook()
     try:
         from probing.crash import install
 

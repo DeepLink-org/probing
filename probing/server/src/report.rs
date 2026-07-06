@@ -46,7 +46,10 @@ async fn report_worker(report_addr: String, local_addr: String) {
         let outcome = if rank == 0 && report_addr == local_addr {
             let node = node.clone();
             match tokio::task::spawn_blocking(move || {
-                probing_core::core::cluster::apply_node_report(vec![node])
+                probing_core::core::cluster::apply_node_report(
+                    vec![node],
+                    probing_core::core::cluster::cluster_version(),
+                )
             })
             .await
             {

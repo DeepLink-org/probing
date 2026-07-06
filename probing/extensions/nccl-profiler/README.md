@@ -1,6 +1,6 @@
 # probing-nccl-profiler
 
-NCCL **profiler plugin** (API v3, NCCL ≥ 2.26) that writes mmap memtables consumable by probing SQL.
+NCCL **profiler plugin** (exports API **v4** for NCCL ≥ 2.27 and **v3** for NCCL 2.26 — NCCL picks the highest) that writes mmap memtables consumable by probing SQL.
 
 ## Build
 
@@ -43,7 +43,7 @@ pip install probing
 
 # 3. Run a tiny distributed job
 export NCCL_PROFILER_PLUGIN=$(python -m probing.nccl --plugin-path)
-export NCCL_PROFILE_EVENT_MASK=$(python -m probing.nccl --event-mask)  # 26
+export NCCL_PROFILE_EVENT_MASK=$(python -m probing.nccl --event-mask)  # 94
 export PROBING=2
 torchrun --nproc_per_node=2 your_allreduce.py
 
@@ -54,7 +54,7 @@ probing -t <pid> query "SELECT * FROM nccl.proxy_ops LIMIT 20"
 Optional NetPlugin (IB QP) events — add mask bit 128:
 
 ```bash
-export NCCL_PROFILE_EVENT_MASK=154   # + ncclProfileNetPlugin(128)
+export NCCL_PROFILE_EVENT_MASK=222   # + ncclProfileNetPlugin(128)
 probing -t <pid> query "SELECT * FROM nccl.net_qp LIMIT 20"
 ```
 
@@ -63,6 +63,8 @@ probing -t <pid> query "SELECT * FROM nccl.net_qp LIMIT 20"
 | SQL table | mmap file | Phase |
 |-----------|-----------|-------|
 | `nccl.proxy_ops` | `nccl.proxy_ops` | wait decomposition + parallel roles |
+| `nccl.coll_perf` | `nccl.coll_perf` | per-op execution time (refcount-reconstructed) + bandwidth |
+| `nccl.inflight_ops` | `nccl.inflight_ops` | watchdog snapshots of hung ops |
 | `nccl.net_qp` | `nccl.net_qp` | IB QP timing from NCCL net plugin |
 
 ### `nccl.proxy_ops` columns
@@ -72,8 +74,9 @@ probing -t <pid> query "SELECT * FROM nccl.net_qp LIMIT 20"
 | `rank` | torch rank |
 | `tp_rank`, `pp_rank`, `dp_rank` | from `TP_RANK` / `PP_RANK` / `DP_RANK` (or Megatron env); `-1` if unset |
 | `send_gpu_wait_ns` | culprit signal |
+| `send_peer_wait_ns` | waiting for receiver clear-to-send credits (v4 ABI only; 0 on v3) |
 | `recv_wait_ns` | victim signal |
-| `coll_func`, `seq`, `channel_id`, `peer`, `is_send`, `n_steps`, `trans_bytes` | proxy op metadata |
+| `coll_func`, `seq`, `channel_id`, `peer`, `is_send`, `n_steps`, `trans_bytes` | proxy op metadata (v4: `trans_bytes` summed per step) |
 | `send_wait_ns`, `recv_flush_wait_ns` | additional wait buckets |
 
 Rows aggregate ProxyStep state transitions at ProxyOp stop (batched under parent Coll when present).
@@ -85,7 +88,7 @@ Docs: `docs/src/design/nccl-profiler.md`.
 | Variable | Purpose |
 |----------|---------|
 | `NCCL_PROFILER_PLUGIN` | Path to this `.so` (required) |
-| `NCCL_PROFILE_EVENT_MASK` | Override default `Coll\|ProxyOp\|ProxyStep` (26) |
+| `NCCL_PROFILE_EVENT_MASK` | Override default `Coll\|P2P\|ProxyOp\|ProxyStep\|KernelCh` (94) |
 | `PROBING_DATA_DIR` | Memtable directory (default `/dev/shm/probing`) |
 | `TP_RANK`, `PP_RANK`, `DP_RANK` | Parallel roles written into `nccl.proxy_ops` |
 | `PROBING_NCCL_MOCK` | Dev mock tables (`auto` on macOS) — see `python/probing/nccl/mock.py` |
@@ -94,19 +97,48 @@ Docs: `docs/src/design/nccl-profiler.md`.
 
 ```
 NCCL proxy thread
-  → ncclProfiler_v3 callbacks (this crate)
-  → slot pools (no per-event malloc)
+  → ncclProfiler_v4 / ncclProfiler_v3 callbacks (this crate)
+  → version-specific descriptor parsing → shared ParsedEvent / StateArgs
+  → slot pools (no per-event malloc, O(1) handle→slot via embedded index)
   → aggregate ProxyStep waits into ProxyOp
-  → batch rows under parent Coll; flush mmap on Coll stop
+  → refcount children (ProxyOp/KernelCh) under parent Coll;
+    emit coll_perf + batched proxy rows when the last child stops
 probing engine (same process)
   → MmapFileSchemaProvider discovers nccl.*
   → SELECT … FROM nccl.proxy_ops
 ```
 
+### Timing semantics (per NCCL ext-profiler docs)
+
+Coll `stopEvent` only marks **enqueue** completion. The plugin keeps the coll
+slot alive until all child events stop, then reconstructs `exec_time_ns` from
+the best window: `kernel_gpu` (v4: GPU globaltimer `pTimer` pair from the
+kernelCh descriptor + `KernelChStop` state — device-clock, most precise) >
+`kernel_ch` (host-observed KernelCh window) > `proxy` (ProxyOp envelope) >
+`enqueue` (fallback). The chosen source is recorded in
+`nccl.coll_perf.timing_source`.
+
+### What v4 adds over v3
+
+- **GPU-clock kernel windows** (`timing_source = kernel_gpu`) via `pTimer`
+- **`send_peer_wait_ns`**: send steps waiting for receiver credits
+  (`ncclProfilerProxyStepSendPeerWait_v4`) — receiver-congestion signal
+- **`n_ranks` in `nccl.coll_perf`**: communicator size from the per-comm
+  `init`, enabling busbw conversion in SQL
+- **Per-step `transSize`** state updates (v3 reported at proxy-op level;
+  NCCL ≥ 2.27 no longer feeds op-level `transSize` to v3 plugins at all)
+
+### Locking
+
+Two locks: slot pools (hot path) and the mmap writer. Completed rows are
+collected into a batch under the pools lock and written after it is released,
+so a slow flush never blocks concurrent NCCL callbacks. Counters are
+lock-free atomics.
+
 ### Phase 2 (writer path)
 
-- Pre-allocated slot pools for Coll / ProxyOp / ProxyStep / NetPlugin
-- ProxyOp rows batched under parent Coll; mmap flush on `Coll stopEvent`
+- Pre-allocated slot pools for Coll / ProxyOp / ProxyStep / KernelCh / NetPlugin
+- ProxyOp rows batched under parent Coll; mmap flush when the coll completes (refcount reaches zero)
 - Orphan ProxyOps (no parent) flush immediately
 - Write failures logged once to stderr; `finalize` reports `pool_exhausted` / `write_errors`
 
@@ -124,6 +156,9 @@ probing engine (same process)
 
 ## Compatibility
 
-- **Floor**: export `ncclProfiler_v3` only (NCCL 2.26+).
-- NCCL 2.27+ may negotiate higher plugin versions if we add `ncclProfiler_v4`… later.
+- Exports **`ncclProfiler_v4`** (NCCL 2.27+) and **`ncclProfiler_v3`** (NCCL 2.26);
+  NCCL probes v4 first and falls back to v3 automatically.
+- Both ABIs share the same internal event model (`state::ParsedEvent`); v3 rows
+  simply carry `n_ranks = -1`, `send_peer_wait_ns = 0` and never reach
+  `timing_source = kernel_gpu`.
 - PyTorch **2.8+** (NCCL 2.26+) recommended; 2.7 ships NCCL 2.25 (no v3).

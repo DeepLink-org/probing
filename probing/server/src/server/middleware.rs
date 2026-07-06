@@ -8,6 +8,35 @@ use axum::{
 };
 use bytes::Bytes;
 use http_body_util::BodyExt;
+use std::sync::{Arc, LazyLock};
+use tokio::sync::Semaphore;
+
+static CONNECTION_SEMAPHORE: LazyLock<Arc<Semaphore>> = LazyLock::new(|| {
+    Arc::new(Semaphore::new(
+        crate::server::config::effective_max_connections(),
+    ))
+});
+
+/// Reject new HTTP requests when the in-flight connection limit is reached.
+pub async fn connection_limit_middleware(request: Request, next: Next) -> Response {
+    let permit = match CONNECTION_SEMAPHORE.clone().try_acquire_owned() {
+        Ok(permit) => permit,
+        Err(_) => {
+            log::warn!(
+                "connection limit reached (max {})",
+                crate::server::config::effective_max_connections()
+            );
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "server connection limit reached",
+            )
+                .into_response();
+        }
+    };
+    let response = next.run(request).await;
+    drop(permit);
+    response
+}
 
 /// Middleware to limit request body size
 pub async fn request_size_limit_middleware(request: Request, next: Next) -> Response {

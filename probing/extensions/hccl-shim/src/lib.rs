@@ -5,6 +5,7 @@
 
 #[cfg(target_os = "linux")]
 mod forward;
+mod log;
 mod msprof;
 mod names;
 pub mod tables;

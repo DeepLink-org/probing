@@ -260,6 +260,7 @@ Per-proxy-op wait decomposition (culprit vs victim).
 | `n_steps` | ProxyStep count aggregated |
 | `trans_bytes` | Bytes transferred |
 | `send_gpu_wait_ns` | **Culprit** — local GPU not ready to send |
+| `send_peer_wait_ns` | Waiting for receiver clear-to-send credits (v4 ABI only; 0 on v3) |
 | `send_wait_ns` | Send-side network wait |
 | `recv_wait_ns` | **Victim** — waiting on peer data |
 | `recv_flush_wait_ns` | Recv flush wait |

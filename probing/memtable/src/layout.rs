@@ -21,7 +21,8 @@
 //! 40       4    creator_pid         PID of creating process
 //! 44       4    _pad0               (alignment)
 //! 48       8    creator_start_time  process start time (platform-specific)
-//! 56       8    _reserved           reserved for future use
+//! 56       4    chunks_recycled     AtomicU32 — ring chunks overwritten
+//! 60       4    rows_overwritten    AtomicU32 — rows lost to ring wrap
 //! ──────────────────────────────────────────────────────────
 //! ```
 //!
@@ -116,8 +117,20 @@ pub(crate) struct Header {
     /// macOS: microseconds since epoch (via `sysctl`).
     /// Other: 0 (falls back to PID-only liveness check).
     pub creator_start_time: u64,
-    /// Reserved for future use (was part of `_reserved` in v2).
-    pub _reserved: u64,
+    /// Ring chunks recycled with non-zero row data (hot-path counter).
+    pub chunks_recycled: AtomicU32,
+    /// Rows dropped because the ring buffer wrapped (hot-path counter).
+    pub rows_overwritten: AtomicU32,
+}
+
+/// Overwrite counters from a MEMT buffer header (for diagnostics / SQL plugins).
+pub fn ring_overwrite_stats(buf: &[u8]) -> (u32, u32) {
+    use std::sync::atomic::Ordering;
+    let h = header(buf);
+    (
+        h.chunks_recycled.load(Ordering::Relaxed),
+        h.rows_overwritten.load(Ordering::Relaxed),
+    )
 }
 
 /// Per-column descriptor, immediately following the Header.

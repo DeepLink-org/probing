@@ -402,16 +402,14 @@ fn ensure_local0_parent() -> bool {
 }
 
 fn apply_global_snapshot(resp: &probing_proto::prelude::NodeReportResponse) {
-    if resp.nodes.is_empty() {
+    if resp.nodes.is_empty() && resp.removed.is_empty() {
         return;
     }
-    let local_base = local_http_base();
-    let version = resp.version;
-    if let Err(err) = put_nodes_blocking(&local_base, resp.nodes.clone(), version) {
-        log::debug!("probing torchrun: apply global snapshot failed: {err}");
-    } else {
-        CLUSTER_VERSION.store(version, Ordering::Relaxed);
-    }
+    probing_core::core::cluster::apply_snapshot_delta(
+        resp.nodes.clone(),
+        &resp.removed,
+        resp.version,
+    );
 }
 
 fn report_once() -> ReportOutcome {
@@ -426,7 +424,7 @@ fn report_once() -> ReportOutcome {
     match put_nodes_blocking(&parent, nodes, seen) {
         Ok(resp) => {
             CLUSTER_VERSION.store(resp.version, Ordering::Relaxed);
-            if global_rank() != 0 && local_rank() == 0 && !resp.nodes.is_empty() {
+            if global_rank() != 0 && local_rank() == 0 {
                 apply_global_snapshot(&resp);
             }
             classify_report_outcome(true, true, Some(&resp))

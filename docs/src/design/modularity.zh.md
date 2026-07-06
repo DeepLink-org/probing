@@ -276,6 +276,7 @@ sequenceDiagram
 | macOS 线程 SIGUSR2 | probing-core | `signal::send_sigusr2_to_thread_id` |
 | Torch 模块采样 | python/profiling | `python.torch_trace` |
 | Collective 墙钟 | python/profiling/collective | `python.comm_collective` |
+| PyTorch Flight Recorder 桥接 | python/profiling/flight_recorder | `python.torch_nccl_flight_record`, `python.torch_nccl_pg_status` |
 | NCCL wait 分解 | nccl-profiler | `nccl.proxy_ops` |
 | 主机 CPU / RDMA | probing-cc | `cpu.*`, `rdma.*` |
 | GPU 显存 / 利用率 | probing-gpu | `gpu.*` |

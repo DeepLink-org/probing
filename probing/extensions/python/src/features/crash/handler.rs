@@ -16,6 +16,7 @@ use uuid::Uuid;
 use crate::features::tracing::crash_span_snapshot;
 
 use super::grace;
+use super::memory_snapshot::{self, MemorySnapshot};
 use super::report;
 use super::{config, context};
 
@@ -45,6 +46,7 @@ pub struct CrashEvent {
     pub training_phase: String,
     pub active_span: String,
     pub last_comm_op: String,
+    pub memory: MemorySnapshot,
 }
 
 pub struct CrashInput {
@@ -79,6 +81,7 @@ pub fn record(input: CrashInput) -> i32 {
 
     let ctx = context::snapshot();
     let training = training_context();
+    let memory = memory_snapshot::MemorySnapshot::capture();
     let message = truncate(&input.message, 2000);
     let fp = fingerprint(&input.exception_type, &message, &input.top_frame);
 
@@ -108,6 +111,7 @@ pub fn record(input: CrashInput) -> i32 {
         training_phase: training.training_phase,
         active_span: training.active_span,
         last_comm_op: training.last_comm_op,
+        memory,
     };
 
     let spill_path = if config::spill_enabled() {
@@ -252,6 +256,7 @@ mod tests {
             training_phase: String::new(),
             active_span: String::new(),
             last_comm_op: String::new(),
+            memory: MemorySnapshot::default(),
         };
         let path = spill_event(&event).expect("spill");
         assert!(path.exists());

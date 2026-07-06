@@ -1,6 +1,7 @@
 //! Human-readable crash report rendering.
 
 use super::handler::CrashEvent;
+use super::memory_snapshot;
 
 const WIDTH: usize = 72;
 
@@ -52,6 +53,7 @@ fn context_lines(event: &CrashEvent) -> Vec<String> {
     if !event.last_comm_op.is_empty() {
         lines.push(format!("  comm       {}", event.last_comm_op));
     }
+    lines.extend(memory_snapshot::report_lines(&event.memory));
     lines
 }
 
@@ -201,7 +203,19 @@ mod tests {
             training_phase: "backward".into(),
             active_span: "train.step".into(),
             last_comm_op: "all_reduce".into(),
+            memory: memory_snapshot::MemorySnapshot {
+                host_rss_bytes: 1024 * 1024,
+                thread_count: 2,
+                ..Default::default()
+            },
         }
+    }
+
+    #[test]
+    fn summary_includes_memory_context() {
+        let text = format_event(&sample_event(), false, 0, false, None);
+        assert!(text.contains("memory"));
+        assert!(text.contains("host_rss="));
     }
 
     #[test]

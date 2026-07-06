@@ -43,9 +43,19 @@ pub struct NodeReportRequest {
 pub struct NodeReportResponse {
     pub ok: bool,
     pub version: u64,
+    /// Delta when the reporter's ``seen_version`` matches; full sync via paginated GET otherwise.
     pub nodes: Vec<Node>,
     #[serde(default)]
     pub removed: Vec<String>,
+}
+
+/// Paginated cluster node list (`GET /apis/nodes`).
+#[derive(Debug, Default, Deserialize, Serialize, PartialEq, Eq, Clone)]
+pub struct NodeListResponse {
+    pub version: u64,
+    pub total: usize,
+    pub offset: usize,
+    pub nodes: Vec<Node>,
 }
 
 impl Display for Node {

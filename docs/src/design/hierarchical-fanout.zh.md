@@ -158,7 +158,9 @@ probing -t rank0:8080 cluster query --flat "SELECT ..."
 
 | 变量 | 默认 | 说明 |
 |------|------|------|
-| `PROBING_CLUSTER_FANOUT_HIERARCHICAL` | `1` | `0` = 全局扁平 fan-out |
+| `PROBING_CLUSTER_FANOUT_HIERARCHICAL` | `1` | `0` = 全局扁平 fan-out（legacy O(world_size) 路径） |
+
+分层模式开启（默认）但 `cluster.nodes` 缺少 `group_rank` / `local_rank`（心跳未收敛）时，**`POST /apis/cluster/query` 返回 HTTP 503**，不再静默回退扁平 fan-out。仅在明确接受扁平 fan-out 时使用 `hierarchical=false`。
 | `PROBING_REMOTE_QUERY_TIMEOUT_SECS` | `2` | 单 peer HTTP 超时（分层下为 per-tier） |
 
 集群心跳相关变量见 [环境变量 — 集群](../reference/env-vars.zh.md#集群) 与 [torchrun 集群心跳](torchrun-cluster.zh.md)。

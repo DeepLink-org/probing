@@ -5,6 +5,7 @@ mod fanout_scope;
 mod federated_scan_exec;
 mod global_catalog;
 mod global_table;
+mod query_guard;
 mod rewrite;
 mod route;
 mod sql_gen;
@@ -15,8 +16,8 @@ pub use aggregate_pushdown::{
 #[cfg(any(test, feature = "test-utils"))]
 pub use cluster_executor::set_remote_query_hook;
 pub use cluster_executor::{
-    remote_query_timeout, reset_fanout_stats, set_fanout_stats, take_fanout_stats, FanoutStats,
-    ProbeClusterExecutor, RemoteFanoutResult,
+    remote_fanout_concurrency, remote_query_timeout, reset_fanout_stats, set_fanout_stats,
+    take_fanout_stats, FanoutStats, ProbeClusterExecutor, RemoteFanoutResult,
 };
 pub use convert::{
     cluster_local_rank_for_endpoint, cluster_node_rank_for_endpoint, cluster_rank_for_endpoint,
@@ -30,6 +31,10 @@ pub use fanout_scope::{
     set_fanout_scope, take_fanout_scope, with_fanout_scope, FanoutScope,
 };
 pub use global_catalog::{install_global_catalog, GLOBAL_CATALOG};
+pub use query_guard::{
+    cap_materialized_rows, ensure_global_scan_limit, global_scan_max_rows, require_broadcast_limit,
+    sql_has_limit, validate_global_query,
+};
 pub use rewrite::{
     can_fanout_via_global_catalog, ensure_global_node_columns, prepare_global_query,
     rewrite_global_catalog_to_probe, rewrite_sql_for_global_fanout,

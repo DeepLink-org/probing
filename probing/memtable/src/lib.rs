@@ -116,7 +116,7 @@ mod writer;
 pub use cache::{CachedCursor, CachedReader};
 pub use docs::infer_extern_column_dtype;
 pub use error::{MemtableError, Result as MemtableResult};
-pub use layout::MAGIC_MEMT;
+pub use layout::{ring_overwrite_stats, MAGIC_MEMT};
 pub use memh::{
     init_buf as init_memh_buf, validate_memh, InsertError, InsertResult, MemhInitError,
     MemhValidateError, MemhView, MemhWriter, SharedMemhWriter, TypedValue, MAGIC_MEMH,

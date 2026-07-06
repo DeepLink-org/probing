@@ -227,14 +227,33 @@ def default_parameters(skill: Skill) -> Dict[str, Any]:
 
 def derived_variables(params: Mapping[str, Any]) -> Dict[str, str]:
     use_global = bool(params.get("use_global", False))
+    # Torch-API-level tracer (coarse fallback, Python wall-clock)
     comm = "global.python.comm_collective" if use_global else "python.comm_collective"
+    # NCCL profiler plugin (precise, NCCL-native events)
     nccl_proxy = "global.nccl.proxy_ops" if use_global else "nccl.proxy_ops"
+    nccl_coll = "global.nccl.coll_perf" if use_global else "nccl.coll_perf"
+    nccl_inflight = "global.nccl.inflight_ops" if use_global else "nccl.inflight_ops"
     net_qp = "global.nccl.net_qp" if use_global else "nccl.net_qp"
+    # PyTorch Flight Recorder bridge (watchdog / desync)
+    fr = (
+        "global.python.torch_nccl_flight_record"
+        if use_global
+        else "python.torch_nccl_flight_record"
+    )
+    fr_status = (
+        "global.python.torch_nccl_pg_status"
+        if use_global
+        else "python.torch_nccl_pg_status"
+    )
     return {
         "comm_table": comm,
         "table_comm": comm,
         "nccl_proxy_table": nccl_proxy,
+        "nccl_coll_table": nccl_coll,
+        "nccl_inflight_table": nccl_inflight,
         "net_qp_table": net_qp,
+        "fr_table": fr,
+        "fr_status_table": fr_status,
         "global_prefix": "global." if use_global else "",
     }
 

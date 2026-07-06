@@ -132,10 +132,8 @@ fn install_cluster_without_hierarchical_metadata(coordinator_addr: &str, peer_ad
     }
 }
 
-async fn run_hierarchical_fanout() -> FanoutQueryResponse {
-    fanout_query("SELECT 1 AS n", true, true, ClusterFanoutScope::Auto)
-        .await
-        .expect("hierarchical fanout")
+async fn run_hierarchical_fanout() -> Result<FanoutQueryResponse, anyhow::Error> {
+    fanout_query("SELECT 1 AS n", true, true, ClusterFanoutScope::Auto).await
 }
 
 fn set_coordinator_env() {
@@ -175,8 +173,10 @@ fn hierarchical_fanout_contacts_node_aggregators_not_every_rank() {
                 scope: "node".into(),
                 nodes_queried: 2,
                 nodes_failed: Vec::new(),
+                peer_batches_dropped: 0,
                 node_aggregators_queried: 0,
                 local_ranks_queried: 1,
+                partial: false,
             },
         )
         .await;
@@ -241,7 +241,7 @@ fn flat_fanout_contacts_all_remote_peers() {
 }
 
 #[test]
-fn hierarchical_fanout_degrades_to_flat_without_metadata() {
+fn hierarchical_fanout_rejects_without_metadata() {
     let _guard = ENV_LOCK.lock().unwrap();
     clear_rank_env();
 
@@ -261,17 +261,13 @@ fn hierarchical_fanout_degrades_to_flat_without_metadata() {
         );
         set_coordinator_env();
 
-        let result = run_hierarchical_fanout().await;
-
+        let err = run_hierarchical_fanout()
+            .await
+            .expect_err("missing metadata must not fall back to flat fan-out");
         assert!(
-            !result.meta.hierarchical,
-            "missing group_rank/local_rank should fall back to flat fan-out"
+            err.to_string().contains("hierarchical fan-out unavailable"),
+            "unexpected error: {err}"
         );
-        assert_eq!(result.meta.scope, "flat");
-        assert_eq!(result.meta.node_aggregators_queried, 0);
-        assert_eq!(result.meta.local_ranks_queried, 0);
-        assert_eq!(result.meta.nodes_queried, 4);
-        assert!(result.meta.nodes_failed.is_empty());
     });
 
     clear_rank_env();
@@ -295,7 +291,9 @@ fn hierarchical_fanout_reports_failed_remote_node_aggregator() {
         install_cluster(coordinator_addr, &leaf_addr, dead_node_agg, &node1_leaf);
         set_coordinator_env();
 
-        let result = run_hierarchical_fanout().await;
+        let result = run_hierarchical_fanout()
+            .await
+            .expect("hierarchical fanout");
 
         assert!(result.meta.hierarchical);
         assert_eq!(result.meta.scope, "coordinator");
@@ -327,8 +325,10 @@ fn hierarchical_fanout_reports_failed_local_leaf() {
                 scope: "node".into(),
                 nodes_queried: 2,
                 nodes_failed: Vec::new(),
+                peer_batches_dropped: 0,
                 node_aggregators_queried: 0,
                 local_ranks_queried: 1,
+                partial: false,
             },
         )
         .await;
@@ -338,7 +338,9 @@ fn hierarchical_fanout_reports_failed_local_leaf() {
         install_cluster(coordinator_addr, dead_leaf, &node1_local0, &node1_leaf);
         set_coordinator_env();
 
-        let result = run_hierarchical_fanout().await;
+        let result = run_hierarchical_fanout()
+            .await
+            .expect("hierarchical fanout");
 
         assert!(result.meta.hierarchical);
         assert_eq!(result.meta.scope, "coordinator");

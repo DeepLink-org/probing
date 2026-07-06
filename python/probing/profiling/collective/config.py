@@ -56,11 +56,36 @@ def is_distributed_torch_job() -> bool:
     return False
 
 
+def nccl_profiler_plugin_active() -> bool:
+    """True when the NCCL profiler plugin is configured for this process.
+
+    The plugin collects precise, NCCL-native events into ``nccl.*`` tables;
+    when it is active the Torch-API-level tracer (``python.comm_collective``,
+    Python wall-clock) is redundant for timing purposes.
+    """
+    return bool(os.environ.get("NCCL_PROFILER_PLUGIN", "").strip())
+
+
 def collective_tracing_enabled() -> bool:
-    """Resolve whether collective hooks should be installed."""
+    """Resolve whether Torch-side collective hooks should be installed.
+
+    Policy:
+    1. Explicit ``probing.torch.collective.enable`` always wins.
+    2. If the NCCL profiler plugin is active, default **off** — the plugin's
+       ``nccl.*`` tables are the precise source; keeping both on would record
+       the same collectives twice with conflicting timing semantics.
+    3. Otherwise, default on for multi-rank torch jobs (coarse fallback).
+    """
     explicit = _flag(probing.config.get_str("probing.torch.collective.enable"))
     if explicit is not None:
         return explicit
+    if nccl_profiler_plugin_active():
+        logger.info(
+            "Torch-side collective tracing disabled: NCCL profiler plugin is "
+            "active (nccl.* tables). Set probing.torch.collective.enable=1 "
+            "to force both."
+        )
+        return False
     return is_distributed_torch_job()
 
 

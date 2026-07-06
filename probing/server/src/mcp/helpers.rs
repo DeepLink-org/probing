@@ -1,6 +1,7 @@
 //! Shared helpers for MCP tools (query shaping, write guard, audit).
 
 use probing_cli::cli::ctrl::ProbeEndpoint;
+use probing_core::core::federation::take_fanout_stats;
 use probing_proto::prelude::{Ele, Query, QueryDataFormat};
 use rmcp::ErrorData;
 
@@ -85,7 +86,28 @@ pub async fn engine_query_json(sql: String, limit: usize) -> Result<serde_json::
     })
     .await
     .map_err(|e| tool_error(e.to_string()))?;
-    dataframe_reply_to_json(reply, limit)
+    let mut payload = dataframe_reply_to_json(reply, limit)?;
+    attach_fanout_quality(&mut payload);
+    Ok(payload)
+}
+
+/// Surface federated / global-table fan-out completeness when peers were dropped.
+fn attach_fanout_quality(payload: &mut serde_json::Value) {
+    let stats = take_fanout_stats();
+    if stats.nodes_failed.is_empty() && stats.peer_batches_dropped == 0 {
+        return;
+    }
+    if let Some(obj) = payload.as_object_mut() {
+        obj.insert(
+            "fanout".to_string(),
+            serde_json::json!({
+                "partial": true,
+                "nodes_succeeded": stats.nodes_succeeded,
+                "nodes_failed": stats.nodes_failed,
+                "peer_batches_dropped": stats.peer_batches_dropped,
+            }),
+        );
+    }
 }
 
 pub fn dataframe_reply_to_json(
