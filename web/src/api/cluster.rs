@@ -24,10 +24,23 @@ pub struct ClusterQueryResponse {
 
 /// Cluster management API
 impl ApiClient {
-    /// Get all node information
+    /// Get all node information (paginated server-side; fetches all pages).
     pub async fn get_nodes(&self) -> Result<Vec<Node>> {
-        let response = self.get_request("/apis/nodes").await?;
-        Self::parse_json(&response)
+        let mut all = Vec::new();
+        let mut offset = 0usize;
+        loop {
+            let response = self
+                .get_request(&format!("/apis/nodes?offset={offset}&limit=1024"))
+                .await?;
+            let page: NodeListResponse = Self::parse_json(&response)?;
+            let empty = page.nodes.is_empty();
+            all.extend(page.nodes);
+            if all.len() >= page.total || empty {
+                break;
+            }
+            offset = offset.saturating_add(1024);
+        }
+        Ok(all)
     }
 
     /// On-demand SQL fan-out across cluster nodes (`cluster=true`) or local only.

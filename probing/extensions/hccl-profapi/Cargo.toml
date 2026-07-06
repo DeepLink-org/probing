@@ -14,6 +14,8 @@ path = "../hccl-shim/src/lib.rs"
 [dependencies]
 probing-memtable = { path = "../../memtable" }
 
+env_logger = { workspace = true }
+log = { workspace = true }
 once_cell = { workspace = true }
 parking_lot = "0.12"
 

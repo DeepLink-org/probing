@@ -210,7 +210,7 @@ impl EntityStore for DistributedEntityStore {
 
         let write_locations = self.select_write_locations(&locations, &self.default_consistency);
 
-        println!(
+        log::debug!(
             "Write locations for entity {}: {:?}\n\t{:?}",
             entity.id(),
             write_locations,

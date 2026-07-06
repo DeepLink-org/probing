@@ -1,0 +1,233 @@
+apiVersion: probing.dev/v1
+kind: Skill
+
+metadata:
+  id: watchdog_timeout
+  title: "NCCL watchdog timeout / Flight Recorder"
+  title_en: "NCCL watchdog timeout diagnosis"
+  category: distributed
+  tags: [NCCL, watchdog, timeout, Flight Recorder, collective, desync]
+  triggers:
+    keywords:
+      zh: ["NCCL watchdog", "超时", "Flight Recorder", "collective 不一致", "反同步", "死锁"]
+      en: ["NCCL watchdog", "timeout", "flight recorder", "collective mismatch", "desync"]
+  docs: |
+    读取 PyTorch Flight Recorder，按 process group 与 collective sequence 跨 rank 对齐。
+    用于判断 watchdog timeout 是 missing rank、collective type mismatch、shape/dtype mismatch，
+    还是 collective 已进入但未完成。
+
+spec:
+  parameters:
+    - name: seq_window
+      type: integer
+      default: 200
+      description: "Analyze recent collective sequence ids"
+    - name: use_global
+      type: boolean
+      default: true
+      description: "Use global.python.torch_nccl_flight_record for multi-rank fan-out"
+
+  requires:
+    any_tables:
+      - python.torch_nccl_flight_record
+      - global.python.torch_nccl_flight_record
+
+  steps:
+    - id: snapshot
+      title: "触发 Flight Recorder snapshot"
+      type: api
+      method: GET
+      path: /apis/pythonext/flight-recorder/snapshot?include_stack_traces=true&only_active=false&persist=true
+      on_empty: warn
+      empty_message: |
+        无法读取 PyTorch Flight Recorder。确认 PyTorch >= 2.5，并设置:
+        - TORCH_NCCL_TRACE_BUFFER_SIZE=2000
+        - 分布式后端为 NCCL
+
+    - id: pg_status
+      title: "ProcessGroup 状态"
+      type: sql
+      sql: |
+        WITH latest AS (
+          SELECT rank, max(snapshot_id) AS snapshot_id
+          FROM {fr_status_table}
+          GROUP BY rank
+        )
+        SELECT
+          s.rank,
+          s.pg_id,
+          s.pg_name,
+          s.pg_desc,
+          s.ranks,
+          s.last_enqueued_collective,
+          s.last_started_collective,
+          s.last_completed_collective
+        FROM {fr_status_table} s
+        JOIN latest l
+          ON s.rank = l.rank AND s.snapshot_id = l.snapshot_id
+        ORDER BY s.rank, s.pg_id
+      on_empty: skip
+      empty_message: "无 torch_nccl_pg_status 数据 — snapshot 可能失败或没有 NCCL ProcessGroup"
+
+    - id: rank_record_summary
+      title: "各 rank Flight Recorder 记录概览"
+      type: sql
+      sql: |
+        WITH latest AS (
+          SELECT rank, max(snapshot_id) AS snapshot_id
+          FROM {fr_table}
+          GROUP BY rank
+        )
+        SELECT
+          f.rank,
+          f.pg_id,
+          count(*) AS records,
+          min(f.collective_seq_id) AS min_seq,
+          max(f.collective_seq_id) AS max_seq,
+          sum(CASE WHEN f.state != 'completed' THEN 1 ELSE 0 END) AS incomplete_records
+        FROM {fr_table} f
+        JOIN latest l
+          ON f.rank = l.rank AND f.snapshot_id = l.snapshot_id
+        GROUP BY f.rank, f.pg_id
+        ORDER BY f.rank, f.pg_id
+      on_empty: abort
+      empty_message: |
+        无 torch_nccl_flight_record 数据。可能原因:
+        - PyTorch 版本低于 2.5
+        - 未启用 TORCH_NCCL_TRACE_BUFFER_SIZE
+        - 当前进程尚未初始化 NCCL ProcessGroup 或没有 collective
+
+    - id: first_incomplete
+      title: "未完成 / 活跃 collective"
+      type: sql
+      sql: |
+        WITH latest AS (
+          SELECT rank, max(snapshot_id) AS snapshot_id
+          FROM {fr_table}
+          GROUP BY rank
+        )
+        SELECT
+          f.rank,
+          f.pg_id,
+          f.collective_seq_id,
+          f.profiling_name,
+          f.state,
+          f.input_sizes,
+          f.input_dtypes,
+          f.top_frame
+        FROM {fr_table} f
+        JOIN latest l
+          ON f.rank = l.rank AND f.snapshot_id = l.snapshot_id
+        WHERE f.state != 'completed'
+        ORDER BY f.collective_seq_id, f.rank
+        LIMIT 20
+      on_empty: skip
+      empty_message: "最新 Flight Recorder snapshot 中没有未完成 collective"
+
+    - id: collective_alignment
+      title: "按 PG + seq 对齐 collective"
+      type: sql
+      sql: |
+        WITH latest AS (
+          SELECT rank, max(snapshot_id) AS snapshot_id
+          FROM {fr_table}
+          GROUP BY rank
+        ),
+        recent AS (
+          SELECT f.*
+          FROM {fr_table} f
+          JOIN latest l
+            ON f.rank = l.rank AND f.snapshot_id = l.snapshot_id
+          WHERE f.collective_seq_id >= (
+            SELECT max(collective_seq_id) - {seq_window}
+            FROM {fr_table}
+          )
+        ),
+        aligned AS (
+          SELECT
+            pg_id,
+            collective_seq_id,
+            count(DISTINCT rank) AS ranks_seen,
+            max(world_size) AS expected_world_size,
+            min(profiling_name) AS op_min,
+            max(profiling_name) AS op_max,
+            min(input_sizes) AS input_sizes_min,
+            max(input_sizes) AS input_sizes_max,
+            min(input_dtypes) AS input_dtypes_min,
+            max(input_dtypes) AS input_dtypes_max,
+            min(state) AS state_min,
+            max(state) AS state_max
+          FROM recent
+          GROUP BY pg_id, collective_seq_id
+        )
+        SELECT *
+        FROM aligned
+        WHERE ranks_seen < expected_world_size
+           OR op_min != op_max
+           OR input_sizes_min != input_sizes_max
+           OR input_dtypes_min != input_dtypes_max
+           OR state_min != state_max
+        ORDER BY collective_seq_id
+        LIMIT 50
+      on_empty: skip
+      empty_message: "最近 seq_window 内未发现 rank 缺失或 collective 参数不一致"
+
+    - id: suspect_callstacks
+      title: "可疑 collective 调用栈"
+      type: sql
+      sql: |
+        WITH latest AS (
+          SELECT rank, max(snapshot_id) AS snapshot_id
+          FROM {fr_table}
+          GROUP BY rank
+        )
+        SELECT
+          f.rank,
+          f.pg_id,
+          f.collective_seq_id,
+          f.profiling_name,
+          f.state,
+          f.top_frame,
+          f.frames
+        FROM {fr_table} f
+        JOIN latest l
+          ON f.rank = l.rank AND f.snapshot_id = l.snapshot_id
+        WHERE f.collective_seq_id >= (
+          SELECT max(collective_seq_id) - {seq_window}
+          FROM {fr_table}
+        )
+        ORDER BY f.collective_seq_id DESC, f.rank
+        LIMIT 20
+      on_empty: skip
+
+  variables:
+    fr_table: "{global_prefix}python.torch_nccl_flight_record"
+    fr_status_table: "{global_prefix}python.torch_nccl_pg_status"
+
+  interpretation:
+    rules:
+      - id: missing_rank
+        when: "step:collective_alignment | column:ranks_seen | any_lt(column:expected_world_size)"
+        severity: warning
+        message: "某些 collective seq 缺少 rank — 常见于 CPU-side hang、rank 分支发散或某 rank 提前退出"
+
+      - id: op_mismatch
+        when: "step:collective_alignment | columns:op_min,op_max | any_not_equal"
+        severity: warning
+        message: "同一 seq 上 collective 类型不一致 — 检查各 rank 控制流和 process group 使用"
+
+      - id: shape_dtype_mismatch
+        when: "step:collective_alignment | columns:input_sizes_min,input_sizes_max,input_dtypes_min,input_dtypes_max | any_not_equal"
+        severity: warning
+        message: "collective 输入 shape/dtype 不一致 — 常见于 all_to_all split 或动态 shape 发散"
+
+  summary_template: |
+    ## NCCL watchdog timeout
+    - **rank_record_summary**: 每个 rank/PG 的 Flight Recorder 记录范围
+    - **collective_alignment**: rank 缺失、op/shape/dtype/state 不一致
+    - **suspect_callstacks**: 最近可疑 collective 的调用栈
+
+  next_steps:
+    - "发现 missing rank → 运行 training_hang 查看 CPU 主线程栈"
+    - "发现 shape/dtype mismatch → 检查数据相关分支、all_to_all split、动态 shape"
+    - "所有 rank 都进入 collective 但未完成 → 运行 nccl_culprit_victim / comm_bottleneck 看 NCCL wait 与网络"

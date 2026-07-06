@@ -1,3 +1,15 @@
+"""Torch-API-level collective tracer (legacy, coarse).
+
+Monkey-patches ``torch.distributed`` collectives and measures **Python
+wall-clock around the API call** (for ``async_op`` the timing closes at
+``work.wait()``). This is *launch/API* timing — not NCCL execution time.
+
+For precise, NCCL-native data (kernel/proxy-reconstructed execution time,
+wait decomposition, bandwidth) use the NCCL profiler plugin's ``nccl.*``
+tables instead; this tracer is the fallback when the plugin is unavailable
+and is disabled by default when the plugin is active (see ``config.py``).
+"""
+
 import logging
 import os
 import time
@@ -13,6 +25,8 @@ from .record import (
     finish_comm_span,
     record_comm_lite,
 )
+
+logger = logging.getLogger(__name__)
 
 function_names = [
     "all_reduce",
@@ -54,8 +68,10 @@ def get_participating_ranks(
         return group_rank, group_size, ranks
 
     except Exception as e:
-        print(
-            f"[Rank {dist.get_rank()}] all_gather_object failed: {e}. Using fallback method."
+        logger.warning(
+            "[rank %s] all_gather_object failed: %s; using TCPStore fallback",
+            dist.get_rank(),
+            e,
         )
 
     try:
@@ -94,7 +110,7 @@ def get_participating_ranks(
         return group_rank, group_size, ranks
 
     except Exception as e:
-        print(f"[Rank {rank}] Failed to get ranks via TCPStore: {e}")
+        logger.warning("[rank %s] failed to get ranks via TCPStore: %s", rank, e)
         return group_rank, group_size, [dist.get_rank() for _ in range(group_size)]
 
 
@@ -124,12 +140,12 @@ class CollectiveTracer:
             if hasattr(dist, func_name):
                 self.hooked_functions[func_name] = getattr(dist, func_name)
             else:
-                print(
-                    f"!!! Function {func_name} not found in torch.distributed, skipped"
+                logger.debug(
+                    "function %s not found in torch.distributed, skipped", func_name
                 )
 
         if not self.hooked_functions:
-            print("!!! WARNING !!! No functions found to trace")
+            logger.warning("no torch.distributed functions found to trace")
 
         self.call_counts = {fn: 0 for fn in self.hooked_functions}
         self.my_rank = 0
@@ -155,11 +171,9 @@ class CollectiveTracer:
     def _log(self, message):
         if not self._logged_active and self._should_trace():
             self._logged_active = True
-            logging.getLogger(__name__).debug(
-                "CollectiveTracer active (distributed job)"
-            )
+            logger.debug("CollectiveTracer active (distributed job)")
         if self.verbose:
-            print(message)
+            logger.info("%s", message)
         if self.trace_file:
             ranked_filename = f"{self.trace_file}-{self.global_rank}"
             with open(ranked_filename, "a") as f:

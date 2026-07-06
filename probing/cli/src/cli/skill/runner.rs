@@ -3,13 +3,21 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
-use probing_proto::prelude::{DataFrame, Node, Query};
+use probing_proto::prelude::{DataFrame, Query};
 
 use crate::cli::ctrl::ProbeEndpoint;
 use crate::table::{render, OutputFormat};
 
 use super::interpret::{evaluate_rules, InterpretFinding, StepEvidence};
 use super::loader::{build_context, expand_template, load_skill, Skill, SkillStep};
+
+#[derive(Debug, Clone, Default, serde::Serialize)]
+pub struct ClusterQueryMeta {
+    pub partial: bool,
+    pub nodes_queried: usize,
+    pub nodes_failed: Vec<String>,
+    pub peer_batches_dropped: usize,
+}
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -20,6 +28,8 @@ pub enum StepOutcome {
         dataframe: DataFrame,
         row_count: usize,
         note: Option<String>,
+        degraded: bool,
+        cluster_meta: Option<ClusterQueryMeta>,
     },
     ApiText {
         step_id: String,
@@ -75,7 +85,10 @@ fn ensure_read_only_sql(sql: &str) -> Result<()> {
     Err(anyhow!("Only read-only SQL is allowed in skills"))
 }
 
-async fn cluster_query(ctrl: &ProbeEndpoint, expr: &str) -> Result<(DataFrame, String)> {
+async fn cluster_query(
+    ctrl: &ProbeEndpoint,
+    expr: &str,
+) -> Result<(DataFrame, Option<ClusterQueryMeta>)> {
     let body = serde_json::json!({
         "expr": expr,
         "cluster": true,
@@ -91,21 +104,85 @@ async fn cluster_query(ctrl: &ProbeEndpoint, expr: &str) -> Result<(DataFrame, S
         .get("dataframe")
         .ok_or_else(|| anyhow!("missing dataframe in cluster response"))?;
     let dataframe: DataFrame = serde_json::from_value(df.clone())?;
-    let mut note = String::new();
-    if let Some(meta) = value.get("meta") {
-        let nodes = meta
-            .get("nodes_queried")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-        note = format!("cluster fan-out · {nodes} nodes queried");
+    let cluster_meta = value.get("meta").map(parse_cluster_meta);
+    Ok((dataframe, cluster_meta))
+}
+
+fn parse_cluster_meta(meta: &serde_json::Value) -> ClusterQueryMeta {
+    let nodes_failed: Vec<String> = meta
+        .get("nodes_failed")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+    let peer_batches_dropped = meta
+        .get("peer_batches_dropped")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as usize;
+    let nodes_queried = meta
+        .get("nodes_queried")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as usize;
+    let partial = meta
+        .get("partial")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+        || !nodes_failed.is_empty()
+        || peer_batches_dropped > 0;
+    ClusterQueryMeta {
+        partial,
+        nodes_queried,
+        nodes_failed,
+        peer_batches_dropped,
     }
-    Ok((dataframe, note))
+}
+
+fn cluster_meta_note(meta: &ClusterQueryMeta) -> String {
+    format!(
+        "cluster fan-out · {} nodes queried · {} failed · {} peer batches dropped{}",
+        meta.nodes_queried,
+        meta.nodes_failed.len(),
+        meta.peer_batches_dropped,
+        if meta.partial { " · PARTIAL" } else { "" }
+    )
+}
+
+fn cluster_integrity_findings(outcomes: &[StepOutcome]) -> Vec<InterpretFinding> {
+    let mut findings = Vec::new();
+    for outcome in outcomes {
+        let StepOutcome::Sql {
+            step_id,
+            cluster_meta: Some(meta),
+            ..
+        } = outcome
+        else {
+            continue;
+        };
+        if !meta.partial {
+            continue;
+        }
+        findings.push(InterpretFinding {
+            rule_id: format!("{step_id}_partial_fanout"),
+            severity: "error".to_string(),
+            message: format!(
+                "Cluster fan-out incomplete for step '{step_id}': {} nodes queried, {} failed, {} peer batches dropped — do not treat results as complete",
+                meta.nodes_queried,
+                meta.nodes_failed.len(),
+                meta.peer_batches_dropped,
+            ),
+        });
+    }
+    findings
 }
 
 async fn fetch_cluster_peer_count(ctrl: &ProbeEndpoint) -> usize {
-    match ctrl.get("/apis/nodes").await {
-        Ok(reply) => match serde_json::from_str::<Vec<Node>>(&reply) {
-            Ok(nodes) => nodes.len().saturating_sub(1),
+    match ctrl.get("/apis/nodes?limit=1024").await {
+        Ok(reply) => match serde_json::from_str::<probing_proto::prelude::NodeListResponse>(&reply)
+        {
+            Ok(resp) => resp.total.saturating_sub(1),
             Err(_) => 0,
         },
         Err(_) => 0,
@@ -144,17 +221,19 @@ async fn run_sql_step(ctrl: &ProbeEndpoint, step: &SkillStep, sql: &str) -> Step
     }
     let cluster = sql_needs_cluster(sql, step.cluster.unwrap_or(false));
     let result = if cluster {
-        cluster_query(ctrl, sql)
-            .await
-            .map(|(df, note)| (df, Some(note)))
+        cluster_query(ctrl, sql).await.map(|(df, meta)| {
+            let note = meta.as_ref().map(cluster_meta_note);
+            (df, note, meta)
+        })
     } else {
         ctrl.query(Query::new(sql.to_string()))
             .await
-            .map(|df| (df, None))
+            .map(|df| (df, None, None))
     };
 
     match result {
-        Ok((df, note)) => {
+        Ok((df, note, cluster_meta)) => {
+            let degraded = cluster_meta.as_ref().is_some_and(|m| m.partial);
             let rows = dataframe_rows(&df);
             if rows == 0 {
                 match step.on_empty.as_str() {
@@ -172,6 +251,8 @@ async fn run_sql_step(ctrl: &ProbeEndpoint, step: &SkillStep, sql: &str) -> Step
                         dataframe: df,
                         row_count: 0,
                         note,
+                        degraded,
+                        cluster_meta,
                     },
                     _ => StepOutcome::Skipped {
                         step_id: step.id.clone(),
@@ -189,6 +270,8 @@ async fn run_sql_step(ctrl: &ProbeEndpoint, step: &SkillStep, sql: &str) -> Step
                     dataframe: df,
                     row_count: rows,
                     note,
+                    degraded,
+                    cluster_meta,
                 }
             }
         }
@@ -295,9 +378,11 @@ fn print_outcome(outcome: &StepOutcome, format: OutputFormat) {
             dataframe,
             row_count,
             note,
+            degraded,
             ..
         } => {
-            println!("\n## {title} ({row_count} rows)");
+            let tag = if *degraded { " [DEGRADED]" } else { "" };
+            println!("\n## {title}{tag} ({row_count} rows)");
             if let Some(n) = note {
                 eprintln!("({n})");
             }
@@ -382,7 +467,8 @@ pub async fn run_skill(
         outcomes.push(outcome);
     }
 
-    let findings = evaluate_rules(&pb.interpretation, &evidence, &ctx);
+    let mut findings = evaluate_rules(&pb.interpretation, &evidence, &ctx);
+    findings.extend(cluster_integrity_findings(&outcomes));
     print_findings(&findings);
 
     if !pb.summary_template.is_empty() {
@@ -406,8 +492,17 @@ pub async fn run_skill(
     let had_error = outcomes
         .iter()
         .any(|o| matches!(o, StepOutcome::Error { .. }));
+    let had_degraded = outcomes.iter().any(|o| match o {
+        StepOutcome::Sql { degraded, .. } => *degraded,
+        _ => false,
+    });
     if had_error {
         anyhow::bail!("skill finished with errors");
+    }
+    if had_degraded {
+        anyhow::bail!(
+            "skill finished with degraded/partial cluster data — results must not be treated as complete"
+        );
     }
     Ok(())
 }
@@ -423,6 +518,7 @@ pub async fn run_skill_json(
     let ctx = build_context(&pb, &overrides);
 
     let mut steps_out = Vec::new();
+    let mut outcomes = Vec::new();
     let mut evidence = Vec::new();
     let mut abort = false;
 
@@ -435,15 +531,17 @@ pub async fn run_skill_json(
             evidence.push(ev);
         }
         steps_out.push(outcome_to_json(&outcome));
+        outcomes.push(outcome);
         if matches!(
-            &outcome,
-            StepOutcome::Error { .. } if step.on_empty == "abort"
+            outcomes.last(),
+            Some(StepOutcome::Error { .. }) if step.on_empty == "abort"
         ) {
             abort = true;
         }
     }
 
-    let findings = evaluate_rules(&pb.interpretation, &evidence, &ctx);
+    let mut findings = evaluate_rules(&pb.interpretation, &evidence, &ctx);
+    findings.extend(cluster_integrity_findings(&outcomes));
     let findings_json: Vec<serde_json::Value> = findings
         .iter()
         .map(|f| {
@@ -473,6 +571,11 @@ pub async fn run_skill_json(
             .and_then(|v| v.as_str())
             .is_some_and(|st| st == "error")
     });
+    let had_degraded = steps_out.iter().any(|s| {
+        s.get("status")
+            .and_then(|v| v.as_str())
+            .is_some_and(|st| st == "degraded")
+    });
 
     let payload = serde_json::json!({
         "skill_id": pb.id,
@@ -482,7 +585,16 @@ pub async fn run_skill_json(
         "findings": findings_json,
         "summary": summary,
         "next_steps": pb.next_steps,
-        "status": if had_error { "error" } else { "ok" },
+        "status": if had_error {
+            "error"
+        } else if had_degraded {
+            "degraded"
+        } else {
+            "ok"
+        },
+        "data_quality": {
+            "partial_cluster_fanout": had_degraded,
+        },
     });
 
     if had_error {
@@ -499,13 +611,16 @@ fn outcome_to_json(outcome: &StepOutcome) -> serde_json::Value {
             dataframe,
             row_count,
             note,
+            degraded,
+            cluster_meta,
         } => {
             serde_json::json!({
                 "step_id": step_id,
                 "title": title,
-                "status": "ok",
+                "status": if *degraded { "degraded" } else { "ok" },
                 "row_count": row_count,
                 "note": note,
+                "cluster_meta": cluster_meta,
                 "dataframe": dataframe,
             })
         }
@@ -545,5 +660,22 @@ fn outcome_to_json(outcome: &StepOutcome) -> serde_json::Value {
                 "message": message,
             })
         }
+    }
+}
+
+#[cfg(test)]
+mod cluster_meta_tests {
+    use super::parse_cluster_meta;
+
+    #[test]
+    fn partial_when_nodes_failed_even_without_flag() {
+        let meta = parse_cluster_meta(&serde_json::json!({
+            "partial": false,
+            "nodes_queried": 8,
+            "nodes_failed": ["10.0.0.3:8080"],
+            "peer_batches_dropped": 0,
+        }));
+        assert!(meta.partial);
+        assert_eq!(meta.nodes_failed.len(), 1);
     }
 }

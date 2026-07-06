@@ -313,7 +313,7 @@ For **fine-grained NCCL wait decomposition** (culprit vs victim), use the standa
 
 ```bash
 export NCCL_PROFILER_PLUGIN=$(python -m probing.nccl --plugin-path)
-export NCCL_PROFILE_EVENT_MASK=$(python -m probing.nccl --event-mask)  # default 26
+export NCCL_PROFILE_EVENT_MASK=$(python -m probing.nccl --event-mask)  # default 94
 export PROBING=2
 torchrun --nproc_per_node=8 train.py
 ```

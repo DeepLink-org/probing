@@ -6,7 +6,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::{extract::State, routing::get, Json, Router};
 use probing_core::sync::lock_mutex;
-use probing_proto::prelude::{Cluster, Node, NodeReportRequest, NodeReportResponse};
+use probing_proto::prelude::{
+    Cluster, Node, NodeListResponse, NodeReportRequest, NodeReportResponse,
+};
 use probing_server::cluster_http::{fetch_nodes_blocking, put_nodes_blocking};
 use probing_server::server::SERVER_RUNTIME;
 use tokio::net::TcpListener;
@@ -45,6 +47,9 @@ async fn put_nodes_handler(
     State(state): State<AppState>,
     Json(body): Json<NodeReportRequest>,
 ) -> Json<NodeReportResponse> {
+    let version_before = state.version.load(Ordering::Relaxed);
+    let seen_version = body.seen_version;
+    let incoming = body.nodes.clone();
     let mut cluster = lock_mutex(&state.cluster, "hierarchical_cluster_report cluster");
     for mut node in body.nodes {
         if node.timestamp == 0 {
@@ -56,8 +61,11 @@ async fn put_nodes_handler(
         cluster.put(node);
     }
     let version = state.version.fetch_add(1, Ordering::Relaxed) + 1;
-    let mut nodes = cluster.list();
-    nodes.sort_by_key(|n| n.rank.unwrap_or(i32::MAX));
+    let nodes = if seen_version >= version_before {
+        incoming
+    } else {
+        vec![]
+    };
     Json(NodeReportResponse {
         ok: true,
         version,
@@ -66,11 +74,17 @@ async fn put_nodes_handler(
     })
 }
 
-async fn get_nodes_handler(State(state): State<AppState>) -> Json<Vec<Node>> {
+async fn get_nodes_handler(State(state): State<AppState>) -> Json<NodeListResponse> {
     let cluster = lock_mutex(&state.cluster, "hierarchical_cluster_report cluster");
     let mut nodes = cluster.list();
     nodes.sort_by_key(|n| n.rank.unwrap_or(i32::MAX));
-    Json(nodes)
+    let version = state.version.load(Ordering::Relaxed);
+    Json(NodeListResponse {
+        version,
+        total: nodes.len(),
+        offset: 0,
+        nodes,
+    })
 }
 
 async fn spawn_cluster_server() -> String {

@@ -26,9 +26,12 @@ pub fn set_remote_query_hook(hook: Option<RemoteQueryHook>) {
 }
 
 /// Default per-node timeout for remote federated queries (seconds).
-const DEFAULT_REMOTE_QUERY_TIMEOUT_SECS: u64 = 2;
+const DEFAULT_REMOTE_QUERY_TIMEOUT_SECS: u64 = 30;
 /// Env var to override the per-node remote query timeout (seconds).
 const REMOTE_QUERY_TIMEOUT_ENV: &str = "PROBING_REMOTE_QUERY_TIMEOUT_SECS";
+/// Max concurrent remote fan-out requests (HTTP or in-process federation).
+const REMOTE_FANOUT_CONCURRENCY_ENV: &str = "PROBING_FANOUT_CONCURRENCY";
+const DEFAULT_REMOTE_FANOUT_CONCURRENCY: usize = 128;
 
 fn external<E: std::error::Error + Send + Sync + 'static>(err: E) -> DataFusionError {
     DataFusionError::External(Box::new(err))
@@ -48,6 +51,19 @@ pub fn remote_query_timeout() -> Duration {
     Duration::from_secs(secs)
 }
 
+/// Max concurrent in-flight remote fan-out requests per query.
+///
+/// Defaults to [`DEFAULT_REMOTE_FANOUT_CONCURRENCY`]; override via
+/// `PROBING_FANOUT_CONCURRENCY`. A value of `0` (or unparseable) falls back
+/// to the default.
+pub fn remote_fanout_concurrency() -> usize {
+    std::env::var(REMOTE_FANOUT_CONCURRENCY_ENV)
+        .ok()
+        .and_then(|v| v.trim().parse::<usize>().ok())
+        .filter(|&v| v > 0)
+        .unwrap_or(DEFAULT_REMOTE_FANOUT_CONCURRENCY)
+}
+
 /// Outcome of a remote query against a single peer, retaining node identity so
 /// callers can tag rows and account for successes/failures.
 pub struct RemoteFanoutResult {
@@ -61,6 +77,8 @@ pub struct RemoteFanoutResult {
 pub struct FanoutStats {
     pub nodes_succeeded: usize,
     pub nodes_failed: Vec<String>,
+    /// Peer partial DataFrames dropped during coordinator merge (conversion failure).
+    pub peer_batches_dropped: usize,
 }
 
 static LAST_FANOUT_STATS: LazyLock<Mutex<FanoutStats>> =
@@ -131,16 +149,23 @@ impl ProbeClusterExecutor {
             FanoutScope::Coordinator => {
                 if hierarchical_metadata_available() {
                     node_aggregator_peers()
-                } else {
-                    log::debug!(
-                        "hierarchical fan-out metadata missing; falling back to flat peers"
+                } else if crate::core::federation::fanout_scope::hierarchical_fanout_enabled() {
+                    log::warn!(
+                        "hierarchical fan-out metadata missing; refusing flat peer fallback (Coordinator scope)"
                     );
+                    Vec::new()
+                } else {
                     remote_peers_excluding_local()
                 }
             }
             FanoutScope::Node => {
                 if hierarchical_metadata_available() {
                     local_leaf_peers()
+                } else if crate::core::federation::fanout_scope::hierarchical_fanout_enabled() {
+                    log::warn!(
+                        "hierarchical fan-out metadata missing; refusing flat peer fallback (Node scope)"
+                    );
+                    Vec::new()
                 } else {
                     remote_peers_excluding_local()
                 }
@@ -164,46 +189,49 @@ impl ProbeClusterExecutor {
             return Vec::new();
         }
         let scope = resolve_fanout_scope(scope);
-        std::thread::scope(|s| {
-            let handles: Vec<_> = nodes
-                .into_iter()
-                .map(|node| {
-                    s.spawn(move || {
-                        let host = if node.host.is_empty() {
-                            node.addr.clone()
-                        } else {
-                            node.host.clone()
-                        };
-                        let result = Self::execute_remote_scoped(&node.addr, sql, scope);
-                        RemoteFanoutResult {
-                            addr: node.addr,
-                            host,
-                            rank: node.rank,
-                            result,
-                        }
+        let concurrency = remote_fanout_concurrency();
+        let mut results = Vec::with_capacity(nodes.len());
+        for chunk in nodes.chunks(concurrency) {
+            std::thread::scope(|s| {
+                let handles: Vec<_> = chunk
+                    .iter()
+                    .map(|node| {
+                        let node = node.clone();
+                        s.spawn(move || {
+                            let host = if node.host.is_empty() {
+                                node.addr.clone()
+                            } else {
+                                node.host.clone()
+                            };
+                            let result = Self::execute_remote_scoped(&node.addr, sql, scope);
+                            RemoteFanoutResult {
+                                addr: node.addr,
+                                host,
+                                rank: node.rank,
+                                result,
+                            }
+                        })
                     })
-                })
-                .collect();
-            handles
-                .into_iter()
-                .map(|handle| {
-                    handle.join().unwrap_or_else(|_| RemoteFanoutResult {
+                    .collect();
+                for handle in handles {
+                    results.push(handle.join().unwrap_or_else(|_| RemoteFanoutResult {
                         addr: String::new(),
                         host: String::new(),
                         rank: None,
                         result: Err(DataFusionError::Execution(
                             "remote query thread panicked".into(),
                         )),
-                    })
-                })
-                .collect()
-        })
+                    }));
+                }
+            });
+        }
+        results
     }
 
     /// Peer nodes and execution scope for a federated table scan.
     ///
     /// When hierarchical coordinator tier finds no ``local_rank == 0`` aggregators,
-    /// falls back to flat peers and plain remote SQL (matches metadata-missing behavior).
+    /// only falls back to flat peers if hierarchical fan-out is disabled.
     pub fn federated_scan_targets() -> (Vec<Node>, FanoutScope) {
         let resolved = resolve_fanout_scope(current_fanout_scope());
         match resolved {

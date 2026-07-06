@@ -326,9 +326,51 @@ pub fn derive_variables(params: &HashMap<String, String>) -> HashMap<String, Str
     } else {
         "python.comm_collective".to_string()
     };
+    let nccl_proxy = if use_global {
+        "global.nccl.proxy_ops".to_string()
+    } else {
+        "nccl.proxy_ops".to_string()
+    };
+    let nccl_coll = if use_global {
+        "global.nccl.coll_perf".to_string()
+    } else {
+        "nccl.coll_perf".to_string()
+    };
+    let nccl_inflight = if use_global {
+        "global.nccl.inflight_ops".to_string()
+    } else {
+        "nccl.inflight_ops".to_string()
+    };
+    let net_qp = if use_global {
+        "global.nccl.net_qp".to_string()
+    } else {
+        "nccl.net_qp".to_string()
+    };
+    let nccl_counters = if use_global {
+        "global.nccl.profiler_counters".to_string()
+    } else {
+        "nccl.profiler_counters".to_string()
+    };
+    let fr = if use_global {
+        "global.python.torch_nccl_flight_record".to_string()
+    } else {
+        "python.torch_nccl_flight_record".to_string()
+    };
+    let fr_status = if use_global {
+        "global.python.torch_nccl_pg_status".to_string()
+    } else {
+        "python.torch_nccl_pg_status".to_string()
+    };
     let mut out = HashMap::new();
     out.insert("comm_table".to_string(), comm.clone());
     out.insert("table_comm".to_string(), comm);
+    out.insert("nccl_proxy_table".to_string(), nccl_proxy);
+    out.insert("nccl_coll_table".to_string(), nccl_coll);
+    out.insert("nccl_inflight_table".to_string(), nccl_inflight);
+    out.insert("net_qp_table".to_string(), net_qp);
+    out.insert("nccl_counters_table".to_string(), nccl_counters);
+    out.insert("fr_table".to_string(), fr);
+    out.insert("fr_status_table".to_string(), fr_status);
     out.insert(
         "global_prefix".to_string(),
         if use_global {
@@ -403,5 +445,80 @@ mod tests {
         let normalized = normalize_sql(&sql);
         assert!(normalized.contains("FROM global.python.comm_collective"));
         assert!(normalized.contains("- 10"));
+    }
+
+    #[test]
+    fn watchdog_timeout_flight_recorder_table_expansion() {
+        let skill = load_skill("watchdog_timeout").expect("watchdog_timeout skill");
+        let overrides = HashMap::from([
+            ("use_global".to_string(), "false".to_string()),
+            ("seq_window".to_string(), "7".to_string()),
+        ]);
+        let ctx = build_context(&skill, &overrides);
+        let step = skill
+            .steps
+            .iter()
+            .find(|s| s.id == "collective_alignment")
+            .expect("collective_alignment step");
+        let sql = expand_template(step.sql.as_ref().expect("sql"), &ctx);
+        let normalized = normalize_sql(&sql);
+        assert!(normalized.contains("FROM python.torch_nccl_flight_record"));
+        assert!(!normalized.contains("global.python.torch_nccl_flight_record"));
+        assert!(normalized.contains("- 7"));
+
+        let overrides = HashMap::from([
+            ("use_global".to_string(), "true".to_string()),
+            ("seq_window".to_string(), "11".to_string()),
+        ]);
+        let ctx = build_context(&skill, &overrides);
+        let sql = expand_template(step.sql.as_ref().expect("sql"), &ctx);
+        let normalized = normalize_sql(&sql);
+        assert!(normalized.contains("FROM global.python.torch_nccl_flight_record"));
+        assert!(normalized.contains("- 11"));
+    }
+
+    #[test]
+    fn comm_bottleneck_expands_nccl_coll_perf() {
+        let skill = load_skill("comm_bottleneck").expect("comm_bottleneck skill");
+        let overrides = HashMap::from([("use_global".to_string(), "false".to_string())]);
+        let ctx = build_context(&skill, &overrides);
+        let step = skill
+            .steps
+            .iter()
+            .find(|s| s.id == "nccl_coll_bw")
+            .expect("nccl_coll_bw step");
+        let sql = expand_template(step.sql.as_ref().expect("sql"), &ctx);
+        let normalized = normalize_sql(&sql);
+        assert!(normalized.contains("FROM nccl.coll_perf"));
+        assert!(normalized.contains("timing_source"));
+
+        let overrides = HashMap::from([("use_global".to_string(), "true".to_string())]);
+        let ctx = build_context(&skill, &overrides);
+        let sql = expand_template(step.sql.as_ref().expect("sql"), &ctx);
+        assert!(normalize_sql(&sql).contains("FROM global.nccl.coll_perf"));
+    }
+
+    #[test]
+    fn sre_triage_expands_operational_tables() {
+        let skill = load_skill("sre_triage").expect("sre_triage skill");
+        let overrides = HashMap::from([
+            ("use_global".to_string(), "true".to_string()),
+            ("seq_window".to_string(), "13".to_string()),
+        ]);
+        let ctx = build_context(&skill, &overrides);
+        let sql = skill
+            .steps
+            .iter()
+            .filter_map(|s| s.sql.as_ref())
+            .map(|sql| expand_template(sql, &ctx))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let normalized = normalize_sql(&sql);
+        assert!(normalized.contains("global.python.comm_collective"));
+        assert!(normalized.contains("global.python.torch_nccl_flight_record"));
+        assert!(normalized.contains("global.nccl.proxy_ops"));
+        assert!(normalized.contains("- 13"));
+        assert!(!normalized.contains("{fr_table}"));
+        assert!(!normalized.contains("{nccl_proxy_table}"));
     }
 }

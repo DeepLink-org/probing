@@ -1,13 +1,19 @@
-//! NCCL profiler plugin C ABI (v3, NCCL ≥ 2.26).
+//! NCCL profiler plugin C ABI (v3 for NCCL ≥ 2.26, v4 for NCCL ≥ 2.27).
 //!
-//! Types mirror `ext-profiler/example/nccl/` from the NCCL repository.
+//! Types mirror `src/include/plugin/profiler/` from the NCCL repository.
 
 #![allow(dead_code)]
 
 pub mod net_ib_v1;
 pub mod profiler_v3;
+pub mod profiler_v4;
 
 pub use profiler_v3::*;
+pub use profiler_v4::{
+    NcclProfilerCollDescrV4, NcclProfilerEventBodyV4, NcclProfilerEventDescrV4,
+    NcclProfilerEventStateArgsV4, NcclProfilerEventStateV4, NcclProfilerKernelChDescrV4,
+    NcclProfilerP2pDescrV4, NcclProfilerV4,
+};
 
 /// `ncclResult_t` — success is zero.
 pub type NcclResult = i32;

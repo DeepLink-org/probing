@@ -137,6 +137,15 @@ pub(crate) fn advance_chunk_raw(buf: &mut [u8]) {
         let new_wc = (wc + 1) % num_chunks;
         let cs = doff + new_wc as usize * csz;
         let new_ch = &*(ptr.add(cs) as *const ChunkHeader);
+        let rows_lost = new_ch.row_count.load(Ordering::Relaxed);
+        if rows_lost > 0 {
+            h.chunks_recycled.fetch_add(1, Ordering::Relaxed);
+            h.rows_overwritten.fetch_add(rows_lost, Ordering::Relaxed);
+            log::warn!(
+                "memtable ring overwrite: lost {rows_lost} rows (total overwritten {})",
+                h.rows_overwritten.load(Ordering::Relaxed)
+            );
+        }
         new_ch.used.store(0, Ordering::Relaxed);
         new_ch.row_count.store(0, Ordering::Relaxed);
         new_ch.min_ts.store(TS_MIN_INIT, Ordering::Relaxed);
@@ -375,7 +384,8 @@ pub(crate) fn init_buf(buf: &mut [u8], schema: &Schema, chunk_size: u32, num_chu
     h.creator_pid = std::process::id();
     h._pad0 = 0;
     h.creator_start_time = process_start_time(std::process::id());
-    h._reserved = 0;
+    h.chunks_recycled.store(0, Ordering::Relaxed);
+    h.rows_overwritten.store(0, Ordering::Relaxed);
 
     for (i, col) in schema.cols.iter().enumerate() {
         let cd = col_desc_mut(buf, i);
@@ -405,7 +415,8 @@ pub(crate) fn init_buf(buf: &mut [u8], schema: &Schema, chunk_size: u32, num_chu
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schema::{DType, Schema};
+    use crate::memtable::push_plain_row;
+    use crate::schema::{DType, Schema, Value};
 
     #[test]
     #[should_panic(expected = "buffer too small")]
@@ -413,5 +424,26 @@ mod tests {
         let schema = Schema::new().col("x", DType::I32);
         let mut buf = vec![0u8; 32]; // way too small
         init_buf(&mut buf, &schema, 1024, 1);
+    }
+
+    #[test]
+    fn advance_chunk_counts_overwritten_rows() {
+        let schema = Schema::new().col("x", DType::I32);
+        let chunk_size = 128u32;
+        let num_chunks = 2u32;
+        let total = crate::layout::compute_data_offset(schema.cols.len())
+            + chunk_size as usize * num_chunks as usize;
+        let mut buf = vec![0u8; total];
+        init_buf(&mut buf, &schema, chunk_size, num_chunks);
+
+        for i in 0..10_000i32 {
+            assert!(push_plain_row(&mut buf, &[Value::I32(i)]));
+            let (_, rows) = crate::layout::ring_overwrite_stats(&buf);
+            if rows > 0 {
+                assert!(rows >= 1);
+                return;
+            }
+        }
+        panic!("expected ring overwrite within 10_000 pushes");
     }
 }
