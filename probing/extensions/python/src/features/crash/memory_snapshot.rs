@@ -149,7 +149,7 @@ fn read_host_direct() -> HostDirect {
 pub fn read_host_rss_bytes_signal_safe() -> i64 {
     #[cfg(target_os = "linux")]
     {
-        return parse_proc_vmrss_signal_safe();
+        parse_proc_vmrss_signal_safe()
     }
     #[cfg(not(target_os = "linux"))]
     {
@@ -211,10 +211,7 @@ fn read_host_rss_bytes_impl() -> i64 {
 
 #[cfg(target_os = "linux")]
 fn parse_proc_vmrss_signal_safe() -> i64 {
-    use std::ffi::CStr;
-
-    let path = CStr::from_bytes_with_nul(b"/proc/self/status\0").expect("nul");
-    let fd = unsafe { libc::open(path.as_ptr(), libc::O_RDONLY) };
+    let fd = unsafe { libc::open(c"/proc/self/status".as_ptr(), libc::O_RDONLY) };
     if fd < 0 {
         return -1;
     }
