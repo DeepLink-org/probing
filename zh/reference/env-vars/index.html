@@ -2210,8 +2210,58 @@
 </tr>
 <tr>
 <td><code>PROBING_REMOTE_QUERY_TIMEOUT_SECS</code></td>
-<td><code>2</code></td>
+<td><code>30</code></td>
 <td>远程联邦 / 集群查询的单 peer 超时（秒）。</td>
+</tr>
+<tr>
+<td><code>PROBING_FANOUT_CONCURRENCY</code></td>
+<td><code>128</code></td>
+<td>单次 cluster fan-out 的最大并发远程 HTTP 请求数。</td>
+</tr>
+<tr>
+<td><code>PROBING_NCCL_CHUNK_BYTES</code></td>
+<td><code>65536</code></td>
+<td>NCCL profiler mmap 环缓冲 chunk 大小（字节）。</td>
+</tr>
+<tr>
+<td><code>PROBING_NCCL_NUM_CHUNKS</code></td>
+<td><code>64</code></td>
+<td>NCCL profiler mmap 环缓冲 chunk 数量（默认每表约 4 MiB）。</td>
+</tr>
+<tr>
+<td><code>PROBING_NCCL_MAX_COLL_SLOTS</code></td>
+<td><code>512</code></td>
+<td>每 rank 最大 in-flight collective/P2P slot 数。</td>
+</tr>
+<tr>
+<td><code>PROBING_NCCL_MAX_PROXY_OP_SLOTS</code></td>
+<td><code>8192</code></td>
+<td>每 rank 最大 proxy-op slot 数。</td>
+</tr>
+<tr>
+<td><code>PROBING_NCCL_MAX_PROXY_STEP_SLOTS</code></td>
+<td><code>32768</code></td>
+<td>每 rank 最大 proxy-step slot 数。</td>
+</tr>
+<tr>
+<td><code>PROBING_NCCL_MAX_KERNEL_CH_SLOTS</code></td>
+<td><code>8192</code></td>
+<td>每 rank 最大 kernel-channel slot 数。</td>
+</tr>
+<tr>
+<td><code>PROBING_NCCL_MAX_NET_SLOTS</code></td>
+<td><code>4096</code></td>
+<td>每 rank 最大 net-plugin slot 数。</td>
+</tr>
+<tr>
+<td><code>PROBING_NCCL_POOL_SHARDS</code></td>
+<td><code>8</code></td>
+<td>按 comm hash 分片 slot pool（1–64）；总 slot 上限均分到各 shard。</td>
+</tr>
+<tr>
+<td><code>PROBING_NCCL_MIN_MSG_BYTES</code></td>
+<td><code>0</code></td>
+<td>低于此消息大小（字节）的事件不记录；<code>0</code> = 全记录。</td>
 </tr>
 </tbody>
 </table>

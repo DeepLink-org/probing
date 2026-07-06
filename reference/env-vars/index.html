@@ -2037,6 +2037,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="PyTorch integration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#megatron-autostart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Megatron autostart
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytorch-flight-recorder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PyTorch Flight Recorder
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2326,6 +2354,34 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="PyTorch integration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#megatron-autostart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Megatron autostart
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytorch-flight-recorder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PyTorch Flight Recorder
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2725,6 +2781,14 @@ them into a <code>role</code> string like <code>dp=2,pp=1,tp=0</code>.</p>
 <td>Path to the NCCL profiler shared library.</td>
 </tr>
 <tr>
+<td><code>PROBING_NCCL_MIN_MSG_BYTES</code></td>
+<td>Skip recording NCCL ops smaller than this size in bytes (default <code>0</code> = record all).</td>
+</tr>
+<tr>
+<td><code>PROBING_NCCL_INFLIGHT_THRESHOLD_SECS</code></td>
+<td>Watchdog threshold for snapshotting in-flight (possibly hung) NCCL ops into <code>nccl.inflight_ops</code> (default <code>10</code>, <code>0</code> disables).</td>
+</tr>
+<tr>
 <td><code>PROBING_HCCL_PROFAPI_REAL</code></td>
 <td>Path to the real HCCL profapi library (Ascend NPU).</td>
 </tr>
@@ -2784,6 +2848,111 @@ them into a <code>role</code> string like <code>dp=2,pp=1,tp=0</code>.</p>
 <td><code>PROBING_TORCHRUN_STORE_TIMEOUT</code></td>
 <td>—</td>
 <td>Timeout for torchrun distributed store operations.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="megatron-autostart">Megatron autostart<a class="headerlink" href="#megatron-autostart" title="Permanent link">&para;</a></h3>
+<p>Megatron integration is <strong>best-effort</strong> and enabled by default when Megatron env vars
+or modules are detected. No training-script changes are required beyond <code>PROBING=2</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PROBING_MEGATRON</code></td>
+<td><code>auto</code></td>
+<td><code>auto</code> = on when Megatron env/modules detected; <code>on</code>/<code>off</code> to force.</td>
+</tr>
+<tr>
+<td><code>PROBING_MEGATRON_STEP_SYNC</code></td>
+<td><code>auto</code></td>
+<td>Sync <code>probing.step</code> with Megatron iteration via wrapped <code>train_step</code>.</td>
+</tr>
+<tr>
+<td><code>probing.megatron.enable</code></td>
+<td>—</td>
+<td>Config override for Megatron autostart (<code>probing.config.set</code>).</td>
+</tr>
+<tr>
+<td><code>probing.megatron.step_sync</code></td>
+<td>—</td>
+<td>Config override for iteration sync.</td>
+</tr>
+</tbody>
+</table>
+<p>Import hooks run when <code>megatron.core.parallel_state</code> and <code>megatron.training.training</code>
+load: parallel ranks flow into <code>probing.set_role</code>, and <code>train_step</code> aligns step
+coordinates for SQL JOINs.</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PROBING_FR_ON_WATCHDOG</code></td>
+<td><code>auto</code></td>
+<td>On NCCL watchdog exceptions, snapshot Flight Recorder into probing tables.</td>
+</tr>
+<tr>
+<td><code>probing.fr.on_watchdog</code></td>
+<td>—</td>
+<td>Config override for watchdog Flight Recorder snapshot.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="pytorch-flight-recorder">PyTorch Flight Recorder<a class="headerlink" href="#pytorch-flight-recorder" title="Permanent link">&para;</a></h3>
+<p>Probing can snapshot PyTorch NCCL Flight Recorder data via
+<code>/apis/pythonext/flight-recorder/snapshot</code> and writes it to
+<code>python.torch_nccl_flight_record</code> / <code>python.torch_nccl_pg_status</code>.
+These variables are read by PyTorch, not Probing, but should be set before
+<code>torch.distributed.init_process_group</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TORCH_NCCL_TRACE_BUFFER_SIZE</code></td>
+<td>PyTorch default</td>
+<td>Set to a positive value (for example <code>2000</code>) to enable Flight Recorder ring-buffer collection.</td>
+</tr>
+<tr>
+<td><code>TORCH_NCCL_DUMP_ON_TIMEOUT</code></td>
+<td><code>false</code></td>
+<td>Let PyTorch dump Flight Recorder files automatically on watchdog timeout.</td>
+</tr>
+<tr>
+<td><code>TORCH_FR_DUMP_TEMP_FILE</code></td>
+<td>PyTorch default</td>
+<td>Prefix/path for PyTorch Flight Recorder dump files.</td>
+</tr>
+<tr>
+<td><code>TORCH_NCCL_TRACE_CPP_STACK</code></td>
+<td><code>false</code></td>
+<td>Include C++ stack traces in Flight Recorder entries.</td>
+</tr>
+<tr>
+<td><code>TORCH_NCCL_ENABLE_TIMING</code></td>
+<td><code>false</code></td>
+<td>Add CUDA timing events for collectives; may add overhead.</td>
+</tr>
+<tr>
+<td><code>TORCH_SYMBOLIZE_MODE</code></td>
+<td>PyTorch default</td>
+<td>C++ stack symbolization mode (<code>dladdr</code>, <code>addr2line</code>, <code>fast</code>).</td>
 </tr>
 </tbody>
 </table>
@@ -2850,8 +3019,58 @@ them into a <code>role</code> string like <code>dp=2,pp=1,tp=0</code>.</p>
 </tr>
 <tr>
 <td><code>PROBING_REMOTE_QUERY_TIMEOUT_SECS</code></td>
-<td><code>2</code></td>
+<td><code>30</code></td>
 <td>Per-peer timeout for remote federated / cluster queries (seconds).</td>
+</tr>
+<tr>
+<td><code>PROBING_FANOUT_CONCURRENCY</code></td>
+<td><code>128</code></td>
+<td>Max concurrent in-flight remote fan-out HTTP requests per query.</td>
+</tr>
+<tr>
+<td><code>PROBING_NCCL_CHUNK_BYTES</code></td>
+<td><code>65536</code></td>
+<td>NCCL profiler mmap ring chunk size (bytes).</td>
+</tr>
+<tr>
+<td><code>PROBING_NCCL_NUM_CHUNKS</code></td>
+<td><code>64</code></td>
+<td>NCCL profiler mmap ring chunk count (~4 MiB total per table at defaults).</td>
+</tr>
+<tr>
+<td><code>PROBING_NCCL_MAX_COLL_SLOTS</code></td>
+<td><code>512</code></td>
+<td>Max in-flight collective/P2P event slots per rank.</td>
+</tr>
+<tr>
+<td><code>PROBING_NCCL_MAX_PROXY_OP_SLOTS</code></td>
+<td><code>8192</code></td>
+<td>Max in-flight proxy-op slots per rank.</td>
+</tr>
+<tr>
+<td><code>PROBING_NCCL_MAX_PROXY_STEP_SLOTS</code></td>
+<td><code>32768</code></td>
+<td>Max in-flight proxy-step slots per rank.</td>
+</tr>
+<tr>
+<td><code>PROBING_NCCL_MAX_KERNEL_CH_SLOTS</code></td>
+<td><code>8192</code></td>
+<td>Max in-flight kernel-channel slots per rank.</td>
+</tr>
+<tr>
+<td><code>PROBING_NCCL_MAX_NET_SLOTS</code></td>
+<td><code>4096</code></td>
+<td>Max in-flight net-plugin slots per rank.</td>
+</tr>
+<tr>
+<td><code>PROBING_NCCL_POOL_SHARDS</code></td>
+<td><code>8</code></td>
+<td>Shard slot pools by comm hash (1–64); total slot limits are divided evenly across shards.</td>
+</tr>
+<tr>
+<td><code>PROBING_NCCL_MIN_MSG_BYTES</code></td>
+<td><code>0</code></td>
+<td>Drop events below this message size (bytes); <code>0</code> = record all.</td>
 </tr>
 </tbody>
 </table>
@@ -2869,6 +3088,11 @@ them into a <code>role</code> string like <code>dp=2,pp=1,tp=0</code>.</p>
 <td><code>PROBING_LOGLEVEL</code></td>
 <td><code>info</code></td>
 <td>Rust-side log level: <code>trace</code>, <code>debug</code>, <code>info</code>, <code>warn</code>, <code>error</code>.</td>
+</tr>
+<tr>
+<td><code>PROBING_ENGINE_FAIL_FAST</code></td>
+<td>—</td>
+<td>When set to <code>1</code>/<code>true</code>, exit the process if engine initialization fails (default: server stays up but <code>/ready</code> returns 503 and queries fail).</td>
 </tr>
 <tr>
 <td><code>PROBING_CRASH_BACKTRACE</code></td>

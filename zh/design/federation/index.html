@@ -3092,8 +3092,12 @@
 <td>不支持精确分布式 merge → <strong>不走 A</strong></td>
 </tr>
 <tr>
-<td><code>count(distinct)</code> 且 GROUP BY 含数据列</td>
-<td>不支持 → <strong>不走 A</strong></td>
+<td><code>count(distinct)</code> 仅按标签列 GROUP BY</td>
+<td>每节点一行即最终结果；只 concat 不二次 merge</td>
+</tr>
+<tr>
+<td><code>count(distinct)</code> 其余情况（含数据列分组或无 GROUP BY）</td>
+<td>跨节点 merge 会重复计数 → <strong>不走 A</strong></td>
 </tr>
 </tbody>
 </table>

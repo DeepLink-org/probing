@@ -3117,7 +3117,7 @@ SQL matches §4.2 conditions.</p>
 <p><strong>Per-node SQL</strong></p>
 <ol>
 <li><code>FROM probe.{schema}.{table}</code></li>
-<li>Push full WHERE</li>
+<li>Push full WHERE (subqueries excluded by §4.2 routing — they must never reach peers)</li>
 <li>SELECT: drop tag columns; keep aggs and data GROUP BY columns</li>
 <li>GROUP BY data columns only</li>
 </ol>
@@ -3147,8 +3147,12 @@ SQL matches §4.2 conditions.</p>
 <td>not exact distributed merge → <strong>not path A</strong></td>
 </tr>
 <tr>
-<td><code>count(distinct)</code> with data GROUP BY</td>
-<td>not supported → <strong>not path A</strong></td>
+<td><code>count(distinct)</code> grouped <strong>only</strong> by tag columns</td>
+<td>per-node rows are final; concat, no merge</td>
+</tr>
+<tr>
+<td><code>count(distinct)</code> otherwise (data GROUP BY or no GROUP BY)</td>
+<td>cross-node merge would overcount → <strong>not path A</strong></td>
 </tr>
 </tbody>
 </table>

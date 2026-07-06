@@ -2674,15 +2674,12 @@
 <tr>
 <td><code>PROBING_CLUSTER_FANOUT_HIERARCHICAL</code></td>
 <td><code>1</code></td>
-<td><code>0</code> = global flat fan-out</td>
-</tr>
-<tr>
-<td><code>PROBING_REMOTE_QUERY_TIMEOUT_SECS</code></td>
-<td><code>2</code></td>
-<td>Per-peer HTTP timeout (per tier in hierarchical mode)</td>
+<td><code>0</code> = global flat fan-out (legacy O(world_size) path)</td>
 </tr>
 </tbody>
 </table>
+<p>When hierarchical mode is on (default) but <code>cluster.nodes</code> lacks <code>group_rank</code> / <code>local_rank</code> (heartbeat not converged), <strong><code>POST /apis/cluster/query</code> returns HTTP 503</strong> instead of silently falling back to flat fan-out. Use <code>hierarchical=false</code> only when you explicitly accept flat fan-out.
+| <code>PROBING_REMOTE_QUERY_TIMEOUT_SECS</code> | <code>2</code> | Per-peer HTTP timeout (per tier in hierarchical mode) |</p>
 <p>Cluster heartbeat variables: <a href="../../reference/env-vars/">Environment variables — cluster</a> and <a href="../torchrun-cluster/">Torchrun cluster heartbeat</a>.</p>
 <hr />
 <h2 id="7-implementation">7. Implementation<a class="headerlink" href="#7-implementation" title="Permanent link">&para;</a></h2>

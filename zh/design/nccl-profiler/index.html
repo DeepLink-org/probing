@@ -1293,6 +1293,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#collective" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        三条 collective 采集路径 — 保持分叉，勿混淆
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#linux" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1348,6 +1359,28 @@
     <span class="md-ellipsis">
       
         nccl.proxy_ops
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ncclcoll_perf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        nccl.coll_perf
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ncclinflight_ops" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        nccl.inflight_ops
       
     </span>
   </a>
@@ -2212,6 +2245,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#collective" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        三条 collective 采集路径 — 保持分叉，勿混淆
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#linux" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2267,6 +2311,28 @@
     <span class="md-ellipsis">
       
         nccl.proxy_ops
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ncclcoll_perf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        nccl.coll_perf
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ncclinflight_ops" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        nccl.inflight_ops
       
     </span>
   </a>
@@ -2405,12 +2471,55 @@
 </tr>
 </tbody>
 </table>
-<p>粗粒度 collective（<code>python.comm_collective</code>）只需 <code>PROBING=1</code>。NCCL profiler 插件需要 <strong>NCCL ≥ 2.26</strong>（建议 PyTorch <strong>2.8+</strong>）。</p>
+<p>粗粒度 collective（<code>python.comm_collective</code>）只需 <code>PROBING=1</code>。NCCL profiler 插件需要 <strong>NCCL ≥ 2.26</strong>（建议 PyTorch <strong>2.8+</strong>）；插件同时导出 <strong><code>ncclProfiler_v4</code></strong>（NCCL ≥ 2.27，优先）与 <strong><code>ncclProfiler_v3</code></strong>（NCCL 2.26），NCCL 自动协商最高版本。</p>
+<h2 id="collective">三条 collective 采集路径 — 保持分叉，勿混淆<a class="headerlink" href="#collective" title="Permanent link">&para;</a></h2>
+<p>probing 有三条相互独立的集合通信采集路径，<strong>计时语义不同</strong>，不可混用：</p>
+<table>
+<thead>
+<tr>
+<th>来源</th>
+<th>表</th>
+<th>测的是什么</th>
+<th>定位</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>NCCL profiler 插件</strong>（本文档）</td>
+<td><code>nccl.coll_perf</code>、<code>nccl.proxy_ops</code>、<code>nccl.inflight_ops</code>、<code>nccl.net_qp</code></td>
+<td>NCCL 原生事件：重建的执行时间、等待分解、带宽</td>
+<td><strong>精准数据源</strong></td>
+</tr>
+<tr>
+<td>Torch API 层插桩（遗留，<code>probing/profiling/collective/</code>）</td>
+<td><code>python.comm_collective</code></td>
+<td><code>torch.distributed</code> API 调用的 Python 墙钟（launch 层）</td>
+<td>粗粒度回退；独有 <code>global_step</code> 上下文</td>
+</tr>
+<tr>
+<td>PyTorch Flight Recorder 桥</td>
+<td><code>python.torch_nccl_flight_record</code>、<code>python.torch_nccl_pg_status</code></td>
+<td>torch 内部 watchdog 环形缓冲</td>
+<td>watchdog timeout / desync 取证</td>
+</tr>
+</tbody>
+</table>
+<p>约定：</p>
+<ul>
+<li>插件启用时（设置了 <code>NCCL_PROFILER_PLUGIN</code>），Torch API 层插桩<strong>默认关闭</strong>——
+  同一批 collective 被两套语义各记一遍只会制造混乱。如需同开（例如要按
+  <code>global_step</code> 对齐），<code>SET probing.torch.collective.enable=1</code>。</li>
+<li>查执行时间、带宽、等待归因，一律用 <code>nccl.*</code>。
+  <code>python.comm_collective.duration_ms</code> <strong>不是</strong> NCCL 执行时间——<code>async_op</code>
+  调用在 <code>work.wait()</code> 处收口，同步调用在 API 返回处收口。</li>
+<li>跨层关联：<code>nccl.*</code> 行不带训练步；需要时用 epoch 纳秒时间窗对
+  <code>python.comm_collective.global_step</code> 对齐。</li>
+</ul>
 <h2 id="linux">快速开始（Linux 训练）<a class="headerlink" href="#linux" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>probing<span class="w">   </span><span class="c1"># Linux wheel 自带 libprobing_nccl_profiler.so</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NCCL_PROFILER_PLUGIN</span><span class="o">=</span><span class="k">$(</span>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--plugin-path<span class="k">)</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NCCL_PROFILE_EVENT_MASK</span><span class="o">=</span><span class="k">$(</span>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--event-mask<span class="k">)</span><span class="w">   </span><span class="c1"># 默认 26</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NCCL_PROFILE_EVENT_MASK</span><span class="o">=</span><span class="k">$(</span>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--event-mask<span class="k">)</span><span class="w">   </span><span class="c1"># 默认 94</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PROBING</span><span class="o">=</span><span class="m">2</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>torchrun<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">8</span><span class="w"> </span>train.py
@@ -2423,7 +2532,7 @@
 </span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="s2">  ORDER BY recv_wait DESC&quot;</span>
 </span></code></pre></div>
 <h3 id="netpluginib-qp">可选：NetPlugin（IB QP 时延）<a class="headerlink" href="#netpluginib-qp" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NCCL_PROFILE_EVENT_MASK</span><span class="o">=</span><span class="m">154</span><span class="w">   </span><span class="c1"># 26 + NetPlugin 位 128</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NCCL_PROFILE_EVENT_MASK</span><span class="o">=</span><span class="m">222</span><span class="w">   </span><span class="c1"># 94 + NetPlugin 位 128</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>probing<span class="w"> </span>-t<span class="w"> </span>&lt;pid&gt;<span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;SELECT * FROM nccl.net_qp LIMIT 20&quot;</span>
 </span></code></pre></div>
 <h2 id="macos-nccl">macOS / 无 NCCL 开发机<a class="headerlink" href="#macos-nccl" title="Permanent link">&para;</a></h2>
@@ -2485,11 +2594,15 @@
 </tr>
 <tr>
 <td><code>trans_bytes</code></td>
-<td>传输字节数</td>
+<td>传输字节数（v4 按 step 级 <code>transSize</code> 累计）</td>
 </tr>
 <tr>
 <td><code>send_gpu_wait_ns</code></td>
 <td><strong>culprit 信号</strong> — 本 GPU 未就绪</td>
+</tr>
+<tr>
+<td><code>send_peer_wait_ns</code></td>
+<td>等待接收端 clear-to-send credits（<strong>仅 v4 ABI</strong>，v3 为 0）— 对端拥塞信号</td>
 </tr>
 <tr>
 <td><code>send_wait_ns</code></td>
@@ -2506,6 +2619,121 @@
 </tbody>
 </table>
 <p>多机：<code>global.nccl.proxy_ops</code>，带 <code>_host</code>、<code>_addr</code>、<code>_rank</code>。</p>
+<blockquote>
+<p>所有 <code>nccl.*</code> 表的 <code>ts</code> 均为 <strong>UNIX epoch 纳秒</strong>，<code>global.nccl.*</code> 跨 rank 查询时时间戳可直接比较。</p>
+</blockquote>
+<h3 id="ncclcoll_perf"><code>nccl.coll_perf</code><a class="headerlink" href="#ncclcoll_perf" title="Permanent link">&para;</a></h3>
+<p>每个 collective / P2P 操作一行。</p>
+<p><strong>计时模型。</strong> NCCL 官方文档明确：collective 的 <code>stopEvent</code> 只表示 <strong>host 侧
+enqueue 结束</strong>——内核与 proxy 线程在其后继续工作。插件按官方 ext-profiler
+推荐做法，对子事件（<code>ProxyOp</code>、<code>KernelCh</code>）做引用计数，并用子事件窗口重建
+真实执行时间。<code>timing_source</code> 列标注实际使用的信号：</p>
+<table>
+<thead>
+<tr>
+<th><code>timing_source</code></th>
+<th>窗口</th>
+<th>质量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kernel_gpu</code></td>
+<td>GPU <strong>globaltimer</strong> 窗口：<code>kernelCh.pTimer</code>（起点）+ <code>KernelChStop</code> 状态（终点）</td>
+<td>最佳 — 设备时钟，<strong>仅 v4 ABI</strong></td>
+</tr>
+<tr>
+<td><code>kernel_ch</code></td>
+<td>proxy 线程观测到的内核活动窗口（<code>ncclProfileKernelCh</code>）</td>
+<td>NCCL 自身内核活动信号，host 时钟</td>
+</tr>
+<tr>
+<td><code>proxy</code></td>
+<td>proxy op start→stop 包络</td>
+<td>跨机操作较准</td>
+</tr>
+<tr>
+<td><code>enqueue</code></td>
+<td>coll start→stop（仅 launch）</td>
+<td>回退 — 无 proxy/kernel 事件的机内操作</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>列</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ts</code></td>
+<td>完成时间戳（epoch 纳秒）</td>
+</tr>
+<tr>
+<td><code>rank</code>, <code>tp_rank</code>, <code>pp_rank</code>, <code>dp_rank</code></td>
+<td>同 <code>nccl.proxy_ops</code></td>
+</tr>
+<tr>
+<td><code>comm_hash</code>, <code>coll_func</code>, <code>seq</code></td>
+<td>操作标识（P2P 的 <code>seq</code> 为 0）</td>
+</tr>
+<tr>
+<td><code>n_ranks</code></td>
+<td>通信组大小（v4 per-comm <code>init</code> 提供；v3 为 <code>-1</code>）</td>
+</tr>
+<tr>
+<td><code>is_p2p</code></td>
+<td><code>1</code> = Send/Recv，<code>0</code> = collective</td>
+</tr>
+<tr>
+<td><code>peer</code></td>
+<td>P2P 对端 rank（collective 为 <code>-1</code>）</td>
+</tr>
+<tr>
+<td><code>count</code>, <code>msg_size_bytes</code>, <code>dtype</code></td>
+<td>消息负载：元素数 × dtype 字节数</td>
+</tr>
+<tr>
+<td><code>algo</code>, <code>proto</code>, <code>n_channels</code></td>
+<td>NCCL 算法（Ring/Tree…）、协议（LL/LL128/Simple）、channel 数（v4 起 P2P 也有值）</td>
+</tr>
+<tr>
+<td><code>exec_time_ns</code></td>
+<td>重建的真实执行耗时（见 <code>timing_source</code>）</td>
+</tr>
+<tr>
+<td><code>enqueue_time_ns</code></td>
+<td>host 侧 enqueue 耗时（NCCL coll start→stop）</td>
+</tr>
+<tr>
+<td><code>timing_source</code></td>
+<td><code>kernel_gpu</code> / <code>kernel_ch</code> / <code>proxy</code> / <code>enqueue</code></td>
+</tr>
+<tr>
+<td><code>algobw_gbps</code></td>
+<td>算法带宽 <code>msg_size / exec_time</code>（GB/s）。<strong>busbw</strong> 在 SQL 中用 <code>n_ranks</code> 乘集合通信系数（如 AllReduce <code>2(n_ranks-1)/n_ranks</code>）</td>
+</tr>
+</tbody>
+</table>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1">-- 按带宽找最慢的 collective 分桶</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">coll_func</span><span class="p">,</span><span class="w"> </span><span class="n">msg_size_bytes</span><span class="p">,</span><span class="w"> </span><span class="k">AVG</span><span class="p">(</span><span class="n">algobw_gbps</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">gbps</span><span class="p">,</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">n</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="k">FROM</span><span class="w"> </span><span class="n">nccl</span><span class="p">.</span><span class="n">coll_perf</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">coll_func</span><span class="p">,</span><span class="w"> </span><span class="n">msg_size_bytes</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">gbps</span><span class="w"> </span><span class="k">ASC</span><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">10</span>
+</span></code></pre></div>
+<h3 id="ncclinflight_ops"><code>nccl.inflight_ops</code><a class="headerlink" href="#ncclinflight_ops" title="Permanent link">&para;</a></h3>
+<p>watchdog 周期快照：<strong>已 start 未 stop</strong> 的操作——挂死的 op 永远不会触发
+<code>stop_event</code>，因此不会出现在 <code>nccl.proxy_ops</code> 里；这张表补上了 hang 场景的盲区。
+列：<code>ts</code>, <code>rank</code>, <code>comm_hash</code>, <code>coll_func</code>, <code>seq</code>, <code>kind</code>（<code>coll</code>/<code>p2p</code>/<code>proxy_op</code>）,
+<code>channel_id</code>, <code>peer</code>, <code>is_send</code>, <code>start_ns</code>, <code>age_ns</code>。</p>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1">-- 哪个 rank 卡在哪个操作上？</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">rank</span><span class="p">,</span><span class="w"> </span><span class="n">coll_func</span><span class="p">,</span><span class="w"> </span><span class="n">seq</span><span class="p">,</span><span class="w"> </span><span class="n">kind</span><span class="p">,</span><span class="w"> </span><span class="k">MAX</span><span class="p">(</span><span class="n">age_ns</span><span class="p">)</span><span class="o">/</span><span class="mi">1</span><span class="n">e9</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">stuck_secs</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="k">FROM</span><span class="w"> </span><span class="n">nccl</span><span class="p">.</span><span class="n">inflight_ops</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">rank</span><span class="p">,</span><span class="w"> </span><span class="n">coll_func</span><span class="p">,</span><span class="w"> </span><span class="n">seq</span><span class="p">,</span><span class="w"> </span><span class="n">kind</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">stuck_secs</span><span class="w"> </span><span class="k">DESC</span>
+</span></code></pre></div>
 <h3 id="ncclnet_qp"><code>nccl.net_qp</code><a class="headerlink" href="#ncclnet_qp" title="Permanent link">&para;</a></h3>
 <p>IB QP 完成时延（需 NetPlugin mask）。列：<code>ts</code>, <code>rank</code>, <code>device</code>, <code>qp_num</code>, <code>wr_id</code>, <code>opcode</code>, <code>length</code>, <code>duration_ns</code>。</p>
 <h2 id="culprit-victim">Culprit 与 Victim<a class="headerlink" href="#culprit-victim" title="Permanent link">&para;</a></h2>
@@ -2516,9 +2744,9 @@
 <p>同一 rank 可能在不同 collective 上同时出现两种模式。结合 <code>tp_rank</code>/<code>pp_rank</code>/<code>dp_rank</code> 与 Megatron 拓扑对齐分析。</p>
 <h2 id="skillnccl_culprit_victim">诊断 skill：<code>nccl_culprit_victim</code><a class="headerlink" href="#skillnccl_culprit_victim" title="Permanent link">&para;</a></h2>
 <p>目录：<code>skills/nccl_culprit_victim/</code>（wheel 内：<code>python/probing/_skills/</code>）。</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>probing<span class="w"> </span>skill<span class="w"> </span>list
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>probing<span class="w"> </span>-t<span class="w"> </span>&lt;pid&gt;<span class="w"> </span>skill<span class="w"> </span>run<span class="w"> </span>nccl_culprit_victim
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>probing<span class="w"> </span>-t<span class="w"> </span>&lt;pid&gt;<span class="w"> </span>skill<span class="w"> </span>run<span class="w"> </span>nccl_culprit_victim<span class="w"> </span>--set<span class="w"> </span><span class="nv">seq_window</span><span class="o">=</span><span class="m">50</span><span class="w"> </span>--global
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>probing<span class="w"> </span>skill<span class="w"> </span>list
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>probing<span class="w"> </span>-t<span class="w"> </span>&lt;pid&gt;<span class="w"> </span>skill<span class="w"> </span>run<span class="w"> </span>nccl_culprit_victim
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>probing<span class="w"> </span>-t<span class="w"> </span>&lt;pid&gt;<span class="w"> </span>skill<span class="w"> </span>run<span class="w"> </span>nccl_culprit_victim<span class="w"> </span>--set<span class="w"> </span><span class="nv">seq_window</span><span class="o">=</span><span class="m">50</span><span class="w"> </span>--global
 </span></code></pre></div>
 <p>步骤包括：各 rank wait 汇总、culprit/victim 排行、tp/pp/dp 角色视图、可选 <code>global</code> fan-out 与 <code>nccl.net_qp</code> 提示。</p>
 <p>关联 skill：<code>slow_rank</code>、<code>comm_bottleneck</code>（粗粒度；有 <code>nccl.proxy_ops</code> 时会附带 NCCL 步骤）。</p>
@@ -2537,11 +2765,23 @@
 </tr>
 <tr>
 <td><code>NCCL_PROFILE_EVENT_MASK</code></td>
-<td>事件 mask；默认 <code>26</code> = Coll | ProxyOp | ProxyStep</td>
+<td>事件 mask；默认 <code>94</code> = Coll | P2P | ProxyOp | ProxyStep | KernelCh</td>
 </tr>
 <tr>
 <td><code>PROBING_DATA_DIR</code></td>
 <td>memtable 目录</td>
+</tr>
+<tr>
+<td><code>PROBING_NCCL_MIN_MSG_BYTES</code></td>
+<td>小于该字节数的操作不记录；默认 <code>0</code>（全记）。对应 NCCL Inspector 的 <code>DUMP_MIN_SIZE_BYTES</code></td>
+</tr>
+<tr>
+<td><code>PROBING_NCCL_INFLIGHT_THRESHOLD_SECS</code></td>
+<td>watchdog：在途超过该秒数的操作快照进 <code>nccl.inflight_ops</code>；默认 <code>10</code>，<code>0</code> 关闭</td>
+</tr>
+<tr>
+<td><code>PROBING_NCCL_POOL_SHARDS</code></td>
+<td>按 comm hash 分片 slot pool（默认 <code>8</code>，范围 1–64）；降低多 comm 场景下回调锁竞争</td>
 </tr>
 <tr>
 <td><code>PROBING_NCCL_MOCK</code></td>
@@ -2553,13 +2793,13 @@
 </tr>
 </tbody>
 </table>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--plugin-path
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--event-mask
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--seed-mock<span class="w"> </span>--ranks<span class="w"> </span><span class="m">8</span><span class="w"> </span>--ops<span class="w"> </span><span class="m">5</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--plugin-path
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--event-mask
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--seed-mock<span class="w"> </span>--ranks<span class="w"> </span><span class="m">8</span><span class="w"> </span>--ops<span class="w"> </span><span class="m">5</span>
 </span></code></pre></div>
 <h2 id="_4">源码构建<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>make<span class="w"> </span>nccl-profiler-lib
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>cargo<span class="w"> </span><span class="nb">test</span><span class="w"> </span>-p<span class="w"> </span>probing-nccl-profiler
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>make<span class="w"> </span>nccl-profiler-lib
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>cargo<span class="w"> </span><span class="nb">test</span><span class="w"> </span>-p<span class="w"> </span>probing-nccl-profiler
 </span></code></pre></div>
 <p>实现：<code>probing/extensions/nccl-profiler/</code>。架构细节见 crate <a href="https://github.com/DeepLink-org/probing/blob/main/probing/extensions/nccl-profiler/README.md">README</a>。</p>
 <h2 id="p0">真机验收清单（P0）<a class="headerlink" href="#p0" title="Permanent link">&para;</a></h2>
