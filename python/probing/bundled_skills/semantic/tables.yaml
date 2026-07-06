@@ -32,8 +32,8 @@ tables:
       - "默认仅 forward hook；backward hook 默认关闭"
 
   python.comm_collective:
-    description: "torch.distributed 集合通信调用记录（all_reduce、broadcast 等）"
-    synonyms: [collective, communication, NCCL, 通信, all_reduce]
+    description: "torch.distributed API 层集合通信记录（Python 墙钟计时，粗粒度回退；精准 NCCL 数据在 nccl.* 表）"
+    synonyms: [collective, communication, 通信, all_reduce, torch.distributed]
     key_columns:
       micro_step: "最细粒度步计数"
       local_step: "本 rank 训练步"
@@ -49,9 +49,65 @@ tables:
       tensor_shape: "张量 shape 字符串"
       tensor_dtype: "张量 dtype"
       bytes: "通信字节数"
-      duration_ms: "墙钟耗时（毫秒）"
+      duration_ms: "Python API 调用墙钟耗时（毫秒）— launch 层计时，非 NCCL 执行时间"
       async_op: "1=异步 collective，0=同步"
     global_name: global.python.comm_collective
+    federation_columns: [_host, _addr, _rank, _role]
+    notes:
+      - "来源：torch.distributed monkey-patch（Torch API 层），NCCL profiler 插件启用时默认关闭"
+      - "查执行时间/带宽/等待分解请用 nccl.coll_perf / nccl.proxy_ops（NCCL 原生事件）"
+      - "本表独有训练步上下文（global_step 等），可与 nccl.* 按时间窗对齐"
+
+  python.torch_nccl_flight_record:
+    description: "PyTorch Flight Recorder collective 环形缓冲快照（NCCL watchdog timeout / desync 诊断）"
+    synonyms: [Flight Recorder, NCCL watchdog, collective desync, watchdog timeout, 反同步]
+    key_columns:
+      snapshot_id: "probing 触发 snapshot 的时间戳（纳秒）"
+      rank: "torch.distributed rank"
+      world_size: "world size"
+      record_id: "PyTorch Flight Recorder 记录 id"
+      pg_id: "ProcessGroup id"
+      pg_name: "ProcessGroup 名称"
+      pg_desc: "ProcessGroup 描述"
+      collective_seq_id: "进程组内 collective 序号"
+      p2p_seq_id: "P2P 序号"
+      op_id: "PyTorch op id"
+      profiling_name: "collective 名称，如 nccl:all_reduce"
+      state: "collective 状态，如 scheduled/started/completed"
+      input_sizes: "输入 tensor size JSON"
+      input_dtypes: "输入 dtype JSON"
+      output_sizes: "输出 tensor size JSON"
+      output_dtypes: "输出 dtype JSON"
+      time_created_ns: "记录创建时间"
+      time_discovered_started_ns: "发现 started 的时间"
+      time_discovered_completed_ns: "发现 completed 的时间"
+      duration_ns: "collective duration（若 PyTorch 提供）"
+      timeout_ms: "watchdog timeout 配置"
+      retired: "1=已从活跃集合退休"
+      is_p2p: "1=P2P op"
+      frames: "调用栈 JSON"
+      top_frame: "调用栈代表帧"
+    global_name: global.python.torch_nccl_flight_record
+    federation_columns: [_host, _addr, _rank, _role]
+    notes:
+      - "由 /apis/pythonext/flight-recorder/snapshot 触发写入"
+      - "需要 PyTorch >= 2.5 的 torch._C._distributed_c10d._dump_nccl_trace"
+
+  python.torch_nccl_pg_status:
+    description: "PyTorch Flight Recorder ProcessGroup 状态快照"
+    synonyms: [Flight Recorder PG, process group status, NCCL PG]
+    key_columns:
+      snapshot_id: "probing 触发 snapshot 的时间戳（纳秒）"
+      rank: "torch.distributed rank"
+      world_size: "world size"
+      pg_id: "ProcessGroup id"
+      pg_name: "ProcessGroup 名称"
+      pg_desc: "ProcessGroup 描述"
+      ranks: "ProcessGroup 成员 rank 字符串"
+      last_enqueued_collective: "最后入队 collective seq"
+      last_started_collective: "最后 started collective seq"
+      last_completed_collective: "最后 completed collective seq"
+    global_name: global.python.torch_nccl_pg_status
     federation_columns: [_host, _addr, _rank, _role]
 
   python.trace_event:
@@ -219,7 +275,7 @@ tables:
     description: "NCCL profiler plugin proxy-op wait 分解（culprit / victim 归因）"
     synonyms: [NCCL proxy, send_gpu_wait, recv_wait, culprit, victim, proxy wait]
     key_columns:
-      ts: "事件时间戳（纳秒）"
+      ts: "事件时间戳（UNIX epoch 纳秒）"
       rank: "torch.distributed rank"
       tp_rank: "张量并行 rank（未知 -1）"
       pp_rank: "流水线并行 rank（未知 -1）"
@@ -231,16 +287,72 @@ tables:
       peer: "对端 rank"
       is_send: "1=send proxy，0=recv proxy"
       n_steps: "聚合的 ProxyStep 数"
-      trans_bytes: "传输字节数"
+      trans_bytes: "传输字节数（v4 按 step 累计）"
       send_gpu_wait_ns: "Culprit 信号 — 本地 GPU 未就绪发送"
+      send_peer_wait_ns: "等待接收端 clear-to-send credits（仅 v4 ABI；v3 为 0）— 对端拥塞信号"
       send_wait_ns: "发送侧网络等待"
       recv_wait_ns: "Victim 信号 — 等待对端数据"
       recv_flush_wait_ns: "接收 flush 等待"
     global_name: global.nccl.proxy_ops
     federation_columns: [_host, _addr, _rank, _role]
     notes:
-      - "需 NCCL_PROFILER_PLUGIN + NCCL ≥ 2.26（mask Coll|ProxyOp|ProxyStep）"
+      - "需 NCCL_PROFILER_PLUGIN；插件同时导出 v4（NCCL ≥ 2.27）与 v3（NCCL 2.26）ABI，NCCL 自动选最高版本"
+      - "mask Coll|P2P|ProxyOp|ProxyStep|KernelCh，默认 94"
       - "macOS 开发：PROBING_NCCL_MOCK=1 可注入合成数据"
+
+  nccl.coll_perf:
+    description: "NCCL collective / P2P 级性能（timing_source 标注计时来源；消息大小、算法、带宽）"
+    synonyms: [collective perf, algobw, busbw, NCCL bandwidth, 集合通信带宽, message size]
+    key_columns:
+      ts: "op 完成时间戳（UNIX epoch 纳秒）"
+      rank: "torch.distributed rank"
+      tp_rank: "张量并行 rank（未知 -1）"
+      pp_rank: "流水线并行 rank（未知 -1）"
+      dp_rank: "数据并行 rank（未知 -1）"
+      comm_hash: "NCCL communicator hash"
+      n_ranks: "通信组大小（v4 init 提供；v3 为 -1）— busbw 换算用"
+      coll_func: "操作名（AllReduce、AllGather、Send、Recv…）"
+      seq: "collective 序号（P2P 为 0）"
+      is_p2p: "1=P2P（Send/Recv），0=collective"
+      peer: "P2P 对端 rank（collective 为 -1）"
+      count: "元素个数"
+      msg_size_bytes: "消息大小 = count × dtype 字节数"
+      dtype: "NCCL 数据类型名"
+      algo: "NCCL 算法（Ring、Tree…；P2P 为空）"
+      proto: "NCCL 协议（LL、LL128、Simple…）"
+      n_channels: "最大 channel 数（v4 起 P2P 也有值）"
+      exec_time_ns: "实际执行耗时（纳秒）；由 timing_source 对应事件窗口重建"
+      enqueue_time_ns: "host 侧 enqueue 耗时（纳秒；NCCL coll stopEvent 语义）"
+      timing_source: "exec_time 来源：kernel_gpu（GPU globaltimer，v4）> kernel_ch（host 观测）> proxy > enqueue（回退）"
+      algobw_gbps: "算法带宽 msg_size/exec_time（GB/s）；busbw 需乘集合通信系数"
+    global_name: global.nccl.coll_perf
+    federation_columns: [_host, _addr, _rank, _role]
+    notes:
+      - "NCCL coll stopEvent 只代表 enqueue 完成；exec_time_ns 由子事件（KernelCh/ProxyOp）引用计数重建"
+      - "v4 ABI 下 timing_source=kernel_gpu，来自 GPU globaltimer（设备时钟，最精确）"
+      - "busbw 换算：AllReduce 乘 2(n-1)/n，n 取 n_ranks（v3 行 n_ranks=-1 时需从外部推断）"
+      - "PROBING_NCCL_MIN_MSG_BYTES 可过滤小消息"
+
+  nccl.inflight_ops:
+    description: "在途（已 start 未 stop）NCCL 操作周期快照 — hang 诊断信号"
+    synonyms: [inflight, hang, stuck collective, 挂死, 卡住, watchdog]
+    key_columns:
+      ts: "快照时间戳（UNIX epoch 纳秒）"
+      rank: "torch.distributed rank"
+      comm_hash: "NCCL communicator hash"
+      coll_func: "操作名（未知为 unknown）"
+      seq: "collective 序号"
+      kind: "coll / p2p / proxy_op"
+      channel_id: "NCCL channel（proxy_op 有效）"
+      peer: "对端 rank（未知 -1）"
+      is_send: "1=send，0=recv（proxy_op 有效）"
+      start_ns: "op 开始时间戳（epoch 纳秒）"
+      age_ns: "快照时刻已持续时长（纳秒）"
+    global_name: global.nccl.inflight_ops
+    federation_columns: [_host, _addr, _rank, _role]
+    notes:
+      - "挂死的 op 不会出现在 nccl.proxy_ops / nccl.coll_perf（永远不 stop），查这张表"
+      - "PROBING_NCCL_INFLIGHT_THRESHOLD_SECS 控制快照阈值（默认 10s，0 关闭）"
 
   nccl.net_qp:
     description: "NCCL NetPlugin IB QP 完成耗时（可选 mask bit 128）"

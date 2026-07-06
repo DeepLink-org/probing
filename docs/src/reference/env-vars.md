@@ -108,6 +108,8 @@ Non-PROBING-prefixed aliases are also recognized for Megatron compatibility:
 |----------|-------------|
 | `PROBING_NCCL_MOCK` | Enable mock NCCL proxy data for testing without GPUs. |
 | `PROBING_NCCL_PROFILER` | Path to the NCCL profiler shared library. |
+| `PROBING_NCCL_MIN_MSG_BYTES` | Skip recording NCCL ops smaller than this size in bytes (default `0` = record all). |
+| `PROBING_NCCL_INFLIGHT_THRESHOLD_SECS` | Watchdog threshold for snapshotting in-flight (possibly hung) NCCL ops into `nccl.inflight_ops` (default `10`, `0` disables). |
 | `PROBING_HCCL_PROFAPI_REAL` | Path to the real HCCL profapi library (Ascend NPU). |
 | `PROBING_HCCL_SHIM` | Path to the HCCL shim library. |
 | `PROBING_HCCL_SHIM_LOG` | Enable HCCL shim debug logging. |
@@ -127,6 +129,44 @@ Non-PROBING-prefixed aliases are also recognized for Megatron compatibility:
 | `PROBING_TORCHRUN_CLUSTER` | `1` | Enable automatic torchrun cluster registration. Set to `0` to disable. |
 | `PROBING_TORCHRUN_STORE_TIMEOUT` | — | Timeout for torchrun distributed store operations. |
 
+### Megatron autostart
+
+Megatron integration is **best-effort** and enabled by default when Megatron env vars
+or modules are detected. No training-script changes are required beyond `PROBING=2`.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PROBING_MEGATRON` | `auto` | `auto` = on when Megatron env/modules detected; `on`/`off` to force. |
+| `PROBING_MEGATRON_STEP_SYNC` | `auto` | Sync `probing.step` with Megatron iteration via wrapped `train_step`. |
+| `probing.megatron.enable` | — | Config override for Megatron autostart (`probing.config.set`). |
+| `probing.megatron.step_sync` | — | Config override for iteration sync. |
+
+Import hooks run when `megatron.core.parallel_state` and `megatron.training.training`
+load: parallel ranks flow into `probing.set_role`, and `train_step` aligns step
+coordinates for SQL JOINs.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PROBING_FR_ON_WATCHDOG` | `auto` | On NCCL watchdog exceptions, snapshot Flight Recorder into probing tables. |
+| `probing.fr.on_watchdog` | — | Config override for watchdog Flight Recorder snapshot. |
+
+### PyTorch Flight Recorder
+
+Probing can snapshot PyTorch NCCL Flight Recorder data via
+`/apis/pythonext/flight-recorder/snapshot` and writes it to
+`python.torch_nccl_flight_record` / `python.torch_nccl_pg_status`.
+These variables are read by PyTorch, not Probing, but should be set before
+`torch.distributed.init_process_group`.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TORCH_NCCL_TRACE_BUFFER_SIZE` | PyTorch default | Set to a positive value (for example `2000`) to enable Flight Recorder ring-buffer collection. |
+| `TORCH_NCCL_DUMP_ON_TIMEOUT` | `false` | Let PyTorch dump Flight Recorder files automatically on watchdog timeout. |
+| `TORCH_FR_DUMP_TEMP_FILE` | PyTorch default | Prefix/path for PyTorch Flight Recorder dump files. |
+| `TORCH_NCCL_TRACE_CPP_STACK` | `false` | Include C++ stack traces in Flight Recorder entries. |
+| `TORCH_NCCL_ENABLE_TIMING` | `false` | Add CUDA timing events for collectives; may add overhead. |
+| `TORCH_SYMBOLIZE_MODE` | PyTorch default | C++ stack symbolization mode (`dladdr`, `addr2line`, `fast`). |
+
 ## Cluster heartbeat (torchrun)
 
 Hierarchical side-channel registration when `WORLD_SIZE > 1`. See [torchrun cluster heartbeat](../design/torchrun-cluster.md).
@@ -143,13 +183,24 @@ Hierarchical side-channel registration when `WORLD_SIZE > 1`. See [torchrun clus
 | `PROBING_CLUSTER_REPORT_TIMEOUT_SEC` | `5` | HTTP PUT timeout for cluster report. |
 | `PROBING_CLUSTER_PRESET` | — | Used by `examples/run_cluster_multinode.sh`: `demo`, `fast`, or `steady`. |
 | `PROBING_CLUSTER_FANOUT_HIERARCHICAL` | `1` | Hierarchical cluster query fan-out (coordinator → local0 → leaves). `0` = flat fan-out to every peer. See [Hierarchical fan-out](../design/hierarchical-fanout.md). |
-| `PROBING_REMOTE_QUERY_TIMEOUT_SECS` | `2` | Per-peer timeout for remote federated / cluster queries (seconds). |
+| `PROBING_REMOTE_QUERY_TIMEOUT_SECS` | `30` | Per-peer timeout for remote federated / cluster queries (seconds). |
+| `PROBING_FANOUT_CONCURRENCY` | `128` | Max concurrent in-flight remote fan-out HTTP requests per query. |
+| `PROBING_NCCL_CHUNK_BYTES` | `65536` | NCCL profiler mmap ring chunk size (bytes). |
+| `PROBING_NCCL_NUM_CHUNKS` | `64` | NCCL profiler mmap ring chunk count (~4 MiB total per table at defaults). |
+| `PROBING_NCCL_MAX_COLL_SLOTS` | `512` | Max in-flight collective/P2P event slots per rank. |
+| `PROBING_NCCL_MAX_PROXY_OP_SLOTS` | `8192` | Max in-flight proxy-op slots per rank. |
+| `PROBING_NCCL_MAX_PROXY_STEP_SLOTS` | `32768` | Max in-flight proxy-step slots per rank. |
+| `PROBING_NCCL_MAX_KERNEL_CH_SLOTS` | `8192` | Max in-flight kernel-channel slots per rank. |
+| `PROBING_NCCL_MAX_NET_SLOTS` | `4096` | Max in-flight net-plugin slots per rank. |
+| `PROBING_NCCL_POOL_SHARDS` | `8` | Shard slot pools by comm hash (1–64); total slot limits are divided evenly across shards. |
+| `PROBING_NCCL_MIN_MSG_BYTES` | `0` | Drop events below this message size (bytes); `0` = record all. |
 
 ## Debugging & diagnostics
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PROBING_LOGLEVEL` | `info` | Rust-side log level: `trace`, `debug`, `info`, `warn`, `error`. |
+| `PROBING_ENGINE_FAIL_FAST` | — | When set to `1`/`true`, exit the process if engine initialization fails (default: server stays up but `/ready` returns 503 and queries fail). |
 | `PROBING_CRASH_BACKTRACE` | enabled | Print a backtrace on fatal signals (SIGSEGV, SIGABRT, etc.). Set to `0` to disable. |
 | `PROBING_RUST_BACKTRACE` | — | Rust error backtrace detail (similar to `RUST_BACKTRACE`). |
 | `PROBING_SAFE_DEMO` | — | Safe demonstration mode that restricts dangerous operations. |

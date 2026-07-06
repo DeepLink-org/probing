@@ -149,7 +149,18 @@ impl ProbeEndpoint {
         let request = Message::new(q);
         let q_str = serde_json::to_string(&request)?;
         let reply_str = self.send_request("/query", &q_str).await?; // Renamed reply variable
-        let reply = serde_json::from_str::<Message<QueryDataFormat>>(&reply_str)?.payload;
+        let msg = serde_json::from_str::<Message<QueryDataFormat>>(&reply_str)?;
+        if let Some(meta) = &msg.meta {
+            if meta
+                .get("fanout")
+                .and_then(|f| f.get("partial"))
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
+                eprintln!("warning: federated query returned partial data: {meta}");
+            }
+        }
+        let reply = msg.payload;
 
         match reply {
             QueryDataFormat::Error(err) => Err(anyhow::anyhow!("error: {}", err)),

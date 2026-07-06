@@ -5,6 +5,7 @@
 mod api;
 mod grace;
 mod handler;
+mod memory_snapshot;
 mod report;
 mod signal;
 

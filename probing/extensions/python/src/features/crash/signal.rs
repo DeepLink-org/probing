@@ -22,6 +22,7 @@ use probing_core::trace::crash_atomic_step;
 
 use super::context;
 use super::handler;
+use super::memory_snapshot;
 
 static INSTALLED: AtomicBool = AtomicBool::new(false);
 static IN_HANDLER: AtomicBool = AtomicBool::new(false);
@@ -304,8 +305,9 @@ unsafe fn spill_fatal_signal(sig: c_int, tid: u64, fault_addr: usize) {
     let rank = CACHED_RANK.load(Ordering::Relaxed);
     let local_rank = CACHED_LOCAL_RANK.load(Ordering::Relaxed);
     let pid = libc::getpid();
+    let host_rss_bytes = memory_snapshot::read_host_rss_bytes_signal_safe();
 
-    let mut buf = [0u8; 512];
+    let mut buf = [0u8; 640];
     let mut n = 0usize;
     macro_rules! append {
         ($s:expr) => {{
@@ -329,6 +331,8 @@ unsafe fn spill_fatal_signal(sig: c_int, tid: u64, fault_addr: usize) {
     n = append_dec(&mut buf, n, step.global_step as usize);
     append!(",\"micro_step\":");
     n = append_dec(&mut buf, n, step.micro_step as usize);
+    append!(",\"host_rss_bytes\":");
+    n = append_dec(&mut buf, n, host_rss_bytes.max(0) as usize);
     append!(",\"tid\":");
     n = append_dec(&mut buf, n, tid as usize);
     append!(",\"fault_addr\":\"0x");

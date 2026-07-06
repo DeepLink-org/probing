@@ -107,12 +107,13 @@ impl Engine {
         query: T,
     ) -> Result<Option<probing_proto::prelude::DataFrame>> {
         let original: String = query.into();
-        if let Some(df) = federation::try_execute_aggregate_pushdown(self, &original).await? {
+        let capped = federation::ensure_global_scan_limit(&original);
+        if let Some(df) = federation::try_execute_aggregate_pushdown(self, &capped).await? {
             return Ok(Some(df));
         }
         let default_schema = self.default_namespace();
-        let query: String = metadata_rewrite::prepare_metadata_query(&original, &default_schema)
-            .unwrap_or(original);
+        let query: String =
+            metadata_rewrite::prepare_metadata_query(&capped, &default_schema).unwrap_or(capped);
         let query: String = federation::prepare_global_query(&query);
         let df = self.sql(query.as_str()).await?;
         let schema = df.schema().clone();
@@ -131,6 +132,7 @@ impl Engine {
             return Ok(Some(probing_proto::prelude::DataFrame::new(names, columns)));
         }
         let batch = concat_batches(&batches[0].schema(), batches.iter())?;
+        federation::cap_materialized_rows(&original, batch.num_rows())?;
 
         let names = batch
             .schema()
@@ -148,8 +150,11 @@ impl Engine {
 
     #[deprecated]
     pub fn query<T: Into<String>>(&self, q: T) -> Result<probing_proto::prelude::DataFrame> {
-        futures::executor::block_on(async { self.async_query(q).await })
-            .map(|opt| opt.unwrap_or_default())
+        futures::executor::block_on(async { self.async_query(q).await })?.ok_or_else(|| {
+            DataFusionError::Execution(
+                "query returned no dataframe (engine unavailable or empty response)".into(),
+            )
+        })
     }
 
     /// Get default namespace from configuration

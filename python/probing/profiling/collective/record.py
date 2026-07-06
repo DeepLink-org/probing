@@ -1,5 +1,11 @@
 """Persisted collective communication rows (query as ``python.comm_collective``).
 
+**Timing semantics**: ``duration_ms`` is Python wall-clock around the
+``torch.distributed`` API call (launch/API layer) — not NCCL execution time.
+Precise NCCL-native timing lives in ``nccl.coll_perf`` / ``nccl.proxy_ops``
+(NCCL profiler plugin); this table is the coarse fallback and carries the
+training-step context (``global_step`` etc.) that the plugin tables lack.
+
 ``lite`` mode (default): one ``comm_collective`` row + closed ``trace_event`` pair
 (timing + context, no span stack / ``inspect.stack``).
 

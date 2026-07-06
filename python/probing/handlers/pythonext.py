@@ -420,6 +420,22 @@ def start_pytorch_profile(steps: int = 1) -> str:
         )
 
 
+@ext_handler("pythonext", "flight-recorder/snapshot")
+def snapshot_flight_recorder(
+    include_stack_traces: bool = True,
+    only_active: bool = False,
+    persist: bool = True,
+) -> str:
+    """Persist PyTorch NCCL Flight Recorder data into probing tables."""
+    from probing.profiling.flight_recorder import snapshot_json
+
+    return snapshot_json(
+        include_stack_traces=include_stack_traces,
+        only_active=only_active,
+        persist=persist,
+    )
+
+
 def get_pytorch_profile() -> str:
     """Get PyTorch profiler profile data.
 

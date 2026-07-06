@@ -29,6 +29,7 @@ use super::convert::{
 use super::fanout_scope::{
     current_fanout_scope, is_local0_from_env, resolve_fanout_scope, FanoutScope,
 };
+use super::rewrite::can_fanout_via_global_catalog;
 
 static PARTIAL_TABLE_ID: AtomicU64 = AtomicU64::new(0);
 
@@ -48,6 +49,13 @@ pub struct FederatedAggregatePlan {
 }
 
 pub fn plan_federated_aggregate_pushdown(sql: &str) -> Option<FederatedAggregatePlan> {
+    // Same gate as path routing (`classify_federated_sql`): JOIN / CTE / UNION /
+    // subqueries must not reach pushdown. In particular, a WHERE subquery would be
+    // copied verbatim into the per-node SQL, shipping `global.*` references to peers
+    // and triggering recursive fan-out.
+    if !can_fanout_via_global_catalog(sql) {
+        return None;
+    }
     let stmt = parse_single_statement(sql)?;
     let Statement::Query(query) = stmt else {
         return None;
@@ -107,17 +115,25 @@ pub async fn try_execute_aggregate_pushdown(
     .await
     .map_err(|e| DataFusionError::Execution(format!("aggregate fan-out join failed: {e}")))?;
     append_fanout_outcomes(&mut proto_parts, &mut stats, &plan, outcomes);
-    set_fanout_stats(stats);
 
     if proto_parts.is_empty() {
+        set_fanout_stats(stats);
         return Ok(None);
     }
 
     let result = if let Some(merge_sql) = plan.coordinator_sql {
-        let batches: Vec<RecordBatch> = proto_parts
-            .iter()
-            .filter_map(|df| proto_dataframe_to_record_batch(df).ok())
-            .collect();
+        let mut batches = Vec::with_capacity(proto_parts.len());
+        let mut convert_failed = 0usize;
+        for df in &proto_parts {
+            match proto_dataframe_to_record_batch(df) {
+                Ok(batch) => batches.push(batch),
+                Err(e) => {
+                    convert_failed += 1;
+                    log::warn!("aggregate pushdown: dropped peer batch during merge: {e}");
+                }
+            }
+        }
+        stats.peer_batches_dropped += convert_failed;
         merge_on_coordinator(&engine.context, &merge_sql, batches).await?
     } else if proto_parts.len() == 1 {
         proto_parts.remove(0)
@@ -131,6 +147,7 @@ pub async fn try_execute_aggregate_pushdown(
         result
     };
 
+    set_fanout_stats(stats);
     Ok(Some(result))
 }
 
@@ -202,8 +219,11 @@ fn plan_from_query(query: &Query) -> Option<FederatedAggregatePlan> {
         }
     }
 
-    let (aggregates, has_unsafe_distinct) = plan_aggregates(select, &data_group)?;
-    if aggregates.is_empty() || has_unsafe_distinct {
+    // Distinct aggregates are only safe when each per-node partial stays a final
+    // row (grouped solely by federation tags, so no cross-node re-aggregation).
+    let distinct_safe = data_group.is_empty() && !tag_group.is_empty();
+    let aggregates = plan_aggregates(select, distinct_safe)?;
+    if aggregates.is_empty() {
         return None;
     }
 
@@ -318,12 +338,8 @@ fn function_is_distinct(func: &Function) -> bool {
     }
 }
 
-fn plan_aggregates(
-    select: &Select,
-    data_group: &[String],
-) -> Option<(Vec<PlannedAggregate>, bool)> {
+fn plan_aggregates(select: &Select, distinct_safe: bool) -> Option<Vec<PlannedAggregate>> {
     let mut aggregates = Vec::new();
-    let mut has_unsafe_distinct = false;
     for item in &select.projection {
         let (expr, alias) = match item {
             SelectItem::UnnamedExpr(expr) => (expr, None),
@@ -337,24 +353,24 @@ fn plan_aggregates(
             return None;
         };
         let distinct = function_is_distinct(func);
+        if distinct && !distinct_safe {
+            // Per-node distinct counts are not decomposable: summing them at the
+            // coordinator overcounts values seen on multiple nodes. Fall back to
+            // the federated scan path, which aggregates raw rows exactly.
+            return None;
+        }
         let merge_fn = if distinct {
-            if !data_group.is_empty() {
-                has_unsafe_distinct = true;
-            }
             None
         } else {
             merge_fn_for_function(func)
         };
-        if distinct && !data_group.is_empty() {
-            continue;
-        }
         if !distinct && merge_fn.is_none() {
             return None;
         }
         let alias = alias.unwrap_or_else(|| expr.to_string());
         aggregates.push(PlannedAggregate { alias, merge_fn });
     }
-    Some((aggregates, has_unsafe_distinct))
+    Some(aggregates)
 }
 
 fn merge_fn_for_function(func: &Function) -> Option<&'static str> {
@@ -575,6 +591,38 @@ mod tests {
     #[test]
     fn rejects_count_distinct_grouped_by_data_column() {
         let sql = "SELECT name, count(distinct value) AS n FROM global.process.envs GROUP BY name";
+        assert!(plan_federated_aggregate_pushdown(sql).is_none());
+    }
+
+    #[test]
+    fn rejects_count_distinct_without_group_by() {
+        // Summing per-node distinct counts at the coordinator would overcount
+        // values present on multiple nodes.
+        let sql = "SELECT count(distinct name) AS n FROM global.process.envs";
+        assert!(plan_federated_aggregate_pushdown(sql).is_none());
+    }
+
+    #[test]
+    fn rejects_count_distinct_grouped_by_tag_and_data_column() {
+        let sql = "SELECT _rank, name, count(distinct value) AS n \
+                   FROM global.process.envs GROUP BY _rank, name";
+        assert!(plan_federated_aggregate_pushdown(sql).is_none());
+    }
+
+    #[test]
+    fn rejects_where_subquery() {
+        // A WHERE subquery would be pushed verbatim to peers, shipping `global.*`
+        // references outward and triggering recursive fan-out.
+        let sql = "SELECT _rank, sum(duration_ms) AS ms FROM global.python.comm_collective \
+                   WHERE global_step >= (SELECT max(global_step) - 50 FROM global.python.comm_collective) \
+                   GROUP BY _rank";
+        assert!(plan_federated_aggregate_pushdown(sql).is_none());
+    }
+
+    #[test]
+    fn rejects_join_query() {
+        let sql =
+            "SELECT sum(a.x) AS s FROM global.python.a a JOIN global.python.b b ON a.id = b.id";
         assert!(plan_federated_aggregate_pushdown(sql).is_none());
     }
 

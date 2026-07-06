@@ -7,6 +7,7 @@ pub mod auth;
 pub mod cluster_http;
 mod cluster_report_backoff;
 mod engine;
+mod engine_lifecycle;
 mod extensions;
 pub mod memtable_ext;
 mod report;
@@ -16,6 +17,7 @@ mod torchrun_cluster;
 mod vars;
 
 pub use self::engine::initialize_engine;
+pub use self::engine_lifecycle::{engine_init_state, engine_is_ready};
 pub use self::report::start_report_worker;
 pub use self::server::start_local;
 pub use self::server::start_remote;

@@ -17,6 +17,9 @@ categories:
   memory:
     label: 内存 / Memory
     description: GPU/VRAM pressure and leaks.
+  sre:
+    label: SRE / Runbook
+    description: On-call workflows that automate manual training triage.
 skills:
 - id: health_overview
   category: triage
@@ -156,6 +159,8 @@ skills:
   priority: 5
   description: Rank collective ops by total and p99 latency
   tables:
+  - nccl.coll_perf
+  - nccl.proxy_ops
   - python.comm_collective
   - rdma.mlx_hca
   pages:
@@ -197,3 +202,49 @@ skills:
   - slow_rank
   - comm_bottleneck
   path: nccl_culprit_victim/steps.yaml
+- id: watchdog_timeout
+  category: distributed
+  priority: 8
+  description: NCCL watchdog timeout diagnosis with PyTorch Flight Recorder sequence alignment
+  tables:
+  - python.torch_nccl_flight_record
+  - python.torch_nccl_pg_status
+  - global.python.torch_nccl_flight_record
+  pages:
+  - training
+  - cluster
+  - analytics
+  - agent
+  related:
+  - training_hang
+  - comm_bottleneck
+  - nccl_culprit_victim
+  path: watchdog_timeout/steps.yaml
+- id: sre_triage
+  category: sre
+  priority: 9
+  entry: true
+  description: SRE first-response triage for distributed training incidents
+  tables:
+  - cluster.nodes
+  - cpu.utilization
+  - gpu.utilization
+  - python.comm_collective
+  - python.torch_nccl_flight_record
+  - nccl.proxy_ops
+  - rdma.mlx_hca
+  - process.kmsg
+  pages:
+  - dashboard
+  - training
+  - cluster
+  - agent
+  related:
+  - health_overview
+  - job_health
+  - training_hang
+  - watchdog_timeout
+  - comm_bottleneck
+  - nccl_culprit_victim
+  - gpu_pressure
+  path: sre_triage/steps.yaml

@@ -254,7 +254,15 @@ impl SignalTracer {
                 return Err(err.into());
             }
         };
-        let python_frames = rx.recv_timeout(Duration::from_secs(2)).unwrap_or_default();
+        let python_frames = match rx.recv_timeout(Duration::from_secs(2)) {
+            Ok(frames) => frames,
+            Err(err) => {
+                Self::clear_sender_slot();
+                return Err(anyhow::anyhow!(
+                    "Python stack trace timed out or failed after native capture: {err}"
+                ));
+            }
+        };
         Self::clear_sender_slot();
 
         Ok(Self::merge_python_native_stacks(
@@ -281,12 +289,14 @@ impl StackTracer for SignalTracer {
             Ok(Ok(frames)) => Ok(frames),
             Ok(Err(err)) => {
                 log::warn!("Cross-thread stack trace failed for tid {target}: {err}");
-                Ok(vec![])
+                Err(err)
             }
             Err(_) => {
                 log::warn!("Cross-thread stack trace panicked for tid {target}");
                 Self::clear_sender_slot();
-                Ok(vec![])
+                Err(anyhow::anyhow!(
+                    "cross-thread stack trace panicked for tid {target}"
+                ))
             }
         }
     }

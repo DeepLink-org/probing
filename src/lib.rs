@@ -147,10 +147,10 @@ fn setup() {
     }
 
     let pid = std::process::id();
-    eprintln!("Initializing probing module for process {pid} ...",);
 
     // Initialize logging (try_init to avoid conflicts)
     let _ = env_logger::try_init_from_env(env_logger::Env::new().filter(ENV_PROBING_LOGLEVEL));
+    log::info!("Initializing probing module for process {pid} ...");
 
     // Initialize probing server (local Unix domain socket)
     // This needs to happen early, even if Python module is not imported

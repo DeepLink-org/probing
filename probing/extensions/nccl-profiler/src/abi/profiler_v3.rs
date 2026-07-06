@@ -13,38 +13,36 @@ pub const NCCL_PROFILE_PROXY_CTRL: i32 = 1 << 5;
 pub const NCCL_PROFILE_KERNEL_CH: i32 = 1 << 6;
 pub const NCCL_PROFILE_NET_PLUGIN: i32 = 1 << 7;
 
-/// Default events for Phase 2 (wait decomposition).
-pub const DEFAULT_ACTIVATION_MASK: i32 =
-    NCCL_PROFILE_COLL | NCCL_PROFILE_PROXY_OP | NCCL_PROFILE_PROXY_STEP;
+/// Default events: wait decomposition + P2P (pipeline-parallel Send/Recv) +
+/// KernelCh (NCCL's own kernel-activity signal, used to reconstruct real
+/// collective execution time instead of host-side enqueue time).
+pub const DEFAULT_ACTIVATION_MASK: i32 = NCCL_PROFILE_COLL
+    | NCCL_PROFILE_P2P
+    | NCCL_PROFILE_PROXY_OP
+    | NCCL_PROFILE_PROXY_STEP
+    | NCCL_PROFILE_KERNEL_CH;
 
 // ── Event state (shared across profiler API versions) ─────────────────
+//
+// Kept as a raw C int, **not** a Rust enum: NCCL may pass values a given
+// header vintage doesn't know about (v4 adds 19–22, v5/v6 add more), and
+// receiving an out-of-range discriminant through a Rust enum is UB.
 
-#[repr(C)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-#[allow(clippy::enum_variant_names)] // mirrors NCCL C enum naming
-pub enum NcclProfilerEventState {
-    ProxyOpSendPosted = 0,
-    ProxyOpSendRemFifoWait,
-    ProxyOpSendTransmitted,
-    ProxyOpSendDone,
-    ProxyOpRecvPosted,
-    ProxyOpRecvReceived,
-    ProxyOpRecvTransmitted,
-    ProxyOpRecvDone,
+pub type NcclProfilerEventState = c_int;
 
-    ProxyStepSendGpuWait,
-    ProxyStepSendWait,
-    ProxyStepRecvWait,
-    ProxyStepRecvFlushWait,
-    ProxyStepRecvGpuWait,
-
-    ProxyCtrlIdle,
-    ProxyCtrlActive,
-    ProxyCtrlSleep,
-    ProxyCtrlWakeup,
-    ProxyCtrlAppend,
-    ProxyCtrlAppendEnd,
-}
+// ncclProfilerEventState_t values (see NCCL src/include/plugin/nccl_profiler.h)
+pub const STATE_PROXY_STEP_SEND_GPU_WAIT: c_int = 8;
+pub const STATE_PROXY_STEP_SEND_WAIT: c_int = 9;
+pub const STATE_PROXY_STEP_RECV_WAIT: c_int = 10;
+pub const STATE_PROXY_STEP_RECV_FLUSH_WAIT: c_int = 11;
+pub const STATE_PROXY_STEP_RECV_GPU_WAIT: c_int = 12;
+/// v4: proxy op entered progress (replaces the deprecated v1–v3 op states).
+pub const STATE_PROXY_OP_IN_PROGRESS_V4: c_int = 19;
+/// v4: send step waiting for clear-to-send credits from the receiver.
+pub const STATE_PROXY_STEP_SEND_PEER_WAIT_V4: c_int = 20;
+pub const STATE_NET_PLUGIN_UPDATE: c_int = 21;
+/// v4: kernelCh stop mark, carries the GPU globaltimer stop timestamp.
+pub const STATE_KERNEL_CH_STOP: c_int = 22;
 
 pub type NcclProfilerEventStateV3 = NcclProfilerEventState;
 

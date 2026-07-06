@@ -15,6 +15,18 @@ pub fn get_max_request_body_size() -> usize {
         .unwrap_or(MAX_REQUEST_BODY_SIZE)
 }
 
+/// HTTP connection limit — defaults to max(fan-out concurrency, 128).
+pub fn effective_max_connections() -> usize {
+    if let Ok(raw) = std::env::var("PROBING_MAX_CONNECTIONS") {
+        if let Ok(n) = raw.trim().parse::<usize>() {
+            if n > 0 {
+                return n;
+            }
+        }
+    }
+    probing_core::core::federation::remote_fanout_concurrency().max(128)
+}
+
 /// Get maximum file size from environment or use default
 pub fn get_max_file_size() -> u64 {
     std::env::var("PROBING_MAX_FILE_SIZE")

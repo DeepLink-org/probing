@@ -296,9 +296,29 @@ impl ProbingMcp {
         let dataframe: probing_proto::prelude::DataFrame =
             serde_json::from_value(df.clone()).map_err(|e| tool_error(e.to_string()))?;
         let rows = helpers::truncate_dataframe_json(&dataframe, limit);
+        let meta = value
+            .get("meta")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null);
+        let partial = meta
+            .get("partial")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+            || meta
+                .get("nodes_failed")
+                .and_then(|v| v.as_array())
+                .is_some_and(|a| !a.is_empty())
+            || meta
+                .get("peer_batches_dropped")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0)
+                > 0;
         let payload = serde_json::json!({
             "dataframe": rows,
-            "meta": value.get("meta"),
+            "meta": meta,
+            "data_quality": {
+                "partial": partial,
+            },
         });
         Ok(text_result(payload.to_string()))
     }

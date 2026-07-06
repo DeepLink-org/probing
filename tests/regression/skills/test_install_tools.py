@@ -41,12 +41,14 @@ def test_skill_roots_include_bundled():
     assert "bundled" in labels or "repo" in labels
 
 
-def test_merged_catalog_has_eleven_skills():
+def test_merged_catalog_has_thirteen_skills():
     catalog = load_catalog()
-    assert len(catalog.skills) == 11
+    assert len(catalog.skills) == 13
     ids = {e.id for e in catalog.skills}
     assert "job_health" in ids
     assert "persistent_straggler" in ids
+    assert "watchdog_timeout" in ids
+    assert "sre_triage" in ids
 
 
 def test_list_skills_tool():

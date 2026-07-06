@@ -14,7 +14,8 @@ from probing.nccl.__main__ import main
 
 
 def test_default_event_mask():
-    assert DEFAULT_EVENT_MASK == 26
+    # Coll | P2P | ProxyOp | ProxyStep | KernelCh
+    assert DEFAULT_EVENT_MASK == 94
 
 
 def test_plugin_path_env_override(tmp_path):
@@ -57,7 +58,7 @@ def test_cli_help_exits_2(capsys):
 
 def test_cli_event_mask(capsys):
     assert main(["--event-mask"]) == 0
-    assert capsys.readouterr().out.strip() == "26"
+    assert capsys.readouterr().out.strip() == "94"
 
 
 def test_cli_help_lists_seed_mock(capsys):

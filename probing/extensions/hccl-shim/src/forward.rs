@@ -62,7 +62,7 @@ fn log_once(msg: &str) {
             .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
             .is_ok()
     {
-        eprintln!("[probing-hccl-shim] {msg}");
+        crate::log::info(msg);
     }
 }
 
@@ -153,10 +153,10 @@ fn real_lib() -> Option<parking_lot::MutexGuard<'static, Option<RealLib>>> {
                 .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
                 .is_ok()
             {
-                eprintln!(
-                    "[probing-hccl-shim] real libprofapi not found; MSProf forward disabled. \
+                crate::log::warn(format!(
+                    "real libprofapi not found; MSProf forward disabled. \
                      Set {ENV_REAL} or place {REAL_BASENAME} next to the shim."
-                );
+                ));
             }
         }
     }

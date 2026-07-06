@@ -19,6 +19,9 @@ Uses **NCCL profiler plugin** wait decomposition (`nccl.proxy_ops`):
 
 - **Culprit** (slow local GPU): high `send_gpu_wait_ns`
 - **Victim** (waiting on peers / network): high `recv_wait_ns`
+- **Receiver congestion** (v4 ABI only): high `send_peer_wait_ns` — this rank's
+  sends are stalled waiting for the *peer's* clear-to-send credits; investigate
+  that peer
 
 Requires `NCCL_PROFILER_PLUGIN` + `probing-nccl-profiler` (or mock data via `PROBING_NCCL_MOCK` on macOS).
 

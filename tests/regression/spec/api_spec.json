@@ -20,6 +20,8 @@
     { "method": "POST", "path": "/apis/cluster/query" }
   ],
   "top_level": [
+    { "method": "GET", "path": "/health" },
+    { "method": "GET", "path": "/ready" },
     { "method": "POST", "path": "/query" },
     { "method": "POST", "path": "/query/dto" },
     { "method": "GET", "path": "/config/{config_key}" },
@@ -100,6 +102,12 @@
     },
     {
       "local_path": "magics",
+      "method": "GET",
+      "uses_body": false,
+      "response": { "content_type": "application/json", "cors": false }
+    },
+    {
+      "local_path": "flight-recorder/snapshot",
       "method": "GET",
       "uses_body": false,
       "response": { "content_type": "application/json", "cors": false }

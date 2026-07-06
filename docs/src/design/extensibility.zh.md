@@ -318,7 +318,7 @@ Skill 可引用**任意** SQL 表——路径 1 插件表、内置表（`cpu.uti
 
 ```bash
 export NCCL_PROFILER_PLUGIN=$(python -m probing.nccl --plugin-path)
-export NCCL_PROFILE_EVENT_MASK=$(python -m probing.nccl --event-mask)  # 默认 26
+export NCCL_PROFILE_EVENT_MASK=$(python -m probing.nccl --event-mask)  # 默认 94
 export PROBING=2
 torchrun --nproc_per_node=8 train.py
 ```

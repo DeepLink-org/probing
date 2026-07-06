@@ -302,7 +302,7 @@ Fixed six columns, stable order: `_host`, `_addr`, `_rank`, `_node_rank`, `_loca
 **Per-node SQL**
 
 1. `FROM probe.{schema}.{table}`
-2. Push full WHERE
+2. Push full WHERE (subqueries excluded by §4.2 routing — they must never reach peers)
 3. SELECT: drop tag columns; keep aggs and data GROUP BY columns
 4. GROUP BY data columns only
 
@@ -314,7 +314,8 @@ Fixed six columns, stable order: `_host`, `_addr`, `_rank`, `_node_rank`, `_loca
 | `min` | `min` |
 | `max` | `max` |
 | `avg` | not exact distributed merge → **not path A** |
-| `count(distinct)` with data GROUP BY | not supported → **not path A** |
+| `count(distinct)` grouped **only** by tag columns | per-node rows are final; concat, no merge |
+| `count(distinct)` otherwise (data GROUP BY or no GROUP BY) | cross-node merge would overcount → **not path A** |
 
 **ORDER BY / LIMIT:** applied on coordinator **after** merge; global top-K for LIMIT.
 

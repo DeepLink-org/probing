@@ -44,13 +44,16 @@ async fn handle_query_dto(
 /// Process the engine query and convert response to DTO format
 async fn process_engine_query(json_request: String) -> axum::response::Response {
     match crate::engine::query(json_request).await {
-        Ok(response_json) => convert_engine_response_to_dto(response_json).await,
+        Ok(envelope) => convert_engine_response_to_dto(envelope.body, envelope.partial).await,
         Err(api_error) => convert_engine_error_to_dto(api_error).await,
     }
 }
 
 /// Convert engine response to DTO format
-async fn convert_engine_response_to_dto(response_json: String) -> axum::response::Response {
+async fn convert_engine_response_to_dto(
+    response_json: String,
+    partial: bool,
+) -> axum::response::Response {
     // Parse the response to convert to DTO format
     match serde_json::from_str::<Message<ProtoData>>(&response_json) {
         Ok(message_response) => {
@@ -59,7 +62,14 @@ async fn convert_engine_response_to_dto(response_json: String) -> axum::response
             );
 
             match serde_json::to_string(&response_dto) {
-                Ok(dto_response_json) => (StatusCode::OK, dto_response_json).into_response(),
+                Ok(dto_response_json) => {
+                    let status = if partial {
+                        StatusCode::SERVICE_UNAVAILABLE
+                    } else {
+                        StatusCode::OK
+                    };
+                    (status, dto_response_json).into_response()
+                }
                 Err(e) => (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     format!("Failed to serialize DTO response: {}", e),

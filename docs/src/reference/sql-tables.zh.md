@@ -236,6 +236,7 @@ Proxy-op 等待分解（culprit / victim）。
 | 列 | 说明 |
 |----|------|
 | `send_gpu_wait_ns` | **Culprit** — 本地 GPU 未就绪 |
+| `send_peer_wait_ns` | 等待接收端 clear-to-send credits（仅 v4 ABI；v3 为 0） |
 | `recv_wait_ns` | **Victim** — 等待对端数据 |
 | `send_wait_ns` | 发送侧网络等待 |
 | `recv_flush_wait_ns` | Recv flush 等待 |

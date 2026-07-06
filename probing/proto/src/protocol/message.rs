@@ -17,6 +17,10 @@ pub struct Message<T> {
 
     /// The actual message payload
     pub payload: T,
+
+    /// Optional response metadata (e.g. federated fan-out quality on `/query`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<serde_json::Value>,
 }
 
 impl<T> Message<T> {
@@ -27,6 +31,7 @@ impl<T> Message<T> {
             message_id: None,
             timestamp: Self::now(),
             payload,
+            meta: None,
         }
     }
 
