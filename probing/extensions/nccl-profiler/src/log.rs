@@ -13,7 +13,6 @@ use once_cell::sync::OnceCell;
 /// NCCL `ncclDebugLogLevel` values we use.
 pub const NCCL_LOG_WARN: c_int = 2;
 pub const NCCL_LOG_INFO: c_int = 3;
-pub const NCCL_LOG_TRACE: c_int = 5;
 
 /// NCCL subsystem flag for profiler plugins (`NCCL_PROFILE`).
 pub const NCCL_PROFILE: u64 = 0x4000;
@@ -86,9 +85,4 @@ pub fn info(msg: impl AsRef<str>) {
 pub fn warn(msg: impl AsRef<str>) {
     ensure_rust_logger();
     nccl_emit(NCCL_LOG_WARN, msg.as_ref());
-}
-
-pub fn debug(msg: impl AsRef<str>) {
-    ensure_rust_logger();
-    nccl_emit(NCCL_LOG_TRACE, msg.as_ref());
 }
