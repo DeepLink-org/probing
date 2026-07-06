@@ -332,6 +332,7 @@ Use this table to decide **where a change belongs**:
 | macOS per-thread SIGUSR2 | probing-core | `signal::send_sigusr2_to_thread_id` |
 | Torch module sampling | python/probing/profiling | `python.torch_trace` |
 | Collective wall time | python/probing/profiling/collective | `python.comm_collective` |
+| PyTorch Flight Recorder bridge | python/probing/profiling/flight_recorder | `python.torch_nccl_flight_record`, `python.torch_nccl_pg_status` |
 | NCCL wait decomposition | probing-nccl-profiler | `nccl.proxy_ops` |
 | Host CPU / RDMA counters | probing-cc | `cpu.*`, `rdma.*` |
 | GPU mem / util | probing-gpu | `gpu.*` |

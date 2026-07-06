@@ -3468,7 +3468,9 @@ dependencies = [
 name = "probing-hccl-profapi"
 version = "0.2.5"
 dependencies = [
+ "env_logger",
  "libc",
+ "log",
  "once_cell",
  "parking_lot 0.12.3",
  "probing-memtable",
@@ -3478,7 +3480,9 @@ dependencies = [
 name = "probing-hccl-shim"
 version = "0.2.5"
 dependencies = [
+ "env_logger",
  "libc",
+ "log",
  "once_cell",
  "parking_lot 0.12.3",
  "probing-memtable",
@@ -3510,7 +3514,10 @@ dependencies = [
 name = "probing-nccl-profiler"
 version = "0.2.5"
 dependencies = [
+ "criterion",
+ "env_logger",
  "libc",
+ "log",
  "once_cell",
  "parking_lot 0.12.3",
  "probing-memtable",
@@ -3522,7 +3529,9 @@ dependencies = [
 name = "probing-nccl-profiler-cdylib"
 version = "0.2.5"
 dependencies = [
+ "env_logger",
  "libc",
+ "log",
  "once_cell",
  "parking_lot 0.12.3",
  "probing-memtable",

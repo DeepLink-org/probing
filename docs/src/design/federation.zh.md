@@ -322,7 +322,8 @@ flowchart TD
 | `min` | `min` |
 | `max` | `max` |
 | `avg` | 不支持精确分布式 merge → **不走 A** |
-| `count(distinct)` 且 GROUP BY 含数据列 | 不支持 → **不走 A** |
+| `count(distinct)` 仅按标签列 GROUP BY | 每节点一行即最终结果；只 concat 不二次 merge |
+| `count(distinct)` 其余情况（含数据列分组或无 GROUP BY） | 跨节点 merge 会重复计数 → **不走 A** |
 
 merge 后再 `GROUP BY` 数据列 + 用户请求的标签列（若有）。
 

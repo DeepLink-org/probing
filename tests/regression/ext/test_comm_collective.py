@@ -22,6 +22,29 @@ def _reset_tables():
     yield
 
 
+def test_tracing_yields_to_nccl_profiler_plugin(monkeypatch):
+    """Torch-side tracer must default OFF when the NCCL plugin is active."""
+    import probing
+    from probing.profiling.collective import config as cc
+
+    monkeypatch.setenv("WORLD_SIZE", "8")
+    monkeypatch.delenv("NCCL_PROFILER_PLUGIN", raising=False)
+    monkeypatch.setattr(probing.config, "get_str", lambda key: None)
+    assert cc.collective_tracing_enabled() is True
+
+    monkeypatch.setenv("NCCL_PROFILER_PLUGIN", "/tmp/libprobing_nccl_profiler.so")
+    assert cc.nccl_profiler_plugin_active() is True
+    assert cc.collective_tracing_enabled() is False
+
+    # Explicit enable always wins over the plugin default.
+    monkeypatch.setattr(
+        probing.config,
+        "get_str",
+        lambda key: "1" if key == "probing.torch.collective.enable" else None,
+    )
+    assert cc.collective_tracing_enabled() is True
+
+
 def test_comm_collective_row_saved():
     cm, meta = begin_comm_span(
         "all_reduce",

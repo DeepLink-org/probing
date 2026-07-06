@@ -28,6 +28,19 @@ pub fn snapshot() -> RoleRanks {
     }
 }
 
+/// Role ranks captured once on first use. They are fixed for the lifetime of
+/// a training process, and `std::env::var` takes the process env lock — not
+/// something to pay (9 lookups) on every completed row.
+pub fn cached() -> RoleRanks {
+    static CACHED: once_cell::sync::Lazy<RoleRanks> = once_cell::sync::Lazy::new(snapshot);
+    *CACHED
+}
+
+/// Global torch rank for counter snapshots (`RANK` / `LOCAL_RANK`).
+pub fn training_rank() -> i32 {
+    read_env_i32(&["RANK", "LOCAL_RANK"])
+}
+
 #[cfg(test)]
 mod tests {
     use super::snapshot;

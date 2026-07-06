@@ -76,12 +76,47 @@ spec:
       on_empty: skip
       empty_message: "单进程模式或未注册 cluster 节点"
 
+    - id: nccl_data_integrity
+      title: "NCCL profiler 数据完整性"
+      type: sql
+      sql: |
+        SELECT
+          ts,
+          rank,
+          pool_exhausted,
+          write_errors,
+          ring_rows_overwritten,
+          coll_live,
+          coll_cap,
+          proxy_live,
+          proxy_cap
+        FROM nccl.profiler_counters
+        ORDER BY ts DESC
+        LIMIT 1
+      on_empty: skip
+      empty_message: "nccl.profiler_counters 无数据 — NCCL profiler 未启用"
+
   interpretation:
     rules:
       - id: no_tables
         when: "step:available_tables | rows == 0"
         severity: error
         message: "没有可查询表 — probing 可能未正确注入"
+
+      - id: nccl_pool_exhausted
+        when: "step:nccl_data_integrity | column:pool_exhausted | value > 0"
+        severity: error
+        message: "NCCL slot pool 曾耗尽 — 通信指标可能不完整"
+
+      - id: nccl_write_errors
+        when: "step:nccl_data_integrity | column:write_errors | value > 0"
+        severity: error
+        message: "NCCL memtable 写入失败 — 部分事件可能丢失"
+
+      - id: nccl_ring_overwrite
+        when: "step:nccl_data_integrity | column:ring_rows_overwritten | value > 0"
+        severity: warning
+        message: "NCCL mmap ring 曾覆写旧行 — 历史窗口可能不完整"
 
       - id: high_gpu_mem
         when: "step:gpu_mem | column:mem_used_pct | max > 90"
@@ -98,8 +133,10 @@ spec:
     - 可用表: {available_tables.row_count} 张
     - 最新训练 step: {latest_torch_step.latest_step}
     - 集群节点: {cluster_nodes.row_count} 个（0 表示单机）
+    - NCCL 完整性: 见 nccl_data_integrity（pool_exhausted / ring 覆写）
 
     若某项为空，按 empty_message 提示开启对应采集。
+    cluster 查询若标记 PARTIAL/DEGRADED，不得当作完整诊断依据。
 
   next_steps:
     - "多机训练 job 级诊断 → skill: job_health --global"

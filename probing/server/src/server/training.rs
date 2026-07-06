@@ -22,6 +22,7 @@ JOIN python.trace_event e
   ON s.span_id = e.span_id AND e.record_type = 'span_end'
 WHERE s.record_type = 'span_start' AND s.name = 'train.step'
 ORDER BY s.time ASC
+LIMIT 10000
 "#;
 
 const STEP_WINDOW: usize = 120;
@@ -320,6 +321,13 @@ fn ele_as_f64(v: Option<Ele>) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn step_matrix_sql_valid_for_cluster_fanout() {
+        use probing_core::core::federation::{sql_has_limit, validate_global_query};
+        assert!(validate_global_query(STEP_MATRIX_SQL).is_ok());
+        assert!(sql_has_limit(STEP_MATRIX_SQL));
+    }
 
     #[test]
     fn aggregate_normalizes_legacy_single_process_rank() {

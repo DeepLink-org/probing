@@ -30,7 +30,7 @@ macro_rules! open_table {
                         .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
                         .is_ok()
                     {
-                        eprintln!("[probing-hccl-shim] failed to open {}: {e}", $file);
+                        crate::log::warn(format!("failed to open {}: {e}", $file));
                     }
                 }
             }

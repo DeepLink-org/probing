@@ -158,7 +158,9 @@ Complex CTE + window queries should still be split into diagnostic chains (see [
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PROBING_CLUSTER_FANOUT_HIERARCHICAL` | `1` | `0` = global flat fan-out |
+| `PROBING_CLUSTER_FANOUT_HIERARCHICAL` | `1` | `0` = global flat fan-out (legacy O(world_size) path) |
+
+When hierarchical mode is on (default) but `cluster.nodes` lacks `group_rank` / `local_rank` (heartbeat not converged), **`POST /apis/cluster/query` returns HTTP 503** instead of silently falling back to flat fan-out. Use `hierarchical=false` only when you explicitly accept flat fan-out.
 | `PROBING_REMOTE_QUERY_TIMEOUT_SECS` | `2` | Per-peer HTTP timeout (per tier in hierarchical mode) |
 
 Cluster heartbeat variables: [Environment variables — cluster](../reference/env-vars.md) and [Torchrun cluster heartbeat](torchrun-cluster.md).
