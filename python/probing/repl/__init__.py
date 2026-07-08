@@ -410,4 +410,21 @@ class DebugConsole(code.InteractiveConsole):
             traceback.print_exc()
 
 
-debug_console = DebugConsole()
+# Lazily created — import-time DebugConsole() starts an in-process IPython
+# kernel (IOPub / history threads) that conflicts with probing's native engine
+# when PROBING=1 (e.g. pytest wheel suite after test_load_magics_no_crash).
+_debug_console: Optional[DebugConsole] = None
+
+
+def get_debug_console() -> DebugConsole:
+    """Return the process-wide debug console, creating it on first use."""
+    global _debug_console
+    if _debug_console is None:
+        _debug_console = DebugConsole()
+    return _debug_console
+
+
+def __getattr__(name: str):
+    if name == "debug_console":
+        return get_debug_console()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
