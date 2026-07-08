@@ -433,6 +433,11 @@ fn on_native_bridge() -> bool {
     ON_NATIVE_BRIDGE.with(|v| v.get())
 }
 
+/// True when the current thread is the dedicated ``probing-native`` bridge worker.
+pub fn on_native_bridge_thread() -> bool {
+    on_native_bridge()
+}
+
 fn run_on_native_bridge<R: Send + BlockOnFallback + 'static>(
     f: impl FnOnce() -> R + Send + 'static,
 ) -> R {

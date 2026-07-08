@@ -256,7 +256,7 @@ test-doctest:
 	${PYTEST_RUN} --doctest-modules python/probing --ignore=python/probing/cli/__main__.py
 
 test-python-wheel: install-wheel-test-deps
-	PROBING=1 $(PYTHON) -m pytest $(PYTEST_WHEEL_FLAGS) $(PYTEST_WHEEL_EXTRA) $(PYTEST_WHEEL_ARGS)
+	PROBING=1 PROBING_VM_TRACER=0 $(PYTHON) -m pytest $(PYTEST_WHEEL_FLAGS) $(PYTEST_WHEEL_EXTRA) $(PYTEST_WHEEL_ARGS)
 
 coverage-python-wheel:
 	$(MAKE) test-python-wheel PYTEST_WHEEL_EXTRA="--cov=probing --cov=tests --cov-report=xml:coverage.xml"
