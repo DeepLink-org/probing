@@ -31,11 +31,26 @@ ifdef TARGET
 endif
 endif
 
-# PYTHON_BOOTSTRAP: only for creating .venv (before it exists). Recipes use VENV_PYTHON.
-PYTHON_BOOTSTRAP ?= $(shell command -v python3 2>/dev/null || echo python3)
+# Project .venv is the maturin develop target (maturin requires a virtualenv).
+# Bootstrap from pyenv .python-version when present; --system-site-packages
+# keeps torch etc. from the base interpreter visible inside .venv.
+# Override: make develop PYTHON=/path/to/python  (also used as venv bootstrap)
+# CI pins PYTHON to $(CURDIR)/.venv/bin/python after make venv.
+PYTHON_BOOTSTRAP ?= $(shell \
+	if [ -f .python-version ] && command -v pyenv >/dev/null 2>&1; then \
+		PV=$$(tr -d '[:space:]' < .python-version); \
+		PY=$$(PYENV_VERSION="$$PV" pyenv which python 2>/dev/null); \
+		[ -n "$$PY" ] && [ -x "$$PY" ] && echo "$$PY" && exit 0; \
+	fi; \
+	command -v python3 2>/dev/null || echo python3)
+ifeq ($(origin PYTHON),undefined)
+PYTHON := $(if $(wildcard .venv/bin/python),.venv/bin/python,$(PYTHON_BOOTSTRAP))
+endif
+PYTHON_ABS := $(shell "$(PYTHON)" -c 'import sys; print(sys.executable)' 2>/dev/null)
+ifeq ($(PYTHON_ABS),)
+PYTHON_ABS := $(CURDIR)/$(PYTHON)
+endif
 VENV_PYTHON := .venv/bin/python
-# Absolute path for recipes that cd into subdirs (abspath breaks if .venv missing at parse time).
-VENV_PYTHON_ABS := $(CURDIR)/.venv/bin/python
 BUILD_PY_DEPS := build wheel toml maturin
 DEV_PTH := python/probing/dev_pth.py
 DEV_PY_DEPS := pyyaml pytest pytest-cov coverage ipython ipykernel
@@ -64,7 +79,7 @@ help:
 	@echo "  wheel             Build dist/*.whl (needs bundled_web; bundles skills + UI)"
 	@echo "  wheel-ci          alias for wheel (native build; PyPI uses maturin-action + zig)"
 	@echo "  install-wheel     pip install dist/probing-*.whl"
-	@echo "  venv              create/refresh project .venv (used by develop and CI)"
+	@echo "  venv              create/sync project .venv (from .python-version when set)"
 	@echo "  test              Rust + editable Python (daily dev)"
 	@echo "  test-wheel        Installed-wheel Python tests (needs dist/*.whl)"
 	@echo "  test-ci           test + test-wheel (matches CI Python gate)"
@@ -93,8 +108,17 @@ install-dev-python-deps: venv
 .PHONY: core develop dev check-dev frontend wheel wheel-ci install-wheel wheel-bundle nccl-profiler-lib hccl-shim-lib venv venv-wheel install-build-deps install-wheel-test-deps
 
 venv:
-	@test -x $(VENV_PYTHON) || $(PYTHON_BOOTSTRAP) -m venv .venv
-	$(VENV_PYTHON) -m pip install -q -U pip
+	@BOOT="$(PYTHON_BOOTSTRAP)"; \
+	if [ -x "$(VENV_PYTHON)" ]; then \
+		BV=$$("$$BOOT" -c 'import sys; print(".".join(map(str, sys.version_info[:3])))' 2>/dev/null); \
+		VV=$$("$(VENV_PYTHON)" -c 'import sys; print(".".join(map(str, sys.version_info[:3])))' 2>/dev/null); \
+		if [ -n "$$BV" ] && [ "$$VV" != "$$BV" ]; then \
+			echo "  recreating .venv (Python $$VV -> $$BV; --system-site-packages)"; \
+			rm -rf .venv; \
+		fi; \
+	fi; \
+	test -x "$(VENV_PYTHON)" || "$$BOOT" -m venv --system-site-packages .venv; \
+	"$(VENV_PYTHON)" -m pip install -q -U pip
 
 # Backward-compatible alias (CI/docs may still reference venv-wheel).
 venv-wheel: venv
@@ -108,7 +132,8 @@ install-wheel-test-deps: venv
 core: venv nccl-profiler-lib hccl-shim-lib
 	$(VENV_PYTHON) -m maturin develop $(MATURIN_FLAGS)
 
-develop: install-build-deps core install-dev-python-deps
+develop: venv install-build-deps core install-dev-python-deps
+	@echo "  Python: $$($(VENV_PYTHON) -c 'import sys; print(sys.executable)')"
 	$(VENV_PYTHON) $(DEV_PTH) install
 	@$(MAKE) --no-print-directory check-dev
 
@@ -148,17 +173,17 @@ wheel-bundle:
 		|| { echo "error: missing python/probing/bundled_skills/catalog.yaml"; exit 1; }
 
 wheel: install-build-deps wheel-bundle nccl-profiler-lib hccl-shim-lib
-	$(VENV_PYTHON) -m maturin build $(MATURIN_FLAGS) --out dist
+	$(PYTHON) -m maturin build $(MATURIN_FLAGS) --out dist
 
 wheel-ci:
 	$(MAKE) wheel
 
-install-wheel: venv
+install-wheel:
 	@WH=$$(ls -1 dist/probing-*.whl 2>/dev/null | head -1); \
 	test -n "$$WH" || { echo "run: make wheel"; exit 1; }; \
-	$(VENV_PYTHON) -m pip install -q -U pip && \
-	$(VENV_PYTHON) -m pip install --force-reinstall "$$WH" && \
-	PROBING=0 $(VENV_PYTHON) -c "\
+	$(PYTHON) -m pip install -q -U pip && \
+	$(PYTHON) -m pip install --force-reinstall "$$WH" && \
+	PROBING=0 $(PYTHON) -c "\
 import probing; from probing import _core; from pathlib import Path; \
 root = Path(probing.__file__).resolve().parent; \
 assert (root / 'bundled_skills' / 'catalog.yaml').is_file(), f'missing bundled skills under {root}'; \
@@ -214,26 +239,12 @@ test-wheel: install-wheel test-python-wheel
 test-ci: test test-wheel
 test-rust: test-rust-unit test-rust-regression
 
-test-rust-unit: venv
-	@if test -x $(VENV_PYTHON); then \
-		export PYTHON_SYS_EXECUTABLE=$(VENV_PYTHON_ABS) PYO3_PYTHON=$(VENV_PYTHON_ABS); \
-	elif command -v pyenv >/dev/null 2>&1; then \
-		P=$$(pyenv which python3 2>/dev/null); \
-		test -n "$$P" && export PYTHON_SYS_EXECUTABLE=$$P PYO3_PYTHON=$$P; \
-	else \
-		echo "error: no Python for PyO3; run: make venv"; exit 1; \
-	fi; \
+test-rust-unit:
+	@export PYTHON_SYS_EXECUTABLE=$(PYTHON_ABS) PYO3_PYTHON=$(PYTHON_ABS); \
 	cargo nextest run --lib --workspace --no-default-features --nff
 
-test-rust-regression: venv
-	@if test -x $(VENV_PYTHON); then \
-		export PYTHON_SYS_EXECUTABLE=$(VENV_PYTHON_ABS) PYO3_PYTHON=$(VENV_PYTHON_ABS); \
-	elif command -v pyenv >/dev/null 2>&1; then \
-		P=$$(pyenv which python3 2>/dev/null); \
-		test -n "$$P" && export PYTHON_SYS_EXECUTABLE=$$P PYO3_PYTHON=$$P; \
-	else \
-		echo "error: no Python for PyO3; run: make venv"; exit 1; \
-	fi; \
+test-rust-regression:
+	@export PYTHON_SYS_EXECUTABLE=$(PYTHON_ABS) PYO3_PYTHON=$(PYTHON_ABS); \
 	cargo nextest run --tests -p probing-rust-regression -p probing-macros --no-default-features --nff
 
 test-python: check-dev test-python-unit test-python-regression
@@ -241,11 +252,11 @@ test-python-unit: check-dev
 	PROBING=0 ${PYTEST_RUN} $(PYTEST_UNIT_ARGS)
 test-python-regression: check-dev
 	${PYTEST_RUN} $(PYTEST_REGRESSION_ARGS)
-test-doctest: venv
+test-doctest:
 	${PYTEST_RUN} --doctest-modules python/probing --ignore=python/probing/cli/__main__.py
 
-test-python-wheel: venv install-wheel-test-deps
-	PROBING=1 $(VENV_PYTHON) -m pytest $(PYTEST_WHEEL_FLAGS) $(PYTEST_WHEEL_EXTRA) $(PYTEST_WHEEL_ARGS)
+test-python-wheel: install-wheel-test-deps
+	PROBING=1 $(PYTHON) -m pytest $(PYTEST_WHEEL_FLAGS) $(PYTEST_WHEEL_EXTRA) $(PYTEST_WHEEL_ARGS)
 
 coverage-python-wheel:
 	$(MAKE) test-python-wheel PYTEST_WHEEL_EXTRA="--cov=probing --cov=tests --cov-report=xml:coverage.xml"
@@ -259,16 +270,16 @@ fmt-check:
 	$(FMT_WEB) -- --check
 lint-core:
 	$(CLIPPY_CORE)
-lint-python: venv
-	@if $(VENV_PYTHON) -c "import ruff" 2>/dev/null; then \
-		$(VENV_PYTHON) -m ruff check python/ tests/; \
+lint-python:
+	@if $(PYTHON) -c "import ruff" 2>/dev/null; then \
+		$(PYTHON) -m ruff check python/ tests/; \
 	elif command -v ruff >/dev/null 2>&1; then ruff check python/ tests/; \
-	else echo "install ruff: $(VENV_PYTHON) -m pip install ruff"; exit 1; fi
+	else echo "install ruff: $(PYTHON) -m pip install ruff"; exit 1; fi
 lint-rust:
 	$(CLIPPY_WORKSPACE)
 	$(CLIPPY_WEB)
-lint-docs: venv docs-install
-	@$(VENV_PYTHON_ABS) -m mkdocs build --strict -f docs/mkdocs.yml
+lint-docs: docs-install
+	@$(PYTHON_ABS) -m mkdocs build --strict -f docs/mkdocs.yml
 clippy: lint-rust
 clippy-fix:
 	cargo clippy --workspace --all-targets --no-default-features --fix --allow-dirty --allow-staged $(CLIPPY_DENY)
@@ -279,19 +290,19 @@ coverage-rust:
 	cargo llvm-cov nextest --workspace --no-default-features --nff \
 		--exclude probing-hccl-profapi --exclude probing-nccl-profiler-cdylib \
 		--lcov --output-path coverage.lcov --ignore-filename-regex '(.*/tests?/|.*/benches?/|.*/examples?/)'
-coverage-python: venv install-dev-python-deps check-dev
+coverage-python: install-dev-python-deps check-dev
 	${PYTEST_RUN} --cov=python/probing --cov=tests --cov-report=xml:coverage.xml --cov-report=term $(PYTEST_ARGS)
 coverage: coverage-rust coverage-python
 
 bootstrap:
 	uv python install 3.8 3.9 3.10 3.11 3.12 3.13
 
-docs-install: venv
-	@cd docs && $(MAKE) install PYTHON=$(VENV_PYTHON_ABS)
+docs-install:
+	@cd docs && $(MAKE) install PYTHON=$(PYTHON_ABS)
 docs:
-	@cd docs && $(MAKE) build
+	@cd docs && $(MAKE) build PYTHON=$(PYTHON_ABS)
 docs-serve:
-	@cd docs && $(MAKE) serve
+	@cd docs && $(MAKE) serve PYTHON=$(PYTHON_ABS)
 docs-clean:
 	@cd docs && $(MAKE) clean
 

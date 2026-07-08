@@ -30,3 +30,4 @@ python/probing/probing
 .claude/
 *.pth.tar
 docs/site/
+.venv/
