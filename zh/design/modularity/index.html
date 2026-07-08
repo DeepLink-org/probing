@@ -2666,8 +2666,8 @@
 </tr>
 <tr>
 <td><strong>L4 体验</strong></td>
-<td>UI、skills、Python 集成</td>
-<td>诊断 UX、Agent、hooks</td>
+<td>UI、skills、<strong>extensions</strong>、Python 集成</td>
+<td>诊断 UX、Agent、hooks、厂商扩展发现</td>
 </tr>
 </tbody>
 </table>
@@ -2858,12 +2858,22 @@
 <tr>
 <td><strong>skills/</strong></td>
 <td>YAML + SKILL.md</td>
-<td>基于 SQL 的诊断流程</td>
+<td>诊断 skill 内容 SSOT</td>
+</tr>
+<tr>
+<td><strong>probing-skills</strong></td>
+<td><code>probing/crates/skills/</code></td>
+<td>共享 loader、解释器、runner（CLI / Web / MCP）</td>
+</tr>
+<tr>
+<td><strong>python/probing/extensions/</strong></td>
+<td>entry points</td>
+<td>Skills + magics + 厂商包发现（代码 SSOT）</td>
 </tr>
 <tr>
 <td><strong>python/probing/</strong></td>
 <td>Python 包</td>
-<td>hooks、<code>query()</code>、skills 加载</td>
+<td>hooks、<code>query()</code>、agent 安装辅助</td>
 </tr>
 </tbody>
 </table>
@@ -2950,8 +2960,14 @@
 </tr>
 </tbody>
 </table>
-<p><strong>规则：</strong> Skill 只通过 SQL / 文档化 HTTP 访问数据；<strong>不含 Rust/Python 业务代码</strong>。
-CLI、Python loader、Web agent 都是<strong>加载器</strong>，内容以 <code>skills/</code> 为准。</p>
+<p><strong>规则：</strong> Skill 只通过 SQL / 文档化 HTTP 访问数据；<strong>不含 Rust/Python 业务代码</strong>。</p>
+<ul>
+<li><strong>内容 SSOT：</strong> <code>skills/</code>（wheel：<code>python/probing/bundled_skills/</code>）。</li>
+<li><strong>发现：</strong> <code>python/probing/extensions/</code> entry point + <code>GET /apis/pythonext/skills/*</code>。</li>
+<li><strong>执行 SSOT：</strong> <code>probing-skills</code> — CLI（<code>probing/cli/skill/</code>）、Web WASM
+  （<code>web/src/agent/runner.rs</code>）、MCP（server 内 <code>run_skill</code> / <code>plan_skill</code>）。</li>
+<li>Python <code>probing/skills/</code> 仅负责发现与 agent 安装，<strong>不是</strong>执行路径。</li>
+</ul>
 <h3 id="35-cli-web-server">3.5 线协议 — CLI / Web ↔ Server<a class="headerlink" href="#35-cli-web-server" title="Permanent link">&para;</a></h3>
 <p><strong>定义：</strong> <code>probing/proto/</code></p>
 <table>
@@ -3150,7 +3166,7 @@ python ext 扩散 import cli crate 内部。</p>
 <tr>
 <td>表/列语义文档</td>
 <td>probing-core</td>
-<td><code>semantic_catalog</code> → <code>probe.probing.table_docs</code> / <code>column_docs</code></td>
+<td>代码优先 <code>docs</code> 注册表 + <code>resources/tables.yaml</code> overlay → <code>probe.probing.table_docs</code> / <code>column_docs</code></td>
 </tr>
 <tr>
 <td>mmap 格式、冷压缩</td>
@@ -3323,8 +3339,8 @@ python ext 扩散 import cli crate 内部。</p>
 </tr>
 <tr>
 <td>core → skills YAML</td>
-<td><code>semantic_catalog</code> <code>include_str!(skills/semantic/tables.yaml)</code></td>
-<td>接受为 L4 overlay SSOT，或迁到 <code>probing/core/resources/</code></td>
+<td>~~<code>semantic_catalog</code> <code>include_str!(skills/semantic/tables.yaml)</code>~~</td>
+<td><strong>已完成</strong> — overlay 在 <code>probing/core/resources/tables.yaml</code>；描述 SSOT 为 <code>docs</code> 注册表</td>
 </tr>
 <tr>
 <td>server → python features</td>
@@ -3343,8 +3359,8 @@ python ext 扩散 import cli crate 内部。</p>
 </tr>
 <tr>
 <td>Skill 三份 loader</td>
-<td>Rust/Python/Web</td>
-<td><code>skills/</code> 为 SSOT，CI 同步校验</td>
+<td>~~Rust/Python/Web 编译期 embed~~</td>
+<td><strong>已完成</strong> — <code>probing-skills</code> 为 loader/interpret/runner SSOT；Python 保留发现 entry point + PyO3 序列化桥；Web 从 API 反序列化为共享类型</td>
 </tr>
 <tr>
 <td>kmsg 采集器</td>
@@ -3397,7 +3413,7 @@ python ext 扩散 import cli crate 内部。</p>
 </span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>        要新 UI？ → L4 web（仅 HTTP/SQL）
 </span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>        要新命令？ → L3 CLI + proto DTO
 </span></code></pre></div>
-<p><strong>反模式：</strong> 在 engine.rs 写业务；Web 查不存在的表；采集器在写路径里 query；Skill 内嵌 Rust 分支。</p>
+<p><strong>反模式：</strong> 在 engine.rs 写业务；Web 查不存在的表；采集器在写路径里 query；Skill 内嵌 Rust 分支；在 <code>probing-skills</code> 之外执行 skill（Python/Web 重复 runner）。</p>
 <hr />
 <h2 id="10">10. 相关文档<a class="headerlink" href="#10" title="Permanent link">&para;</a></h2>
 <table>

@@ -2861,12 +2861,22 @@ do not call each other.</p>
 <tr>
 <td><strong>skills/</strong></td>
 <td>YAML + SKILL.md</td>
-<td>Diagnostic workflows over SQL</td>
+<td>Skill content SSOT</td>
+</tr>
+<tr>
+<td><strong>probing-skills</strong></td>
+<td><code>probing/crates/skills/</code></td>
+<td>Shared loader, interpreter, runner (CLI / Web / MCP)</td>
+</tr>
+<tr>
+<td><strong>python/probing/extensions/</strong></td>
+<td>entry points</td>
+<td>Skill + magic + vendor package discovery</td>
 </tr>
 <tr>
 <td><strong>python/probing/</strong></td>
 <td>Python package</td>
-<td>Hooks, <code>query()</code>, skills loader, nccl helper</td>
+<td>Hooks, <code>query()</code>, agent install helpers</td>
 </tr>
 </tbody>
 </table>
@@ -2980,8 +2990,11 @@ do not call each other.</p>
 <ul>
 <li>Skills <strong>only</strong> talk to the engine via SQL (<code>probing query</code>) or documented HTTP APIs.</li>
 <li>No Rust/Python code in skills — YAML + markdown only.</li>
-<li>CLI (<code>probing/cli/skill/</code>), Python (<code>python/probing/skills/</code>), Web (<code>web/src/agent/skill.rs</code>)
-  are <strong>loaders</strong>; skill content is single source in <code>skills/</code>.</li>
+<li><strong>Content SSOT:</strong> <code>skills/</code> (wheel: <code>python/probing/bundled_skills/</code>).</li>
+<li><strong>Discovery:</strong> <code>python/probing/extensions/</code> entry points + <code>GET /apis/pythonext/skills/*</code>.</li>
+<li><strong>Execution SSOT:</strong> <code>probing-skills</code> — CLI (<code>probing/cli/skill/</code>), Web WASM
+  (<code>web/src/agent/runner.rs</code>), MCP (<code>run_skill</code> / <code>plan_skill</code> in server).</li>
+<li>Python <code>probing/skills/</code> is discovery + agent install only; not an execution path.</li>
 </ul>
 <h3 id="35-wire-protocol-cli-web-server">3.5 Wire protocol — CLI / Web ↔ Server<a class="headerlink" href="#35-wire-protocol-cli-web-server" title="Permanent link">&para;</a></h3>
 <p><strong>Where:</strong> <code>probing/proto/</code></p>
@@ -3203,7 +3216,7 @@ commands, rather than letting <code>probing-python</code> spread imports across 
 <tr>
 <td>Table/column semantic docs</td>
 <td>probing-core</td>
-<td><code>semantic_catalog</code> → <code>probe.probing.table_docs</code> / <code>column_docs</code></td>
+<td>Code-first <code>docs</code> registry + <code>resources/tables.yaml</code> overlay → <code>probe.probing.table_docs</code> / <code>column_docs</code></td>
 </tr>
 <tr>
 <td>mmap format, compaction</td>
@@ -3382,8 +3395,8 @@ commands, rather than letting <code>probing-python</code> spread imports across 
 </tr>
 <tr>
 <td>Core → skills YAML</td>
-<td><code>semantic_catalog.rs</code> <code>include_str!(skills/semantic/tables.yaml)</code></td>
-<td>Accept as L4 overlay SSOT, or move YAML under <code>probing/core/resources/</code></td>
+<td>~~<code>semantic_catalog.rs</code> <code>include_str!(skills/semantic/tables.yaml)</code>~~</td>
+<td><strong>Done</strong> — overlay at <code>probing/core/resources/tables.yaml</code>; descriptions SSOT in <code>docs</code> registry</td>
 </tr>
 <tr>
 <td>Server → python <code>features/*</code></td>
@@ -3402,8 +3415,8 @@ commands, rather than letting <code>probing-python</code> spread imports across 
 </tr>
 <tr>
 <td>Skills triple loader</td>
-<td>Rust + Python + Web embed <code>skills/</code></td>
-<td>Keep <code>skills/</code> SSOT; loaders versioned together in CI</td>
+<td>~~Rust + Python + Web compile-time embed~~</td>
+<td><strong>Done</strong> — <code>probing-skills</code> is loader/interpret/runner SSOT; Python keeps discovery entry-points + PyO3 serialize bridge; Web deserializes API into shared types</td>
 </tr>
 <tr>
 <td>kmsg collector</td>
@@ -3465,7 +3478,7 @@ They do not replace each other.</p>
 <li>Adding business logic to <code>server/engine.rs</code> beyond registration.</li>
 <li>Web page importing SQL strings for tables that don't exist in catalog.</li>
 <li>Collector calling <code>Engine::async_query</code> from write path.</li>
-<li>Skill embedding one-off Rust code paths.</li>
+<li>Skill execution outside <code>probing-skills</code> (duplicate runners in Python or Web).</li>
 </ul>
 <hr />
 <h2 id="10-related-documents">10. Related documents<a class="headerlink" href="#10-related-documents" title="Permanent link">&para;</a></h2>

@@ -1306,15 +1306,54 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#path-3-nccl-profiler-plugin-c-cdylib" class="md-nav__link">
+  <a href="#path-3-repl-magic" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Path 3: NCCL profiler plugin (C cdylib)
+        Path 3: REPL Magic
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Path 3: NCCL profiler plugin (C cdylib)">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#path-4-vendor-extension-package-probing-vendor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Path 4: Vendor extension package (probing-&lt;vendor&gt;)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Path 4: Vendor extension package (probing-&lt;vendor&gt;)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#discovery-entry-points-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Discovery: entry points only
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#path-5-nccl-profiler-plugin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Path 5: NCCL profiler plugin (C cdylib)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Path 5: NCCL profiler plugin (C cdylib)">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2554,15 +2593,54 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#path-3-nccl-profiler-plugin-c-cdylib" class="md-nav__link">
+  <a href="#path-3-repl-magic" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Path 3: NCCL profiler plugin (C cdylib)
+        Path 3: REPL Magic
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Path 3: NCCL profiler plugin (C cdylib)">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#path-4-vendor-extension-package-probing-vendor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Path 4: Vendor extension package (probing-&lt;vendor&gt;)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Path 4: Vendor extension package (probing-&lt;vendor&gt;)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#discovery-entry-points-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Discovery: entry points only
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#path-5-nccl-profiler-plugin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Path 5: NCCL profiler plugin (C cdylib)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Path 5: NCCL profiler plugin (C cdylib)">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2718,7 +2796,7 @@
 
 
 <h1 id="extensibility">Extensibility<a class="headerlink" href="#extensibility" title="Permanent link">&para;</a></h1>
-<p>Probing exposes <strong>two public extension paths</strong>. Everything else (Rust collectors, HTTP handlers, import hooks) is internal to the core project.</p>
+<p>Probing exposes <strong>four public extension paths</strong>. Everything else (Rust collectors, HTTP handlers, import hooks) is internal to the core project.</p>
 <table>
 <thead>
 <tr>
@@ -2738,9 +2816,19 @@
 <td><code>SKILL.md</code> + optional <code>steps.yaml</code></td>
 <td>Agent / <code>probing skill run …</code> / Web</td>
 </tr>
+<tr>
+<td><strong>3. REPL Magic</strong></td>
+<td>IPython <code>Magics</code> subclass</td>
+<td>Python page / <code>probing eval</code> REPL</td>
+</tr>
+<tr>
+<td><strong>4. Vendor package</strong></td>
+<td>Standalone pip <code>probing-&lt;vendor&gt;</code></td>
+<td>Auto-discovered skills + magics (+ optional tables)</td>
+</tr>
 </tbody>
 </table>
-<p><strong>Decision rule:</strong> expose <strong>data</strong> → write a table plugin. Contribute <strong>how to investigate</strong> → write a skill.</p>
+<p><strong>Decision rule:</strong> expose <strong>data</strong> → table plugin; <strong>how to investigate</strong> → skill; <strong>REPL shortcuts</strong> → magic; <strong>vendor/ecosystem bundle</strong> → publish <code>probing-nvidia</code>-style package.</p>
 <pre class="mermaid"><code>flowchart LR
     P["Table plugin\n(@table + init)"] --&gt; T["python.my_table"]
     T --&gt; Q["SQL / CLI / Web / Agent"]
@@ -2978,10 +3066,15 @@
 </span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>./skills/install.sh
 </span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>probing<span class="w"> </span>skill<span class="w"> </span>update
 </span></code></pre></div>
-<p>Python tool API (bundled skills, no install required):</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">probing.skills.tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">list_skills</span><span class="p">,</span> <span class="n">run_skill</span>
+<p>Python tool API (discovery / plan only — execution is Rust CLI or MCP):</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">probing.skills.tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">list_skills</span><span class="p">,</span> <span class="n">plan_skill_run</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="n">plan_skill_run</span><span class="p">(</span><span class="s2">&quot;health_overview&quot;</span><span class="p">)</span>  <span class="c1"># returns CLI command + step SQL preview</span>
 </span></code></pre></div>
-<p>Web Agent loads skill frontmatter for routing (<code>description</code> + <code>tables</code>), injects <code>SKILL.md</code> body into context, and runs <code>steps.yaml</code> when present.</p>
+<p><strong>Execution SSOT:</strong> <code>probing-skills</code> crate — CLI <code>probing skill run</code>, MCP <code>run_skill</code> /
+<code>plan_skill</code>, Web Investigate Agent (WASM). Python <code>GET /apis/pythonext/skills/*</code> endpoints
+are discovery-only (catalog, routing, load JSON).</p>
+<p>Web Agent loads skill frontmatter for routing (<code>description</code> + <code>tables</code>), injects <code>SKILL.md</code>
+body into context, and runs <code>steps.yaml</code> via the shared Rust runner when present.</p>
 <h3 id="register-a-skill">Register a skill<a class="headerlink" href="#register-a-skill" title="Permanent link">&para;</a></h3>
 <ol>
 <li>Add <code>skills/my_check/SKILL.md</code> (required)</li>
@@ -2993,13 +3086,98 @@
 <p>Skills may reference <strong>any</strong> SQL table—Path 1 plugin tables, built-in tables (<code>cpu.utilization</code>, <code>gpu.utilization</code>, <code>python.torch_trace</code>, …), and <code>global.*</code> for multi-rank fan-out.</p>
 <p>See <code>skills/README.md</code> and <a href="https://github.com/DeepLink-org/probing/blob/main/AGENTS.md">AGENTS.md</a> for routing, install, and cluster fan-out.</p>
 <hr />
-<h2 id="path-3-nccl-profiler-plugin-c-cdylib">Path 3: NCCL profiler plugin (C cdylib)<a class="headerlink" href="#path-3-nccl-profiler-plugin-c-cdylib" title="Permanent link">&para;</a></h2>
+<h2 id="path-3-repl-magic">Path 3: REPL Magic<a class="headerlink" href="#path-3-repl-magic" title="Permanent link">&para;</a></h2>
+<p><strong>Magics</strong> are IPython line commands (e.g. <code>%query</code>). Built-ins live under <code>python/probing/repl/*_magic.py</code>. Third parties register via the <strong><code>probing.magics</code></strong> entry point (<code>Magics</code> subclass).</p>
+<p>Bundle magics with skills in a <strong><code>probing-&lt;vendor&gt;</code></strong> package (Path 4) rather than a one-off unnamed pip project.</p>
+<hr />
+<h2 id="path-4-vendor-extension-package-probing-vendor">Path 4: Vendor extension package (<code>probing-&lt;vendor&gt;</code>)<a class="headerlink" href="#path-4-vendor-extension-package-probing-vendor" title="Permanent link">&para;</a></h2>
+<p>Ecosystem partners (NVIDIA, Huawei, cloud vendors, framework teams) should publish <strong>standalone pip packages</strong> with a unified name:</p>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Convention</th>
+<th>Examples</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PyPI / wheel</td>
+<td><code>probing-&lt;vendor&gt;</code> (kebab-case)</td>
+<td><code>probing-nvidia</code>, <code>probing-huawei</code></td>
+</tr>
+<tr>
+<td>Import package</td>
+<td><code>probing_&lt;vendor&gt;</code> (snake_case)</td>
+<td><code>probing_nvidia</code>, <code>probing_huawei</code></td>
+</tr>
+<tr>
+<td>Entry point key</td>
+<td>Usually the vendor slug</td>
+<td><code>nvidia = "probing_nvidia:skill_root"</code></td>
+</tr>
+</tbody>
+</table>
+<p>Layout:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>probing-nvidia/
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>├── pyproject.toml
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>└── src/probing_nvidia/
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>    ├── __init__.py       # skill_root()
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>    ├── magics.py         # probing.magics
+</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>    └── skills/
+</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>        ├── catalog.yaml
+</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>        └── …/
+</span></code></pre></div>
+<h3 id="discovery-entry-points-only">Discovery: entry points only<a class="headerlink" href="#discovery-entry-points-only" title="Permanent link">&para;</a></h3>
+<p>Skills and magics use the <strong>same</strong> setuptools registry:</p>
+<table>
+<thead>
+<tr>
+<th>Group</th>
+<th>Registers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>probing.skills</code></td>
+<td><code>skill_root()</code> → directory with <code>catalog.yaml</code></td>
+</tr>
+<tr>
+<td><code>probing.magics</code></td>
+<td><code>Magics</code> subclass</td>
+</tr>
+</tbody>
+</table>
+<p>Use the <strong>same vendor slug</strong> in both groups. With <code>pip install -e .</code>, edits under <code>skills/</code> or <code>magics.py</code> apply immediately — entry points resolve to real source paths.</p>
+<p><code>package-data</code> only ships files inside the wheel; probing does <strong>not</strong> scan it for discovery.</p>
+<p>Prefix skill ids and magic commands (<code>nvidia_nccl_triage</code>, <code>%nvidia_smi</code>) to avoid runtime overrides.</p>
+<div class="language-toml highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="k">[project]</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;probing-nvidia&quot;</span>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="n">dependencies</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;probing&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;ipython&gt;=8.0&quot;</span><span class="p">]</span>
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>
+</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="k">[project.entry-points.</span><span class="s2">&quot;probing.skills&quot;</span><span class="k">]</span>
+</span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="n">nvidia</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;probing_nvidia:skill_root&quot;</span>
+</span><span id="__span-15-7"><a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>
+</span><span id="__span-15-8"><a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="k">[project.entry-points.</span><span class="s2">&quot;probing.magics&quot;</span><span class="k">]</span>
+</span><span id="__span-15-9"><a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="n">nvidia</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;probing_nvidia.magics:NvidiaMagic&quot;</span>
+</span><span id="__span-15-10"><a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a>
+</span><span id="__span-15-11"><a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a><span class="k">[tool.setuptools.package-data]</span>
+</span><span id="__span-15-12"><a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a><span class="n">probing_nvidia</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;skills/**&quot;</span><span class="p">]</span>
+</span></code></pre></div>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.<span class="w">   </span><span class="c1"># dev: register once, iterate on skills/magics</span>
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>python<span class="w"> </span>-m<span class="w"> </span>probing.extensions<span class="w"> </span>extensions
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>probing<span class="w"> </span>skill<span class="w"> </span>list
+</span></code></pre></div>
+<p>Template: <code>examples/probing-acme/</code>.</p>
+<p>Optional <code>@table</code> plugins in the same package: <code>python.enabled=probing_nvidia</code>.</p>
+<hr />
+<h2 id="path-5-nccl-profiler-plugin">Path 5: NCCL profiler plugin (C cdylib)<a class="headerlink" href="#path-5-nccl-profiler-plugin" title="Permanent link">&para;</a></h2>
 <p>For <strong>fine-grained NCCL wait decomposition</strong> (culprit vs victim), use the standalone Rust profiler loaded by NCCL itself—not a Python table plugin.</p>
 <h3 id="enable-in-training">Enable in training<a class="headerlink" href="#enable-in-training" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NCCL_PROFILER_PLUGIN</span><span class="o">=</span><span class="k">$(</span>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--plugin-path<span class="k">)</span>
-</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NCCL_PROFILE_EVENT_MASK</span><span class="o">=</span><span class="k">$(</span>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--event-mask<span class="k">)</span><span class="w">  </span><span class="c1"># default 94</span>
-</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PROBING</span><span class="o">=</span><span class="m">2</span>
-</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>torchrun<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">8</span><span class="w"> </span>train.py
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NCCL_PROFILER_PLUGIN</span><span class="o">=</span><span class="k">$(</span>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--plugin-path<span class="k">)</span>
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NCCL_PROFILE_EVENT_MASK</span><span class="o">=</span><span class="k">$(</span>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--event-mask<span class="k">)</span><span class="w">  </span><span class="c1"># default 94</span>
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PROBING</span><span class="o">=</span><span class="m">2</span>
+</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>torchrun<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">8</span><span class="w"> </span>train.py
 </span></code></pre></div>
 <p>Requires <strong>NCCL ≥ 2.26</strong> (PyTorch 2.8+). The plugin exports <code>ncclProfiler_v3</code> only and writes mmap tables consumed by probing SQL:</p>
 <table>
@@ -3021,51 +3199,51 @@
 </tbody>
 </table>
 <h3 id="query-and-diagnose">Query and diagnose<a class="headerlink" href="#query-and-diagnose" title="Permanent link">&para;</a></h3>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">rank</span><span class="p">,</span><span class="w"> </span><span class="k">sum</span><span class="p">(</span><span class="n">send_gpu_wait_ns</span><span class="p">),</span><span class="w"> </span><span class="k">sum</span><span class="p">(</span><span class="n">recv_wait_ns</span><span class="p">)</span>
-</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="k">FROM</span><span class="w"> </span><span class="n">nccl</span><span class="p">.</span><span class="n">proxy_ops</span>
-</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">rank</span>
-</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">rank</span><span class="p">,</span><span class="w"> </span><span class="k">sum</span><span class="p">(</span><span class="n">send_gpu_wait_ns</span><span class="p">),</span><span class="w"> </span><span class="k">sum</span><span class="p">(</span><span class="n">recv_wait_ns</span><span class="p">)</span>
+</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="k">FROM</span><span class="w"> </span><span class="n">nccl</span><span class="p">.</span><span class="n">proxy_ops</span>
+</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">rank</span>
+</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
 </span></code></pre></div>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>probing<span class="w"> </span>-t<span class="w"> </span>&lt;pid&gt;<span class="w"> </span>skill<span class="w"> </span>run<span class="w"> </span>nccl_culprit_victim
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>probing<span class="w"> </span>-t<span class="w"> </span>&lt;pid&gt;<span class="w"> </span>skill<span class="w"> </span>run<span class="w"> </span>nccl_culprit_victim
 </span></code></pre></div>
 <p><strong>Culprit</strong> ranks show high <code>send_gpu_wait_ns</code> (local GPU slow); <strong>victim</strong> ranks show high <code>recv_wait_ns</code> (waiting on peers/network). See <a href="../nccl-profiler/">NCCL profiler plugin</a> for schema, mock workflow, and smoke-test checklist.</p>
 <p>Coarse collective latency (<code>python.comm_collective</code>) remains available without the plugin; skills <code>slow_rank</code> and <code>comm_bottleneck</code> optionally join <code>nccl.proxy_ops</code> when present.</p>
 <h3 id="macos-dev-without-nccl">macOS / dev without NCCL<a class="headerlink" href="#macos-dev-without-nccl" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">PROBING_NCCL_MOCK</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--seed-mock
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">PROBING_NCCL_MOCK</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--seed-mock
 </span></code></pre></div>
 <p>Seeds synthetic culprit (rank 2, high <code>send_gpu_wait_ns</code>) and victim (rank 5, high <code>recv_wait_ns</code>) for skill/SQL testing.</p>
 <h3 id="build">Build<a class="headerlink" href="#build" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>make<span class="w"> </span>nccl-profiler-lib<span class="w">   </span><span class="c1"># Linux .so → python/probing/libs/</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>make<span class="w"> </span>nccl-profiler-lib<span class="w">   </span><span class="c1"># Linux .so → python/probing/libs/</span>
 </span></code></pre></div>
 <p>Crate: <code>probing/extensions/nccl-profiler/</code>.</p>
 <hr />
 <h2 id="best-practices">Best practices<a class="headerlink" href="#best-practices" title="Permanent link">&para;</a></h2>
 <h3 id="keep-rows-small">Keep rows small<a class="headerlink" href="#keep-rows-small" title="Permanent link">&para;</a></h3>
 <p>Write scalars and small structs per step—not full model state or weight tensors.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="c1"># Good</span>
-</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="n">MyMetrics</span><span class="p">(</span><span class="n">step</span><span class="o">=</span><span class="n">step</span><span class="p">,</span> <span class="n">loss</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">loss</span><span class="p">))</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
-</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>
-</span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="c1"># Avoid</span>
-</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="n">MyMetrics</span><span class="p">(</span><span class="n">step</span><span class="o">=</span><span class="n">step</span><span class="p">,</span> <span class="n">payload</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">state_dict</span><span class="p">())</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="c1"># Good</span>
+</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="n">MyMetrics</span><span class="p">(</span><span class="n">step</span><span class="o">=</span><span class="n">step</span><span class="p">,</span> <span class="n">loss</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">loss</span><span class="p">))</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+</span><span id="__span-22-3"><a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>
+</span><span id="__span-22-4"><a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="c1"># Avoid</span>
+</span><span id="__span-22-5"><a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="n">MyMetrics</span><span class="p">(</span><span class="n">step</span><span class="o">=</span><span class="n">step</span><span class="p">,</span> <span class="n">payload</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">state_dict</span><span class="p">())</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
 </span></code></pre></div>
 <h3 id="handle-errors-in-the-writer">Handle errors in the writer<a class="headerlink" href="#handle-errors-in-the-writer" title="Permanent link">&para;</a></h3>
 <p>Sampling hooks should not crash training:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_safe_record</span><span class="p">(</span><span class="n">step</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">loss</span><span class="p">):</span>
-</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>    <span class="k">try</span><span class="p">:</span>
-</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>        <span class="n">MyMetrics</span><span class="p">(</span><span class="n">step</span><span class="o">=</span><span class="n">step</span><span class="p">,</span> <span class="n">loss</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">loss</span><span class="p">))</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
-</span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-</span><span id="__span-20-5"><a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a>        <span class="k">pass</span>  <span class="c1"># or log once</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_safe_record</span><span class="p">(</span><span class="n">step</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">loss</span><span class="p">):</span>
+</span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>    <span class="k">try</span><span class="p">:</span>
+</span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>        <span class="n">MyMetrics</span><span class="p">(</span><span class="n">step</span><span class="o">=</span><span class="n">step</span><span class="p">,</span> <span class="n">loss</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">loss</span><span class="p">))</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+</span><span id="__span-23-4"><a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+</span><span id="__span-23-5"><a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>        <span class="k">pass</span>  <span class="c1"># or log once</span>
 </span></code></pre></div>
 <h3 id="prefer-append-over-pull">Prefer append over pull<a class="headerlink" href="#prefer-append-over-pull" title="Permanent link">&para;</a></h3>
 <p>Push rows when events happen (step end, collective complete). Do not implement “scan entire process state on every SQL query”—<code>@table</code> is append-only storage, not a lazy snapshot API.</p>
 <h3 id="use-global-for-multi-rank-analysis">Use <code>global.*</code> for multi-rank analysis<a class="headerlink" href="#use-global-for-multi-rank-analysis" title="Permanent link">&para;</a></h3>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="c1">-- Align by parallel role across ranks (each row also carries a `role` column</span>
-</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="c1">-- written at record time; `_role` is the federation tag for the source node).</span>
-</span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">_role</span><span class="p">,</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="k">avg</span><span class="p">(</span><span class="n">duration_ms</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">avg_ms</span>
-</span><span id="__span-21-4"><a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span>
-</span><span id="__span-21-5"><a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">global_step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">100</span>
-</span><span id="__span-21-6"><a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">_role</span><span class="p">,</span><span class="w"> </span><span class="n">_rank</span>
-</span><span id="__span-21-7"><a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">avg_ms</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="c1">-- Align by parallel role across ranks (each row also carries a `role` column</span>
+</span><span id="__span-24-2"><a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="c1">-- written at record time; `_role` is the federation tag for the source node).</span>
+</span><span id="__span-24-3"><a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">_role</span><span class="p">,</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="k">avg</span><span class="p">(</span><span class="n">duration_ms</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">avg_ms</span>
+</span><span id="__span-24-4"><a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span>
+</span><span id="__span-24-5"><a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">global_step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">100</span>
+</span><span id="__span-24-6"><a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">_role</span><span class="p">,</span><span class="w"> </span><span class="n">_rank</span>
+</span><span id="__span-24-7"><a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">avg_ms</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
 </span></code></pre></div>
 <hr />
 <h2 id="not-public-extension-apis">Not public extension APIs<a class="headerlink" href="#not-public-extension-apis" title="Permanent link">&para;</a></h2>
@@ -3096,7 +3274,7 @@
 </tr>
 </tbody>
 </table>
-<p>To extend Probing, use <strong>Path 1 (table plugin)</strong>, <strong>Path 2 (diagnostic skill)</strong>, or <strong>Path 3 (NCCL profiler cdylib)</strong> for fine-grained collective wait data.</p>
+<p>To extend Probing, use <strong>Path 1 (table plugin)</strong>, <strong>Path 2 (diagnostic skill)</strong>, <strong>Path 3 (REPL Magic)</strong>, <strong>Path 4 (<code>probing-&lt;vendor&gt;</code> package)</strong>, or <strong>Path 5 (NCCL profiler cdylib)</strong> for fine-grained collective wait data.</p>
 <hr />
 <h2 id="related-docs">Related docs<a class="headerlink" href="#related-docs" title="Permanent link">&para;</a></h2>
 <ul>

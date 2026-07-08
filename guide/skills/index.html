@@ -2186,8 +2186,10 @@
 
 <h1 id="diagnostic-skills">Diagnostic Skills<a class="headerlink" href="#diagnostic-skills" title="Permanent link">&para;</a></h1>
 <p><strong>Skills</strong> are versioned, multi-step SQL playbooks for common training investigations.
-They ship in the wheel (<code>python/probing/_skills/</code>), run from the CLI, Python loader, and
-Web Investigate Agent.</p>
+They ship in the wheel (<code>python/probing/bundled_skills/</code> via <code>probing.skills</code> entry point),
+execute via the shared Rust runner (<code>probing-skills</code>: CLI, Web Agent, MCP), and are
+discovered at runtime from bundled trees, repo checkout, and installed <code>probing-&lt;vendor&gt;</code>
+packages.</p>
 <h2 id="when-to-use-skills-vs-raw-sql">When to use skills vs raw SQL<a class="headerlink" href="#when-to-use-skills-vs-raw-sql" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -2298,8 +2300,10 @@ Use <code>step_snapshot()</code> coordinates and <code>_role</code> / <code>_ran
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>  SKILL.md      # intent, when to use, human summary
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>  steps.yaml    # ordered SQL steps with params
 </span></code></pre></div>
-<p>Semantic metadata (<code>tables.yaml</code>, <code>intents.yaml</code>) links skills to SQL catalog and Web UI.
-See <strong><a href="../../contributing/#skills-agents">Contributing</a></strong> and <code>skills/semantic/</code>.</p>
+<p>Agent routing metadata (<code>intents.yaml</code>, <code>pages.yaml</code>) lives under <code>skills/semantic/</code>.
+Table/column descriptions are code-first in collectors and <code>@table</code>; <code>probing/core/resources/tables.yaml</code>
+is an L1 agent overlay (synonyms, notes, <code>global_name</code>) merged at engine startup into
+<code>probe.probing.table_docs</code> / <code>column_docs</code>. See <strong><a href="../../contributing/#skills-agents">Contributing</a></strong>.</p>
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong><a href="../sql-analytics/">SQL Analytics</a></strong> — <code>global.*</code>, <code>_role</code> GROUP BY</li>
