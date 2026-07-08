@@ -123,6 +123,42 @@
       "method": "GET",
       "uses_body": false,
       "response": { "content_type": "application/json", "cors": false }
+    },
+    {
+      "local_path": "skills/list",
+      "method": "GET",
+      "uses_body": false,
+      "response": { "content_type": "application/json", "cors": false }
+    },
+    {
+      "local_path": "skills/load",
+      "method": "GET",
+      "uses_body": false,
+      "response": { "content_type": "application/json", "cors": false }
+    },
+    {
+      "local_path": "skills/catalog",
+      "method": "GET",
+      "uses_body": false,
+      "response": { "content_type": "application/json", "cors": false }
+    },
+    {
+      "local_path": "skills/routing",
+      "method": "GET",
+      "uses_body": false,
+      "response": { "content_type": "application/json", "cors": false }
+    },
+    {
+      "local_path": "skills/roots",
+      "method": "GET",
+      "uses_body": false,
+      "response": { "content_type": "application/json", "cors": false }
+    },
+    {
+      "local_path": "extensions/list",
+      "method": "GET",
+      "uses_body": false,
+      "response": { "content_type": "application/json", "cors": false }
     }
   ],
   "other_extensions": [
@@ -249,6 +285,13 @@
       {
         "source": "web/src/api/analytics.rs",
         "calls": [{ "method": "POST", "path": "/query" }]
+      },
+      {
+        "source": "web/src/api/skills.rs",
+        "calls": [
+          { "method": "GET", "path": "/apis/pythonext/skills/routing" },
+          { "method": "GET", "path": "/apis/pythonext/skills/load" }
+        ]
       }
     ],
     "cli": [

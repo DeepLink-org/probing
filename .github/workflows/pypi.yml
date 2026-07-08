@@ -41,7 +41,7 @@ jobs:
         env:
           SKIP_FRONTEND_CLEAN: "1"
         run: |
-          if [ ! -f web/dist/index.html ]; then
+          if [ ! -f python/probing/bundled_web/public/index.html ]; then
             make frontend
           fi
           make wheel-bundle nccl-profiler-lib
@@ -80,7 +80,7 @@ jobs:
         env:
           SKIP_FRONTEND_CLEAN: "1"
         run: |
-          if [ ! -f web/dist/index.html ]; then
+          if [ ! -f python/probing/bundled_web/public/index.html ]; then
             make frontend
           fi
           make wheel-bundle
@@ -114,7 +114,7 @@ jobs:
         env:
           SKIP_FRONTEND_CLEAN: "1"
         run: |
-          if [ ! -f web/dist/index.html ]; then
+          if [ ! -f python/probing/bundled_web/public/index.html ]; then
             make frontend
           fi
           make wheel-bundle nccl-profiler-lib

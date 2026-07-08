@@ -67,7 +67,17 @@ All handlers live in `python/probing/handlers/pythonext.py`, one canonical local
 | GET | `/apis/pythonext/ray/timeline` | `ray/timeline` |
 | GET | `/apis/pythonext/ray/timeline/chrome` | `ray/timeline/chrome` |
 | GET | `/apis/pythonext/magics` | `magics` |
+| GET | `/apis/pythonext/skills/list` | `skills/list` — merged catalog |
+| GET | `/apis/pythonext/skills/load?id=` | `skills/load` — one skill JSON |
+| GET | `/apis/pythonext/skills/catalog` | `skills/catalog` |
+| GET | `/apis/pythonext/skills/routing` | `skills/routing` — catalog + intents + pages |
+| GET | `/apis/pythonext/skills/roots` | `skills/roots` — discovered skill directories |
+| GET | `/apis/pythonext/extensions/list` | `extensions/list` — installed `probing-<vendor>` packages |
 | GET | `/apis/pythonext/flight-recorder/snapshot?include_stack_traces=&only_active=&persist=` | `flight-recorder/snapshot` |
+
+Skill HTTP endpoints above are **discovery only** (catalog, routing, load JSON). Execution
+uses the Rust `probing-skills` runner: CLI `probing skill run`, MCP `run_skill` /
+`plan_skill`, or Web Investigate Agent (WASM).
 
 Rust-backed endpoints (`callstack`, `eval`) are thin `@ext_handler` wrappers around `probing._core.api_callstack` / `api_eval`.
 
@@ -101,9 +111,9 @@ When built with the `rmcp` feature (default in the PyPI wheel), the server expos
 |------|---------|
 | `query` | Read-only SQL against the in-process engine (`limit` caps rows) |
 | `describe_tables` | Semantic docs from `probe.probing.table_docs` / `column_docs` |
-| `list_skills` | List bundled diagnostic skills |
-| `plan_skill` | Expand a skill into SQL/API steps without executing |
-| `run_skill` | Execute a diagnostic skill (local process; optional `use_global`) |
+| `list_skills` | List diagnostic skills (bundled + entry-point extensions) |
+| `plan_skill` | Expand a skill into SQL/API steps (Rust in-process) |
+| `run_skill` | Execute a diagnostic skill (Rust in-process) |
 | `list_cluster_nodes` | `GET /apis/nodes` — registered cluster members |
 | `cluster_query` | Read-only SQL with optional cluster fan-out (`cluster` default `true`) |
 

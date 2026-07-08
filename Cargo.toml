@@ -15,6 +15,7 @@ members = [
     "probing/extensions/hccl-profapi",
     "probing/server",
     "probing/crates/store",
+    "probing/crates/skills",
 ]
 
 [workspace.package]

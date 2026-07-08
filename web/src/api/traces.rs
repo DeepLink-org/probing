@@ -3,9 +3,6 @@ use crate::utils::error::Result;
 use probing_proto::prelude::Ele;
 use serde::{Deserialize, Serialize};
 
-type SpanStartInfo = (i64, String, Option<String>, i64);
-type SpanStartMap = std::collections::HashMap<(i64, i64), SpanStartInfo>;
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TraceEvent {
     pub record_type: String,
@@ -294,223 +291,21 @@ impl ApiClient {
         Ok(result)
     }
 
-    /// Get JSON data in Chrome tracing format
-    /// Returns format compatible with Chrome DevTools tracing viewer
+    /// Get JSON data in Chrome tracing format via the Python extension API.
     pub async fn get_chrome_tracing_json(&self, limit: Option<usize>) -> Result<String> {
-        let mut events = self.get_trace_events(limit).await?;
+        let limit = limit.unwrap_or(1000);
+        let path = format!("/apis/pythonext/trace/chrome-tracing?limit={limit}");
+        let response = self.get_request(&path).await?;
 
-        // Sort by timestamp ascending, ensure span_start is processed before span_end
-        // This way when processing span_end, the corresponding span_start is already in span_starts
-        events.sort_by_key(|e| e.timestamp);
-
-        // Find minimum timestamp as baseline
-        let min_timestamp = events.iter().map(|e| e.timestamp).min().unwrap_or(0);
-
-        // Convert to Chrome tracing format
-        let mut trace_events: Vec<serde_json::Value> = Vec::new();
-
-        // Use (span_id, thread_id) as key to track span start time, supports multi-threaded scenarios
-        // Value contains: (start timestamp in microseconds, span name, phase, trace_id)
-        let mut span_starts: SpanStartMap = std::collections::HashMap::new();
-
-        // First pass: collect all span_start events, build lookup table
-        // This helps match span_end events, even if trace_id in span_end is 0
-        let mut span_start_lookup: SpanStartMap = std::collections::HashMap::new();
-        // Build span_id to parent_id mapping, used to find top-level spans
-        let mut span_to_parent: std::collections::HashMap<i64, Option<i64>> =
-            std::collections::HashMap::new();
-        // Find first (earliest) top-level span's trace_id, use as unified pid
-        let mut unified_pid: Option<i64> = None;
-
-        for event in &events {
-            if event.record_type == "span_start" {
-                let key = (event.span_id, event.thread_id);
-                span_start_lookup.insert(
-                    key,
-                    (
-                        event.timestamp,
-                        event.name.clone(),
-                        event.phase.clone(),
-                        event.trace_id,
-                    ),
-                );
-
-                // Record parent_id mapping
-                span_to_parent.insert(event.span_id, event.parent_id);
-
-                // If it's a top-level span (no parent_id or parent_id = -1), and unified_pid not set yet
-                // Use first top-level span's trace_id as unified pid
-                if unified_pid.is_none()
-                    && (event.parent_id.is_none() || event.parent_id == Some(-1))
-                {
-                    unified_pid = Some(event.trace_id);
-                }
-            }
+        let json_value: serde_json::Value = serde_json::from_str(&response)?;
+        if let Some(error_obj) = json_value.get("error") {
+            return Err(crate::utils::error::AppError::Api(format!(
+                "Backend error: {}",
+                error_obj
+            )));
         }
 
-        // If no top-level span found, use first span_start's trace_id
-        let unified_pid = unified_pid.unwrap_or_else(|| {
-            events
-                .iter()
-                .find(|e| e.record_type == "span_start")
-                .map(|e| e.trace_id)
-                .unwrap_or(1)
-        });
-
-        // Second pass: convert events to Chrome tracing format
-        for event in &events {
-            // Convert nanoseconds to microseconds (Chrome tracing uses microseconds)
-            let ts_micros = (event.timestamp - min_timestamp) / 1000;
-            // All top-level spans use unified pid, child spans also use unified pid (they belong to same logical trace)
-            // This ensures all related spans are displayed in the same process
-            let pid = unified_pid as u32;
-            let tid = event.thread_id as u32;
-
-            match event.record_type.as_str() {
-                "span_start" => {
-                    // Use (span_id, thread_id) as key
-                    let key = (event.span_id, event.thread_id);
-                    // Store using unified pid
-                    span_starts.insert(
-                        key,
-                        (
-                            ts_micros,
-                            event.name.clone(),
-                            event.phase.clone(),
-                            unified_pid,
-                        ),
-                    );
-
-                    // Create 'B' (Begin) event
-                    let mut chrome_event = serde_json::json!({
-                        "name": event.name,
-                        "cat": event.phase.as_ref().unwrap_or(&"span".to_string()),
-                        "ph": "B",
-                        "ts": ts_micros,
-                        "pid": pid,
-                        "tid": tid,
-                    });
-
-                    // Add optional parameters
-                    let mut args = serde_json::Map::new();
-                    if let Some(ref location) = event.location {
-                        if !location.is_empty() {
-                            args.insert(
-                                "location".to_string(),
-                                serde_json::Value::String(location.clone()),
-                            );
-                        }
-                    }
-                    if let Some(ref attrs) = event.attributes {
-                        if !attrs.is_empty() {
-                            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(attrs) {
-                                args.insert("attributes".to_string(), parsed);
-                            }
-                        }
-                    }
-                    if !args.is_empty() {
-                        chrome_event["args"] = serde_json::Value::Object(args);
-                    }
-
-                    trace_events.push(chrome_event);
-                }
-                "span_end" => {
-                    // Use (span_id, thread_id) as key to find corresponding span_start
-                    let key = (event.span_id, event.thread_id);
-
-                    // First try to find from already processed events
-                    if let Some((start_ts, start_name, start_phase, start_pid)) =
-                        span_starts.get(&key)
-                    {
-                        // Found matching span_start, create 'E' (End) event
-                        let mut chrome_event = serde_json::json!({
-                            "name": start_name,
-                            "cat": start_phase.as_ref().unwrap_or(&"span".to_string()),
-                            "ph": "E",
-                            "ts": ts_micros,
-                            "pid": *start_pid as u32,
-                            "tid": tid,
-                        });
-
-                        // Calculate duration (in microseconds)
-                        let dur = ts_micros - start_ts;
-                        if dur > 0 {
-                            chrome_event["dur"] = serde_json::Value::Number(dur.into());
-                        }
-
-                        trace_events.push(chrome_event);
-                        // Remove from span_starts to avoid duplicate matching
-                        span_starts.remove(&key);
-                    } else if let Some((start_timestamp, start_name, start_phase, _)) =
-                        span_start_lookup.get(&key)
-                    {
-                        // Find span_start information from lookup table
-                        let start_ts_micros = (start_timestamp - min_timestamp) / 1000;
-                        // Use unified pid to ensure all spans are in the same process
-                        let mut chrome_event = serde_json::json!({
-                            "name": start_name,
-                            "cat": start_phase.as_ref().unwrap_or(&"span".to_string()),
-                            "ph": "E",
-                            "ts": ts_micros,
-                            "pid": unified_pid as u32,
-                            "tid": tid,
-                        });
-
-                        // Calculate duration (in microseconds)
-                        let dur = ts_micros - start_ts_micros;
-                        if dur > 0 {
-                            chrome_event["dur"] = serde_json::Value::Number(dur.into());
-                        }
-
-                        trace_events.push(chrome_event);
-                    } else {
-                        // No matching span_start found (may have been filtered by limit)
-                        // Use unified pid to ensure all spans are in the same process
-                        let chrome_event = serde_json::json!({
-                            "name": if event.name.is_empty() { "unknown_span" } else { &event.name },
-                            "cat": "span",
-                            "ph": "E",
-                            "ts": ts_micros,
-                            "pid": unified_pid as u32,
-                            "tid": tid,
-                        });
-                        trace_events.push(chrome_event);
-                    }
-                }
-                "event" => {
-                    // Create 'i' (Instant) event
-                    let mut chrome_event = serde_json::json!({
-                        "name": event.name,
-                        "cat": "event",
-                        "ph": "i",
-                        "ts": ts_micros,
-                        "pid": pid,
-                        "tid": tid,
-                        "s": "t", // scope: thread
-                    });
-
-                    // Add event attributes
-                    if let Some(ref attrs) = event.event_attributes {
-                        if !attrs.is_empty() {
-                            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(attrs) {
-                                chrome_event["args"] = parsed;
-                            }
-                        }
-                    }
-
-                    trace_events.push(chrome_event);
-                }
-                _ => {}
-            }
-        }
-
-        // Build complete Chrome tracing format JSON
-        let chrome_trace = serde_json::json!({
-            "traceEvents": trace_events,
-            "displayTimeUnit": "ms",
-        });
-
-        Ok(serde_json::to_string_pretty(&chrome_trace)?)
+        Ok(response)
     }
 
     /// Get Ray task execution timeline

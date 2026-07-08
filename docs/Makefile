@@ -1,6 +1,6 @@
 # Makefile for Probing Documentation (MkDocs)
 
-PYTHON ?= $(shell test -x ../.venv/bin/python && echo ../.venv/bin/python || echo python3)
+PYTHON ?= $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/../.venv/bin/python)
 
 .PHONY: help install serve build lint clean deploy
 

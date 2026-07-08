@@ -1,12 +1,12 @@
 //! Structured diagnostic skills (``probing skill``).
 
-pub mod interpret;
-pub mod loader;
+mod backend;
 mod runner;
 
-pub use loader::{
-    build_context, default_parameters, expand_template, list_skill_ids, load_skill, Skill,
-    SkillStep,
+pub use probing_skills::{
+    build_context, default_parameters, derive_variables, evaluate_rules, expand_template,
+    list_skill_ids, load_skill, plan_skill, InterpretFinding, InterpretRule, Skill, SkillParameter,
+    SkillStep, StepEvidence,
 };
 pub use runner::{list_skills as list_skills_sync, run_skill, run_skill_json};
 

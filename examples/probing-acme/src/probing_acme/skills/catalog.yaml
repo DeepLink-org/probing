@@ -1,0 +1,8 @@
+apiVersion: probing.dev/v1
+kind: Catalog
+skills:
+  - id: acme_health
+    category: triage
+    priority: 50
+    description: "Acme vendor demo skill — confirms extension discovery"
+    path: acme_health/steps.yaml

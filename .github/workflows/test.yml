@@ -28,11 +28,19 @@ jobs:
           (cd web && cargo fmt --all -- --check)
           make lint-rust
 
+      - name: Python and docs lint
+        working-directory: ${{ github.workspace }}
+        run: |
+          .venv/bin/python -m pip install -q ruff
+          make lint-python
+          make docs-install
+          make lint-docs
+
       - name: Build wheel
         env:
           SKIP_FRONTEND_CLEAN: "1"
         run: |
-          if [ ! -f web/dist/index.html ]; then
+          if [ ! -f python/probing/bundled_web/public/index.html ]; then
             make frontend
           fi
           make wheel-ci
@@ -160,7 +168,7 @@ jobs:
           SKIP_FRONTEND_CLEAN: "1"
           PROBING: "1"
         run: |
-          if [ ! -f web/dist/index.html ]; then
+          if [ ! -f python/probing/bundled_web/public/index.html ]; then
             make frontend
           fi
           make wheel-ci

@@ -36,6 +36,7 @@ make test-python-regression    # Python 冒烟；完整套件：make test
 | 方向 | 典型工作 | 主要目录 | 先读 | 入门任务示例 |
 |------|----------|----------|------|----------------|
 | **Skill** | 训练诊断流程 | [`skills/`](https://github.com/DeepLink-org/probing/blob/main/skills/README.md) | [AGENTS.md](https://github.com/DeepLink-org/probing/blob/main/AGENTS.md)、[扩展 — skill](design/extensibility.zh.md#path-2-diagnostic-skill) | 新增 skill、改 `steps.yaml` 里的 SQL、完善 `SKILL.md` |
+| **厂商扩展包** | 独立 pip `probing-<vendor>`（entry point 注册 skills + magics） | 模板 `examples/probing-acme/` | [扩展 — 厂商包](design/extensibility.zh.md#path-4-vendor-extension-package-probing-vendor) | 发布 `probing-nvidia` / `probing-huawei` 等 |
 | **Python** | 表插件、hook、skill 工具 | `python/probing/`、[`python/probing/skills/`](https://github.com/DeepLink-org/probing/blob/main/python/probing/skills/README.md) | [扩展 — 表插件](design/extensibility.zh.md#path-1-table-plugin-dataclass--table) | `@table` 示例、`tests/regression/skills/` 补测试 |
 | **文档与示例** | 概念、教程、排错 | `docs/src/`、`examples/` | [核心概念](guide/concepts.zh.md) | 修正文档、补充 troubleshooting |
 | **Rust** | 引擎、服务、采集、CLI | `probing/`（Rust workspace） | [模块化](design/modularity.zh.md) | `probing/core`、`probing/server` 相关 issue |

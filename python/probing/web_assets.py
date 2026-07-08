@@ -9,26 +9,36 @@ _ENV = "PROBING_ASSETS_ROOT"
 _BUNDLED_DIRNAME = "bundled_web"
 
 
-def bundled_web_dir() -> Path | None:
-    """Wheel / install tree: ``python/probing/bundled_web/`` (bundled by ``make wheel``)."""
+def _package_dir() -> Path:
+    return Path(__file__).resolve().parent
+
+
+def _bundled_web_candidates() -> list[Path]:
+    """``dx bundle`` emits ``bundled_web/public/``; legacy wheels may be flat."""
     root = _package_dir() / _BUNDLED_DIRNAME
-    if (root / "index.html").is_file():
-        return root
-    return _resource_dir(_BUNDLED_DIRNAME, "index.html")
+    return [root / "public", root]
+
+
+def bundled_web_dir() -> Path | None:
+    """Wheel / install tree: ``python/probing/bundled_web[/public]``."""
+    for candidate in _bundled_web_candidates():
+        if (candidate / "index.html").is_file():
+            return candidate
+    for rel in ("bundled_web/public", "bundled_web"):
+        root = _resource_dir(rel, "index.html")
+        if root is not None:
+            return root
+    return None
 
 
 def dev_web_dir() -> Path | None:
-    """Editable checkout: repo ``web/dist/``."""
+    """Editable checkout: ``web/dist`` symlink → ``bundled_web/public``."""
     if _running_from_installed_wheel():
         return None
     root = _repo_root_from_editable() / "web" / "dist"
     if (root / "index.html").is_file():
         return root
-    return None
-
-
-def _package_dir() -> Path:
-    return Path(__file__).resolve().parent
+    return bundled_web_dir()
 
 
 def _running_from_installed_wheel() -> bool:
@@ -40,11 +50,13 @@ def _repo_root_from_editable() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def _resource_dir(name: str, marker: str) -> Path | None:
+def _resource_dir(rel: str, marker: str) -> Path | None:
     try:
         from importlib.resources import as_file, files
 
-        bundle = files("probing") / name
+        bundle = files("probing")
+        for part in rel.split("/"):
+            bundle = bundle / part
         if not (bundle / marker).is_file():
             return None
         with as_file(bundle) as path:
@@ -74,17 +86,10 @@ def resolve_web_assets_root() -> Path | None:
             return root
         return None
 
-    # Editable checkout: prefer freshly built ``web/dist`` over stale ``bundled_web``.
-    if not _running_from_installed_wheel():
-        dev = dev_web_dir()
-        if dev:
-            if _looks_like_built_ui(dev):
-                return dev
-
-    bundled = bundled_web_dir()
-    if bundled:
-        if _looks_like_built_ui(bundled):
-            return bundled
+    for getter in (dev_web_dir, bundled_web_dir):
+        root = getter()
+        if root and _looks_like_built_ui(root):
+            return root
 
     return dev_web_dir()
 

@@ -1,7 +1,9 @@
 # 诊断 Skill
 
-**Skill** 是针对常见训练问题的多步 SQL 剧本，带版本与参数。内置在 wheel
-（`python/probing/_skills/`），可由 CLI、Python loader 与 Web Investigate Agent 执行。
+**Skill** 是针对常见训练问题的多步 SQL 剧本，带版本与参数。通过 `probing.skills`
+entry point 打进 wheel（`python/probing/bundled_skills/`），由共享 Rust runner
+（`probing-skills`：CLI、Web Agent、MCP）执行，并在运行时从内置树、仓库 checkout、
+已安装的 `probing-<vendor>` 包中发现。
 
 ## 何时用 skill、何时写 SQL
 
@@ -68,8 +70,10 @@ skills/<id>/
   steps.yaml    # 有序 SQL 步骤与参数
 ```
 
-语义元数据（`tables.yaml`、`intents.yaml`）连接 skill、SQL 目录与 Web UI。见
-**[贡献指南](../contributing.zh.md)** 与 `skills/semantic/`。
+Agent 路由元数据（`intents.yaml`、`pages.yaml`）位于 `skills/semantic/`。
+表/列描述以采集器与 `@table` 代码注册为 SSOT；`probing/core/resources/tables.yaml` 为 L1 agent overlay
+（synonyms、notes、global_name），在引擎启动时合并进 `probe.probing.table_docs` / `column_docs`。见
+**[贡献指南](../contributing.zh.md)**。
 
 ## 相关
 

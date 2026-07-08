@@ -9,10 +9,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::Router;
-use probing_cli::cli::skill::{
-    build_context, default_parameters, expand_template, list_skill_ids, load_skill, run_skill_json,
-    SkillStep,
-};
+use probing_cli::cli::skill::{list_skill_ids, load_skill, plan_skill, run_skill_json};
 use probing_proto::prelude::{Query, QueryDataFormat};
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
@@ -213,27 +210,12 @@ impl ProbingMcp {
     }
 
     #[tool(description = "Expand a diagnostic skill into SQL/API steps without executing them.")]
-    fn plan_skill(
+    async fn plan_skill(
         &self,
         Parameters(PlanSkillArgs { skill_id, params }): Parameters<PlanSkillArgs>,
     ) -> Result<CallToolResult, rmcp::ErrorData> {
-        let skill = load_skill(&skill_id).map_err(|e| tool_error(e.to_string()))?;
-        let mut merged = default_parameters(&skill);
-        merged.extend(params);
-        let ctx = build_context(&skill, &merged);
-        let steps: Vec<serde_json::Value> = skill
-            .steps
-            .iter()
-            .map(|step| step_to_plan_json(step, &ctx))
-            .collect();
-        let payload = serde_json::json!({
-            "skill_id": skill.id,
-            "title": skill.title,
-            "parameters": merged,
-            "steps": steps,
-            "next_steps": skill.next_steps,
-        });
-        Ok(text_result(payload.to_string()))
+        let value = plan_skill(&skill_id, params).map_err(|e| tool_error(e.0))?;
+        Ok(text_result(value.to_string()))
     }
 
     #[tool(description = "Run a diagnostic skill against the local probing process.")]
@@ -248,7 +230,8 @@ impl ProbingMcp {
         if let Some(global) = use_global {
             params.insert("use_global".to_string(), global.to_string());
         }
-        match run_skill_json(local_ctrl(), &skill_id, params).await {
+        let ctrl = local_ctrl();
+        match run_skill_json(ctrl, &skill_id, params).await {
             Ok(value) => Ok(text_result(value.to_string())),
             Err(err) => Err(tool_error(err.to_string())),
         }
@@ -532,25 +515,6 @@ fn cell_as_str(ele: &probing_proto::prelude::Ele) -> String {
         probing_proto::prelude::Ele::Text(s) | probing_proto::prelude::Ele::Url(s) => s.clone(),
         other => other.to_string(),
     }
-}
-
-fn step_to_plan_json(step: &SkillStep, ctx: &HashMap<String, String>) -> serde_json::Value {
-    let mut value = serde_json::json!({
-        "id": step.id,
-        "title": step.title,
-        "type": step.step_type,
-        "on_empty": step.on_empty,
-    });
-    if let Some(sql) = &step.sql {
-        value["sql"] = serde_json::Value::String(expand_template(sql, ctx));
-    }
-    if let Some(path) = &step.path {
-        value["path"] = serde_json::Value::String(path.clone());
-    }
-    if let Some(when) = &step.when {
-        value["when"] = serde_json::Value::String(when.clone());
-    }
-    value
 }
 
 fn text_result(text: String) -> CallToolResult {

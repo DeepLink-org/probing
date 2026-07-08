@@ -10,9 +10,10 @@ extension crate. Tables live under schema prefixes that reflect their data sourc
 device sampling, `cluster.*` for node registry, `nccl.*` for the NCCL profiler
 plugin, and `global.<schema>.<table>` for federated cross-rank queries.
 
-The authoritative schema definitions live in `skills/semantic/tables.yaml` (used by
-diagnostic skills and the Web Agent). The tables on this page are kept in sync with
-that file.
+The authoritative schema definitions live in `probing/core/resources/tables.yaml` (agent
+overlay) and in-code collector/`@table` docs (description SSOT). Query via
+`probe.probing.table_docs` / `column_docs`. The tables on this page are kept in sync with
+that overlay file.
 
 To see what tables are actually available on a live endpoint:
 

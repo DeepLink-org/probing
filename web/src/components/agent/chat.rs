@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use dioxus::prelude::*;
 
 use crate::agent::{
-    evaluate_rules, evidence_from_outcomes, format_findings, list_skill_ids, load_skill,
+    evaluate_rules_for_skill, format_findings, list_skill_ids, load_skill,
     refresh_page_snapshot_for_route, resolve_skill_id, run_skill, select_skill, summarize_run,
 };
 use crate::app::Route;
@@ -568,8 +568,7 @@ async fn run_skill_flow(
             if session.is_cancelled() {
                 return;
             }
-            let evidence = evidence_from_outcomes(&outcomes);
-            let findings = evaluate_rules(&pb.interpretation, &evidence, &ctx);
+            let findings = evaluate_rules_for_skill(&pb, &outcomes, &ctx);
             let evidence = crate::agent::outcomes_to_evidence(&outcomes);
             for outcome in outcomes {
                 push_agent_message(AgentMessage::step_card(step_outcome_to_card(outcome)));

@@ -27,12 +27,18 @@ Keep the propagation chain clean — don't reintroduce scattered `map_err`/`insp
 
 ## Skills
 
-All diagnostic skills live under **`skills/`**. Each subdirectory contains:
+All diagnostic skills live under **`skills/`** (authoring SSOT; wheel copy in
+`python/probing/bundled_skills/`). Each subdirectory contains:
 
 - **`SKILL.md`** — when to use the skill and how to interpret results (read this for routing)
 - **`steps.yaml`** — executable probe steps (used by `probing skill run` and the Web Investigate agent)
 
 Browse the catalog: `skills/catalog.yaml`
+
+**Architecture:** *Discovery* — Python entry points (`python -m probing.extensions skill-roots`)
+or server API (`GET /apis/pythonext/skills/*`). *Execution* — Rust `probing-skills`
+(CLI in-process, MCP `run_skill` / `plan_skill`, Web WASM). Python `probing.skills.tools`
+is discovery/plan only.
 
 ## Install skills into your agent
 
@@ -75,11 +81,11 @@ When the probing server is running (e.g. after `PROBING=1`), connect your agent 
 
 See `probing/server/API.md`.
 
-From Python (e.g. in agent-generated scripts):
+From Python (discovery / catalog only — execution is Rust CLI or MCP):
 
 ```python
-from probing.skills.tools import list_skills, run_skill
-run_skill("health_overview", target="<pid>")
+from probing.skills.tools import list_skills, plan_skill_run
+plan_skill_run("health_overview")
 ```
 
 ## Built-in skills (summary)
@@ -101,4 +107,7 @@ Details in each `skills/<id>/SKILL.md`.
 
 ## Extending
 
-Add table plugins under `python/probing/ext/` (data). Add diagnostic skills under `skills/` (how to investigate). NCCL profiler plugin: `docs/src/design/nccl-profiler.md`. See `docs/src/design/extensibility.md`.
+- **In-repo skills:** `skills/` + `python -m probing.skills validate`
+- **Vendor pip packages:** `probing-<vendor>` — discovery in `python/probing/extensions/`; template `examples/probing-acme/`
+- **Table plugins:** `python/probing/ext/` (`@table` + `python.enabled`)
+- **NCCL profiler:** `docs/src/design/nccl-profiler.md`

@@ -92,6 +92,7 @@ mod profiling;
 mod pulsing;
 mod pytorch;
 mod repl;
+mod skills;
 mod stack;
 mod trace;
 mod traces;
@@ -115,6 +116,8 @@ pub use pulsing::*;
 pub use pytorch::*;
 #[allow(unused_imports)]
 pub use repl::*;
+#[allow(unused_imports)]
+pub use skills::*;
 #[allow(unused_imports)]
 pub use stack::*;
 #[allow(unused_imports)]

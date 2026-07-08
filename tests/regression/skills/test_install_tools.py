@@ -17,7 +17,7 @@ from probing.skills.paths import (
     repo_skills_dir,
     skill_roots,
 )
-from probing.skills.tools import list_skills, plan_skill_run, run_skill
+from probing.skills.tools import list_skills, plan_skill_run
 
 from tests.conftest import is_wheel_install
 
@@ -81,10 +81,10 @@ def test_plan_persistent_straggler_skill():
     assert "100" in worst["sql"]
 
 
-def test_run_skill_plan_only():
-    result = run_skill("health_overview", execute=False)
-    assert result["status"] == "plan"
-    assert "plan" in result
+def test_plan_skill_run_returns_cli_command():
+    plan = plan_skill_run("health_overview")
+    assert plan.skill_id == "health_overview"
+    assert "probing skill run health_overview" in plan.cli_command
 
 
 def test_detect_cursor_project_target(tmp_path: Path):

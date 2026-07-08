@@ -1,23 +1,20 @@
-//! Execute skill steps against the probing HTTP API.
+//! Execute skill steps via the shared Rust runner (no Python).
 
 use std::collections::HashMap;
 
-use crate::agent::cluster::{
-    default_use_global, execute_sql_for_agent, fetch_cluster_snapshot, format_cluster_meta,
-    sql_needs_cluster_fanout,
-};
-use crate::agent::skill::{build_context, expand_sql, load_skill, Skill, SkillStep};
-use crate::api::ClusterQueryMeta;
+use probing_skills::{build_context, resolve_use_global, run_step, RunOptions, Skill};
+
+use crate::agent::skill::load_skill;
+use crate::agent::skills_backend::WebBackend;
 use crate::state::ui_tasks::{open_ui_task, UiTaskKind, UiTaskSession};
 use crate::utils::error::{AppError, Result};
-use probing_proto::prelude::DataFrame;
 
 #[derive(Debug, Clone)]
 pub enum StepOutcome {
     Sql {
         step_id: String,
         title: String,
-        dataframe: DataFrame,
+        dataframe: probing_proto::prelude::DataFrame,
         row_count: usize,
         empty_message: Option<String>,
         cluster_note: Option<String>,
@@ -45,243 +42,88 @@ pub enum StepOutcome {
     },
 }
 
-fn dataframe_rows(df: &DataFrame) -> usize {
-    df.cols.iter().map(|c| c.len()).max().unwrap_or(0)
-}
-
-fn skill_default_use_global(pb: &Skill) -> bool {
-    pb.parameters
-        .iter()
-        .find(|p| p.name == "use_global")
-        .and_then(|p| match &p.default {
-            serde_yaml::Value::Bool(b) => Some(*b),
-            _ => None,
-        })
-        .unwrap_or(false)
-}
-
-async fn resolve_overrides(
-    pb: &Skill,
-    mut overrides: HashMap<String, String>,
-) -> HashMap<String, String> {
-    if overrides.contains_key("use_global") {
-        return overrides;
-    }
-    let snapshot = fetch_cluster_snapshot().await;
-    let default = default_use_global(&snapshot, skill_default_use_global(pb));
-    overrides.insert("use_global".to_string(), default.to_string());
-    overrides
-}
-
-fn should_skip_step(step: &SkillStep, ctx: &HashMap<String, String>) -> Option<String> {
-    let Some(when) = &step.when else {
-        return None;
-    };
-    let w = when.trim();
-    if w == "always" {
-        return None;
-    }
-    if w == "{use_global}" || w.contains("use_global") {
-        let use_global = ctx.get("use_global").map(|v| v == "true").unwrap_or(false);
-        if !use_global {
-            return Some("skipped (单机模式 / use_global=false)".to_string());
-        }
-    }
-    None
-}
-
-fn sql_outcome_from_df(
-    step: &SkillStep,
-    df: DataFrame,
-    cluster_meta: Option<ClusterQueryMeta>,
+fn map_outcome(
+    outcome: probing_skills::runner::StepOutcome,
+    path_hint: Option<String>,
 ) -> StepOutcome {
-    let rows = dataframe_rows(&df);
-    let cluster_note = cluster_meta.as_ref().map(format_cluster_meta);
-    if rows == 0 {
-        match step.on_empty.as_str() {
-            "abort" => StepOutcome::Error {
-                step_id: step.id.clone(),
-                title: step.title.clone(),
-                message: step
-                    .empty_message
-                    .clone()
-                    .unwrap_or_else(|| "Query returned no rows".to_string()),
-            },
-            "warn" => StepOutcome::Sql {
-                step_id: step.id.clone(),
-                title: step.title.clone(),
-                dataframe: df,
-                row_count: 0,
-                empty_message: step.empty_message.clone(),
-                cluster_note,
-            },
-            _ => StepOutcome::Skipped {
-                step_id: step.id.clone(),
-                title: step.title.clone(),
-                reason: step
-                    .empty_message
-                    .clone()
-                    .unwrap_or_else(|| "No data".to_string()),
-            },
-        }
-    } else {
-        StepOutcome::Sql {
-            step_id: step.id.clone(),
-            title: step.title.clone(),
-            dataframe: df,
-            row_count: rows,
+    use probing_skills::runner::StepOutcome as O;
+    match outcome {
+        O::Sql {
+            step_id,
+            title,
+            dataframe,
+            row_count,
+            note,
+            ..
+        } => StepOutcome::Sql {
+            step_id,
+            title,
+            dataframe,
+            row_count,
             empty_message: None,
-            cluster_note,
-        }
-    }
-}
-
-async fn run_sql_step(step: &SkillStep, sql: &str) -> StepOutcome {
-    let cluster_fanout = sql_needs_cluster_fanout(sql, step.cluster.unwrap_or(false));
-    match execute_sql_for_agent(sql, cluster_fanout).await {
-        Ok((df, meta)) => sql_outcome_from_df(step, df, meta),
-        Err(e) => {
-            if step.on_empty == "skip" {
-                StepOutcome::Skipped {
-                    step_id: step.id.clone(),
-                    title: step.title.clone(),
-                    reason: e.display_message(),
-                }
-            } else {
-                StepOutcome::Error {
-                    step_id: step.id.clone(),
-                    title: step.title.clone(),
-                    message: e.display_message(),
-                }
-            }
-        }
-    }
-}
-
-async fn run_api_step(step: &SkillStep) -> StepOutcome {
-    let path = step.path.clone().unwrap_or_default();
-    let client = crate::api::ApiClient::new();
-    if path.contains("callstack") {
-        match client.get_callstack_with_mode(None, "mixed").await {
-            Ok(frames) => {
-                let text = frames
-                    .iter()
-                    .take(24)
-                    .map(|f| format!("{f}"))
-                    .collect::<Vec<_>>()
-                    .join("\n");
-                StepOutcome::ApiText {
-                    step_id: step.id.clone(),
-                    title: step.title.clone(),
-                    text,
-                    path: Some(path),
-                }
-            }
-            Err(e) => StepOutcome::Error {
-                step_id: step.id.clone(),
-                title: step.title.clone(),
-                message: e.display_message(),
-            },
-        }
-    } else if path.contains("/apis/nodes") || path == "/apis/nodes" {
-        match client.get_nodes().await {
-            Ok(nodes) => {
-                let text = nodes
-                    .iter()
-                    .map(|n| {
-                        format!(
-                            "rank={} host={} addr={} status={}",
-                            n.rank
-                                .map(|r| r.to_string())
-                                .unwrap_or_else(|| "—".to_string()),
-                            n.host,
-                            n.addr,
-                            n.status.clone().unwrap_or_else(|| "?".to_string())
-                        )
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n");
-                StepOutcome::ApiText {
-                    step_id: step.id.clone(),
-                    title: step.title.clone(),
-                    text,
-                    path: Some(path),
-                }
-            }
-            Err(e) => StepOutcome::Error {
-                step_id: step.id.clone(),
-                title: step.title.clone(),
-                message: e.display_message(),
-            },
-        }
-    } else {
-        match client.get_raw(&path).await {
-            Ok(body) => StepOutcome::ApiText {
-                step_id: step.id.clone(),
-                title: step.title.clone(),
-                text: body,
-                path: Some(path),
-            },
-            Err(e) => StepOutcome::Error {
-                step_id: step.id.clone(),
-                title: step.title.clone(),
-                message: e.display_message(),
-            },
-        }
-    }
-}
-
-async fn run_step(step: &SkillStep, ctx: &HashMap<String, String>) -> StepOutcome {
-    if let Some(reason) = should_skip_step(step, ctx) {
-        return StepOutcome::Skipped {
-            step_id: step.id.clone(),
-            title: step.title.clone(),
-            reason,
-        };
-    }
-    match step.step_type.as_str() {
-        "sql" => {
-            let Some(sql_tpl) = &step.sql else {
-                return StepOutcome::Error {
-                    step_id: step.id.clone(),
-                    title: step.title.clone(),
-                    message: "SQL step missing query".to_string(),
-                };
-            };
-            let sql = expand_sql(sql_tpl, ctx);
-            run_sql_step(step, &sql).await
-        }
-        "api" => run_api_step(step).await,
-        "ui" => StepOutcome::UiNavigate {
-            step_id: step.id.clone(),
-            title: step.title.clone(),
-            view: step.view.clone().unwrap_or_else(|| "analytics".to_string()),
+            cluster_note: note,
         },
-        other => StepOutcome::Skipped {
-            step_id: step.id.clone(),
-            title: step.title.clone(),
-            reason: format!("unsupported step type: {other}"),
+        O::ApiText {
+            step_id,
+            title,
+            text,
+        } => StepOutcome::ApiText {
+            step_id,
+            title,
+            text,
+            path: path_hint,
+        },
+        O::UiNavigate {
+            step_id,
+            title,
+            view,
+        } => StepOutcome::UiNavigate {
+            step_id,
+            title,
+            view,
+        },
+        O::Skipped {
+            step_id,
+            title,
+            reason,
+        } => StepOutcome::Skipped {
+            step_id,
+            title,
+            reason,
+        },
+        O::Error {
+            step_id,
+            title,
+            message,
+        } => StepOutcome::Error {
+            step_id,
+            title,
+            message,
         },
     }
 }
 
 pub async fn run_skill(
     skill_id: &str,
-    overrides: HashMap<String, String>,
+    mut overrides: HashMap<String, String>,
     session: Option<&UiTaskSession>,
 ) -> Result<(Skill, Vec<StepOutcome>, HashMap<String, String>)> {
     if session.is_some_and(|s| s.is_cancelled()) {
         return Err(AppError::Cancelled);
     }
-    let pb =
+    let skill =
         load_skill(skill_id).ok_or_else(|| AppError::Api(format!("Unknown skill: {skill_id}")))?;
-    let overrides = resolve_overrides(&pb, overrides).await;
+    let backend = WebBackend;
+
+    resolve_use_global(&backend, &skill, &mut overrides).await;
     if session.is_some_and(|s| s.is_cancelled()) {
         return Err(AppError::Cancelled);
     }
-    let ctx = build_context(&pb, &overrides);
+    let ctx = build_context(&skill, &overrides);
+    let options = RunOptions { include_ui: true };
+
     let mut outcomes = Vec::new();
-    for step in &pb.steps {
+    for step in &skill.steps {
         if session.is_some_and(|s| s.is_cancelled()) {
             return Err(AppError::Cancelled);
         }
@@ -297,7 +139,9 @@ pub async fn run_skill(
                 Some(format!("{skill_id} · {}", step.id)),
             ),
         };
-        let outcome = run_step(step, &ctx).await;
+        let path_hint = step.path.clone();
+        let raw = run_step(&backend, step, &ctx, &options).await;
+        let outcome = map_outcome(raw, path_hint);
         if task.is_cancelled() {
             task.cancel();
             return Err(AppError::Cancelled);
@@ -315,5 +159,5 @@ pub async fn run_skill(
             break;
         }
     }
-    Ok((pb, outcomes, ctx))
+    Ok((skill, outcomes, ctx))
 }

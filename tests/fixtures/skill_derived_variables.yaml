@@ -1,0 +1,34 @@
+# Cross-language parity fixture for skill template variables.
+# Keep in sync with probing/cli/src/cli/skill/loader.rs::derive_variables
+# and python/probing/skills/loader.py::derived_variables.
+
+cases:
+  - name: local
+    params:
+      use_global: false
+    expected:
+      comm_table: python.comm_collective
+      table_comm: python.comm_collective
+      nccl_proxy_table: nccl.proxy_ops
+      nccl_coll_table: nccl.coll_perf
+      nccl_inflight_table: nccl.inflight_ops
+      net_qp_table: nccl.net_qp
+      nccl_counters_table: nccl.profiler_counters
+      fr_table: python.torch_nccl_flight_record
+      fr_status_table: python.torch_nccl_pg_status
+      global_prefix: ""
+
+  - name: global
+    params:
+      use_global: true
+    expected:
+      comm_table: global.python.comm_collective
+      table_comm: global.python.comm_collective
+      nccl_proxy_table: global.nccl.proxy_ops
+      nccl_coll_table: global.nccl.coll_perf
+      nccl_inflight_table: global.nccl.inflight_ops
+      net_qp_table: global.nccl.net_qp
+      nccl_counters_table: global.nccl.profiler_counters
+      fr_table: global.python.torch_nccl_flight_record
+      fr_status_table: global.python.torch_nccl_pg_status
+      global_prefix: global.

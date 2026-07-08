@@ -55,7 +55,7 @@ flowchart TB
 | **L1 平台** | SQL 引擎、存储、协议、插件 trait | federation、memtable、config |
 | **L2 采集** | 写表 + 可选 Extension 控制 | GPU、NCCL、主机、Python 运行时 |
 | **L3 控制面** | HTTP、CLI、组装根 | 新 endpoint、认证、cluster fan-out |
-| **L4 体验** | UI、skills、Python 集成 | 诊断 UX、Agent、hooks |
+| **L4 体验** | UI、skills、**extensions**、Python 集成 | 诊断 UX、Agent、hooks、厂商扩展发现 |
 
 **组装根（唯一允许「把所有模块接在一起」的地方）：**
 
@@ -118,8 +118,10 @@ HTTP 契约：`probing/server/API.md` + `tests/regression/spec/api_spec.json`。
 | 单元 | 路径 | 职责 |
 |------|------|------|
 | **web/** | Dioxus | 页面、可视化、Investigate Agent |
-| **skills/** | YAML + SKILL.md | 基于 SQL 的诊断流程 |
-| **python/probing/** | Python 包 | hooks、`query()`、skills 加载 |
+| **skills/** | YAML + SKILL.md | 诊断 skill 内容 SSOT |
+| **probing-skills** | `probing/crates/skills/` | 共享 loader、解释器、runner（CLI / Web / MCP） |
+| **python/probing/extensions/** | entry points | Skills + magics + 厂商包发现（代码 SSOT） |
+| **python/probing/** | Python 包 | hooks、`query()`、agent 安装辅助 |
 
 ---
 
@@ -167,7 +169,12 @@ HTTP 契约：`probing/server/API.md` + `tests/regression/spec/api_spec.json`。
 | `next_steps` | 技能链 |
 
 **规则：** Skill 只通过 SQL / 文档化 HTTP 访问数据；**不含 Rust/Python 业务代码**。
-CLI、Python loader、Web agent 都是**加载器**，内容以 `skills/` 为准。
+
+- **内容 SSOT：** `skills/`（wheel：`python/probing/bundled_skills/`）。
+- **发现：** `python/probing/extensions/` entry point + `GET /apis/pythonext/skills/*`。
+- **执行 SSOT：** `probing-skills` — CLI（`probing/cli/skill/`）、Web WASM
+  （`web/src/agent/runner.rs`）、MCP（server 内 `run_skill` / `plan_skill`）。
+- Python `probing/skills/` 仅负责发现与 agent 安装，**不是**执行路径。
 
 ### 3.5 线协议 — CLI / Web ↔ Server
 
@@ -269,7 +276,7 @@ sequenceDiagram
 | 关注点 | 归属 | 接口 |
 |--------|------|------|
 | SQL 解析、federation 重写 | probing-core | `Engine::async_query` |
-| 表/列语义文档 | probing-core | `semantic_catalog` → `probe.probing.table_docs` / `column_docs` |
+| 表/列语义文档 | probing-core | 代码优先 `docs` 注册表 + `resources/tables.yaml` overlay → `probe.probing.table_docs` / `column_docs` |
 | mmap 格式、冷压缩 | probing-memtable | `RowWriter`, `ColdStore` |
 | Torchrun 集群心跳 | probing-server | `torchrun_cluster.rs`、`cluster_report_backoff.rs`、`PUT /apis/nodes` |
 | 混合 Python/C 栈 | probing-python/features | `python.backtrace`、pprof |
@@ -319,11 +326,11 @@ sequenceDiagram
 | python → cli | `probing-python` → `probing-cli` | **可接受**（maturin wheel，仅 `cli_main`）；禁止扩散 import |
 | python → cc | ~~`probing-python` → `probing-cc`~~ | **已完成** — `send_sigusr2_to_thread_id` 迁至 `probing-core::signal` |
 | core → NCCL/HCCL | `probing-core` → nccl/hccl shim（`builtin-schema-docs`）供 `semantic_catalog` | 改由采集器注册 docs，去掉 L1→L2 编译依赖 |
-| core → skills YAML | `semantic_catalog` `include_str!(skills/semantic/tables.yaml)` | 接受为 L4 overlay SSOT，或迁到 `probing/core/resources/` |
+| core → skills YAML | ~~`semantic_catalog` `include_str!(skills/semantic/tables.yaml)`~~ | **已完成** — overlay 在 `probing/core/resources/tables.yaml`；描述 SSOT 为 `docs` 注册表 |
 | server → python features | ~~`server/profiling.rs`~~ 已删 | 火焰图走 Extension |
 | server → REPL 内部 | ~~`PythonRepl`~~ | `/ws` 仅用 `ReplSession` 门面 |
 | 组装集中 | 全在 server/engine.rs | 可选 extension manifest |
-| Skill 三份 loader | Rust/Python/Web | `skills/` 为 SSOT，CI 同步校验 |
+| Skill 三份 loader | ~~Rust/Python/Web 编译期 embed~~ | **已完成** — `probing-skills` 为 loader/interpret/runner SSOT；Python 保留发现 entry point + PyO3 序列化桥；Web 从 API 反序列化为共享类型 |
 | kmsg 采集器 | 已注册（Linux/kmsg feature gate） | Done |
 | Architecture 文档 | 二层旧图 | 以本文 + [数据层](data-layer.zh.md) 为准 |
 
@@ -354,7 +361,7 @@ sequenceDiagram
         要新命令？ → L3 CLI + proto DTO
 ```
 
-**反模式：** 在 engine.rs 写业务；Web 查不存在的表；采集器在写路径里 query；Skill 内嵌 Rust 分支。
+**反模式：** 在 engine.rs 写业务；Web 查不存在的表；采集器在写路径里 query；Skill 内嵌 Rust 分支；在 `probing-skills` 之外执行 skill（Python/Web 重复 runner）。
 
 ---
 

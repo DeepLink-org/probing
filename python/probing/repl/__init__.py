@@ -176,7 +176,7 @@ class CodeExecutor:
         if original_main:
             shell.user_ns.update(original_main.__dict__)
 
-        # Auto-discover and register magic commands
+        # Auto-discover and register magic commands (in-tree + installed packages).
         import importlib
         import pkgutil
 
@@ -191,6 +191,17 @@ class CodeExecutor:
                 import warnings
 
                 warnings.warn(f"Failed to import {modname}: {e}", ImportWarning)
+
+        try:
+            from probing.extensions import load_magics
+
+            load_magics(_MAGIC_REGISTRY)
+        except Exception as e:
+            import warnings
+
+            warnings.warn(
+                f"Failed to load probing.magics entry points: {e}", ImportWarning
+            )
 
         # Register all magic classes
         for magic_name, magic_class in _MAGIC_REGISTRY.items():

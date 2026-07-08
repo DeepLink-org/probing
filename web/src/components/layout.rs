@@ -4,6 +4,7 @@
 
 use dioxus::prelude::*;
 
+use crate::api::ApiClient;
 use crate::components::agent::{AgentPanel, LlmSettingsOverlay};
 use crate::components::global_command_panel::{
     CommandBar, FloatingResultToast, GlobalCommandPanel,
@@ -33,6 +34,9 @@ pub fn AppLayout(children: Element, #[props(default = false)] fullscreen: bool) 
         load_investigation_context();
         load_llm_config();
         load_agent_panel_width();
+        spawn(async move {
+            let _ = ApiClient::new().load_skill_store().await;
+        });
     });
 
     rsx! {

@@ -212,6 +212,18 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     use probing_python::features::python_api::{api_callstack, api_eval};
     m.add_function(wrap_pyfunction!(api_callstack, m)?)?;
     m.add_function(wrap_pyfunction!(api_eval, m)?)?;
+    use probing_python::features::skills_api::{
+        skills_catalog, skills_intents, skills_list, skills_load, skills_match, skills_pages,
+        skills_plan, skills_routing,
+    };
+    m.add_function(wrap_pyfunction!(skills_load, m)?)?;
+    m.add_function(wrap_pyfunction!(skills_catalog, m)?)?;
+    m.add_function(wrap_pyfunction!(skills_routing, m)?)?;
+    m.add_function(wrap_pyfunction!(skills_list, m)?)?;
+    m.add_function(wrap_pyfunction!(skills_plan, m)?)?;
+    m.add_function(wrap_pyfunction!(skills_match, m)?)?;
+    m.add_function(wrap_pyfunction!(skills_intents, m)?)?;
+    m.add_function(wrap_pyfunction!(skills_pages, m)?)?;
 
     // Add is_enabled function to help tests check state
     use probing_python::features::python_api::{is_enabled, should_enable_probing};
