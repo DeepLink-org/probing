@@ -12,8 +12,8 @@ mod tracing;
 
 pub use diagnostics::install_panic_hook;
 pub use runtime::{
-    block_on, is_python_main_thread, register_python_main_thread, run_on_native_thread,
-    runtime_operational, BlockOnFallback, RuntimeError, CORE_RUNTIME,
+    block_on, is_python_main_thread, on_native_bridge_thread, register_python_main_thread,
+    run_on_native_thread, runtime_operational, BlockOnFallback, RuntimeError, CORE_RUNTIME,
 };
 
 use self::core::Engine;

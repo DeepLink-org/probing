@@ -33,7 +33,17 @@ def _resource_dir(name: str, marker: str) -> Optional[Path]:
 
 
 def bundled_skills_dir() -> Optional[Path]:
-    """SSOT: ``python/probing/bundled_skills`` (repo ``skills/`` symlink)."""
+    """SSOT: ``python/probing/bundled_skills`` (repo ``skills/`` symlink).
+
+    When running inside a probing git checkout, prefer the source tree over a
+    wheel copy under site-packages so dev/CI edits to ``bundled_skills/`` match
+    what discovery returns.
+    """
+    repo = find_repo_root()
+    if repo is not None:
+        checkout = repo / "python" / "probing" / "bundled_skills"
+        if (checkout / "catalog.yaml").is_file():
+            return checkout
     root = _package_dir() / "bundled_skills"
     if (root / "catalog.yaml").is_file():
         return root

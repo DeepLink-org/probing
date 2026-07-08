@@ -15,7 +15,16 @@ def _wait_for_probing_engine():
     """Wait until the in-process probing engine accepts SQL (before IPython threads)."""
     enabled = os.environ.get("PROBING_ORIGINAL") or os.environ.get("PROBING")
     if enabled and str(enabled).lower() not in ("0", "false", "no", ""):
+        import sys
+
         import probing
+
+        # VM eval-frame hook conflicts with pytest-cov on Linux (SIGABRT in query path).
+        if sys.gettrace() is not None or os.environ.get("PROBING_VM_TRACER") == "0":
+            try:
+                probing.disable_tracer()
+            except Exception:
+                pass
 
         deadline = time.monotonic() + 30.0
         last_error: Exception | None = None
