@@ -191,9 +191,12 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Initialize globals and tracer if needed
     if initialize_globals() {
-        // Enable tracer if tracing feature is enabled
-        // Note: This is handled by the probing-python crate's tracing feature
-        let _ = enable_tracer();
+        let disable = std::env::var("PROBING_VM_TRACER").as_deref() == Ok("0");
+        if !disable {
+            // Enable tracer if tracing feature is enabled
+            // Note: This is handled by the probing-python crate's tracing feature
+            let _ = enable_tracer();
+        }
     }
 
     // Register all classes

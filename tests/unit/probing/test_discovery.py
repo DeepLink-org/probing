@@ -69,14 +69,24 @@ def test_entry_point_skill_root_labels():
 
 
 def test_load_magics_no_crash():
+    import threading
+
     from probing.extensions import load_magics
     from probing.repl import get_registered_magics
+
+    # Importing probing.repl must not start an in-process IPython kernel.
+    assert not any(
+        "IOPub" in t.name or "History" in t.name for t in threading.enumerate()
+    )
 
     before = set(get_registered_magics())
     registry = get_registered_magics()
     loaded = load_magics(registry)
     assert isinstance(loaded, list)
     assert before.issubset(set(registry))
+    assert not any(
+        "IOPub" in t.name or "History" in t.name for t in threading.enumerate()
+    )
 
 
 def test_discovery_shim_reexports():

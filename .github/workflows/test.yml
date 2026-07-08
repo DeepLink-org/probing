@@ -31,7 +31,7 @@ jobs:
       - name: Python and docs lint
         working-directory: ${{ github.workspace }}
         run: |
-          .venv/bin/python -m pip install -q ruff
+          python -m pip install -q ruff
           make lint-python
           make docs-install
           make lint-docs

@@ -550,9 +550,10 @@ def get_magics_list() -> str:
         JSON string: [{"group": "Trace", "items": [{"label": "...", "command": "..."}, ...]}, ...]
     """
     try:
-        from probing.repl import debug_console
+        from probing.repl import get_debug_console
         from probing.repl.help_magic import get_magics_for_ui
 
+        debug_console = get_debug_console()
         if (
             debug_console
             and getattr(debug_console, "code_executor", None)
