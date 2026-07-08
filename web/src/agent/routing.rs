@@ -1,67 +1,8 @@
-//! Catalog, intent, and page routing — shared skill index (embedded YAML).
+//! Catalog, intent, and page routing — loaded from probing server at runtime.
 
-use std::collections::HashMap;
-use std::sync::OnceLock;
-
-use serde::Deserialize;
-
+use crate::agent::skill::{catalog_entries, intent_catalog, page_catalog, CatalogEntry};
 use crate::app::Route;
 use crate::state::profiling::normalize_profiling_view;
-
-const CATALOG_YAML: &str = include_str!("../../../skills/catalog.yaml");
-const INTENTS_YAML: &str = include_str!("../../../skills/semantic/intents.yaml");
-const PAGES_YAML: &str = include_str!("../../../skills/semantic/pages.yaml");
-
-#[derive(Debug, Deserialize)]
-struct CatalogFile {
-    #[serde(default)]
-    skills: Vec<CatalogEntry>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct CatalogEntry {
-    id: String,
-    #[serde(default)]
-    priority: i32,
-    #[serde(default)]
-    description: String,
-    #[serde(default)]
-    category: String,
-    #[serde(default)]
-    pages: Vec<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct IntentCatalogFile {
-    #[serde(default)]
-    intents: HashMap<String, IntentEntry>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct IntentEntry {
-    #[serde(default)]
-    label: String,
-    #[serde(default)]
-    keywords: Vec<String>,
-    #[serde(default)]
-    skills: Vec<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct PageCatalogFile {
-    #[serde(default)]
-    pages: HashMap<String, PageEntry>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct PageEntry {
-    pub title: String,
-    pub path: String,
-    #[serde(default)]
-    pub description: String,
-    #[serde(default)]
-    pub skills: Vec<String>,
-}
 
 #[derive(Debug, Clone)]
 pub struct PageDescriptor {
@@ -72,43 +13,18 @@ pub struct PageDescriptor {
     pub suggested_skills: Vec<String>,
 }
 
-fn catalog_file() -> &'static CatalogFile {
-    static CACHE: OnceLock<CatalogFile> = OnceLock::new();
-    CACHE.get_or_init(|| {
-        serde_yaml::from_str(CATALOG_YAML).unwrap_or(CatalogFile { skills: vec![] })
-    })
-}
-
-fn catalog_entries() -> Vec<CatalogEntry> {
-    catalog_file().skills.clone()
-}
-
-fn intent_file() -> &'static IntentCatalogFile {
-    static CACHE: OnceLock<IntentCatalogFile> = OnceLock::new();
-    CACHE.get_or_init(|| {
-        serde_yaml::from_str(INTENTS_YAML).unwrap_or(IntentCatalogFile {
-            intents: HashMap::new(),
-        })
-    })
-}
-
-fn page_file() -> &'static PageCatalogFile {
-    static CACHE: OnceLock<PageCatalogFile> = OnceLock::new();
-    CACHE.get_or_init(|| {
-        serde_yaml::from_str(PAGES_YAML).unwrap_or(PageCatalogFile {
-            pages: HashMap::new(),
-        })
-    })
+pub fn catalog_skills() -> Vec<CatalogEntry> {
+    catalog_entries()
 }
 
 pub fn catalog_skill_ids() -> Vec<String> {
-    let mut entries = catalog_entries();
+    let mut entries = catalog_skills();
     entries.sort_by_key(|e| e.priority);
     entries.into_iter().map(|e| e.id).collect()
 }
 
 fn catalog_entry(id: &str) -> Option<CatalogEntry> {
-    catalog_entries().into_iter().find(|e| e.id == id)
+    catalog_skills().into_iter().find(|e| e.id == id)
 }
 
 pub fn page_id_for_route(route: &Route) -> String {
@@ -132,7 +48,8 @@ pub fn page_id_for_route(route: &Route) -> String {
 
 pub fn describe_route(route: &Route) -> PageDescriptor {
     let page_id = page_id_for_route(route);
-    if let Some(entry) = page_file().pages.get(&page_id) {
+    let pages = page_catalog();
+    if let Some(entry) = pages.get(&page_id) {
         return PageDescriptor {
             page_id: page_id.clone(),
             title: entry.title.clone(),
@@ -142,7 +59,7 @@ pub fn describe_route(route: &Route) -> PageDescriptor {
         };
     }
     if page_id.starts_with("stacks/") {
-        if let Some(entry) = page_file().pages.get("stacks") {
+        if let Some(entry) = pages.get("stacks") {
             return PageDescriptor {
                 page_id: page_id.clone(),
                 title: format!("{} · {}", entry.title, page_id),
@@ -163,8 +80,9 @@ pub fn describe_route(route: &Route) -> PageDescriptor {
 
 pub fn match_intents(query: &str, limit: usize) -> Vec<String> {
     let q = query.to_lowercase();
+    let intents = intent_catalog();
     let mut scored: Vec<(usize, String)> = Vec::new();
-    for intent in intent_file().intents.values() {
+    for intent in intents.values() {
         let hits = intent
             .keywords
             .iter()
@@ -181,6 +99,37 @@ pub fn match_intents(query: &str, limit: usize) -> Vec<String> {
     scored.into_iter().take(limit).map(|(_, id)| id).collect()
 }
 
+#[allow(dead_code)]
+pub fn route_for_page(page_id: &str) -> Option<Route> {
+    let pages = page_catalog();
+    let entry = pages.get(page_id)?;
+    let path = entry.path.trim();
+    if path.is_empty() {
+        return None;
+    }
+    if path.starts_with("/profiling") {
+        let view = path
+            .trim_start_matches("/profiling/")
+            .trim_start_matches('/');
+        let view = if view.is_empty() { "overview" } else { view };
+        return Some(Route::ProfilingViewPage {
+            view: normalize_profiling_view(view).to_string(),
+        });
+    }
+    match path {
+        "/" | "/dashboard" => Some(Route::DashboardPage {}),
+        "/agent" => Some(Route::AgentPage {}),
+        "/cluster" => Some(Route::ClusterPage {}),
+        "/stacks" => Some(Route::StackPage {}),
+        "/analytics" => Some(Route::AnalyticsPage {}),
+        "/python" => Some(Route::PythonPage {}),
+        "/spans" => Some(Route::SpansPage {}),
+        "/pulsing" => Some(Route::PulsingPage {}),
+        "/training" => Some(Route::TrainingPage {}),
+        _ => None,
+    }
+}
+
 pub fn routing_context_for_llm() -> String {
     let mut lines = vec!["Skill catalog (by priority):".to_string()];
     for id in catalog_skill_ids() {
@@ -194,15 +143,18 @@ pub fn routing_context_for_llm() -> String {
             ));
         }
     }
-    lines.push(String::new());
-    lines.push("Intent routing (user language → skills):".to_string());
-    for (intent_id, intent) in &intent_file().intents {
-        lines.push(format!(
-            "- {}: {} → {}",
-            intent_id,
-            intent.label,
-            intent.skills.join(", ")
-        ));
+    let intents = intent_catalog();
+    if !intents.is_empty() {
+        lines.push(String::new());
+        lines.push("Intent routing (user language → skills):".to_string());
+        for (intent_id, intent) in &intents {
+            lines.push(format!(
+                "- {}: {} → {}",
+                intent_id,
+                intent.label,
+                intent.skills.join(", ")
+            ));
+        }
     }
     lines.join("\n")
 }

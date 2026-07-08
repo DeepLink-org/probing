@@ -56,11 +56,12 @@ probing -t rank0:8080 cluster query "SELECT _rank, _role, AVG(duration) FROM glo
 
 ### 诊断 skill
 
-多步 SQL 剧本（与 Web Agent 共用）：
+多步 SQL 剧本（CLI、Web Agent、MCP 共用）。来源包括内置 `skills/` 与已安装包注册的
+`probing.skills` entry point。
 
 | 子命令 | 说明 |
 |--------|------|
-| `skill list` | 列出内置 skill（`health_overview`、`slow_rank` 等） |
+| `skill list` | 列出已发现 skill（内置 + 厂商扩展） |
 | `skill run <id>` | 对目标执行（`-p key=value`、`--global`、`--local`） |
 | `skill install` | 安装到 Cursor / Claude / Codex skill 目录 |
 | `skill update` | 从 bundle 更新已安装 skill |
@@ -69,7 +70,18 @@ probing -t rank0:8080 cluster query "SELECT _rank, _role, AVG(duration) FROM glo
 probing -t $ENDPOINT skill list
 probing -t $ENDPOINT skill run health_overview
 probing -t $ENDPOINT skill run slow_rank --global
-python -m probing.skills validate   # 开发：校验 skills/ 源码树
+python -m probing.skills validate          # 开发：校验 skills/ 源码树
+python -m probing.extensions skill-roots
+python -m probing.extensions extensions
+```
+
+厂商扩展：`pip install probing-nvidia` — 见 **[扩展 — 厂商包](design/extensibility.zh.md#path-4-vendor-extension-package-probing-vendor)**、`examples/probing-acme/`。
+
+Python 辅助 API（仅发现 / 展开计划 — 执行走 Rust CLI 或 MCP）：
+
+```python
+from probing.skills.tools import list_skills, plan_skill_run
+plan_skill_run("health_overview")  # 返回 CLI 命令与步骤 SQL 预览
 ```
 
 见 **[诊断 Skill](guide/skills.zh.md)**。

@@ -1,13 +1,15 @@
 # 扩展机制
 
-Probing 提供 **两条公开扩展路径**（另有一条可选 NCCL 插件路径）。Rust 采集器、HTTP 处理器、import hook 等属于核心内部实现。
+Probing 提供 **四条公开扩展路径**（另有一条可选 NCCL 插件路径）。Rust 采集器、HTTP 处理器、import hook 等属于核心内部实现。
 
 | 路径 | 你贡献什么 | 谁在用 |
 |------|------------|--------|
 | **1. 表插件** | Python dataclass + `@table` | `SELECT … FROM python.*`（CLI、Web、脚本） |
 | **2. 诊断 skill** | `SKILL.md` + 可选 `steps.yaml` | Agent / `probing skill run …` / Web |
+| **3. REPL Magic** | IPython `Magics` 子类 | Python 页 / `probing eval` REPL |
+| **4. 厂商扩展包** | 独立 pip 包 `probing-<vendor>` | 自动发现 skills + magics（+ 可选表插件） |
 
-**决策规则：** 要暴露**数据** → 写表插件；要贡献**怎么查** → 写 skill。
+**决策规则：** 要暴露**数据** → 写表插件；要贡献**怎么查** → 写 skill；要 REPL 快捷命令 → 写 magic；**厂商/生态打包** → 发布 `probing-nvidia` 这类扩展包。
 
 ```mermaid
 flowchart LR
@@ -288,13 +290,19 @@ probing skill install    # skills/ → .cursor/.claude/.agents
 probing skill update
 ```
 
-Python 工具 API（内置 skill，无需 install）：
+Python 工具 API（仅发现 / 展开计划 — 执行走 Rust CLI 或 MCP）：
 
 ```python
-from probing.skills.tools import list_skills, run_skill
+from probing.skills.tools import list_skills, plan_skill_run
+plan_skill_run("health_overview")  # 返回 CLI 命令与步骤 SQL 预览
 ```
 
-Web Agent 用 frontmatter 做路由（`description` + `tables`），将 `SKILL.md` 正文注入上下文；有 `steps.yaml` 时按步骤执行。
+**执行 SSOT：** `probing-skills` crate — CLI `probing skill run`、MCP `run_skill` /
+`plan_skill`、Web Investigate Agent（WASM）。Python `GET /apis/pythonext/skills/*` 仅为
+发现接口（catalog、routing、load JSON）。
+
+Web Agent 用 frontmatter 做路由（`description` + `tables`），将 `SKILL.md` 正文注入上下文；
+有 `steps.yaml` 时由共享 Rust runner 按步骤执行。
 
 ### 注册新 skill
 
@@ -310,7 +318,136 @@ Skill 可引用**任意** SQL 表——路径 1 插件表、内置表（`cpu.uti
 
 ---
 
-## 路径 3：NCCL profiler 插件（C cdylib）
+## 路径 3：REPL Magic {#path-3-repl-magic}
+
+**Magic** 是 IPython REPL 里的行魔法（如 `%query`）。内置 magic 在 `python/probing/repl/*_magic.py`；第三方通过 **`probing.magics`** entry point 注册 `Magics` 子类。
+
+```python
+from IPython.core.magic import Magics, line_magic, magics_class
+
+@magics_class
+class NvidiaMagic(Magics):
+    @line_magic
+    def nvsmi(self, line: str):
+        ...
+```
+
+推荐与 skills 一起打进 **`probing-<vendor>`** 包（路径 4），而不是单独起一个无名 pip 包。
+
+---
+
+## 路径 4：厂商扩展包（`probing-<vendor>`） {#path-4-vendor-extension-package-probing-vendor}
+
+**推荐**第三方（NVIDIA、华为、云厂商、框架团队）以 **独立 pip 包** 贡献 skills、magics，以及可选的表插件。统一命名，便于发现与运维。
+
+### 命名约定
+
+| 层级 | 规则 | 示例 |
+|------|------|------|
+| PyPI / wheel 名 | `probing-<vendor>`（小写 kebab-case） | `probing-nvidia`、`probing-huawei` |
+| Python 导入包 | `probing_<vendor>`（snake_case） | `probing_nvidia`、`probing_huawei` |
+| entry point 键 | 通常与 vendor 一致 | `nvidia = "probing_nvidia:skill_root"` |
+
+不要用 `nvidia-probing` 或 `probing_ext_nvidia` 这类变体——`python -m probing.extensions extensions` 只索引 **`probing-*`** 发行包。
+
+### 包内布局
+
+```
+probing-nvidia/
+├── pyproject.toml
+└── src/probing_nvidia/
+    ├── __init__.py          # skill_root() — probing.skills entry point
+    ├── magics.py            # probing.magics entry point
+    ├── tables.py            # 可选 @table 插件
+    └── skills/
+        ├── catalog.yaml
+        └── nccl_deep_dive/
+            ├── SKILL.md
+            └── steps.yaml
+```
+
+### 统一发现：entry point 注册表
+
+Skills 与 magics **都只通过 setuptools entry point 发现**（同一套机制）：
+
+| Entry point group | 注册内容 |
+|-------------------|----------|
+| `probing.skills` | `skill_root()` → 含 `catalog.yaml` 的目录 |
+| `probing.magics` | `Magics` 子类 |
+
+厂商包在 **两个 group 里用同一个 vendor slug**（如 `nvidia`）。`pip install -e .` 开发模式下改 `skills/` 或 `magics.py` **无需重装**，entry point 指向源码树里的真实路径。
+
+`[tool.setuptools.package-data]` 仅用于把 `skills/**` **打进 wheel**；**不会**被 probing 扫描发现——必须写 entry point。
+
+### 命名与冲突
+
+- **entry point 键**：各包独立注册，多包并存无妨（`nvidia`、`huawei` 各一条）
+- **skill id / %magic 命令**：应用层命名空间，须 vendor 前缀（`nvidia_nccl_triage`、`%nvidia_smi`），避免后者覆盖前者
+
+### `pyproject.toml` 最小示例
+
+```toml
+[project]
+name = "probing-nvidia"
+dependencies = ["probing", "ipython>=8.0"]
+
+[project.entry-points."probing.skills"]
+nvidia = "probing_nvidia:skill_root"
+
+[project.entry-points."probing.magics"]
+nvidia = "probing_nvidia.magics:NvidiaMagic"
+
+[tool.setuptools.package-data]
+probing_nvidia = ["skills/**"]
+```
+
+```python
+# probing_nvidia/__init__.py
+from pathlib import Path
+
+def skill_root() -> Path:
+    return Path(__file__).resolve().parent / "skills"
+```
+
+Magics 在训练进程 REPL 启动时通过 `probing.magics` 注册；skills 合并进全局 catalog，CLI / Web / MCP 无需改 Rust 二进制。
+
+### 开发模式
+
+```bash
+cd probing-nvidia
+pip install -e .          # 一次注册 entry points
+# 编辑 src/probing_nvidia/skills/ 或 magics.py，立即生效
+python -m probing.extensions extensions
+probing skill list
+```
+
+### 安装与验证（用户）
+
+```bash
+pip install probing probing-nvidia
+
+python -m probing.extensions extensions   # 列出已装厂商包
+python -m probing.extensions skill-roots  # 含 nvidia skills 目录
+probing skill list                       # 含厂商 skill id
+```
+
+attach 后 HTTP：`GET /apis/pythonext/extensions/list`
+
+### 可选：表插件
+
+同一包内可再提供 `@table` 模块，用户启用：
+
+```bash
+probing -t <pid> config python.enabled=probing_nvidia
+```
+
+### 模板
+
+仓库内可复制起点：`examples/probing-acme/`（虚构厂商 **acme**，结构同 `probing-nvidia` / `probing-huawei`）。
+
+---
+
+## 路径 5：NCCL profiler 插件（C cdylib） {#path-5-nccl-profiler-plugin}
 
 **细粒度 NCCL 等待分解**（culprit vs victim）使用 NCCL 自身加载的独立 Rust profiler，**不是** Python 表插件。
 
@@ -421,7 +558,7 @@ ORDER BY avg_ms DESC;
 | `add_module_callback` import hook | 官方 torch/ray 集成使用 |
 | `probing-*` CLI 外部二进制 | 独立工具，非数据插件 |
 
-扩展 Probing 请用 **路径 1（表插件）**、**路径 2（诊断 skill）**，或 **路径 3（NCCL profiler cdylib）** 获取细粒度 collective 等待数据。
+扩展 Probing 请用 **路径 1（表插件）**、**路径 2（诊断 skill）**、**路径 3（REPL Magic）**、**路径 4（`probing-<vendor>` 扩展包）**，或 **路径 5（NCCL profiler cdylib）** 获取细粒度 collective 等待数据。
 
 ---
 

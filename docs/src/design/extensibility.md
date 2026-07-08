@@ -1,13 +1,15 @@
 # Extensibility
 
-Probing exposes **two public extension paths**. Everything else (Rust collectors, HTTP handlers, import hooks) is internal to the core project.
+Probing exposes **four public extension paths**. Everything else (Rust collectors, HTTP handlers, import hooks) is internal to the core project.
 
 | Path | You contribute | Consumers use |
 |------|----------------|---------------|
 | **1. Table plugin** | Python dataclass + `@table` | `SELECT … FROM python.*` (CLI, Web, scripts) |
 | **2. Diagnostic skill** | `SKILL.md` + optional `steps.yaml` | Agent / `probing skill run …` / Web |
+| **3. REPL Magic** | IPython `Magics` subclass | Python page / `probing eval` REPL |
+| **4. Vendor package** | Standalone pip `probing-<vendor>` | Auto-discovered skills + magics (+ optional tables) |
 
-**Decision rule:** expose **data** → write a table plugin. Contribute **how to investigate** → write a skill.
+**Decision rule:** expose **data** → table plugin; **how to investigate** → skill; **REPL shortcuts** → magic; **vendor/ecosystem bundle** → publish `probing-nvidia`-style package.
 
 ```mermaid
 flowchart LR
@@ -283,13 +285,19 @@ probing skill install    # skills/ -> .cursor/.claude/.agents skill dirs
 probing skill update
 ```
 
-Python tool API (bundled skills, no install required):
+Python tool API (discovery / plan only — execution is Rust CLI or MCP):
 
 ```python
-from probing.skills.tools import list_skills, run_skill
+from probing.skills.tools import list_skills, plan_skill_run
+plan_skill_run("health_overview")  # returns CLI command + step SQL preview
 ```
 
-Web Agent loads skill frontmatter for routing (`description` + `tables`), injects `SKILL.md` body into context, and runs `steps.yaml` when present.
+**Execution SSOT:** `probing-skills` crate — CLI `probing skill run`, MCP `run_skill` /
+`plan_skill`, Web Investigate Agent (WASM). Python `GET /apis/pythonext/skills/*` endpoints
+are discovery-only (catalog, routing, load JSON).
+
+Web Agent loads skill frontmatter for routing (`description` + `tables`), injects `SKILL.md`
+body into context, and runs `steps.yaml` via the shared Rust runner when present.
 
 ### Register a skill
 
@@ -305,7 +313,80 @@ See `skills/README.md` and [AGENTS.md](https://github.com/DeepLink-org/probing/b
 
 ---
 
-## Path 3: NCCL profiler plugin (C cdylib)
+## Path 3: REPL Magic {#path-3-repl-magic}
+
+**Magics** are IPython line commands (e.g. `%query`). Built-ins live under `python/probing/repl/*_magic.py`. Third parties register via the **`probing.magics`** entry point (`Magics` subclass).
+
+Bundle magics with skills in a **`probing-<vendor>`** package (Path 4) rather than a one-off unnamed pip project.
+
+---
+
+## Path 4: Vendor extension package (`probing-<vendor>`) {#path-4-vendor-extension-package-probing-vendor}
+
+Ecosystem partners (NVIDIA, Huawei, cloud vendors, framework teams) should publish **standalone pip packages** with a unified name:
+
+| Layer | Convention | Examples |
+|-------|------------|----------|
+| PyPI / wheel | `probing-<vendor>` (kebab-case) | `probing-nvidia`, `probing-huawei` |
+| Import package | `probing_<vendor>` (snake_case) | `probing_nvidia`, `probing_huawei` |
+| Entry point key | Usually the vendor slug | `nvidia = "probing_nvidia:skill_root"` |
+
+Layout:
+
+```
+probing-nvidia/
+├── pyproject.toml
+└── src/probing_nvidia/
+    ├── __init__.py       # skill_root()
+    ├── magics.py         # probing.magics
+    └── skills/
+        ├── catalog.yaml
+        └── …/
+```
+
+### Discovery: entry points only
+
+Skills and magics use the **same** setuptools registry:
+
+| Group | Registers |
+|-------|-----------|
+| `probing.skills` | `skill_root()` → directory with `catalog.yaml` |
+| `probing.magics` | `Magics` subclass |
+
+Use the **same vendor slug** in both groups. With `pip install -e .`, edits under `skills/` or `magics.py` apply immediately — entry points resolve to real source paths.
+
+`package-data` only ships files inside the wheel; probing does **not** scan it for discovery.
+
+Prefix skill ids and magic commands (`nvidia_nccl_triage`, `%nvidia_smi`) to avoid runtime overrides.
+
+```toml
+[project]
+name = "probing-nvidia"
+dependencies = ["probing", "ipython>=8.0"]
+
+[project.entry-points."probing.skills"]
+nvidia = "probing_nvidia:skill_root"
+
+[project.entry-points."probing.magics"]
+nvidia = "probing_nvidia.magics:NvidiaMagic"
+
+[tool.setuptools.package-data]
+probing_nvidia = ["skills/**"]
+```
+
+```bash
+pip install -e .   # dev: register once, iterate on skills/magics
+python -m probing.extensions extensions
+probing skill list
+```
+
+Template: `examples/probing-acme/`.
+
+Optional `@table` plugins in the same package: `python.enabled=probing_nvidia`.
+
+---
+
+## Path 5: NCCL profiler plugin (C cdylib) {#path-5-nccl-profiler-plugin}
 
 For **fine-grained NCCL wait decomposition** (culprit vs victim), use the standalone Rust profiler loaded by NCCL itself—not a Python table plugin.
 
@@ -415,7 +496,7 @@ The following exist for core development only. **Do not** build third-party plug
 | `add_module_callback` import hook | Used for official torch/ray integration |
 | `probing-*` CLI external binaries | Separate tools, not data plugins |
 
-To extend Probing, use **Path 1 (table plugin)**, **Path 2 (diagnostic skill)**, or **Path 3 (NCCL profiler cdylib)** for fine-grained collective wait data.
+To extend Probing, use **Path 1 (table plugin)**, **Path 2 (diagnostic skill)**, **Path 3 (REPL Magic)**, **Path 4 (`probing-<vendor>` package)**, or **Path 5 (NCCL profiler cdylib)** for fine-grained collective wait data.
 
 ---
 

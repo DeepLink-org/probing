@@ -1,8 +1,10 @@
 # Diagnostic Skills
 
 **Skills** are versioned, multi-step SQL playbooks for common training investigations.
-They ship in the wheel (`python/probing/_skills/`), run from the CLI, Python loader, and
-Web Investigate Agent.
+They ship in the wheel (`python/probing/bundled_skills/` via `probing.skills` entry point),
+execute via the shared Rust runner (`probing-skills`: CLI, Web Agent, MCP), and are
+discovered at runtime from bundled trees, repo checkout, and installed `probing-<vendor>`
+packages.
 
 ## When to use skills vs raw SQL
 
@@ -79,8 +81,10 @@ skills/<id>/
   steps.yaml    # ordered SQL steps with params
 ```
 
-Semantic metadata (`tables.yaml`, `intents.yaml`) links skills to SQL catalog and Web UI.
-See **[Contributing](../contributing.md#skills-agents)** and `skills/semantic/`.
+Agent routing metadata (`intents.yaml`, `pages.yaml`) lives under `skills/semantic/`.
+Table/column descriptions are code-first in collectors and `@table`; `probing/core/resources/tables.yaml`
+is an L1 agent overlay (synonyms, notes, `global_name`) merged at engine startup into
+`probe.probing.table_docs` / `column_docs`. See **[Contributing](../contributing.md#skills-agents)**.
 
 ## Related
 

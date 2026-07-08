@@ -13,7 +13,7 @@ workflow) and `SKILL.md` (agent-facing documentation).
 skills/
 ├── catalog.yaml                  Master index of all skills
 ├── semantic/
-│   ├── tables.yaml               Table semantic definitions
+│   ├── tables.yaml               Symlink → probing/core/resources/tables.yaml (agent overlay)
 │   ├── intents.yaml              Keyword-to-skill routing
 │   └── pages.yaml                Page-to-skill suggestions
 └── <skill_id>/

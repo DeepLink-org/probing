@@ -80,10 +80,12 @@ fn snapshot_from_nodes(nodes: &[Node]) -> ClusterSnapshot {
 }
 
 /// Whether this SQL should fan out via `/apis/cluster/query`.
+#[allow(dead_code)]
 pub fn sql_needs_cluster_fanout(sql: &str, step_cluster: bool) -> bool {
     step_cluster || sql.to_lowercase().contains("global.")
 }
 
+#[allow(dead_code)]
 pub fn format_cluster_meta(meta: &ClusterQueryMeta) -> String {
     if !meta.cluster {
         return "local query".to_string();
@@ -109,6 +111,7 @@ pub fn cluster_context_for_llm(snapshot: &ClusterSnapshot) -> String {
 }
 
 /// Default `use_global` when the skill parameter is not overridden.
+#[allow(dead_code)]
 pub fn default_use_global(snapshot: &ClusterSnapshot, skill_default: bool) -> bool {
     if !snapshot.is_distributed() {
         return false;
@@ -116,6 +119,7 @@ pub fn default_use_global(snapshot: &ClusterSnapshot, skill_default: bool) -> bo
     skill_default
 }
 
+#[allow(dead_code)]
 pub async fn execute_sql_for_agent(
     sql: &str,
     cluster_fanout: bool,

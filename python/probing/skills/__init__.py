@@ -1,25 +1,18 @@
-"""Probing diagnostic skills — shared by CLI, Web agent, and Python tooling."""
+"""Probing diagnostic skills — discovery via Rust (``probing-skills``), install via Python."""
 
 from probing.skills.loader import (
     Skill,
     SkillCatalog,
     SkillStep,
     expand_skill,
+    expand_template,
     load_catalog,
     load_intents,
     load_pages,
     load_skill,
-    load_semantic_catalog,
     match_skills,
     skills_root,
     validate_all,
-)
-from probing.skills.interpret import (
-    InterpretFinding,
-    StepEvidence,
-    evaluate_rules,
-    evidence_from_dataframe,
-    rule_matches,
 )
 from probing.skills.install import install_skills
 from probing.skills.paths import (
@@ -36,16 +29,12 @@ from probing.skills.tools import (
     list_skills,
     list_skills_json,
     plan_skill_run,
-    run_skill,
-    run_skill_json,
 )
 
 __all__ = [
     "Skill",
     "SkillCatalog",
     "SkillStep",
-    "InterpretFinding",
-    "StepEvidence",
     "AgentInstallTarget",
     "ALL_AGENTS",
     "bundled_skills_dir",
@@ -53,9 +42,8 @@ __all__ = [
     "detect_agent_presence",
     "find_repo_root",
     "repo_skills_dir",
-    "evaluate_rules",
-    "evidence_from_dataframe",
     "expand_skill",
+    "expand_template",
     "install_skills",
     "list_skills",
     "list_skills_json",
@@ -63,13 +51,9 @@ __all__ = [
     "load_intents",
     "load_pages",
     "load_skill",
-    "load_semantic_catalog",
     "match_skills",
     "plan_skill_run",
-    "run_skill",
-    "run_skill_json",
     "skill_roots",
     "skills_root",
-    "rule_matches",
     "validate_all",
 ]

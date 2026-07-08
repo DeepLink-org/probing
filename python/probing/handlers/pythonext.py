@@ -566,6 +566,60 @@ def get_magics_list() -> str:
         return json.dumps({"error": str(e), "traceback": traceback.format_exc()})
 
 
+@ext_handler("pythonext", "skills/list")
+def list_skills_api() -> str:
+    """List discovered diagnostic skills (bundled, repo, packages, overrides)."""
+    import probing._core as core
+
+    return core.skills_list(None, 20)
+
+
+@ext_handler("pythonext", "skills/load", required_params=["id"])
+def load_skill_api(id: str) -> str:
+    """Load one skill definition as JSON."""
+    import probing._core as core
+
+    try:
+        return core.skills_load(id)
+    except Exception as e:
+        msg = str(e)
+        if "Unknown skill" in msg:
+            return json.dumps({"error": f"Unknown skill: {id}"})
+        return json.dumps({"error": msg, "traceback": traceback.format_exc()})
+
+
+@ext_handler("pythonext", "skills/catalog")
+def skills_catalog_api() -> str:
+    """Merged skill catalog (all discovered roots)."""
+    import probing._core as core
+
+    return core.skills_catalog()
+
+
+@ext_handler("pythonext", "skills/routing")
+def skills_routing_api() -> str:
+    """Semantic routing overlays: catalog entries, intents, pages."""
+    import probing._core as core
+
+    return core.skills_routing()
+
+
+@ext_handler("pythonext", "skills/roots")
+def skills_roots_api() -> str:
+    """Discovered skill root directories (for debugging)."""
+    from probing.extensions import skill_roots_json
+
+    return skill_roots_json()
+
+
+@ext_handler("pythonext", "extensions/list")
+def extensions_list_api() -> str:
+    """Installed probing-<vendor> extension packages and their contributions."""
+    from probing.extensions import vendor_extensions_json
+
+    return vendor_extensions_json()
+
+
 @ext_handler("pythonext", "crash/hold")
 def crash_hold() -> str:
     """Extend grace hold for post-crash debugging."""

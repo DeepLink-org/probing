@@ -36,3 +36,4 @@ On Linux you can also attach with `probing -t <pid> inject` instead of `PROBING=
 
 - [Examples (MkDocs)](../docs/src/examples/index.md)
 - [Quick Start](../docs/src/quickstart.md)
+- [Vendor extension template](probing-acme/) — `probing-<vendor>` with entry-point skills + magics

@@ -1,10 +1,10 @@
 //! Semantic table/column documentation for Engine `DESCRIBE` / `SHOW CREATE TABLE`.
 //!
-//! **Primary source:** in-code [`Schema`] docs registered via [`probing_memtable::docs`]
-//! (HCCL/NCCL collectors, mmap `ExposedTable::create`, Python `@table`).
+//! **Primary source (SSOT for descriptions):** in-code [`Schema`] docs registered via
+//! [`probing_memtable::docs`] (HCCL/NCCL collectors, mmap `ExposedTable::create`, Python `@table`).
 //!
-//! **Overlay:** `skills/semantic/tables.yaml` supplies agent synonyms/notes/global_name
-//! and fills gaps for tables not yet migrated to code-first docs.
+//! **Overlay:** `probing/core/resources/tables.yaml` supplies agent synonyms/notes/global_name
+//! and column docs for tables not yet registered in code.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -23,7 +23,7 @@ use serde::Deserialize;
 
 use super::plugin_advanced::PluginAdvancedTable;
 
-const TABLES_YAML: &str = include_str!("../../../../skills/semantic/tables.yaml");
+const TABLES_YAML: &str = include_str!("../../resources/tables.yaml");
 
 pub const DOCS_SCHEMA: &str = "probing";
 pub const TABLE_DOCS: &str = "table_docs";
@@ -36,6 +36,7 @@ struct SemanticCatalogFile {
 
 #[derive(Debug, Deserialize)]
 struct TableEntry {
+    #[serde(default)]
     description: String,
     #[serde(default)]
     synonyms: Vec<String>,
@@ -141,38 +142,29 @@ fn sort_catalog_rows(table_rows: &mut [TableDocRow], column_rows: &mut [ColumnDo
     });
 }
 
-/// Merge YAML overlay with the in-code doc registry (registry wins for descriptions).
+/// Merge in-code doc registry with YAML overlay (registry wins for descriptions/columns).
 pub fn build_semantic_catalog() -> Result<ParsedSemanticCatalog> {
     register_builtin_schema_docs();
 
     let yaml = parse_semantic_catalog_yaml(TABLES_YAML)?;
 
     let mut table_map: HashMap<(String, String), TableDocRow> = HashMap::new();
-    for row in yaml.table_rows {
-        table_map.insert(table_key(&row.table_schema, &row.table_name), row);
-    }
-
     let mut column_map: HashMap<(String, String, String), ColumnDocRow> = HashMap::new();
-    for row in yaml.column_rows {
-        column_map.insert(
-            column_key(&row.table_schema, &row.table_name, &row.column_name),
-            row,
-        );
-    }
 
+    // Code-first: collector / @table / mmap docs are authoritative for descriptions.
     for doc in docs::snapshot() {
         let key = table_key(&doc.table_schema, &doc.table_name);
-        let entry = table_map.entry(key).or_insert_with(|| TableDocRow {
-            table_schema: doc.table_schema.clone(),
-            table_name: doc.table_name.clone(),
-            description: String::new(),
-            synonyms: String::new(),
-            notes: String::new(),
-            global_name: String::new(),
-        });
-        if let Some(desc) = &doc.description {
-            entry.description = desc.clone();
-        }
+        table_map.insert(
+            key,
+            TableDocRow {
+                table_schema: doc.table_schema.clone(),
+                table_name: doc.table_name.clone(),
+                description: doc.description.clone().unwrap_or_default(),
+                synonyms: String::new(),
+                notes: String::new(),
+                global_name: String::new(),
+            },
+        );
         for (column_name, description) in &doc.columns {
             column_map.insert(
                 column_key(&doc.table_schema, &doc.table_name, column_name),
@@ -184,6 +176,40 @@ pub fn build_semantic_catalog() -> Result<ParsedSemanticCatalog> {
                 },
             );
         }
+    }
+
+    // YAML overlay: agent fields always apply; descriptions/columns fill registry gaps only.
+    for row in yaml.table_rows {
+        let key = table_key(&row.table_schema, &row.table_name);
+        match table_map.get_mut(&key) {
+            Some(entry) => {
+                if !row.synonyms.is_empty() {
+                    entry.synonyms = row.synonyms;
+                }
+                if !row.notes.is_empty() {
+                    entry.notes = row.notes;
+                }
+                if !row.global_name.is_empty() {
+                    entry.global_name = row.global_name;
+                }
+                if entry.description.is_empty() && !row.description.is_empty() {
+                    entry.description = row.description;
+                }
+            }
+            None => {
+                table_map.insert(key, row);
+            }
+        }
+    }
+
+    for row in yaml.column_rows {
+        column_map
+            .entry(column_key(
+                &row.table_schema,
+                &row.table_name,
+                &row.column_name,
+            ))
+            .or_insert(row);
     }
 
     let mut table_rows: Vec<TableDocRow> = table_map.into_values().collect();
@@ -205,7 +231,7 @@ static SEMANTIC_COLUMN_INDEX: LazyLock<HashMap<(String, String), Vec<String>>> =
         let yaml = match parse_semantic_catalog_yaml(TABLES_YAML) {
             Ok(yaml) => yaml,
             Err(e) => {
-                log::error!("skills/semantic/tables.yaml failed to parse: {e}");
+                log::error!("probing/core/resources/tables.yaml failed to parse: {e}");
                 return HashMap::new();
             }
         };
@@ -508,6 +534,20 @@ mod tests {
             })
             .expect("nccl.proxy_ops.send_gpu_wait_ns");
         assert!(row.description.contains("Culprit"));
+    }
+
+    #[test]
+    fn build_catalog_yaml_fills_description_when_registry_empty() {
+        let parsed = build_semantic_catalog().unwrap();
+        let torch_trace = parsed
+            .table_rows
+            .iter()
+            .find(|r| r.table_schema == "python" && r.table_name == "torch_trace")
+            .expect("python.torch_trace");
+        assert!(
+            !torch_trace.description.is_empty(),
+            "yaml should supply description for tables without code docs"
+        );
     }
 
     #[test]

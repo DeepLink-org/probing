@@ -1,0 +1,18 @@
+apiVersion: probing.dev/v1
+kind: Skill
+
+metadata:
+  id: acme_health
+  title: "Acme extension check"
+  category: triage
+  docs: "Verify probing-acme is installed and skills are merged."
+
+spec:
+  steps:
+    - id: ping
+      title: "Process alive"
+      type: sql
+      sql: "SELECT 1 AS acme_ok"
+      on_empty: warn
+
+  summary_template: "probing-acme extension is active."

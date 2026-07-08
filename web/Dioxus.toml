@@ -1,5 +1,7 @@
 [application]
 name = "probing-web"
+# dx bundle copies the web public folder here (see Makefile frontend).
+out_dir = "../python/probing/bundled_web"
 # dx autodetects tailwind.config.js (v3) and compiles on build/serve.
 tailwind_input = "tailwind.css"
 tailwind_output = "assets/tailwind.css"

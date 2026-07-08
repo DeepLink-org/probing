@@ -14,25 +14,29 @@ from tests.conftest import is_wheel_install, repo_root
 
 def test_bundled_web_dir_missing_without_sync():
     root = web_assets.bundled_web_dir()
-    checkout_bundled = repo_root() / "python" / "probing" / "bundled_web" / "index.html"
+    checkout_bundled = (
+        repo_root() / "python" / "probing" / "bundled_web" / "public" / "index.html"
+    )
+    legacy_bundled = repo_root() / "python" / "probing" / "bundled_web" / "index.html"
     if is_wheel_install():
         assert root is not None, "installed wheel is missing probing/bundled_web"
         assert (root / "index.html").is_file()
         return
     if root is None:
-        assert not checkout_bundled.is_file()
+        assert not checkout_bundled.is_file() and not legacy_bundled.is_file()
     else:
         assert (root / "index.html").is_file()
 
 
 def test_dev_web_dir_when_frontend_built():
     root = web_assets.dev_web_dir()
-    repo_dist = repo_root() / "web" / "dist" / "index.html"
+    built = repo_root() / "python" / "probing" / "bundled_web" / "public" / "index.html"
     if is_wheel_install():
         pytest.skip("dev_web_dir applies to editable checkout layout only")
-    if repo_dist.is_file():
+    if built.is_file():
         assert root is not None
         assert (root / "index.html").is_file()
+        assert root.resolve() == built.parent.resolve()
     else:
         assert root is None
 

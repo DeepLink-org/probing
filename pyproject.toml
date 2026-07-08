@@ -43,6 +43,15 @@ Issues = "https://github.com/reiase/probing/issues"
 [project.scripts]
 probing = "probing.cli.__main__:main"
 
+[project.entry-points."probing.skills"]
+bundled = "probing.extensions:skill_root_bundled"
+# Vendor packages: probing-<vendor>, same slug in skills + magics groups, e.g.:
+# nvidia = "probing_nvidia:skill_root"
+
+[project.entry-points."probing.magics"]
+# Vendor Magics subclass, e.g.:
+# nvidia = "probing_nvidia.magics:NvidiaMagic"
+
 [project.optional-dependencies]
 otel = [
     "opentelemetry-api>=1.20",

@@ -1,0 +1,42 @@
+# Shared interpretation rule cases — Python tests load this file;
+# Rust mirrors the same scenarios in interpret.rs unit tests.
+
+cases:
+  - name: rows_zero
+    rules:
+      - id: no_tables
+        when: "step:available_tables | rows == 0"
+        severity: error
+        message: no tables
+    steps:
+      - step_id: available_tables
+        row_count: 0
+        columns: {}
+    expect_count: 1
+
+  - name: max_min_ratio
+    rules:
+      - id: straggler
+        when: "step:rank_latency | column:avg_ms | max/min(ratio) > 1.5"
+        severity: warning
+        message: slow
+    steps:
+      - step_id: rank_latency
+        row_count: 3
+        columns:
+          avg_ms: [10.0, 20.0, 40.0]
+    expect_count: 1
+
+  - name: param_rows_threshold
+    rules:
+      - id: growth
+        when: "step:monotonic_growth_steps | rows > {min_steps} * 0.7"
+        severity: info
+        message: growing
+    steps:
+      - step_id: monotonic_growth_steps
+        row_count: 8
+        columns: {}
+    params:
+      min_steps: "10"
+    expect_count: 1

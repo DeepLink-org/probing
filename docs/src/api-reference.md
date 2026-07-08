@@ -56,11 +56,12 @@ In-process equivalent: `probing.query("SELECT … FROM global.python.torch_trace
 
 ### Diagnostic skills
 
-Structured multi-step SQL playbooks (shared with Web Agent):
+Structured multi-step SQL playbooks (CLI, Web Agent, MCP). Skills from the bundled
+tree and from installed packages that register `probing.skills` entry points.
 
 | Subcommand | Description |
 |------------|-------------|
-| `skill list` | List bundled skills (`health_overview`, `slow_rank`, …) |
+| `skill list` | List discovered skills (`health_overview`, vendor extensions, …) |
 | `skill run <id>` | Run skill against target (`-p key=value`, `--global`, `--local`) |
 | `skill install` | Copy skills into Cursor / Claude / Codex agent dirs |
 | `skill update` | Refresh installed skills from bundle |
@@ -69,7 +70,18 @@ Structured multi-step SQL playbooks (shared with Web Agent):
 probing -t $ENDPOINT skill list
 probing -t $ENDPOINT skill run health_overview
 probing -t $ENDPOINT skill run slow_rank --global
-python -m probing.skills validate   # dev: validate skills/ authoring tree
+python -m probing.skills validate          # dev: validate skills/ authoring tree
+python -m probing.extensions skill-roots
+python -m probing.extensions extensions
+```
+
+Vendor packages: `pip install probing-nvidia` — see **[Extensibility — vendor package](design/extensibility.md#path-4-vendor-extension-package-probing-vendor)** and `examples/probing-acme/`.
+
+Python helpers (discovery / plan only — execution is Rust CLI or MCP):
+
+```python
+from probing.skills.tools import list_skills, plan_skill_run
+plan_skill_run("health_overview")  # CLI command + step SQL preview
 ```
 
 See **[Diagnostic Skills](guide/skills.md)** for workflow.

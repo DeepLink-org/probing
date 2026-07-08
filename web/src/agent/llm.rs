@@ -46,7 +46,7 @@ fn skill_catalog_prompt() -> String {
     let mut lines = vec![routing_context_for_llm(), String::new()];
     lines.push("Skill details:".to_string());
     for id in list_skill_ids() {
-        if let Some(pb) = load_skill(id) {
+        if let Some(pb) = load_skill(&id) {
             lines.push(format!(
                 "- {}: {} — {}",
                 pb.id,

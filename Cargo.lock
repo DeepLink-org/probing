@@ -3388,13 +3388,13 @@ name = "probing-cli"
 version = "0.2.5"
 dependencies = [
  "anyhow",
+ "async-trait",
  "clap 4.5.38",
  "env_logger",
  "futures-util",
  "http-body-util",
  "hyper",
  "hyper-util",
- "include_dir",
  "libc",
  "libloading 0.8.6",
  "log",
@@ -3403,6 +3403,7 @@ dependencies = [
  "pete",
  "probing-memtable",
  "probing-proto",
+ "probing-skills",
  "probing-store",
  "procfs",
  "reedline",
@@ -3573,6 +3574,7 @@ dependencies = [
  "probing-core",
  "probing-memtable",
  "probing-proto",
+ "probing-skills",
  "probing-store",
  "pyo3",
  "pyo3-build-config",
@@ -3645,6 +3647,18 @@ dependencies = [
  "tempfile",
  "tokio",
  "ureq",
+]
+
+[[package]]
+name = "probing-skills"
+version = "0.2.5"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "probing-proto",
+ "serde",
+ "serde_json",
+ "serde_yaml",
 ]
 
 [[package]]

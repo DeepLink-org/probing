@@ -123,8 +123,10 @@ Stable HTTP surface: `probing/server/API.md`, enforced by `tests/regression/spec
 | Unit | Path | Responsibility |
 |------|------|----------------|
 | **web/** | Dioxus WASM | Pages, visualization, Investigate agent |
-| **skills/** | YAML + SKILL.md | Diagnostic workflows over SQL |
-| **python/probing/** | Python package | Hooks, `query()`, skills loader, nccl helper |
+| **skills/** | YAML + SKILL.md | Skill content SSOT |
+| **probing-skills** | `probing/crates/skills/` | Shared loader, interpreter, runner (CLI / Web / MCP) |
+| **python/probing/extensions/** | entry points | Skill + magic + vendor package discovery |
+| **python/probing/** | Python package | Hooks, `query()`, agent install helpers |
 
 ---
 
@@ -198,8 +200,11 @@ class CommCollective: ...
 
 - Skills **only** talk to the engine via SQL (`probing query`) or documented HTTP APIs.
 - No Rust/Python code in skills — YAML + markdown only.
-- CLI (`probing/cli/skill/`), Python (`python/probing/skills/`), Web (`web/src/agent/skill.rs`)
-  are **loaders**; skill content is single source in `skills/`.
+- **Content SSOT:** `skills/` (wheel: `python/probing/bundled_skills/`).
+- **Discovery:** `python/probing/extensions/` entry points + `GET /apis/pythonext/skills/*`.
+- **Execution SSOT:** `probing-skills` — CLI (`probing/cli/skill/`), Web WASM
+  (`web/src/agent/runner.rs`), MCP (`run_skill` / `plan_skill` in server).
+- Python `probing/skills/` is discovery + agent install only; not an execution path.
 
 ### 3.5 Wire protocol — CLI / Web ↔ Server
 
@@ -325,7 +330,7 @@ Use this table to decide **where a change belongs**:
 | Concern | Owner module | Interface |
 |---------|--------------|-----------|
 | SQL parsing, federation rewrite | probing-core | `Engine::async_query` |
-| Table/column semantic docs | probing-core | `semantic_catalog` → `probe.probing.table_docs` / `column_docs` |
+| Table/column semantic docs | probing-core | Code-first `docs` registry + `resources/tables.yaml` overlay → `probe.probing.table_docs` / `column_docs` |
 | mmap format, compaction | probing-memtable | `RowWriter`, `ColdStore` |
 | Torchrun cluster heartbeat | probing-server | `torchrun_cluster.rs`, `cluster_report_backoff.rs`, PUT `/apis/nodes` |
 | Mixed Python/C stack | probing-python/features | `python.backtrace`, pprof |
@@ -378,11 +383,11 @@ Track and fix incrementally:
 | Python ext → CLI | `probing-python` → `probing-cli` | **Accepted** for maturin wheel (`cli_main` only); keep import surface minimal |
 | Python ext → CC | ~~`probing-python` → `probing-cc`~~ | **Done** — `send_sigusr2_to_thread_id` moved to `probing-core::signal` |
 | Core → NCCL/HCCL | `probing-core` → `probing-nccl-profiler` / `probing-hccl-shim` (`builtin-schema-docs` feature) for `semantic_catalog` | Register docs via collector hooks or manifest; drop L1→L2 compile deps |
-| Core → skills YAML | `semantic_catalog.rs` `include_str!(skills/semantic/tables.yaml)` | Accept as L4 overlay SSOT, or move YAML under `probing/core/resources/` |
+| Core → skills YAML | ~~`semantic_catalog.rs` `include_str!(skills/semantic/tables.yaml)`~~ | **Done** — overlay at `probing/core/resources/tables.yaml`; descriptions SSOT in `docs` registry |
 | Server → python `features/*` | ~~`server/profiling.rs`~~ removed | Flamegraphs via `torchextension` / `pprofextension` `ProbeExtensionCall` |
 | Server → python REPL internals | ~~`PythonRepl` in server~~ | `/ws` uses `ReplSession` facade only |
 | Composition sprawl | All wiring in `server/engine.rs` | Optional: manifest TOML listing enabled extensions |
-| Skills triple loader | Rust + Python + Web embed `skills/` | Keep `skills/` SSOT; loaders versioned together in CI |
+| Skills triple loader | ~~Rust + Python + Web compile-time embed~~ | **Done** — `probing-skills` is loader/interpret/runner SSOT; Python keeps discovery entry-points + PyO3 serialize bridge; Web deserializes API into shared types |
 | kmsg collector | Registered (Linux/kmsg feature gate) | Done |
 | Architecture doc | 2-layer diagram | Superseded by this doc + [Data Layer](data-layer.md) |
 
@@ -422,7 +427,7 @@ Need new raw signals?
 - Adding business logic to `server/engine.rs` beyond registration.
 - Web page importing SQL strings for tables that don't exist in catalog.
 - Collector calling `Engine::async_query` from write path.
-- Skill embedding one-off Rust code paths.
+- Skill execution outside `probing-skills` (duplicate runners in Python or Web).
 
 ---
 

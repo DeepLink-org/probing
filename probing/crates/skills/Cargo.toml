@@ -1,0 +1,18 @@
+[package]
+name = "probing-skills"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Diagnostic skill loader, interpreter, and runner (shared by CLI and Web)"
+
+[dependencies]
+probing-proto = { path = "../../proto", default-features = false }
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = "0.9"
+async-trait = "0.1"
+
+[dev-dependencies]
+serde_yaml = "0.9"

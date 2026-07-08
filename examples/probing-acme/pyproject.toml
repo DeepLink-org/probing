@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "probing-acme"
+version = "0.1.0"
+description = "Example probing vendor extension (skills + magics)"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "probing",
+    "ipython>=8.0",
+]
+
+[project.entry-points."probing.skills"]
+acme = "probing_acme:skill_root"
+
+[project.entry-points."probing.magics"]
+acme = "probing_acme.magics:AcmeMagic"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+probing_acme = ["skills/**"]
