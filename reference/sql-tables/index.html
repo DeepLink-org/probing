@@ -2583,9 +2583,10 @@ extension crate. Tables live under schema prefixes that reflect their data sourc
 <code>python.*</code> for training and Python runtime data, <code>cpu.*</code> / <code>gpu.*</code> for host and
 device sampling, <code>cluster.*</code> for node registry, <code>nccl.*</code> for the NCCL profiler
 plugin, and <code>global.&lt;schema&gt;.&lt;table&gt;</code> for federated cross-rank queries.</p>
-<p>The authoritative schema definitions live in <code>skills/semantic/tables.yaml</code> (used by
-diagnostic skills and the Web Agent). The tables on this page are kept in sync with
-that file.</p>
+<p>The authoritative schema definitions live in <code>probing/core/resources/tables.yaml</code> (agent
+overlay) and in-code collector/<code>@table</code> docs (description SSOT). Query via
+<code>probe.probing.table_docs</code> / <code>column_docs</code>. The tables on this page are kept in sync with
+that overlay file.</p>
 <p>To see what tables are actually available on a live endpoint:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>tables
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>tables<span class="w"> </span>--all

@@ -2187,8 +2187,10 @@
 
 
 <h1 id="skill">诊断 Skill<a class="headerlink" href="#skill" title="Permanent link">&para;</a></h1>
-<p><strong>Skill</strong> 是针对常见训练问题的多步 SQL 剧本，带版本与参数。内置在 wheel
-（<code>python/probing/_skills/</code>），可由 CLI、Python loader 与 Web Investigate Agent 执行。</p>
+<p><strong>Skill</strong> 是针对常见训练问题的多步 SQL 剧本，带版本与参数。通过 <code>probing.skills</code>
+entry point 打进 wheel（<code>python/probing/bundled_skills/</code>），由共享 Rust runner
+（<code>probing-skills</code>：CLI、Web Agent、MCP）执行，并在运行时从内置树、仓库 checkout、
+已安装的 <code>probing-&lt;vendor&gt;</code> 包中发现。</p>
 <h2 id="skill-sql">何时用 skill、何时写 SQL<a class="headerlink" href="#skill-sql" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -2291,8 +2293,10 @@
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>  SKILL.md      # 意图、适用场景
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>  steps.yaml    # 有序 SQL 步骤与参数
 </span></code></pre></div>
-<p>语义元数据（<code>tables.yaml</code>、<code>intents.yaml</code>）连接 skill、SQL 目录与 Web UI。见
-<strong><a href="../../contributing/">贡献指南</a></strong> 与 <code>skills/semantic/</code>。</p>
+<p>Agent 路由元数据（<code>intents.yaml</code>、<code>pages.yaml</code>）位于 <code>skills/semantic/</code>。
+表/列描述以采集器与 <code>@table</code> 代码注册为 SSOT；<code>probing/core/resources/tables.yaml</code> 为 L1 agent overlay
+（synonyms、notes、global_name），在引擎启动时合并进 <code>probe.probing.table_docs</code> / <code>column_docs</code>。见
+<strong><a href="../../contributing/">贡献指南</a></strong>。</p>
 <h2 id="_3">相关<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong><a href="../sql-analytics/">SQL 分析</a></strong> — <code>global.*</code>、<code>_role</code> GROUP BY</li>
