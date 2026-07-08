@@ -16,7 +16,9 @@ impl Default for NativePythonConsole {
     fn default() -> Self {
         let console = Python::attach(|py| {
             let global = PyDict::new(py);
-            let code = c_str!("from probing.repl import debug_console");
+            let code = c_str!(
+                "from probing.repl import get_debug_console; debug_console = get_debug_console()"
+            );
             if py.run(code, Some(&global), Some(&global)).is_err() {
                 log::warn!("probing.repl import failed; REPL will be unavailable");
                 return None;
