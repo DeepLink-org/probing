@@ -116,6 +116,12 @@ parser.add_argument(
     help="evaluate model on validation set",
 )
 parser.add_argument(
+    "--no-validate",
+    dest="validate",
+    action="store_false",
+    help="skip per-epoch validation during training",
+)
+parser.add_argument(
     "--pretrained", dest="pretrained", action="store_true", help="use pre-trained model"
 )
 parser.add_argument(
@@ -412,12 +418,15 @@ def main_worker(gpu, ngpus_per_node, args):
 
             with probing.span("train"):
                 train(train_loader, model, criterion, optimizer, epoch, device, args)
-            with probing.span("validate"):
-                acc1 = validate(val_loader, model, criterion, args)
+            if args.validate:
+                with probing.span("validate"):
+                    acc1 = validate(val_loader, model, criterion, args)
+            else:
+                acc1 = best_acc1
             scheduler.step()
             probing.event("epoch.metrics", attributes=[{"acc1": float(acc1)}])
             # remember best acc@1 and save checkpoint
-            is_best = acc1 > best_acc1
+            is_best = args.validate and acc1 > best_acc1
             best_acc1 = max(acc1, best_acc1)
             if not args.multiprocessing_distributed or (
                 args.multiprocessing_distributed and args.rank % ngpus_per_node == 0
@@ -439,7 +448,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
 def compute_loss(criterion, output, target):
     """Compute loss - extracted as separate function for tracing."""
-    print("Computing loss...")
+    # print("Computing loss...")
     loss = criterion(output, target)
     return loss
 
@@ -461,7 +470,8 @@ def train(train_loader, model, criterion, optimizer, epoch, device, args):
 
     end = time.time()
     for i, (images, target) in enumerate(train_loader):
-        time.sleep(1)
+        step_start = time.perf_counter()
+        # time.sleep(1)
         with probing.span("batch"):
             # measure data loading time
             data_time.update(time.time() - end)
@@ -482,6 +492,13 @@ def train(train_loader, model, criterion, optimizer, epoch, device, args):
                 optimizer.step()
             batch_time.update(time.time() - end)
             end = time.time()
+            step_elapsed_ms = (time.perf_counter() - step_start) * 1000.0
+            print(
+                f"Epoch [{epoch}] step [{i + 1}/{len(train_loader)}] "
+                f"time={step_elapsed_ms:.2f}ms loss={loss.item():.4f} "
+                f"acc1={acc1[0]:.2f}",
+                flush=True,
+            )
             if i % args.print_freq == 0:
                 probing.event(
                     "batch.stats",

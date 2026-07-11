@@ -39,13 +39,14 @@ def try_catch(maxtry=3):
 def module_analysis(m, prefix=""):
     if not isinstance(m, torch.nn.Module):
         return
-    # Register root module name (e.g. "AlexNet", "features", "classifier")
-    root_name = module_get_fullname(m).split(".")[-1] if prefix == "" else prefix
-    module_name(m, root_name)
+    # Root uses its class name (e.g. "AlexNet"); children are prefixed with the
+    # *root-qualified* path ("AlexNet.features", "AlexNet.features.0", …). Without
+    # the root prefix, containers become flamegraph siblings of the root instead
+    # of nesting under it, so their durations get added and inflate the phase.
+    fallback = prefix if prefix else module_get_fullname(m).split(".")[-1]
+    name = module_name(m, fallback)
     for n, s in m.named_children():
-        name = f"{prefix}.{n}" if prefix != "" else n
-        module_name(s, name)
-        module_analysis(s, name)
+        module_analysis(s, f"{name}.{n}")
 
 
 def _cache(func):
@@ -82,10 +83,16 @@ def module_is_container(m):
 
 def get_toplevel_module():
     import gc
+    import warnings
 
     import torch
 
-    objs = [obj for obj in gc.get_objects() if isinstance(obj, torch.nn.Module)]
+    # A full gc sweep touches unrelated deprecated torch globals (e.g.
+    # ``torch.distributed.reduce_op``) whose access emits a FutureWarning. That
+    # noise is not about our modules — silence it just for this scan.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", FutureWarning)
+        objs = [obj for obj in gc.get_objects() if isinstance(obj, torch.nn.Module)]
     is_child = set()
     for obj in objs:
         for child in obj.children():

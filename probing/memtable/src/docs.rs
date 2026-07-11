@@ -30,8 +30,10 @@ fn qualified_key(table_schema: &str, table_name: &str) -> String {
 /// Infer memtable dtype for a documented extern column from its name alone.
 pub fn infer_extern_column_dtype(name: &str) -> DType {
     match name {
-        "timestamp" => DType::I64,
-        "duration" | "duration_ms" => DType::F64,
+        "timestamp" | "time" => DType::I64,
+        "duration" | "duration_ms" | "step_duration_sec" | "sample_rate" => DType::F64,
+        "trace_id" | "span_id" | "parent_id" | "thread_id" => DType::I64,
+        "is_shadow" | "sampled" | "shadow_normal" | "shadow_baseline" => DType::I64,
         "allocated"
         | "max_allocated"
         | "cached"
@@ -45,6 +47,9 @@ pub fn infer_extern_column_dtype(name: &str) -> DType {
         | "mem_used_pct" | "gpu_util_pct" | "rss_kb" | "thread_count" | "cpu_total_pct" => {
             DType::I64
         }
+        _ if name.starts_with("is_") => DType::I64,
+        _ if name.ends_with("_sec") || name.ends_with("_rate") => DType::F64,
+        _ if name.ends_with("_id") => DType::I64,
         _ => DType::Str,
     }
 }
@@ -166,7 +171,13 @@ mod tests {
     #[test]
     fn infer_extern_column_dtype_maps_duration_ms_to_f64() {
         assert_eq!(infer_extern_column_dtype("duration_ms"), DType::F64);
+        assert_eq!(infer_extern_column_dtype("step_duration_sec"), DType::F64);
+        assert_eq!(infer_extern_column_dtype("sample_rate"), DType::F64);
         assert_eq!(infer_extern_column_dtype("rank"), DType::I64);
+        assert_eq!(infer_extern_column_dtype("is_shadow"), DType::I64);
+        assert_eq!(infer_extern_column_dtype("sampled"), DType::I64);
+        assert_eq!(infer_extern_column_dtype("time"), DType::I64);
+        assert_eq!(infer_extern_column_dtype("trace_id"), DType::I64);
         assert_eq!(infer_extern_column_dtype("op"), DType::Str);
     }
 

@@ -27,10 +27,13 @@ _NON_PHASE_NAMES = frozenset(
     {"train.step", "model.init", "data.load", "checkpoint.save"}
 )
 
-# --- Composability: who may emit a phase span (higher suppresses lower) ---
+# Who emitted a span (for composability / dedup).
 SOURCE_MANUAL = "manual"
 SOURCE_PHASE_HOOK = "phase_hook"
 SOURCE_TORCH_PROBE = "torch_probe"
+
+_hook_spans: dict[str, object] = {}
+_iteration_start_ns: Optional[int] = None
 
 
 def infer(name: str) -> Optional[str]:
@@ -85,12 +88,6 @@ def is_training_phase(value: Optional[str]) -> bool:
     return value in ALL
 
 
-# --- Runtime coordination (hook + span stack) ---
-
-_hook_spans: dict[str, object] = {}
-_iteration_start_ns: Optional[int] = None
-
-
 def phase() -> str:
     """Current training phase from the innermost active phase span, else ``idle``."""
     from probing.tracing._bindings import active_training_phase
@@ -100,43 +97,36 @@ def phase() -> str:
 
 
 def reset_phase() -> None:
-    """Reset coordinator state (tests)."""
+    """Reset coordinator state (tests). Closes any hook spans left open."""
     global _iteration_start_ns
-    _hook_spans.clear()
+    while _hook_spans:
+        _, handle = _hook_spans.popitem()
+        try:
+            handle.__exit__(None, None, None)
+        except Exception:
+            pass
     _iteration_start_ns = None
-
-
-def on_span_enter(name: str, span_phase: Optional[str], source: str) -> None:
-    """Reserved for span lifecycle hooks; phase is derived from the span stack."""
-    del name, span_phase, source
-
-
-def on_span_exit(name: str, span_phase: Optional[str], source: str) -> None:
-    """Reserved for span lifecycle hooks; phase is derived from the span stack."""
-    del name, span_phase, source
 
 
 def hook_enter(span_phase: str) -> None:
     global _iteration_start_ns
     if span_phase == FORWARD and _iteration_start_ns is None:
         _iteration_start_ns = time.time_ns()
-    if _phase_tracked(span_phase, by_source=SOURCE_PHASE_HOOK):
-        return
-    if span_phase in _hook_spans:
+    if _active_phase_span(span_phase) or span_phase in _hook_spans:
         return
     import probing
 
-    cm = probing.span(phase=span_phase, source=SOURCE_PHASE_HOOK)
-    cm.__enter__()
-    _hook_spans[span_phase] = cm
+    handle = probing.span(phase=span_phase, source=SOURCE_PHASE_HOOK)
+    handle.__enter__()
+    _hook_spans[span_phase] = handle
 
 
 def hook_exit(span_phase: str) -> None:
     if span_phase == OPTIMIZER:
         _record_train_step()
-    cm = _hook_spans.pop(span_phase, None)
-    if cm is not None:
-        cm.__exit__(None, None, None)
+    handle = _hook_spans.pop(span_phase, None)
+    if handle is not None:
+        handle.__exit__(None, None, None)
 
 
 def _record_train_step() -> None:
@@ -166,9 +156,7 @@ def _record_train_step() -> None:
     )
 
 
-def _phase_tracked(span_phase: str, *, by_source: str) -> bool:
-    """True when an active span already carries this training phase."""
-    del by_source
+def _active_phase_span(span_phase: str) -> bool:
     from probing.tracing._bindings import active_span_by_phase
 
     return active_span_by_phase(span_phase) is not None

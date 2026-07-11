@@ -92,6 +92,34 @@ by default.
 
 ---
 
+### `python.torch_step_timing` {#python-torch_step_timing}
+
+Per-step wall-clock duration for TorchProbe overhead monitoring (probed vs shadow baseline).
+
+**Synonyms:** torch overhead, shadow step, profiling overhead
+
+| Column | Description |
+|--------|-------------|
+| `local_step` | Local training step (per rank) |
+| `global_step` | Global step |
+| `rank` | `torch.distributed` rank |
+| `world_size` | World size |
+| `role` | Parallel role key |
+| `step_duration_sec` | Wall time for the step (seconds), measured between consecutive `post_step_hook` completions (probed steps include GPU sync and `torch_trace` flush) |
+| `is_shadow` | `1` = shadow baseline step (TorchProbe hooks bypassed), `0` = probed step |
+| `sampled` | `1` = TorchProbe sampled this step, `0` = not sampled or shadow |
+| `shadow_normal` | Shadow cadence: probed steps per cycle at record time |
+| `shadow_baseline` | Shadow cadence: baseline steps per cycle at record time |
+| `sample_rate` | TorchProbe step-level sample rate at record time |
+| `sample_mode` | Sampling mode (always `random`; legacy `ordered` removed) |
+
+**Notes:** Default `shadow=4:1`. Compare `median(step_duration_sec)` grouped by `is_shadow` for overhead %.
+
+**Global:** `global.python.torch_step_timing`
+**Federation columns:** `_host`, `_addr`, `_rank`, `_role`
+
+---
+
 ### `python.comm_collective` {#python-comm_collective}
 
 `torch.distributed` collective calls (all_reduce, broadcast, …).

@@ -112,7 +112,7 @@ fn step_module_sql(coord_step: i64) -> String {
 
 fn step_span_sql(display_step: i64) -> String {
     format!(
-        "SELECT s.name, s.phase, round((e.time - s.time) / 1000000.0, 2) AS duration_ms \
+        "SELECT s.name, s.phase, round((CAST(e.time AS BIGINT) - CAST(s.time AS BIGINT)) / 1000000.0, 2) AS duration_ms \
          FROM python.trace_event s \
          JOIN python.trace_event e ON s.span_id = e.span_id AND e.record_type = 'span_end' \
          WHERE s.record_type = 'span_start' AND s.name != 'train.step' \

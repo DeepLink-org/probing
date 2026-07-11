@@ -120,6 +120,24 @@ probing.clear_role()            # 恢复为环境变量默认值
 和 TP rank 1。需区分 torchrun 的 `role_name` / `role_rank`（`cluster.nodes` 上
 的字段）——这些是 launcher 字段；`role` 是用于分析的 key。
 
+## Span API：训练时间线
+
+粗粒度训练时间线走 **Span API**，细粒度模块 profiling 走 **TorchProbe**
+（`python.torch_trace`）。二者不要混用同一条时间线。
+
+| API | 何时使用 |
+|-----|----------|
+| `attach_training_phases(model, optimizer)` | **默认推荐** — 自动 forward/backward/optimizer + `train.step` |
+| `with probing.span(phase=...)` | 手动阶段、嵌套、`probing.event()` 打点 |
+| `probing.record_span(name, duration_ns=...)` | 已知 duration 的闭区间（如 collective） |
+| `probing.phase()` | 读当前 training phase（来自 span 栈） |
+
+关闭写盘（仅保留栈，用于 benchmark）：`PROBING_SPAN_BACKENDS=none` 或
+`probing.tracing.configure_backends([])`。
+
+完整选型、deferred close 语义与性能说明见 **[Span API 设计](../design/tracing-spans.zh.md)**；
+phase 不变量见 **[训练阶段](../design/training-phase.zh.md)**。
+
 ## 联邦查询：跨节点查询
 
 当多个 rank 注册到集群时，`global.<schema>.<table>` 将查询 fan-out 到每个节点
@@ -174,4 +192,5 @@ culprit/victim 等待分解。它是 Rust 扩展，而非 Python @table。见 [N
 | 每张表的列定义 | [SQL 表目录](../reference/sql-tables.zh.md) |
 | 多节点配置和 torchrun | [分布式](../design/distributed.zh.md) |
 | 编写自定义表或 skill | [扩展机制](../design/extensibility.zh.md) |
+| Span 与训练时间线 | [Span API](../design/tracing-spans.zh.md) |
 | CLI 命令和 Python API | [API 参考](../api-reference.zh.md) |

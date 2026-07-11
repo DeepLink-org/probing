@@ -315,7 +315,13 @@ fn call_python_handler(
                 .call1((str_to_py(py, &path), params_dict, body_arg))
                 .py_context("Failed to call handle_request")?;
 
-            let result_str: String = result.extract().py_context("Failed to extract result")?;
+            let result_str: String = match result.extract() {
+                Ok(s) => s,
+                Err(_) => result
+                    .extract::<Vec<u8>>()
+                    .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+                    .py_context("Failed to extract handler result")?,
+            };
 
             Ok(result_str.into_bytes())
         })

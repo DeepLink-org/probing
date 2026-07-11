@@ -11,17 +11,17 @@ use crate::state::sidebar::{
     load_sidebar_state, save_sidebar_state, SIDEBAR_HIDDEN, SIDEBAR_WIDTH,
 };
 
+mod monitors;
 mod nav_item;
 mod profiling;
 mod resize;
 mod stack;
-mod tasks;
 
+use monitors::SidebarMonitors;
 use nav_item::{SidebarNavItem, SidebarSectionLabel};
 use profiling::ProfilingSidebarItem;
 use resize::ResizeHandle;
 use stack::StackSidebarItem;
-use tasks::SidebarTaskQueue;
 
 fn sidebar_classes() -> (
     &'static str,
@@ -157,7 +157,7 @@ pub fn Sidebar() -> Element {
                     }
                 }
 
-                SidebarTaskQueue {}
+                SidebarMonitors {}
 
                 div { class: "{footer}",
                     a {

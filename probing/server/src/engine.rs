@@ -138,10 +138,20 @@ pub async fn handle_query(request: Query) -> Result<QueryDataFormat> {
         Ok(Some(dataframe)) => Ok(QueryDataFormat::DataFrame(dataframe)),
         Ok(None) => Ok(QueryDataFormat::Nil),
         Err(e) => {
-            log::error!("Error executing SELECT query '{expr}': {e}");
+            if is_missing_table_error(&e) {
+                log::debug!("Optional table missing for SELECT '{expr}': {e}");
+            } else {
+                log::error!("Error executing SELECT query '{expr}': {e}");
+            }
             Err(e.into())
         }
     }
+}
+
+/// Extension tables (NCCL profiler, optional GPU, etc.) may be absent on single-process jobs.
+fn is_missing_table_error(err: &impl std::fmt::Display) -> bool {
+    let msg = err.to_string().to_ascii_lowercase();
+    msg.contains("not found") && msg.contains("table")
 }
 
 fn fanout_meta_from_stats(

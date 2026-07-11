@@ -10,32 +10,16 @@ use crate::api::ApiClient;
 use crate::components::icon::Icon;
 use crate::components::workspace::{AccentSurface, ChipButton, SurfaceCardBody, SurfaceIconHeader};
 use crate::hooks::use_app_resource;
-use crate::state::source_viewer::{
-    close_source_viewer, open_source_viewer, unlock_body_scroll, SOURCE_VIEWER_OPEN,
-    SOURCE_VIEWER_TARGET,
-};
+use crate::state::source_viewer::{close_source_viewer, open_source_viewer, source_viewer_target};
 use crate::state::ui_tasks::ui_agent_busy;
 use crate::utils::source_ref::{
     file_display_name, language_class, slice_source, SourceSlice, DEFAULT_SOURCE_CONTEXT,
 };
 
-/// Centered floating dialog for source preview (mounted on [`crate::app::App`]).
+/// Centered floating dialog for source preview (mounted via [`crate::components::app_overlays::AppOverlays`]).
 #[component]
 pub fn SourceViewerOverlay() -> Element {
-    let open = *SOURCE_VIEWER_OPEN.read();
-
-    use_effect(move || {
-        if !open {
-            unlock_body_scroll();
-        }
-    });
-
-    if !open {
-        return rsx! {};
-    }
-
-    let target = SOURCE_VIEWER_TARGET.read().clone();
-    let Some(target) = target else {
+    let Some(target) = source_viewer_target() else {
         return rsx! {};
     };
 

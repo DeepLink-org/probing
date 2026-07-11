@@ -7,7 +7,8 @@ Environment
 -----------
 ``PROBING_SPAN_BACKENDS``
     Comma-separated backend names. Default: ``memtable``.
-    Built-in: ``memtable``, ``logger`` (terminal), ``otel`` (requires ``opentelemetry-sdk``).
+    Built-in: ``memtable``, ``logger`` (terminal), ``otel`` (requires ``opentelemetry-sdk``),
+    ``none`` (stack only). ``configure([])`` also disables persistence until ``reset()``.
 
 ``PROBING_SPAN_LOG_LEVEL``
     Log level for the ``logger`` backend (default: ``INFO``).
@@ -30,6 +31,7 @@ logger = logging.getLogger(__name__)
 MEMTABLE_BACKEND = "memtable"
 LOGGER_BACKEND = "logger"
 OTEL_BACKEND = "otel"
+NONE_BACKEND = "none"
 
 _trace_event_cls: Any = None
 _recorder: Optional["SpanRecorder"] = None
@@ -58,6 +60,12 @@ class SpanEndRecord:
 
 
 @dataclass(frozen=True)
+class ClosedSpanRecord:
+    start: SpanStartRecord
+    end: SpanEndRecord
+
+
+@dataclass(frozen=True)
 class SpanEventRecord:
     trace_id: int
     span_id: int
@@ -77,6 +85,8 @@ class SpanBackend(Protocol):
     def on_span_start(self, record: SpanStartRecord) -> None: ...
 
     def on_span_end(self, record: SpanEndRecord) -> None: ...
+
+    def on_span_closed(self, record: ClosedSpanRecord) -> None: ...
 
     def on_event(self, record: SpanEventRecord) -> None: ...
 
@@ -113,7 +123,12 @@ def parse_backend_names(raw: Optional[str] = None) -> List[str]:
         else os.environ.get("PROBING_SPAN_BACKENDS", MEMTABLE_BACKEND)
     )
     names = [part.strip().lower() for part in value.split(",") if part.strip()]
-    return names or [MEMTABLE_BACKEND]
+    names = [n for n in names if n != NONE_BACKEND]
+    if not names and value.strip().lower() == NONE_BACKEND:
+        return []
+    if not names:
+        return [MEMTABLE_BACKEND]
+    return names
 
 
 def _entry_point_backends() -> Dict[str, Callable[[], SpanBackend]]:
@@ -149,7 +164,8 @@ def _build_logger_backend() -> SpanBackend:
 
 def _build_otel_backend() -> Optional[SpanBackend]:
     try:
-        from opentelemetry import trace  # noqa: F401
+        # API-only installs (opentelemetry-api) are not enough to export spans.
+        from opentelemetry.sdk.trace import TracerProvider  # noqa: F401
     except ImportError:
         logger.warning(
             "PROBING_SPAN_BACKENDS includes 'otel' but opentelemetry-sdk is not installed; skipping"
@@ -189,7 +205,10 @@ def load_backends(names: Optional[List[str]] = None) -> List[SpanBackend]:
             out.append(backend)
 
     if not out:
-        out.append(_build_memtable_backend())
+        if not wanted:
+            return []
+        if _programmatic_names is None:
+            out.append(_build_memtable_backend())
     return out
 
 
@@ -201,9 +220,8 @@ class MemtableBackend:
     def __init__(self, trace_event_cls: Any) -> None:
         self._TraceEvent = trace_event_cls
 
-    def on_span_start(self, record: SpanStartRecord) -> None:
-        self._TraceEvent.init_table()
-        self._TraceEvent(
+    def _start_row(self, record: SpanStartRecord):
+        return self._TraceEvent(
             record_type="span_start",
             trace_id=record.trace_id,
             span_id=record.span_id,
@@ -215,11 +233,10 @@ class MemtableBackend:
             location=record.location,
             attributes=record.attributes_json,
             event_attributes="",
-        ).save()
+        )
 
-    def on_span_end(self, record: SpanEndRecord) -> None:
-        self._TraceEvent.init_table()
-        self._TraceEvent(
+    def _end_row(self, record: SpanEndRecord):
+        return self._TraceEvent(
             record_type="span_end",
             trace_id=0,
             span_id=record.span_id,
@@ -231,10 +248,20 @@ class MemtableBackend:
             location="",
             attributes="",
             event_attributes="",
-        ).save()
+        )
+
+    def on_span_start(self, record: SpanStartRecord) -> None:
+        self._start_row(record).save()
+
+    def on_span_end(self, record: SpanEndRecord) -> None:
+        self._end_row(record).save()
+
+    def on_span_closed(self, record: ClosedSpanRecord) -> None:
+        self._TraceEvent.append_many(
+            [self._start_row(record.start), self._end_row(record.end)]
+        )
 
     def on_event(self, record: SpanEventRecord) -> None:
-        self._TraceEvent.init_table()
         self._TraceEvent(
             record_type="event",
             trace_id=record.trace_id,
@@ -299,6 +326,10 @@ class LoggerBackend:
             self._log.info("%s← %s %.2fms", self._indent(), name, dur_ms)
         else:
             self._log.info("%s← span_id=%s", self._indent(), record.span_id)
+
+    def on_span_closed(self, record: ClosedSpanRecord) -> None:
+        self.on_span_start(record.start)
+        self.on_span_end(record.end)
 
     def on_event(self, record: SpanEventRecord) -> None:
         suffix = ""
@@ -418,6 +449,24 @@ class OtelBackend:
         self._parents.clear()
 
 
+def _span_phase(span: Any) -> str:
+    return str(getattr(span, "phase", None) or "")
+
+
+def _span_location(span: Any) -> str:
+    loc = getattr(span, "location", None)
+    return str(loc) if loc is not None else ""
+
+
+def _parent_id(span: Any) -> int:
+    pid = span.parent_id
+    return int(pid if pid is not None else -1)
+
+
+def _thread_id(span: Any) -> int:
+    return int(getattr(span, "thread_id", 0))
+
+
 class SpanRecorder:
     """Fan-out span lifecycle records to all enabled backends."""
 
@@ -425,19 +474,27 @@ class SpanRecorder:
         self._backends = backends
 
     @property
+    def enabled(self) -> bool:
+        return bool(self._backends)
+
+    @property
     def backend_names(self) -> List[str]:
         return [b.name for b in self._backends]
 
     def record_span_start(self, span: Any, attrs: dict) -> None:
+        if not self.enabled:
+            return
         record = _span_start_record(span, attrs)
         self._dispatch("on_span_start", record)
 
     def record_span_end(self, span: Any) -> None:
+        if not self.enabled:
+            return
         end_ts = span.end_timestamp or int(time.time_ns())
         record = SpanEndRecord(
             span_id=int(span.span_id),
             time_ns=int(end_ts),
-            thread_id=int(getattr(span, "thread_id", 0)),
+            thread_id=_thread_id(span),
         )
         self._dispatch("on_span_end", record)
 
@@ -451,28 +508,31 @@ class SpanRecorder:
         end_ns: int,
         attributes_json: str,
     ) -> None:
+        if not self.enabled:
+            return
         start = SpanStartRecord(
             trace_id=int(span.trace_id),
             span_id=int(span.span_id),
-            parent_id=int(span.parent_id if span.parent_id is not None else -1),
+            parent_id=_parent_id(span),
             name=name,
             phase=phase,
             time_ns=int(start_ns),
-            thread_id=int(getattr(span, "thread_id", 0)),
-            location="",
+            thread_id=_thread_id(span),
+            location=_span_location(span),
             attributes_json=attributes_json,
         )
         end = SpanEndRecord(
             span_id=int(span.span_id),
             time_ns=int(end_ns),
-            thread_id=int(getattr(span, "thread_id", 0)),
+            thread_id=_thread_id(span),
         )
-        self._dispatch("on_span_start", start)
-        self._dispatch("on_span_end", end)
+        self._dispatch_closed(start, end)
 
     def record_event(
         self, span: Any, event_name: str, event_attributes: Optional[list] = None
     ) -> None:
+        if not self.enabled:
+            return
         record = _event_record(span, event_name, event_attributes)
         self._dispatch("on_event", record)
 
@@ -487,6 +547,15 @@ class SpanRecorder:
         for backend in self._backends:
             _safe_call(backend, method, record)
 
+    def _dispatch_closed(self, start: SpanStartRecord, end: SpanEndRecord) -> None:
+        closed = ClosedSpanRecord(start=start, end=end)
+        for backend in self._backends:
+            if hasattr(backend, "on_span_closed"):
+                _safe_call(backend, "on_span_closed", closed)
+            else:
+                _safe_call(backend, "on_span_start", start)
+                _safe_call(backend, "on_span_end", end)
+
 
 def _safe_call(backend: SpanBackend, method: str, record: Any) -> None:
     try:
@@ -496,22 +565,16 @@ def _safe_call(backend: SpanBackend, method: str, record: Any) -> None:
 
 
 def _span_start_record(span: Any, attrs: dict) -> SpanStartRecord:
-    attrs_json = json.dumps(attrs) if attrs else ""
-    raw = getattr(span, "phase", None) or ""
-    phase = raw if raw is not None else ""
-    location = (
-        span.location if hasattr(span, "location") and span.location is not None else ""
-    )
     return SpanStartRecord(
         trace_id=int(span.trace_id),
         span_id=int(span.span_id),
-        parent_id=int(span.parent_id if span.parent_id is not None else -1),
+        parent_id=_parent_id(span),
         name=str(span.name),
-        phase=str(phase),
+        phase=_span_phase(span),
         time_ns=int(span.start_timestamp),
-        thread_id=int(getattr(span, "thread_id", 0)),
-        location=str(location),
-        attributes_json=attrs_json,
+        thread_id=_thread_id(span),
+        location=_span_location(span),
+        attributes_json=json.dumps(attrs) if attrs else "",
     )
 
 
@@ -525,22 +588,16 @@ def _event_record(
                 attrs_dict.update(attr_item)
             elif isinstance(attr_item, (list, tuple)) and len(attr_item) == 2:
                 attrs_dict[attr_item[0]] = attr_item[1]
-    event_attrs_json = json.dumps(attrs_dict) if attrs_dict else ""
-    raw = getattr(span, "phase", None) or ""
-    phase = raw if raw is not None else ""
-    location = (
-        span.location if hasattr(span, "location") and span.location is not None else ""
-    )
     return SpanEventRecord(
         trace_id=int(span.trace_id),
         span_id=int(span.span_id),
-        parent_id=int(span.parent_id if span.parent_id is not None else -1),
-        phase=str(phase),
-        location=str(location),
+        parent_id=_parent_id(span),
+        phase=_span_phase(span),
+        location=_span_location(span),
         name=str(event_name),
         time_ns=int(time.time_ns()),
-        thread_id=int(getattr(span, "thread_id", 0)),
-        event_attributes_json=event_attrs_json,
+        thread_id=_thread_id(span),
+        event_attributes_json=json.dumps(attrs_dict) if attrs_dict else "",
     )
 
 
@@ -549,6 +606,11 @@ def get_recorder(*, reset: bool = False) -> SpanRecorder:
     if _recorder is None or reset:
         _recorder = SpanRecorder(load_backends())
     return _recorder
+
+
+def persistence_enabled() -> bool:
+    """True when at least one span backend will receive lifecycle records."""
+    return get_recorder().enabled
 
 
 def _reset_recorder() -> None:

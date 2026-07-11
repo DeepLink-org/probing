@@ -32,6 +32,30 @@ tables:
       - "第一个完整 step 为 discovery-only，可能无数据行"
       - "默认仅 forward hook；backward hook 默认关闭"
 
+  python.torch_step_timing:
+    description: "TorchProbe 每步墙钟耗时（含 shadow 基线 step），用于估算 profiling 开销"
+    synonyms: [torch overhead, shadow step, profiling overhead, 探针开销]
+    key_columns:
+      micro_step: "最细粒度步计数"
+      local_step: "本 rank 训练步"
+      global_step: "全局训练步"
+      micro_batches: "梯度累积因子"
+      rank: "torch.distributed rank"
+      world_size: "world size"
+      role: "并行角色键"
+      step_duration_sec: "本 step 墙钟耗时（秒），post_step_hook 结束到结束；probed step 含 flush"
+      is_shadow: "1=shadow 基线 step（TorchProbe hook 全跳过），0=正常 probed step"
+      sampled: "1=本 step 命中 TorchProbe 采样，0=未采样或 shadow"
+      shadow_normal: "记录时的 shadow 配置：每周期 probed step 数"
+      shadow_baseline: "记录时的 shadow 配置：每周期 baseline step 数"
+      sample_rate: "记录时的 TorchProbe step 级采样率"
+      sample_mode: "记录时的采样模式（恒为 random）"
+    notes:
+      - "默认 shadow=4:1：每 4 个 probed step 后 1 个 shadow step"
+      - "overhead ≈ median(probed) / median(shadow) - 1；与 python.torch_trace 独立"
+    global_name: global.python.torch_step_timing
+    federation_columns: [_host, _addr, _rank, _role]
+
   python.comm_collective:
     description: "torch.distributed API 层集合通信记录（Python 墙钟计时，粗粒度回退；精准 NCCL 数据在 nccl.* 表）"
     synonyms: [collective, communication, 通信, all_reduce, torch.distributed]

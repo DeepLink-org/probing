@@ -7,6 +7,8 @@ import inspect
 import json
 import os
 import time
+import warnings
+from dataclasses import dataclass
 from typing import Callable, Optional
 
 from probing.tracing._bindings import (
@@ -17,13 +19,51 @@ from probing.tracing._bindings import (
 )
 from probing.tracing.coordinates import span_attrs, step
 from probing.tracing.phases import OPTIMIZER, resolve_span
-from probing.tracing.table import TraceEvent
 
 _LOCATION_ENV = frozenset({"1", "true", "yes", "on"})
 
+# Rust Span cannot hold arbitrary Python attrs; track deferred persistence by id.
+_DEFERRED: dict[int, "_DeferredState"] = {}
+
+
+@dataclass
+class _DeferredState:
+    merged: dict
+    start_persisted: bool = False
+
+
+def _recorder():
+    from probing.tracing.backends import get_recorder
+
+    return get_recorder()
+
+
+def _persistence_enabled() -> bool:
+    from probing.tracing.backends import persistence_enabled
+
+    return persistence_enabled()
+
+
+def _spawn_span(
+    name: str, phase: Optional[str], *, location: Optional[str] = None
+) -> Span:
+    parent = current_span()
+    if parent:
+        return Span.new_child(parent, name, phase=phase, location=location)
+    return Span(name, phase=phase, location=location)
+
+
+def _attach_attrs(span_obj: Span, attrs: dict) -> None:
+    if not attrs or not hasattr(span_obj, "_set_initial_attrs"):
+        return
+    try:
+        span_obj._set_initial_attrs(dict(attrs))
+    except Exception as exc:
+        warnings.warn(f"Failed to set initial attributes: {exc}")
+
 
 class _RecordedSpan:
-    """Context manager: span stack + backend persistence."""
+    """Context manager: span stack + backend persistence on close."""
 
     def __init__(
         self,
@@ -41,63 +81,114 @@ class _RecordedSpan:
         self.attrs = dict(attrs or {})
         self.source = source
         self._auto_location = auto_location
-        self._span = None
+        self._span: Optional[Span] = None
         self._reentrant = False
         self._owns_step_advance = False
+        self._persist = False
+        self._merged: dict = {}
 
-    def __enter__(self):
+    def __enter__(self) -> Span:
         if self.phase == OPTIMIZER:
             existing = active_span_by_phase(OPTIMIZER)
-            if existing is not None:
+            if existing is not None and not getattr(existing, "is_ended", False):
                 self._span = existing
                 self._reentrant = True
                 return existing
 
-        loc = self.location
-        if loc is None and self._auto_location:
-            loc = _caller_location()
-        merged = span_attrs(self.attrs, source=self.source)
-        self._span = _create_span(self.name, self.phase, loc, merged)
-        self._span.__enter__()
-        _persist_span_start(self._span, merged)
+        location = self.location
+        if location is None and self._auto_location:
+            location = _caller_location()
+
+        self._persist = _persistence_enabled()
+        self._merged = (
+            span_attrs(self.attrs, source=self.source) if self._persist else {}
+        )
+
+        span_obj = _spawn_span(self.name, self.phase, location=location)
+        _attach_attrs(span_obj, self._merged)
+        span_obj.__enter__()
+        self._span = span_obj
+
+        if self._persist:
+            _DEFERRED[int(span_obj.span_id)] = _DeferredState(merged=self._merged)
         if self.phase == OPTIMIZER:
             self._owns_step_advance = True
-        return self._span
+        return span_obj
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
         if self._span is None or self._reentrant:
             return False
+
         result = self._span.__exit__(exc_type, exc_val, exc_tb)
-        _persist_span_end(self._span)
+        state = _DEFERRED.pop(int(self._span.span_id), None)
+        if state is not None:
+            _persist_on_close(self._span, state)
         if self._owns_step_advance:
             step()
         return result
 
 
-def _create_span(name: str, phase: Optional[str], location: Optional[str], attrs: dict):
-    parent = current_span()
-    if parent:
-        span_obj = Span.new_child(parent, name, phase=phase, location=location)
-    else:
-        span_obj = Span(name, phase=phase, location=location)
-    if attrs and hasattr(span_obj, "_set_initial_attrs"):
-        try:
-            span_obj._set_initial_attrs(dict(attrs))
-        except Exception as e:
-            import warnings
+class _SpanHandle:
+    """Deferred ``probing.span()`` entry (context manager or decorator)."""
 
-            warnings.warn(f"Failed to set initial attributes: {e}")
-    return span_obj
+    def __init__(
+        self,
+        name: str,
+        phase: Optional[str],
+        location: Optional[str],
+        attrs: dict,
+        source: str,
+        auto_location: bool,
+    ) -> None:
+        self._name = name
+        self._phase = phase
+        self._location = location
+        self._attrs = attrs
+        self._source = source
+        self._auto_location = auto_location
+        self._inner: Optional[_RecordedSpan] = None
+
+    def _make_cm(self) -> _RecordedSpan:
+        return _RecordedSpan(
+            self._name,
+            phase=self._phase,
+            location=self._location,
+            attrs=self._attrs,
+            source=self._source,
+            auto_location=self._auto_location,
+        )
+
+    def __call__(self, func: Callable) -> Callable:
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            with self._make_cm():
+                return func(*args, **kwargs)
+
+        return wrapper
+
+    def __enter__(self) -> Span:
+        self._inner = self._make_cm()
+        return self._inner.__enter__()
+
+    def __exit__(self, *exc) -> bool:
+        if self._inner is None:
+            return False
+        return self._inner.__exit__(*exc)
+
+    def __getattr__(self, attr: str):
+        if self._inner is not None:
+            return getattr(self._inner, attr)
+        raise AttributeError(attr)
 
 
 def _caller_location() -> Optional[str]:
-    """Walk ``inspect.stack()`` for the first frame outside ``probing/tracing``."""
+    """First stack frame outside ``probing/tracing``."""
     try:
-        for frame_info in inspect.stack()[2:]:
-            path = frame_info.filename.replace("\\", "/")
+        for frame in inspect.stack()[2:]:
+            path = frame.filename.replace("\\", "/")
             if "probing/tracing" in path:
                 continue
-            return f"{frame_info.filename}:{frame_info.function}:{frame_info.lineno}"
+            return f"{frame.filename}:{frame.function}:{frame.lineno}"
     except Exception:
         pass
     return None
@@ -107,9 +198,9 @@ def _location_enabled() -> bool:
     return os.environ.get("PROBING_SPAN_LOCATION", "").lower() in _LOCATION_ENV
 
 
-def _span_options(
+def _parse_span_kwargs(
     kwargs: dict,
-) -> tuple[str, Optional[str], str, Optional[str], dict, bool]:
+) -> tuple[Optional[str], str, Optional[str], dict, bool]:
     phase = kwargs.pop("phase", None)
     source = kwargs.pop("source", "manual")
     location = kwargs.pop("location", None)
@@ -117,61 +208,15 @@ def _span_options(
     return phase, source, location, kwargs, auto_location
 
 
-def _make_handle(
+def _handle(
     name: str,
     phase: Optional[str],
     location: Optional[str],
     attrs: dict,
     source: str,
     auto_location: bool,
-):
-    class SpanHandle:
-        def __init__(self):
-            self.name = name
-            self.phase = phase
-            self.location = location
-            self.source = source
-            self.attrs = attrs
-            self._auto_location = auto_location
-            self._inner = None
-
-        def __call__(self, func: Callable) -> Callable:
-            @functools.wraps(func)
-            def wrapper(*wargs, **wkwargs):
-                with _RecordedSpan(
-                    self.name,
-                    phase=self.phase,
-                    location=self.location,
-                    attrs=self.attrs,
-                    source=self.source,
-                    auto_location=self._auto_location,
-                ):
-                    return func(*wargs, **wkwargs)
-
-            return wrapper
-
-        def __enter__(self):
-            self._inner = _RecordedSpan(
-                self.name,
-                phase=self.phase,
-                location=self.location,
-                attrs=self.attrs,
-                source=self.source,
-                auto_location=self._auto_location,
-            )
-            return self._inner.__enter__()
-
-        def __exit__(self, *exc):
-            if self._inner:
-                return self._inner.__exit__(*exc)
-            return False
-
-        def __getattr__(self, attr):
-            if self._inner is not None:
-                return getattr(self._inner, attr)
-            raise AttributeError(attr)
-
-    return SpanHandle()
+) -> _SpanHandle:
+    return _SpanHandle(name, phase, location, attrs, source, auto_location)
 
 
 def span(*args, **kwargs):
@@ -186,62 +231,38 @@ def span(*args, **kwargs):
     Auto ``location`` via ``inspect.stack()`` is off by default; set
     ``PROBING_SPAN_LOCATION=1`` or pass ``location=...`` explicitly.
     """
-    phase_kw, source, location, attrs, auto_location = _span_options(dict(kwargs))
+    phase_kw, source, location, attrs, auto_location = _parse_span_kwargs(dict(kwargs))
 
-    if len(args) == 1 and isinstance(args[0], str):
-        name_kw = args[0]
-        name, phase = resolve_span(name_kw, phase_kw)
-        return _make_handle(name, phase, location, attrs, source, auto_location)
-
-    if len(args) == 0:
-        if phase_kw is not None:
-            name, phase = resolve_span(None, phase_kw)
-            return _make_handle(name, phase, location, attrs, source, auto_location)
-        if not attrs:
-
-            def decorator(func: Callable) -> Callable:
-                resolved_name, resolved_phase = resolve_span(func.__name__, None)
-                return _make_handle(
-                    resolved_name,
-                    resolved_phase,
-                    location,
-                    {},
-                    source,
-                    auto_location,
-                )(func)
-
-            return decorator
-        raise TypeError("span() requires name and/or phase")
-
-    if len(args) == 1 and callable(args[0]):
-        func = args[0]
-        resolved_name, resolved_phase = resolve_span(func.__name__, phase_kw)
-
-        @functools.wraps(func)
-        def wrapper(*wargs, **wkwargs):
-            with _RecordedSpan(
-                resolved_name,
-                phase=resolved_phase,
-                location=location,
-                attrs=attrs,
-                source=source,
-                auto_location=auto_location,
-            ):
-                return func(*wargs, **wkwargs)
-
-        return wrapper
-
-    if len(args) == 1:
-        raise TypeError(
-            f"span() first argument must be str or callable, got {type(args[0]).__name__}"
-        )
     if len(args) > 1:
         raise TypeError("span() takes at most one positional argument")
 
-    raise TypeError("span() requires at least one argument")
+    if len(args) == 1 and callable(args[0]):
+        name, phase = resolve_span(args[0].__name__, phase_kw)
+        return _handle(name, phase, location, attrs, source, auto_location)(args[0])
+
+    if len(args) == 1:
+        if not isinstance(args[0], str):
+            raise TypeError(
+                f"span() first argument must be str or callable, got {type(args[0]).__name__}"
+            )
+        name, phase = resolve_span(args[0], phase_kw)
+        return _handle(name, phase, location, attrs, source, auto_location)
+
+    if phase_kw is not None:
+        name, phase = resolve_span(None, phase_kw)
+        return _handle(name, phase, location, attrs, source, auto_location)
+
+    if attrs:
+        raise TypeError("span() requires name and/or phase")
+
+    def decorator(func: Callable) -> Callable:
+        name, phase = resolve_span(func.__name__, None)
+        return _handle(name, phase, location, {}, source, auto_location)(func)
+
+    return decorator
 
 
-def event(name: str, *, attributes: Optional[list] = None):
+def event(name: str, *, attributes: Optional[list] = None) -> None:
     """Add a point event on the active span."""
     current = active_span_for_events() or current_span()
     if current is None or getattr(current, "is_ended", False):
@@ -258,26 +279,18 @@ def record_span(
     source: str = "manual",
 ) -> None:
     """Record a completed span without entering the span stack (hot path)."""
-    if duration_ns < 0:
-        duration_ns = 0
+    recorder = _recorder()
+    if not recorder.enabled:
+        return
 
-    TraceEvent.init_table()
+    duration_ns = max(duration_ns, 0)
     merged = span_attrs(dict(attrs or {}), source=source)
     end_ns = int(time.time_ns())
     start_ns = end_ns - duration_ns
     resolved_name, resolved_phase = resolve_span(name, phase)
 
-    parent = current_span()
-    if parent:
-        span_obj = Span.new_child(
-            parent, resolved_name, phase=resolved_phase, location=""
-        )
-    else:
-        span_obj = Span(resolved_name, phase=resolved_phase, location="")
-
-    from probing.tracing.backends import get_recorder
-
-    get_recorder().record_closed_span(
+    span_obj = _spawn_span(resolved_name, resolved_phase, location="")
+    recorder.record_closed_span(
         span_obj,
         name=resolved_name,
         phase=resolved_phase or "",
@@ -287,24 +300,54 @@ def record_span(
     )
 
 
-def _persist_span_start(span: Span, attrs: dict) -> None:
-    from probing.tracing.backends import get_recorder
+def _persist_on_close(span: Span, state: _DeferredState) -> None:
+    if state.start_persisted:
+        _persist_span_end(span)
+    else:
+        _persist_closed(span, state.merged)
 
-    get_recorder().record_span_start(span, attrs)
+
+def _persist_span_start(span: Span, attrs: dict) -> None:
+    recorder = _recorder()
+    if not recorder.enabled:
+        return
+    recorder.record_span_start(span, attrs)
+    state = _DEFERRED.get(int(span.span_id))
+    if state is not None:
+        state.start_persisted = True
 
 
 def _persist_span_end(span: Span) -> None:
-    from probing.tracing.backends import get_recorder
+    recorder = _recorder()
+    if recorder.enabled:
+        recorder.record_span_end(span)
 
-    get_recorder().record_span_end(span)
+
+def _persist_closed(span: Span, attrs: dict) -> None:
+    recorder = _recorder()
+    if not recorder.enabled:
+        return
+    phase = getattr(span, "phase", None) or ""
+    recorder.record_closed_span(
+        span,
+        name=str(span.name),
+        phase=str(phase),
+        start_ns=int(span.start_timestamp),
+        end_ns=int(span.end_timestamp or time.time_ns()),
+        attributes_json=json.dumps(attrs) if attrs else "",
+    )
 
 
 def _persist_event(
     span: Span, event_name: str, event_attributes: Optional[list] = None
 ) -> None:
-    from probing.tracing.backends import get_recorder
-
-    get_recorder().record_event(span, event_name, event_attributes)
+    recorder = _recorder()
+    if not recorder.enabled:
+        return
+    state = _DEFERRED.get(int(span.span_id))
+    if state is not None and not state.start_persisted:
+        _persist_span_start(span, state.merged)
+    recorder.record_event(span, event_name, event_attributes)
 
 
 if Span:

@@ -18,10 +18,9 @@ from typing import Any, Callable, Optional
 
 import probing
 
-logger = logging.getLogger(__name__)
+from probing.util.env import FALSE_VALUES, TRUE_VALUES, parse_bool_flag
 
-_TRUE = {"1", "true", "yes", "on", "enable", "enabled"}
-_FALSE = {"0", "false", "no", "off", "disable", "disabled"}
+logger = logging.getLogger(__name__)
 
 _PARALLEL_STATE_INIT = False
 _TRAINING_INIT = False
@@ -40,19 +39,8 @@ _MEGATRON_ENV_MARKERS = (
 )
 
 
-def _flag(value: Optional[str]) -> Optional[bool]:
-    if value is None:
-        return None
-    normalized = str(value).strip().lower()
-    if normalized in _TRUE:
-        return True
-    if normalized in _FALSE:
-        return False
-    return None
-
-
 def _config_flag(name: str) -> Optional[bool]:
-    return _flag(probing.config.get_str(name))
+    return parse_bool_flag(probing.config.get_str(name))
 
 
 def megatron_job_detected() -> bool:
@@ -68,9 +56,9 @@ def megatron_autostart_enabled() -> bool:
     if explicit is not None:
         return explicit
     raw = os.environ.get("PROBING_MEGATRON", "auto").strip().lower()
-    if raw in _FALSE:
+    if raw in FALSE_VALUES:
         return False
-    if raw in _TRUE or raw == "on":
+    if raw in TRUE_VALUES or raw == "on":
         return True
     return megatron_job_detected()
 
@@ -80,9 +68,9 @@ def step_sync_enabled() -> bool:
     if explicit is not None:
         return explicit
     raw = os.environ.get("PROBING_MEGATRON_STEP_SYNC", "auto").strip().lower()
-    if raw in _FALSE:
+    if raw in FALSE_VALUES:
         return False
-    if raw in _TRUE or raw == "on":
+    if raw in TRUE_VALUES or raw == "on":
         return True
     return megatron_autostart_enabled()
 

@@ -53,9 +53,11 @@ endif
 VENV_PYTHON := .venv/bin/python
 BUILD_PY_DEPS := build wheel toml maturin
 DEV_PTH := python/probing/dev_pth.py
-DEV_PY_DEPS := pyyaml pytest pytest-cov coverage ipython ipykernel
+DEV_PY_DEPS := pyyaml pytest pytest-cov coverage ipython ipykernel ruff
 
 PYTEST_RUN := PROBING=1 $(VENV_PYTHON) -m pytest
+BENCH_SCRIPT := examples/bench_instrumentation.py
+BENCH_RUN := PROBING=1 $(VENV_PYTHON) $(BENCH_SCRIPT)
 PYTEST_UNIT_ARGS := tests/unit
 PYTEST_REGRESSION_ARGS := tests/regression
 PYTEST_ARGS := $(PYTEST_UNIT_ARGS) $(PYTEST_REGRESSION_ARGS)
@@ -86,6 +88,8 @@ help:
 	@echo "  lint              ruff + clippy + mkdocs --strict"
 	@echo "  fmt               rustfmt workspace + web (same paths as CI)"
 	@echo "  check-dev         Quick env sanity check"
+	@echo "  bench             Instrumentation overhead (span / TorchProbe / train)"
+	@echo "  bench-quick       Same as bench, fewer iterations"
 	@echo "  clean             Remove build artifacts"
 	@echo ""
 	@echo "Release gate: make frontend && make wheel && make test-ci"
@@ -98,14 +102,14 @@ setup:
 	@if command -v pre-commit >/dev/null 2>&1; then pre-commit install; fi
 
 install-dev-python-deps: venv
-	@if $(VENV_PYTHON) -c "import pytest, yaml" 2>/dev/null; then \
+	@if [ -x .venv/bin/ruff ] && $(VENV_PYTHON) -c "import pytest, yaml" 2>/dev/null; then \
 		echo "  dev Python deps OK"; \
 	else \
 		$(VENV_PYTHON) -m pip install -q -U pip $(DEV_PY_DEPS); \
 	fi
 
 # ==============================================================================
-.PHONY: core develop dev check-dev frontend wheel wheel-ci install-wheel wheel-bundle nccl-profiler-lib hccl-shim-lib venv venv-wheel install-build-deps install-wheel-test-deps
+.PHONY: core develop dev check-dev frontend wheel wheel-ci install-wheel wheel-bundle nccl-profiler-lib nccl-profiler-bench hccl-shim-lib venv venv-wheel install-build-deps install-wheel-test-deps
 
 venv:
 	@BOOT="$(PYTHON_BOOTSTRAP)"; \
@@ -155,6 +159,13 @@ from probing.skills.paths import repo_skills_dir; \
 print(f'ok: probing {VERSION}, {len(list_skills())} skills, cli={shutil.which(\"probing\") or sys.executable}')" \
 		|| { echo "run: make develop"; exit 1; }
 
+.PHONY: bench bench-quick
+bench: check-dev
+	$(BENCH_RUN)
+
+bench-quick: check-dev
+	$(BENCH_RUN) --quick
+
 frontend:
 	@test -n "$$SKIP_FRONTEND_CLEAN" || rm -rf python/probing/bundled_web
 	cd web && dx bundle --release
@@ -201,9 +212,14 @@ nccl-profiler-lib:
 	cargo build -p probing-nccl-profiler-cdylib $(CARGO_RELEASE)
 	mkdir -p python/probing/libs
 	cp $(NCCL_OUT) python/probing/libs/
+
+nccl-profiler-bench:
+	cargo bench -p probing-nccl-profiler --bench callback_path
 else
 nccl-profiler-lib:
 	@:
+nccl-profiler-bench:
+	cargo bench -p probing-nccl-profiler --bench callback_path
 endif
 
 # Linux HCCL libprofapi.so shim → python/probing/shim/hccl/
@@ -231,7 +247,7 @@ PYTEST_WHEEL_ARGS := tests/unit tests/regression
 PYTEST_WHEEL_FLAGS := --import-mode=importlib -o pythonpath= -o "addopts=--verbose --color=yes --durations=10 --strict-markers"
 PYTEST_WHEEL_EXTRA ?=
 
-.PHONY: test test-wheel test-ci test-rust test-rust-unit test-rust-regression test-python test-python-unit test-python-regression test-doctest test-python-wheel coverage-python-wheel
+.PHONY: test test-wheel test-ci test-rust test-rust-unit test-rust-regression test-python test-python-unit test-python-regression test-doctest test-python-wheel coverage-python-wheel bench bench-quick
 .PHONY: fmt fmt-check lint lint-python lint-rust lint-docs lint-core clippy clippy-fix coverage coverage-rust coverage-python bootstrap clean docs-install docs docs-serve docs-clean
 
 test: test-rust test-python
@@ -271,10 +287,13 @@ fmt-check:
 lint-core:
 	$(CLIPPY_CORE)
 lint-python:
-	@if $(PYTHON) -c "import ruff" 2>/dev/null; then \
-		$(PYTHON) -m ruff check python/ tests/; \
-	elif command -v ruff >/dev/null 2>&1; then ruff check python/ tests/; \
-	else echo "install ruff: $(PYTHON) -m pip install ruff"; exit 1; fi
+	@if [ -x .venv/bin/ruff ]; then \
+		.venv/bin/ruff check python/ tests/; \
+	elif command -v ruff >/dev/null 2>&1; then \
+		ruff check python/ tests/; \
+	else \
+		echo "install ruff: make install-dev-python-deps  (or: $(VENV_PYTHON) -m pip install ruff)"; exit 1; \
+	fi
 lint-rust:
 	$(CLIPPY_WORKSPACE)
 	$(CLIPPY_WEB)

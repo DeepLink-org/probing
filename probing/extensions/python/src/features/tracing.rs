@@ -133,6 +133,12 @@ fn push_span_hint(span: &Span) {
 fn pop_span_hint(span_id: u64) {
     SPAN_HINT_STACK.with(|stack| {
         let mut stack = stack.borrow_mut();
+        if let Some(top) = stack.last() {
+            if top.span_id == span_id {
+                stack.pop();
+                return;
+            }
+        }
         if let Some(pos) = stack.iter().rposition(|h| h.span_id == span_id) {
             stack.remove(pos);
         }
@@ -391,6 +397,18 @@ impl Span {
 
         SPAN_STACK.with(|stack| {
             let mut stack = stack.borrow_mut();
+            if let Some(top) = stack.last() {
+                let top_matches = Python::attach(|py| {
+                    top.bind(py)
+                        .cast::<Span>()
+                        .ok()
+                        .is_some_and(|span| span.borrow().span_id() == self_id)
+                });
+                if top_matches {
+                    stack.pop();
+                    return;
+                }
+            }
             if let Some(pos) = stack.iter().rposition(|obj| {
                 Python::attach(|py| {
                     obj.bind(py)
@@ -459,7 +477,11 @@ fn active_span_by_phase(py: Python, phase: String) -> PyResult<Option<Py<PyAny>>
         for obj in stack.iter().rev() {
             let bound = obj.bind(py);
             if let Ok(span) = bound.cast::<Span>() {
-                if span.borrow().phase().as_deref() == Some(phase.as_str()) {
+                let borrowed = span.borrow();
+                if borrowed.is_ended() {
+                    continue;
+                }
+                if borrowed.phase().as_deref() == Some(phase.as_str()) {
                     return Ok(Some(obj.clone_ref(py)));
                 }
             }

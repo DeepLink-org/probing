@@ -195,30 +195,30 @@ class TestHookDrivenPhaseTransitions:
             assert phase() == FORWARD
             hook_enter(FORWARD)
             assert phase() == FORWARD
-            rows_mid = _trace_rows()
-            forward_starts = [
-                r
-                for r in rows_mid
-                if r.get("record_type") == "span_start" and r.get("name") == "forward"
-            ]
-            assert len(forward_starts) == 1
+            # Deferred persist: rows appear on span close, not on enter.
+            assert _trace_rows() == []
             hook_exit(FORWARD)
             assert phase() == FORWARD
         assert phase() == IDLE
+        forward_starts = [
+            r
+            for r in _trace_rows()
+            if r.get("record_type") == "span_start" and r.get("name") == "forward"
+        ]
+        assert len(forward_starts) == 1
 
     def test_hook_phase_spans_use_phase_hook_source(self):
         hook_enter(BACKWARD)
-        rows = _trace_rows()
+        hook_exit(BACKWARD)
         backward = next(
             r
-            for r in rows
+            for r in _trace_rows()
             if r.get("record_type") == "span_start" and r.get("name") == "backward"
         )
         import json
 
         attrs = json.loads(backward.get("attributes") or "{}")
         assert attrs.get("source") == "phase_hook"
-        hook_exit(BACKWARD)
 
 
 # --- Span + hook collaboration ---

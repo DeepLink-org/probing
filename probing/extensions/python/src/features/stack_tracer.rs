@@ -19,6 +19,14 @@ use probing_core::signal::send_sigusr2_to_thread_id;
 
 use crate::features::vm_tracer::{get_python_frames_raw, get_python_stacks_raw};
 
+#[derive(Debug, thiserror::Error)]
+#[error("backtrace capture busy: {0}")]
+pub(crate) struct BacktraceBusy(String);
+
+pub(crate) fn is_backtrace_busy(err: &anyhow::Error) -> bool {
+    err.downcast_ref::<BacktraceBusy>().is_some()
+}
+
 fn demangle_native_symbol(raw_name: &str) -> (String, Option<&'static str>) {
     if let Ok(d) = rustc_demangle::try_demangle(raw_name) {
         return (d.to_string(), Some("rust"));
@@ -191,8 +199,9 @@ impl SignalTracer {
         // state — the outer `trace()` already downgrades it to an empty result —
         // so log at debug to avoid flooding training output with errors.
         let _guard = BACKTRACE_MUTEX.try_lock().map_err(|e| {
-            log::debug!("backtrace capture busy, skipping concurrent request: {e}");
-            anyhow::anyhow!("backtrace capture busy: {e}")
+            let busy = BacktraceBusy(e.to_string());
+            log::debug!("{busy}; skipping concurrent request");
+            anyhow::Error::new(busy)
         })?;
 
         let (tx, rx) = mpsc::channel::<Vec<CallFrame>>();
@@ -288,7 +297,11 @@ impl StackTracer for SignalTracer {
         match catch_unwind(AssertUnwindSafe(|| Self::trace_thread_signal(target))) {
             Ok(Ok(frames)) => Ok(frames),
             Ok(Err(err)) => {
-                log::warn!("Cross-thread stack trace failed for tid {target}: {err}");
+                if is_backtrace_busy(&err) {
+                    log::debug!("Cross-thread stack trace skipped for tid {target}: {err}");
+                } else {
+                    log::warn!("Cross-thread stack trace failed for tid {target}: {err}");
+                }
                 Err(err)
             }
             Err(_) => {

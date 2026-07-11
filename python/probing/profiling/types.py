@@ -59,11 +59,11 @@ class BaseTracer:
         self.process_hook(m, "post backward")
 
     def pre_step_hook(self, optimizer, args, kwargs):
-        self.log_module_stage("pre step", optimizer, force=False)
+        self.log_module_stage("pre step", optimizer, force=True)
         self.process_hook(optimizer, "pre step")
 
     def post_step_hook(self, optimizer, args, kwargs):
-        self.log_module_stage("post step", optimizer, force=False)
+        self.log_module_stage("post step", optimizer, force=True)
         self.process_hook(optimizer, "post step")
         # New step begins: reset intra-step execution offset. The training step
         # coordinate itself is advanced by the train-step span (Rust side).

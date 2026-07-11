@@ -1,8 +1,26 @@
 import logging
+import os
+from typing import Optional
 
 import probing
 
 hooks = {}
+
+
+def _torch_profiling_spec() -> Optional[str]:
+    """Resolve torch profiling spec from config, falling back to the env var.
+
+    ``sync_env_settings()`` applies ``PROBING_TORCH_PROFILING`` asynchronously;
+    the first ``optimizer.step()`` can run before that finishes. Reading the env
+    here avoids creating a tracer without ``backward=on`` (and other flags).
+    """
+    spec = probing.config.get_str("probing.torch.profiling")
+    if spec is not None and str(spec).strip():
+        return str(spec).strip()
+    env = os.environ.get("PROBING_TORCH_PROFILING", "").strip()
+    if env:
+        probing.config.set("probing.torch.profiling", env)
+    return env or None
 
 
 def is_true(value):
@@ -22,8 +40,7 @@ def optimizer_step_post_hook(optimizer, *args, **kwargs):
         from probing.profiling.torch.module_utils import get_toplevel_module
         from probing.profiling.torch_probe import TorchProbe, TorchProbeConfig
 
-        spec = probing.config.get_str("probing.torch.profiling")
-
+        spec = _torch_profiling_spec()
         config = TorchProbeConfig.parse(spec)
         if not config.enabled:
             logging.getLogger(__name__).info(
@@ -35,9 +52,12 @@ def optimizer_step_post_hook(optimizer, *args, **kwargs):
 
         tracer = TorchProbe(config=config)
         logging.getLogger(__name__).info(
-            "Torch profiling enabled: mode=%s rate=%s tracepy=%s sync=%s exprs=%s",
+            "Torch profiling enabled: mode=%s rate=%s shadow=%s:%s backward=%s tracepy=%s sync=%s exprs=%s",
             config.mode,
             config.rate,
+            config.shadow_normal,
+            config.shadow_baseline if config.shadow_enabled else 0,
+            config.backward,
             config.tracepy,
             config.sync,
             config.exprs or "",
@@ -45,8 +65,8 @@ def optimizer_step_post_hook(optimizer, *args, **kwargs):
 
         models = get_toplevel_module()
         for model in models:
-            install_hooks(model, tracer=tracer)
-        install_hooks(opt=optimizer, tracer=tracer)
+            install_hooks(model, tracer=tracer, backward=config.backward)
+        install_hooks(opt=optimizer, tracer=tracer, backward=config.backward)
         hooks[optimizer] = tracer
 
 
