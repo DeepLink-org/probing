@@ -1,8 +1,9 @@
+#[cfg(unix)]
 use nix::ioctl_read;
+#[cfg(unix)]
 use nix::libc;
-use std::os::fd::AsFd;
-use std::os::fd::AsRawFd;
-
+#[cfg(unix)]
+use std::os::fd::{AsFd, AsRawFd};
 use tabled::builder::Builder;
 use tabled::grid::config::Position;
 use tabled::grid::records::{
@@ -197,11 +198,20 @@ pub fn render_dataframe(df: &DataFrame) {
 }
 
 fn terminal_width() -> Option<u32> {
-    terminal_size_of(std::io::stdout())
+    #[cfg(unix)]
+    {
+        terminal_size_of(std::io::stdout())
+    }
+    #[cfg(not(unix))]
+    {
+        None
+    }
 }
 
+#[cfg(unix)]
 ioctl_read!(get_winsize, libc::TIOCGWINSZ, 0, libc::winsize);
 
+#[cfg(unix)]
 fn terminal_size_of<Fd: AsFd>(fd: Fd) -> Option<u32> {
     use nix::unistd::isatty;
     if isatty(fd.as_fd()).is_err() {

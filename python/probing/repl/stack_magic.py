@@ -42,7 +42,6 @@ class _obj_:
 @register_magic("stack")
 @magics_class
 class StackMagic(Magics):
-
     @line_magic
     def bt(self, line: str):
         """Print python and C stack."""

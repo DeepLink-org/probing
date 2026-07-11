@@ -80,6 +80,40 @@ dev = [
     "maturin>=1.0,<2.0",
 ]
 
+# Locked dev / CI deps — sync with: uv lock
+[dependency-groups]
+build = [
+    "build",
+    "maturin>=1.0,<2.0",
+    "toml",
+    "wheel",
+]
+dev = [
+    "coverage>=7.0",
+    "ipykernel>=6.0",
+    "ipython>=8.0; python_version >= '3.8'",
+    "pytest>=8.0; python_version >= '3.8'",
+    "pytest<8.0; python_version < '3.8'",
+    "pytest-cov>=4.0",
+    "pyyaml>=6",
+    "ruff>=0.1.0",
+]
+wheel-test = [
+    "coverage>=7.0",
+    "ipykernel>=6.0",
+    "pandas",
+    "pytest>=8.0; python_version >= '3.8'",
+    "pytest-cov>=4.0",
+    "pyyaml>=6",
+    "torch",
+    "websockets",
+]
+
+[tool.uv]
+# Lock resolution scope for CI/dev (does not change [project] requires-python).
+environments = ["python_version >= '3.10'"]
+default-groups = ["dev", "build"]
+
 [tool.maturin]
 module-name = "probing._core"
 manifest-path = "Cargo.toml"

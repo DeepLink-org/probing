@@ -470,7 +470,7 @@ from probing.inspect.trace import probe as _probe_decorator
 # Wrap execution in probe context
 _probing_tracer = _probe_decorator(watch={args.watch!r}, depth={args.depth})
 with _probing_tracer:
-{chr(10).join('    ' + line for line in cell.split(chr(10)))}
+{chr(10).join("    " + line for line in cell.split(chr(10)))}
 """
 
         self.shell.run_cell(exec_code)

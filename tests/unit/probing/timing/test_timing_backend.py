@@ -80,7 +80,9 @@ def test_event_pair_returns_timing_triple_on_cuda():
         seen["device"] = device
         return "STREAM"
 
-    accel = _FakeAccel(available=True, event_cls=_FakeEvent, current_stream=current_stream)
+    accel = _FakeAccel(
+        available=True, event_cls=_FakeEvent, current_stream=current_stream
+    )
     torch = _FakeTorch(cuda=accel)
 
     start, end, stream = backend_mod.event_pair(torch, 5)
@@ -98,7 +100,9 @@ def test_event_pair_tolerates_stream_without_device_arg():
             raise TypeError("no device arg")
         return "DEFAULT_STREAM"
 
-    accel = _FakeAccel(available=True, event_cls=_FakeEvent, current_stream=current_stream)
+    accel = _FakeAccel(
+        available=True, event_cls=_FakeEvent, current_stream=current_stream
+    )
     torch = _FakeTorch(cuda=accel)
 
     _start, _end, stream = backend_mod.event_pair(torch, 0)

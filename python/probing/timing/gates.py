@@ -12,6 +12,7 @@ CUDA driver via ctypes (:mod:`probing.timing._cuda_runtime_ffi`). It owns
 dedicated CUDA streams and a flag tensor, so it is built at most once per device
 and reused across measured iterations.
 """
+
 from __future__ import annotations
 
 import threading

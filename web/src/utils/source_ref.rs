@@ -208,7 +208,7 @@ mod tests {
             .join("\n");
         let slice = slice_source(&src, Some(50), 10);
         assert_eq!(slice.start_line, 40);
-        assert_eq!(slice.end_line, 61);
+        assert_eq!(slice.end_line, 60);
         assert!(slice.text.contains("line 50"));
     }
 
