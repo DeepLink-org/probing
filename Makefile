@@ -89,7 +89,7 @@ help:
 	@echo "  validate-skills   Validate bundled skills catalog (needs probing._core)"
 	@echo "  supply-chain      cargo-deny + uv lock check (matches CI)"
 	@echo "  lint              ruff + clippy + mkdocs --strict"
-	@echo "  fmt               rustfmt workspace + web (same paths as CI)"
+	@echo "  fmt               rustfmt workspace + web + ruff format (passes lint-python)"
 	@echo "  fmt-all-cfgs      fmt + extra targets (windows/linux/arch cfg branches)"
 	@echo "  check-dev         Quick env sanity check"
 	@echo "  bench             Instrumentation overhead (span / TorchProbe / train)"
@@ -320,13 +320,33 @@ test-python-wheel: install-wheel-test-deps
 coverage-python-wheel:
 	$(MAKE) test-python-wheel PYTEST_WHEEL_EXTRA="--cov=probing --cov=tests --cov-report=xml:coverage.xml"
 
+FMT_PYTHON := @if [ -x .venv/bin/ruff ]; then \
+		.venv/bin/ruff check --fix python/ tests/; \
+		.venv/bin/ruff format python/ tests/; \
+	elif command -v ruff >/dev/null 2>&1; then \
+		ruff check --fix python/ tests/; \
+		ruff format python/ tests/; \
+	else \
+		echo "install ruff: make install-dev-python-deps  (or: $(VENV_PYTHON) -m pip install ruff)"; exit 1; \
+	fi
+
 lint: lint-python lint-rust lint-docs
 fmt:
 	$(FMT_WORKSPACE)
 	$(FMT_WEB)
+	$(FMT_PYTHON)
 fmt-check:
 	$(FMT_WORKSPACE) -- --check
 	$(FMT_WEB) -- --check
+	@if [ -x .venv/bin/ruff ]; then \
+		.venv/bin/ruff check python/ tests/ && \
+		.venv/bin/ruff format --check python/ tests/; \
+	elif command -v ruff >/dev/null 2>&1; then \
+		ruff check python/ tests/ && \
+		ruff format --check python/ tests/; \
+	else \
+		echo "install ruff: make install-dev-python-deps  (or: $(VENV_PYTHON) -m pip install ruff)"; exit 1; \
+	fi
 fmt-all-cfgs:
 	@chmod +x scripts/fmt-all-cfgs.sh
 	$(FMT_ALL_CFGS)
