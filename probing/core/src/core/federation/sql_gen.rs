@@ -50,7 +50,6 @@ mod tests {
     use arrow::datatypes::{DataType, Field, Schema};
     use datafusion::logical_expr::{col, lit};
 
-    use super::super::convert::PROBE_NODE_COL;
     use super::*;
 
     #[test]
@@ -72,6 +71,6 @@ mod tests {
         let sql = build_remote_table_sql("demo", "metrics", &schema, None, &[], None);
         assert!(sql.contains("probe.demo.metrics"));
         assert!(!sql.contains("global."));
-        assert!(!sql.contains(PROBE_NODE_COL));
+        assert!(!sql.contains("_probe_node"));
     }
 }

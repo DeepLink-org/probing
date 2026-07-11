@@ -913,7 +913,7 @@ fn render_comm_local_result(
 }
 
 fn dataframe_rows(df: &probing_proto::prelude::DataFrame) -> usize {
-    df.cols.first().map(|c| c.len()).unwrap_or(0)
+    df.row_count()
 }
 
 type HeatmapData = (Vec<i32>, Vec<i64>, HashMap<(i32, i64), HeatCell>, f64);

@@ -90,6 +90,8 @@ help:
 	@echo "  check-dev         Quick env sanity check"
 	@echo "  bench             Instrumentation overhead (span / TorchProbe / train)"
 	@echo "  bench-quick       Same as bench, fewer iterations"
+	@echo "  soak              Long-run soak (~10 min synthetic ImageNet + assert)"
+	@echo "  soak-quick        Short soak smoke (~60s)"
 	@echo "  clean             Remove build artifacts"
 	@echo ""
 	@echo "Release gate: make frontend && make wheel && make test-ci"
@@ -159,17 +161,29 @@ from probing.skills.paths import repo_skills_dir; \
 print(f'ok: probing {VERSION}, {len(list_skills())} skills, cli={shutil.which(\"probing\") or sys.executable}')" \
 		|| { echo "run: make develop"; exit 1; }
 
-.PHONY: bench bench-quick
+.PHONY: bench bench-quick soak soak-quick
 bench: check-dev
 	$(BENCH_RUN)
 
 bench-quick: check-dev
 	$(BENCH_RUN) --quick
 
+soak: check-dev
+	@test -x examples/run_soak.sh || chmod +x examples/run_soak.sh
+	DURATION_SEC=600 PYTHON=$(VENV_PYTHON) PROBING=1 ./examples/run_soak.sh
+
+soak-quick: check-dev
+	@test -x examples/run_soak.sh || chmod +x examples/run_soak.sh
+	DURATION_SEC=60 MAX_STEPS=8 PYTHON=$(VENV_PYTHON) PROBING=1 ./examples/run_soak.sh
+
 frontend:
 	@test -n "$$SKIP_FRONTEND_CLEAN" || rm -rf python/probing/bundled_web
 	cd web && dx bundle --release
 	@test -f $(BUNDLED_WEB_PUBLIC)/index.html
+	@js=$$(grep -oE 'web-dxh[^" ]+\.js' $(BUNDLED_WEB_PUBLIC)/index.html | head -1); \
+	for f in $(BUNDLED_WEB_PUBLIC)/assets/web-dxh*.js; do \
+	  test "$$f" = "$(BUNDLED_WEB_PUBLIC)/assets/$$js" || rm -f "$$f"; \
+	done
 	@mkdir -p $(BUNDLED_WEB_PUBLIC)/assets
 	@cp -f web/assets/logo.svg $(BUNDLED_WEB_PUBLIC)/logo.svg 2>/dev/null || true
 	@cp -f web/assets/logo.svg $(BUNDLED_WEB_PUBLIC)/assets/logo.svg 2>/dev/null || true

@@ -42,17 +42,13 @@ class Skill:
     title: str
     category: str
     tags: List[str]
-    triggers: Dict[str, Any]
     docs: str
     parameters: List[Dict[str, Any]]
-    requires: Dict[str, Any]
     steps: List[SkillStep]
     interpretation: Dict[str, Any]
     summary_template: str
     next_steps: List[str]
-    variables: Dict[str, str]
     path: Path
-    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -79,11 +75,25 @@ def skills_root() -> Path:
     return repo
 
 
-def load_catalog(root: Optional[Path] = None) -> SkillCatalog:
-    if root is not None:
-        raise NotImplementedError(
-            "load_catalog(root=...) is deprecated; use bundled discovery via Rust"
-        )
+def _step_from_raw(raw: Mapping[str, Any]) -> SkillStep:
+    return SkillStep(
+        id=str(raw.get("id", "")),
+        title=str(raw.get("title", "")),
+        type=str(raw.get("type", "sql")),
+        sql=raw.get("sql"),
+        method=raw.get("method"),
+        path=raw.get("path"),
+        action=raw.get("action"),
+        view=raw.get("view"),
+        on_empty=str(raw.get("on_empty", "skip")),
+        empty_message=raw.get("empty_message"),
+        when=raw.get("when"),
+        platform=raw.get("platform"),
+        raw=dict(raw),
+    )
+
+
+def load_catalog() -> SkillCatalog:
     data = json.loads(_core().skills_catalog())
     entries = [
         SkillCatalogEntry(
@@ -98,62 +108,31 @@ def load_catalog(root: Optional[Path] = None) -> SkillCatalog:
     return SkillCatalog(skills=entries)
 
 
-def load_skill(skill_id: str, root: Optional[Path] = None) -> Skill:
-    if root is not None:
-        raise NotImplementedError(
-            "load_skill(..., root=...) is deprecated; use bundled discovery via Rust"
-        )
+def load_skill(skill_id: str) -> Skill:
     raw = json.loads(_core().skills_load(skill_id))
     if "error" in raw:
         raise KeyError(raw["error"])
-    steps = [
-        SkillStep(
-            id=str(s.get("id", "")),
-            title=str(s.get("title", "")),
-            type=str(s.get("type", "sql")),
-            sql=s.get("sql"),
-            method=s.get("method"),
-            path=s.get("path"),
-            action=s.get("action"),
-            view=s.get("view"),
-            on_empty=str(s.get("on_empty", "skip")),
-            empty_message=s.get("empty_message"),
-            when=s.get("when"),
-            platform=s.get("platform"),
-            raw=dict(s),
-        )
-        for s in raw.get("steps") or []
-    ]
-    keywords = raw.get("keywords") or {}
-    triggers = {"keywords": keywords}
+    steps = [_step_from_raw(s) for s in raw.get("steps") or []]
     return Skill(
         id=str(raw["id"]),
         title=str(raw.get("title", raw["id"])),
         category=str(raw.get("category", "general")),
         tags=list(raw.get("tags") or []),
-        triggers=triggers,
         docs=str(raw.get("docs") or "").strip(),
         parameters=list(raw.get("parameters") or []),
-        requires={},
         steps=steps,
         interpretation=dict(raw.get("interpretation") or {}),
         summary_template=str(raw.get("summary_template") or "").strip(),
         next_steps=list(raw.get("next_steps") or []),
-        variables={},
         path=skills_root() / skill_id / "steps.yaml",
-        metadata={"triggers": triggers},
     )
 
 
-def load_intents(root: Optional[Path] = None) -> Dict[str, Any]:
-    if root is not None:
-        raise NotImplementedError("load_intents(root=...) is deprecated")
+def load_intents() -> Dict[str, Any]:
     return json.loads(_core().skills_intents())
 
 
-def load_pages(root: Optional[Path] = None) -> Dict[str, Any]:
-    if root is not None:
-        raise NotImplementedError("load_pages(root=...) is deprecated")
+def load_pages() -> Dict[str, Any]:
     return json.loads(_core().skills_pages())
 
 
@@ -175,26 +154,7 @@ def expand_skill(
     if overrides:
         params.update(dict(overrides))
     plan = json.loads(_core().skills_plan(skill.id, json.dumps(params)))
-    out: List[SkillStep] = []
-    for raw in plan.get("steps") or []:
-        out.append(
-            SkillStep(
-                id=str(raw.get("id", "")),
-                title=str(raw.get("title", "")),
-                type=str(raw.get("type", "sql")),
-                sql=raw.get("sql"),
-                method=raw.get("method"),
-                path=raw.get("path"),
-                action=raw.get("action"),
-                view=raw.get("view"),
-                on_empty=str(raw.get("on_empty", "skip")),
-                empty_message=raw.get("empty_message"),
-                when=raw.get("when"),
-                platform=raw.get("platform"),
-                raw=dict(raw),
-            )
-        )
-    return out
+    return [_step_from_raw(raw) for raw in plan.get("steps") or []]
 
 
 def build_context(
@@ -206,13 +166,7 @@ def build_context(
     return {str(k): str(v) for k, v in params.items()}
 
 
-def match_skills(
-    query: str,
-    root: Optional[Path] = None,
-    limit: int = 3,
-) -> List[str]:
-    if root is not None:
-        raise NotImplementedError("match_skills(root=...) is deprecated")
+def match_skills(query: str, limit: int = 3) -> List[str]:
     return json.loads(_core().skills_match(query, limit))
 
 
@@ -233,10 +187,10 @@ def validate_skill(skill: Skill) -> List[str]:
     return warnings
 
 
-def validate_all(root: Optional[Path] = None) -> List[str]:
-    catalog = load_catalog(root)
+def validate_all() -> List[str]:
+    catalog = load_catalog()
     all_warnings: List[str] = []
     for entry in catalog.skills:
-        skill = load_skill(entry.id, root)
+        skill = load_skill(entry.id)
         all_warnings.extend(validate_skill(skill))
     return all_warnings

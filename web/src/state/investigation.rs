@@ -307,18 +307,6 @@ pub fn set_trace_context(trace_id: i64, span_name: Option<&str>, tid: Option<i32
     });
 }
 
-#[allow(dead_code)]
-pub fn set_process_context(pid: i32, label: Option<&str>) {
-    update_investigation_context(|ctx| {
-        ctx.pid = Some(pid);
-        if let Some(text) = label {
-            ctx.label = Some(text.to_string());
-        } else if ctx.label.is_none() {
-            ctx.label = Some(format!("pid {pid}"));
-        }
-    });
-}
-
 /// Sync pid from Dashboard overview without overwriting thread/trace context.
 pub fn sync_overview_process_context(pid: i32, exe: &str) {
     update_investigation_context(|ctx| {

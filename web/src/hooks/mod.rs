@@ -103,12 +103,7 @@ where
 }
 
 /// Periodic tick signal for polling APIs (e.g. dashboard metrics).
-/// Prefer [`use_poll_tick_gated`] when the page can be hidden.
-#[allow(dead_code)]
-pub fn use_poll_tick(interval_ms: u32) -> Signal<u32> {
-    use_poll_tick_gated(interval_ms, None)
-}
-
+/// Use [`use_poll_tick_gated`] when the page can be hidden.
 pub fn use_poll_tick_gated(interval_ms: u32, gate: Option<Signal<bool>>) -> Signal<u32> {
     let tick = use_signal(|| 0u32);
     let mut interval_slot = use_signal(|| None::<Interval>);

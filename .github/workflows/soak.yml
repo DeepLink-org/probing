@@ -1,0 +1,186 @@
+# Long-running soak tests — not run on pull requests (weekly + manual).
+#
+# Exercises probing under sustained training load (synthetic ImageNet + spans +
+# optional TorchProbe shadow overhead), then asserts memtable / SQL health.
+
+name: Soak Tests
+
+on:
+  schedule:
+    # Sunday 04:00 UTC
+    - cron: "0 4 * * 0"
+  workflow_dispatch:
+    inputs:
+      duration_sec:
+        description: "Wall-clock soak duration (seconds)"
+        required: false
+        default: "600"
+      nproc:
+        description: "torchrun --nproc_per_node for DDP soak job"
+        required: false
+        default: "2"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: soak-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  soak-cpu-single:
+    name: CPU soak (single process, ${{ github.event.inputs.duration_sec || '600' }}s)
+    if: github.repository == 'DeepLink-org/probing'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup build environment
+        uses: ./.github/actions/setup-build-env
+        with:
+          python-version: "3.12"
+          install-cargo-tools: "true"
+          install-python-deps: "true"
+          cache-venv: "true"
+          cache-wheel-test-deps: "true"
+
+      - name: Install torchvision for ImageNet example
+        run: |
+          python -m pip install -q torchvision
+
+      - name: Build and install wheel
+        env:
+          SKIP_FRONTEND_CLEAN: "1"
+        run: |
+          if [ ! -f python/probing/bundled_web/public/index.html ]; then
+            make frontend
+          fi
+          make wheel-ci
+          make install-wheel
+
+      - name: Run single-process CPU soak
+        env:
+          PROBING: "1"
+          PROBING_TORCH_PROFILING: "on,shadow=4:1"
+          PROBING_SAMPLE_RATE: "1.0"
+          PROBING_RETENTION_DAYS: "1"
+          PROBING_DATA_DIR: /tmp/probing_soak_single
+          DURATION_SEC: ${{ github.event.inputs.duration_sec || '600' }}
+          NPROC: "1"
+          SOAK_ASSERT: "1"
+          BATCH_SIZE: "64"
+        run: |
+          chmod +x examples/run_soak.sh
+          ./examples/run_soak.sh
+
+      - name: Upload soak data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: soak-cpu-single-data
+          path: /tmp/probing_soak_single
+          retention-days: 7
+          if-no-files-found: ignore
+
+  soak-cpu-ddp:
+    name: CPU soak (torchrun nproc=${{ github.event.inputs.nproc || '2' }})
+    if: github.repository == 'DeepLink-org/probing'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup build environment
+        uses: ./.github/actions/setup-build-env
+        with:
+          python-version: "3.12"
+          install-cargo-tools: "true"
+          install-python-deps: "true"
+          cache-venv: "true"
+          cache-wheel-test-deps: "true"
+
+      - name: Install torchvision for ImageNet example
+        run: |
+          python -m pip install -q torchvision
+
+      - name: Build and install wheel
+        env:
+          SKIP_FRONTEND_CLEAN: "1"
+        run: |
+          if [ ! -f python/probing/bundled_web/public/index.html ]; then
+            make frontend
+          fi
+          make wheel-ci
+          make install-wheel
+
+      - name: Run DDP CPU soak (gloo)
+        env:
+          PROBING: "1"
+          PROBING_TORCH_PROFILING: "on,shadow=4:1"
+          PROBING_SAMPLE_RATE: "1.0"
+          PROBING_RETENTION_DAYS: "1"
+          PROBING_DATA_DIR: /tmp/probing_soak_ddp
+          DURATION_SEC: ${{ github.event.inputs.duration_sec || '600' }}
+          NPROC: ${{ github.event.inputs.nproc || '2' }}
+          DIST_BACKEND: gloo
+          SOAK_ASSERT: "1"
+          SOAK_EXPECT_CLUSTER: "1"
+          BATCH_SIZE: "32"
+        run: |
+          chmod +x examples/run_soak.sh
+          ./examples/run_soak.sh
+
+      - name: Upload soak data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: soak-cpu-ddp-data
+          path: /tmp/probing_soak_ddp
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # Requires a self-hosted Linux runner with NVIDIA GPUs and the ``gpu`` label.
+  # Enable by registering a runner, then set if: to true or remove the false guard.
+  soak-gpu:
+    name: GPU soak (self-hosted, placeholder)
+    if: false
+    runs-on: [self-hosted, linux, gpu]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup build environment
+        uses: ./.github/actions/setup-build-env
+        with:
+          python-version: "3.12"
+          install-cargo-tools: "true"
+          install-python-deps: "true"
+          cache-venv: "false"
+          cache-wheel-test-deps: "true"
+
+      - name: Install torchvision
+        run: python -m pip install -q torchvision
+
+      - name: Build and install wheel
+        env:
+          SKIP_FRONTEND_CLEAN: "1"
+        run: |
+          make frontend
+          make wheel-ci
+          make install-wheel
+
+      - name: Run GPU DDP soak (NCCL)
+        env:
+          PROBING: "1"
+          PROBING_TORCH_PROFILING: "on,shadow=4:1"
+          PROBING_SAMPLE_RATE: "1.0"
+          DURATION_SEC: "1200"
+          NPROC: "2"
+          DIST_BACKEND: nccl
+          SOAK_ASSERT: "1"
+          BATCH_SIZE: "128"
+          PROBING_DATA_DIR: /tmp/probing_soak_gpu
+        run: |
+          chmod +x examples/run_soak.sh
+          ./examples/run_soak.sh

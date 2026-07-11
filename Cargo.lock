@@ -3638,6 +3638,7 @@ dependencies = [
  "probing-memtable",
  "probing-proto",
  "probing-python",
+ "probing-skills",
  "probing-store",
  "procfs",
  "rmcp",

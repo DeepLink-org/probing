@@ -11,6 +11,7 @@ use std::sync::Arc;
 use axum::Router;
 use probing_cli::cli::skill::{list_skill_ids, load_skill, plan_skill, run_skill_json};
 use probing_proto::prelude::{Query, QueryDataFormat};
+use probing_skills::backend::parse_cluster_query_response;
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{
@@ -270,32 +271,14 @@ impl ProbingMcp {
             .map_err(|e| tool_error(e.to_string()))?;
         let value: serde_json::Value =
             serde_json::from_str(&reply).map_err(|e| tool_error(e.to_string()))?;
-        if let Some(err) = value.get("error").and_then(|v| v.as_str()) {
-            return Err(tool_error(err.to_string()));
-        }
-        let df = value
-            .get("dataframe")
-            .ok_or_else(|| tool_error("missing dataframe in cluster response"))?;
-        let dataframe: probing_proto::prelude::DataFrame =
-            serde_json::from_value(df.clone()).map_err(|e| tool_error(e.to_string()))?;
+        let (dataframe, cluster_meta) =
+            parse_cluster_query_response(&value).map_err(|e| tool_error(e.0))?;
         let rows = helpers::truncate_dataframe_json(&dataframe, limit);
         let meta = value
             .get("meta")
             .cloned()
             .unwrap_or(serde_json::Value::Null);
-        let partial = meta
-            .get("partial")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false)
-            || meta
-                .get("nodes_failed")
-                .and_then(|v| v.as_array())
-                .is_some_and(|a| !a.is_empty())
-            || meta
-                .get("peer_batches_dropped")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(0)
-                > 0;
+        let partial = cluster_meta.as_ref().is_some_and(|m| m.partial);
         let payload = serde_json::json!({
             "dataframe": rows,
             "meta": meta,

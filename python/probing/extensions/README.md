@@ -34,7 +34,6 @@ from probing.extensions import (
 | `probing.repl` | `load_magics()` |
 | `probing.handlers.pythonext` | `skill_roots_json`, `vendor_extensions_json` |
 | `probing/cli` (Rust) | subprocess `python -m probing.extensions skill-roots` |
-| `probing.discovery` | Deprecated shim re-exporting this package |
 
 ## Authoring vendor packages
 
