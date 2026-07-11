@@ -70,6 +70,8 @@ CLIPPY_WEB := cd web && cargo clippy --all-targets $(CLIPPY_DENY)
 FMT_WORKSPACE := cargo fmt --all
 FMT_WEB := cd web && cargo fmt --all
 FMT_ALL_CFGS := ./scripts/fmt-all-cfgs.sh
+RUFF_DIRS := python/ tests/
+RUFF := $(if $(wildcard .venv/bin/ruff),.venv/bin/ruff,$(shell command -v ruff 2>/dev/null))
 
 # ==============================================================================
 .PHONY: help
@@ -320,15 +322,9 @@ test-python-wheel: install-wheel-test-deps
 coverage-python-wheel:
 	$(MAKE) test-python-wheel PYTEST_WHEEL_EXTRA="--cov=probing --cov=tests --cov-report=xml:coverage.xml"
 
-FMT_PYTHON := @if [ -x .venv/bin/ruff ]; then \
-		.venv/bin/ruff check --fix python/ tests/; \
-		.venv/bin/ruff format python/ tests/; \
-	elif command -v ruff >/dev/null 2>&1; then \
-		ruff check --fix python/ tests/; \
-		ruff format python/ tests/; \
-	else \
-		echo "install ruff: make install-dev-python-deps  (or: $(VENV_PYTHON) -m pip install ruff)"; exit 1; \
-	fi
+FMT_PYTHON := @test -n "$(RUFF)" || { echo "install ruff: make install-dev-python-deps"; exit 1; }; \
+	$(RUFF) check --fix $(RUFF_DIRS); \
+	$(RUFF) format $(RUFF_DIRS)
 
 lint: lint-python lint-rust lint-docs
 fmt:
@@ -338,15 +334,7 @@ fmt:
 fmt-check:
 	$(FMT_WORKSPACE) -- --check
 	$(FMT_WEB) -- --check
-	@if [ -x .venv/bin/ruff ]; then \
-		.venv/bin/ruff check python/ tests/ && \
-		.venv/bin/ruff format --check python/ tests/; \
-	elif command -v ruff >/dev/null 2>&1; then \
-		ruff check python/ tests/ && \
-		ruff format --check python/ tests/; \
-	else \
-		echo "install ruff: make install-dev-python-deps  (or: $(VENV_PYTHON) -m pip install ruff)"; exit 1; \
-	fi
+	@$(MAKE) --no-print-directory lint-python
 fmt-all-cfgs:
 	@chmod +x scripts/fmt-all-cfgs.sh
 	$(FMT_ALL_CFGS)
@@ -356,15 +344,9 @@ fmt-all-cfgs-check:
 lint-core:
 	$(CLIPPY_CORE)
 lint-python:
-	@if [ -x .venv/bin/ruff ]; then \
-		.venv/bin/ruff check python/ tests/ && \
-		.venv/bin/ruff format --check python/ tests/; \
-	elif command -v ruff >/dev/null 2>&1; then \
-		ruff check python/ tests/ && \
-		ruff format --check python/ tests/; \
-	else \
-		echo "install ruff: make install-dev-python-deps  (or: $(VENV_PYTHON) -m pip install ruff)"; exit 1; \
-	fi
+	@test -n "$(RUFF)" || { echo "install ruff: make install-dev-python-deps"; exit 1; }
+	$(RUFF) check $(RUFF_DIRS)
+	$(RUFF) format --check $(RUFF_DIRS)
 lint-rust:
 	$(CLIPPY_WORKSPACE)
 	$(CLIPPY_WEB)

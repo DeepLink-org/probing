@@ -204,11 +204,11 @@ make coverage
 
 ### 代码风格
 
-**Python：** `ruff`、`mypy`
+**Python：** `ruff`（lint + format）、`mypy`
 
 ```bash
-ruff format .
-ruff check .
+make fmt              # Python: ruff format + fix；Rust: rustfmt
+make lint-python      # ruff check + ruff format --check
 mypy python/probing
 ```
 

@@ -75,8 +75,6 @@ dev = [
     "ipython>=8.0",
     "ipykernel>=6.0",
     "ruff>=0.1.0",
-    "black>=24.0; python_version >= '3.8'",
-    "black<24.0; python_version < '3.8'",
     "maturin>=1.0,<2.0",
 ]
 
@@ -186,7 +184,7 @@ ignore = ["E501", "E402", "F841", "E731", "F401", "E722", "N806", "N801", "N802"
 "examples/*" = ["E722"]
 "tests/*" = ["F841"]
 
-[tool.black]
-line-length = 88
-target-version = ["py37"]
-include = '\.pyi?$'
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"

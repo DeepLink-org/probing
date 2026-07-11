@@ -23,14 +23,12 @@ jobs:
       - name: Code style checking
         working-directory: ${{ github.workspace }}
         run: |
-          cargo fmt --all -- --check
-          (cd web && cargo fmt --all -- --check)
+          make fmt-check
           make lint-rust
 
-      - name: Python and docs lint
+      - name: Docs lint
         working-directory: ${{ github.workspace }}
         run: |
-          make lint-python
           make docs-install
           make lint-docs
 

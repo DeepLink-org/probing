@@ -483,9 +483,9 @@ with _probing_tracer:
             __main__.__probing__ = {}
         if "debug" not in __main__.__probing__:
             __main__.__probing__["debug"] = {}
-        __main__.__probing__["debug"][
-            "debugger_installed"
-        ] = DebugMagic.detect_debugger()
+        __main__.__probing__["debug"]["debugger_installed"] = (
+            DebugMagic.detect_debugger()
+        )
 
         return __main__.__probing__["debug"]
 

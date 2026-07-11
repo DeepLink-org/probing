@@ -209,11 +209,11 @@ make coverage          # local editable + Rust (requires cargo-llvm-cov; see CI 
 
 ### Code style
 
-**Python:** `ruff`, `mypy`
+**Python:** `ruff` (lint + format), `mypy`
 
 ```bash
-ruff format .
-ruff check .
+make fmt              # ruff format + fix (Python); rustfmt (Rust)
+make lint-python      # ruff check + ruff format --check
 mypy python/probing
 ```
 

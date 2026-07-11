@@ -173,7 +173,10 @@ def match_skills(query: str, limit: int = 3) -> List[str]:
 def validate_skill(skill: Skill) -> List[str]:
     warnings: List[str] = []
     if not skill.steps:
-        warnings.append(f"{skill.id}: no steps defined")
+        # Guide-only skills (e.g. crash_triage) route agents via SKILL.md +
+        # summary_template / next_steps without executable probe steps.
+        if not skill.summary_template.strip() and not skill.next_steps:
+            warnings.append(f"{skill.id}: no steps defined")
     seen_ids: set[str] = set()
     for step in skill.steps:
         if step.id in seen_ids:
