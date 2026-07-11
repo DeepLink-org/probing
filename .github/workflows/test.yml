@@ -113,9 +113,10 @@ jobs:
           cache-venv: "false"
 
       - name: Run web crate tests and clippy
+        working-directory: web
         run: |
-          cd web && cargo test --all-targets
-          cd web && cargo clippy --all-targets -- -D warnings
+          cargo test --all-targets
+          cargo clippy --all-targets -- -D warnings
 
   rust-test:
     name: Rust tests (Linux x86_64)

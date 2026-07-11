@@ -149,6 +149,17 @@ install-wheel-test-deps: venv
 		$(VENV_PYTHON) -m pip install -q -U pip $(PYTEST_WHEEL_DEPS); \
 	fi
 
+# CI: UV_SYNC_GROUPS=build,dev,wheel-test make sync-uv-groups
+sync-uv-groups: venv
+	@test -f uv.lock || { echo "error: missing uv.lock"; exit 1; }
+	@test -n "$(UV_SYNC_GROUPS)" || { echo "error: set UV_SYNC_GROUPS (comma-separated)"; exit 1; }
+	@args=""; \
+	for g in $$(echo "$(UV_SYNC_GROUPS)" | tr ',' ' '); do \
+		test -n "$$g" || continue; \
+		args="$$args --group $$g"; \
+	done; \
+	uv sync --frozen --no-install-project $$args
+
 core: venv nccl-profiler-lib hccl-shim-lib
 	$(VENV_PYTHON) -m maturin develop $(MATURIN_FLAGS)
 

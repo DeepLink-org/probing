@@ -113,12 +113,11 @@ runs:
       uses: actions/cache@v4
       with:
         path: |
-          ~/.cargo/bin/cargo-nextest
           ~/.cargo/bin/cargo-zigbuild
           ~/.cargo/bin/rnr
-        key: cargo-cli-v1-${{ runner.os }}-nextest-zigbuild-rnr
+        key: cargo-cli-v2-${{ runner.os }}-${{ runner.arch }}-zigbuild-rnr
         restore-keys: |
-          cargo-cli-v1-${{ runner.os }}-
+          cargo-cli-v2-${{ runner.os }}-${{ runner.arch }}-
 
     - name: Install dioxus CLI (dx)
       if: inputs.install-cargo-tools == 'true'
@@ -126,13 +125,29 @@ runs:
       with:
         tool: dioxus-cli@${{ inputs.dx-version }}
 
+    - name: Install cargo-nextest
+      if: inputs.install-cargo-tools == 'true'
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-nextest
+
     - name: Install other cargo tools
       if: inputs.install-cargo-tools == 'true'
       shell: bash
       run: |
-        test -e ~/.cargo/bin/cargo-zigbuild || cargo install cargo-zigbuild --locked
-        test -e ~/.cargo/bin/rnr || cargo install rnr
-        test -e ~/.cargo/bin/cargo-nextest || cargo install --locked cargo-nextest
+        ensure_cargo_bin() {
+          local bin="$1"
+          shift
+          if [ -x "$HOME/.cargo/bin/$bin" ] && "$HOME/.cargo/bin/$bin" "$@" >/dev/null 2>&1; then
+            return 0
+          fi
+          rm -f "$HOME/.cargo/bin/$bin"
+          return 1
+        }
+        if [ "${{ inputs.enable-zig }}" == "true" ]; then
+          ensure_cargo_bin cargo-zigbuild --version || cargo install cargo-zigbuild --locked
+        fi
+        ensure_cargo_bin rnr --help || cargo install rnr
 
     - name: Create project venv
       shell: bash
@@ -143,8 +158,8 @@ runs:
     - name: Verify uv.lock is present and current
       if: inputs.enable-uv == 'true' && inputs.uv-sync-groups != ''
       shell: bash
-      working-directory: ${{ github.workspace }}
       run: |
+        cd "$GITHUB_WORKSPACE"
         if [ ! -f uv.lock ]; then
           echo "::error::uv.lock is missing. Run 'uv lock' locally and commit uv.lock."
           exit 1
@@ -154,20 +169,9 @@ runs:
     - name: Sync locked Python dependencies (uv)
       if: inputs.uv-sync-groups != ''
       shell: bash
-      working-directory: ${{ github.workspace }}
-      run: |
-        if [ ! -f uv.lock ]; then
-          echo "::error::uv.lock is missing. Run 'uv lock' locally and commit uv.lock."
-          exit 1
-        fi
-        IFS=',' read -ra GROUPS <<< "${{ inputs.uv-sync-groups }}"
-        ARGS=()
-        for g in "${GROUPS[@]}"; do
-          g="$${g// /}"
-          test -n "$$g" || continue
-          ARGS+=(--group "$$g")
-        done
-        uv sync --frozen --no-install-project "$${ARGS[@]}"
+      env:
+        UV_SYNC_GROUPS: ${{ inputs.uv-sync-groups }}
+      run: make sync-uv-groups
 
     - name: Install Python build dependencies into venv
       if: inputs.install-python-deps == 'true' && inputs.uv-sync-groups == ''
