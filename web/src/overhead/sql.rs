@@ -17,9 +17,7 @@ const SAMPLE_RATE: &str = "CAST(sample_rate AS DOUBLE)";
 const TIMING_TABLE: &str = "python.torch_step_timing";
 
 fn window_start(table: &str, window_steps: i64) -> String {
-    format!(
-        "GREATEST(COALESCE((SELECT max(local_step) FROM {table}), 0) - {window_steps}, 1)"
-    )
+    format!("GREATEST(COALESCE((SELECT max(local_step) FROM {table}), 0) - {window_steps}, 1)")
 }
 
 pub fn summary() -> String {

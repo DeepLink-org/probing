@@ -150,16 +150,19 @@ fn overhead_body(
         .unwrap_or(4);
     let sample_rate = summary_df.and_then(|df| df_scalar_f64(df, "sample_rate", 0));
     let sample_mode = summary_df.and_then(|df| {
-        df.names.iter().position(|n| n == "sample_mode").and_then(|ci| {
-            summary_df?
-                .cols
-                .get(ci)
-                .filter(|col| !col.is_empty())
-                .map(|col| match &col.get(0) {
-                    Ele::Text(s) => s.clone(),
-                    other => format!("{other:?}"),
-                })
-        })
+        df.names
+            .iter()
+            .position(|n| n == "sample_mode")
+            .and_then(|ci| {
+                summary_df?
+                    .cols
+                    .get(ci)
+                    .filter(|col| !col.is_empty())
+                    .map(|col| match &col.get(0) {
+                        Ele::Text(s) => s.clone(),
+                        other => format!("{other:?}"),
+                    })
+            })
     });
     let train_step_median_ms = train_step
         .as_ref()

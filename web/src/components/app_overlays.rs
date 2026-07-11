@@ -2,21 +2,19 @@
 
 use dioxus::prelude::*;
 
+use crate::api::OVERHEAD_POLL_MS;
 use crate::components::common::AsyncBoundary;
 use crate::components::icon::Icon;
-use crate::components::overlay_shell::{OverlayAccent, OverlayShell};
 use crate::components::overhead::TorchOverheadPanel;
+use crate::components::overlay_shell::{OverlayAccent, OverlayShell};
 use crate::components::source_viewer::SourceViewerOverlay;
 use crate::hooks::{use_page_visible, use_poll_tick_gated};
-use crate::state::overlays::{
-    app_overlay, close_app_overlay, AppOverlay, SidebarMonitor,
-};
+use crate::state::overlays::{app_overlay, close_app_overlay, AppOverlay, SidebarMonitor};
 use crate::state::scroll_lock::unlock_body_scroll;
 use crate::state::ui_tasks::{
     cancel_all_running_ui_tasks, cancel_ui_task, clear_finished_ui_tasks, ui_tasks_snapshot,
     UiTask, UiTaskStatus, UI_TASK_TICK,
 };
-use crate::api::OVERHEAD_POLL_MS;
 
 /// Renders whichever global overlay is active.
 #[component]
