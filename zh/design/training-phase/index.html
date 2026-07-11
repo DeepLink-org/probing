@@ -2354,7 +2354,8 @@
 <li><code>train.step</code> attrs 含 <code>accum_index</code>、<code>micro_step</code>、<code>local_step</code>。</li>
 </ul>
 <h2 id="inspectstack">性能：<code>inspect.stack()</code><a class="headerlink" href="#inspectstack" title="Permanent link">&para;</a></h2>
-<p>自动 <code>location</code> <strong>默认关闭</strong>。仅在 <code>PROBING_SPAN_LOCATION=1</code> 或显式 <code>location=</code> 时，<code>span.py</code> 的 <code>_caller_location()</code> 会遍历 <code>inspect.stack()</code>。TorchProbe 变量追踪在 <code>torch_probe.py</code> 另有独立 stack  walk。</p>
+<p>自动 <code>location</code> <strong>默认关闭</strong>。仅在 <code>PROBING_SPAN_LOCATION=1</code> 或显式 <code>location=</code> 时，<code>span.py</code> 的 <code>_caller_location()</code> 会遍历 <code>inspect.stack()</code>。TorchProbe 变量追踪在 <code>torch_probe.py</code> 另有独立 stack walk。</p>
+<p>Span API 分层、backend、<code>none</code> 与热路径优化见 <strong><a href="../tracing-spans/">Span API 设计</a></strong>。</p>
 
 
 

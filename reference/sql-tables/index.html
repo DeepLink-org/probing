@@ -1897,6 +1897,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#python-torch_step_timing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        python.torch_step_timing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#python-comm_collective" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2339,6 +2350,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#python-torch_step_timing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        python.torch_step_timing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#python-comm_collective" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2744,6 +2766,71 @@ by these prefixes so you know where to look:</p>
 </table>
 <p><strong>Notes:</strong> First complete step is discovery-only (may have no rows). Backward hooks are off
 by default.</p>
+<hr />
+<h3 id="python-torch_step_timing"><code>python.torch_step_timing</code><a class="headerlink" href="#python-torch_step_timing" title="Permanent link">&para;</a></h3>
+<p>Per-step wall-clock duration for TorchProbe overhead monitoring (probed vs shadow baseline).</p>
+<p><strong>Synonyms:</strong> torch overhead, shadow step, profiling overhead</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>local_step</code></td>
+<td>Local training step (per rank)</td>
+</tr>
+<tr>
+<td><code>global_step</code></td>
+<td>Global step</td>
+</tr>
+<tr>
+<td><code>rank</code></td>
+<td><code>torch.distributed</code> rank</td>
+</tr>
+<tr>
+<td><code>world_size</code></td>
+<td>World size</td>
+</tr>
+<tr>
+<td><code>role</code></td>
+<td>Parallel role key</td>
+</tr>
+<tr>
+<td><code>step_duration_sec</code></td>
+<td>Wall time for the step (seconds), measured between consecutive <code>post_step_hook</code> completions (probed steps include GPU sync and <code>torch_trace</code> flush)</td>
+</tr>
+<tr>
+<td><code>is_shadow</code></td>
+<td><code>1</code> = shadow baseline step (TorchProbe hooks bypassed), <code>0</code> = probed step</td>
+</tr>
+<tr>
+<td><code>sampled</code></td>
+<td><code>1</code> = TorchProbe sampled this step, <code>0</code> = not sampled or shadow</td>
+</tr>
+<tr>
+<td><code>shadow_normal</code></td>
+<td>Shadow cadence: probed steps per cycle at record time</td>
+</tr>
+<tr>
+<td><code>shadow_baseline</code></td>
+<td>Shadow cadence: baseline steps per cycle at record time</td>
+</tr>
+<tr>
+<td><code>sample_rate</code></td>
+<td>TorchProbe step-level sample rate at record time</td>
+</tr>
+<tr>
+<td><code>sample_mode</code></td>
+<td>Sampling mode (always <code>random</code>; legacy <code>ordered</code> removed)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Notes:</strong> Default <code>shadow=4:1</code>. Compare <code>median(step_duration_sec)</code> grouped by <code>is_shadow</code> for overhead %.</p>
+<p><strong>Global:</strong> <code>global.python.torch_step_timing</code>
+<strong>Federation columns:</strong> <code>_host</code>, <code>_addr</code>, <code>_rank</code>, <code>_role</code></p>
 <hr />
 <h3 id="python-comm_collective"><code>python.comm_collective</code><a class="headerlink" href="#python-comm_collective" title="Permanent link">&para;</a></h3>
 <p><code>torch.distributed</code> collective calls (all_reduce, broadcast, …).</p>

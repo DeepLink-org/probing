@@ -1319,6 +1319,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#nccl-profiler-overhead" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NCCL profiler overhead
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#collected-data-pythontorch_trace" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2288,6 +2299,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#nccl-profiler-overhead" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NCCL profiler overhead
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#collected-data-pythontorch_trace" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2463,28 +2485,29 @@
 <li>Forward pre/post hooks on every <code>nn.Module</code> in the model tree</li>
 <li>Optimizer pre/post step hooks</li>
 </ul>
-<p><strong>Backward hooks are not enabled by default.</strong> Module backward hooks can alter autograd behaviour and have caused execution errors in production; forward-only collection is the safe default. Backward hooks remain available via <code>install_hooks(..., backward=True)</code> for controlled experiments.</p>
+<p><strong>Backward timing is off by default.</strong> With <code>backward=on</code>, probing times each module's <em>own</em> backward as the interval between <strong>grad_output ready</strong> (a hook on the forward output tensor — fires just before the module's backward) and <strong>grad_input ready</strong> (a hook on the forward input tensor — fires just after). Plain tensor <code>register_hook</code> callbacks are inplace-safe, unlike module backward hooks, which crash when downstream layers use inplace activations (AlexNet/ResNet ReLU). Modules whose input does not require grad (e.g. the first layer) record ~0 backward since the interval cannot be measured. Enable via <code>PROBING_TORCH_PROFILING=on,backward=on</code> only when needed.</p>
 <h3 id="sampling">Sampling<a class="headerlink" href="#sampling" title="Permanent link">&para;</a></h3>
 <p>The first complete training step is <strong>discovery</strong>: modules are registered, no rows are written. Sampling begins on subsequent steps.</p>
-<table>
-<thead>
-<tr>
-<th>Mode</th>
-<th><code>rate</code> meaning</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>ordered</code> (default)</td>
-<td>Probability each step is sampled. On sampled steps, one module rotates per step (<code>curr_mod</code>), plus a per-step <strong>time anchor</strong> at hook offset <code>0</code> (first hook in the step).</td>
-</tr>
-<tr>
-<td><code>random</code></td>
-<td>Every step is sampled. <code>rate</code> is the per-hook probability for offset <code>&gt; 0</code>. The offset <code>0</code> anchor is always recorded.</td>
-</tr>
-</tbody>
-</table>
-<p>Hook overhead is reduced by sampling; forward hooks remain registered on all modules.</p>
+<p><code>rate</code> sets the <strong>step sampling density</strong>: exactly one step out of every <code>round(1/rate)</code> is sampled, evenly spaced and starting at the first probed step. This is <em>stratified</em> (not i.i.d.), so a low rate never leaves long gaps — data appears immediately and at a steady cadence (e.g. <code>rate=0.01</code> samples every 100th step, <code>rate=0.05</code> every 20th). The schedule is derived from the step index (no host RNG, no per-process seed), so every rank samples the <em>same</em> steps — distributed traces stay aligned and training stays reproducible. Non-sampled steps short-circuit: module/optimizer hooks and the GPU flush are skipped (wall timing in <code>torch_step_timing</code> is still written).</p>
+<p>On a sampled step, each layer is recorded independently with probability <code>layer_rate</code> (the optional second field, e.g. <code>0.1:0.3</code> = sample every 10th step, and within it hit each layer with 30% chance). Default <code>layer_rate=1.0</code> = full snapshot. The per-layer decision is a deterministic hash of <em>(step, layer)</em> — it looks random and varies per layer, yet is reproducible and identical across ranks. The offset-<code>0</code> anchor (first hook in the step) is always recorded so every sampled step has a time reference.</p>
+<p>Grammar: <code>rate[:layer_rate]</code> — <code>rate</code> is the step density, <code>layer_rate</code> the per-layer hit probability. A leading <code>random:</code> / <code>ordered:</code> mode token is still accepted for back-compat and treated as <code>random</code> (the legacy per-step rotating-module <code>ordered</code> mode has been removed).</p>
+<p>Default when enabled (<code>PROBING_TORCH_PROFILING=on</code>): <strong><code>rate=0.05</code>, <code>layer_rate=1.0</code></strong> (full snapshot on 5% of steps). Use <code>1.0</code> for every step, <code>0.05:0.1</code> for 5% of steps sampling 10% of layers.</p>
+<p><strong>Shadow baseline steps (default <code>shadow=4:1</code>):</strong> every 4 probed training steps are followed by 1 step where TorchProbe hooks are fully bypassed (no module-level <code>python.torch_trace</code> rows). NCCL, CPU/GPU sampling, and other collectors are unchanged. Each step writes one row to <code>python.torch_step_timing</code> (<code>is_shadow=1</code> for baseline steps). Disable with <code>shadow=off</code>.</p>
+<p>Estimate overhead:</p>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">SELECT</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="n">round</span><span class="p">(</span><span class="n">median</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">step_duration_sec</span><span class="w"> </span><span class="k">END</span><span class="p">)</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">        </span><span class="o">/</span><span class="w"> </span><span class="k">nullif</span><span class="p">(</span><span class="n">median</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">step_duration_sec</span><span class="w"> </span><span class="k">END</span><span class="p">),</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">100</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="k">AS</span><span class="w"> </span><span class="n">overhead_pct</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_step_timing</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">local_step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+</span></code></pre></div>
+<p>Hook overhead is reduced by sampling; forward hooks remain registered on all modules (except on shadow steps, where hooks return immediately).</p>
+<h3 id="nccl-profiler-overhead">NCCL profiler overhead<a class="headerlink" href="#nccl-profiler-overhead" title="Permanent link">&para;</a></h3>
+<p>TorchProbe shadow steps measure <strong>module-hook</strong> overhead only. The NCCL profiler plugin has no in-run shadow baseline today — it always records collective events when enabled. For NCCL AllReduce overhead vs probing, use the offline benchmark:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./examples/run_nccl_profiler_bench.sh
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1"># or: python examples/torch_probe_overhead_smoke.py  # Torch-only smoke (no GPU)</span>
+</span></code></pre></div>
+<p>Monitor runtime health via <code>nccl.profiler_counters</code> (<code>pool_exhausted</code>, <code>write_errors</code>, <code>rows_written</code>). The Web UI overhead panel links to the offline NCCL bench when the profiler is active.</p>
 <p>Records are flushed at the end of each optimizer step (after optional GPU <code>synchronize()</code>). Pre/post hook pairs produce two rows; <strong>duration is set on the post row</strong> (<code>post forward</code>, <code>post step</code>, etc.).</p>
 <h3 id="collected-data-pythontorch_trace">Collected Data (<code>python.torch_trace</code>)<a class="headerlink" href="#collected-data-pythontorch_trace" title="Permanent link">&para;</a></h3>
 <p>Full column list: <a href="../../reference/sql-tables/#python-torch_trace">SQL Tables — torch_trace</a>.</p>
@@ -2574,19 +2597,19 @@
 <p>Lite-mode hooks on <code>torch.distributed</code> write one row per collective with <code>duration_ms</code>,
 <code>bytes</code>, <code>op</code>, and the same step/role coordinates. See <a href="../../reference/sql-tables/#python-comm_collective">SQL Tables</a> and <a href="../../guide/sql-analytics/#python-comm_collective">SQL Analytics</a>.</p>
 <h3 id="enable-pytorch-profiling">Enable PyTorch Profiling<a class="headerlink" href="#enable-pytorch-profiling" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Environment variable (synced to probing.torch.profiling)</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span>on<span class="w"> </span>python<span class="w"> </span>train.py
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># Ordered sampling, 50% of steps</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span>ordered:0.5<span class="w"> </span>python<span class="w"> </span>train.py
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1"># Random per-hook sampling</span>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span>random:0.1,tracepy<span class="o">=</span>on<span class="w"> </span>python<span class="w"> </span>train.py
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Environment variable (synced to probing.torch.profiling)</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span>on<span class="w"> </span>python<span class="w"> </span>train.py
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Full snapshot on 50% of steps</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span><span class="m">0</span>.5<span class="w"> </span>python<span class="w"> </span>train.py
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># 10% of steps, and within each hit 30% of layers</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span><span class="m">0</span>.1:0.3,tracepy<span class="o">=</span>on<span class="w"> </span>python<span class="w"> </span>train.py
 </span></code></pre></div>
 <p>Programmatic configuration:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">probing.profiling.torch_probe</span><span class="w"> </span><span class="kn">import</span> <span class="n">configure</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">configure</span><span class="p">(</span><span class="s2">&quot;on,mode=ordered,rate=0.5&quot;</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">probing.profiling.torch_probe</span><span class="w"> </span><span class="kn">import</span> <span class="n">configure</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">configure</span><span class="p">(</span><span class="s2">&quot;on,rate=0.5,layer_rate=0.3&quot;</span><span class="p">)</span>
 </span></code></pre></div>
 <p>Profiling starts on the first <code>optimizer.step()</code> after torch is imported (optimizer post hook).</p>
 <h2 id="python-stack-profiling">Python Stack Profiling<a class="headerlink" href="#python-stack-profiling" title="Permanent link">&para;</a></h2>
@@ -2602,18 +2625,18 @@
 <h2 id="data-storage">Data Storage<a class="headerlink" href="#data-storage" title="Permanent link">&para;</a></h2>
 <p>Torch traces and other probe data are stored in <strong>columnar probe tables</strong> (e.g. <code>python.torch_trace</code>), queryable through the engine. Retention and federation follow memtable / server configuration—not a fixed-size in-process ring buffer.</p>
 <h2 id="query-interface">Query Interface<a class="headerlink" href="#query-interface" title="Permanent link">&para;</a></h2>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1">-- Skip discovery / warm-up steps</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">module</span><span class="p">,</span><span class="w"> </span><span class="n">stage</span><span class="p">,</span><span class="w"> </span><span class="k">AVG</span><span class="p">(</span><span class="n">duration</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">avg_sec</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">duration</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">module</span><span class="p">,</span><span class="w"> </span><span class="n">stage</span>
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">avg_sec</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="c1">-- Per-module flamegraph input uses median(duration) on post rows</span>
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">module</span><span class="p">,</span><span class="w"> </span><span class="n">stage</span><span class="p">,</span><span class="w"> </span><span class="n">median</span><span class="p">(</span><span class="k">CAST</span><span class="p">(</span><span class="n">duration</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">DOUBLE</span><span class="p">))</span>
-</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span>
-</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">module</span><span class="w"> </span><span class="o">&lt;&gt;</span><span class="w"> </span><span class="s1">&#39;None&#39;</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">stage</span><span class="w"> </span><span class="k">LIKE</span><span class="w"> </span><span class="s1">&#39;post %&#39;</span>
-</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">module</span><span class="p">,</span><span class="w"> </span><span class="n">stage</span><span class="p">;</span>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1">-- Skip discovery / warm-up steps</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">module</span><span class="p">,</span><span class="w"> </span><span class="n">stage</span><span class="p">,</span><span class="w"> </span><span class="k">AVG</span><span class="p">(</span><span class="n">duration</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">avg_sec</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">duration</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">module</span><span class="p">,</span><span class="w"> </span><span class="n">stage</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">avg_sec</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="c1">-- Per-module flamegraph input uses median(duration) on post rows</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">module</span><span class="p">,</span><span class="w"> </span><span class="n">stage</span><span class="p">,</span><span class="w"> </span><span class="n">median</span><span class="p">(</span><span class="k">CAST</span><span class="p">(</span><span class="n">duration</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">DOUBLE</span><span class="p">))</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">module</span><span class="w"> </span><span class="o">&lt;&gt;</span><span class="w"> </span><span class="s1">&#39;None&#39;</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">stage</span><span class="w"> </span><span class="k">LIKE</span><span class="w"> </span><span class="s1">&#39;post %&#39;</span>
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">module</span><span class="p">,</span><span class="w"> </span><span class="n">stage</span><span class="p">;</span>
 </span></code></pre></div>
 <h2 id="performance-overhead">Performance Overhead<a class="headerlink" href="#performance-overhead" title="Permanent link">&para;</a></h2>
 <p>Overhead depends on model size (all modules carry forward hooks), sampling mode/rate, and optional features (<code>sync</code>, <code>tracepy</code>, variable watch). Use lower <code>rate</code>, disable torch profiling when not needed, and filter early steps in SQL rather than adding a warmup schedule.</p>
@@ -2630,12 +2653,16 @@
 <td>Baseline probe overhead only</td>
 </tr>
 <tr>
-<td><code>ordered:0.1</code></td>
-<td>Low; most steps skipped</td>
+<td><code>on</code> (default <code>0.05</code>, full snapshot)</td>
+<td>Low; ~5% of steps sampled</td>
 </tr>
 <tr>
-<td><code>ordered:1.0</code></td>
-<td>Moderate; one module + anchor per step</td>
+<td><code>0.05:0.1</code></td>
+<td>Very low; 5% of steps, 10% of layers</td>
+</tr>
+<tr>
+<td><code>1.0</code></td>
+<td>Higher; full snapshot every step</td>
 </tr>
 <tr>
 <td><code>sync=on</code></td>

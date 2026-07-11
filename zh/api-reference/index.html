@@ -2526,7 +2526,7 @@
 </table>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>tables
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>config<span class="w"> </span>probing.torch.profiling
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>config<span class="w"> </span>probing.torch.profiling<span class="o">=</span>ordered:0.1
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>config<span class="w"> </span>probing.torch.profiling<span class="o">=</span><span class="m">0</span>.1
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>flamegraph<span class="w"> </span>torch<span class="w"> </span>-o<span class="w"> </span>torch.html
 </span></code></pre></div>
 <h3 id="_3">集群（分布式）<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
@@ -2741,7 +2741,7 @@
 <tbody>
 <tr>
 <td><code>probing.torch.profiling</code></td>
-<td>TorchProbe（<code>on</code>、<code>ordered:0.5</code>、<code>random:0.1</code>、<code>tracepy=on</code> 等）</td>
+<td>TorchProbe（<code>on</code>、<code>0.5</code>、<code>0.1:0.3</code>、<code>tracepy=on</code> 等）</td>
 </tr>
 <tr>
 <td><code>probing.pprof.sample_freq</code></td>
@@ -2750,7 +2750,7 @@
 </tbody>
 </table>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>config
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>config<span class="w"> </span>probing.torch.profiling<span class="o">=</span>ordered:0.1
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>config<span class="w"> </span>probing.torch.profiling<span class="o">=</span><span class="m">0</span>.1
 </span></code></pre></div>
 <p><strong>没有</strong> <code>probing.sample_rate</code> 配置项。Torch 采样通过 <code>probing.torch.profiling</code> 或 <code>PROBING_TORCH_PROFILING</code> 控制。</p>
 <h3 id="_6">环境变量<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h3>

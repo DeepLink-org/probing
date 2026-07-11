@@ -10,17 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://github.com/DeepLink-org/probing/zh/reference/sql-tables/">
+        <link rel="canonical" href="https://github.com/DeepLink-org/probing/zh/design/tracing-spans/">
       
       
-        <link rel="prev" href="../">
-      
-      
-        <link rel="next" href="../../api-reference/">
       
       
         
-          <link rel="alternate" href="../../../reference/sql-tables/" hreflang="en">
+          <link rel="alternate" href="../../../design/tracing-spans/" hreflang="en">
         
           <link rel="alternate" href="./" hreflang="zh">
         
@@ -31,7 +27,7 @@
     
     
       
-        <title>SQL 表目录 - Probing 文档</title>
+        <title>Span API 设计 - Probing 文档</title>
       
     
     
@@ -88,7 +84,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#sql" class="md-skip">
+        <a href="#span-api" class="md-skip">
           跳转至
         </a>
       
@@ -122,7 +118,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              SQL 表目录
+              Span API 设计
             
           </span>
         </div>
@@ -169,7 +165,7 @@
       <ul class="md-select__list">
         
           <li class="md-select__item">
-            <a href="../../../reference/sql-tables/" hreflang="en" class="md-select__link">
+            <a href="../../../design/tracing-spans/" hreflang="en" class="md-select__link">
               English
             </a>
           </li>
@@ -329,7 +325,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../design/" class="md-tabs__link">
+        <a href="../" class="md-tabs__link">
           
   
   
@@ -369,13 +365,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../reference/" class="md-tabs__link">
           
   
   
@@ -893,7 +887,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../design/" class="md-nav__link ">
+            <a href="../" class="md-nav__link ">
               
   
   
@@ -999,7 +993,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/modularity/" class="md-nav__link">
+      <a href="../modularity/" class="md-nav__link">
         
   
   
@@ -1027,7 +1021,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/data-layer/" class="md-nav__link">
+      <a href="../data-layer/" class="md-nav__link">
         
   
   
@@ -1055,7 +1049,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/extensibility/" class="md-nav__link">
+      <a href="../extensibility/" class="md-nav__link">
         
   
   
@@ -1083,7 +1077,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/cli/" class="md-nav__link">
+      <a href="../cli/" class="md-nav__link">
         
   
   
@@ -1181,7 +1175,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/profiling/" class="md-nav__link">
+      <a href="../profiling/" class="md-nav__link">
         
   
   
@@ -1209,7 +1203,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/nccl-profiler/" class="md-nav__link">
+      <a href="../nccl-profiler/" class="md-nav__link">
         
   
   
@@ -1237,7 +1231,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/debugging/" class="md-nav__link">
+      <a href="../debugging/" class="md-nav__link">
         
   
   
@@ -1265,7 +1259,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/training-phase/" class="md-nav__link">
+      <a href="../training-phase/" class="md-nav__link">
         
   
   
@@ -1365,7 +1359,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/distributed/" class="md-nav__link">
+      <a href="../distributed/" class="md-nav__link">
         
   
   
@@ -1393,7 +1387,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/torchrun-cluster/" class="md-nav__link">
+      <a href="../torchrun-cluster/" class="md-nav__link">
         
   
   
@@ -1421,7 +1415,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/federation/" class="md-nav__link">
+      <a href="../federation/" class="md-nav__link">
         
   
   
@@ -1449,7 +1443,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/hierarchical-fanout/" class="md-nav__link">
+      <a href="../hierarchical-fanout/" class="md-nav__link">
         
   
   
@@ -1477,7 +1471,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/cluster-pulsing/" class="md-nav__link">
+      <a href="../cluster-pulsing/" class="md-nav__link">
         
   
   
@@ -1513,7 +1507,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/architecture/" class="md-nav__link">
+      <a href="../architecture/" class="md-nav__link">
         
   
   
@@ -1709,8 +1703,6 @@
       
   
   
-    
-  
   
   
     
@@ -1734,23 +1726,20 @@
     
     
       
-        
-        
-      
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../" class="md-nav__link ">
+            <a href="../../reference/" class="md-nav__link ">
               
   
   
@@ -1768,13 +1757,13 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_6" id="__nav_6_label" tabindex="">
+              <label class="md-nav__link " for="__nav_6" id="__nav_6_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1791,37 +1780,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    SQL 表目录
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../reference/sql-tables/" class="md-nav__link">
         
   
   
@@ -1837,298 +1799,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="目录">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      目录
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Schema 前缀
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        联邦查询
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#tracingpython" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        训练与 tracing（python.*）
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="训练与 tracing（python.*）">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#python-torch_trace" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        python.torch_trace
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#python-torch_step_timing" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        python.torch_step_timing
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#python-comm_collective" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        python.comm_collective
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pythontrace_event" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        python.trace_event
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pythonbacktrace" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        python.backtrace
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pythonvariables" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        python.variables
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_2" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        系统指标
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="系统指标">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#cpuutilization" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        cpu.utilization
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#gpuutilization" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        gpu.utilization
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#processkmsg" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        process.kmsg
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_3" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        集群
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="集群">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#clusternodes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        cluster.nodes
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#nccl-profiler" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        NCCL profiler（可选）
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="NCCL profiler（可选）">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#ncclproxy_ops" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        nccl.proxy_ops
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#ncclnet_qp" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        nccl.net_qp
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_4" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        元数据
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="元数据">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#information_schemadf_settings" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        information_schema.df_settings
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        自定义表
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_6" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        相关文档
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -2169,7 +1839,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../env-vars/" class="md-nav__link">
+      <a href="../../reference/env-vars/" class="md-nav__link">
         
   
   
@@ -2197,7 +1867,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../skill-format/" class="md-nav__link">
+      <a href="../../reference/skill-format/" class="md-nav__link">
         
   
   
@@ -2307,21 +1977,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Schema 前缀
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#_1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        联邦查询
+        分层
       
     </span>
   </a>
@@ -2329,77 +1988,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#tracingpython" class="md-nav__link">
+  <a href="#api" class="md-nav__link">
     <span class="md-ellipsis">
       
-        训练与 tracing（python.*）
+        何时用哪个 API
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="训练与 tracing（python.*）">
+    <nav class="md-nav" aria-label="何时用哪个 API">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#python-torch_trace" class="md-nav__link">
+  <a href="#torchprobe" class="md-nav__link">
     <span class="md-ellipsis">
       
-        python.torch_trace
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#python-torch_step_timing" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        python.torch_step_timing
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#python-comm_collective" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        python.comm_collective
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pythontrace_event" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        python.trace_event
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pythonbacktrace" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        python.backtrace
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pythonvariables" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        python.variables
+        与 TorchProbe 的分工
       
     </span>
   </a>
@@ -2408,6 +2012,28 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deferred-close" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        持久化语义（deferred close）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#benchmark" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        关闭持久化（benchmark / 纯栈）
+      
+    </span>
+  </a>
   
 </li>
       
@@ -2415,49 +2041,10 @@
   <a href="#_2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        系统指标
+        环境变量
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="系统指标">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#cpuutilization" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        cpu.utilization
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#gpuutilization" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        gpu.utilization
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#processkmsg" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        process.kmsg
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -2465,66 +2052,10 @@
   <a href="#_3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        集群
+        性能要点
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="集群">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#clusternodes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        cluster.nodes
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#nccl-profiler" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        NCCL profiler（可选）
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="NCCL profiler（可选）">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#ncclproxy_ops" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        nccl.proxy_ops
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#ncclnet_qp" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        nccl.net_qp
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -2532,43 +2063,15 @@
   <a href="#_4" class="md-nav__link">
     <span class="md-ellipsis">
       
-        元数据
+        查询
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="元数据">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#information_schemadf_settings" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        information_schema.df_settings
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
   <a href="#_5" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        自定义表
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_6" class="md-nav__link">
     <span class="md-ellipsis">
       
         相关文档
@@ -2598,636 +2101,213 @@
   
 
 
-<h1 id="sql">SQL 表目录<a class="headerlink" href="#sql" title="Permanent link">&para;</a></h1>
-<p>本页列出 Probing 中可通过 <code>probing query</code> 或 <code>probing.query()</code> 查询的所有内置
-SQL 表。这是一份参考手册——如果你需要查询模式和操作指南，从 <a href="../../guide/sql-analytics/">SQL 分析</a>
-开始。</p>
-<p>每张表由 mmap 环形缓冲（MEMT）承载或由扩展 crate 动态注册。表按 schema 前缀
-组织，反映数据来源：<code>python.*</code> 是训练和 Python 运行时数据，<code>cpu.*</code> / <code>gpu.*</code>
-是主机和设备采样，<code>cluster.*</code> 是节点注册信息，<code>nccl.*</code> 是 NCCL profiler 插件
-输出，<code>global.&lt;schema&gt;.&lt;table&gt;</code> 是跨 rank 的联邦查询。</p>
-<p>Schema 定义以 <code>probing/core/resources/tables.yaml</code> 为 agent overlay（描述 SSOT 为
-采集器/<code>@table</code> 内联 docs），通过 <code>probe.probing.table_docs</code> / <code>column_docs</code> 查询；
-本页与其保持同步。</p>
-<p>在真实端点上查看当前可用表：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>tables
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>tables<span class="w"> </span>--all
+<h1 id="span-api">Span API 设计<a class="headerlink" href="#span-api" title="Permanent link">&para;</a></h1>
+<p>训练时间线（粗粒度阶段）与 TorchProbe（细粒度模块 profiling）的分工、公共 API 选型与性能特性。Phase 协作细节见 <strong><a href="../training-phase/">训练阶段</a></strong>。</p>
+<h2 id="_1">分层<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>probing.span / event / record_span     ← 用户 API
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>        ↓
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>_RecordedSpan（Python）                ← 持久化编排、deferred close
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>        ↓
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>Rust Span 栈（thread-local）          ← trace_id / span_id / phase / 时间戳
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>        ↓
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>SpanRecorder → backends              ← memtable / logger / otel / none
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>        ↓
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>python.trace_event（mmap）             ← span_start / span_end / event 行
 </span></code></pre></div>
-<h2 id="schema">Schema 前缀<a class="headerlink" href="#schema" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>前缀</th>
-<th>数据来源</th>
+<th>层</th>
+<th>职责</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>python.*</code></td>
-<td>训练和 Python 运行时（memtable）</td>
+<td><strong>Rust <code>Span</code></strong></td>
+<td>线程内嵌套栈、<code>probing.phase()</code>、<code>current_span()</code></td>
 </tr>
 <tr>
-<td><code>cpu.*</code>、<code>gpu.*</code>、<code>process.*</code></td>
-<td>主机和设备采样（扩展 crate）</td>
+<td><strong><code>probing.span</code></strong></td>
+<td>开栈 + 退出时写 backend（或仅栈，无 backend 时）</td>
 </tr>
 <tr>
-<td><code>cluster.*</code></td>
-<td>集群节点注册表</td>
+<td><strong><code>record_span</code></strong></td>
+<td>已知 duration 的闭区间，<strong>不进栈</strong></td>
 </tr>
 <tr>
-<td><code>nccl.*</code></td>
-<td>NCCL profiler 插件（可选，cdylib）</td>
-</tr>
-<tr>
-<td><code>global.&lt;schema&gt;.&lt;table&gt;</code></td>
-<td>跨已注册节点联邦 fan-out</td>
-</tr>
-<tr>
-<td><code>information_schema.*</code></td>
-<td>引擎元数据和配置</td>
+<td><strong><code>attach_training_phases</code></strong></td>
+<td>自动 forward/backward/optimizer + <code>train.step</code></td>
 </tr>
 </tbody>
 </table>
-<h2 id="_1">联邦查询<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
-<p>带 <strong><code>global_name</code></strong> 的表可用 <code>global.&lt;路径&gt;</code> 查询（如 <code>global.python.comm_collective</code>）。
-Master 合并各节点结果并可能附加：</p>
+<h2 id="api">何时用哪个 API<a class="headerlink" href="#api" title="Permanent link">&para;</a></h2>
+<pre class="mermaid"><code>flowchart TD
+    Q[需要记录什么？]
+    Q --&gt;|训练阶段边界| A["attach_training_phases(model, opt)"]
+    Q --&gt;|手动阶段 / 嵌套 / event| B["with probing.span(...)"]
+    Q --&gt;|已知起止时间的闭区间| C["probing.record_span(name, duration_ns=...)"]
+    Q --&gt;|仅查询当前阶段| D["probing.phase()"]
+    A --&gt; E["python.trace_event"]
+    B --&gt; E
+    C --&gt; E</code></pre>
 <table>
 <thead>
 <tr>
-<th>标签</th>
+<th>API</th>
+<th>进栈</th>
+<th>写盘</th>
+<th>典型场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>with probing.span(...)</code></td>
+<td>是</td>
+<td>exit 时（deferred）</td>
+<td>自定义阶段、<code>probing.event()</code> 打点</td>
+</tr>
+<tr>
+<td><code>probing.record_span(...)</code></td>
+<td>否</td>
+<td>立即</td>
+<td><code>train.step</code>、collective 闭区间</td>
+</tr>
+<tr>
+<td><code>probing.event(...)</code></td>
+<td>—</td>
+<td>首次 event 时 lazy 写 <code>span_start</code></td>
+<td>span 内里程碑</td>
+</tr>
+<tr>
+<td>裸 <code>Span(...)</code>（Rust）</td>
+<td>是</td>
+<td><strong>否</strong></td>
+<td>内部/测试；请用 <code>probing.span</code></td>
+</tr>
+<tr>
+<td><code>attach_training_phases</code></td>
+<td>间接</td>
+<td>是</td>
+<td><strong>推荐</strong>：零侵入 iteration 时间线</td>
+</tr>
+</tbody>
+</table>
+<h3 id="torchprobe">与 TorchProbe 的分工<a class="headerlink" href="#torchprobe" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>能力</th>
+<th>phase hook</th>
+<th>TorchProbe</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>iteration phase（forward/backward/optimizer）</td>
+<td><strong>拥有</strong></td>
+<td><code>owns_training_phases</code> 时跳过</td>
+</tr>
+<tr>
+<td><code>train.step</code> 墙钟</td>
+<td><strong>拥有</strong>（<code>record_span</code>）</td>
+<td>不写</td>
+</tr>
+<tr>
+<td>模块 timing / 显存</td>
+<td>—</td>
+<td><code>python.torch_trace</code></td>
+</tr>
+<tr>
+<td>模块级 trace span</td>
+<td>—</td>
+<td><code>trace_spans=on</code>（默认关或采样）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>推荐组合</strong>：<code>attach_training_phases</code> + TorchProbe <code>on</code>（<code>trace_spans</code> 保持 off）——时间线靠 span，瓶颈靠 <code>torch_trace</code>。</p>
+<h2 id="deferred-close">持久化语义（deferred close）<a class="headerlink" href="#deferred-close" title="Permanent link">&para;</a></h2>
+<p><code>with probing.span</code> 在 <code>__enter__</code> <strong>不写盘</strong>；<code>__exit__</code> 时：</p>
+<ol>
+<li>若 span 生命周期内有过 <code>event</code> → 已 lazy 写 <code>span_start</code>，再写 <code>span_end</code></li>
+<li>否则 → 单次 <code>record_closed_span</code>（batch 写 start+end）</li>
+</ol>
+<p>因此：<strong>进行中的 span 在 SQL 里不可见</strong>，直到关闭（或有 event）。适合降低热路径开销；live span 查询需接受这一语义。</p>
+<p><code>record_span</code> 始终写 closed 记录，适合 <code>train.step</code> 等事后已知 duration 的路径。</p>
+<h2 id="benchmark">关闭持久化（benchmark / 纯栈）<a class="headerlink" href="#benchmark" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>方式</th>
+<th>效果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PROBING_SPAN_BACKENDS=none</code></td>
+<td>仅 Rust 栈，零写盘</td>
+</tr>
+<tr>
+<td><code>probing.tracing.configure_backends([])</code></td>
+<td>同上（覆盖 env，直到 <code>reset_backends()</code>）</td>
+</tr>
+<tr>
+<td>未设置 / 空字符串 env</td>
+<td>仍 fallback 到 <code>memtable</code></td>
+</tr>
+</tbody>
+</table>
+<p>无 backend 时：<code>span_attrs</code>、<code>json.dumps</code>、memtable 构建 <strong>全部跳过</strong>，仅保留栈操作（bench 中 no-backend ≈ 栈成本）。</p>
+<h2 id="_2">环境变量<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认</th>
 <th>说明</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>_host</code></td>
-<td>来源主机名</td>
+<td><code>PROBING_SPAN_BACKENDS</code></td>
+<td><code>memtable</code></td>
+<td><code>memtable</code>, <code>logger</code>, <code>otel</code>, <code>none</code>（逗号分隔）</td>
 </tr>
 <tr>
-<td><code>_addr</code></td>
-<td>来源 probing HTTP 地址</td>
+<td><code>PROBING_SPAN_LOG_LEVEL</code></td>
+<td><code>INFO</code></td>
+<td><code>logger</code> backend 级别</td>
 </tr>
 <tr>
-<td><code>_rank</code></td>
-<td><code>torch.distributed</code> rank（来自 <code>cluster.nodes</code>）</td>
-</tr>
-<tr>
-<td><code>_role</code></td>
-<td>并行角色 key（如 <code>dp=2,pp=1,tp=0</code>）</td>
+<td><code>PROBING_SPAN_LOCATION</code></td>
+<td>关</td>
+<td><code>1</code> 时对每个 span 做 <code>inspect.stack()</code>（高开销）</td>
 </tr>
 </tbody>
 </table>
-<p>示例：</p>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">_role</span><span class="p">,</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="k">avg</span><span class="p">(</span><span class="n">duration_ms</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">avg_ms</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">_role</span><span class="p">,</span><span class="w"> </span><span class="n">_rank</span><span class="p">;</span>
+<p>完整列表见 <a href="../../reference/env-vars/#tracing--spans">环境变量</a>。</p>
+<h2 id="_3">性能要点<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>坐标缓存</strong>：同一 <code>micro_step</code> 内 <code>span_attrs</code> 复用 step + parallel 字段，不重复 <code>snapshot()</code>。</li>
+<li><strong>无 backend 快路径</strong>：<code>persistence_enabled()</code> 为 false 时跳过 attrs 与 recorder。</li>
+<li><strong>Rust 栈 LIFO</strong>：正常 <code>with</code> 嵌套用 O(1) pop；乱序退出仍 fallback 全栈搜索。</li>
+<li><strong>避免</strong> <code>PROBING_SPAN_LOCATION=1</code> 于训练热路径；TorchProbe 变量追踪有独立 stack walk。</li>
+</ol>
+<p>本地基准：<code>make bench-quick</code> 或 <code>python examples/bench_instrumentation.py --quick</code>。</p>
+<h2 id="_4">查询<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<p>物化视图 <code>SPANS_SQL</code>（<code>probing.tracing.SPANS_SQL</code>）在 <code>span_start</code> / <code>span_end</code> 上 join 出 <code>duration_us</code>。示例：</p>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">phase</span><span class="p">,</span><span class="w"> </span><span class="n">local_step</span><span class="p">,</span><span class="w"> </span><span class="n">duration_us</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">FROM</span><span class="w"> </span><span class="p">(</span><span class="err">{</span><span class="n">SPANS_SQL</span><span class="err">}</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">spans</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;forward&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;backward&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;optimizer&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;train.step&#39;</span><span class="p">)</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">start_time</span><span class="w"> </span><span class="k">DESC</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">LIMIT</span><span class="w"> </span><span class="mi">20</span><span class="p">;</span>
 </span></code></pre></div>
-<hr />
-<h2 id="tracingpython">训练与 tracing（<code>python.*</code>）<a class="headerlink" href="#tracingpython" title="Permanent link">&para;</a></h2>
-<h3 id="python-torch_trace"><code>python.torch_trace</code><a class="headerlink" href="#python-torch_trace" title="Permanent link">&para;</a></h3>
-<p>PyTorch 模块级 forward/step 耗时与 GPU 显存快照。</p>
-<p><strong>同义词：</strong> torch trace、模块耗时</p>
-<table>
-<thead>
-<tr>
-<th>列</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>local_step</code></td>
-<td>本地训练步（每 rank）</td>
-</tr>
-<tr>
-<td><code>global_step</code></td>
-<td>全局步（<code>step_snapshot</code>）</td>
-</tr>
-<tr>
-<td><code>rank</code></td>
-<td><code>torch.distributed</code> rank</td>
-</tr>
-<tr>
-<td><code>world_size</code></td>
-<td>world size</td>
-</tr>
-<tr>
-<td><code>role</code></td>
-<td>并行角色 key，如 <code>dp=2,pp=1,tp=0</code></td>
-</tr>
-<tr>
-<td><code>seq</code></td>
-<td>步内 hook 序号</td>
-</tr>
-<tr>
-<td><code>module</code></td>
-<td>模块全名</td>
-</tr>
-<tr>
-<td><code>stage</code></td>
-<td><code>pre forward</code>、<code>post forward</code>、<code>pre step</code>、<code>post step</code></td>
-</tr>
-<tr>
-<td><code>duration</code></td>
-<td>hook 耗时（秒）；post 行有效</td>
-</tr>
-<tr>
-<td><code>time_offset</code></td>
-<td>相对 step 时间锚点（秒）</td>
-</tr>
-<tr>
-<td><code>allocated</code></td>
-<td>GPU 已分配显存（MB）</td>
-</tr>
-<tr>
-<td><code>allocated_delta</code></td>
-<td>相对上一 hook 的 allocated 变化（MB）</td>
-</tr>
-<tr>
-<td><code>max_allocated</code></td>
-<td>峰值 allocated（MB）</td>
-</tr>
-<tr>
-<td><code>max_allocated_delta</code></td>
-<td>峰值 allocated 变化（MB）</td>
-</tr>
-<tr>
-<td><code>cached</code></td>
-<td>GPU 预留显存（MB）</td>
-</tr>
-<tr>
-<td><code>max_cached</code></td>
-<td>峰值预留（MB）</td>
-</tr>
-</tbody>
-</table>
-<p><strong>说明：</strong> 第一个完整 step 为 discovery（可能无行）。默认不采 backward hook。</p>
-<hr />
-<h3 id="python-torch_step_timing"><code>python.torch_step_timing</code><a class="headerlink" href="#python-torch_step_timing" title="Permanent link">&para;</a></h3>
-<p>TorchProbe 每步墙钟耗时（probed step 与 shadow 基线 step），用于估算 profiling 开销。</p>
-<p><strong>同义词：</strong> torch overhead、shadow step、探针开销</p>
-<table>
-<thead>
-<tr>
-<th>列</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>local_step</code></td>
-<td>本 rank 训练步</td>
-</tr>
-<tr>
-<td><code>global_step</code></td>
-<td>全局训练步</td>
-</tr>
-<tr>
-<td><code>rank</code></td>
-<td><code>torch.distributed</code> rank</td>
-</tr>
-<tr>
-<td><code>world_size</code></td>
-<td>world size</td>
-</tr>
-<tr>
-<td><code>role</code></td>
-<td>并行角色 key</td>
-</tr>
-<tr>
-<td><code>step_duration_sec</code></td>
-<td>本 step 墙钟耗时（秒），相邻 <code>post_step_hook</code> 结束之间；probed step 含 GPU sync 与 <code>torch_trace</code> flush</td>
-</tr>
-<tr>
-<td><code>is_shadow</code></td>
-<td><code>1</code> = shadow 基线 step（跳过 TorchProbe hook），<code>0</code> = 正常 probed step</td>
-</tr>
-<tr>
-<td><code>sampled</code></td>
-<td><code>1</code> = 本 step 命中 TorchProbe 采样，<code>0</code> = 未采样或 shadow</td>
-</tr>
-<tr>
-<td><code>shadow_normal</code></td>
-<td>记录时的 shadow 配置：每周期 probed step 数</td>
-</tr>
-<tr>
-<td><code>shadow_baseline</code></td>
-<td>记录时的 shadow 配置：每周期 baseline step 数</td>
-</tr>
-<tr>
-<td><code>sample_rate</code></td>
-<td>记录时的 TorchProbe step 级采样率</td>
-</tr>
-<tr>
-<td><code>sample_mode</code></td>
-<td>采样模式（恒为 <code>random</code>；旧的 <code>ordered</code> 已移除）</td>
-</tr>
-</tbody>
-</table>
-<p><strong>说明：</strong> 默认 <code>shadow=4:1</code>。按 <code>is_shadow</code> 分组比较 <code>median(step_duration_sec)</code> 可得开销百分比。</p>
-<p><strong>Global：</strong> <code>global.python.torch_step_timing</code>
-<strong>联邦列：</strong> <code>_host</code>、<code>_addr</code>、<code>_rank</code>、<code>_role</code></p>
-<hr />
-<h3 id="python-comm_collective"><code>python.comm_collective</code><a class="headerlink" href="#python-comm_collective" title="Permanent link">&para;</a></h3>
-<p><code>torch.distributed</code> 集合通信（all_reduce、broadcast 等）。</p>
-<p><strong>同义词：</strong> collective、通信、all_reduce</p>
-<table>
-<thead>
-<tr>
-<th>列</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>local_step</code></td>
-<td>本 rank 本地步</td>
-</tr>
-<tr>
-<td><code>global_step</code></td>
-<td>全局训练步</td>
-</tr>
-<tr>
-<td><code>rank</code></td>
-<td><code>torch.distributed</code> rank</td>
-</tr>
-<tr>
-<td><code>world_size</code></td>
-<td>world size</td>
-</tr>
-<tr>
-<td><code>role</code></td>
-<td>并行角色 key</td>
-</tr>
-<tr>
-<td><code>op</code></td>
-<td>集合操作名</td>
-</tr>
-<tr>
-<td><code>group_rank</code></td>
-<td>进程组内 rank</td>
-</tr>
-<tr>
-<td><code>group_size</code></td>
-<td>进程组大小</td>
-</tr>
-<tr>
-<td><code>participate_ranks</code></td>
-<td>参与 rank（序列化）</td>
-</tr>
-<tr>
-<td><code>tensor_shape</code></td>
-<td>张量 shape</td>
-</tr>
-<tr>
-<td><code>tensor_dtype</code></td>
-<td>张量 dtype</td>
-</tr>
-<tr>
-<td><code>bytes</code></td>
-<td>通信字节数</td>
-</tr>
-<tr>
-<td><code>duration_ms</code></td>
-<td>墙钟时间（毫秒）</td>
-</tr>
-<tr>
-<td><code>async_op</code></td>
-<td>1 表示异步 collective</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Global：</strong> <code>global.python.comm_collective</code>
-<strong>联邦列：</strong> <code>_host</code>、<code>_addr</code>、<code>_rank</code>、<code>_role</code></p>
-<hr />
-<h3 id="pythontrace_event"><code>python.trace_event</code><a class="headerlink" href="#pythontrace_event" title="Permanent link">&para;</a></h3>
-<p>Span 起止与自定义事件（分布式 tracing）。</p>
-<table>
-<thead>
-<tr>
-<th>列</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>record_type</code></td>
-<td><code>span_start</code> | <code>span_end</code> | <code>event</code></td>
-</tr>
-<tr>
-<td><code>trace_id</code></td>
-<td>同一 trace 内共享</td>
-</tr>
-<tr>
-<td><code>span_id</code></td>
-<td>Span 唯一 id</td>
-</tr>
-<tr>
-<td><code>name</code></td>
-<td>Span / 事件名</td>
-</tr>
-<tr>
-<td><code>phase</code></td>
-<td>训练阶段（<code>forward</code>、<code>backward</code>、<code>optimizer</code>）或空</td>
-</tr>
-<tr>
-<td><code>time</code></td>
-<td>时间戳（纳秒）</td>
-</tr>
-<tr>
-<td><code>attributes</code></td>
-<td>JSON 元数据（rank、local_step 等）</td>
-</tr>
-</tbody>
-</table>
-<p>在 <code>span_id</code> 上 join <code>span_start</code> / <code>span_end</code> 可得时长。见 <a href="../../design/distributed/">分布式</a>。</p>
-<hr />
-<h3 id="pythonbacktrace"><code>python.backtrace</code><a class="headerlink" href="#pythonbacktrace" title="Permanent link">&para;</a></h3>
-<p>Python + native 混合栈（<strong>瞬时</strong>，非历史全量）。</p>
-<table>
-<thead>
-<tr>
-<th>列</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>func</code></td>
-<td>函数名</td>
-</tr>
-<tr>
-<td><code>file</code></td>
-<td>源文件</td>
-</tr>
-<tr>
-<td><code>lineno</code></td>
-<td>行号</td>
-</tr>
-<tr>
-<td><code>depth</code></td>
-<td>栈深度（0 为最内层）</td>
-</tr>
-<tr>
-<td><code>frame_type</code></td>
-<td><code>python</code> | <code>native</code></td>
-</tr>
-</tbody>
-</table>
-<p>先 <code>probing backtrace</code>，再 <code>SELECT … FROM python.backtrace</code>。</p>
-<hr />
-<h3 id="pythonvariables"><code>python.variables</code><a class="headerlink" href="#pythonvariables" title="Permanent link">&para;</a></h3>
-<p>启用变量追踪时的变量快照。</p>
-<table>
-<thead>
-<tr>
-<th>列</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>micro_step</code></td>
-<td>训练 micro-step</td>
-</tr>
-<tr>
-<td><code>func</code></td>
-<td>函数名</td>
-</tr>
-<tr>
-<td><code>name</code></td>
-<td>变量名</td>
-</tr>
-<tr>
-<td><code>value</code></td>
-<td>字符串表示</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="_2">系统指标<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
-<h3 id="cpuutilization"><code>cpu.utilization</code><a class="headerlink" href="#cpuutilization" title="Permanent link">&para;</a></h3>
-<p>主机 CPU 与 RSS 采样。</p>
-<table>
-<thead>
-<tr>
-<th>列</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>ts</code></td>
-<td>采样时间（微秒）</td>
-</tr>
-<tr>
-<td><code>scope</code></td>
-<td><code>process</code> | <code>thread</code></td>
-</tr>
-<tr>
-<td><code>rss_kb</code></td>
-<td>常驻内存（KB），仅 process</td>
-</tr>
-<tr>
-<td><code>cpu_total_pct</code></td>
-<td>CPU 利用率（%）</td>
-</tr>
-<tr>
-<td><code>comm</code></td>
-<td>线程/进程名</td>
-</tr>
-<tr>
-<td><code>wchan</code></td>
-<td>内核等待通道（Linux）</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h3 id="gpuutilization"><code>gpu.utilization</code><a class="headerlink" href="#gpuutilization" title="Permanent link">&para;</a></h3>
-<p>GPU 显存与利用率采样。</p>
-<table>
-<thead>
-<tr>
-<th>列</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>ts</code></td>
-<td>采样时间</td>
-</tr>
-<tr>
-<td><code>used_bytes</code></td>
-<td>已用显存</td>
-</tr>
-<tr>
-<td><code>total_bytes</code></td>
-<td>总显存</td>
-</tr>
-<tr>
-<td><code>mem_used_pct</code></td>
-<td>显存使用率（%）</td>
-</tr>
-<tr>
-<td><code>gpu_util_pct</code></td>
-<td>GPU 算力利用率（不可用为 -1）</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h3 id="processkmsg"><code>process.kmsg</code><a class="headerlink" href="#processkmsg" title="Permanent link">&para;</a></h3>
-<p>Linux 内核环缓冲（dmesg）。<strong>仅 Linux。</strong></p>
-<table>
-<thead>
-<tr>
-<th>列</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>timestamp</code></td>
-<td>事件时间</td>
-</tr>
-<tr>
-<td><code>level</code></td>
-<td>日志级别</td>
-</tr>
-<tr>
-<td><code>message</code></td>
-<td>内核消息</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="_3">集群<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
-<h3 id="clusternodes"><code>cluster.nodes</code><a class="headerlink" href="#clusternodes" title="Permanent link">&para;</a></h3>
-<p>已注册的分布式训练节点。</p>
-<table>
-<thead>
-<tr>
-<th>列</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>host</code></td>
-<td>主机名</td>
-</tr>
-<tr>
-<td><code>addr</code></td>
-<td>probing HTTP 地址</td>
-</tr>
-<tr>
-<td><code>rank</code></td>
-<td>全局 rank</td>
-</tr>
-<tr>
-<td><code>world_size</code></td>
-<td>world size</td>
-</tr>
-<tr>
-<td><code>local_rank</code></td>
-<td>节点内 local rank</td>
-</tr>
-<tr>
-<td><code>role</code></td>
-<td>并行角色 key（联邦 <code>_role</code> 来源）</td>
-</tr>
-<tr>
-<td><code>role_name</code></td>
-<td>Torchrun role 名（与 <code>role</code> 不同）</td>
-</tr>
-<tr>
-<td><code>status</code></td>
-<td>节点状态</td>
-</tr>
-<tr>
-<td><code>timestamp</code></td>
-<td>最近更新时间（微秒）</td>
-</tr>
-</tbody>
-</table>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>probing<span class="w"> </span>-t<span class="w"> </span>&lt;master&gt;<span class="w"> </span>cluster<span class="w"> </span>nodes
-</span></code></pre></div>
-<hr />
-<h2 id="nccl-profiler">NCCL profiler（可选）<a class="headerlink" href="#nccl-profiler" title="Permanent link">&para;</a></h2>
-<p>见 <a href="../../design/nccl-profiler/">NCCL Profiler</a>。</p>
-<h3 id="ncclproxy_ops"><code>nccl.proxy_ops</code><a class="headerlink" href="#ncclproxy_ops" title="Permanent link">&para;</a></h3>
-<p>Proxy-op 等待分解（culprit / victim）。</p>
-<table>
-<thead>
-<tr>
-<th>列</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>send_gpu_wait_ns</code></td>
-<td><strong>Culprit</strong> — 本地 GPU 未就绪</td>
-</tr>
-<tr>
-<td><code>send_peer_wait_ns</code></td>
-<td>等待接收端 clear-to-send credits（仅 v4 ABI；v3 为 0）</td>
-</tr>
-<tr>
-<td><code>recv_wait_ns</code></td>
-<td><strong>Victim</strong> — 等待对端数据</td>
-</tr>
-<tr>
-<td><code>send_wait_ns</code></td>
-<td>发送侧网络等待</td>
-</tr>
-<tr>
-<td><code>recv_flush_wait_ns</code></td>
-<td>Recv flush 等待</td>
-</tr>
-<tr>
-<td>…</td>
-<td>另有 <code>rank</code>、<code>coll_func</code>、<code>seq</code>、<code>trans_bytes</code> 等</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Global：</strong> <code>global.nccl.proxy_ops</code>
-<strong>联邦列：</strong> <code>_host</code>、<code>_addr</code>、<code>_rank</code>、<code>_role</code></p>
-<h3 id="ncclnet_qp"><code>nccl.net_qp</code><a class="headerlink" href="#ncclnet_qp" title="Permanent link">&para;</a></h3>
-<p>NetPlugin IB QP 完成耗时（可选）。</p>
-<p><strong>Global：</strong> <code>global.nccl.net_qp</code></p>
-<hr />
-<h2 id="_4">元数据<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
-<h3 id="information_schemadf_settings"><code>information_schema.df_settings</code><a class="headerlink" href="#information_schemadf_settings" title="Permanent link">&para;</a></h3>
-<p>运行时配置（<code>probing.*</code>）。</p>
-<table>
-<thead>
-<tr>
-<th>列</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>name</code></td>
-<td>配置键</td>
-</tr>
-<tr>
-<td><code>value</code></td>
-<td>配置值</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="_5">自定义表<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
-<p>插件通过 <code>@table</code> dataclass 注册 <code>python.&lt;name&gt;</code>，schema 由作者定义。见
-<a href="../../design/extensibility/">扩展机制</a>。</p>
-<hr />
-<h2 id="_6">相关文档<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
+<p>（将 <code>{SPANS_SQL}</code> 替换为 <code>probing.tracing.SPANS_SQL</code> 字符串。）</p>
+<h2 id="_5">相关文档<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../../guide/concepts/">核心概念</a></li>
-<li><a href="../../guide/sql-analytics/">SQL 分析</a></li>
-<li><a href="../../api-reference/">API 参考</a></li>
+<li><a href="../training-phase/">训练阶段</a> — phase 不变量、<code>train.step</code>、梯度累积</li>
+<li><a href="../profiling/">性能分析</a> — TorchProbe hook 与落表</li>
+<li><a href="../../guide/concepts/">核心模型 — trace_event</a> — 表语义</li>
+<li><a href="../../reference/env-vars/">环境变量</a> — <code>PROBING_SPAN_*</code></li>
 </ul>
 
 

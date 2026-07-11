@@ -2627,7 +2627,7 @@ by subsystem.</p>
 <tr>
 <td><code>PROBING_SPAN_BACKENDS</code></td>
 <td><code>memtable</code></td>
-<td>Comma-separated list of span backends. Built-in: <code>memtable</code> (writes to <code>python.trace_event</code>), <code>logger</code> (writes to stderr), <code>otel</code> (OpenTelemetry export). Custom backends can be registered via <code>probing.span_backends</code> entry point.</td>
+<td>Comma-separated span backends. Built-in: <code>memtable</code> (<code>python.trace_event</code>), <code>logger</code> (stderr), <code>otel</code> (OpenTelemetry), <code>none</code> (stack only, no persistence). <code>configure_backends([])</code> also disables until <code>reset_backends()</code>. Unknown names fall back to <code>memtable</code> only. Custom backends: <code>probing.span_backends</code> entry point. See <a href="../../design/tracing-spans/">Span API</a>.</td>
 </tr>
 <tr>
 <td><code>PROBING_SPAN_LOG_LEVEL</code></td>
@@ -2837,7 +2837,7 @@ them into a <code>role</code> string like <code>dp=2,pp=1,tp=0</code>.</p>
 <tr>
 <td><code>PROBING_TORCH_PROFILING</code></td>
 <td>—</td>
-<td>Set to <code>on</code> to activate PyTorch module hooks and write <code>python.torch_trace</code>. Required for module timing and memory data.</td>
+<td>Set to <code>on</code> to activate PyTorch module hooks and write <code>python.torch_trace</code>. Default when enabled: <strong>5% step sampling</strong> (<code>rate=0.05</code>), full-snapshot (<code>layer_rate=1.0</code>), <strong>shadow cadence 4:1</strong> (<code>shadow=4:1</code> — one baseline step per four probed steps for in-run overhead in <code>python.torch_step_timing</code>). Spec is <code>rate[:layer_rate]</code> (<code>layer_rate</code> = per-layer hit probability on a sampled step); a leading <code>random:</code>/<code>ordered:</code> token is accepted for back-compat (always <code>random</code>). Override with e.g. <code>1.0</code>, <code>0.05:0.1</code>, <code>shadow=8:2</code>, or <code>shadow=off</code>. <strong>Backward</strong> timing (<code>backward=on</code>) times each module's backward via output/input grad hooks; off by default.</td>
 </tr>
 <tr>
 <td><code>PROBING_TORCHRUN_CLUSTER</code></td>
