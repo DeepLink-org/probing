@@ -177,6 +177,69 @@ jobs:
           cargo nextest run --workspace --no-default-features
           cargo nextest run -p probing-server --no-default-features --features kmsg,gpu,gpu-cuda
 
+  windows-test:
+    name: Windows (Rust + wheel)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          cache: true
+          cache-workspaces: |
+            .
+            web
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      - name: Run Rust tests
+        shell: bash
+        run: |
+          cargo nextest run --workspace --no-default-features --nff
+          cargo nextest run -p probing-server --no-default-features --features kmsg,gpu
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dioxus CLI (dx)
+        uses: taiki-e/install-action@v2
+        with:
+          tool: dioxus-cli@0.7.9
+
+      - name: Prepare wheel bundle
+        shell: bash
+        run: |
+          rm -rf python/probing/bundled_web
+          cd web && dx bundle --release
+          test -f python/probing/bundled_web/public/index.html
+          mkdir -p python/probing/bundled_web/public/assets
+          cp -f web/assets/logo.svg python/probing/bundled_web/public/logo.svg 2>/dev/null || true
+          cp -f web/assets/logo.svg python/probing/bundled_web/public/assets/logo.svg 2>/dev/null || true
+          cp -f web/assets/tailwind.css python/probing/bundled_web/public/assets/tailwind.css
+          test -f python/probing/bundled_skills/catalog.yaml
+
+      - name: Build wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          target: x64
+          args: --release --out dist --find-interpreter --features extension-module,gpu,gpu-cuda,kmsg
+          sccache: "true"
+          rust-toolchain: stable
+
+      - name: Smoke-install wheel
+        shell: bash
+        run: |
+          WH=$(ls -1 dist/probing-*.whl | head -1)
+          python -m pip install -q --force-reinstall "$WH"
+          PROBING=0 python -c "import probing; from probing import _core; print('probing', probing.VERSION)"
+
   macos-test:
     name: macOS tests (Rust + Python)
     runs-on: macos-latest

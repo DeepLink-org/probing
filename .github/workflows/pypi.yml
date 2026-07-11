@@ -109,13 +109,14 @@ jobs:
 
       - name: Prepare wheel bundle
         shell: bash
-        env:
-          SKIP_FRONTEND_CLEAN: "1"
         run: |
-          if [ ! -f python/probing/bundled_web/public/index.html ]; then
-            cd web && dx bundle --release
-            test -f ../python/probing/bundled_web/public/index.html
-          fi
+          rm -rf python/probing/bundled_web
+          cd web && dx bundle --release
+          test -f python/probing/bundled_web/public/index.html
+          mkdir -p python/probing/bundled_web/public/assets
+          cp -f web/assets/logo.svg python/probing/bundled_web/public/logo.svg 2>/dev/null || true
+          cp -f web/assets/logo.svg python/probing/bundled_web/public/assets/logo.svg 2>/dev/null || true
+          cp -f web/assets/tailwind.css python/probing/bundled_web/public/assets/tailwind.css
           test -f python/probing/bundled_skills/catalog.yaml
 
       - name: Build wheels
