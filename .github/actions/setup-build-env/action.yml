@@ -140,15 +140,26 @@ runs:
         make venv
         echo "PYTHON=${{ github.workspace }}/.venv/bin/python" >> "$GITHUB_ENV"
 
-    - name: Verify uv.lock is current
-      if: inputs.enable-uv == 'true'
+    - name: Verify uv.lock is present and current
+      if: inputs.enable-uv == 'true' && inputs.uv-sync-groups != ''
       shell: bash
-      run: uv lock --check
+      working-directory: ${{ github.workspace }}
+      run: |
+        if [ ! -f uv.lock ]; then
+          echo "::error::uv.lock is missing. Run 'uv lock' locally and commit uv.lock."
+          exit 1
+        fi
+        uv lock --check
 
     - name: Sync locked Python dependencies (uv)
       if: inputs.uv-sync-groups != ''
       shell: bash
+      working-directory: ${{ github.workspace }}
       run: |
+        if [ ! -f uv.lock ]; then
+          echo "::error::uv.lock is missing. Run 'uv lock' locally and commit uv.lock."
+          exit 1
+        fi
         IFS=',' read -ra GROUPS <<< "${{ inputs.uv-sync-groups }}"
         ARGS=()
         for g in "${GROUPS[@]}"; do

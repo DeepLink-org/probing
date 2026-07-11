@@ -54,8 +54,11 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Verify uv.lock is current
-        run: uv lock --check
+      - name: Verify uv.lock is present and current
+        working-directory: ${{ github.workspace }}
+        run: |
+          test -f uv.lock || { echo "::error::uv.lock is missing. Run 'uv lock' and commit uv.lock."; exit 1; }
+          uv lock --check
 
       - name: Export locked deps for audit
         run: |
