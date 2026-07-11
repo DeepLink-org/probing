@@ -2913,9 +2913,9 @@
 </span></code></pre></div>
 <p><strong>Rust 例外：</strong> <code>probing/macros/tests/</code> 为 proc-macro 外部 crate 测试，必须保留独立文件。</p>
 <h3 id="_5">代码风格<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
-<p><strong>Python：</strong> <code>ruff</code>、<code>mypy</code></p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>ruff<span class="w"> </span>format<span class="w"> </span>.
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>ruff<span class="w"> </span>check<span class="w"> </span>.
+<p><strong>Python：</strong> <code>ruff</code>（lint + format）、<code>mypy</code></p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>make<span class="w"> </span>fmt<span class="w">              </span><span class="c1"># Python: ruff format + fix；Rust: rustfmt</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>make<span class="w"> </span>lint-python<span class="w">      </span><span class="c1"># ruff check + ruff format --check</span>
 </span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>mypy<span class="w"> </span>python/probing
 </span></code></pre></div>
 <p><strong>Rust：</strong> <code>rustfmt</code>、<code>clippy</code>（共享规则在 <code>clippy.toml</code>；严格 lint <strong>按 crate 渐进启用</strong>，见各 crate 的 <code>Cargo.toml</code> <code>[lints]</code>）</p>
@@ -2924,7 +2924,7 @@
 </span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>make<span class="w"> </span>lint-rust<span class="w">          </span><span class="c1"># workspace + web/，warning 视为 error</span>
 </span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>make<span class="w"> </span>clippy-fix<span class="w">         </span><span class="c1"># 自动修复（提交前请 review diff）</span>
 </span></code></pre></div>
-<p>CI 与 pre-commit（<code>make setup</code>）会跑 Clippy。改 <code>probing-core</code> 后推送前建议 <code>make lint-core</code>；全 workspace 仍会因未 lint 的 crate 失败，其余 crate 会逐个跟进。</p>
+<p>CI 会跑 Clippy。改 <code>probing-core</code> 后推送前建议 <code>make lint-core</code>；全 workspace 仍会因未 lint 的 crate 失败，其余 crate 会逐个跟进。</p>
 <p>当前进度：<code>probing-core</code> 已启用 <code>clippy::all</code>（<code>pedantic</code>/<code>nursery</code> 关闭，协议相关 allow 见 <code>probing/core/Cargo.toml</code>）。下一批候选：<code>probing-proto</code>、<code>probing-memtable</code>。</p>
 <h3 id="_6">构建文档<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h3>
 <p>在<strong>仓库根目录</strong>（与 <code>make test</code>、<code>make develop</code> 同一入口）：</p>
