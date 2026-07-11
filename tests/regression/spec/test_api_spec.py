@@ -84,9 +84,9 @@ class TestPythonextHandlerRegistration:
         missing = expected - registered
         extra = registered - expected
         assert not missing, f"missing handlers: {sorted(missing)}"
-        assert (
-            not extra
-        ), f"unexpected handlers (update spec or remove): {sorted(extra)}"
+        assert not extra, (
+            f"unexpected handlers (update spec or remove): {sorted(extra)}"
+        )
 
     def test_handler_metadata_matches_spec(self, spec):
         by_path = {h["local_path"]: h for h in spec["pythonext_handlers"]}
@@ -105,9 +105,9 @@ class TestPythonextHandlerRegistration:
         ]
         for local in legacy_locals:
             result = json.loads(handle_request(local, {}))
-            assert (
-                "error" in result
-            ), f"legacy path must not resolve: {local!r} -> {result}"
+            assert "error" in result, (
+                f"legacy path must not resolve: {local!r} -> {result}"
+            )
 
 
 class TestPythonextCanonicalHttpUrls:
@@ -150,9 +150,9 @@ class TestClientContracts:
     def test_declared_calls_are_canonical(self, spec, client):
         for call in declared_client_calls(client, spec):
             path = call["path"]
-            assert path_is_canonical(
-                path, spec
-            ), f"{client} {call['source']} declares non-canonical path {path!r}"
+            assert path_is_canonical(path, spec), (
+                f"{client} {call['source']} declares non-canonical path {path!r}"
+            )
             allowed = methods_for_path(path, spec)
             assert call["method"] in allowed, (
                 f"{client} {call['source']}: {call['method']} {path} "
@@ -165,9 +165,9 @@ class TestClientContracts:
         for call in declared_client_calls(client, spec):
             source = root / call["source"]
             text = source.read_text(encoding="utf-8")
-            assert path_literal_in_source(
-                call["path"], text
-            ), f"{call['source']} missing path literal for {call['path']!r}"
+            assert path_literal_in_source(call["path"], text), (
+                f"{call['source']} missing path literal for {call['path']!r}"
+            )
 
     @pytest.mark.parametrize("client", ["web", "cli"])
     def test_source_literals_are_not_deprecated(self, spec, client):
@@ -194,9 +194,9 @@ class TestClientContracts:
             if source.name == "mod.rs":
                 continue
             for path in extract_api_path_literals(source.read_text(encoding="utf-8")):
-                assert path_is_canonical(
-                    path, spec
-                ), f"{source.relative_to(repo_root())} references unknown path {path!r}"
+                assert path_is_canonical(path, spec), (
+                    f"{source.relative_to(repo_root())} references unknown path {path!r}"
+                )
 
 
 class TestEvalUsesBody:
@@ -227,9 +227,9 @@ class TestServerPublicRoutes:
         import re
 
         actual = set(re.findall(r'\("([A-Z]+)", "([^"]+)"\)', mod_rs))
-        assert (
-            actual == expected
-        ), f"PUBLIC_API_ROUTES drift: missing={expected - actual}, extra={actual - expected}"
+        assert actual == expected, (
+            f"PUBLIC_API_ROUTES drift: missing={expected - actual}, extra={actual - expected}"
+        )
 
 
 class TestSpecReloadConsistency:

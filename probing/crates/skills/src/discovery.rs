@@ -1,4 +1,7 @@
 //! Runtime discovery of skill root directories (no compile-time embed).
+//!
+//! Path resolution SSOT lives in Python (`python/probing/extensions/skills.py`);
+//! this module shells out to `python -m probing.extensions skill-roots` and caches JSON.
 
 use std::collections::HashSet;
 use std::env;
@@ -32,16 +35,14 @@ fn discover_skill_roots() -> Vec<PathBuf> {
     let mut seen = HashSet::new();
 
     let python_roots = python_discovered_roots();
-    let use_bundled_fallback = python_roots.is_empty();
-
-    let sources = python_roots
-        .into_iter()
-        .chain(fs_skill_roots())
-        .chain(if use_bundled_fallback {
-            bundled_skill_roots()
-        } else {
-            Vec::new()
-        });
+    let sources: Vec<PathBuf> = if python_roots.is_empty() {
+        fs_skill_roots()
+            .into_iter()
+            .chain(bundled_skill_roots())
+            .collect()
+    } else {
+        python_roots
+    };
 
     for path in sources {
         let key = path.to_string_lossy().to_string();

@@ -284,6 +284,7 @@ pub enum BackingKind {
     /// Process-private heap allocation.
     Heap,
     /// POSIX shared memory object (`shm_open`) — memory-only.
+    #[cfg(unix)]
     Shm,
     /// mmap'd regular file — disk-backed.
     File,
@@ -298,6 +299,7 @@ enum Backing {
     /// never touches disk, gone after reboot. Other processes attach by
     /// name. When `unlink_on_drop`, the creator removes the name on drop
     /// (existing mappings stay valid until unmapped).
+    #[cfg(unix)]
     Shm {
         mmap: MmapMut,
         name: String,
@@ -320,6 +322,7 @@ impl Backing {
     fn bytes(&self) -> &[u8] {
         match self {
             Backing::Heap(v) => v,
+            #[cfg(unix)]
             Backing::Shm { mmap, .. } => mmap,
             Backing::File { mmap, .. } => mmap,
         }
@@ -329,6 +332,7 @@ impl Backing {
     fn bytes_mut(&mut self) -> &mut [u8] {
         match self {
             Backing::Heap(v) => v,
+            #[cfg(unix)]
             Backing::Shm { mmap, .. } => mmap,
             Backing::File { mmap, .. } => mmap,
         }
@@ -337,6 +341,7 @@ impl Backing {
 
 /// Normalise a POSIX shm name: must start with `/`, no other slashes.
 /// Keep names short — macOS limits them to 31 bytes (`PSHMNAMLEN`).
+#[cfg(unix)]
 fn shm_name_cstring(name: &str) -> io::Result<std::ffi::CString> {
     let normalised = if name.starts_with('/') {
         name.to_string()
@@ -353,6 +358,7 @@ fn shm_name_cstring(name: &str) -> io::Result<std::ffi::CString> {
         .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "shm name contains NUL"))
 }
 
+#[cfg(unix)]
 fn cstring_to_shm_name(cname: std::ffi::CString) -> io::Result<String> {
     cname.into_string().map_err(|e| {
         log::error!("shm name is not valid UTF-8: {e:?}");
@@ -361,6 +367,7 @@ fn cstring_to_shm_name(cname: std::ffi::CString) -> io::Result<String> {
 }
 
 /// `shm_open` wrapper returning an owned [`std::fs::File`].
+#[cfg(unix)]
 fn shm_open_file(name: &std::ffi::CString, oflag: libc::c_int) -> io::Result<std::fs::File> {
     use std::os::fd::FromRawFd;
     let fd = unsafe { libc::shm_open(name.as_ptr(), oflag, 0o600 as libc::c_uint) };
@@ -423,6 +430,7 @@ impl MemTable {
     /// processes keep a valid mapping until they unmap.
     ///
     /// Fails with `AlreadyExists` if the name is taken.
+    #[cfg(unix)]
     pub fn shm(name: &str, schema: &Schema, chunk_size: u32, num_chunks: u32) -> io::Result<Self> {
         let cname = shm_name_cstring(name)?;
         let size = Self::required_size(schema, chunk_size as usize, num_chunks as usize);
@@ -446,6 +454,7 @@ impl MemTable {
     /// [`shm`](Self::shm) (validates the MEMT layout).
     ///
     /// The returned handle does **not** unlink the name on drop.
+    #[cfg(unix)]
     pub fn open_shm(name: &str) -> io::Result<Self> {
         let cname = shm_name_cstring(name)?;
         let file = shm_open_file(&cname, libc::O_RDWR)?;
@@ -588,6 +597,7 @@ impl MemTable {
     pub fn backing_kind(&self) -> BackingKind {
         match &self.backing {
             Backing::Heap(_) => BackingKind::Heap,
+            #[cfg(unix)]
             Backing::Shm { .. } => BackingKind::Shm,
             Backing::File { .. } => BackingKind::File,
         }
@@ -595,7 +605,12 @@ impl MemTable {
 
     /// `true` when other processes can attach (shm or mmap'd file).
     pub fn is_shared(&self) -> bool {
-        !matches!(self.backing, Backing::Heap(_))
+        match &self.backing {
+            Backing::Heap(_) => false,
+            #[cfg(unix)]
+            Backing::Shm { .. } => true,
+            Backing::File { .. } => true,
+        }
     }
 
     /// File path of the mapping; [`None`] for heap and shm backings
@@ -610,6 +625,7 @@ impl MemTable {
     /// POSIX shm name (with leading `/`); [`None`] for other backings.
     pub fn shm_name(&self) -> Option<&str> {
         match &self.backing {
+            #[cfg(unix)]
             Backing::Shm { name, .. } => Some(name),
             _ => None,
         }
@@ -665,6 +681,7 @@ impl Drop for MemTable {
     fn drop(&mut self) {
         match &self.backing {
             Backing::Heap(_) => {}
+            #[cfg(unix)]
             Backing::Shm {
                 name,
                 unlink_on_drop: true,
@@ -674,6 +691,7 @@ impl Drop for MemTable {
                     unsafe { libc::shm_unlink(cname.as_ptr()) };
                 }
             }
+            #[cfg(unix)]
             Backing::Shm { .. } => {}
             Backing::File {
                 path,
@@ -695,6 +713,7 @@ impl fmt::Display for MemTable {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let kind = match self.backing_kind() {
             BackingKind::Heap => "heap",
+            #[cfg(unix)]
             BackingKind::Shm => "shm",
             BackingKind::File => "file",
         };
@@ -1027,6 +1046,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn shm_backing_roundtrip_and_unlink() {
         // Short name: macOS caps shm names at 31 bytes.
         let name = format!("/pbg_t{}", std::process::id() % 1_000_000);

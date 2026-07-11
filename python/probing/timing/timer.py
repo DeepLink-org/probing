@@ -6,6 +6,7 @@ the queue until the host releases a device-side flag, so the measured window
 excludes host enqueue latency. It requires a CUDA device that supports driver
 stream memory operations; there is no fallback timer.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

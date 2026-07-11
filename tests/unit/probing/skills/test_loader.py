@@ -12,6 +12,8 @@ from probing.skills.loader import (
     load_skill,
     match_skills,
     skills_root,
+    validate_all,
+    validate_skill,
 )
 
 
@@ -133,3 +135,14 @@ def test_watchdog_timeout_table_expansion():
 def test_match_skills_sre_triage():
     matched = match_skills("SRE 值班 runbook 事故第一响应")
     assert "sre_triage" in matched
+
+
+def test_validate_guide_only_skill_without_steps():
+    skill = load_skill("crash_triage")
+    assert not skill.steps
+    assert skill.summary_template.strip()
+    assert validate_skill(skill) == []
+
+
+def test_validate_all_passes_bundled_catalog():
+    assert validate_all() == []

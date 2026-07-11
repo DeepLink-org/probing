@@ -56,14 +56,6 @@ pub use datafusion::arrow::util::pretty;
 pub use datafusion::common::error::DataFusionError;
 pub use datafusion::config::CatalogOptions;
 
-// pub static ENGINE_RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
-//     tokio::runtime::Builder::new_multi_thread()
-//         .worker_threads(4)
-//         .enable_all()
-//         .build()
-//         .unwrap()
-// });
-
 #[cfg(test)]
 mod tests {
     use super::*;

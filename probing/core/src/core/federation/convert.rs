@@ -9,8 +9,6 @@ use arrow::datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit};
 use datafusion::error::{DataFusionError, Result};
 use probing_proto::prelude::{DataFrame, Seq};
 
-/// Legacy alias; prefer the `_host` / `_addr` pair.
-pub const PROBE_NODE_COL: &str = "_probe_node";
 pub const PROBE_HOST_COL: &str = "_host";
 pub const PROBE_ADDR_COL: &str = "_addr";
 /// Cluster `rank` from `cluster.nodes` for the row's source probing endpoint.
@@ -47,8 +45,8 @@ pub struct FederationEndpointTags {
     pub role: String,
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
-pub fn node_label(host: &str, addr: &str) -> String {
+#[cfg(test)]
+fn node_label(host: &str, addr: &str) -> String {
     if host.is_empty() {
         addr.to_string()
     } else {
@@ -137,8 +135,7 @@ pub fn federated_output_schema(local: SchemaRef) -> SchemaRef {
 pub fn is_federation_tag_column(name: &str) -> bool {
     matches!(
         name,
-        PROBE_NODE_COL
-            | PROBE_HOST_COL
+        PROBE_HOST_COL
             | PROBE_ADDR_COL
             | PROBE_RANK_COL
             | PROBE_NODE_RANK_COL
@@ -420,7 +417,6 @@ mod tests {
         for col in FEDERATION_TAG_COLUMNS {
             assert!(schema.index_of(col).is_ok(), "missing tag column {col}");
         }
-        assert!(schema.index_of(PROBE_NODE_COL).is_err());
     }
 
     #[test]

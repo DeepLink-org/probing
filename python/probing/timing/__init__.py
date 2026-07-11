@@ -1,11 +1,13 @@
 """
-Accelerator Timing
+Accelerator Timing (experimental)
 
 Spec
 ----
 This package measures how long CUDA workloads take using stream-value-gated
 CUDA events (the ``cuda_event_wait_value32_ffi`` method), which exclude host
 enqueue latency from the measurement.
+
+Not wired into production training paths yet — used by unit/regression tests.
 
 Usage:
     from probing.timing import timing, timing_context
@@ -31,6 +33,7 @@ Public Interfaces:
 - `TimingRecord`: a single measurement (elapsed_ms / method / value).
 - `AcceleratorTimer`: the underlying timer for standalone use.
 """
+
 from __future__ import annotations
 
 import contextvars

@@ -16,7 +16,6 @@ Public Interfaces:
 - `register_magic`: Decorator to define custom magic commands.
 """
 
-# from jupyter_client.session import Session
 import json
 from dataclasses import asdict, dataclass, field
 from typing import Dict, List, Optional, Type, Union

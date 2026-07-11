@@ -56,9 +56,9 @@ def test_manual_span_memtable_overhead_bounded():
 
     # Guard against flaky CI: allow generous headroom but catch regressions
     # where span persistence becomes orders of magnitude slower.
-    assert (
-        on < off * 8.0 + 0.05
-    ), f"memtable spans too slow: off={off:.4f}s on={on:.4f}s ratio={on / max(off, 1e-9):.2f}"
+    assert on < off * 8.0 + 0.05, (
+        f"memtable spans too slow: off={off:.4f}s on={on:.4f}s ratio={on / max(off, 1e-9):.2f}"
+    )
 
 
 def _make_tracer(*, trace_spans: bool) -> tuple[TorchProbe, _FakeMod]:

@@ -53,12 +53,8 @@ jobs:
           cache-venv: "false"
 
       - name: Prepare wheel bundle
-        env:
-          SKIP_FRONTEND_CLEAN: "1"
         run: |
-          if [ ! -f python/probing/bundled_web/public/index.html ]; then
-            make frontend
-          fi
+          make frontend
           make wheel-bundle nccl-profiler-lib
 
       - name: Build wheels
@@ -99,12 +95,8 @@ jobs:
           cache-venv: "false"
 
       - name: Prepare wheel bundle
-        env:
-          SKIP_FRONTEND_CLEAN: "1"
         run: |
-          if [ ! -f python/probing/bundled_web/public/index.html ]; then
-            make frontend
-          fi
+          make frontend
           make wheel-bundle
 
       - name: Build wheels

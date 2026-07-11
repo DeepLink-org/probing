@@ -19,9 +19,9 @@ pub mod kmsg;
 #[cfg(feature = "kmsg")]
 pub use kmsg::KMsgProbeDataSource;
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "linux")]
 pub mod rdma;
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "linux")]
 pub use rdma::RdmaProbeDataSource;
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "linux")]
 pub use rdma::RdmaProbeExtension;

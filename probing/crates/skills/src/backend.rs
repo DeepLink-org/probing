@@ -59,6 +59,22 @@ pub fn parse_cluster_meta(meta: &serde_json::Value) -> ClusterQueryMeta {
     }
 }
 
+/// Parse `POST /apis/cluster/query` JSON envelope into dataframe + optional meta.
+pub fn parse_cluster_query_response(
+    value: &serde_json::Value,
+) -> std::result::Result<(DataFrame, Option<ClusterQueryMeta>), SkillRunError> {
+    if let Some(err) = value.get("error").and_then(|v| v.as_str()) {
+        return Err(SkillRunError(err.to_string()));
+    }
+    let df = value
+        .get("dataframe")
+        .ok_or_else(|| SkillRunError("missing dataframe in cluster response".to_string()))?;
+    let dataframe: DataFrame =
+        serde_json::from_value(df.clone()).map_err(|e| SkillRunError(e.to_string()))?;
+    let cluster_meta = value.get("meta").map(parse_cluster_meta);
+    Ok((dataframe, cluster_meta))
+}
+
 pub fn cluster_meta_note(meta: &ClusterQueryMeta) -> String {
     format!(
         "cluster fan-out · {} nodes queried · {} failed · {} peer batches dropped{}",
@@ -72,6 +88,30 @@ pub fn cluster_meta_note(meta: &ClusterQueryMeta) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parse_cluster_query_response_surfaces_api_error() {
+        let value = serde_json::json!({"error": "boom"});
+        let err = parse_cluster_query_response(&value).unwrap_err();
+        assert_eq!(err.0, "boom");
+    }
+
+    #[test]
+    fn parse_cluster_query_response_extracts_dataframe_and_meta() {
+        let dataframe = DataFrame::default();
+        let value = serde_json::json!({
+            "dataframe": dataframe,
+            "meta": {
+                "nodes_queried": 2,
+                "nodes_failed": [],
+                "peer_batches_dropped": 0,
+                "partial": false,
+            },
+        });
+        let (df, meta) = parse_cluster_query_response(&value).unwrap();
+        assert_eq!(df.row_count(), 0);
+        assert_eq!(meta.unwrap().nodes_queried, 2);
+    }
 
     #[test]
     fn parse_cluster_meta_marks_partial_on_failed_nodes() {

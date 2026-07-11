@@ -308,41 +308,6 @@ impl ApiClient {
         Ok(response)
     }
 
-    /// Get Ray task execution timeline
-    #[allow(dead_code)]
-    pub async fn get_ray_timeline(
-        &self,
-        task_filter: Option<&str>,
-        actor_filter: Option<&str>,
-        start_time: Option<i64>,
-        end_time: Option<i64>,
-    ) -> Result<Vec<RayTimelineEntry>> {
-        let mut query_params = Vec::new();
-
-        if let Some(filter) = task_filter {
-            query_params.push(format!("task_filter={}", urlencoding::encode(filter)));
-        }
-        if let Some(filter) = actor_filter {
-            query_params.push(format!("actor_filter={}", urlencoding::encode(filter)));
-        }
-        if let Some(time) = start_time {
-            query_params.push(format!("start_time={}", time));
-        }
-        if let Some(time) = end_time {
-            query_params.push(format!("end_time={}", time));
-        }
-
-        let query_string = if query_params.is_empty() {
-            String::new()
-        } else {
-            format!("?{}", query_params.join("&"))
-        };
-
-        let path = format!("/apis/pythonext/ray/timeline{}", query_string);
-        let response = self.get_request(&path).await?;
-        Self::parse_json(&response)
-    }
-
     /// Get Ray timeline in Chrome tracing format (for Perfetto UI)
     pub async fn get_ray_timeline_chrome_format(
         &self,
@@ -386,21 +351,4 @@ impl ApiClient {
 
         Ok(response)
     }
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct RayTimelineEntry {
-    pub name: String,
-    #[serde(rename = "type")]
-    pub entry_type: String,
-    pub start_time: i64,
-    pub end_time: Option<i64>,
-    pub duration: Option<i64>,
-    pub trace_id: i64,
-    pub span_id: i64,
-    pub parent_id: Option<i64>,
-    pub phase: Option<String>,
-    pub thread_id: i64,
-    pub attributes: Option<serde_json::Value>,
 }

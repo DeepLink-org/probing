@@ -155,8 +155,62 @@ parser.add_argument(
     "multi node data parallel training",
 )
 parser.add_argument("--dummy", action="store_true", help="use fake data to benchmark")
+parser.add_argument(
+    "--max-duration-sec",
+    type=int,
+    default=0,
+    metavar="SEC",
+    help="stop training after SEC wall-clock seconds (0 = unlimited)",
+)
+parser.add_argument(
+    "--max-steps",
+    type=int,
+    default=0,
+    metavar="N",
+    help="stop training after N optimizer steps (0 = unlimited)",
+)
+parser.add_argument(
+    "--soak-assert",
+    action="store_true",
+    help="run examples/soak_assert.py before exit (rank 0 in distributed runs)",
+)
 
 best_acc1 = 0
+
+
+class SoakLimits:
+    """Optional wall-clock / step caps for long-running soak tests."""
+
+    def __init__(self, *, max_steps: int = 0, max_duration_sec: int = 0) -> None:
+        self.max_steps = max(0, max_steps)
+        self.max_duration_sec = max(0, max_duration_sec)
+        self.step_count = 0
+        self.started_at = time.monotonic()
+
+    @property
+    def enabled(self) -> bool:
+        return self.max_steps > 0 or self.max_duration_sec > 0
+
+    def tick(self) -> None:
+        self.step_count += 1
+
+    def should_stop(self) -> bool:
+        if self.max_steps > 0 and self.step_count >= self.max_steps:
+            return True
+        if self.max_duration_sec > 0:
+            return (time.monotonic() - self.started_at) >= self.max_duration_sec
+        return False
+
+    def stop_reason(self) -> str:
+        if self.max_steps > 0 and self.step_count >= self.max_steps:
+            return f"max_steps={self.max_steps}"
+        if self.max_duration_sec > 0:
+            elapsed = time.monotonic() - self.started_at
+            if elapsed >= self.max_duration_sec:
+                return (
+                    f"max_duration_sec={self.max_duration_sec} (elapsed={elapsed:.1f}s)"
+                )
+        return "unknown"
 
 
 def _local_rank(gpu: int | None) -> int:
@@ -301,6 +355,21 @@ def main_worker(gpu, ngpus_per_node, args):
         weight_decay=args.weight_decay,
     )
 
+    if device.type == "cpu":
+        model = model.to(device)
+
+    _torch_profile = os.environ.get("PROBING_TORCH_PROFILING", "").strip()
+    if _torch_profile:
+        try:
+            from probing.ext.torch import init as torch_ext_init
+            from probing.profiling.torch_probe import configure
+
+            torch_ext_init()
+            configure(_torch_profile)
+            print(f"=> torch profiling enabled: {_torch_profile}", flush=True)
+        except Exception as exc:
+            print(f"=> warning: torch profiling init failed: {exc}", flush=True)
+
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
     scheduler = StepLR(optimizer, step_size=30, gamma=0.1)
 
@@ -410,6 +479,16 @@ def main_worker(gpu, ngpus_per_node, args):
         validate(val_loader, model, criterion, args)
         return
 
+    soak = SoakLimits(
+        max_steps=args.max_steps,
+        max_duration_sec=args.max_duration_sec,
+    )
+    if soak.enabled:
+        print(
+            f"=> soak limits: max_steps={soak.max_steps or '∞'} "
+            f"max_duration_sec={soak.max_duration_sec or '∞'}"
+        )
+
     for epoch in range(args.start_epoch, args.epochs):
         with probing.span("epoch"):
             probing.event("epoch.start", attributes=[{"epoch": epoch}])
@@ -417,7 +496,29 @@ def main_worker(gpu, ngpus_per_node, args):
                 train_sampler.set_epoch(epoch)
 
             with probing.span("train"):
-                train(train_loader, model, criterion, optimizer, epoch, device, args)
+                stop_early = train(
+                    train_loader,
+                    model,
+                    criterion,
+                    optimizer,
+                    epoch,
+                    device,
+                    args,
+                    soak=soak,
+                )
+            if stop_early:
+                print(
+                    f"=> soak stop: {soak.stop_reason()} at epoch={epoch}", flush=True
+                )
+                probing.event(
+                    "soak.stop",
+                    attributes=[
+                        {"reason": soak.stop_reason()},
+                        {"steps": soak.step_count},
+                        {"epoch": epoch},
+                    ],
+                )
+                break
             if args.validate:
                 with probing.span("validate"):
                     acc1 = validate(val_loader, model, criterion, args)
@@ -445,6 +546,35 @@ def main_worker(gpu, ngpus_per_node, args):
                     )
             probing.event("epoch.end", attributes=[{"best_acc1": float(best_acc1)}])
 
+    if args.soak_assert and (not args.distributed or args.rank == 0):
+        _run_soak_assert(args)
+
+
+def _run_soak_assert(args) -> None:
+    import sys
+    from pathlib import Path
+
+    examples_dir = Path(__file__).resolve().parent
+    if str(examples_dir) not in sys.path:
+        sys.path.insert(0, str(examples_dir))
+
+    from soak_assert import SoakAssertConfig, run_assertions
+
+    cfg = SoakAssertConfig(
+        min_steps=max(1, args.max_steps // 4) if args.max_steps > 0 else 1,
+        require_torch_profiling=bool(os.environ.get("PROBING_TORCH_PROFILING")),
+    )
+    print("=> running soak assertions (in-process)", flush=True)
+    result = run_assertions(cfg)
+    for line in result.notes:
+        print(f"soak_assert: {line}", flush=True)
+    if result.ok:
+        print("soak_assert: OK", flush=True)
+        return
+    for line in result.failures:
+        print(f"soak_assert: FAIL: {line}", file=sys.stderr, flush=True)
+    sys.exit(1)
+
 
 def compute_loss(criterion, output, target):
     """Compute loss - extracted as separate function for tracing."""
@@ -453,7 +583,17 @@ def compute_loss(criterion, output, target):
     return loss
 
 
-def train(train_loader, model, criterion, optimizer, epoch, device, args):
+def train(
+    train_loader,
+    model,
+    criterion,
+    optimizer,
+    epoch,
+    device,
+    args,
+    *,
+    soak: SoakLimits | None = None,
+):
     batch_time = AverageMeter("Time", ":6.3f")
     data_time = AverageMeter("Data", ":6.3f")
     losses = AverageMeter("Loss", ":.4e")
@@ -490,9 +630,18 @@ def train(train_loader, model, criterion, optimizer, epoch, device, args):
                 loss.backward()
             with probing.span("step"):
                 optimizer.step()
+            if soak is not None and soak.enabled:
+                soak.tick()
             batch_time.update(time.time() - end)
             end = time.time()
             step_elapsed_ms = (time.perf_counter() - step_start) * 1000.0
+            if soak is not None and soak.should_stop():
+                print(
+                    f"=> soak stop in train(): {soak.stop_reason()} "
+                    f"(steps={soak.step_count})",
+                    flush=True,
+                )
+                return True
             print(
                 f"Epoch [{epoch}] step [{i + 1}/{len(train_loader)}] "
                 f"time={step_elapsed_ms:.2f}ms loss={loss.item():.4f} "
@@ -509,6 +658,8 @@ def train(train_loader, model, criterion, optimizer, epoch, device, args):
                     ],
                 )
                 progress.display(i + 1)
+
+    return False
 
 
 def validate(val_loader, model, criterion, args):

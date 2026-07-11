@@ -1490,8 +1490,10 @@ mod tests {
         {
             let coll = pools.coll_pool.get_mut(coll_idx).unwrap();
             coll.start_ns = 1;
-            let mut row = CompletedProxyOp::default();
-            row.trans_bytes = 999;
+            let row = CompletedProxyOp {
+                trans_bytes: 999,
+                ..Default::default()
+            };
             assert!(coll.push_pending(row));
         }
 

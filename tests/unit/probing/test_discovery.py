@@ -87,10 +87,3 @@ def test_load_magics_no_crash():
     assert not any(
         "IOPub" in t.name or "History" in t.name for t in threading.enumerate()
     )
-
-
-def test_discovery_shim_reexports():
-    from probing import discovery as shim
-    from probing.extensions import skill_roots as roots
-
-    assert shim.skill_roots is roots

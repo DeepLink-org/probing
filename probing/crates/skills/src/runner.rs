@@ -303,10 +303,6 @@ fn ensure_read_only_sql(sql: &str) -> Result<()> {
     ))
 }
 
-fn dataframe_rows(df: &DataFrame) -> usize {
-    df.cols.iter().map(|c| c.len()).max().unwrap_or(0)
-}
-
 async fn run_sql_step<B: SkillBackend>(backend: &B, step: &SkillStep, sql: &str) -> StepOutcome {
     if let Err(e) = ensure_read_only_sql(sql) {
         return StepOutcome::Error {
@@ -328,7 +324,7 @@ async fn run_sql_step<B: SkillBackend>(backend: &B, step: &SkillStep, sql: &str)
     match result {
         Ok((df, note, cluster_meta)) => {
             let degraded = cluster_meta.as_ref().is_some_and(|m| m.partial);
-            let rows = dataframe_rows(&df);
+            let rows = df.row_count();
             if rows == 0 {
                 match step.on_empty.as_str() {
                     "abort" => StepOutcome::Error {

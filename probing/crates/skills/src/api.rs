@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 
 use anyhow::{Context, Result};
+use serde::Deserialize;
 use serde_json::{json, Value};
 
 use super::catalog::{load_catalog, load_intents, load_pages, CatalogEntry};
@@ -81,169 +82,155 @@ pub fn load_skill_json(id: &str) -> Result<String> {
 }
 
 pub fn skill_from_api(value: &Value) -> Result<Skill> {
-    let id = value
-        .get("id")
-        .and_then(|v| v.as_str())
-        .context("skill id")?
-        .to_string();
-    let title = value
-        .get("title")
-        .and_then(|v| v.as_str())
-        .unwrap_or(&id)
-        .to_string();
-    let category = value
-        .get("category")
-        .and_then(|v| v.as_str())
-        .unwrap_or("general")
-        .to_string();
-    let docs = value
-        .get("docs")
-        .and_then(|v| v.as_str())
-        .unwrap_or_default()
-        .trim()
-        .to_string();
-    let tags: Vec<String> = value
-        .get("tags")
-        .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_str().map(str::to_string))
-                .collect()
-        })
-        .unwrap_or_default();
-    let keywords_obj = value.get("keywords").cloned().unwrap_or(json!({}));
-    let trigger_keywords = KeywordsSpec {
-        zh: keywords_obj
-            .get("zh")
-            .and_then(|v| v.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(str::to_string))
-                    .collect()
-            })
-            .unwrap_or_default(),
-        en: keywords_obj
-            .get("en")
-            .and_then(|v| v.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(str::to_string))
-                    .collect()
-            })
-            .unwrap_or_default(),
-    };
-    let mut keywords: Vec<String> = tags.iter().map(|t| t.to_lowercase()).collect();
-    for kw in trigger_keywords.zh.iter().chain(trigger_keywords.en.iter()) {
-        keywords.push(kw.to_lowercase());
+    let payload: SkillApiPayload =
+        serde_json::from_value(value.clone()).context("deserialize skill")?;
+    Ok(payload.into_skill())
+}
+
+#[derive(Debug, Deserialize)]
+struct SkillApiPayload {
+    id: String,
+    #[serde(default)]
+    title: String,
+    #[serde(default = "default_category")]
+    category: String,
+    #[serde(default)]
+    docs: String,
+    #[serde(default)]
+    tags: Vec<String>,
+    #[serde(default)]
+    keywords: KeywordsSpec,
+    #[serde(default)]
+    parameters: Vec<SkillParameterApi>,
+    #[serde(default)]
+    steps: Vec<SkillStepApi>,
+    #[serde(default)]
+    interpretation: InterpretationApi,
+    #[serde(default)]
+    summary_template: String,
+    #[serde(default)]
+    next_steps: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SkillParameterApi {
+    name: String,
+    #[serde(default)]
+    default: Value,
+}
+
+#[derive(Debug, Deserialize)]
+struct SkillStepApi {
+    id: String,
+    title: String,
+    #[serde(rename = "type", default = "default_step_type")]
+    step_type: String,
+    #[serde(default)]
+    sql: Option<String>,
+    #[serde(default)]
+    path: Option<String>,
+    #[serde(default)]
+    view: Option<String>,
+    #[serde(default = "default_on_empty")]
+    on_empty: String,
+    #[serde(default)]
+    empty_message: Option<String>,
+    #[serde(default)]
+    when: Option<String>,
+    #[serde(default)]
+    cluster: Option<bool>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct InterpretationApi {
+    #[serde(default)]
+    rules: Vec<InterpretRuleApi>,
+}
+
+#[derive(Debug, Deserialize)]
+struct InterpretRuleApi {
+    id: String,
+    when: String,
+    #[serde(default = "default_severity")]
+    severity: String,
+    message: String,
+}
+
+fn default_category() -> String {
+    "general".to_string()
+}
+
+fn default_step_type() -> String {
+    "sql".to_string()
+}
+
+fn default_on_empty() -> String {
+    "skip".to_string()
+}
+
+fn default_severity() -> String {
+    "info".to_string()
+}
+
+impl SkillApiPayload {
+    fn into_skill(self) -> Skill {
+        let mut keywords: Vec<String> = self.tags.iter().map(|t| t.to_lowercase()).collect();
+        for kw in self.keywords.zh.iter().chain(self.keywords.en.iter()) {
+            keywords.push(kw.to_lowercase());
+        }
+        let title = if self.title.is_empty() {
+            self.id.clone()
+        } else {
+            self.title
+        };
+        Skill {
+            id: self.id,
+            title,
+            category: self.category,
+            docs: self.docs.trim().to_string(),
+            tags: self.tags,
+            keywords,
+            trigger_keywords: self.keywords,
+            parameters: self
+                .parameters
+                .into_iter()
+                .map(|p| SkillParameter {
+                    name: p.name,
+                    default: json_to_yaml(&p.default),
+                })
+                .collect(),
+            steps: self
+                .steps
+                .into_iter()
+                .map(|s| SkillStep {
+                    id: s.id,
+                    title: s.title,
+                    step_type: s.step_type,
+                    sql: s.sql,
+                    path: s.path,
+                    view: s.view,
+                    on_empty: s.on_empty,
+                    empty_message: s.empty_message,
+                    when: s.when,
+                    cluster: s.cluster,
+                })
+                .collect(),
+            interpretation: self
+                .interpretation
+                .rules
+                .into_iter()
+                .map(|r| InterpretRule {
+                    id: r.id,
+                    when: r.when,
+                    severity: r.severity,
+                    message: r.message,
+                })
+                .collect(),
+            summary_template: self.summary_template,
+            next_steps: self.next_steps,
+            variables: HashMap::new(),
+        }
     }
-    let parameters = value
-        .get("parameters")
-        .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|item| {
-                    let name = item.get("name")?.as_str()?.to_string();
-                    let default = item.get("default").cloned().unwrap_or(Value::Null);
-                    Some(SkillParameter {
-                        name,
-                        default: json_to_yaml(&default),
-                    })
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-    let steps = value
-        .get("steps")
-        .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|item| {
-                    Some(SkillStep {
-                        id: item.get("id")?.as_str()?.to_string(),
-                        title: item.get("title")?.as_str()?.to_string(),
-                        step_type: item
-                            .get("type")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("sql")
-                            .to_string(),
-                        sql: item.get("sql").and_then(|v| v.as_str()).map(str::to_string),
-                        path: item
-                            .get("path")
-                            .and_then(|v| v.as_str())
-                            .map(str::to_string),
-                        view: item
-                            .get("view")
-                            .and_then(|v| v.as_str())
-                            .map(str::to_string),
-                        on_empty: item
-                            .get("on_empty")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("skip")
-                            .to_string(),
-                        empty_message: item
-                            .get("empty_message")
-                            .and_then(|v| v.as_str())
-                            .map(str::to_string),
-                        when: item
-                            .get("when")
-                            .and_then(|v| v.as_str())
-                            .map(str::to_string),
-                        cluster: item.get("cluster").and_then(|v| v.as_bool()),
-                    })
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-    let interpretation = value
-        .get("interpretation")
-        .and_then(|v| v.get("rules"))
-        .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|item| {
-                    Some(InterpretRule {
-                        id: item.get("id")?.as_str()?.to_string(),
-                        when: item.get("when")?.as_str()?.to_string(),
-                        severity: item
-                            .get("severity")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("info")
-                            .to_string(),
-                        message: item.get("message")?.as_str()?.to_string(),
-                    })
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-    let summary_template = value
-        .get("summary_template")
-        .and_then(|v| v.as_str())
-        .unwrap_or_default()
-        .to_string();
-    let next_steps = value
-        .get("next_steps")
-        .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_str().map(str::to_string))
-                .collect()
-        })
-        .unwrap_or_default();
-    Ok(Skill {
-        id,
-        title,
-        category,
-        docs,
-        tags,
-        keywords,
-        trigger_keywords,
-        parameters,
-        steps,
-        interpretation,
-        summary_template,
-        next_steps,
-        variables: HashMap::new(),
-    })
 }
 
 pub fn catalog_json() -> Result<String> {

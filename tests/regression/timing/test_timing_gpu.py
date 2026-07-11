@@ -14,9 +14,7 @@ torch = pytest.importorskip("torch")
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.slow,
-    pytest.mark.skipif(
-        not torch.cuda.is_available(), reason="requires a CUDA device"
-    ),
+    pytest.mark.skipif(not torch.cuda.is_available(), reason="requires a CUDA device"),
 ]
 
 from probing.timing import TimingRecord, timing, timing_context  # noqa: E402

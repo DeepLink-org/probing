@@ -207,6 +207,6 @@ def parse_step_matrix_rows(df) -> list[dict[str, Any]]:
 
 def assert_rows_contain_fields(rows: Iterable[dict[str, Any]], **expected: Any) -> None:
     for key, value in expected.items():
-        assert all(
-            row.get(key) == value for row in rows
-        ), f"expected all rows[{key}]=={value!r}, got {[row.get(key) for row in rows]}"
+        assert all(row.get(key) == value for row in rows), (
+            f"expected all rows[{key}]=={value!r}, got {[row.get(key) for row in rows]}"
+        )
