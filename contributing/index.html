@@ -2922,9 +2922,9 @@ Training / tests: set <code>PROBING=1</code> (or <code>2</code>, filters — see
 </span></code></pre></div>
 <p><strong>Rust exception:</strong> <code>probing/macros/tests/</code> must stay as an external crate (proc-macro tests).</p>
 <h3 id="code-style">Code style<a class="headerlink" href="#code-style" title="Permanent link">&para;</a></h3>
-<p><strong>Python:</strong> <code>ruff</code>, <code>mypy</code></p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>ruff<span class="w"> </span>format<span class="w"> </span>.
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>ruff<span class="w"> </span>check<span class="w"> </span>.
+<p><strong>Python:</strong> <code>ruff</code> (lint + format), <code>mypy</code></p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>make<span class="w"> </span>fmt<span class="w">              </span><span class="c1"># ruff format + fix (Python); rustfmt (Rust)</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>make<span class="w"> </span>lint-python<span class="w">      </span><span class="c1"># ruff check + ruff format --check</span>
 </span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>mypy<span class="w"> </span>python/probing
 </span></code></pre></div>
 <p><strong>Rust:</strong> <code>rustfmt</code>, <code>clippy</code> (shared rules in <code>clippy.toml</code>; strict lints are <strong>enabled per crate</strong> — see each crate’s <code>Cargo.toml</code> <code>[lints]</code>)</p>
@@ -2933,7 +2933,7 @@ Training / tests: set <code>PROBING=1</code> (or <code>2</code>, filters — see
 </span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>make<span class="w"> </span>lint-rust<span class="w">          </span><span class="c1"># cargo clippy --workspace + web/, warnings denied</span>
 </span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>make<span class="w"> </span>clippy-fix<span class="w">         </span><span class="c1"># auto-fix what Clippy can (review diff before commit)</span>
 </span></code></pre></div>
-<p>Clippy runs in CI and optional pre-commit (<code>make setup</code>). After editing <code>probing-core</code>, run <code>make lint-core</code> before pushing. Full-workspace <code>make lint-rust</code> may still fail until other crates are cleaned up — we are rolling out lints crate by crate.</p>
+<p>Clippy runs in CI. After editing <code>probing-core</code>, run <code>make lint-core</code> before pushing. Full-workspace <code>make lint-rust</code> may still fail until other crates are cleaned up — we are rolling out lints crate by crate.</p>
 <p><strong>Status:</strong> <code>probing-core</code> has <code>clippy::all</code> (<code>pedantic</code>/<code>nursery</code> off; protocol-related allows in <code>probing/core/Cargo.toml</code>). Next candidates: <code>probing-proto</code>, <code>probing-memtable</code>.</p>
 <h3 id="building-documentation">Building documentation<a class="headerlink" href="#building-documentation" title="Permanent link">&para;</a></h3>
 <p>From the <strong>repository root</strong> (same pattern as <code>make test</code>, <code>make develop</code>):</p>
