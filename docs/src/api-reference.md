@@ -35,7 +35,7 @@ probing -t $ENDPOINT backtrace
 ```bash
 probing -t $ENDPOINT tables
 probing -t $ENDPOINT config probing.torch.profiling
-probing -t $ENDPOINT config probing.torch.profiling=ordered:0.1
+probing -t $ENDPOINT config probing.torch.profiling=0.1
 probing -t $ENDPOINT flamegraph torch -o torch.html
 ```
 
@@ -197,12 +197,12 @@ See **probing.span / probing.event / probing.record_span / probing.step** above.
 
 | Key | Description |
 |-----|-------------|
-| `probing.torch.profiling` | TorchProbe (`on`, `ordered:0.5`, `random:0.1`, `tracepy=on`, …) |
+| `probing.torch.profiling` | TorchProbe (`on`, `0.5`, `0.1:0.3`, `tracepy=on`, …) |
 | `probing.pprof.sample_freq` | CPU pprof sampling frequency (Hz) |
 
 ```bash
 probing -t $ENDPOINT config
-probing -t $ENDPOINT config probing.torch.profiling=ordered:0.1
+probing -t $ENDPOINT config probing.torch.profiling=0.1
 ```
 
 There is **no** `probing.sample_rate` key. Torch sampling is controlled via `probing.torch.profiling` or `PROBING_TORCH_PROFILING`.

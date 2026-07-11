@@ -43,7 +43,7 @@ spec:
           sum(duration) AS total_sec,
           sum(duration) * 100.0 / sum(sum(duration)) OVER () AS pct_time
         FROM python.torch_trace
-        WHERE step > (SELECT max(step) - {recent_steps} FROM python.torch_trace)
+        WHERE local_step > (SELECT max(local_step) - {recent_steps} FROM python.torch_trace)
           AND stage = '{stage_filter}'
         GROUP BY module, stage
         ORDER BY total_sec DESC
@@ -56,13 +56,13 @@ spec:
       type: sql
       sql: |
         SELECT
-          step,
+          local_step,
           sum(CASE WHEN stage = 'post forward' THEN duration ELSE 0 END) AS forward_sec,
           sum(CASE WHEN stage = 'post step' THEN duration ELSE 0 END) AS optim_sec
         FROM python.torch_trace
-        WHERE step > (SELECT max(step) - {recent_steps} FROM python.torch_trace)
-        GROUP BY step
-        ORDER BY step
+        WHERE local_step > (SELECT max(local_step) - {recent_steps} FROM python.torch_trace)
+        GROUP BY local_step
+        ORDER BY local_step
       on_empty: skip
 
     - id: step_regression
@@ -70,18 +70,18 @@ spec:
       type: sql
       sql: |
         WITH per_step AS (
-          SELECT step, sum(duration) AS total_sec
+          SELECT local_step, sum(duration) AS total_sec
           FROM python.torch_trace
-          WHERE step > (SELECT max(step) - {recent_steps} FROM python.torch_trace)
+          WHERE local_step > (SELECT max(local_step) - {recent_steps} FROM python.torch_trace)
             AND stage = '{stage_filter}'
-          GROUP BY step
+          GROUP BY local_step
         )
         SELECT
-          step,
+          local_step,
           total_sec,
-          total_sec - lag(total_sec) OVER (ORDER BY step) AS delta_sec
+          total_sec - lag(total_sec) OVER (ORDER BY local_step) AS delta_sec
         FROM per_step
-        ORDER BY step
+        ORDER BY local_step
       on_empty: skip
 
     - id: enable_torch_flamegraph

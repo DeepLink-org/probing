@@ -16,7 +16,7 @@ SELECT
     s.attributes,
     s.name,
     s.time AS start_time,
-    CAST((e.time - s.time) / 1000 AS DOUBLE) AS duration_us
+    CAST((CAST(e.time AS BIGINT) - CAST(s.time AS BIGINT)) / 1000 AS DOUBLE) AS duration_us
 FROM python.trace_event s
 JOIN python.trace_event e
   ON s.span_id = e.span_id AND e.record_type = 'span_end'

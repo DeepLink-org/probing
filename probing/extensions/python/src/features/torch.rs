@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, collections::HashMap, thread};
+use std::{collections::BTreeMap, collections::HashMap, collections::HashSet, thread};
 
 use anyhow::{Context, Result};
 use log::{error, warn};
@@ -63,7 +63,7 @@ struct Frame {
 
 /// Recent training steps included in flamegraph aggregates (matches Training page window).
 const TORCH_RECENT_STEP_FILTER: &str =
-    "local_step >= GREATEST(COALESCE((SELECT max(local_step) FROM python.torch_trace), 0) - 99, 1)";
+    "local_step >= GREATEST(COALESCE((SELECT max(local_step) FROM python.torch_trace), 0) - 99, 0)";
 
 /// Raw post-hook duration rows for Rust-side median aggregation.
 const TORCH_DURATION_ROWS_QUERY: &str = r#"
@@ -108,7 +108,7 @@ const TORCH_DELTA_JOIN_QUERY: &str = r#"
       )
     WHERE post.module <> 'None'
       AND (CAST(post.allocated AS DOUBLE) - CAST(pre.allocated AS DOUBLE)) > 0
-      AND post.local_step >= GREATEST(COALESCE((SELECT max(local_step) FROM python.torch_trace), 0) - 99, 1)
+      AND post.local_step >= GREATEST(COALESCE((SELECT max(local_step) FROM python.torch_trace), 0) - 99, 0)
 "#;
 
 /// Legacy rows without delta columns: SQL join on pre/post peak allocated.
@@ -126,17 +126,110 @@ const TORCH_PEAK_JOIN_QUERY: &str = r#"
       )
     WHERE post.module <> 'None'
       AND (CAST(post.max_allocated AS DOUBLE) - CAST(pre.max_allocated AS DOUBLE)) > 0
-      AND post.local_step >= GREATEST(COALESCE((SELECT max(local_step) FROM python.torch_trace), 0) - 99, 1)
+      AND post.local_step >= GREATEST(COALESCE((SELECT max(local_step) FROM python.torch_trace), 0) - 99, 0)
 "#;
 
 /// Map stored hook labels to flamegraph phase names.
 fn normalize_post_stage(stage: &str) -> Option<&'static str> {
-    match stage {
+    match stage.trim() {
         "post forward" => Some("forward"),
         "post backward" => Some("backward"),
         "post step" => Some("step"),
         _ => None,
     }
+}
+
+fn is_leaf_module(module: &str, all_modules: &HashSet<String>) -> bool {
+    !all_modules
+        .iter()
+        .any(|other| other != module && other.starts_with(&format!("{module}.")))
+}
+
+fn backward_module_names(rows: &[(String, String, f64)]) -> HashSet<String> {
+    rows.iter()
+        .filter_map(|(module, stage, _)| {
+            normalize_post_stage(stage)
+                .filter(|p| *p == "backward")
+                .map(|_| module.clone())
+        })
+        .collect()
+}
+
+fn filter_backward_leaf_rows(rows: Vec<(String, String, f64)>) -> Vec<(String, String, f64)> {
+    let backward_names = backward_module_names(&rows);
+    if backward_names.is_empty() {
+        return rows;
+    }
+    rows.into_iter()
+        .filter(|(module, stage, _)| {
+            normalize_post_stage(stage) != Some("backward")
+                || is_leaf_module(module, &backward_names)
+        })
+        .collect()
+}
+
+/// Build backward folded lines from SQL rows (leaf modules + parent self-time adjustment).
+fn build_backward_folded_lines(
+    data: &probing_proto::types::DataFrame,
+    duration_col: usize,
+    to_units: fn(f64) -> u64,
+) -> Vec<String> {
+    let module_idx = data.names.iter().position(|n| n == "module").unwrap_or(0);
+    let stage_idx = data.names.iter().position(|n| n == "stage").unwrap_or(1);
+    let mut grouped: HashMap<String, Vec<f64>> = HashMap::new();
+    let rows = data.cols.first().map(|c| c.len()).unwrap_or(0);
+    for row in 0..rows {
+        let module = data
+            .cols
+            .get(module_idx)
+            .map(|c| parse_text_col(&c.get(row)))
+            .unwrap_or_default();
+        let stage = data
+            .cols
+            .get(stage_idx)
+            .map(|c| parse_text_col(&c.get(row)))
+            .unwrap_or_default();
+        if !stage.contains("backward") {
+            continue;
+        }
+        let value = data
+            .cols
+            .get(duration_col)
+            .map(|c| parse_value_col(&c.get(row)))
+            .unwrap_or(0.0);
+        if value > 0.0 {
+            grouped.entry(module).or_default().push(value);
+        }
+    }
+    let backward_names: HashSet<String> = grouped.keys().cloned().collect();
+    let rows = grouped
+        .into_iter()
+        .filter(|(module, _)| is_leaf_module(module, &backward_names))
+        .map(|(module, values)| (module, "post backward".to_string(), median_f64(&values)))
+        .filter(|(_, _, v)| *v > 0.0);
+    build_folded_lines(rows, to_units, false)
+}
+
+fn ensure_backward_phase_lines(
+    data: &probing_proto::types::DataFrame,
+    duration_col: usize,
+    lines: &mut Vec<String>,
+) {
+    if lines.iter().any(|l| l.starts_with("backward;")) {
+        return;
+    }
+    let direct = build_backward_folded_lines(data, duration_col, value_to_ns);
+    if !direct.is_empty() {
+        warn!(
+            "torch flamegraph: recovered {} backward line(s) via direct path",
+            direct.len()
+        );
+    }
+    if direct.is_empty() {
+        warn!("torch flamegraph: no backward lines — check python.torch_trace post backward duration>0");
+        return;
+    }
+    lines.extend(direct);
 }
 
 fn value_to_ns(seconds: f64) -> u64 {
@@ -156,6 +249,7 @@ fn build_folded_lines(
     to_units: fn(f64) -> u64,
     clamp_non_negative: bool,
 ) -> Vec<String> {
+    let rows = filter_backward_leaf_rows(rows.into_iter().collect());
     let mut frames = BTreeMap::<Frame, f64>::default();
 
     for (module, stage, raw_value) in rows {
@@ -270,6 +364,9 @@ fn parse_value_col(ele: &probing_proto::types::Ele) -> f64 {
     match ele {
         probing_proto::types::Ele::F32(x) => *x as f64,
         probing_proto::types::Ele::F64(x) => *x,
+        probing_proto::types::Ele::I64(x) => *x as f64,
+        probing_proto::types::Ele::I32(x) => *x as f64,
+        probing_proto::types::Ele::Text(s) => s.parse::<f64>().unwrap_or(0.0),
         _ => 0.0,
     }
 }
@@ -494,7 +591,9 @@ fn query_profiling(metric: TorchMetric) -> Result<ProfilingResult> {
             let post_query = torch_rows_query(TORCH_DURATION_ROWS_QUERY);
             let data = run_torch_query(&post_query)?;
             let duration_col = data.names.iter().position(|n| n == "duration").unwrap_or(2);
-            let lines = build_median_lines_from_post_rows(&data, duration_col, value_to_ns, false);
+            let mut lines =
+                build_median_lines_from_post_rows(&data, duration_col, value_to_ns, false);
+            ensure_backward_phase_lines(&data, duration_col, &mut lines);
             Ok(ProfilingResult {
                 lines,
                 subtitle: metric.subtitle().to_string(),
@@ -503,6 +602,27 @@ fn query_profiling(metric: TorchMetric) -> Result<ProfilingResult> {
         TorchMetric::DeltaMb => query_memory_lines(TORCH_DELTA_JOIN_QUERY, 5, false, metric),
         TorchMetric::PeakMb => query_memory_lines(TORCH_PEAK_JOIN_QUERY, 6, true, metric),
     }
+}
+
+fn torch_flamegraph_subtitle(metric: TorchMetric, lines: &[String]) -> String {
+    let base = metric.subtitle().to_string();
+    let has_forward = lines.iter().any(|l| l.starts_with("forward;"));
+    let has_backward = lines.iter().any(|l| l.starts_with("backward;"));
+    let has_step = lines.iter().any(|l| l.starts_with("step;"));
+    let mut parts = vec![base];
+    if has_forward && !has_backward {
+        parts.push(
+            "No backward in flamegraph — need post backward with duration>0 (pre rows are ignored); use backward=on and rebuild probing if post.duration is 0"
+                .to_string(),
+        );
+    }
+    if has_forward && !has_step {
+        parts.push(
+            "No optimizer step samples in window (re-probe after fix, or check torch_trace post step rows)"
+                .to_string(),
+        );
+    }
+    parts.join(" · ")
 }
 
 fn torch_flamegraph_options(metric: TorchMetric, subtitle: &str) -> FlamegraphOptions {
@@ -527,11 +647,11 @@ pub fn flamegraph() -> String {
                 return empty_torch_html("No torch profiling samples collected");
             }
 
+            let subtitle = torch_flamegraph_subtitle(TorchMetric::Duration, &result.lines);
             match Flamegraph::from_folded_lines(&result.lines) {
-                Some(fg) => fg.render_html(&torch_flamegraph_options(
-                    TorchMetric::Duration,
-                    &result.subtitle,
-                )),
+                Some(fg) => {
+                    fg.render_html(&torch_flamegraph_options(TorchMetric::Duration, &subtitle))
+                }
                 None => empty_torch_html("No torch profiling samples collected"),
             }
         }
@@ -564,7 +684,8 @@ pub fn flamegraph_json(metric: Option<&str>) -> String {
             empty("Torch profiling data unavailable", metric.subtitle())
         }
         Ok(result) => {
-            let opts = torch_flamegraph_options(metric, &result.subtitle);
+            let subtitle = torch_flamegraph_subtitle(metric, &result.lines);
+            let opts = torch_flamegraph_options(metric, &subtitle);
             if result.lines.is_empty() {
                 warn!("Torch profiling returned no samples; skipping flamegraph generation");
                 let msg = match metric {
@@ -591,8 +712,23 @@ mod tests {
     #[test]
     fn normalize_post_stage_maps_hook_labels() {
         assert_eq!(normalize_post_stage("post forward"), Some("forward"));
+        assert_eq!(normalize_post_stage("post backward"), Some("backward"));
         assert_eq!(normalize_post_stage("post step"), Some("step"));
         assert_eq!(normalize_post_stage("pre forward"), None);
+    }
+
+    #[test]
+    fn torch_flamegraph_subtitle_warns_when_backward_missing() {
+        let lines = vec!["forward;layer; 10000000".to_string()];
+        let subtitle = torch_flamegraph_subtitle(TorchMetric::Duration, &lines);
+        assert!(subtitle.contains("backward=on"));
+        let with_back = vec![
+            "forward;layer; 10000000".to_string(),
+            "backward;layer; 2000000".to_string(),
+            "step;SGD; 500000".to_string(),
+        ];
+        let ok = torch_flamegraph_subtitle(TorchMetric::Duration, &with_back);
+        assert!(!ok.contains("No backward"));
     }
 
     #[test]
@@ -634,6 +770,62 @@ mod tests {
             false,
         );
         assert!(lines.is_empty());
+    }
+
+    #[test]
+    fn build_backward_folded_lines_from_dataframe() {
+        use probing_proto::types::{DataFrame, Seq};
+
+        let df = DataFrame::new(
+            vec!["module".into(), "stage".into(), "duration".into()],
+            vec![
+                Seq::SeqText(vec!["AlexNet".into(), "features.0".into()]),
+                Seq::SeqText(vec!["post backward".into(), "post backward".into()]),
+                Seq::SeqF64(vec![0.012, 0.004]),
+            ],
+        );
+        let lines = build_backward_folded_lines(&df, 2, value_to_ns);
+        assert!(lines.iter().any(|l| l.starts_with("backward;AlexNet;")));
+        assert!(lines.iter().any(|l| l.starts_with("backward;features;0;")));
+    }
+
+    #[test]
+    fn ensure_backward_phase_lines_recover_when_main_path_empty() {
+        use probing_proto::types::{DataFrame, Seq};
+
+        let df = DataFrame::new(
+            vec!["module".into(), "stage".into(), "duration".into()],
+            vec![
+                Seq::SeqText(vec!["AlexNet".into()]),
+                Seq::SeqText(vec!["post backward".into()]),
+                Seq::SeqF64(vec![0.01]),
+            ],
+        );
+        let mut lines = Vec::new();
+        ensure_backward_phase_lines(&df, 2, &mut lines);
+        assert!(lines.iter().any(|l| l.starts_with("backward;")));
+    }
+
+    #[test]
+    fn build_folded_lines_includes_post_backward_phase() {
+        let lines = build_folded_lines(
+            [
+                ("AlexNet".to_string(), "post backward".to_string(), 0.012),
+                (
+                    "AlexNet.features.0".to_string(),
+                    "post backward".to_string(),
+                    0.004,
+                ),
+                ("AlexNet".to_string(), "post forward".to_string(), 0.040),
+                ("SGD".to_string(), "post step".to_string(), 0.008),
+            ],
+            value_to_ns,
+            false,
+        );
+        assert!(lines.iter().any(|l| l.starts_with("backward;")));
+        assert!(lines.iter().any(|l| l.starts_with("forward;")));
+        assert!(lines.iter().any(|l| l.starts_with("step;")));
+        assert!(Flamegraph::from_folded_lines(&lines).is_some());
     }
 
     #[test]
@@ -713,6 +905,7 @@ mod tests {
         let q = torch_rows_query(TORCH_DURATION_ROWS_QUERY);
         assert!(q.contains("local_step >="));
         assert!(q.contains("max(local_step)"));
+        assert!(q.contains("- 99, 0)"), "step 0 must remain queryable: {q}");
         assert!(q.contains("module <> 'None'"));
     }
 
@@ -724,10 +917,10 @@ mod tests {
     }
 
     #[test]
-    fn duration_query_uses_minimal_columns_for_legacy_mmap() {
+    fn duration_query_uses_post_rows_only() {
         assert!(TORCH_DURATION_ROWS_QUERY.contains("duration"));
-        assert!(!TORCH_DURATION_ROWS_QUERY.contains("allocated_delta"));
-        assert!(!TORCH_DURATION_ROWS_QUERY.contains("max_allocated_delta"));
+        assert!(TORCH_DURATION_ROWS_QUERY.contains("post %"));
+        assert!(!TORCH_DURATION_ROWS_QUERY.contains("LEFT JOIN"));
     }
 
     #[test]

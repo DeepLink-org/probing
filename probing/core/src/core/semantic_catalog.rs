@@ -424,13 +424,13 @@ pub fn install_semantic_catalog(context: &SessionContext) -> Result<()> {
         c
     };
 
-    let schema: Arc<dyn SchemaProvider> = if let Some(schema) = catalog.schema(DOCS_SCHEMA) {
-        schema
-    } else {
-        let s: Arc<dyn SchemaProvider> = Arc::new(MemorySchemaProvider::new());
-        catalog.register_schema(DOCS_SCHEMA, Arc::clone(&s))?;
-        s
-    };
+    let mem: Arc<dyn SchemaProvider> = Arc::new(MemorySchemaProvider::new());
+    if catalog.schema(DOCS_SCHEMA).is_none() {
+        catalog.register_schema(DOCS_SCHEMA, Arc::clone(&mem))?;
+    }
+    let schema = catalog
+        .schema(DOCS_SCHEMA)
+        .ok_or_else(|| DataFusionError::Internal(format!("schema `{DOCS_SCHEMA}` not found")))?;
 
     let table_batch = table_docs_batch(&parsed.table_rows)?;
     let column_batch = column_docs_batch(&parsed.column_rows)?;

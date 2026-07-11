@@ -49,17 +49,19 @@ When monitoring PyTorch applications, additional tables become available:
 **`python.torch_trace`** — TorchProbe module hooks (long-running sampled telemetry).
 
 ```sql
-SELECT step, module, stage, duration, allocated
+SELECT local_step, module, stage, duration, allocated
 FROM python.torch_trace
-WHERE step > 1 AND duration > 0
-ORDER BY step DESC, seq;
+WHERE local_step > 1 AND duration > 0
+ORDER BY local_step DESC, seq;
 ```
 
-The first training step is discovery (no rows). Skip cold-start steps with `WHERE step > N`.
+The first training step is discovery (no rows). Skip cold-start steps with `WHERE local_step > N`.
 
 Common columns:
 
-- `step` — training step (aligned with optimizer steps)
+- `micro_step` — finest counter; advances on each optimizer step
+- `local_step` — per-rank training step (`micro_step // micro_batches`)
+- `global_step` — global training step (same as `local_step` when ranks align)
 - `seq` — hook order within the step
 - `module` — module name
 - `stage` — `pre forward`, `post forward`, `pre step`, `post step` (not `forward`/`backward` literals; backward not collected by default)
@@ -68,8 +70,9 @@ Common columns:
 
 Sampling (`PROBING_TORCH_PROFILING`):
 
-- `ordered:rate` — `rate` = probability each step is sampled; one module rotates per sampled step
-- `random:rate` — every step sampled; `rate` = per-hook probability after the offset-0 anchor
+- `rate[:layer_rate]` — one step in every `round(1/rate)` is sampled (evenly spaced); within a sampled step each layer is recorded with probability `layer_rate` (default `1.0` = full snapshot), e.g. `0.1:0.3`. A leading `random:`/`ordered:` token is accepted for back-compat (always `random`; the legacy rotating-module `ordered` mode was removed).
+
+Both modes sample on a fixed, evenly-spaced cadence derived from the step index, so data appears on the first probed step, all ranks sample the same steps (aligned distributed traces), and the host RNG is never touched.
 
 Also stamped on each row: `global_step`, `rank`, `world_size`, `role` (parallel placement key).
 See [SQL Tables — torch_trace](../reference/sql-tables.md#python-torch_trace).
@@ -133,30 +136,30 @@ ORDER BY avg_ms DESC"
 
 ```sql
 SELECT
-  step,
+  local_step,
   stage,
   avg(allocated) as avg_memory_mb,
   max(allocated) as peak_memory_mb
 FROM python.torch_trace
-WHERE step > (SELECT max(step) - 10 FROM python.torch_trace)
-GROUP BY step, stage
-ORDER BY step, stage;
+WHERE local_step > (SELECT max(local_step) - 10 FROM python.torch_trace)
+GROUP BY local_step, stage
+ORDER BY local_step, stage;
 ```
 
 **Rolling averages:**
 
 ```sql
 SELECT
-  step,
+  local_step,
   module,
   duration,
   AVG(duration) OVER (
     PARTITION BY module
-    ORDER BY step, seq
+    ORDER BY local_step, seq
     ROWS BETWEEN 4 PRECEDING AND CURRENT ROW
   ) as avg_duration_5_samples
 FROM python.torch_trace
-WHERE step > (SELECT max(step) - 5 FROM python.torch_trace);
+WHERE local_step > (SELECT max(local_step) - 5 FROM python.torch_trace);
 ```
 
 ### Performance Analysis
@@ -171,7 +174,7 @@ SELECT
   avg(duration) as avg_duration,
   max(duration) as max_duration
 FROM python.torch_trace
-WHERE step > (SELECT max(step) - 10 FROM python.torch_trace)
+WHERE local_step > (SELECT max(local_step) - 10 FROM python.torch_trace)
   AND duration > 0
 GROUP BY module, stage
 ORDER BY avg_duration DESC
@@ -201,13 +204,13 @@ GROUP BY module, stage;
 
 ```sql
 SELECT
-  step,
+  local_step,
   allocated,
-  LAG(allocated) OVER (ORDER BY step, seq) as prev_memory,
-  LEAD(allocated) OVER (ORDER BY step, seq) as next_memory,
+  LAG(allocated) OVER (ORDER BY local_step, seq) as prev_memory,
+  LEAD(allocated) OVER (ORDER BY local_step, seq) as next_memory,
   ROW_NUMBER() OVER (ORDER BY allocated DESC) as memory_rank
 FROM python.torch_trace
-WHERE step > (SELECT max(step) - 5 FROM python.torch_trace);
+WHERE local_step > (SELECT max(local_step) - 5 FROM python.torch_trace);
 ```
 
 ## Data Export
@@ -220,15 +223,15 @@ probing $ENDPOINT query "SELECT * FROM python.torch_trace" > torch_traces.json
 
 # 时间序列数据用于绘图
 probing $ENDPOINT query "
-  SELECT step, stage, avg(duration), avg(allocated)
+  SELECT local_step, stage, avg(duration), avg(allocated)
   FROM python.torch_trace
-  GROUP BY step, stage
+  GROUP BY local_step, stage
 " > step_metrics.json
 ```
 
 ## Best Practices
 
-1. **Use step-based filtering** - Always include step constraints for better performance
+1. **Use local_step filtering** - Always include `local_step` constraints for better performance
 2. **Limit result sets** - Use `LIMIT` clauses for large datasets
 3. **Aggregate appropriately** - Use `GROUP BY` for summary statistics
 4. **Test queries incrementally** - Start simple and add complexity gradually

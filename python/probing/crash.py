@@ -12,39 +12,26 @@ from types import TracebackType
 from typing import Callable, Optional, Type
 
 from probing._core import crash_enabled, record_crash
+from probing.util.env import FALSE_VALUES, TRUE_VALUES, parse_bool_flag
 
 _INSTALLED = False
 _PREV_EXCEPTHOOK: Optional[Callable] = None
 _PREV_THREAD_EXCEPTHOOK: Optional[Callable] = None
-
-_TRUE = {"1", "true", "yes", "on", "enable", "enabled"}
-_FALSE = {"0", "false", "no", "off", "disable", "disabled"}
-
-
-def _flag(value: Optional[str]) -> Optional[bool]:
-    if value is None:
-        return None
-    normalized = str(value).strip().lower()
-    if normalized in _TRUE:
-        return True
-    if normalized in _FALSE:
-        return False
-    return None
 
 
 def _flight_recorder_on_watchdog_enabled() -> bool:
     try:
         import probing
 
-        explicit = _flag(probing.config.get_str("probing.fr.on_watchdog"))
+        explicit = parse_bool_flag(probing.config.get_str("probing.fr.on_watchdog"))
         if explicit is not None:
             return explicit
     except Exception:
         explicit = None
     raw = os.environ.get("PROBING_FR_ON_WATCHDOG", "auto").strip().lower()
-    if raw in _FALSE:
+    if raw in FALSE_VALUES:
         return False
-    if raw in _TRUE or raw == "on":
+    if raw in TRUE_VALUES or raw == "on":
         return True
     return raw == "auto"
 

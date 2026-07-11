@@ -36,10 +36,13 @@ class Step:
             set_micro_batches(micro_batches)
         if value is not None:
             sync_micro_step(value)
+            _invalidate_coords_cache()
             return
         if micro_batches is not None:
+            _invalidate_coords_cache()
             return
         advance_micro_step()
+        _invalidate_coords_cache()
 
     @property
     def micro_step(self) -> int:
@@ -82,12 +85,40 @@ def row_fields(snapshot=None) -> dict:
     return {key: fields.get(key, default) for key, default in _ROW_DEFAULTS.items()}
 
 
-def span_attrs(user: dict, *, source: str = "manual") -> dict:
-    """Merge user attrs with step coordinates, topology, and source label."""
-    merged = dict(user)
-    merged.setdefault("source", source)
-    merged.update(step_fields(step.snapshot()))
+def reset_span_attrs_cache() -> None:
+    """Drop cached step coordinates (tests / simulated rank changes)."""
+    _invalidate_coords_cache()
+
+
+def _invalidate_coords_cache() -> None:
+    global _CACHED_STEP_FIELDS
+    _CACHED_STEP_FIELDS = None
+
+
+_CACHED_STEP_FIELDS: Optional[dict] = None
+
+
+def _base_coords() -> dict:
+    """Step + parallel fields for span/table rows.
+
+    Step coordinates are cached until ``probing.step()`` advances. Parallel
+    topology and simulated rank overrides (tests) must stay fresh, so TP/PP/DP
+    are re-read every call and rank env fixtures invalidate the step cache.
+    """
+    global _CACHED_STEP_FIELDS
     from probing.parallel import parallel_fields
 
-    merged.update(parallel_fields())
+    if _CACHED_STEP_FIELDS is None:
+        _CACHED_STEP_FIELDS = step_fields(step.snapshot())
+    return {**_CACHED_STEP_FIELDS, **parallel_fields()}
+
+
+def span_attrs(user: dict, *, source: str = "manual") -> dict:
+    """Merge user attrs with step coordinates, topology, and source label."""
+    base = _base_coords()
+    if not user:
+        return {**base, "source": source}
+    merged = dict(user)
+    merged.setdefault("source", source)
+    merged.update(base)
     return merged

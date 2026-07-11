@@ -22,6 +22,5 @@ pub use loader::{
 };
 pub use routing::match_skills;
 pub use runner::{
-    execute_skill, list_skills_catalog, plan_skill, resolve_use_global, run_step, RunOptions,
-    RunResult, StepOutcome,
+    execute_skill, plan_skill, resolve_use_global, run_step, RunOptions, RunResult, StepOutcome,
 };

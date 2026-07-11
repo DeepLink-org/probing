@@ -245,7 +245,7 @@ Probing has many configuration points. The most important ones:
 | `PROBING_AUTH_TOKEN` | Authentication token for remote mode |
 | `PROBING_CPU_SAMPLE_MS` | CPU sampling interval in milliseconds (0=off) |
 | `PROBING_GPU_SAMPLE_MS` | GPU sampling interval in milliseconds |
-| `PROBING_SPAN_BACKENDS` | Comma-separated: `memtable`, `logger`, `otel` |
+| `PROBING_SPAN_BACKENDS` | Comma-separated: `memtable`, `logger`, `otel`, `none` (stack only). See [Span API](../design/tracing-spans.md). |
 | `PROBING_LOGLEVEL` | `trace`, `debug`, `info`, `warn`, `error` |
 
 The complete reference is at [Environment Variables](../reference/env-vars.md).

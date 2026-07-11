@@ -154,6 +154,22 @@ lock-free atomics.
 - Skill `nccl_culprit_victim` in `skills/` — SQL rank wait summary, culprit/victim rankings, role-aligned view, `global.*` fan-out
 - Linked from `slow_rank` and `comm_bottleneck` when `nccl.proxy_ops` is present
 
+## Benchmark (overhead)
+
+Two layers — synthetic callback micro-bench (no GPU) and end-to-end NCCL AllReduce:
+
+```bash
+# Micro: per-op callback + mmap flush latency (Criterion)
+make nccl-profiler-bench
+# or: cargo bench -p probing-nccl-profiler --bench callback_path
+
+# E2E: baseline vs profiled under torchrun (Linux + CUDA)
+make nccl-profiler-lib
+./examples/run_nccl_profiler_bench.sh
+```
+
+Tune E2E with `NPROC`, `BENCH_ITERS`, `MSG_BYTES`. Disable watchdog noise during bench with `PROBING_NCCL_INFLIGHT_THRESHOLD_SECS=0` (the wrapper sets this).
+
 ## Compatibility
 
 - Exports **`ncclProfiler_v4`** (NCCL 2.27+) and **`ncclProfiler_v3`** (NCCL 2.26);

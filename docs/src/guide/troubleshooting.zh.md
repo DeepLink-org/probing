@@ -131,8 +131,8 @@
 
 1. **降低 TorchProbe 采样**（无全局 sample_rate 开关）：
    ```bash
-   PROBING_TORCH_PROFILING=ordered:0.1 python your_script.py
-   # 或运行时：set probing.torch.profiling=ordered:0.1;
+   PROBING_TORCH_PROFILING=0.1 python your_script.py
+   # 或运行时：set probing.torch.profiling=0.1;
    ```
 
 2. **降低 CPU pprof 频率**：

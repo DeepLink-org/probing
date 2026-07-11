@@ -206,18 +206,6 @@ def build_context(
     return {str(k): str(v) for k, v in params.items()}
 
 
-def expand_template(template: str, ctx: Mapping[str, str]) -> str:
-    out = template
-    for key, val in ctx.items():
-        out = out.replace(f"{{{key}}}", str(val))
-    return out
-
-
-def derived_variables(params: Mapping[str, Any]) -> Dict[str, str]:
-    """Deprecated — kept for tests importing the name; logic is Rust-only."""
-    raise NotImplementedError("derived_variables() moved to probing-skills (Rust SSOT)")
-
-
 def match_skills(
     query: str,
     root: Optional[Path] = None,

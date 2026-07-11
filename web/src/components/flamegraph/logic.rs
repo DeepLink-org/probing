@@ -107,6 +107,7 @@ pub fn label_for_frame(frame: &FlameFrame) -> String {
     } else if frame.depth == 1 {
         match frame.name.as_str() {
             "forward" => "Forward pass".to_string(),
+            "backward" => "Backward pass".to_string(),
             "step" => "Optimizer step".to_string(),
             other => other.to_string(),
         }

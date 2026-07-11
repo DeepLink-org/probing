@@ -44,3 +44,46 @@ pub fn maybe_warn_pool_usage(pool: &str, usage_pct: u8) {
 pub fn check_pool_usage<T: Indexed>(pool: &str, slot_pool: &SlotPool<T>) {
     maybe_warn_pool_usage(pool, slot_pool.usage_pct());
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::pool::{SlotPool, INVALID_IDX};
+
+    #[derive(Debug)]
+    struct X {
+        idx: u32,
+    }
+
+    impl Indexed for X {
+        fn set_self_idx(&mut self, idx: u32) {
+            self.idx = idx;
+        }
+        fn self_idx(&self) -> u32 {
+            self.idx
+        }
+    }
+
+    #[test]
+    fn maybe_warn_pool_usage_ignores_below_threshold() {
+        LAST_USAGE_WARN_NS.store(0, Ordering::Relaxed);
+        maybe_warn_pool_usage("coll", 79);
+        // No panic; debounce state unchanged when below 80%.
+        assert_eq!(LAST_USAGE_WARN_NS.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn debounce_suppresses_back_to_back_warnings() {
+        LAST_EXHAUST_WARN_NS.store(0, Ordering::Relaxed);
+        assert!(debounce(&LAST_EXHAUST_WARN_NS));
+        assert!(!debounce(&LAST_EXHAUST_WARN_NS));
+    }
+
+    #[test]
+    fn check_pool_usage_reads_live_ratio() {
+        let mut pool = SlotPool::with_capacity(4);
+        let _ = pool.alloc(|| X { idx: INVALID_IDX });
+        check_pool_usage("coll", &pool);
+        assert_eq!(pool.usage_pct(), 25);
+    }
+}

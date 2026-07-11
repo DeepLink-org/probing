@@ -305,24 +305,51 @@ fn parse_lineno<T: CodeObject>(code: *const T, lasti: i32) -> i32 {
 }
 
 fn copy_string(addr: *const u8, len: usize, kind: u32, ascii: bool) -> String {
-    let len = if len > 1024 { 1024 } else { len };
+    if addr.is_null() || len == 0 {
+        return String::new();
+    }
+    let len = len.min(1024);
     match (kind, ascii) {
-        (4, _) => {
-            let chars = unsafe { std::slice::from_raw_parts(addr as *const char, len / 4) };
-            chars.iter().collect()
+        (4, _) if len >= 4 => {
+            let units = unsafe { std::slice::from_raw_parts(addr as *const u32, len / 4) };
+            units.iter().copied().filter_map(char::from_u32).collect()
         }
-        (2, _) => {
-            let chars = unsafe { std::slice::from_raw_parts(addr as *const u16, len / 2) };
-            String::from_utf16(chars).unwrap_or_default()
+        (2, _) if len >= 2 => {
+            let units = unsafe { std::slice::from_raw_parts(addr as *const u16, len / 2) };
+            String::from_utf16_lossy(units)
         }
-        (1, true) => {
+        (1, _) => {
             let slice = unsafe { std::slice::from_raw_parts(addr, len) };
-            String::from_utf8_lossy(slice).to_string()
-        }
-        (1, false) => {
-            let slice = unsafe { std::slice::from_raw_parts(addr, len) };
-            String::from_utf8_lossy(slice).to_string()
+            String::from_utf8_lossy(slice).into_owned()
         }
         _ => String::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::copy_string;
+
+    #[test]
+    fn copy_string_accepts_invalid_utf8_latin1() {
+        let data = [b'h', b'i', 0x93, b'!'];
+        assert_eq!(
+            copy_string(data.as_ptr(), data.len(), 1, false),
+            "hi\u{fffd}!"
+        );
+    }
+
+    #[test]
+    fn copy_string_accepts_invalid_utf16() {
+        let data: [u16; 2] = [0x0061, 0xD800];
+        let bytes = data.as_ptr() as *const u8;
+        assert_eq!(copy_string(bytes, data.len() * 2, 2, false), "a\u{fffd}");
+    }
+
+    #[test]
+    fn copy_string_skips_invalid_utf32_scalars() {
+        let data: [u32; 3] = [0x0061, 0x0011_0000, 0x0062];
+        let bytes = data.as_ptr() as *const u8;
+        assert_eq!(copy_string(bytes, data.len() * 4, 4, false), "ab");
     }
 }

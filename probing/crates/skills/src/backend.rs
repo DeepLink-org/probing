@@ -68,3 +68,44 @@ pub fn cluster_meta_note(meta: &ClusterQueryMeta) -> String {
         if meta.partial { " · PARTIAL" } else { "" }
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_cluster_meta_marks_partial_on_failed_nodes() {
+        let meta = parse_cluster_meta(&serde_json::json!({
+            "nodes_queried": 8,
+            "nodes_failed": ["rank-2"],
+            "peer_batches_dropped": 0,
+            "partial": false,
+        }));
+        assert!(meta.partial);
+        assert_eq!(meta.nodes_failed, vec!["rank-2".to_string()]);
+    }
+
+    #[test]
+    fn parse_cluster_meta_honours_explicit_partial_flag() {
+        let meta = parse_cluster_meta(&serde_json::json!({
+            "nodes_queried": 4,
+            "nodes_failed": [],
+            "peer_batches_dropped": 2,
+            "partial": true,
+        }));
+        assert!(meta.partial);
+        assert_eq!(meta.peer_batches_dropped, 2);
+    }
+
+    #[test]
+    fn cluster_meta_note_includes_partial_marker() {
+        let note = cluster_meta_note(&ClusterQueryMeta {
+            partial: true,
+            nodes_queried: 2,
+            nodes_failed: vec!["a".into()],
+            peer_batches_dropped: 1,
+        });
+        assert!(note.contains("PARTIAL"));
+        assert!(note.contains("2 nodes"));
+    }
+}

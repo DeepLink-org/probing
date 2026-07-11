@@ -12,7 +12,6 @@
 | `../extensions/` | **Extension discovery SSOT** — entry points, overlays, vendor inventory |
 | `install.py` | `probing skill install` / `update` — copy into agent skill dirs |
 | `tools.py` | `list_skills`, `plan_skill_run` — discovery/plan via Rust |
-| `serialize.py` | Legacy JSON helpers (handlers call `_core` directly) |
 | `__main__.py` | `python -m probing.skills validate\|install\|update` |
 
 ## Discovery (later wins)

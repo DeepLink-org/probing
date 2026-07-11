@@ -32,14 +32,14 @@ spec:
       type: sql
       sql: |
         SELECT
-          step,
+          local_step,
           max(allocated) AS peak_mb,
           max(max_allocated) AS peak_max_mb,
           max(allocated_delta) AS max_delta_mb
         FROM python.torch_trace
-        WHERE step > {step_skip}
-        GROUP BY step
-        ORDER BY step
+        WHERE local_step > {step_skip}
+        GROUP BY local_step
+        ORDER BY local_step
       on_empty: abort
       empty_message: "python.torch_trace 无数据 — 开启 probing.torch.profiling=on"
 
@@ -48,22 +48,22 @@ spec:
       type: sql
       sql: |
         WITH per_step AS (
-          SELECT step, max(allocated) AS peak_mb
+          SELECT local_step, max(allocated) AS peak_mb
           FROM python.torch_trace
-          WHERE step > {step_skip}
-          GROUP BY step
+          WHERE local_step > {step_skip}
+          GROUP BY local_step
         ),
         deltas AS (
           SELECT
-            step,
+            local_step,
             peak_mb,
-            peak_mb - lag(peak_mb) OVER (ORDER BY step) AS growth_mb
+            peak_mb - lag(peak_mb) OVER (ORDER BY local_step) AS growth_mb
           FROM per_step
         )
-        SELECT step, peak_mb, growth_mb
+        SELECT local_step, peak_mb, growth_mb
         FROM deltas
         WHERE growth_mb IS NOT NULL
-        ORDER BY step
+        ORDER BY local_step
       on_empty: skip
 
     - id: monotonic_growth_steps
@@ -71,25 +71,25 @@ spec:
       type: sql
       sql: |
         WITH per_step AS (
-          SELECT step, max(allocated) AS peak_mb
+          SELECT local_step, max(allocated) AS peak_mb
           FROM python.torch_trace
-          WHERE step > {step_skip}
-          GROUP BY step
+          WHERE local_step > {step_skip}
+          GROUP BY local_step
         ),
         flagged AS (
           SELECT
-            step,
+            local_step,
             peak_mb,
             CASE
-              WHEN peak_mb > lag(peak_mb) OVER (ORDER BY step) THEN 1
+              WHEN peak_mb > lag(peak_mb) OVER (ORDER BY local_step) THEN 1
               ELSE 0
             END AS increased
           FROM per_step
         )
-        SELECT step, peak_mb, increased
+        SELECT local_step, peak_mb, increased
         FROM flagged
         WHERE increased = 1
-        ORDER BY step
+        ORDER BY local_step
       on_empty: skip
 
     - id: top_memory_modules
@@ -103,7 +103,7 @@ spec:
           max(allocated_delta) AS max_delta_mb,
           count(*) AS samples
         FROM python.torch_trace
-        WHERE step > {step_skip}
+        WHERE local_step > {step_skip}
           AND allocated_delta > 0
         GROUP BY module, stage
         ORDER BY avg_delta_mb DESC

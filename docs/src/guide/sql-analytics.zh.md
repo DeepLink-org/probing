@@ -49,17 +49,19 @@ SELECT * FROM python.backtrace LIMIT 10;
 **`python.torch_trace`** — TorchProbe 模块钩子（长期统计采样遥测）。
 
 ```sql
-SELECT step, module, stage, duration, allocated
+SELECT local_step, module, stage, duration, allocated
 FROM python.torch_trace
-WHERE step > 1 AND duration > 0
-ORDER BY step DESC, seq;
+WHERE local_step > 1 AND duration > 0
+ORDER BY local_step DESC, seq;
 ```
 
-第一个训练 step 为 discovery（无数据）。用 `WHERE step > N` 跳过冷启动。
+第一个训练 step 为 discovery（无数据）。用 `WHERE local_step > N` 跳过冷启动。
 
 常用列：
 
-- `step` - 训练步（与 optimizer step 对齐）
+- `micro_step` - 最细粒度步计数（每次 optimizer step +1）
+- `local_step` - 本 rank 训练步（`micro_step // micro_batches`）
+- `global_step` - 全局训练步（rank 对齐时与 `local_step` 相同）
 - `seq` - step 内钩子顺序
 - `module` - 模块名
 - `stage` - `pre forward`、`post forward`、`pre step`、`post step`（非字面 `forward`/`backward`；默认不采 backward）
@@ -68,8 +70,7 @@ ORDER BY step DESC, seq;
 
 采样（`PROBING_TORCH_PROFILING`）：
 
-- `ordered:rate` - `rate` 为每 step 采样概率；被采样 step 内轮转一个模块
-- `random:rate` - 每 step 都采样；`rate` 为 offset>0 钩子的概率（offset=0 锚点始终记录）
+- `rate[:layer_rate]` - 每 `round(1/rate)` 个 step 采样 1 个（等间距）；被采样 step 内每个 layer 以概率 `layer_rate`（默认 `1.0` = 全量快照）命中，如 `0.1:0.3`。仍接受前缀 `random:`/`ordered:` 以兼容旧配置（一律按 `random`；旧的轮转模块 `ordered` 模式已移除）。
 
 每行还有 `global_step`、`rank`、`world_size`、`role`。见 [SQL 表 — torch_trace](../reference/sql-tables.zh.md#python-torch_trace)。
 
@@ -130,30 +131,30 @@ ORDER BY avg_ms DESC"
 
 ```sql
 SELECT
-  step,
+  local_step,
   stage,
   avg(allocated) as avg_memory_mb,
   max(allocated) as peak_memory_mb
 FROM python.torch_trace
-WHERE step > (SELECT max(step) - 10 FROM python.torch_trace)
-GROUP BY step, stage
-ORDER BY step, stage;
+WHERE local_step > (SELECT max(local_step) - 10 FROM python.torch_trace)
+GROUP BY local_step, stage
+ORDER BY local_step, stage;
 ```
 
 **滚动平均：**
 
 ```sql
 SELECT
-  step,
+  local_step,
   module,
   duration,
   AVG(duration) OVER (
     PARTITION BY module
-    ORDER BY step, seq
+    ORDER BY local_step, seq
     ROWS BETWEEN 4 PRECEDING AND CURRENT ROW
   ) as avg_duration_5_samples
 FROM python.torch_trace
-WHERE step > (SELECT max(step) - 5 FROM python.torch_trace);
+WHERE local_step > (SELECT max(local_step) - 5 FROM python.torch_trace);
 ```
 
 ### 性能分析
@@ -168,7 +169,7 @@ SELECT
   avg(duration) as avg_duration,
   max(duration) as max_duration
 FROM python.torch_trace
-WHERE step > (SELECT max(step) - 10 FROM python.torch_trace)
+WHERE local_step > (SELECT max(local_step) - 10 FROM python.torch_trace)
   AND duration > 0
 GROUP BY module, stage
 ORDER BY avg_duration DESC
@@ -198,13 +199,13 @@ GROUP BY module, stage;
 
 ```sql
 SELECT
-  step,
+  local_step,
   allocated,
-  LAG(allocated) OVER (ORDER BY step, seq) as prev_memory,
-  LEAD(allocated) OVER (ORDER BY step, seq) as next_memory,
+  LAG(allocated) OVER (ORDER BY local_step, seq) as prev_memory,
+  LEAD(allocated) OVER (ORDER BY local_step, seq) as next_memory,
   ROW_NUMBER() OVER (ORDER BY allocated DESC) as memory_rank
 FROM python.torch_trace
-WHERE step > (SELECT max(step) - 5 FROM python.torch_trace);
+WHERE local_step > (SELECT max(local_step) - 5 FROM python.torch_trace);
 ```
 
 ## 数据导出
@@ -217,15 +218,15 @@ probing $ENDPOINT query "SELECT * FROM python.torch_trace" > torch_traces.json
 
 # 时间序列数据用于绘图
 probing $ENDPOINT query "
-  SELECT step, stage, avg(duration), avg(allocated)
+  SELECT local_step, stage, avg(duration), avg(allocated)
   FROM python.torch_trace
-  GROUP BY step, stage
+  GROUP BY local_step, stage
 " > step_metrics.json
 ```
 
 ## 最佳实践
 
-1. **使用基于步数的过滤** - 始终包含步数约束以获得更好的性能
+1. **使用 local_step 过滤** - 始终包含 `local_step` 约束以获得更好的性能
 2. **限制结果集** - 对大数据集使用 `LIMIT` 子句
 3. **适当聚合** - 使用 `GROUP BY` 获取汇总统计
 4. **渐进式测试查询** - 从简单开始，逐步增加复杂度

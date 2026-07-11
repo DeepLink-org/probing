@@ -98,9 +98,98 @@ def test_configure_overrides_env(monkeypatch):
     assert list_backends() == ["memtable"]
 
 
-def test_otel_backend_skipped_without_sdk(monkeypatch):
+def test_configure_empty_disables_all_backends():
+    from probing.tracing import configure_backends, list_backends, reset_backends
+
+    configure_backends([])
+    assert list_backends() == []
+
+    with probing.span("no_persist"):
+        pass
+
+    assert _trace_rows() == []
+    reset_backends()
+
+
+def test_env_none_disables_persistence(monkeypatch):
     from probing.tracing import list_backends, reset_backends
 
+    monkeypatch.setenv("PROBING_SPAN_BACKENDS", "none")
+    reset_backends()
+    assert list_backends() == []
+
+    with probing.span("env_none"):
+        pass
+
+    assert _trace_rows() == []
+
+
+def test_persistence_enabled_reflects_backends():
+    from probing.tracing.backends import persistence_enabled
+    from probing.tracing import configure_backends, reset_backends
+
+    configure_backends([])
+    assert not persistence_enabled()
+    reset_backends()
+    assert persistence_enabled()
+
+
+def test_no_backend_skips_span_attrs(monkeypatch):
+    import importlib
+
+    from probing.tracing import configure_backends, reset_backends
+
+    span_mod = importlib.import_module("probing.tracing.span")
+    calls = {"n": 0}
+    original = span_mod.span_attrs
+
+    def _counting_span_attrs(*args, **kwargs):
+        calls["n"] += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(span_mod, "span_attrs", _counting_span_attrs)
+    configure_backends([])
+
+    with probing.span("skip_attrs", phase="forward"):
+        pass
+
+    assert calls["n"] == 0
+    reset_backends()
+
+
+def test_span_attrs_cached_within_micro_step(monkeypatch):
+    from probing.tracing.coordinates import reset_span_attrs_cache, span_attrs, step
+    from probing.parallel import reset_parallel_fields_cache
+
+    reset_span_attrs_cache()
+    reset_parallel_fields_cache()
+    step(0)
+
+    snapshots = {"n": 0}
+    original = step.snapshot
+
+    def _counting_snapshot():
+        snapshots["n"] += 1
+        return original()
+
+    monkeypatch.setattr(step, "snapshot", _counting_snapshot)
+
+    span_attrs({"x": 1})
+    span_attrs({"y": 2})
+    assert snapshots["n"] == 1
+
+    step()
+    span_attrs({"z": 3})
+    assert snapshots["n"] == 2
+
+
+def test_otel_backend_skipped_without_sdk(monkeypatch):
+    from probing.tracing import list_backends, reset_backends
+    import probing.tracing.backends as backends_mod
+
+    # Environment may ship opentelemetry (e.g. via langsmith); force the
+    # no-SDK path so this test stays deterministic.
+    monkeypatch.setattr(backends_mod, "_build_otel_backend", lambda: None)
     monkeypatch.setenv("PROBING_SPAN_BACKENDS", "memtable,otel")
     reset_backends()
     assert list_backends() == ["memtable"]

@@ -28,6 +28,8 @@ pub enum PythonTableError {
     MissingColumn(String),
     #[error("record batch build failed: {0}")]
     BatchBuild(String),
+    #[error("backtrace capture failed")]
+    Backtrace(#[source] anyhow::Error),
     #[error(transparent)]
     Py(#[from] pyo3::PyErr),
     #[error(transparent)]
@@ -51,8 +53,8 @@ pub struct PythonNamespace {}
 
 impl PythonNamespace {
     fn get_backtrace_data() -> TableResult<Vec<RecordBatch>> {
-        let frames = crate::extensions::python::backtrace(None)
-            .map_err(|e| PythonTableError::BatchBuild(e.to_string()))?;
+        let frames =
+            crate::extensions::python::backtrace(None).map_err(PythonTableError::Backtrace)?;
 
         if frames.is_empty() {
             return Ok(vec![]);
@@ -197,6 +199,12 @@ impl CustomNamespace for PythonNamespace {
         if expr == "backtrace" {
             match Self::get_backtrace_data() {
                 Ok(batches) => batches,
+                Err(PythonTableError::Backtrace(ref source))
+                    if crate::features::stack_tracer::is_backtrace_busy(source) =>
+                {
+                    debug!("python.backtrace skipped: {source}");
+                    vec![]
+                }
                 Err(e) => {
                     error!("Error getting backtrace data: {e:?}");
                     vec![]

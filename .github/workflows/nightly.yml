@@ -1,0 +1,171 @@
+# Nightly wheels from main — rolling GitHub Release tag `nightly`.
+#
+# Install (after a successful run):
+#   curl -fsSL https://raw.githubusercontent.com/DeepLink-org/probing/main/scripts/install-nightly.sh | bash
+# Or browse assets: https://github.com/DeepLink-org/probing/releases/tag/nightly
+
+name: Nightly Build
+
+on:
+  schedule:
+    # 03:00 UTC daily
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  meta:
+    if: github.repository == 'DeepLink-org/probing'
+    runs-on: ubuntu-latest
+    outputs:
+      local_version: ${{ steps.ver.outputs.local_version }}
+    steps:
+      - id: ver
+        shell: bash
+        run: |
+          short_sha="${GITHUB_SHA:0:7}"
+          echo "local_version=g${GITHUB_RUN_NUMBER}.${short_sha}" >> "$GITHUB_OUTPUT"
+
+  linux:
+    if: github.repository == 'DeepLink-org/probing'
+    needs: meta
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [x86_64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-build-env
+        with:
+          python-version: "3.12"
+          install-cargo-tools: "true"
+          install-python-deps: "false"
+          cache-venv: "false"
+
+      - name: Prepare wheel bundle
+        env:
+          SKIP_FRONTEND_CLEAN: "1"
+        run: |
+          if [ ! -f python/probing/bundled_web/public/index.html ]; then
+            make frontend
+          fi
+          make wheel-bundle nccl-profiler-lib
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: >-
+            --release --out dist --zig --compatibility manylinux2014
+            --auditwheel repair --local-version ${{ needs.meta.outputs.local_version }}
+            --features extension-module,gpu,gpu-cuda,kmsg
+          sccache: "true"
+          manylinux: auto
+          rust-toolchain: stable
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-wheels-linux-${{ matrix.target }}
+          path: dist/*.whl
+          retention-days: 14
+
+  macos:
+    if: github.repository == 'DeepLink-org/probing'
+    needs: meta
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        target: [x86_64, aarch64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-build-env
+        with:
+          python-version: "3.12"
+          install-cargo-tools: "true"
+          install-python-deps: "false"
+          cache-venv: "false"
+
+      - name: Prepare wheel bundle
+        env:
+          SKIP_FRONTEND_CLEAN: "1"
+        run: |
+          if [ ! -f python/probing/bundled_web/public/index.html ]; then
+            make frontend
+          fi
+          make wheel-bundle
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: >-
+            --release --out dist --find-interpreter
+            --local-version ${{ needs.meta.outputs.local_version }}
+            --features extension-module,gpu,kmsg
+          sccache: "true"
+          rust-toolchain: stable
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-wheels-macos-${{ matrix.target }}
+          path: dist/*.whl
+          retention-days: 14
+
+  publish:
+    name: Publish nightly release
+    if: github.repository == 'DeepLink-org/probing'
+    needs: [meta, linux, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download wheels
+        uses: actions/download-artifact@v4
+        with:
+          pattern: nightly-wheels-*
+          merge-multiple: true
+          path: dist
+
+      - name: List artifacts
+        run: ls -la dist/
+
+      - name: Publish rolling nightly release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: nightly
+          name: Nightly (main)
+          commit: ${{ github.sha }}
+          allowUpdates: true
+          makeLatest: false
+          prerelease: true
+          removeArtifacts: true
+          artifactErrorsFailBuild: true
+          artifacts: dist/*.whl
+          body: |
+            Rolling nightly wheels built from [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}) on **${{ github.ref_name }}**.
+
+            **Quick install** (auto-detect platform / Python):
+
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/install-nightly.sh | bash
+            ```
+
+            Or pick a `.whl` below and `pip install --force-reinstall <url>`.
+
+            Built with local version `+${{ needs.meta.outputs.local_version }}` (base version from `pyproject.toml`).

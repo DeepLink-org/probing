@@ -9,7 +9,7 @@ use wasm_bindgen::JsCast;
 use crate::components::icon::Icon;
 use crate::state::agent::AGENT_PANEL_OPEN;
 use crate::state::commands::{COMMAND_PANEL_OPEN, SHORTCUTS_HELP_OPEN};
-use crate::state::source_viewer::{close_source_viewer, SOURCE_VIEWER_OPEN};
+use crate::state::source_viewer::{close_source_viewer, source_viewer_open};
 
 #[component]
 pub fn GlobalShortcutInstaller() -> Element {
@@ -66,7 +66,7 @@ fn handle_global_key(e: &web_sys::KeyboardEvent) -> bool {
             *AGENT_PANEL_OPEN.write() = false;
             return true;
         }
-        if *SOURCE_VIEWER_OPEN.read() {
+        if source_viewer_open() {
             close_source_viewer();
             return true;
         }

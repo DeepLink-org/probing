@@ -183,3 +183,36 @@ impl From<EngineError> for DataFusionError {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::runtime::RuntimeError;
+
+    #[test]
+    fn constructors_preserve_variant() {
+        let e = EngineError::query("bad sql");
+        assert!(matches!(e, EngineError::QueryError(_)));
+        assert!(e.to_string().contains("bad sql"));
+    }
+
+    #[test]
+    fn runtime_variant_wraps_unavailable() {
+        let err = EngineError::Runtime(RuntimeError::Unavailable);
+        assert!(err.to_string().to_lowercase().contains("unavailable"));
+    }
+
+    #[test]
+    fn datafusion_conversion_externalizes_non_df_errors() {
+        let err = EngineError::internal("boom");
+        let df: DataFusionError = err.into();
+        assert!(df.to_string().contains("boom"));
+    }
+
+    #[test]
+    fn invalid_option_formats_name_and_detail() {
+        let err = EngineError::invalid_option("sample_rate", "must be <= 1");
+        assert!(err.to_string().contains("sample_rate"));
+        assert!(err.to_string().contains("must be <= 1"));
+    }
+}

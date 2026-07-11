@@ -64,7 +64,7 @@ fn view_icon(view: &str) -> &'static icondata::Icon {
 fn view_subtitle(view: &str) -> String {
     match view {
         "pprof" => "SIGPROF stack explorer · statistical sampling".to_string(),
-        "torch" => "Median post-hook duration · statistical sampling".to_string(),
+        "torch" => "Module flamegraph from TorchProbe hooks".to_string(),
         "trace" => "Chrome trace events from probing buffers — not distributed spans".to_string(),
         "pytorch" => "PyTorch profiler chrome trace".to_string(),
         "ray" => "Ray task timeline".to_string(),
@@ -140,9 +140,9 @@ fn FlamegraphLoader(view: String) -> Element {
     }
 
     rsx! {
-        FlamegraphData {
-            key: "{profiler_name}",
-            profiler_name: profiler_name.to_string(),
+        AsyncBoundary {
+            message: Some("Loading flamegraph…".to_string()),
+            FlamegraphData { key: "{profiler_name}", profiler_name: profiler_name.to_string() }
         }
     }
 }
@@ -181,7 +181,7 @@ fn FlamegraphData(profiler_name: String) -> Element {
 
     match payload.suspend()?() {
         Ok(data) => rsx! {
-            div { class: "flex flex-col flex-1 min-h-[600px]",
+            div { class: "flex flex-col flex-1 min-h-0 min-w-0",
                 if let Some(tid) = thread_tid {
                     div {
                         class: "px-4 py-2 text-xs bg-blue-50 border-b border-blue-100 flex flex-wrap items-center gap-2",

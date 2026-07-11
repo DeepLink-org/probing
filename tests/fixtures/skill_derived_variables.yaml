@@ -1,6 +1,7 @@
-# Cross-language parity fixture for skill template variables.
-# Keep in sync with probing/cli/src/cli/skill/loader.rs::derive_variables
-# and python/probing/skills/loader.py::derived_variables.
+# Derived template variables for skill SQL expansion — Rust SSOT
+# (`probing-skills/src/loader.rs` + `tests` in that module).
+# Keep this fixture aligned with `loader.rs::derived_variables_fixture`
+# when changing table names (Rust SSOT).
 
 cases:
   - name: local

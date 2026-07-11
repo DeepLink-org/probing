@@ -6,7 +6,7 @@
 use dioxus::prelude::*;
 use dioxus_router::{Routable, Router};
 
-use crate::components::source_viewer::SourceViewerOverlay;
+use crate::components::app_overlays::AppOverlays;
 
 use crate::components::common::LoadingState;
 use crate::components::layout::AppLayout;
@@ -190,7 +190,7 @@ pub fn TrainingPage() -> Element {
 #[component]
 pub fn App() -> Element {
     rsx! {
-        SourceViewerOverlay {}
+        AppOverlays {}
         Router::<Route> {}
     }
 }

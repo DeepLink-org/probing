@@ -55,7 +55,7 @@ Prefix syntax: `init:SCRIPT+<mode>` runs `exec(open(SCRIPT).read())` after activ
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PROBING_SPAN_BACKENDS` | `memtable` | Comma-separated list of span backends. Built-in: `memtable` (writes to `python.trace_event`), `logger` (writes to stderr), `otel` (OpenTelemetry export). Custom backends can be registered via `probing.span_backends` entry point. |
+| `PROBING_SPAN_BACKENDS` | `memtable` | Comma-separated span backends. Built-in: `memtable` (`python.trace_event`), `logger` (stderr), `otel` (OpenTelemetry), `none` (stack only, no persistence). `configure_backends([])` also disables until `reset_backends()`. Unknown names fall back to `memtable` only. Custom backends: `probing.span_backends` entry point. See [Span API](../design/tracing-spans.md). |
 | `PROBING_SPAN_LOG_LEVEL` | `INFO` | Log level for the `logger` span backend. |
 | `PROBING_SPAN_LOCATION` | unset | Enable automatic location capture via `inspect.stack()` for every span. Adds overhead; use sparingly. |
 
@@ -125,7 +125,7 @@ Non-PROBING-prefixed aliases are also recognized for Megatron compatibility:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PROBING_TORCH_PROFILING` | — | Set to `on` to activate PyTorch module hooks and write `python.torch_trace`. Required for module timing and memory data. |
+| `PROBING_TORCH_PROFILING` | — | Set to `on` to activate PyTorch module hooks and write `python.torch_trace`. Default when enabled: **5% step sampling** (`rate=0.05`), full-snapshot (`layer_rate=1.0`), **shadow cadence 4:1** (`shadow=4:1` — one baseline step per four probed steps for in-run overhead in `python.torch_step_timing`). Spec is `rate[:layer_rate]` (`layer_rate` = per-layer hit probability on a sampled step); a leading `random:`/`ordered:` token is accepted for back-compat (always `random`). Override with e.g. `1.0`, `0.05:0.1`, `shadow=8:2`, or `shadow=off`. **Backward** timing (`backward=on`) times each module's backward via output/input grad hooks; off by default. |
 | `PROBING_TORCHRUN_CLUSTER` | `1` | Enable automatic torchrun cluster registration. Set to `0` to disable. |
 | `PROBING_TORCHRUN_STORE_TIMEOUT` | — | Timeout for torchrun distributed store operations. |
 

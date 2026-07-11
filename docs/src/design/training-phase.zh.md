@@ -91,4 +91,6 @@ for i, batch in enumerate(loader):
 
 ## 性能：`inspect.stack()`
 
-自动 `location` **默认关闭**。仅在 `PROBING_SPAN_LOCATION=1` 或显式 `location=` 时，`span.py` 的 `_caller_location()` 会遍历 `inspect.stack()`。TorchProbe 变量追踪在 `torch_probe.py` 另有独立 stack  walk。
+自动 `location` **默认关闭**。仅在 `PROBING_SPAN_LOCATION=1` 或显式 `location=` 时，`span.py` 的 `_caller_location()` 会遍历 `inspect.stack()`。TorchProbe 变量追踪在 `torch_probe.py` 另有独立 stack walk。
+
+Span API 分层、backend、`none` 与热路径优化见 **[Span API 设计](tracing-spans.zh.md)**。

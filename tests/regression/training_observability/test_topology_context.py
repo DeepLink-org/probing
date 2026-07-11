@@ -27,6 +27,9 @@ def _clear_parallel_env(monkeypatch):
         "DP_RANK",
     ):
         monkeypatch.delenv(key, raising=False)
+    from probing.parallel import reset_parallel_fields_cache
+
+    reset_parallel_fields_cache()
     yield
 
 

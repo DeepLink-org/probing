@@ -524,4 +524,17 @@ mod tests {
     fn core_runtime_starts_operational_in_tests() {
         assert!(runtime_operational());
     }
+
+    #[test]
+    fn block_on_fallback_result_is_err_not_ok() {
+        let out: Result<i32, RuntimeError> = Result::on_block_on_failure(RuntimeError::Unavailable);
+        assert!(matches!(out, Err(RuntimeError::Unavailable)));
+    }
+
+    #[test]
+    fn block_on_fallback_never_masks_runtime_error_in_display() {
+        let err = RuntimeError::Internal("bridge broken".into());
+        let wrapped: Result<(), RuntimeError> = Result::on_block_on_failure(err);
+        assert!(wrapped.unwrap_err().to_string().contains("bridge broken"));
+    }
 }

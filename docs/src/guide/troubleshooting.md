@@ -152,8 +152,8 @@ Common issues and their solutions when using Probing.
 
 1. **Reduce TorchProbe sampling** (not a global sample_rate knob):
    ```bash
-   PROBING_TORCH_PROFILING=ordered:0.1 python your_script.py
-   # or at runtime: set probing.torch.profiling=ordered:0.1;
+   PROBING_TORCH_PROFILING=0.1 python your_script.py
+   # or at runtime: set probing.torch.profiling=0.1;
    ```
 
 2. **Lower CPU pprof frequency**:

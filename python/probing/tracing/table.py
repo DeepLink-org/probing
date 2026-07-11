@@ -16,9 +16,9 @@ SELECT
     COALESCE(s.parent_id, -1) AS parent_span_id,
     s.name,
     s.phase,
-    CAST(s.time / 1000 AS BIGINT) AS start_us,
-    CAST(e.time / 1000 AS BIGINT) AS end_us,
-    CAST((e.time - s.time) / 1000 AS BIGINT) AS duration_us,
+    CAST(CAST(s.time AS BIGINT) / 1000 AS BIGINT) AS start_us,
+    CAST(CAST(e.time AS BIGINT) / 1000 AS BIGINT) AS end_us,
+    CAST((CAST(e.time AS BIGINT) - CAST(s.time AS BIGINT)) / 1000 AS BIGINT) AS duration_us,
     s.thread_id,
     s.location,
     s.attributes

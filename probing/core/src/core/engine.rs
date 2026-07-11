@@ -191,14 +191,11 @@ impl Engine {
             maps.insert(format!("probe.{namespace}"), data_source);
         } else if data_source.kind() == ProbeDataSourceKind::Table {
             // In DataFusion, schemas are used to implement namespaces
-            let schema = if catalog.schema_names().contains(&namespace) {
-                catalog.schema(namespace.as_str())
-            } else {
-                let schema = MemorySchemaProvider::new();
-                catalog.register_schema(namespace.as_str(), Arc::new(schema))?;
-                catalog.schema(namespace.as_str())
+            if catalog.schema(namespace.as_str()).is_none() {
+                catalog
+                    .register_schema(namespace.as_str(), Arc::new(MemorySchemaProvider::new()))?;
             }
-            .ok_or_else(|| {
+            let schema = catalog.schema(namespace.as_str()).ok_or_else(|| {
                 DataFusionError::Internal(format!("namespace `{namespace}` not found"))
             })?;
             let state: SessionState = self.context.state();

@@ -35,7 +35,7 @@ probing -t $ENDPOINT backtrace
 ```bash
 probing -t $ENDPOINT tables
 probing -t $ENDPOINT config probing.torch.profiling
-probing -t $ENDPOINT config probing.torch.profiling=ordered:0.1
+probing -t $ENDPOINT config probing.torch.profiling=0.1
 probing -t $ENDPOINT flamegraph torch -o torch.html
 ```
 
@@ -196,12 +196,12 @@ probing.clear_role()
 
 | 键 | 说明 |
 |----|------|
-| `probing.torch.profiling` | TorchProbe（`on`、`ordered:0.5`、`random:0.1`、`tracepy=on` 等） |
+| `probing.torch.profiling` | TorchProbe（`on`、`0.5`、`0.1:0.3`、`tracepy=on` 等） |
 | `probing.pprof.sample_freq` | CPU pprof 采样频率 (Hz) |
 
 ```bash
 probing -t $ENDPOINT config
-probing -t $ENDPOINT config probing.torch.profiling=ordered:0.1
+probing -t $ENDPOINT config probing.torch.profiling=0.1
 ```
 
 **没有** `probing.sample_rate` 配置项。Torch 采样通过 `probing.torch.profiling` 或 `PROBING_TORCH_PROFILING` 控制。

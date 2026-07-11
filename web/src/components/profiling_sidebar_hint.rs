@@ -13,7 +13,7 @@ pub fn ProfilingSidebarHint() -> Element {
     rsx! {
         div {
             class: "mb-3 px-3 py-2 text-xs rounded-md border border-amber-200 bg-amber-50 text-amber-900",
-            "Profiling controls (sampling frequency, timeline reload) are in the left sidebar — use the menu button (top-left) to show it."
+            "Profiling controls (sampling frequency, timeline reload), background tasks, and Torch overhead are in the left sidebar Monitor section — use the menu button (top-left) to show it."
         }
     }
 }
