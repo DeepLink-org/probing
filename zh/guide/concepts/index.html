@@ -712,6 +712,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#span-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Span API：训练时间线
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#_3" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2156,6 +2167,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#span-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Span API：训练时间线
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#_3" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2296,6 +2318,39 @@ parallel、expert parallel 或它们的组合。Probing 将其编码为一个紧
 这让你可以 GROUP BY role 来对比，比如跨所有 data-parallel 副本比较 TP rank 0
 和 TP rank 1。需区分 torchrun 的 <code>role_name</code> / <code>role_rank</code>（<code>cluster.nodes</code> 上
 的字段）——这些是 launcher 字段；<code>role</code> 是用于分析的 key。</p>
+<h2 id="span-api">Span API：训练时间线<a class="headerlink" href="#span-api" title="Permanent link">&para;</a></h2>
+<p>粗粒度训练时间线走 <strong>Span API</strong>，细粒度模块 profiling 走 <strong>TorchProbe</strong>
+（<code>python.torch_trace</code>）。二者不要混用同一条时间线。</p>
+<table>
+<thead>
+<tr>
+<th>API</th>
+<th>何时使用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>attach_training_phases(model, optimizer)</code></td>
+<td><strong>默认推荐</strong> — 自动 forward/backward/optimizer + <code>train.step</code></td>
+</tr>
+<tr>
+<td><code>with probing.span(phase=...)</code></td>
+<td>手动阶段、嵌套、<code>probing.event()</code> 打点</td>
+</tr>
+<tr>
+<td><code>probing.record_span(name, duration_ns=...)</code></td>
+<td>已知 duration 的闭区间（如 collective）</td>
+</tr>
+<tr>
+<td><code>probing.phase()</code></td>
+<td>读当前 training phase（来自 span 栈）</td>
+</tr>
+</tbody>
+</table>
+<p>关闭写盘（仅保留栈，用于 benchmark）：<code>PROBING_SPAN_BACKENDS=none</code> 或
+<code>probing.tracing.configure_backends([])</code>。</p>
+<p>完整选型、deferred close 语义与性能说明见 <strong><a href="../../design/tracing-spans/">Span API 设计</a></strong>；
+phase 不变量见 <strong><a href="../../design/training-phase/">训练阶段</a></strong>。</p>
 <h2 id="_3">联邦查询：跨节点查询<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
 <p>当多个 rank 注册到集群时，<code>global.&lt;schema&gt;.&lt;table&gt;</code> 将查询 fan-out 到每个节点
 并合并结果。查询在每个节点上独立执行；master 收集并拼接。</p>
@@ -2352,6 +2407,10 @@ culprit/victim 等待分解。它是 Rust 扩展，而非 Python @table。见 <a
 <tr>
 <td>编写自定义表或 skill</td>
 <td><a href="../../design/extensibility/">扩展机制</a></td>
+</tr>
+<tr>
+<td>Span 与训练时间线</td>
+<td><a href="../../design/tracing-spans/">Span API</a></td>
 </tr>
 <tr>
 <td>CLI 命令和 Python API</td>
