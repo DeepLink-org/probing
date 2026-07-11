@@ -58,6 +58,7 @@ runs:
         echo "EOF" >> "$GITHUB_OUTPUT"
         groups="${{ inputs.uv-sync-groups }}"
         groups="${groups// /}"
+        groups="${groups//,/-}"
         echo "uv_groups=${groups}" >> "$GITHUB_OUTPUT"
 
     - name: Set up Python
