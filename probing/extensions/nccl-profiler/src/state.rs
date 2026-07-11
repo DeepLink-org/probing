@@ -1350,4 +1350,154 @@ mod tests {
         assert_eq!(ctx.comm_hash, 42);
         assert_eq!(ctx.n_ranks, -1, "v3 cannot know the communicator size");
     }
+
+    #[test]
+    fn v4_step_trans_bytes_only_from_proxy_step_v4_args() {
+        use crate::abi::{STATE_PROXY_STEP_RECV_GPU_WAIT, STATE_PROXY_STEP_SEND_WAIT};
+        use crate::events::ProxyStepSlot;
+        use crate::pool_config::PoolLimits;
+
+        let counters = EventCounters::new();
+        let limits = PoolLimits {
+            coll: 4,
+            proxy_op: 4,
+            proxy_step: 4,
+            kernel_ch: 4,
+            net: 4,
+        };
+        let mut pools = Pools::new(limits);
+        let mut op_h: *mut c_void = std::ptr::null_mut();
+        pools.start_event(
+            &mut op_h,
+            ParsedEvent::ProxyOp {
+                parent_obj: std::ptr::null_mut(),
+                rank: 0,
+                channel_id: 0,
+                peer: 1,
+                n_steps: 1,
+                is_send: 1,
+            },
+            &counters,
+            0,
+        );
+        let mut st_h: *mut c_void = std::ptr::null_mut();
+        pools.start_event(
+            &mut st_h,
+            ParsedEvent::ProxyStep {
+                parent_obj: op_h,
+                step: 0,
+            },
+            &counters,
+            0,
+        );
+
+        // Stale trans_size on a non-authoritative state must not be recorded
+        // (plugin only forwards ProxyStepV4 on SendWait / RecvFlushWait).
+        pools.record_state(st_h, STATE_PROXY_STEP_RECV_GPU_WAIT, StateArgs::None);
+        let idx = unsafe { pools.step_pool.index_of(st_h as *mut ProxyStepSlot) }.unwrap();
+        assert_eq!(
+            pools.step_pool.get_mut(idx).unwrap().step.trans_bytes,
+            0,
+            "RecvGpuWait must not carry trans_size"
+        );
+
+        pools.record_state(
+            st_h,
+            STATE_PROXY_STEP_SEND_WAIT,
+            StateArgs::ProxyStepV4 { trans_size: 4096 },
+        );
+        assert_eq!(pools.step_pool.get_mut(idx).unwrap().step.trans_bytes, 4096);
+    }
+
+    #[test]
+    fn v3_proxy_op_zero_trans_size_does_not_clobber() {
+        use crate::events::ProxyOpSlot;
+
+        let counters = EventCounters::new();
+        let limits = PoolLimits {
+            coll: 4,
+            proxy_op: 4,
+            proxy_step: 4,
+            kernel_ch: 4,
+            net: 4,
+        };
+        let mut pools = Pools::new(limits);
+        let mut op_h: *mut c_void = std::ptr::null_mut();
+        pools.start_event(
+            &mut op_h,
+            ParsedEvent::ProxyOp {
+                parent_obj: std::ptr::null_mut(),
+                rank: 0,
+                channel_id: 0,
+                peer: 1,
+                n_steps: 2,
+                is_send: 1,
+            },
+            &counters,
+            0,
+        );
+        pools.record_state(
+            op_h,
+            crate::abi::STATE_PROXY_OP_IN_PROGRESS_V4,
+            StateArgs::ProxyOpV3 {
+                trans_size: 8192,
+                steps: 2,
+            },
+        );
+        pools.record_state(
+            op_h,
+            crate::abi::STATE_PROXY_OP_IN_PROGRESS_V4,
+            StateArgs::ProxyOpV3 {
+                trans_size: 0,
+                steps: 0,
+            },
+        );
+        let idx = unsafe { pools.proxy_pool.index_of(op_h as *mut ProxyOpSlot) }.unwrap();
+        assert_eq!(pools.proxy_pool.get_mut(idx).unwrap().op.trans_bytes, 8192);
+    }
+
+    #[test]
+    fn collect_inflight_drains_pending_proxy_for_stale_coll() {
+        use crate::pool_config::PoolLimits;
+
+        let counters = EventCounters::new();
+        let limits = PoolLimits {
+            coll: 4,
+            proxy_op: 4,
+            proxy_step: 4,
+            kernel_ch: 4,
+            net: 4,
+        };
+        let mut pools = Pools::new(limits);
+        let mut coll_h: *mut c_void = std::ptr::null_mut();
+        pools.start_event(
+            &mut coll_h,
+            ParsedEvent::Coll {
+                ctx: CollContext {
+                    rank: 2,
+                    comm_hash: 11,
+                    ..Default::default()
+                },
+                meta: CollPerfMeta {
+                    msg_bytes: 1024,
+                    ..Default::default()
+                },
+            },
+            &counters,
+            0,
+        );
+        let coll_idx = unsafe { pools.coll_pool.index_of(coll_h as *mut CollSlot) }.unwrap();
+        {
+            let coll = pools.coll_pool.get_mut(coll_idx).unwrap();
+            coll.start_ns = 1;
+            let mut row = CompletedProxyOp::default();
+            row.trans_bytes = 999;
+            assert!(coll.push_pending(row));
+        }
+
+        let (_rows, batch) = pools.collect_inflight(1_000_000);
+        assert_eq!(batch.proxy_ops.len(), 1);
+        assert_eq!(batch.proxy_ops[0].trans_bytes, 999);
+        assert_eq!(pools.coll_pool.get_mut(coll_idx).unwrap().pending_len, 0);
+    }
 }

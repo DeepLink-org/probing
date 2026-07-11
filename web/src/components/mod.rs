@@ -14,6 +14,7 @@
 //! - **flamegraph** — Native flamegraph visualizations.
 
 pub mod agent;
+pub mod app_overlays;
 pub mod callstack_view;
 pub mod card;
 pub mod card_view;
@@ -30,6 +31,8 @@ pub mod investigation_context_hint;
 pub mod keyboard_shortcuts;
 pub mod layout;
 pub mod markdown_view;
+pub mod overhead;
+pub mod overlay_shell;
 pub mod page;
 pub mod page_context_sync;
 pub mod poll_status;

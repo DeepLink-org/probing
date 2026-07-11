@@ -77,6 +77,11 @@ def parallel_fields() -> Dict[str, int]:
     return {k: v for k, v in parallel_topology().as_dict().items() if v >= 0}
 
 
+def reset_parallel_fields_cache() -> None:
+    """Drop cached topology (tests; no-op when fields are read fresh)."""
+    return None
+
+
 # Parallel-role dimensions: canonical short name -> candidate env vars (priority
 # order). Register a new dimension here (e.g. expert/context parallel) and it is
 # picked up everywhere — no table schema change, because the role is encoded as a

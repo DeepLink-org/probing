@@ -141,15 +141,21 @@ def table(name_or_class: Optional[Union[str, Type[Any]]] = None):
             cache[cls] = table
             return table
 
+        # ``dataclasses.astuple`` recurses and *deep-copies* every field; these
+        # records are flat scalars, so read them directly. This is on the hot
+        # per-row trace path (one call per emitted module/step row).
+        def _row(obj):
+            return tuple(getattr(obj, f) for f in fields)
+
         @classmethod
         def append(cls, self):
             table = cache[cls]
-            table.append(dataclasses.astuple(self))
+            table.append(_row(self))
 
         @classmethod
         def append_many(cls, self):
             table = cache[cls]
-            table.append_many([dataclasses.astuple(i) for i in self])
+            table.append_many([_row(i) for i in self])
 
         @classmethod
         def take(cls, n):
@@ -163,6 +169,8 @@ def table(name_or_class: Optional[Union[str, Type[Any]]] = None):
             probing.ExternalTable.drop(table_name)
 
         def save(self):
+            if cls not in cache:
+                cls.init_table()
             cls.append(self)
 
         setattr(cls, "init_table", init_table)

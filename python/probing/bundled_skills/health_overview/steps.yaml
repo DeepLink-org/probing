@@ -61,10 +61,29 @@ spec:
       title: "最近训练 step (torch_trace)"
       type: sql
       sql: |
-        SELECT max(step) AS latest_step, count(*) AS trace_rows
+        SELECT max(local_step) AS latest_step, count(*) AS trace_rows
         FROM python.torch_trace
       on_empty: skip
       empty_message: "python.torch_trace 无数据 — 设置 probing.torch.profiling=on"
+
+    - id: torch_probe_overhead
+      title: "TorchProbe 运行时开销 (shadow step)"
+      type: sql
+      sql: |
+        SELECT
+          round((median(CASE WHEN CAST(is_shadow AS BIGINT) = 0 THEN CAST(step_duration_sec AS DOUBLE) END)
+                / nullif(median(CASE WHEN CAST(is_shadow AS BIGINT) = 1 THEN CAST(step_duration_sec AS DOUBLE) END), 0) - 1) * 100, 2)
+            AS hook_tax_pct,
+          round((median(CASE WHEN CAST(is_shadow AS BIGINT) = 0 AND CAST(sampled AS BIGINT) = 1 THEN CAST(step_duration_sec AS DOUBLE) END)
+                / nullif(median(CASE WHEN CAST(is_shadow AS BIGINT) = 1 THEN CAST(step_duration_sec AS DOUBLE) END), 0) - 1) * 100, 2)
+            AS sampled_overhead_pct,
+          sum(CASE WHEN CAST(is_shadow AS BIGINT) = 0 THEN 1 ELSE 0 END) AS probed_n,
+          sum(CASE WHEN CAST(is_shadow AS BIGINT) = 1 THEN 1 ELSE 0 END) AS shadow_n,
+          max(CAST(shadow_baseline AS BIGINT)) AS shadow_baseline
+        FROM python.torch_step_timing
+        WHERE local_step > 1
+      on_empty: skip
+      empty_message: "python.torch_step_timing 无数据 — 设置 probing.torch.profiling=on 并等待 shadow 周期"
 
     - id: cluster_nodes
       title: "集群节点"
@@ -128,10 +147,26 @@ spec:
         severity: info
         message: "Torch 训练 trace 活跃，最新 step = {latest_step}"
 
+      - id: torch_shadow_disabled
+        when: "step:torch_probe_overhead | column:shadow_baseline | value == 0"
+        severity: info
+        message: "TorchProbe shadow 基线已关闭 (shadow=off) — 无法估算运行时开销"
+
+      - id: torch_overhead_high
+        when: "step:torch_probe_overhead | column:hook_tax_pct | value > 5"
+        severity: warning
+        message: "TorchProbe hook 开销约 {hook_tax_pct}%（相对 shadow step 中位数）"
+
+      - id: torch_overhead_low_samples
+        when: "step:torch_probe_overhead | column:shadow_n | value < 3"
+        severity: info
+        message: "Shadow 基线样本不足 — 开销估算仅供参考 (shadow_n={shadow_n})"
+
   summary_template: |
     ## 健康概览
     - 可用表: {available_tables.row_count} 张
     - 最新训练 step: {latest_torch_step.latest_step}
+    - TorchProbe hook 开销: {torch_probe_overhead.hook_tax_pct}% (shadow_n={torch_probe_overhead.shadow_n})
     - 集群节点: {cluster_nodes.row_count} 个（0 表示单机）
     - NCCL 完整性: 见 nccl_data_integrity（pool_exhausted / ring 覆写）
 

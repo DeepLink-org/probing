@@ -97,6 +97,9 @@ def rank_env(monkeypatch):
         monkeypatch.setenv("RANK", str(rank))
         monkeypatch.setenv("WORLD_SIZE", str(world_size))
         monkeypatch.setattr("probing.tracing.coordinates.step_snapshot", _fake_snapshot)
+        from probing.tracing.coordinates import reset_span_attrs_cache
+
+        reset_span_attrs_cache()
 
     return _apply
 

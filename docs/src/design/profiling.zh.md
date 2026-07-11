@@ -58,18 +58,45 @@ SELECT * FROM python.torch_trace WHERE step > 10;
 - 模型树上每个 `nn.Module` 的 forward pre/post 钩子
 - Optimizer 的 pre/post step 钩子
 
-**默认不启用 backward 钩子。** 模块级 backward 钩子可能改变 autograd 行为并导致执行错误；生产环境以仅 forward 为安全默认。实验场景可通过 `install_hooks(..., backward=True)` 手动开启。
+**默认不启用 backward 计时。** 开启 `backward=on` 时,对每个模块的 backward 计时取「grad_output 就绪(前向输出张量的 grad hook,在该模块反向**开始前**触发)」到「grad_input 就绪(前向输入张量的 grad hook,在反向**结束后**触发)」的区间。使用普通 tensor `register_hook` 回调,`inplace` 安全(不使用 module backward hook,避免 AlexNet/ResNet 等 `inplace` 激活导致 autograd 崩溃)。输入不需要梯度的模块(如首层)因无法测量区间,记为 ~0。生产环境请谨慎开启。
 
 ### 采样策略
 
-第一个完整训练 step 为 **discovery**：只注册模块，不写库。从后续 step 开始采样。
+第一个完整训练 step 为 **discovery**：只注册模块,不写库。从后续 step 开始采样。
 
-| 模式 | `rate` 含义 |
-|------|-------------|
-| `ordered`（默认） | 每个训练 step 被采样的概率。被采样的 step 内轮转一个模块（`curr_mod`），并在 hook offset `0`（本 step 第一个钩子）记录**时间锚点**。 |
-| `random` | 每个 step 都会采样。`rate` 作用于 offset `> 0` 的钩子；offset `0` 锚点始终记录。 |
+`rate` 为 **step 级采样密度**：每 `round(1/rate)` 个 step 采样 1 个,等间距、从首个 probed step 开始(stratified 分层采样,非 i.i.d.,低采样率也不会长时间无数据)。调度仅由 step 序号决定(不使用宿主 RNG、无进程种子),因此各 rank 采样**相同**的 step——分布式 trace 对齐、训练可复现。未采样的 step 短路:跳过 module/optimizer hook 与 GPU flush(仍写 `torch_step_timing` 的墙钟时间)。
 
-采样降低记录开销；forward 钩子仍挂在全部子模块上。
+被采样的 step 内,每个 layer 以概率 `layer_rate`(可选第二段,默认 `1.0` = 全量快照)独立命中,判定为 (step, layer) 的确定性哈希——看起来随机、逐层变化,但可复现且跨 rank 一致。offset `0` 锚点(本 step 第一个钩子)始终记录,保证每个采样 step 都有时间基准。
+
+文法:`rate[:layer_rate]`。仍接受前缀 `random:`/`ordered:` 以兼容旧配置(一律按 `random` 处理;旧的逐 step 轮转模块的 `ordered` 模式已移除)。
+
+启用时的默认值(`PROBING_TORCH_PROFILING=on`)：**`rate=0.05`,`layer_rate=1.0`**(约 5% 的 step 做全量快照)。`1.0` 表示每步都采样,`0.05:0.1` 表示 5% 的 step、每步采 10% 的 layer。
+
+**Shadow 基线 step（默认 `shadow=4:1`）**：每 4 个正常训练 step 之后插入 1 个完全跳过 TorchProbe hook 的 step（不写 module 级 `python.torch_trace`）。NCCL、CPU/GPU 等其它采集不变。每个 step 写一行 `python.torch_step_timing`（shadow step 的 `is_shadow=1`）。可用 `shadow=off` 关闭。
+
+估算开销：
+
+```sql
+SELECT
+  round(median(CASE WHEN is_shadow = 0 THEN step_duration_sec END)
+        / nullif(median(CASE WHEN is_shadow = 1 THEN step_duration_sec END), 0) - 1, 4) * 100
+    AS overhead_pct
+FROM python.torch_step_timing
+WHERE local_step > 1;
+```
+
+采样降低记录开销；forward 钩子仍挂在全部子模块上（shadow step 上 hook 立即返回，零开销）。
+
+### NCCL profiler 开销
+
+Shadow step 仅衡量 **TorchProbe 模块 hook** 开销。NCCL profiler 插件目前没有 in-run shadow 基线，启用后会持续记录 collective 事件。NCCL AllReduce 与 probing 的开销对比请用离线 benchmark：
+
+```bash
+./examples/run_nccl_profiler_bench.sh
+# 或：python examples/torch_probe_overhead_smoke.py  # 仅 Torch 冒烟（无需 GPU）
+```
+
+运行时健康度见 `nccl.profiler_counters`（`pool_exhausted`、`write_errors`、`rows_written`）。Web UI 开销面板在 NCCL 活跃时会提示离线 bench 入口。
 
 记录在每个 optimizer step 结束时批量落盘（可选 GPU `synchronize()`）。pre/post 成对产生两行；**时长在 post 行**（`post forward`、`post step` 等）上有效。
 
@@ -108,11 +135,14 @@ SELECT * FROM python.torch_trace WHERE step > 10;
 # 环境变量（同步为 probing.torch.profiling）
 PROBING_TORCH_PROFILING=on python train.py
 
-# ordered，50% step 采样
-PROBING_TORCH_PROFILING=ordered:0.5 python train.py
+# 50% step，全量快照
+PROBING_TORCH_PROFILING=0.5 python train.py
 
-# random 按钩子概率
-PROBING_TORCH_PROFILING=random:0.1,tracepy=on python train.py
+# 10% step，每步采 30% 的 layer
+PROBING_TORCH_PROFILING=0.1:0.3,tracepy=on python train.py
+
+# 开启 backward 模块计时（默认关闭，可能影响 autograd）
+PROBING_TORCH_PROFILING=1.0,backward=on python train.py
 ```
 
 编程配置：
@@ -120,7 +150,7 @@ PROBING_TORCH_PROFILING=random:0.1,tracepy=on python train.py
 ```python
 from probing.profiling.torch_probe import configure
 
-configure("on,mode=ordered,rate=0.5")
+configure("on,rate=0.5,layer_rate=0.3")
 ```
 
 在 torch 导入后首次 `optimizer.step()` 时通过 optimizer post hook 启动。
@@ -161,6 +191,7 @@ GROUP BY module, stage;
 | 场景 | 典型影响 |
 |------|----------|
 | 关闭 torch profiling | 仅基础探针开销 |
-| `ordered:0.1` | 较低；多数 step 跳过 |
-| `ordered:1.0` | 中等；每步一个模块 + 锚点 |
+| `on`（默认 `0.05`，全量快照） | 较低；约 5% step 被采样 |
+| `0.05:0.1` | 极低；5% step、每步 10% 的 layer |
+| `1.0` | 较高；每步全量快照 |
 | `sync=on` | 较高；每个钩子同步 GPU |

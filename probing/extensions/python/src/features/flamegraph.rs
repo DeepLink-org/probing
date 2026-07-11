@@ -540,7 +540,7 @@ const TORCH_MODULE_JS: &str = r##"
 
   function labelFor(f) {
     if (f.d >= 2 && f.modulePath) return f.modulePath;
-    if (f.d === 1) return f.name === "forward" ? "Forward pass" : f.name === "step" ? "Optimizer step" : f.name;
+    if (f.d === 1) return f.name === "forward" ? "Forward pass" : f.name === "backward" ? "Backward pass" : f.name === "step" ? "Optimizer step" : f.name;
     return f.name;
   }
 
@@ -558,7 +558,7 @@ const TORCH_MODULE_JS: &str = r##"
       btn.type = "button";
       btn.className = "torch-phase-btn" + (phaseFilter === p ? " active" : "");
       btn.dataset.phase = p;
-      btn.textContent = p === "all" ? "All phases" : p === "forward" ? "Forward" : p === "step" ? "Optimizer" : p;
+      btn.textContent = p === "all" ? "All phases" : p === "forward" ? "Forward" : p === "backward" ? "Backward" : p === "step" ? "Optimizer" : p;
       btn.addEventListener("click", () => {
         phaseFilter = p;
         if (p !== "all") {

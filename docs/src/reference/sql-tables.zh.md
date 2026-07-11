@@ -84,6 +84,34 @@ PyTorch 模块级 forward/step 耗时与 GPU 显存快照。
 
 ---
 
+### `python.torch_step_timing` {#python-torch_step_timing}
+
+TorchProbe 每步墙钟耗时（probed step 与 shadow 基线 step），用于估算 profiling 开销。
+
+**同义词：** torch overhead、shadow step、探针开销
+
+| 列 | 说明 |
+|----|------|
+| `local_step` | 本 rank 训练步 |
+| `global_step` | 全局训练步 |
+| `rank` | `torch.distributed` rank |
+| `world_size` | world size |
+| `role` | 并行角色 key |
+| `step_duration_sec` | 本 step 墙钟耗时（秒），相邻 `post_step_hook` 结束之间；probed step 含 GPU sync 与 `torch_trace` flush |
+| `is_shadow` | `1` = shadow 基线 step（跳过 TorchProbe hook），`0` = 正常 probed step |
+| `sampled` | `1` = 本 step 命中 TorchProbe 采样，`0` = 未采样或 shadow |
+| `shadow_normal` | 记录时的 shadow 配置：每周期 probed step 数 |
+| `shadow_baseline` | 记录时的 shadow 配置：每周期 baseline step 数 |
+| `sample_rate` | 记录时的 TorchProbe step 级采样率 |
+| `sample_mode` | 采样模式（恒为 `random`；旧的 `ordered` 已移除） |
+
+**说明：** 默认 `shadow=4:1`。按 `is_shadow` 分组比较 `median(step_duration_sec)` 可得开销百分比。
+
+**Global：** `global.python.torch_step_timing`
+**联邦列：** `_host`、`_addr`、`_rank`、`_role`
+
+---
+
 ### `python.comm_collective` {#python-comm_collective}
 
 `torch.distributed` 集合通信（all_reduce、broadcast 等）。

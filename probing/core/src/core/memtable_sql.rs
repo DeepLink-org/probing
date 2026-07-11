@@ -42,6 +42,7 @@ use datafusion::arrow::array::{
 };
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::catalog::CatalogProvider;
+use datafusion::catalog::MemorySchemaProvider;
 use datafusion::catalog::SchemaProvider;
 use datafusion::catalog::Session;
 use datafusion::datasource::{TableProvider, TableType};
@@ -1006,13 +1007,22 @@ impl CatalogProvider for DynamicMmapCatalog {
     }
 
     fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
-        let inner = self.inner.schema(name);
         let has_mmap = name == DEFAULT_UNDOTTED_SCHEMA || !tables_in_schema(name).is_empty();
-        match (has_mmap, inner) {
-            (true, inner) => Some(Arc::new(MmapFileSchemaProvider::with_inner(name, inner))),
-            (false, Some(inner)) => Some(inner),
-            (false, None) => None,
+        if !has_mmap {
+            return self.inner.schema(name);
         }
+        let inner = match self.inner.schema(name) {
+            Some(provider) => provider,
+            None => {
+                let mem: Arc<dyn SchemaProvider> = Arc::new(MemorySchemaProvider::new());
+                let _ = self.inner.register_schema(name, Arc::clone(&mem));
+                self.inner.schema(name).unwrap_or(mem)
+            }
+        };
+        Some(Arc::new(MmapFileSchemaProvider::with_inner(
+            name,
+            Some(inner),
+        )))
     }
 
     fn register_schema(
@@ -1880,6 +1890,42 @@ mod tests {
 
         drop(table);
         ColdCompactor::instance().stop();
+        match orig {
+            Some(v) => std::env::set_var("PROBING_DATA_DIR", v),
+            None => std::env::remove_var("PROBING_DATA_DIR"),
+        }
+    }
+
+    #[test]
+    fn mmap_only_schema_allows_static_table_registration() {
+        let _lock = PROBING_DATA_DIR_LOCK.lock().unwrap();
+        use datafusion::catalog::MemoryCatalogProvider;
+        use probing_memtable::discover::ExposedTable;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let orig = std::env::var("PROBING_DATA_DIR").ok();
+        std::env::set_var("PROBING_DATA_DIR", tmp.path());
+
+        let schema = MtSchema::new().col("ts", DType::I64);
+        let mut exposed = ExposedTable::create("gpu.utilization", &schema, 4096, 4).unwrap();
+        exposed.push_row(&[Value::I64(1)]);
+
+        let catalog = Arc::new(DynamicMmapCatalog {
+            inner: Arc::new(MemoryCatalogProvider::new()),
+        });
+        assert!(
+            catalog.schema_names().iter().any(|n| n == "gpu"),
+            "mmap discovery should expose gpu schema"
+        );
+        let gpu_schema = catalog.schema("gpu").expect("gpu schema provider");
+        gpu_schema
+            .register_table(
+                "devices".to_string(),
+                Arc::new(PluginAdvancedTable::empty_sentinel("devices")),
+            )
+            .expect("static gpu.devices table should register alongside mmap gpu.utilization");
+
+        drop(exposed);
         match orig {
             Some(v) => std::env::set_var("PROBING_DATA_DIR", v),
             None => std::env::remove_var("PROBING_DATA_DIR"),

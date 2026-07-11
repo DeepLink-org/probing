@@ -16,12 +16,13 @@ from probing.handlers.router import ext_handler, handle_request
 @ext_handler("pythonext", "callstack")
 def get_callstack(tid: Optional[int] = None, mode: Optional[str] = None) -> str:
     """Return merged native/Python call stack as JSON."""
-    import sys
-
     import probing._core as core
 
     _ = mode  # reserved for future py/cpp/mixed filtering
-    return core.api_callstack(tid)
+    try:
+        return core.api_callstack(tid)
+    except Exception as e:
+        return json.dumps({"error": str(e), "frames": []})
 
 
 @ext_handler("pythonext", "eval", uses_body=True)

@@ -183,14 +183,14 @@ pub fn get_python_stacks_raw() -> Vec<CallFrame> {
             .stacks
             .iter()
             .rev()
-            .map(|location| {
-                let location = location.resolve().unwrap_or_default();
-                CallFrame::PyFrame {
+            .filter_map(|location| {
+                let location = location.resolve().ok()?;
+                Some(CallFrame::PyFrame {
                     file: location.callee.file,
                     func: location.callee.name,
                     lineno: location.callee.line as i64,
                     locals: Default::default(),
-                }
+                })
             })
             .collect::<Vec<_>>()
     })

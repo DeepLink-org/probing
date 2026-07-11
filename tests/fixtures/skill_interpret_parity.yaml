@@ -1,5 +1,6 @@
-# Shared interpretation rule cases — Python tests load this file;
-# Rust mirrors the same scenarios in interpret.rs unit tests.
+# Interpretation rule golden cases — Rust SSOT (`probing-skills/src/interpret.rs`).
+# Python discovery/loader tests live under tests/unit/probing/skills/; rule
+# evaluation is not duplicated in Python.
 
 cases:
   - name: rows_zero

@@ -20,6 +20,9 @@ def _clear_parallel_env(monkeypatch):
     ]
     for key in keys:
         monkeypatch.delenv(key, raising=False)
+    from probing.parallel import reset_parallel_fields_cache
+
+    reset_parallel_fields_cache()
     yield
 
 

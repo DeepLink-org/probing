@@ -80,14 +80,6 @@ pub struct RunResult {
     pub had_degraded: bool,
 }
 
-pub fn list_skills_catalog() -> Result<()> {
-    use crate::loader::list_skill_ids;
-    for id in list_skill_ids() {
-        let _ = load_skill(&id)?;
-    }
-    Ok(())
-}
-
 pub fn plan_skill(skill_id: &str, overrides: HashMap<String, String>) -> Result<serde_json::Value> {
     let pb = load_skill(skill_id).map_err(|e| SkillRunError(e.to_string()))?;
     let mut params = default_parameters(&pb);
@@ -151,10 +143,20 @@ pub async fn resolve_use_global<B: SkillBackend>(
 pub async fn execute_skill<B: SkillBackend>(
     backend: &B,
     skill_id: &str,
-    mut overrides: HashMap<String, String>,
+    overrides: HashMap<String, String>,
     options: RunOptions,
 ) -> Result<RunResult> {
     let pb = load_skill(skill_id).map_err(|e| SkillRunError(e.to_string()))?;
+    execute_skill_pb(backend, pb, overrides, options).await
+}
+
+/// Run a loaded skill (shared by [`execute_skill`] and unit tests).
+pub async fn execute_skill_pb<B: SkillBackend>(
+    backend: &B,
+    pb: Skill,
+    mut overrides: HashMap<String, String>,
+    options: RunOptions,
+) -> Result<RunResult> {
     resolve_use_global(backend, &pb, &mut overrides).await;
     let ctx = build_context(&pb, &overrides);
     let mut outcomes = Vec::new();
@@ -539,4 +541,274 @@ pub fn run_result_to_json(result: &RunResult) -> serde_json::Value {
             "partial_cluster_fanout": result.had_degraded,
         },
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
+    use async_trait::async_trait;
+    use probing_proto::prelude::{DataFrame, Seq};
+
+    use super::*;
+    use crate::backend::ClusterQueryMeta;
+    use crate::loader::{InterpretRule, Skill, SkillParameter, SkillStep};
+
+    struct MockBackend {
+        peers: usize,
+        local_rows: usize,
+        cluster_partial: bool,
+        calls: Arc<AtomicUsize>,
+    }
+
+    impl MockBackend {
+        fn new(peers: usize, local_rows: usize) -> Self {
+            Self {
+                peers,
+                local_rows,
+                cluster_partial: false,
+                calls: Arc::new(AtomicUsize::new(0)),
+            }
+        }
+
+        fn with_partial(mut self) -> Self {
+            self.cluster_partial = true;
+            self
+        }
+
+        fn df(rows: usize) -> DataFrame {
+            if rows == 0 {
+                return DataFrame::default();
+            }
+            DataFrame::new(
+                vec!["x".into()],
+                vec![Seq::SeqF64((0..rows as i64).map(|i| i as f64).collect())],
+            )
+        }
+    }
+
+    #[async_trait]
+    impl SkillBackend for MockBackend {
+        async fn query_local(&self, sql: &str) -> Result<DataFrame> {
+            self.calls.fetch_add(1, Ordering::Relaxed);
+            if sql.contains("FAIL") {
+                return Err(SkillRunError("query failed".into()));
+            }
+            Ok(Self::df(self.local_rows))
+        }
+
+        async fn cluster_query(&self, sql: &str) -> Result<(DataFrame, Option<ClusterQueryMeta>)> {
+            self.calls.fetch_add(1, Ordering::Relaxed);
+            let meta = ClusterQueryMeta {
+                partial: self.cluster_partial,
+                nodes_queried: 4,
+                nodes_failed: if self.cluster_partial {
+                    vec!["rank-3".into()]
+                } else {
+                    vec![]
+                },
+                peer_batches_dropped: if self.cluster_partial { 1 } else { 0 },
+            };
+            let _ = sql;
+            Ok((Self::df(self.local_rows), Some(meta)))
+        }
+
+        async fn get(&self, path: &str) -> Result<String> {
+            self.calls.fetch_add(1, Ordering::Relaxed);
+            Ok(format!("body:{path}"))
+        }
+
+        async fn peer_count(&self) -> usize {
+            self.peers
+        }
+    }
+
+    fn sample_step(id: &str, sql: &str) -> SkillStep {
+        SkillStep {
+            id: id.into(),
+            title: format!("title-{id}"),
+            step_type: "sql".into(),
+            sql: Some(sql.into()),
+            path: None,
+            view: None,
+            on_empty: "skip".into(),
+            empty_message: None,
+            when: None,
+            cluster: None,
+        }
+    }
+
+    fn sample_skill(steps: Vec<SkillStep>, interpretation: Vec<InterpretRule>) -> Skill {
+        Skill {
+            id: "test_skill".into(),
+            title: "Test".into(),
+            category: String::new(),
+            docs: String::new(),
+            tags: vec![],
+            keywords: vec![],
+            trigger_keywords: Default::default(),
+            parameters: vec![SkillParameter {
+                name: "use_global".into(),
+                default: serde_yaml::Value::Bool(true),
+            }],
+            steps,
+            interpretation,
+            summary_template: "rows={available_tables.row_count}".into(),
+            next_steps: vec![],
+            variables: HashMap::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn run_step_sql_returns_rows() {
+        let backend = MockBackend::new(0, 3);
+        let step = sample_step("q", "SELECT 1");
+        let outcome = run_step(&backend, &step, &HashMap::new(), &RunOptions::default()).await;
+        match outcome {
+            StepOutcome::Sql { row_count, .. } => assert_eq!(row_count, 3),
+            other => panic!("expected Sql, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn run_step_when_use_global_skips_without_flag() {
+        let backend = MockBackend::new(0, 1);
+        let mut step = sample_step("g", "SELECT 1 FROM global.nccl.coll_perf");
+        step.when = Some("{use_global}".into());
+        let ctx = HashMap::from([("use_global".into(), "false".into())]);
+        let outcome = run_step(&backend, &step, &ctx, &RunOptions::default()).await;
+        assert!(matches!(outcome, StepOutcome::Skipped { .. }));
+        assert_eq!(backend.calls.load(Ordering::Relaxed), 0);
+    }
+
+    #[tokio::test]
+    async fn run_step_on_empty_abort_returns_error() {
+        let backend = MockBackend::new(0, 0);
+        let mut step = sample_step("empty", "SELECT 1");
+        step.on_empty = "abort".into();
+        step.empty_message = Some("no data".into());
+        let outcome = run_step(&backend, &step, &HashMap::new(), &RunOptions::default()).await;
+        match outcome {
+            StepOutcome::Error { message, .. } => assert_eq!(message, "no data"),
+            other => panic!("expected Error, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn run_step_cluster_partial_sets_degraded() {
+        let backend = MockBackend::new(2, 2).with_partial();
+        let mut step = sample_step("cluster", "SELECT 1 FROM global.nccl.coll_perf");
+        step.cluster = Some(true);
+        let outcome = run_step(&backend, &step, &HashMap::new(), &RunOptions::default()).await;
+        match outcome {
+            StepOutcome::Sql { degraded, note, .. } => {
+                assert!(degraded);
+                assert!(note.as_ref().is_some_and(|n| n.contains("PARTIAL")));
+            }
+            other => panic!("expected Sql, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn run_step_rejects_mutating_sql() {
+        let backend = MockBackend::new(0, 1);
+        let step = sample_step("bad", "SET probing.x=1");
+        let outcome = run_step(&backend, &step, &HashMap::new(), &RunOptions::default()).await;
+        assert!(matches!(outcome, StepOutcome::Error { .. }));
+    }
+
+    #[tokio::test]
+    async fn resolve_use_global_honors_override() {
+        let backend = MockBackend::new(4, 1);
+        let pb = sample_skill(vec![], vec![]);
+        let mut overrides = HashMap::from([("use_global".into(), "false".into())]);
+        resolve_use_global(&backend, &pb, &mut overrides).await;
+        assert_eq!(
+            overrides.get("use_global").map(String::as_str),
+            Some("false")
+        );
+    }
+
+    #[tokio::test]
+    async fn resolve_use_global_auto_when_peers_and_default_true() {
+        let backend = MockBackend::new(3, 1);
+        let pb = sample_skill(vec![], vec![]);
+        let mut overrides = HashMap::new();
+        resolve_use_global(&backend, &pb, &mut overrides).await;
+        assert_eq!(
+            overrides.get("use_global").map(String::as_str),
+            Some("true")
+        );
+    }
+
+    #[tokio::test]
+    async fn execute_skill_pb_abort_stops_after_on_empty_abort() {
+        let backend = MockBackend::new(0, 0);
+        let mut first = sample_step("a", "SELECT 1");
+        first.on_empty = "abort".into();
+        let second = sample_step("b", "SELECT 2");
+        let pb = sample_skill(vec![first, second], vec![]);
+        let result = execute_skill_pb(&backend, pb, HashMap::new(), RunOptions::default())
+            .await
+            .unwrap();
+        assert!(result.had_error);
+        assert_eq!(result.outcomes.len(), 1, "second step must not run");
+    }
+
+    #[tokio::test]
+    async fn execute_skill_pb_interpretation_and_summary() {
+        let backend = MockBackend::new(0, 0);
+        let mut step = sample_step("available_tables", "SELECT 1");
+        step.on_empty = "warn".into();
+        let rules = vec![InterpretRule {
+            id: "no_tables".into(),
+            when: "step:available_tables | rows == 0".into(),
+            severity: "error".into(),
+            message: "no tables".into(),
+        }];
+        let pb = sample_skill(vec![step], rules);
+        let result = execute_skill_pb(&backend, pb, HashMap::new(), RunOptions::default())
+            .await
+            .unwrap();
+        assert_eq!(result.findings.len(), 1);
+        assert_eq!(result.findings[0].rule_id, "no_tables");
+        assert!(result.summary.contains("rows=0"));
+    }
+
+    #[tokio::test]
+    async fn execute_skill_pb_had_degraded_on_partial_fanout() {
+        let backend = MockBackend::new(0, 2).with_partial();
+        let mut step = sample_step("cluster", "SELECT 1 FROM global.nccl.coll_perf");
+        step.cluster = Some(true);
+        let pb = sample_skill(vec![step], vec![]);
+        let result = execute_skill_pb(&backend, pb, HashMap::new(), RunOptions::default())
+            .await
+            .unwrap();
+        assert!(result.had_degraded);
+        assert!(result
+            .findings
+            .iter()
+            .any(|f| f.rule_id == "cluster_partial_fanout"));
+        let json = run_result_to_json(&result);
+        assert_eq!(json["status"], "degraded");
+        assert_eq!(json["data_quality"]["partial_cluster_fanout"], true);
+    }
+
+    #[test]
+    fn outcome_to_json_maps_statuses() {
+        let skipped = outcome_to_json(&StepOutcome::Skipped {
+            step_id: "s".into(),
+            title: "t".into(),
+            reason: "r".into(),
+        });
+        assert_eq!(skipped["status"], "skipped");
+        let err = outcome_to_json(&StepOutcome::Error {
+            step_id: "e".into(),
+            title: "t".into(),
+            message: "m".into(),
+        });
+        assert_eq!(err["status"], "error");
+    }
 }

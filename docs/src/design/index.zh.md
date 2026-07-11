@@ -27,6 +27,7 @@
 | [NCCL Profiler](nccl-profiler.zh.md) | 插件 ABI、proxy 等待分解 |
 | [调试引擎](debugging.zh.md) | eval / backtrace / REPL 实现 |
 | [训练阶段](training-phase.zh.md) | 阶段转换与 span 模型 |
+| [Span API](tracing-spans.zh.md) | `span` / `record_span` / backend / 性能与选型 |
 
 ## 分布式
 

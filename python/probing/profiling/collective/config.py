@@ -9,23 +9,11 @@ from typing import Optional
 
 import probing
 
+from probing.util.env import parse_bool_flag
+
 from .record import CommRecordMode
 
 logger = logging.getLogger(__name__)
-
-_TRUE = {"1", "true", "yes", "on", "enable", "enabled"}
-_FALSE = {"0", "false", "no", "off", "disable", "disabled"}
-
-
-def _flag(value: Optional[str]) -> Optional[bool]:
-    if value is None:
-        return None
-    normalized = str(value).strip().lower()
-    if normalized in _TRUE:
-        return True
-    if normalized in _FALSE:
-        return False
-    return None
 
 
 def _parse_mode(raw: Optional[str]) -> CommRecordMode:
@@ -76,7 +64,9 @@ def collective_tracing_enabled() -> bool:
        the same collectives twice with conflicting timing semantics.
     3. Otherwise, default on for multi-rank torch jobs (coarse fallback).
     """
-    explicit = _flag(probing.config.get_str("probing.torch.collective.enable"))
+    explicit = parse_bool_flag(
+        probing.config.get_str("probing.torch.collective.enable")
+    )
     if explicit is not None:
         return explicit
     if nccl_profiler_plugin_active():
@@ -101,14 +91,24 @@ class CollectiveTraceConfig:
 
 
 def collective_trace_config() -> CollectiveTraceConfig:
-    verbose = _flag(probing.config.get_str("probing.torch.collective.verbose")) or False
-    cuda_sync = _flag(probing.config.get_str("probing.torch.collective.sync")) or False
+    verbose = (
+        parse_bool_flag(probing.config.get_str("probing.torch.collective.verbose"))
+        or False
+    )
+    cuda_sync = (
+        parse_bool_flag(probing.config.get_str("probing.torch.collective.sync"))
+        or False
+    )
     trace_file = probing.config.get_str("probing.torch.collective.trace_file")
     if trace_file is not None and not str(trace_file).strip():
         trace_file = None
     mode = _parse_mode(probing.config.get_str("probing.torch.collective.mode"))
-    resolve = _flag(probing.config.get_str("probing.torch.collective.resolve_ranks"))
-    trace_event = _flag(probing.config.get_str("probing.torch.collective.trace_event"))
+    resolve = parse_bool_flag(
+        probing.config.get_str("probing.torch.collective.resolve_ranks")
+    )
+    trace_event = parse_bool_flag(
+        probing.config.get_str("probing.torch.collective.trace_event")
+    )
     if trace_event is None:
         trace_event = True
     return CollectiveTraceConfig(
