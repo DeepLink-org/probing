@@ -221,7 +221,7 @@ make lint-rust          # workspace + web/，warning 视为 error
 make clippy-fix         # 自动修复（提交前请 review diff）
 ```
 
-CI 与 pre-commit（`make setup`）会跑 Clippy。改 `probing-core` 后推送前建议 `make lint-core`；全 workspace 仍会因未 lint 的 crate 失败，其余 crate 会逐个跟进。
+CI 会跑 Clippy。改 `probing-core` 后推送前建议 `make lint-core`；全 workspace 仍会因未 lint 的 crate 失败，其余 crate 会逐个跟进。
 
 当前进度：`probing-core` 已启用 `clippy::all`（`pedantic`/`nursery` 关闭，协议相关 allow 见 `probing/core/Cargo.toml`）。下一批候选：`probing-proto`、`probing-memtable`。
 

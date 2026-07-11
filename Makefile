@@ -104,12 +104,7 @@ help:
 	@echo "Env: DEBUG=1  ZIG=1 TARGET=<triplet>"
 
 # ==============================================================================
-.PHONY: setup install-dev-python-deps
-setup:
-	@if command -v pip >/dev/null 2>&1; then pip install pre-commit; fi
-	@if command -v pre-commit >/dev/null 2>&1; then pre-commit install; fi
-
-install-dev-python-deps: venv
+.PHONY: install-dev-python-deps
 	@if command -v uv >/dev/null 2>&1 && [ -f uv.lock ]; then \
 		uv sync --frozen --no-install-project --group dev; \
 	elif [ -x .venv/bin/ruff ] && $(VENV_PYTHON) -c "import pytest, yaml" 2>/dev/null; then \
