@@ -28,6 +28,7 @@ fn setup() {
         set_enabled(true);
     }
 
+    #[cfg(unix)]
     if cfg!(test) {
         // Unit-test processes must not run the SIGUSR2 stack handler: it calls
         // backtrace/Python from signal context and aborts on stray delivery.

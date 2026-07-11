@@ -11,6 +11,7 @@ PROXY_OPS_TABLE = "nccl.proxy_ops"
 COLL_PERF_TABLE = "nccl.coll_perf"
 INFLIGHT_OPS_TABLE = "nccl.inflight_ops"
 NET_QP_TABLE = "nccl.net_qp"
+PROFILER_COUNTERS_TABLE = "nccl.profiler_counters"
 
 PROXY_OPS_COLUMNS = [
     "ts",
@@ -80,6 +81,33 @@ NET_QP_COLUMNS = [
     "opcode",
     "length",
     "duration_ns",
+]
+
+PROFILER_COUNTERS_COLUMNS = [
+    "ts",
+    "rank",
+    "coll_events",
+    "p2p_events",
+    "proxy_op_events",
+    "proxy_step_events",
+    "kernel_ch_events",
+    "net_events",
+    "rows_written",
+    "pool_exhausted",
+    "write_errors",
+    "filtered",
+    "coll_live",
+    "proxy_live",
+    "step_live",
+    "kch_live",
+    "net_live",
+    "coll_cap",
+    "proxy_cap",
+    "step_cap",
+    "kch_cap",
+    "net_cap",
+    "ring_chunks_recycled",
+    "ring_rows_overwritten",
 ]
 
 # rank 2: culprit (slow GPU → high send_gpu_wait)
@@ -328,11 +356,43 @@ def seed_mock(*, ranks: int = 8, ops_per_rank: int = 5) -> dict[str, int]:
     net_rows = list(_iter_net_qp_rows(ranks, ops_per_rank, base_ts_ns))
     net.append_many(net_rows)
 
+    counters = ExternalTable.get_or_create(
+        PROFILER_COUNTERS_TABLE, PROFILER_COUNTERS_COLUMNS
+    )
+    counters_row = [
+        base_ts_ns,
+        0,
+        len(coll_rows),
+        0,
+        len(proxy_rows),
+        len(proxy_rows),
+        0,
+        len(net_rows),
+        len(proxy_rows) + len(coll_rows) + len(net_rows),
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        256,
+        256,
+        256,
+        256,
+        256,
+        0,
+        0,
+    ]
+    counters.append_many([counters_row])
+
     return {
         PROXY_OPS_TABLE: len(proxy_rows),
         COLL_PERF_TABLE: len(coll_rows),
         INFLIGHT_OPS_TABLE: len(inflight_rows),
         NET_QP_TABLE: len(net_rows),
+        PROFILER_COUNTERS_TABLE: 1,
     }
 
 

@@ -3,6 +3,7 @@
 Only the primitives the timer needs live here: backend detection, device
 naming, and timing-event creation.
 """
+
 from __future__ import annotations
 
 

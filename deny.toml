@@ -1,0 +1,69 @@
+# Supply-chain policy for probing (cargo-deny).
+# CI: cargo deny check
+# Local: make supply-chain  (or: cargo deny check)
+
+[graph]
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+    "wasm32-unknown-unknown",
+]
+all-features = false
+
+[advisories]
+ignore = [
+    # bincode 1.x unmaintained; datafusion/arrow still pull 1.x — upgrade with engine bump.
+    { id = "RUSTSEC-2025-0141", reason = "transitive bincode 1.x via datafusion/arrow" },
+]
+unmaintained = "workspace"
+yanked = "warn"
+unsound = "none"
+
+[licenses]
+version = 2
+confidence-threshold = 0.8
+allow = [
+    "MIT",
+    "MIT-0",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "0BSD",
+    "CC0-1.0",
+    "ISC",
+    "Unlicense",
+    "Unicode-3.0",
+    "Zlib",
+    "OpenSSL",
+    "CDLA-Permissive-2.0",
+]
+exceptions = []
+
+[licenses.private]
+ignore = true
+
+[bans]
+multiple-versions = "warn"
+wildcards = "allow"
+highlight = "all"
+workspace-default-features = "allow"
+external-default-features = "allow"
+deny = [
+    # Prefer rustls over OpenSSL in new dependencies.
+    { crate = "openssl", use-instead = "rustls" },
+    { crate = "openssl-sys", use-instead = "rustls" },
+]
+skip-tree = [
+    { crate = "windows-sys", reason = "foundational; duplicate versions expected" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

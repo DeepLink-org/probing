@@ -380,20 +380,20 @@ mod tests {
 
     #[test]
     fn register_handling() {
-        let mut regs = Registers::default();
-        regs.x0 = 0x12345678;
-        regs.x1 = 0x87654321;
-        regs.x2 = 0x11111111;
-        regs.x3 = 0x22222222;
-        regs.x8 = 0xdeadbeef;
+        let mut regs: Registers = unsafe { std::mem::zeroed() };
+        regs.regs[0] = 0x12345678;
+        regs.regs[1] = 0x87654321;
+        regs.regs[2] = 0x11111111;
+        regs.regs[3] = 0x22222222;
+        regs.regs[8] = 0xdeadbeef;
         regs.sp = 0x1000;
         regs.pc = 0x2000;
 
-        assert_eq!(regs.x0, 0x12345678);
-        assert_eq!(regs.x1, 0x87654321);
-        assert_eq!(regs.x2, 0x11111111);
-        assert_eq!(regs.x3, 0x22222222);
-        assert_eq!(regs.x8, 0xdeadbeef);
+        assert_eq!(regs.regs[0], 0x12345678);
+        assert_eq!(regs.regs[1], 0x87654321);
+        assert_eq!(regs.regs[2], 0x11111111);
+        assert_eq!(regs.regs[3], 0x22222222);
+        assert_eq!(regs.regs[8], 0xdeadbeef);
         assert_eq!(regs.sp & !0xf, 0x1000);
     }
 }

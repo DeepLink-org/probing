@@ -69,6 +69,9 @@ CLIPPY_WEB := cd web && cargo clippy --all-targets $(CLIPPY_DENY)
 
 FMT_WORKSPACE := cargo fmt --all
 FMT_WEB := cd web && cargo fmt --all
+FMT_ALL_CFGS := ./scripts/fmt-all-cfgs.sh
+RUFF_DIRS := python/ tests/
+RUFF := $(if $(wildcard .venv/bin/ruff),.venv/bin/ruff,$(shell command -v ruff 2>/dev/null))
 
 # ==============================================================================
 .PHONY: help
@@ -85,24 +88,26 @@ help:
 	@echo "  test              Rust + editable Python (daily dev)"
 	@echo "  test-wheel        Installed-wheel Python tests (needs dist/*.whl)"
 	@echo "  test-ci           test + test-wheel (matches CI Python gate)"
+	@echo "  validate-skills   Validate bundled skills catalog (needs probing._core)"
+	@echo "  supply-chain      cargo-deny + uv lock check (matches CI)"
 	@echo "  lint              ruff + clippy + mkdocs --strict"
-	@echo "  fmt               rustfmt workspace + web (same paths as CI)"
+	@echo "  fmt               rustfmt workspace + web + ruff format (passes lint-python)"
+	@echo "  fmt-all-cfgs      fmt + extra targets (windows/linux/arch cfg branches)"
 	@echo "  check-dev         Quick env sanity check"
 	@echo "  bench             Instrumentation overhead (span / TorchProbe / train)"
 	@echo "  bench-quick       Same as bench, fewer iterations"
+	@echo "  soak              Long-run soak (~10 min synthetic ImageNet + assert)"
+	@echo "  soak-quick        Short soak smoke (~60s)"
 	@echo "  clean             Remove build artifacts"
 	@echo ""
 	@echo "Release gate: make frontend && make wheel && make test-ci"
 	@echo "Env: DEBUG=1  ZIG=1 TARGET=<triplet>"
 
 # ==============================================================================
-.PHONY: setup install-dev-python-deps
-setup:
-	@if command -v pip >/dev/null 2>&1; then pip install pre-commit; fi
-	@if command -v pre-commit >/dev/null 2>&1; then pre-commit install; fi
-
-install-dev-python-deps: venv
-	@if [ -x .venv/bin/ruff ] && $(VENV_PYTHON) -c "import pytest, yaml" 2>/dev/null; then \
+.PHONY: install-dev-python-deps
+	@if command -v uv >/dev/null 2>&1 && [ -f uv.lock ]; then \
+		uv sync --frozen --no-install-project --group dev; \
+	elif [ -x .venv/bin/ruff ] && $(VENV_PYTHON) -c "import pytest, yaml" 2>/dev/null; then \
 		echo "  dev Python deps OK"; \
 	else \
 		$(VENV_PYTHON) -m pip install -q -U pip $(DEV_PY_DEPS); \
@@ -128,10 +133,29 @@ venv:
 venv-wheel: venv
 
 install-build-deps: venv
-	$(VENV_PYTHON) -m pip install -q -U pip $(BUILD_PY_DEPS)
+	@if command -v uv >/dev/null 2>&1 && [ -f uv.lock ]; then \
+		uv sync --frozen --no-install-project --group build; \
+	else \
+		$(VENV_PYTHON) -m pip install -q -U pip $(BUILD_PY_DEPS); \
+	fi
 
 install-wheel-test-deps: venv
-	$(VENV_PYTHON) -m pip install -q -U pip $(PYTEST_WHEEL_DEPS)
+	@if command -v uv >/dev/null 2>&1 && [ -f uv.lock ]; then \
+		uv sync --frozen --no-install-project --group wheel-test; \
+	else \
+		$(VENV_PYTHON) -m pip install -q -U pip $(PYTEST_WHEEL_DEPS); \
+	fi
+
+# CI: UV_SYNC_GROUPS=build,dev,wheel-test make sync-uv-groups
+sync-uv-groups: venv
+	@test -f uv.lock || { echo "error: missing uv.lock"; exit 1; }
+	@test -n "$(UV_SYNC_GROUPS)" || { echo "error: set UV_SYNC_GROUPS (comma-separated)"; exit 1; }
+	@args=""; \
+	for g in $$(echo "$(UV_SYNC_GROUPS)" | tr ',' ' '); do \
+		test -n "$$g" || continue; \
+		args="$$args --group $$g"; \
+	done; \
+	uv sync --frozen --no-install-project $$args
 
 core: venv nccl-profiler-lib hccl-shim-lib
 	$(VENV_PYTHON) -m maturin develop $(MATURIN_FLAGS)
@@ -159,17 +183,29 @@ from probing.skills.paths import repo_skills_dir; \
 print(f'ok: probing {VERSION}, {len(list_skills())} skills, cli={shutil.which(\"probing\") or sys.executable}')" \
 		|| { echo "run: make develop"; exit 1; }
 
-.PHONY: bench bench-quick
+.PHONY: bench bench-quick soak soak-quick
 bench: check-dev
 	$(BENCH_RUN)
 
 bench-quick: check-dev
 	$(BENCH_RUN) --quick
 
+soak: check-dev
+	@test -x examples/run_soak.sh || chmod +x examples/run_soak.sh
+	DURATION_SEC=600 PYTHON=$(VENV_PYTHON) PROBING=1 ./examples/run_soak.sh
+
+soak-quick: check-dev
+	@test -x examples/run_soak.sh || chmod +x examples/run_soak.sh
+	DURATION_SEC=60 MAX_STEPS=8 PYTHON=$(VENV_PYTHON) PROBING=1 ./examples/run_soak.sh
+
 frontend:
 	@test -n "$$SKIP_FRONTEND_CLEAN" || rm -rf python/probing/bundled_web
 	cd web && dx bundle --release
 	@test -f $(BUNDLED_WEB_PUBLIC)/index.html
+	@js=$$(grep -oE 'web-dxh[^" ]+\.js' $(BUNDLED_WEB_PUBLIC)/index.html | head -1); \
+	for f in $(BUNDLED_WEB_PUBLIC)/assets/web-dxh*.js; do \
+	  test "$$f" = "$(BUNDLED_WEB_PUBLIC)/assets/$$js" || rm -f "$$f"; \
+	done
 	@mkdir -p $(BUNDLED_WEB_PUBLIC)/assets
 	@cp -f web/assets/logo.svg $(BUNDLED_WEB_PUBLIC)/logo.svg 2>/dev/null || true
 	@cp -f web/assets/logo.svg $(BUNDLED_WEB_PUBLIC)/assets/logo.svg 2>/dev/null || true
@@ -247,12 +283,16 @@ PYTEST_WHEEL_ARGS := tests/unit tests/regression
 PYTEST_WHEEL_FLAGS := --import-mode=importlib -o pythonpath= -o "addopts=--verbose --color=yes --durations=10 --strict-markers"
 PYTEST_WHEEL_EXTRA ?=
 
-.PHONY: test test-wheel test-ci test-rust test-rust-unit test-rust-regression test-python test-python-unit test-python-regression test-doctest test-python-wheel coverage-python-wheel bench bench-quick
-.PHONY: fmt fmt-check lint lint-python lint-rust lint-docs lint-core clippy clippy-fix coverage coverage-rust coverage-python bootstrap clean docs-install docs docs-serve docs-clean
+.PHONY: test test-wheel test-ci validate-skills test-rust test-rust-unit test-rust-regression test-python test-python-unit test-python-regression test-doctest test-python-wheel coverage-python-wheel bench bench-quick
+.PHONY: fmt fmt-check fmt-all-cfgs fmt-all-cfgs-check lint lint-python lint-rust lint-docs lint-core clippy clippy-fix coverage coverage-rust coverage-python bootstrap clean docs-install docs docs-serve docs-clean supply-chain
 
 test: test-rust test-python
 test-wheel: install-wheel test-python-wheel
 test-ci: test test-wheel
+validate-skills:
+	@test -L skills && test -f skills/catalog.yaml \
+		|| { echo "error: skills/ must be a symlink to python/probing/bundled_skills"; exit 1; }
+	PROBING=0 $(PYTHON) -m probing.skills validate
 test-rust: test-rust-unit test-rust-regression
 
 test-rust-unit:
@@ -277,23 +317,31 @@ test-python-wheel: install-wheel-test-deps
 coverage-python-wheel:
 	$(MAKE) test-python-wheel PYTEST_WHEEL_EXTRA="--cov=probing --cov=tests --cov-report=xml:coverage.xml"
 
+FMT_PYTHON := @test -n "$(RUFF)" || { echo "install ruff: make install-dev-python-deps"; exit 1; }; \
+	$(RUFF) check --fix $(RUFF_DIRS); \
+	$(RUFF) format $(RUFF_DIRS)
+
 lint: lint-python lint-rust lint-docs
 fmt:
 	$(FMT_WORKSPACE)
 	$(FMT_WEB)
+	$(FMT_PYTHON)
 fmt-check:
 	$(FMT_WORKSPACE) -- --check
 	$(FMT_WEB) -- --check
+	@$(MAKE) --no-print-directory lint-python
+fmt-all-cfgs:
+	@chmod +x scripts/fmt-all-cfgs.sh
+	$(FMT_ALL_CFGS)
+fmt-all-cfgs-check:
+	@chmod +x scripts/fmt-all-cfgs.sh
+	$(FMT_ALL_CFGS) --check
 lint-core:
 	$(CLIPPY_CORE)
 lint-python:
-	@if [ -x .venv/bin/ruff ]; then \
-		.venv/bin/ruff check python/ tests/; \
-	elif command -v ruff >/dev/null 2>&1; then \
-		ruff check python/ tests/; \
-	else \
-		echo "install ruff: make install-dev-python-deps  (or: $(VENV_PYTHON) -m pip install ruff)"; exit 1; \
-	fi
+	@test -n "$(RUFF)" || { echo "install ruff: make install-dev-python-deps"; exit 1; }
+	$(RUFF) check $(RUFF_DIRS)
+	$(RUFF) format --check $(RUFF_DIRS)
 lint-rust:
 	$(CLIPPY_WORKSPACE)
 	$(CLIPPY_WEB)
@@ -315,6 +363,12 @@ coverage: coverage-rust coverage-python
 
 bootstrap:
 	uv python install 3.8 3.9 3.10 3.11 3.12 3.13
+
+supply-chain:
+	@command -v cargo-deny >/dev/null 2>&1 || { echo "install: cargo install cargo-deny --locked"; exit 1; }
+	cargo deny check
+	@if command -v uv >/dev/null 2>&1 && [ -f uv.lock ]; then uv lock --check; fi
+	@cd web && cargo deny --config ../deny.toml check
 
 docs-install:
 	@cd docs && $(MAKE) install PYTHON=$(PYTHON_ABS)

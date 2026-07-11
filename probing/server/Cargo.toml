@@ -13,7 +13,7 @@ gpu = ["dep:probing-gpu"]
 gpu-cuda = ["gpu", "probing-gpu/cuda"]
 kmsg = ["probing-cc/kmsg"]
 default = ["extension-module", "kmsg", "rmcp"]
-rmcp = ["dep:rmcp", "dep:probing-cli"]
+rmcp = ["dep:rmcp", "dep:probing-cli", "dep:probing-skills"]
 
 [dependencies]
 probing-cc = { path = "../extensions/cc", default-features = false }
@@ -24,6 +24,7 @@ probing-proto = { path = "../proto" }
 probing-core = { path = "../core" }
 probing-store = { path = "../crates/store" }
 probing-cli = { path = "../cli", optional = true }
+probing-skills = { path = "../crates/skills", optional = true }
 
 datafusion = { workspace = true }
 

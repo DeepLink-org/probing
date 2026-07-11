@@ -47,4 +47,4 @@ from probing.skills.install import install_skills
 ## Tests
 
 `tests/unit/probing/skills/` — loader (Rust bridge). `tests/regression/skills/` — install, tools.
-`tests/unit/probing/test_extensions.py` — entry-point discovery (legacy `test_discovery.py` covers shim).
+`tests/unit/probing/test_extensions.py` — entry-point discovery.

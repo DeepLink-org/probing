@@ -53,20 +53,36 @@ pub fn get_hostname() -> Result<String> {
 }
 
 fn get_network_interfaces() -> Result<Vec<String>> {
-    let ips = nix::ifaddrs::getifaddrs()?
-        .filter_map(|addr| addr.address)
-        .filter_map(|addr| addr.as_sockaddr_in().cloned())
-        .filter_map(|addr| {
-            let ip_addr = addr.ip();
-            match ip_addr.is_unspecified() {
-                true => None,
-                false => Some(ip_addr.to_string()),
-            }
-        })
-        .collect::<Vec<_>>();
+    #[cfg(unix)]
+    {
+        let ips = nix::ifaddrs::getifaddrs()?
+            .filter_map(|addr| addr.address)
+            .filter_map(|addr| addr.as_sockaddr_in().cloned())
+            .filter_map(|addr| {
+                let ip_addr = addr.ip();
+                match ip_addr.is_unspecified() {
+                    true => None,
+                    false => Some(ip_addr.to_string()),
+                }
+            })
+            .collect::<Vec<_>>();
 
-    log::debug!("Found network interface IPs: {:?}", ips);
-    Ok(ips)
+        log::debug!("Found network interface IPs: {:?}", ips);
+        Ok(ips)
+    }
+    #[cfg(windows)]
+    {
+        use std::net::UdpSocket;
+        let socket = UdpSocket::bind("0.0.0.0:0")?;
+        let _ = socket.connect("8.8.8.8:80");
+        let ip = socket.local_addr()?.ip().to_string();
+        log::debug!("Using local IP via UDP probe: {ip}");
+        Ok(vec![ip])
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        Ok(Vec::new())
+    }
 }
 
 /// True for the torchrun/elastic supervisor process (not a training worker).

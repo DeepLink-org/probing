@@ -9,7 +9,7 @@ use probing_core::ENGINE;
 use crate::features::native_bridge::with_detached_native;
 use crate::features::py_result::runtime_err;
 use crate::features::stack_tracer::{is_backtrace_busy, SignalTracer, StackTracer};
-use crate::repl::PythonRepl;
+use crate::repl::ReplSession;
 
 fn callstack_error_json(message: &str) -> String {
     serde_json::json!({
@@ -72,11 +72,10 @@ pub fn api_callstack(tid: Option<i32>) -> PyResult<String> {
 #[pyfunction]
 pub fn api_eval(code: &str) -> PyResult<String> {
     log::debug!("Python eval code: {code}");
-    let mut repl = PythonRepl::default();
-    let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| repl.process(code)));
+    let mut session = ReplSession::new();
+    let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| session.eval_code(code)));
     match out {
-        Ok(Some(s)) => Ok(s),
-        Ok(None) => Ok(String::new()),
+        Ok(s) => Ok(s),
         Err(_) => Ok(serde_json::json!({"error": "REPL execution panicked"}).to_string()),
     }
 }

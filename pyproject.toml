@@ -75,10 +75,42 @@ dev = [
     "ipython>=8.0",
     "ipykernel>=6.0",
     "ruff>=0.1.0",
-    "black>=24.0; python_version >= '3.8'",
-    "black<24.0; python_version < '3.8'",
     "maturin>=1.0,<2.0",
 ]
+
+# Locked dev / CI deps — sync with: uv lock
+[dependency-groups]
+build = [
+    "build",
+    "maturin>=1.0,<2.0",
+    "toml",
+    "wheel",
+]
+dev = [
+    "coverage>=7.0",
+    "ipykernel>=6.0",
+    "ipython>=8.0; python_version >= '3.8'",
+    "pytest>=8.0; python_version >= '3.8'",
+    "pytest<8.0; python_version < '3.8'",
+    "pytest-cov>=4.0",
+    "pyyaml>=6",
+    "ruff>=0.1.0",
+]
+wheel-test = [
+    "coverage>=7.0",
+    "ipykernel>=6.0",
+    "pandas",
+    "pytest>=8.0; python_version >= '3.8'",
+    "pytest-cov>=4.0",
+    "pyyaml>=6",
+    "torch",
+    "websockets",
+]
+
+[tool.uv]
+# Lock resolution scope for CI/dev (does not change [project] requires-python).
+environments = ["python_version >= '3.10'"]
+default-groups = ["dev", "build"]
 
 [tool.maturin]
 module-name = "probing._core"
@@ -152,7 +184,7 @@ ignore = ["E501", "E402", "F841", "E731", "F401", "E722", "N806", "N801", "N802"
 "examples/*" = ["E722"]
 "tests/*" = ["F841"]
 
-[tool.black]
-line-length = 88
-target-version = ["py37"]
-include = '\.pyi?$'
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"

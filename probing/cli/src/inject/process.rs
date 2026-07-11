@@ -85,12 +85,10 @@ impl Process {
         match ps.len() {
             1 => Ok(Some(ps[0])),
             0 => Err(anyhow::anyhow!(
-                "found no process with cmdline pattern: {}",
-                pat
+                "found no process with cmdline pattern: {pat}"
             )),
             _ => Err(anyhow::anyhow!(
-                "found multiple processes with cmdline pattern: {}",
-                pat
+                "found multiple processes with cmdline pattern: {pat}"
             )),
         }
     }

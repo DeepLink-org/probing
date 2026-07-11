@@ -13,6 +13,8 @@ Runnable scripts under `examples/`. They are **not** installed with `pip install
 | `bench_profiler.py` | varies | See script header |
 | **`torch_probe_overhead_smoke.py`** | none | TorchProbe shadow-step overhead smoke (no GPU) |
 | **`bench_instrumentation.py`** | `torch` (optional) | One-shot report: span / phase hooks / TorchProbe overhead (`make bench`) |
+| **`run_soak.sh`** | `torch`, `torchvision` | Long-running soak (synthetic ImageNet + probing); used by CI `soak.yml` |
+| **`soak_assert.py`** | none (beyond probing) | Post-soak SQL / overhead assertions |
 | **`nccl_profiler_overhead.py`** | `torch` (CUDA) | NCCL AllReduce overhead vs probing profiler — see below |
 
 Install PyTorch into your dev venv (tracing 示例只需 torch；ImageNet 脚本还需 torchvision)：
@@ -34,6 +36,20 @@ PROBING=1 python examples/test_probing.py --depth 2
 PROBING=1 python examples/bench_instrumentation.py --quick
 make bench          # full report, one table per group as each finishes
 make bench-quick    # faster smoke
+make soak-quick     # ~60s CPU soak smoke (needs torch + torchvision)
+```
+
+Long-running soak (CI weekly job ``soak.yml``)::
+
+```bash
+# ~10 min single-process CPU soak + assertions
+./examples/run_soak.sh
+
+# shorter local smoke
+DURATION_SEC=60 ./examples/run_soak.sh
+
+# 2-rank gloo DDP (assertions on rank 0)
+NPROC=2 DIST_BACKEND=gloo DURATION_SEC=120 ./examples/run_soak.sh
 ```
 
 On Linux you can also attach with `probing -t <pid> inject` instead of `PROBING=1` at startup.

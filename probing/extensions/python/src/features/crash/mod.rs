@@ -7,7 +7,12 @@ mod grace;
 mod handler;
 mod memory_snapshot;
 mod report;
+#[cfg(unix)]
 mod signal;
+#[cfg(not(unix))]
+mod signal {
+    pub fn install_crash_handler() {}
+}
 
 pub use api::{
     crash_enabled, note_last_comm, record_crash, request_crash_hold, request_crash_release,

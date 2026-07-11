@@ -470,7 +470,7 @@ from probing.inspect.trace import probe as _probe_decorator
 # Wrap execution in probe context
 _probing_tracer = _probe_decorator(watch={args.watch!r}, depth={args.depth})
 with _probing_tracer:
-{chr(10).join('    ' + line for line in cell.split(chr(10)))}
+{chr(10).join("    " + line for line in cell.split(chr(10)))}
 """
 
         self.shell.run_cell(exec_code)
@@ -483,9 +483,9 @@ with _probing_tracer:
             __main__.__probing__ = {}
         if "debug" not in __main__.__probing__:
             __main__.__probing__["debug"] = {}
-        __main__.__probing__["debug"][
-            "debugger_installed"
-        ] = DebugMagic.detect_debugger()
+        __main__.__probing__["debug"]["debugger_installed"] = (
+            DebugMagic.detect_debugger()
+        )
 
         return __main__.__probing__["debug"]
 

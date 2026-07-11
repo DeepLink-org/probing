@@ -44,7 +44,7 @@ use super::semantic_catalog;
 ///     .build().unwrap();
 ///
 /// // Execute a SQL query
-/// let result = engine.query("SELECT * FROM information_schema.tables");
+/// let result = engine.async_query("SELECT * FROM information_schema.tables").await?;
 /// ```
 pub struct Engine {
     /// DataFusion session context for executing SQL queries
@@ -146,15 +146,6 @@ impl Engine {
             .map(arrow_array_to_seq)
             .collect::<Vec<_>>();
         Ok(Some(probing_proto::prelude::DataFrame::new(names, columns)))
-    }
-
-    #[deprecated]
-    pub fn query<T: Into<String>>(&self, q: T) -> Result<probing_proto::prelude::DataFrame> {
-        futures::executor::block_on(async { self.async_query(q).await })?.ok_or_else(|| {
-            DataFusionError::Execution(
-                "query returned no dataframe (engine unavailable or empty response)".into(),
-            )
-        })
     }
 
     /// Get default namespace from configuration

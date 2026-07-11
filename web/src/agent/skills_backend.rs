@@ -1,11 +1,10 @@
 //! Browser HTTP backend for the shared skill runner.
 
-use probing_proto::prelude::{DataFrame, Message, NodeListResponse, Query, QueryDataFormat};
+use probing_proto::prelude::DataFrame;
 use probing_skills::backend::{ClusterQueryMeta, SkillBackend};
 use probing_skills::runner::{Result, SkillRunError};
 
 use crate::api::ApiClient;
-use crate::utils::error::AppError;
 
 pub struct WebBackend;
 
@@ -82,12 +81,4 @@ impl SkillBackend for WebBackend {
             Err(_) => 0,
         }
     }
-}
-
-#[allow(dead_code)]
-fn _query_envelope_unused() {
-    let _ = Message::new(Query::default());
-    let _ = QueryDataFormat::Nil;
-    let _ = NodeListResponse::default();
-    let _ = AppError::Api(String::new());
 }

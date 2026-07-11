@@ -587,7 +587,6 @@ def _backend_event(enable_timing=True):
 
 class Timer:
     def __init__(self, sync: bool = False, **kwargs):
-
         self.has_backend = torch_backend() is not None
         self.use_gpu_events = _backend_has_event()
         self.sync = sync

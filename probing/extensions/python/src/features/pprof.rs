@@ -498,6 +498,7 @@ unsafe fn walk_frame_pointers(start_fp: usize, out: &mut [usize], lo: usize, hi:
     count
 }
 
+#[cfg(unix)]
 unsafe extern "C" fn sigprof_handler(_sig: c_int, _info: *mut libc::siginfo_t, uctx: *mut c_void) {
     if !SAMPLER_ENABLED.load(Ordering::Acquire) {
         return;
@@ -568,6 +569,7 @@ unsafe extern "C" fn sigprof_handler(_sig: c_int, _info: *mut libc::siginfo_t, u
 
 static HANDLER_INSTALLED: AtomicBool = AtomicBool::new(false);
 
+#[cfg(unix)]
 fn install_handler() {
     if HANDLER_INSTALLED.swap(true, Ordering::AcqRel) {
         return;
@@ -582,6 +584,10 @@ fn install_handler() {
     }
 }
 
+#[cfg(not(unix))]
+fn install_handler() {}
+
+#[cfg(unix)]
 fn arm_timer(freq: i32) {
     let period_us = (1_000_000i64 / freq as i64).max(1);
     let tv = libc::timeval {
@@ -595,10 +601,17 @@ fn arm_timer(freq: i32) {
     unsafe { libc::setitimer(libc::ITIMER_PROF, &it, std::ptr::null_mut()) };
 }
 
+#[cfg(not(unix))]
+fn arm_timer(_freq: i32) {}
+
+#[cfg(unix)]
 fn disarm_timer() {
     let it: libc::itimerval = unsafe { std::mem::zeroed() };
     unsafe { libc::setitimer(libc::ITIMER_PROF, &it, std::ptr::null_mut()) };
 }
+
+#[cfg(not(unix))]
+fn disarm_timer() {}
 
 // ---------------------------------------------------------------------------
 // Consumer thread: symbolize + fold (all off the signal path)
@@ -829,6 +842,19 @@ pub fn is_sampling_active() -> bool {
 }
 
 pub fn setup(freq: u64) -> Result<()> {
+    #[cfg(not(unix))]
+    {
+        let _ = freq;
+        return Err(anyhow::anyhow!(
+            "CPU profiling (SIGPROF) is not supported on this platform"
+        ));
+    }
+    #[cfg(unix)]
+    setup_unix(freq)
+}
+
+#[cfg(unix)]
+fn setup_unix(freq: u64) -> Result<()> {
     let freq = if freq == 0 {
         DEFAULT_SAMPLE_FREQ
     } else {

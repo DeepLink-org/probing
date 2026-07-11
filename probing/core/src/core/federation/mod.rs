@@ -23,8 +23,8 @@ pub use convert::{
     cluster_local_rank_for_endpoint, cluster_node_rank_for_endpoint, cluster_rank_for_endpoint,
     cluster_role_for_endpoint, federated_output_schema, federation_tags_for_endpoint,
     is_federation_tag_column, tag_proto_dataframe, FederationEndpointTags, FEDERATION_TAG_COLUMNS,
-    PROBE_ADDR_COL, PROBE_HOST_COL, PROBE_LOCAL_RANK_COL, PROBE_NODE_COL, PROBE_NODE_RANK_COL,
-    PROBE_RANK_COL, PROBE_ROLE_COL,
+    PROBE_ADDR_COL, PROBE_HOST_COL, PROBE_LOCAL_RANK_COL, PROBE_NODE_RANK_COL, PROBE_RANK_COL,
+    PROBE_ROLE_COL,
 };
 pub use fanout_scope::{
     current_fanout_scope, hierarchical_fanout_enabled, is_local0_from_env, resolve_fanout_scope,

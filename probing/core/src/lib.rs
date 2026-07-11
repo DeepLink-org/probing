@@ -8,7 +8,6 @@ pub mod signal;
 pub mod storage;
 pub mod sync;
 pub mod trace;
-mod tracing;
 
 pub use diagnostics::install_panic_hook;
 pub use runtime::{

@@ -23,7 +23,7 @@ fn injection_basic_fails_on_missing_library() {
     let target_pid = target.id();
     thread::sleep(Duration::from_millis(100));
 
-    let proc = Process::by_pid(target_pid as i32).expect("Failed to find target process");
+    let proc = Process::get(target_pid).expect("Failed to find target process");
     let dummy_lib = std::path::Path::new("/tmp/dummy.so");
 
     let result = Injector::attach(proc).and_then(|mut injector| injector.inject(dummy_lib, vec![]));

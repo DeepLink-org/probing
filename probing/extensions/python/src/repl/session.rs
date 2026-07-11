@@ -24,4 +24,9 @@ impl ReplSession {
     pub fn handle_text(&mut self, text: String) -> String {
         self.repl.feed(text).unwrap_or_else(|| "{}".to_string())
     }
+
+    /// Evaluate one code snippet (HTTP eval API — single shot, no line buffering).
+    pub fn eval_code(&mut self, code: &str) -> String {
+        self.repl.process(code).unwrap_or_default()
+    }
 }

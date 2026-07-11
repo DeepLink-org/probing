@@ -4,6 +4,7 @@ Used by the FFI stream-value gate. Loads ``libcuda`` directly and exposes the
 ``cuStreamWaitValue32`` / ``cuStreamWriteValue32`` driver entry points so the
 host can stall and release a device-side flag without compiling anything.
 """
+
 from __future__ import annotations
 
 import ctypes
@@ -143,9 +144,7 @@ class CudaDriverApi:
         device = int(device)
 
         current = ctypes.c_void_p()
-        self._check(
-            self._cu_ctx_get_current(ctypes.byref(current)), "cuCtxGetCurrent"
-        )
+        self._check(self._cu_ctx_get_current(ctypes.byref(current)), "cuCtxGetCurrent")
         if current.value is not None:
             current_device = ctypes.c_int()
             result = self._cu_ctx_get_device(ctypes.byref(current_device))

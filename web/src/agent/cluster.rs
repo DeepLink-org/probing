@@ -2,8 +2,7 @@
 
 use probing_proto::prelude::Node;
 
-use crate::api::{ApiClient, ClusterQueryMeta};
-use crate::utils::error::Result;
+use crate::api::ApiClient;
 
 #[derive(Debug, Clone, Default)]
 pub struct ClusterSnapshot {
@@ -79,28 +78,6 @@ fn snapshot_from_nodes(nodes: &[Node]) -> ClusterSnapshot {
     }
 }
 
-/// Whether this SQL should fan out via `/apis/cluster/query`.
-#[allow(dead_code)]
-pub fn sql_needs_cluster_fanout(sql: &str, step_cluster: bool) -> bool {
-    step_cluster || sql.to_lowercase().contains("global.")
-}
-
-#[allow(dead_code)]
-pub fn format_cluster_meta(meta: &ClusterQueryMeta) -> String {
-    if !meta.cluster {
-        return "local query".to_string();
-    }
-    let mut note = format!("cluster fan-out · {} nodes queried", meta.nodes_queried);
-    if !meta.nodes_failed.is_empty() {
-        note.push_str(&format!(
-            " · {} node(s) failed: {}",
-            meta.nodes_failed.len(),
-            meta.nodes_failed.join(", ")
-        ));
-    }
-    note
-}
-
 pub fn cluster_context_for_llm(snapshot: &ClusterSnapshot) -> String {
     let mode = if snapshot.is_distributed() {
         "distributed (use global.* / cluster fan-out for cross-node SQL)"
@@ -108,28 +85,4 @@ pub fn cluster_context_for_llm(snapshot: &ClusterSnapshot) -> String {
         "standalone (local probe tables only; set use_global=false)"
     };
     format!("Cluster mode: {mode}\n{}", snapshot.nodes_summary)
-}
-
-/// Default `use_global` when the skill parameter is not overridden.
-#[allow(dead_code)]
-pub fn default_use_global(snapshot: &ClusterSnapshot, skill_default: bool) -> bool {
-    if !snapshot.is_distributed() {
-        return false;
-    }
-    skill_default
-}
-
-#[allow(dead_code)]
-pub async fn execute_sql_for_agent(
-    sql: &str,
-    cluster_fanout: bool,
-) -> Result<(probing_proto::prelude::DataFrame, Option<ClusterQueryMeta>)> {
-    let client = ApiClient::new();
-    if cluster_fanout {
-        let resp = client.cluster_query(sql, true).await?;
-        Ok((resp.dataframe, Some(resp.meta)))
-    } else {
-        let df = client.execute_query(sql).await?;
-        Ok((df, None))
-    }
 }

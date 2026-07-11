@@ -3,7 +3,9 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-use probing_skills::{routing::match_skills, skill_from_api, Skill};
+use probing_skills::{
+    match_routed_skills, match_skills, skill_from_api, IntentRoute, Skill, SkillRoute,
+};
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -137,32 +139,26 @@ pub fn load_skill(id: &str) -> Option<Skill> {
 
 pub fn match_skills_for_query(query: &str, limit: usize) -> Vec<String> {
     if skill_store_loaded() {
-        let q = query.to_lowercase();
-        let mut scored: HashMap<String, usize> = HashMap::new();
-        for (rank, id) in super::routing::match_intents(query, 10)
-            .into_iter()
-            .enumerate()
-        {
-            *scored.entry(id).or_insert(0) += 3usize.saturating_mul(10 - rank);
-        }
-        for id in list_skill_ids() {
-            let Some(skill) = load_skill(&id) else {
-                continue;
-            };
-            let keyword_hits = skill
-                .keywords
-                .iter()
-                .filter(|kw| q.contains(kw.as_str()))
-                .count();
-            let id_hit = q.contains(&skill.id.replace('_', " ")) || q.contains(&skill.id);
-            if keyword_hits > 0 || id_hit {
-                *scored.entry(skill.id).or_insert(0) += keyword_hits.max(1);
-            }
-        }
-        let mut ranked: Vec<(usize, String)> =
-            scored.into_iter().map(|(id, score)| (score, id)).collect();
-        ranked.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
-        return ranked.into_iter().take(limit).map(|(_, id)| id).collect();
+        let Ok(guard) = store().read() else {
+            return match_skills(query, limit);
+        };
+        let intent_routes: Vec<IntentRoute> = guard
+            .intents
+            .values()
+            .map(|intent| IntentRoute {
+                keywords: intent.keywords.clone(),
+                skills: intent.skills.clone(),
+            })
+            .collect();
+        let skill_routes: Vec<SkillRoute> = guard
+            .skills
+            .values()
+            .map(|skill| SkillRoute {
+                id: skill.id.clone(),
+                keywords: skill.keywords.clone(),
+            })
+            .collect();
+        return match_routed_skills(query, limit, &intent_routes, &skill_routes);
     }
     match_skills(query, limit)
 }

@@ -19,7 +19,10 @@ class _FakeHandle:
 def test_symbol_returns_named_attribute():
     handle = _FakeHandle()
     handle.cuStreamWaitValue32_v2 = "primary"
-    assert ffi._symbol(handle, "cuStreamWaitValue32_v2", "cuStreamWaitValue32") == "primary"
+    assert (
+        ffi._symbol(handle, "cuStreamWaitValue32_v2", "cuStreamWaitValue32")
+        == "primary"
+    )
 
 
 def test_symbol_uses_fallback_when_primary_missing():

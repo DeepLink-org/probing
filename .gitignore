@@ -31,3 +31,4 @@ python/probing/probing
 *.pth.tar
 docs/site/
 .venv/
+.coverage

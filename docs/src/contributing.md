@@ -209,11 +209,11 @@ make coverage          # local editable + Rust (requires cargo-llvm-cov; see CI 
 
 ### Code style
 
-**Python:** `ruff`, `mypy`
+**Python:** `ruff` (lint + format), `mypy`
 
 ```bash
-ruff format .
-ruff check .
+make fmt              # ruff format + fix (Python); rustfmt (Rust)
+make lint-python      # ruff check + ruff format --check
 mypy python/probing
 ```
 
@@ -226,7 +226,7 @@ make lint-rust          # cargo clippy --workspace + web/, warnings denied
 make clippy-fix         # auto-fix what Clippy can (review diff before commit)
 ```
 
-Clippy runs in CI and optional pre-commit (`make setup`). After editing `probing-core`, run `make lint-core` before pushing. Full-workspace `make lint-rust` may still fail until other crates are cleaned up — we are rolling out lints crate by crate.
+Clippy runs in CI. After editing `probing-core`, run `make lint-core` before pushing. Full-workspace `make lint-rust` may still fail until other crates are cleaned up — we are rolling out lints crate by crate.
 
 **Status:** `probing-core` has `clippy::all` (`pedantic`/`nursery` off; protocol-related allows in `probing/core/Cargo.toml`). Next candidates: `probing-proto`, `probing-memtable`.
 

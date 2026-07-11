@@ -698,7 +698,9 @@ def probe(func, watch=None, silent_watch=None, depth=1):
         "__probe_silent_watch__": (
             silent_watch
             if isinstance(silent_watch, list)
-            else list(silent_watch) if silent_watch else []
+            else list(silent_watch)
+            if silent_watch
+            else []
         ),
         "__probe_depth__": depth,
     }
@@ -719,7 +721,9 @@ def probe(func, watch=None, silent_watch=None, depth=1):
         "__probe_silent_watch__": (
             silent_watch
             if isinstance(silent_watch, list)
-            else list(silent_watch) if silent_watch else []
+            else list(silent_watch)
+            if silent_watch
+            else []
         ),
         "__probe_depth__": depth,
     }

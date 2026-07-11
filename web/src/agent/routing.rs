@@ -78,58 +78,6 @@ pub fn describe_route(route: &Route) -> PageDescriptor {
     }
 }
 
-pub fn match_intents(query: &str, limit: usize) -> Vec<String> {
-    let q = query.to_lowercase();
-    let intents = intent_catalog();
-    let mut scored: Vec<(usize, String)> = Vec::new();
-    for intent in intents.values() {
-        let hits = intent
-            .keywords
-            .iter()
-            .filter(|kw| q.contains(kw.to_lowercase().as_str()))
-            .count();
-        if hits > 0 {
-            for sid in &intent.skills {
-                scored.push((hits, sid.clone()));
-            }
-        }
-    }
-    scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
-    scored.dedup_by(|a, b| a.1 == b.1);
-    scored.into_iter().take(limit).map(|(_, id)| id).collect()
-}
-
-#[allow(dead_code)]
-pub fn route_for_page(page_id: &str) -> Option<Route> {
-    let pages = page_catalog();
-    let entry = pages.get(page_id)?;
-    let path = entry.path.trim();
-    if path.is_empty() {
-        return None;
-    }
-    if path.starts_with("/profiling") {
-        let view = path
-            .trim_start_matches("/profiling/")
-            .trim_start_matches('/');
-        let view = if view.is_empty() { "overview" } else { view };
-        return Some(Route::ProfilingViewPage {
-            view: normalize_profiling_view(view).to_string(),
-        });
-    }
-    match path {
-        "/" | "/dashboard" => Some(Route::DashboardPage {}),
-        "/agent" => Some(Route::AgentPage {}),
-        "/cluster" => Some(Route::ClusterPage {}),
-        "/stacks" => Some(Route::StackPage {}),
-        "/analytics" => Some(Route::AnalyticsPage {}),
-        "/python" => Some(Route::PythonPage {}),
-        "/spans" => Some(Route::SpansPage {}),
-        "/pulsing" => Some(Route::PulsingPage {}),
-        "/training" => Some(Route::TrainingPage {}),
-        _ => None,
-    }
-}
-
 pub fn routing_context_for_llm() -> String {
     let mut lines = vec!["Skill catalog (by priority):".to_string()];
     for id in catalog_skill_ids() {

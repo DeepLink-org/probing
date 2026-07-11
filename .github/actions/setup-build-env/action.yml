@@ -1,5 +1,5 @@
 name: 'Setup Build Environment'
-description: 'Setup Python, Rust, and build tools; cache env only (venv, cargo CLI) — not compile artifacts'
+description: 'Setup Python, Rust, and build tools with locked deps (uv.lock) and Rust compile cache'
 inputs:
   python-version:
     description: 'Python version to use'
@@ -10,11 +10,19 @@ inputs:
     required: false
     default: 'true'
   install-python-deps:
-    description: 'Whether to install maturin/build deps into .venv'
+    description: 'Legacy: install maturin/build deps via make (prefer uv-sync-groups)'
     required: false
     default: 'false'
+  uv-sync-groups:
+    description: 'Comma-separated uv dependency groups from pyproject (e.g. build,dev,wheel-test)'
+    required: false
+    default: ''
   enable-rust:
     description: 'Install Rust toolchain and targets'
+    required: false
+    default: 'true'
+  cache-rust:
+    description: 'Cache Rust compile artifacts (swatinem/rust-cache via setup-rust-toolchain)'
     required: false
     default: 'true'
   enable-zig:
@@ -22,15 +30,15 @@ inputs:
     required: false
     default: 'true'
   enable-uv:
-    description: 'Install uv (no GitHub cache — avoids extra cache uploads)'
+    description: 'Install uv for locked dependency sync'
     required: false
     default: 'true'
   cache-venv:
-    description: 'Cache project .venv (pip deps)'
+    description: 'Cache project .venv (pip/uv deps)'
     required: false
     default: 'true'
   cache-wheel-test-deps:
-    description: 'Include pytest+torch wheel-test deps in .venv cache key'
+    description: 'Include wheel-test group in .venv cache key'
     required: false
     default: 'false'
   dx-version:
@@ -48,6 +56,10 @@ runs:
         echo "python_env<<EOF" >> "$GITHUB_OUTPUT"
         echo "${{ hashFiles('pyproject.toml', 'Makefile', 'uv.lock') }}" >> "$GITHUB_OUTPUT"
         echo "EOF" >> "$GITHUB_OUTPUT"
+        groups="${{ inputs.uv-sync-groups }}"
+        groups="${groups// /}"
+        groups="${groups//,/-}"
+        echo "uv_groups=${groups}" >> "$GITHUB_OUTPUT"
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -59,10 +71,10 @@ runs:
       uses: actions/cache@v4
       with:
         path: .venv
-        key: venv-v1-${{ runner.os }}-py${{ inputs.python-version }}-${{ steps.cache-keys.outputs.python_env }}${{ inputs.cache-wheel-test-deps == 'true' && '-wheeltest' || '' }}${{ inputs.install-python-deps == 'true' && '-build' || '' }}
+        key: venv-v2-${{ runner.os }}-py${{ inputs.python-version }}-${{ steps.cache-keys.outputs.python_env }}-${{ steps.cache-keys.outputs.uv_groups }}${{ inputs.cache-wheel-test-deps == 'true' && '-wheeltest' || '' }}${{ inputs.install-python-deps == 'true' && '-build' || '' }}
         restore-keys: |
-          venv-v1-${{ runner.os }}-py${{ inputs.python-version }}-${{ steps.cache-keys.outputs.python_env }}-
-          venv-v1-${{ runner.os }}-py${{ inputs.python-version }}-
+          venv-v2-${{ runner.os }}-py${{ inputs.python-version }}-${{ steps.cache-keys.outputs.python_env }}-
+          venv-v2-${{ runner.os }}-py${{ inputs.python-version }}-
 
     - name: Install Rust toolchain
       if: inputs.enable-rust == 'true'
@@ -71,6 +83,10 @@ runs:
         toolchain: stable
         components: rustfmt, clippy
         rustflags: ""
+        cache: ${{ inputs.cache-rust == 'true' }}
+        cache-workspaces: |
+          .
+          web
 
     - name: Add Rust Targets
       if: inputs.enable-rust == 'true'
@@ -86,7 +102,7 @@ runs:
       if: inputs.enable-uv == 'true'
       uses: astral-sh/setup-uv@v6
       with:
-        enable-cache: false
+        enable-cache: true
 
     - name: Install Zig toolchain
       if: inputs.enable-zig == 'true'
@@ -97,12 +113,11 @@ runs:
       uses: actions/cache@v4
       with:
         path: |
-          ~/.cargo/bin/cargo-nextest
           ~/.cargo/bin/cargo-zigbuild
           ~/.cargo/bin/rnr
-        key: cargo-cli-v1-${{ runner.os }}-nextest-zigbuild-rnr
+        key: cargo-cli-v2-${{ runner.os }}-${{ runner.arch }}-zigbuild-rnr
         restore-keys: |
-          cargo-cli-v1-${{ runner.os }}-
+          cargo-cli-v2-${{ runner.os }}-${{ runner.arch }}-
 
     - name: Install dioxus CLI (dx)
       if: inputs.install-cargo-tools == 'true'
@@ -110,13 +125,29 @@ runs:
       with:
         tool: dioxus-cli@${{ inputs.dx-version }}
 
+    - name: Install cargo-nextest
+      if: inputs.install-cargo-tools == 'true'
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-nextest
+
     - name: Install other cargo tools
       if: inputs.install-cargo-tools == 'true'
       shell: bash
       run: |
-        test -e ~/.cargo/bin/cargo-zigbuild || cargo install cargo-zigbuild --locked
-        test -e ~/.cargo/bin/rnr || cargo install rnr
-        test -e ~/.cargo/bin/cargo-nextest || cargo install --locked cargo-nextest
+        ensure_cargo_bin() {
+          local bin="$1"
+          shift
+          if [ -x "$HOME/.cargo/bin/$bin" ] && "$HOME/.cargo/bin/$bin" "$@" >/dev/null 2>&1; then
+            return 0
+          fi
+          rm -f "$HOME/.cargo/bin/$bin"
+          return 1
+        }
+        if [ "${{ inputs.enable-zig }}" == "true" ]; then
+          ensure_cargo_bin cargo-zigbuild --version || cargo install cargo-zigbuild --locked
+        fi
+        ensure_cargo_bin rnr --help || cargo install rnr
 
     - name: Create project venv
       shell: bash
@@ -124,12 +155,30 @@ runs:
         make venv
         echo "PYTHON=${{ github.workspace }}/.venv/bin/python" >> "$GITHUB_ENV"
 
+    - name: Verify uv.lock is present and current
+      if: inputs.enable-uv == 'true' && inputs.uv-sync-groups != ''
+      shell: bash
+      run: |
+        cd "$GITHUB_WORKSPACE"
+        if [ ! -f uv.lock ]; then
+          echo "::error::uv.lock is missing. Run 'uv lock' locally and commit uv.lock."
+          exit 1
+        fi
+        uv lock --check
+
+    - name: Sync locked Python dependencies (uv)
+      if: inputs.uv-sync-groups != ''
+      shell: bash
+      env:
+        UV_SYNC_GROUPS: ${{ inputs.uv-sync-groups }}
+      run: make sync-uv-groups
+
     - name: Install Python build dependencies into venv
-      if: inputs.install-python-deps == 'true'
+      if: inputs.install-python-deps == 'true' && inputs.uv-sync-groups == ''
       shell: bash
       run: make install-build-deps
 
     - name: Install wheel-test Python dependencies into venv
-      if: inputs.cache-wheel-test-deps == 'true'
+      if: inputs.cache-wheel-test-deps == 'true' && inputs.uv-sync-groups == ''
       shell: bash
       run: make install-wheel-test-deps

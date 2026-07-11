@@ -38,12 +38,8 @@ jobs:
           cache-venv: 'false'
 
       - name: Prepare wheel bundle
-        env:
-          SKIP_FRONTEND_CLEAN: "1"
         run: |
-          if [ ! -f python/probing/bundled_web/public/index.html ]; then
-            make frontend
-          fi
+          make frontend
           make wheel-bundle nccl-profiler-lib
 
       - name: Build wheels
@@ -77,12 +73,8 @@ jobs:
           cache-venv: 'false'
 
       - name: Prepare wheel bundle
-        env:
-          SKIP_FRONTEND_CLEAN: "1"
         run: |
-          if [ ! -f python/probing/bundled_web/public/index.html ]; then
-            make frontend
-          fi
+          make frontend
           make wheel-bundle
 
       - name: Build wheels
@@ -99,6 +91,48 @@ jobs:
           name: wheels-macos-${{ matrix.target }}
           path: dist
 
+  windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        target: [x64]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-build-env
+        with:
+          python-version: '3.12'
+          install-cargo-tools: 'true'
+          install-python-deps: 'false'
+          cache-venv: 'false'
+          enable-zig: 'false'
+
+      - name: Prepare wheel bundle
+        shell: bash
+        run: |
+          rm -rf python/probing/bundled_web
+          cd web && dx bundle --release
+          test -f python/probing/bundled_web/public/index.html
+          mkdir -p python/probing/bundled_web/public/assets
+          cp -f web/assets/logo.svg python/probing/bundled_web/public/logo.svg 2>/dev/null || true
+          cp -f web/assets/logo.svg python/probing/bundled_web/public/assets/logo.svg 2>/dev/null || true
+          cp -f web/assets/tailwind.css python/probing/bundled_web/public/assets/tailwind.css
+          test -f python/probing/bundled_skills/catalog.yaml
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist --find-interpreter --features extension-module,gpu,gpu-cuda,kmsg
+          sccache: "true"
+          rust-toolchain: stable
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-windows-${{ matrix.target }}
+          path: dist
+
   sdist:
     runs-on: ubuntu-latest
     steps:
@@ -111,12 +145,8 @@ jobs:
           cache-venv: 'false'
 
       - name: Prepare wheel bundle
-        env:
-          SKIP_FRONTEND_CLEAN: "1"
         run: |
-          if [ ! -f python/probing/bundled_web/public/index.html ]; then
-            make frontend
-          fi
+          make frontend
           make wheel-bundle nccl-profiler-lib
 
       - name: Build sdist
@@ -135,7 +165,7 @@ jobs:
   deploy:
     name: Publish to PyPI
     runs-on: ubuntu-latest
-    needs: [linux, macos, sdist]
+    needs: [linux, macos, windows, sdist]
     if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.publish == true)
     steps:
       - uses: actions/download-artifact@v4
