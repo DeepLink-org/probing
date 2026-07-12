@@ -1,0 +1,3593 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Dynamic Performance Profiler for Distributed AI">
+      
+      
+      
+        <link rel="canonical" href="https://github.com/DeepLink-org/probing/zh/design/torch-profiler-sql/">
+      
+      
+        <link rel="prev" href="../profiling/">
+      
+      
+        <link rel="next" href="../overhead/">
+      
+      
+        
+          <link rel="alternate" href="../../../design/torch-profiler-sql/" hreflang="en">
+        
+          <link rel="alternate" href="./" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Torch Profiler SQL（Kineto 虚拟表） - Probing 文档</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/home.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#torch-profiler-sql" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../../" title="Probing 文档" class="md-header__button md-logo" aria-label="Probing 文档" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Probing 文档
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Torch Profiler SQL（Kineto 虚拟表）
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="选择当前语言">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../../design/torch-profiler-sql/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="分享" aria-label="分享" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/DeepLink-org/probing" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    DeepLink-org/probing
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="标签" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../" class="md-tabs__link">
+        
+  
+  
+    
+  
+  首页
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../installation/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  入门
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../guide/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  用户指南
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  架构
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../examples/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  示例
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  参考手册
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../contributing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  贡献指南
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../" title="Probing 文档" class="md-nav__button md-logo" aria-label="Probing 文档" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Probing 文档
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/DeepLink-org/probing" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    DeepLink-org/probing
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    首页
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    入门
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    入门
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    安装指南
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    快速开始
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    核心模型
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../guide/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    用户指南
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    用户指南
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/sql-analytics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQL 分析
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    诊断 Skill
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/memory-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    内存分析
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    现场调试
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    常见问题
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    架构
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    架构
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    平台核心
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    平台核心
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../modularity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    模块化与边界
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-layer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    数据层
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../extensibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    扩展机制
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI 命令树
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    采集与 Profiling
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    采集与 Profiling
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../profiling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    性能分析
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Torch Profiler SQL（Kineto 虚拟表）
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Torch Profiler SQL（Kineto 虚拟表）
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. 设计原则
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. 设计原则">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#11-profiler" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1 需求驱动，而非 Profiler 驱动
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2 与现有诊断栈的分工
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-ssot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. 诊断结论清单（SSOT）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. 诊断结论清单（SSOT）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#q1-gpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q1 — 本步 GPU 时间主要花在哪？
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q2-compute-memcpy-runtime" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q2 — 时间构成：compute / memcpy / runtime / 其他？
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q3-rank-kernel-rank" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q3 — 慢 rank 在 相同 kernel 上比集群中位 rank 慢多少？
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q4-rank-rank" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q4 — 慢 rank 的 热点集合 是否与其他 rank 不同？
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q5-module-kernel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q5 — Module 热点能否对应到底层 kernel？
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q6-rank-rank" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q6 — 这是 全 rank 共性慢 还是 单 rank 异常？
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q7-profile-step-collective" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q7 — Profile 窗口是否与训练 step / collective 对齐？
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q8-profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q8 — 这次 profile 是否可信（截断 / 失败）？
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. 结论 → 虚拟表（最小 schema）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. 结论 → 虚拟表（最小 schema）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-pythonprofile_capture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 python.profile_capture（采集锚点）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-pythonprofile_hotspot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 python.profile_hotspot（结论事实表）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 故意不做的表（v1）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. 分布式分析模式
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. 分布式分析模式">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 标准工作流（推荐）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 联邦契约
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-skills" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 与 skills 的映射（拟议）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. 触发与内存（简述）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. 实现分层
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-adaptor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Adaptor 映射（实现附录）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. 控制面 API（草案）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. 实施阶段（按结论优先级）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. 风险
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. 相关代码（当前）
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overhead/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开销测量
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overhead-invariants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overhead invariants
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nccl-profiler/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    NCCL Profiler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    调试引擎
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../training-phase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    训练阶段
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    分布式
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    分布式
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../distributed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    概览
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../torchrun-cluster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    torchrun 集群心跳
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../federation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    联邦查询引擎
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hierarchical-fanout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    分层集群查询
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cluster-pulsing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    基于 Pulsing 的集群
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    系统架构（旧版）
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../examples/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    示例
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    示例
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/training-debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    训练调试
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/memory-leak/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    内存泄漏
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/performance-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    性能分析
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../reference/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    参考手册
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6" id="__nav_6_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    参考手册
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/sql-tables/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQL 表目录
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI 与 Python API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/env-vars/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    环境变量
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/skill-format/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skill 格式规范
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../versions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    版本兼容性
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    贡献指南
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. 设计原则
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. 设计原则">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#11-profiler" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1 需求驱动，而非 Profiler 驱动
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2 与现有诊断栈的分工
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-ssot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. 诊断结论清单（SSOT）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. 诊断结论清单（SSOT）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#q1-gpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q1 — 本步 GPU 时间主要花在哪？
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q2-compute-memcpy-runtime" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q2 — 时间构成：compute / memcpy / runtime / 其他？
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q3-rank-kernel-rank" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q3 — 慢 rank 在 相同 kernel 上比集群中位 rank 慢多少？
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q4-rank-rank" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q4 — 慢 rank 的 热点集合 是否与其他 rank 不同？
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q5-module-kernel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q5 — Module 热点能否对应到底层 kernel？
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q6-rank-rank" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q6 — 这是 全 rank 共性慢 还是 单 rank 异常？
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q7-profile-step-collective" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q7 — Profile 窗口是否与训练 step / collective 对齐？
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q8-profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q8 — 这次 profile 是否可信（截断 / 失败）？
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. 结论 → 虚拟表（最小 schema）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. 结论 → 虚拟表（最小 schema）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-pythonprofile_capture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 python.profile_capture（采集锚点）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-pythonprofile_hotspot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 python.profile_hotspot（结论事实表）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 故意不做的表（v1）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. 分布式分析模式
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. 分布式分析模式">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 标准工作流（推荐）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 联邦契约
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-skills" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 与 skills 的映射（拟议）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. 触发与内存（简述）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. 实现分层
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-adaptor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Adaptor 映射（实现附录）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. 控制面 API（草案）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. 实施阶段（按结论优先级）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. 风险
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. 相关代码（当前）
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="torch-profiler-sql">Torch Profiler → SQL（结论驱动的虚拟表）<a class="headerlink" href="#torch-profiler-sql" title="Permanent link">&para;</a></h1>
+<p>将按需 <strong><code>torch.profiler</code></strong> 采集变成 <strong>可回答诊断问题的 SQL 能力</strong>，而不是 Kineto 事件的镜像。
+虚拟表从 <strong>「我们想得出什么结论」</strong> 反推 schema；Adaptor 负责把 timeline 填进这些结论槽位。
+完整 Chrome timeline 仍走 HTTP/UI。</p>
+<p>阅读：<a href="../profiling/">性能分析</a>、<a href="../federation/">联邦查询引擎</a>、<a href="../nccl-profiler/">NCCL Profiler</a>。</p>
+<p>英文版：<a href="./">torch-profiler-sql.md</a></p>
+<hr />
+<h2 id="1">1. 设计原则<a class="headerlink" href="#1" title="Permanent link">&para;</a></h2>
+<h3 id="11-profiler">1.1 需求驱动，而非 Profiler 驱动<a class="headerlink" href="#11-profiler" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>❌ 错误起点</th>
+<th>✅ 正确起点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Kineto 有哪些字段就建哪些列</td>
+<td>诊断需要哪些 <strong>结论</strong></td>
+</tr>
+<tr>
+<td><code>traceEvents[]</code> 一行进 SQL 一行</td>
+<td>为结论预聚合 <strong>时间桶（time bucket）</strong></td>
+</tr>
+<tr>
+<td>单节点 timeline 浏览器</td>
+<td><strong>同一 <code>local_step</code> 跨 rank 可比较</strong> 的事实表 + <code>global.*</code></td>
+</tr>
+<tr>
+<td>表名反映实现（<code>profiler_kernel</code>）</td>
+<td>表名反映分析问题（<code>profile_hotspot</code>）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Adaptor 的角色</strong>：在 finalize 时把 Kineto / EventList <strong>编译</strong>成结论事实行；SQL 层不再理解 Chrome JSON。</p>
+<h3 id="12">1.2 与现有诊断栈的分工<a class="headerlink" href="#12" title="Permanent link">&para;</a></h3>
+<pre class="mermaid"><code>flowchart LR
+    subgraph always_on["常开（MEMT）"]
+        TT[torch_trace → 哪个 Module]
+        CC[comm_collective / nccl.* → 通信]
+        SR[slow_rank skill]
+    end
+    subgraph on_demand["按需（虚拟表）"]
+        PH[profile_hotspot → Module 里什么 kernel / 哪类时间]
+        PC[profile_capture → 采集坐标]
+    end
+    SR --&gt;|"锁定 step + rank"| PC
+    TT --&gt;|"锁定 module"| PH
+    CC --&gt;|"对齐 step"| PH</code></pre>
+<table>
+<thead>
+<tr>
+<th>已有结论</th>
+<th>数据源</th>
+<th>Profiler SQL 补什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>哪个 <strong>Module</strong> 慢</td>
+<td><code>python.torch_trace</code></td>
+<td>该 Module 对应哪些 <strong>kernel/op</strong></td>
+</tr>
+<tr>
+<td>哪个 <strong>rank</strong> 慢</td>
+<td><code>slow_rank</code> / <code>global.python.comm_collective</code></td>
+<td>慢 rank 的 <strong>kernel 画像是否不同</strong></td>
+</tr>
+<tr>
+<td>NCCL <strong>culprit/victim</strong></td>
+<td><code>nccl.proxy_ops</code></td>
+<td>慢 rank 上 <strong>compute 是否也异常</strong>（排除/确认 compute-bound）</td>
+</tr>
+<tr>
+<td>训练是否 <strong>整体变慢</strong></td>
+<td><code>torch_step_timing</code></td>
+<td>某步 <strong>GPU 时间构成</strong>（compute/mem/sync/其他）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="2-ssot">2. 诊断结论清单（SSOT）<a class="headerlink" href="#2-ssot" title="Permanent link">&para;</a></h2>
+<p>下列 <strong>Q1–Q8</strong> 是虚拟表必须支撑的结论。实现与 skill 以本表为验收标准。</p>
+<h3 id="q1-gpu">Q1 — 本步 GPU 时间主要花在哪？<a class="headerlink" href="#q1-gpu" title="Permanent link">&para;</a></h3>
+<p><strong>结论</strong>：给定 <code>local_step</code>（或最近一次 capture），按 kernel/op <strong>排序的耗时 Top-K</strong>。</p>
+<p><strong>典型触发</strong>：<code>module_bottleneck</code> 发现热点 module 后的钻取。</p>
+<p><strong>本地 SQL 范式</strong>：</p>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">bucket_name</span><span class="p">,</span><span class="w"> </span><span class="n">bucket_kind</span><span class="p">,</span><span class="w"> </span><span class="n">self_us</span><span class="p">,</span><span class="w"> </span><span class="n">pct_of_capture</span><span class="p">,</span><span class="w"> </span><span class="n">calls</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">profile_hotspot</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">capture_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">@</span><span class="n">capture_id</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">bucket_kind</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;kernel&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;cpu_op&#39;</span><span class="p">)</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">self_us</span><span class="w"> </span><span class="k">DESC</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="k">LIMIT</span><span class="w"> </span><span class="mi">20</span><span class="p">;</span>
+</span></code></pre></div>
+<hr />
+<h3 id="q2-compute-memcpy-runtime">Q2 — 时间构成：compute / memcpy / runtime / 其他？<a class="headerlink" href="#q2-compute-memcpy-runtime" title="Permanent link">&para;</a></h3>
+<p><strong>结论</strong>：一步 profile 窗口内的 <strong>类别占比</strong>（用于判断是算力、访存还是调度）。</p>
+<p><strong>本地 SQL 范式</strong>：</p>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">bucket_kind</span><span class="p">,</span><span class="w"> </span><span class="k">sum</span><span class="p">(</span><span class="n">self_us</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">us</span><span class="p">,</span><span class="w"> </span><span class="k">sum</span><span class="p">(</span><span class="n">pct_of_capture</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">pct</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">profile_hotspot</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">capture_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">@</span><span class="n">capture_id</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">bucket_kind</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">us</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+</span></code></pre></div>
+<p><code>bucket_kind</code> 由 Adaptor 映射（见 §7），不是 Kineto 原始 <code>cat</code> 字段。</p>
+<hr />
+<h3 id="q3-rank-kernel-rank">Q3 — 慢 rank 在 <strong>相同 kernel</strong> 上比集群中位 rank 慢多少？<a class="headerlink" href="#q3-rank-kernel-rank" title="Permanent link">&para;</a></h3>
+<p><strong>结论</strong>：跨节点 <strong>同 step、同 kernel 名</strong> 的 rank 间差异 — 这是「单节点 timeline → 分布式分析」的核心。</p>
+<p><strong>联邦 SQL 范式</strong>：</p>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">WITH</span><span class="w"> </span><span class="n">per_rank</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="k">SELECT</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="n">bucket_name</span><span class="p">,</span><span class="w"> </span><span class="k">sum</span><span class="p">(</span><span class="n">self_us</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">us</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">python</span><span class="p">.</span><span class="n">profile_hotspot</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="k">WHERE</span><span class="w"> </span><span class="n">local_step</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">@</span><span class="n">step</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">bucket_kind</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;kernel&#39;</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="n">bucket_name</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="p">),</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="n">median</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">  </span><span class="k">SELECT</span><span class="w"> </span><span class="n">bucket_name</span><span class="p">,</span><span class="w"> </span><span class="n">median</span><span class="p">(</span><span class="n">us</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">med_us</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">  </span><span class="k">FROM</span><span class="w"> </span><span class="n">per_rank</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">  </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">bucket_name</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="p">)</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">bucket_name</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">us</span><span class="p">,</span>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">       </span><span class="n">m</span><span class="p">.</span><span class="n">med_us</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">us</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">m</span><span class="p">.</span><span class="n">med_us</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">delta_us</span><span class="p">,</span>
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="w">       </span><span class="p">(</span><span class="n">p</span><span class="p">.</span><span class="n">us</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">m</span><span class="p">.</span><span class="n">med_us</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="k">nullif</span><span class="p">(</span><span class="n">m</span><span class="p">.</span><span class="n">med_us</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">delta_ratio</span>
+</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="k">FROM</span><span class="w"> </span><span class="n">per_rank</span><span class="w"> </span><span class="n">p</span>
+</span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="k">JOIN</span><span class="w"> </span><span class="n">median</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">bucket_name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">m</span><span class="p">.</span><span class="n">bucket_name</span>
+</span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">us</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">m</span><span class="p">.</span><span class="n">med_us</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">1</span><span class="p">.</span><span class="mi">2</span>
+</span><span id="__span-2-18"><a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">delta_us</span><span class="w"> </span><span class="k">DESC</span>
+</span><span id="__span-2-19"><a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="k">LIMIT</span><span class="w"> </span><span class="mi">30</span><span class="p">;</span>
+</span></code></pre></div>
+<p><strong>解读</strong>：</p>
+<ul>
+<li><code>delta_ratio</code> 大且仅个别 rank → <strong>straggler 型</strong> kernel 慢（数据/卡/调度）</li>
+<li>所有 rank 都高 → <strong>算法/输入</strong> 共性慢（非 straggler）</li>
+</ul>
+<hr />
+<h3 id="q4-rank-rank">Q4 — 慢 rank 的 <strong>热点集合</strong> 是否与其他 rank 不同？<a class="headerlink" href="#q4-rank-rank" title="Permanent link">&para;</a></h3>
+<p><strong>结论</strong>：不仅「同一个 kernel 更慢」，还有「慢 rank 多了哪些 kernel / 少了哪些 kernel」。</p>
+<p><strong>联邦 SQL 范式</strong>（慢 rank 来自 <code>slow_rank</code> 或人工指定 <code>@slow_rank</code>）：</p>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">h</span><span class="p">.</span><span class="n">bucket_name</span><span class="p">,</span><span class="w"> </span><span class="n">h</span><span class="p">.</span><span class="n">self_us</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">slow_us</span><span class="p">,</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">       </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="k">sum</span><span class="p">(</span><span class="n">self_us</span><span class="p">)</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">python</span><span class="p">.</span><span class="n">profile_hotspot</span><span class="w"> </span><span class="k">g</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">        </span><span class="k">WHERE</span><span class="w"> </span><span class="k">g</span><span class="p">.</span><span class="n">local_step</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">@</span><span class="n">step</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="k">g</span><span class="p">.</span><span class="n">bucket_name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">h</span><span class="p">.</span><span class="n">bucket_name</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">          </span><span class="k">AND</span><span class="w"> </span><span class="k">g</span><span class="p">.</span><span class="n">_rank</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">@</span><span class="n">median_rank</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">median_rank_us</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">python</span><span class="p">.</span><span class="n">profile_hotspot</span><span class="w"> </span><span class="n">h</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">h</span><span class="p">.</span><span class="n">local_step</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">@</span><span class="n">step</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">h</span><span class="p">.</span><span class="n">_rank</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">@</span><span class="n">slow_rank</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">slow_us</span><span class="w"> </span><span class="k">DESC</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="k">LIMIT</span><span class="w"> </span><span class="mi">20</span><span class="p">;</span>
+</span></code></pre></div>
+<hr />
+<h3 id="q5-module-kernel">Q5 — Module 热点能否对应到底层 kernel？<a class="headerlink" href="#q5-module-kernel" title="Permanent link">&para;</a></h3>
+<p><strong>结论</strong>：把 <code>torch_trace</code> 的 module 级慢点与 profile 窗口内的 op/kernel <strong>关联</strong>（v1 以 <strong>同一步、时间邻域</strong> 为主；精确栈映射为 v2）。</p>
+<p><strong>本地 SQL 范式</strong>：</p>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="n">module</span><span class="p">,</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="n">duration</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">module_ms</span><span class="p">,</span><span class="w"> </span><span class="n">h</span><span class="p">.</span><span class="n">bucket_name</span><span class="p">,</span><span class="w"> </span><span class="n">h</span><span class="p">.</span><span class="n">self_us</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">1</span><span class="n">e3</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">kernel_ms</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span><span class="w"> </span><span class="n">t</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="k">JOIN</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">profile_capture</span><span class="w"> </span><span class="k">c</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="n">local_step</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="n">local_step</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="k">JOIN</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">profile_hotspot</span><span class="w"> </span><span class="n">h</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">h</span><span class="p">.</span><span class="n">capture_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="n">capture_id</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="n">local_step</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">@</span><span class="n">step</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="n">stage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;post forward&#39;</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="n">duration</span><span class="w"> </span><span class="k">DESC</span><span class="p">,</span><span class="w"> </span><span class="n">h</span><span class="p">.</span><span class="n">self_us</span><span class="w"> </span><span class="k">DESC</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="k">LIMIT</span><span class="w"> </span><span class="mi">50</span><span class="p">;</span>
+</span></code></pre></div>
+<p>v2：Adaptor 在 <code>with_stack=true</code> 时填充 <code>module_hint</code> 列，支持等值 JOIN。</p>
+<hr />
+<h3 id="q6-rank-rank">Q6 — 这是 <strong>全 rank 共性慢</strong> 还是 <strong>单 rank 异常</strong>？<a class="headerlink" href="#q6-rank-rank" title="Permanent link">&para;</a></h3>
+<p><strong>结论</strong>：对同一 <code>bucket_name</code>，看跨 rank 的 <strong>离散度</strong>（std / max-min）。</p>
+<p><strong>联邦 SQL 范式</strong>：</p>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">bucket_name</span><span class="p">,</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">       </span><span class="k">min</span><span class="p">(</span><span class="n">self_us</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">min_us</span><span class="p">,</span><span class="w"> </span><span class="k">max</span><span class="p">(</span><span class="n">self_us</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">max_us</span><span class="p">,</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">       </span><span class="k">max</span><span class="p">(</span><span class="n">self_us</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="k">min</span><span class="p">(</span><span class="n">self_us</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">spread_us</span><span class="p">,</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">       </span><span class="k">count</span><span class="p">(</span><span class="k">DISTINCT</span><span class="w"> </span><span class="n">_rank</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">ranks_seen</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">python</span><span class="p">.</span><span class="n">profile_hotspot</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">local_step</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">@</span><span class="n">step</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">bucket_kind</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;kernel&#39;</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">bucket_name</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="k">HAVING</span><span class="w"> </span><span class="n">spread_us</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="o">@</span><span class="n">threshold</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">spread_us</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+</span></code></pre></div>
+<hr />
+<h3 id="q7-profile-step-collective">Q7 — Profile 窗口是否与训练 step / collective <strong>对齐</strong>？<a class="headerlink" href="#q7-profile-step-collective" title="Permanent link">&para;</a></h3>
+<p><strong>结论</strong>：确认 capture 的 <code>local_step</code> / <code>global_step</code> 与通信、module trace <strong>同一坐标系</strong>，避免「拿错步」下结论。</p>
+<p><strong>SQL 范式</strong>：</p>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="n">capture_id</span><span class="p">,</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="n">local_step</span><span class="p">,</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="n">global_step</span><span class="p">,</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="n">rank</span><span class="p">,</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="k">trigger</span><span class="p">,</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">       </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="k">max</span><span class="p">(</span><span class="n">local_step</span><span class="p">)</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">latest_torch_step</span><span class="p">,</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">       </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="k">count</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">        </span><span class="k">WHERE</span><span class="w"> </span><span class="n">global_step</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="n">global_step</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">coll_rows</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">profile_capture</span><span class="w"> </span><span class="k">c</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="k">c</span><span class="p">.</span><span class="n">ended_at_us</span><span class="w"> </span><span class="k">DESC</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="k">LIMIT</span><span class="w"> </span><span class="mi">5</span><span class="p">;</span>
+</span></code></pre></div>
+<hr />
+<h3 id="q8-profile">Q8 — 这次 profile 是否可信（截断 / 失败）？<a class="headerlink" href="#q8-profile" title="Permanent link">&para;</a></h3>
+<p><strong>结论</strong>：Agent 在出结论前必须检查 <strong>数据质量</strong>。</p>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">capture_id</span><span class="p">,</span><span class="w"> </span><span class="n">status</span><span class="p">,</span><span class="w"> </span><span class="n">truncated</span><span class="p">,</span><span class="w"> </span><span class="n">event_count</span><span class="p">,</span><span class="w"> </span><span class="n">error</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">profile_capture</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">capture_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">@</span><span class="n">capture_id</span><span class="p">;</span>
+</span></code></pre></div>
+<p><code>truncated = true</code> 时 Q1–Q6 仅作 <strong>方向性</strong> 参考，skill 应降级表述。</p>
+<hr />
+<h2 id="3-schema">3. 结论 → 虚拟表（最小 schema）<a class="headerlink" href="#3-schema" title="Permanent link">&para;</a></h2>
+<p>只为支撑 §2 的查询，定义 <strong>两张核心虚拟表</strong>（+ 联邦镜像）。<strong>不</strong>暴露原始 event 表为 v1 默认面。</p>
+<h3 id="31-pythonprofile_capture">3.1 <code>python.profile_capture</code>（采集锚点）<a class="headerlink" href="#31-pythonprofile_capture" title="Permanent link">&para;</a></h3>
+<p>一次 <code>torch.profiler</code> 窗口 = 一行。联邦 JOIN 的 <strong>主键锚点</strong>。</p>
+<table>
+<thead>
+<tr>
+<th>列</th>
+<th>类型</th>
+<th>服务于</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>capture_id</code></td>
+<td>text</td>
+<td>Q1–Q8 过滤</td>
+</tr>
+<tr>
+<td><code>local_step</code>, <code>global_step</code></td>
+<td>int</td>
+<td>与 torch_trace / comm / nccl 对齐（Q5、Q7）</td>
+</tr>
+<tr>
+<td><code>rank</code>, <code>world_size</code>, <code>role</code></td>
+<td></td>
+<td>分布式坐标</td>
+</tr>
+<tr>
+<td><code>trigger</code></td>
+<td>text</td>
+<td>审计（skill / manual）</td>
+</tr>
+<tr>
+<td><code>steps_profiled</code></td>
+<td>int</td>
+<td>窗口长度</td>
+</tr>
+<tr>
+<td><code>wall_us</code></td>
+<td>bigint</td>
+<td>Q2 分母</td>
+</tr>
+<tr>
+<td><code>started_at_us</code>, <code>ended_at_us</code></td>
+<td>bigint</td>
+<td>时间</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>text</td>
+<td>Q8</td>
+</tr>
+<tr>
+<td><code>truncated</code></td>
+<td>bool</td>
+<td>Q8</td>
+</tr>
+<tr>
+<td><code>event_count</code></td>
+<td>int</td>
+<td>Q8</td>
+</tr>
+<tr>
+<td><code>error</code></td>
+<td>text</td>
+<td>Q8</td>
+</tr>
+</tbody>
+</table>
+<p>联邦：<code>global.python.profile_capture</code> + <code>_host</code>, <code>_addr</code>, <code>_rank</code>, <code>_role</code>。</p>
+<h3 id="32-pythonprofile_hotspot">3.2 <code>python.profile_hotspot</code>（结论事实表）<a class="headerlink" href="#32-pythonprofile_hotspot" title="Permanent link">&para;</a></h3>
+<p><strong>一行 = 在一个 capture、一个 rank 上，一个时间桶的聚合结果。</strong></p>
+<table>
+<thead>
+<tr>
+<th>列</th>
+<th>类型</th>
+<th>服务于</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>capture_id</code></td>
+<td>text</td>
+<td>关联 capture</td>
+</tr>
+<tr>
+<td><code>local_step</code>, <code>global_step</code></td>
+<td>int</td>
+<td>无 capture_id 时按 step 查（Q3、Q6）</td>
+</tr>
+<tr>
+<td><code>rank</code></td>
+<td>int</td>
+<td>本地；联邦用 <code>_rank</code></td>
+</tr>
+<tr>
+<td><code>bucket_kind</code></td>
+<td>text</td>
+<td>Q2 — 见下表</td>
+</tr>
+<tr>
+<td><code>bucket_name</code></td>
+<td>text</td>
+<td>Q1、Q3、Q4、Q6</td>
+</tr>
+<tr>
+<td><code>self_us</code></td>
+<td>bigint</td>
+<td><strong>主排序指标</strong> — 不含子节点重叠（优先 Kineto self）</td>
+</tr>
+<tr>
+<td><code>wall_us</code></td>
+<td>bigint</td>
+<td>含子树 wall time（可选对比）</td>
+</tr>
+<tr>
+<td><code>calls</code></td>
+<td>int</td>
+<td>调用次数</td>
+</tr>
+<tr>
+<td><code>pct_of_capture</code></td>
+<td>double</td>
+<td>Q1、Q2 — <code>self_us / capture.wall_us</code></td>
+</tr>
+<tr>
+<td><code>module_hint</code></td>
+<td>text</td>
+<td>Q5（v2，stack 开启时）</td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>bucket_kind</code> 枚举（Adaptor 映射，非 Kineto 原文）</strong>：</p>
+<table>
+<thead>
+<tr>
+<th><code>bucket_kind</code></th>
+<th>含义</th>
+<th>典型结论</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kernel</code></td>
+<td>CUDA kernel</td>
+<td>Q1、Q3、Q6</td>
+</tr>
+<tr>
+<td><code>cpu_op</code></td>
+<td>ATen CPU op</td>
+<td>Q1</td>
+</tr>
+<tr>
+<td><code>cuda_runtime</code></td>
+<td>CUDA API / sync</td>
+<td>Q2 — 调度/同步瓶颈</td>
+</tr>
+<tr>
+<td><code>memcpy</code></td>
+<td>D2D/H2D 等</td>
+<td>Q2 — 访存</td>
+</tr>
+<tr>
+<td><code>collective</code></td>
+<td>若 Kineto 标出 NCCL kernel</td>
+<td>与 <code>nccl.*</code> 交叉验证</td>
+</tr>
+<tr>
+<td><code>other</code></td>
+<td>未分类</td>
+<td>兜底</td>
+</tr>
+</tbody>
+</table>
+<p>联邦：<code>global.python.profile_hotspot</code> — <strong>Q3–Q6 的主战场</strong>。</p>
+<h3 id="33-v1">3.3 故意不做的表（v1）<a class="headerlink" href="#33-v1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>不做</th>
+<th>原因</th>
+<th>替代</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>原始 <code>traceEvents</code> 表</td>
+<td>百万行、无结论</td>
+<td>HTTP timeline</td>
+</tr>
+<tr>
+<td>按 Kineto <code>pid/tid</code> 镜像</td>
+<td>对运维无意义</td>
+<td><code>bucket_kind</code></td>
+</tr>
+<tr>
+<td>预计算 <code>rank_delta</code> 表</td>
+<td>结论应留在 SQL/skill 层灵活组合</td>
+<td>§2 范式查询</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="4">4. 分布式分析模式<a class="headerlink" href="#4" title="Permanent link">&para;</a></h2>
+<h3 id="41">4.1 标准工作流（推荐）<a class="headerlink" href="#41" title="Permanent link">&para;</a></h3>
+<pre class="mermaid"><code>sequenceDiagram
+    participant S as slow_rank / module_bottleneck
+    participant T as profile/start（协调 step）
+    participant R as 各 rank 训练进程
+    participant Q as global.* 查询
+
+    S-&gt;&gt;T: 锁定 local_step=@step, slow_rank=@r
+    T-&gt;&gt;R: 在 step=@step 采集 1 步（v2 协调）
+    R-&gt;&gt;R: Adaptor → profile_capture + profile_hotspot
+    Q-&gt;&gt;Q: Q3/Q4/Q6 联邦 SQL
+    Q-&gt;&gt;S: 结论：kernel X 在 rank R 上 delta_ratio=1.8</code></pre>
+<h3 id="42">4.2 联邦契约<a class="headerlink" href="#42" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>规则</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>对齐键</strong></td>
+<td>优先 <code>local_step</code> + <code>capture_id</code>；跨 rank 同一「诊断动作」应共享 <code>trigger</code> 与 <code>global_step</code></td>
+</tr>
+<tr>
+<td><strong>缺失 rank</strong></td>
+<td>无 capture 的 rank 不参与聚合；<code>PROBING_FANOUT_STRICT</code> 行为与现网一致</td>
+</tr>
+<tr>
+<td><strong>列标签</strong></td>
+<td><code>_rank</code>, <code>_host</code>, <code>_role</code> 用于 Q3–Q6，不写入本地表</td>
+</tr>
+<tr>
+<td><strong>与 NCCL 联立</strong></td>
+<td>同一 <code>global_step</code> 上 JOIN <code>global.nccl.proxy_ops</code>（时间窗口 JOIN 为 v2）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="43-skills">4.3 与 skills 的映射（拟议）<a class="headerlink" href="#43-skills" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Skill</th>
+<th>先决 skill</th>
+<th>支撑的结论</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kernel_bottleneck</code>（新）</td>
+<td><code>module_bottleneck</code> 或人工</td>
+<td>Q1、Q2、Q5</td>
+</tr>
+<tr>
+<td><code>kernel_straggler</code>（新）</td>
+<td><code>slow_rank</code></td>
+<td>Q3、Q4、Q6</td>
+</tr>
+<tr>
+<td><code>health_overview</code>（扩展）</td>
+<td>—</td>
+<td>Q7、Q8 元数据行</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="5">5. 触发与内存（简述）<a class="headerlink" href="#5" title="Permanent link">&para;</a></h2>
+<p>结论能力的前提是一次 <strong>短窗口、可对齐</strong> 的采集。</p>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>设计</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>触发</td>
+<td>HTTP <code>profile/start</code>、REPL、MCP、skill 链式调用</td>
+</tr>
+<tr>
+<td>窗口</td>
+<td>默认 <code>steps=1</code>，绑定 <code>local_step</code> 写入 <code>profile_capture</code></td>
+</tr>
+<tr>
+<td>存储</td>
+<td>进程内 Session；Adaptor <strong>只产出 §3 两张表</strong> 的行缓存</td>
+</tr>
+<tr>
+<td>上限</td>
+<td><code>PROBING_TORCH_PROFILER_MAX_SESSIONS</code> 等；截断时 <code>truncated=true</code>，保留 hotspot 聚合</td>
+</tr>
+<tr>
+<td>Chrome</td>
+<td>仅 UI；不进 SQL</td>
+</tr>
+</tbody>
+</table>
+<p>v2：<strong>协调式触发</strong> — 所有 rank 在同一 <code>local_step</code> 采集，使 Q3–Q6 语义严格成立。</p>
+<hr />
+<h2 id="6">6. 实现分层<a class="headerlink" href="#6" title="Permanent link">&para;</a></h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>需求 / SQL 范式（本文 §2）
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>        ↓
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>虚拟表 schema（§3）← TableProvider / global.*
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>        ↓
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>KinetoSqlAdaptor：timeline → profile_capture + profile_hotspot 行
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>        ↓
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>ProfilerController + SessionStore + torch.profiler 原始产物
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>路径（拟议）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>L2 控制 + 适配</td>
+<td><code>python/probing/profiling/torch_profiler/</code></td>
+</tr>
+<tr>
+<td>L1 注册</td>
+<td><code>ProbeDataSource</code> / <code>TableProvider</code></td>
+</tr>
+<tr>
+<td>L4 skill</td>
+<td><code>skills/kernel_bottleneck/</code>, <code>skills/kernel_straggler/</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="7-adaptor">7. Adaptor 映射（实现附录）<a class="headerlink" href="#7-adaptor" title="Permanent link">&para;</a></h2>
+<p>Kineto 是 <strong>输入格式</strong>，不是 <strong>输出 schema</strong>。</p>
+<table>
+<thead>
+<tr>
+<th>Kineto / profiler 来源</th>
+<th>→ <code>profile_hotspot</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CUDA kernel 名</td>
+<td><code>bucket_kind=kernel</code>, <code>bucket_name=name</code></td>
+</tr>
+<tr>
+<td>ATen op</td>
+<td><code>bucket_kind=cpu_op</code></td>
+</tr>
+<tr>
+<td><code>cudaMemcpy*</code> 等</td>
+<td><code>bucket_kind=memcpy</code></td>
+</tr>
+<tr>
+<td><code>cudaDeviceSynchronize</code> 等</td>
+<td><code>bucket_kind=cuda_runtime</code></td>
+</tr>
+<tr>
+<td><code>nccl*</code> kernel 名</td>
+<td><code>bucket_kind=collective</code></td>
+</tr>
+<tr>
+<td><code>self_cuda_time</code> / <code>self_cpu_time</code></td>
+<td><code>self_us</code></td>
+</tr>
+<tr>
+<td><code>cuda_time_total</code></td>
+<td><code>wall_us</code></td>
+</tr>
+<tr>
+<td><code>count</code></td>
+<td><code>calls</code></td>
+</tr>
+</tbody>
+</table>
+<p>Chrome <code>traceEvents</code> 仅在 EventList 不可用时作 fallback 解析，产出 <strong>相同 hotspot 行</strong>。</p>
+<hr />
+<h2 id="8-api">8. 控制面 API（草案）<a class="headerlink" href="#8-api" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>路径</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST</code></td>
+<td><code>/apis/pythonext/pytorch/profile/start</code> — body 含 <code>trigger</code>, <code>steps</code>, <code>align_step</code></td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/apis/pythonext/pytorch/profile/stop</code></td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/apis/pythonext/pytorch/profile/status</code></td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/apis/pythonext/pytorch/timeline</code> — Chrome，服务 UI</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="9">9. 实施阶段（按结论优先级）<a class="headerlink" href="#9" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>交付</th>
+<th>验收结论</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>P0</strong></td>
+<td>Controller + SessionStore + Adaptor 产出 hotspot 行</td>
+<td>Q1、Q2、Q8 本地 SQL</td>
+</tr>
+<tr>
+<td><strong>P1</strong></td>
+<td><code>profile_capture</code> / <code>profile_hotspot</code> 虚拟表 + 本地 SQL</td>
+<td>Q5、Q7</td>
+</tr>
+<tr>
+<td><strong>P2</strong></td>
+<td><code>global.*</code> + skill <code>kernel_bottleneck</code></td>
+<td>Q1–Q2 联邦可选</td>
+</tr>
+<tr>
+<td><strong>P3</strong></td>
+<td>skill <code>kernel_straggler</code> + 协调 step 触发</td>
+<td>Q3、Q4、Q6</td>
+</tr>
+<tr>
+<td><strong>P4</strong></td>
+<td><code>module_hint</code> + 与 nccl 时间联立</td>
+<td>Q5 精确化</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="10">10. 风险<a class="headerlink" href="#10" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>风险</th>
+<th>缓解</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>结论误导（错 step）</td>
+<td><code>profile_capture</code> 强制写 step；Q7 查询模板</td>
+</tr>
+<tr>
+<td>联邦不对齐</td>
+<td>v2 协调触发；skill 检查 <code>ranks_seen</code></td>
+</tr>
+<tr>
+<td>过度依赖 self_us</td>
+<td>文档说明与 <code>wall_us</code> 差异；Chrome 钻取</td>
+</tr>
+<tr>
+<td>Profiler 扰动</td>
+<td>短窗口、skill 明示「干预性测量」</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="11">11. 相关代码（当前）<a class="headerlink" href="#11" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>路径</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>REPL profiler</td>
+<td><code>python/probing/repl/torch_magic.py</code></td>
+</tr>
+<tr>
+<td>HTTP timeline</td>
+<td><code>python/probing/handlers/pythonext.py</code></td>
+</tr>
+<tr>
+<td>模块级结论</td>
+<td><code>skills/module_bottleneck/</code></td>
+</tr>
+<tr>
+<td>Rank 级结论</td>
+<td><code>skills/slow_rank/</code></td>
+</tr>
+<tr>
+<td>虚拟表基础设施</td>
+<td><code>probing/core/src/core/data_source.rs</code></td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  回到页面顶部
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      © 2025–2026 Probing. All rights reserved.
+    </div>
+  
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/DeepLink-org/probing" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://pypi.org/project/probing/" target="_blank" rel="noopener" title="pypi.org" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.8 200.5c-7.7-30.9-22.3-54.2-53.4-54.2h-40.1v47.4c0 36.8-31.2 67.8-66.8 67.8H172.7c-29.2 0-53.4 25-53.4 54.3v101.8c0 29 25.2 46 53.4 54.3 33.8 9.9 66.3 11.7 106.8 0 26.9-7.8 53.4-23.5 53.4-54.3v-40.7H226.2v-13.6h160.2c31.1 0 42.6-21.7 53.4-54.2 11.2-33.5 10.7-65.7 0-108.6M286.2 444.7a20.4 20.4 0 1 1 0-40.7 20.4 20.4 0 1 1 0 40.7M167.8 248.1h106.8c29.7 0 53.4-24.5 53.4-54.3V91.9c0-29-24.4-50.7-53.4-55.6-35.8-5.9-74.7-5.6-106.8.1-45.2 8-53.4 24.7-53.4 55.6v40.7h106.9v13.6h-147c-31.1 0-58.3 18.7-66.8 54.2-9.8 40.7-10.2 66.1 0 108.6 7.6 31.6 25.7 54.2 56.8 54.2H101v-48.8c0-35.3 30.5-66.4 66.8-66.4m-6.6-183.4a20.4 20.4 0 1 1 0 40.8 20.4 20.4 0 1 1 0-40.8"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.sections", "navigation.indexes", "navigation.tracking", "navigation.top", "search.highlight", "search.share", "content.code.copy", "content.code.annotate"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

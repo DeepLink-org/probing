@@ -155,6 +155,13 @@
         <xhtml:link rel="alternate" hreflang="zh" href="https://github.com/DeepLink-org/probing/zh/design/profiling/"/>
     </url>
     <url>
+        <loc>https://github.com/DeepLink-org/probing/design/torch-profiler-sql/</loc>
+        <lastmod>2026-07-12</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://github.com/DeepLink-org/probing/design/torch-profiler-sql/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://github.com/DeepLink-org/probing/zh/design/torch-profiler-sql/"/>
+    </url>
+    <url>
         <loc>https://github.com/DeepLink-org/probing/design/torchrun-cluster/</loc>
         <lastmod>2026-07-12</lastmod>
         <changefreq>daily</changefreq>
@@ -433,6 +440,13 @@
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="zh" href="https://github.com/DeepLink-org/probing/zh/design/profiling/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://github.com/DeepLink-org/probing/design/profiling/"/>
+    </url>
+    <url>
+        <loc>https://github.com/DeepLink-org/probing/zh/design/torch-profiler-sql/</loc>
+        <lastmod>2026-07-12</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://github.com/DeepLink-org/probing/zh/design/torch-profiler-sql/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://github.com/DeepLink-org/probing/design/torch-profiler-sql/"/>
     </url>
     <url>
         <loc>https://github.com/DeepLink-org/probing/zh/design/torchrun-cluster/</loc>

@@ -10,19 +10,19 @@
       
       
       
-        <link rel="canonical" href="https://github.com/DeepLink-org/probing/design/profiling/">
+        <link rel="canonical" href="https://github.com/DeepLink-org/probing/design/torch-profiler-sql/">
       
       
-        <link rel="prev" href="../cli/">
+        <link rel="prev" href="../profiling/">
       
       
-        <link rel="next" href="../torch-profiler-sql/">
+        <link rel="next" href="../overhead/">
       
       
         
           <link rel="alternate" href="./" hreflang="en">
         
-          <link rel="alternate" href="../../zh/design/profiling/" hreflang="zh">
+          <link rel="alternate" href="../../zh/design/torch-profiler-sql/" hreflang="zh">
         
       
       
@@ -31,7 +31,7 @@
     
     
       
-        <title>Profiling - Probing Documentation</title>
+        <title>Torch Profiler SQL - Probing Documentation</title>
       
     
     
@@ -86,7 +86,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#profiling-implementation" class="md-skip">
+        <a href="#torch-profiler-sql-conclusion-driven-virtual-tables" class="md-skip">
           Skip to content
         </a>
       
@@ -120,7 +120,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Profiling
+              Torch Profiler SQL
             
           </span>
         </div>
@@ -173,7 +173,7 @@
           </li>
         
           <li class="md-select__item">
-            <a href="../../zh/design/profiling/" hreflang="zh" class="md-select__link">
+            <a href="../../zh/design/torch-profiler-sql/" hreflang="zh" class="md-select__link">
               中文
             </a>
           </li>
@@ -1195,6 +1195,34 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../profiling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Profiling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -1214,7 +1242,7 @@
   <span class="md-ellipsis">
     
   
-    Profiling
+    Torch Profiler SQL
   
 
     
@@ -1232,7 +1260,7 @@
   <span class="md-ellipsis">
     
   
-    Profiling
+    Torch Profiler SQL
   
 
     
@@ -1258,44 +1286,22 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#overview" class="md-nav__link">
+  <a href="#1-design-principles" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Overview
+        1. Design principles
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#data-collection-architecture" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Data Collection Architecture
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#pytorch-profiling-torchprobe" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        PyTorch Profiling (TorchProbe)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="PyTorch Profiling (TorchProbe)">
+    <nav class="md-nav" aria-label="1. Design principles">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#design" class="md-nav__link">
+  <a href="#11-needs-first-not-profiler-first" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Design
+        1.1 Needs-first, not profiler-first
       
     </span>
   </a>
@@ -1303,65 +1309,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#hooks" class="md-nav__link">
+  <a href="#12-fit-in-the-existing-diagnostic-stack" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Hooks
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#sampling" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Sampling
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#nccl-profiler-overhead" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        NCCL profiler overhead
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#collected-data-pythontorch_trace" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Collected Data (python.torch_trace)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#collective-rows-pythoncomm_collective" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Collective rows (python.comm_collective)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#enable-pytorch-profiling" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Enable PyTorch Profiling
+        1.2 Fit in the existing diagnostic stack
       
     </span>
   </a>
@@ -1374,22 +1325,99 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#python-stack-profiling" class="md-nav__link">
+  <a href="#2-diagnostic-conclusions-catalog-ssot" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Python Stack Profiling
+        2. Diagnostic conclusions catalog (SSOT)
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Python Stack Profiling">
+    <nav class="md-nav" aria-label="2. Diagnostic conclusions catalog (SSOT)">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#backtrace-collection" class="md-nav__link">
+  <a href="#q1-where-does-gpu-time-go-on-this-step" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Backtrace Collection
+        Q1 — Where does GPU time go on this step?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q2-time-composition-compute-memcpy-runtime-other" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q2 — Time composition: compute / memcpy / runtime / other?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q3-how-much-slower-is-a-rank-on-the-same-kernel-vs-cluster-median" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q3 — How much slower is a rank on the same kernel vs cluster median?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q4-does-the-slow-rank-have-a-different-hotspot-set" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q4 — Does the slow rank have a different hotspot set?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q5-can-module-hotspots-be-tied-to-kernels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q5 — Can module hotspots be tied to kernels?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q6-shared-slowness-vs-single-rank-anomaly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q6 — Shared slowness vs single-rank anomaly?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q7-is-the-capture-aligned-with-the-right-training-step-collectives" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q7 — Is the capture aligned with the right training step / collectives?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q8-is-this-capture-trustworthy-truncated-failed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q8 — Is this capture trustworthy (truncated / failed)?
       
     </span>
   </a>
@@ -1402,10 +1430,110 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#system-metrics" class="md-nav__link">
+  <a href="#3-conclusions-virtual-tables-minimal-schema" class="md-nav__link">
     <span class="md-ellipsis">
       
-        System Metrics
+        3. Conclusions → virtual tables (minimal schema)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Conclusions → virtual tables (minimal schema)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-pythonprofile_capture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 python.profile_capture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-pythonprofile_hotspot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 python.profile_hotspot
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-intentionally-omitted-v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 Intentionally omitted (v1)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-distributed-analysis-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Distributed analysis patterns
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Distributed analysis patterns">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-recommended-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Recommended workflow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-federation-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 Federation contract
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-planned-skills" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 Planned skills
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-trigger-and-memory-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Trigger and memory (summary)
       
     </span>
   </a>
@@ -1413,10 +1541,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#data-storage" class="md-nav__link">
+  <a href="#6-implementation-layering" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Data Storage
+        6. Implementation layering
       
     </span>
   </a>
@@ -1424,10 +1552,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#query-interface" class="md-nav__link">
+  <a href="#7-adaptor-mapping-appendix" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Query Interface
+        7. Adaptor mapping (appendix)
       
     </span>
   </a>
@@ -1435,10 +1563,43 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#performance-overhead" class="md-nav__link">
+  <a href="#8-control-api-draft" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Performance Overhead
+        8. Control API (draft)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-implementation-phases-by-conclusion-priority" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Implementation phases (by conclusion priority)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-risks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Risks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-related-code-today" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. Related code (today)
       
     </span>
   </a>
@@ -1449,34 +1610,6 @@
   
 </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../torch-profiler-sql/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Torch Profiler SQL
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -2322,44 +2455,22 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#overview" class="md-nav__link">
+  <a href="#1-design-principles" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Overview
+        1. Design principles
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#data-collection-architecture" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Data Collection Architecture
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#pytorch-profiling-torchprobe" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        PyTorch Profiling (TorchProbe)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="PyTorch Profiling (TorchProbe)">
+    <nav class="md-nav" aria-label="1. Design principles">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#design" class="md-nav__link">
+  <a href="#11-needs-first-not-profiler-first" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Design
+        1.1 Needs-first, not profiler-first
       
     </span>
   </a>
@@ -2367,65 +2478,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#hooks" class="md-nav__link">
+  <a href="#12-fit-in-the-existing-diagnostic-stack" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Hooks
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#sampling" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Sampling
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#nccl-profiler-overhead" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        NCCL profiler overhead
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#collected-data-pythontorch_trace" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Collected Data (python.torch_trace)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#collective-rows-pythoncomm_collective" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Collective rows (python.comm_collective)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#enable-pytorch-profiling" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Enable PyTorch Profiling
+        1.2 Fit in the existing diagnostic stack
       
     </span>
   </a>
@@ -2438,22 +2494,99 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#python-stack-profiling" class="md-nav__link">
+  <a href="#2-diagnostic-conclusions-catalog-ssot" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Python Stack Profiling
+        2. Diagnostic conclusions catalog (SSOT)
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Python Stack Profiling">
+    <nav class="md-nav" aria-label="2. Diagnostic conclusions catalog (SSOT)">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#backtrace-collection" class="md-nav__link">
+  <a href="#q1-where-does-gpu-time-go-on-this-step" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Backtrace Collection
+        Q1 — Where does GPU time go on this step?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q2-time-composition-compute-memcpy-runtime-other" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q2 — Time composition: compute / memcpy / runtime / other?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q3-how-much-slower-is-a-rank-on-the-same-kernel-vs-cluster-median" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q3 — How much slower is a rank on the same kernel vs cluster median?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q4-does-the-slow-rank-have-a-different-hotspot-set" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q4 — Does the slow rank have a different hotspot set?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q5-can-module-hotspots-be-tied-to-kernels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q5 — Can module hotspots be tied to kernels?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q6-shared-slowness-vs-single-rank-anomaly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q6 — Shared slowness vs single-rank anomaly?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q7-is-the-capture-aligned-with-the-right-training-step-collectives" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q7 — Is the capture aligned with the right training step / collectives?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q8-is-this-capture-trustworthy-truncated-failed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q8 — Is this capture trustworthy (truncated / failed)?
       
     </span>
   </a>
@@ -2466,10 +2599,110 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#system-metrics" class="md-nav__link">
+  <a href="#3-conclusions-virtual-tables-minimal-schema" class="md-nav__link">
     <span class="md-ellipsis">
       
-        System Metrics
+        3. Conclusions → virtual tables (minimal schema)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Conclusions → virtual tables (minimal schema)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-pythonprofile_capture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 python.profile_capture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-pythonprofile_hotspot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 python.profile_hotspot
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-intentionally-omitted-v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 Intentionally omitted (v1)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-distributed-analysis-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Distributed analysis patterns
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Distributed analysis patterns">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-recommended-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Recommended workflow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-federation-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 Federation contract
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-planned-skills" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 Planned skills
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-trigger-and-memory-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Trigger and memory (summary)
       
     </span>
   </a>
@@ -2477,10 +2710,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#data-storage" class="md-nav__link">
+  <a href="#6-implementation-layering" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Data Storage
+        6. Implementation layering
       
     </span>
   </a>
@@ -2488,10 +2721,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#query-interface" class="md-nav__link">
+  <a href="#7-adaptor-mapping-appendix" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Query Interface
+        7. Adaptor mapping (appendix)
       
     </span>
   </a>
@@ -2499,10 +2732,43 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#performance-overhead" class="md-nav__link">
+  <a href="#8-control-api-draft" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Performance Overhead
+        8. Control API (draft)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-implementation-phases-by-conclusion-priority" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Implementation phases (by conclusion priority)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-risks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Risks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-related-code-today" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. Related code (today)
       
     </span>
   </a>
@@ -2529,235 +2795,524 @@
   
 
 
-<h1 id="profiling-implementation">Profiling Implementation<a class="headerlink" href="#profiling-implementation" title="Permanent link">&para;</a></h1>
-<p>Probing provides profiling capabilities for AI workloads with minimal overhead and SQL-queryable storage.</p>
-<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
-<p>The profiling system collects performance data through:</p>
-<ul>
-<li>Hook-based and periodic collectors</li>
-<li>Statistical sampling (long-running telemetry, not episodic trace windows)</li>
-<li>Columnar table storage (memtable / Arrow-backed tables)</li>
-<li>SQL query interface</li>
-</ul>
-<h2 id="data-collection-architecture">Data Collection Architecture<a class="headerlink" href="#data-collection-architecture" title="Permanent link">&para;</a></h2>
-<pre class="mermaid"><code>graph TB
-    subgraph "Data Sources"
-        TORCH[PyTorch module hooks]
-        PYTHON[Python / native stacks]
-        SYSTEM[System &amp; GPU metrics]
-    end
-
-    subgraph "Collection Layer"
-        SAMPLER[TorchProbe sampler]
-        PENDING[Per-step pending buffer]
-    end
-
-    subgraph "Storage Layer"
-        TABLES[python.* tables]
-        QUERY[Query engine]
-    end
-
-    TORCH --&gt; SAMPLER
-    SAMPLER --&gt; PENDING
-    PENDING --&gt; TABLES
-    PYTHON --&gt; TABLES
-    SYSTEM --&gt; TABLES
-    TABLES --&gt; QUERY</code></pre>
-<h2 id="pytorch-profiling-torchprobe">PyTorch Profiling (TorchProbe)<a class="headerlink" href="#pytorch-profiling-torchprobe" title="Permanent link">&para;</a></h2>
-<h3 id="design">Design<a class="headerlink" href="#design" title="Permanent link">&para;</a></h3>
-<p>TorchProbe targets <strong>always-on, module-level training telemetry</strong> after probe injection or <code>PROBING_TORCH_PROFILING=on</code>. It is complementary to episodic tools such as <code>torch.profiler</code> / Kineto (op/kernel Chrome traces). For on-demand Kineto capture exposed as <strong>virtual SQL tables</strong> (not memtable), see <strong><a href="../torch-profiler-sql/">Torch Profiler SQL</a></strong>.</p>
-<p>There is <strong>no warmup schedule API</strong>. Skip cold-start steps in SQL when needed:</p>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">local_step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
-</span></code></pre></div>
-<h3 id="hooks">Hooks<a class="headerlink" href="#hooks" title="Permanent link">&para;</a></h3>
-<p>By default, Probing installs:</p>
-<ul>
-<li>Forward pre/post hooks on every <code>nn.Module</code> in the model tree</li>
-<li>Optimizer pre/post step hooks</li>
-</ul>
-<p><strong>Backward timing is off by default.</strong> With <code>backward=on</code>, probing times each module's <em>own</em> backward as the interval between <strong>grad_output ready</strong> (a hook on the forward output tensor — fires just before the module's backward) and <strong>grad_input ready</strong> (a hook on the forward input tensor — fires just after). Plain tensor <code>register_hook</code> callbacks are inplace-safe, unlike module backward hooks, which crash when downstream layers use inplace activations (AlexNet/ResNet ReLU). Modules whose input does not require grad (e.g. the first layer) record ~0 backward since the interval cannot be measured. Enable via <code>PROBING_TORCH_PROFILING=on,backward=on</code> only when needed.</p>
-<h3 id="sampling">Sampling<a class="headerlink" href="#sampling" title="Permanent link">&para;</a></h3>
-<p>The first complete training step is <strong>discovery</strong>: modules are registered, no rows are written. Sampling begins on subsequent steps.</p>
-<p><code>rate</code> sets the <strong>step sampling density</strong>: exactly one step out of every <code>round(1/rate)</code> is sampled, evenly spaced and starting at the first probed step. This is <em>stratified</em> (not i.i.d.), so a low rate never leaves long gaps — data appears immediately and at a steady cadence (e.g. <code>rate=0.01</code> samples every 100th step, <code>rate=0.05</code> every 20th). The schedule is derived from the step index (no host RNG, no per-process seed), so every rank samples the <em>same</em> steps — distributed traces stay aligned and training stays reproducible. Non-sampled steps short-circuit: module/optimizer hooks and the GPU flush are skipped (wall timing in <code>torch_step_timing</code> is still written).</p>
-<p>On a sampled step, each layer is recorded independently with probability <code>layer_rate</code> (the optional second field, e.g. <code>0.1:0.3</code> = sample every 10th step, and within it hit each layer with 30% chance). Default <code>layer_rate=1.0</code> = full snapshot. The per-layer decision is a deterministic hash of <em>(step, layer)</em> — it looks random and varies per layer, yet is reproducible and identical across ranks. The offset-<code>0</code> anchor (first hook in the step) is always recorded so every sampled step has a time reference.</p>
-<p>Grammar: <code>rate[:layer_rate]</code> — <code>rate</code> is the step density, <code>layer_rate</code> the per-layer hit probability. A leading <code>random:</code> / <code>ordered:</code> mode token is still accepted for back-compat and treated as <code>random</code> (the legacy per-step rotating-module <code>ordered</code> mode has been removed).</p>
-<p>Default when enabled (<code>PROBING_TORCH_PROFILING=on</code>): <strong><code>rate=0.05</code>, <code>layer_rate=1.0</code></strong> (full snapshot on 5% of steps). Use <code>1.0</code> for every step, <code>0.05:0.1</code> for 5% of steps sampling 10% of layers.</p>
-<p><strong>Shadow baseline steps (default <code>shadow=4:1</code>):</strong> every 4 probed training steps are followed by 1 step where TorchProbe hooks are fully bypassed (no module-level <code>python.torch_trace</code> rows). NCCL, CPU/GPU sampling, and other collectors are unchanged. Each step writes one row to <code>python.torch_step_timing</code> (<code>is_shadow=1</code> for baseline steps). Disable with <code>shadow=off</code>.</p>
-<p>Estimate overhead (formulas and methodology: <strong><a href="../overhead/">Overhead measurement</a></strong>):</p>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">SELECT</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="n">round</span><span class="p">(</span><span class="n">median</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">step_duration_sec</span><span class="w"> </span><span class="k">END</span><span class="p">)</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">        </span><span class="o">/</span><span class="w"> </span><span class="k">nullif</span><span class="p">(</span><span class="n">median</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">step_duration_sec</span><span class="w"> </span><span class="k">END</span><span class="p">),</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">100</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="k">AS</span><span class="w"> </span><span class="n">overhead_pct</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_step_timing</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">local_step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
-</span></code></pre></div>
-<p>Hook overhead is reduced by sampling; forward hooks remain registered on all modules (except on shadow steps, where hooks return immediately).</p>
-<h3 id="nccl-profiler-overhead">NCCL profiler overhead<a class="headerlink" href="#nccl-profiler-overhead" title="Permanent link">&para;</a></h3>
-<p>TorchProbe shadow steps measure <strong>module-hook</strong> overhead only. The NCCL profiler plugin has no in-run shadow baseline today — it always records collective events when enabled. For NCCL AllReduce overhead vs probing, use the offline benchmark:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./examples/run_nccl_profiler_bench.sh
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1"># or: python examples/torch_probe_overhead_smoke.py  # Torch-only smoke (no GPU)</span>
-</span></code></pre></div>
-<p>Monitor runtime health via <code>nccl.profiler_counters</code> (<code>pool_exhausted</code>, <code>write_errors</code>, <code>rows_written</code>). The Web UI overhead panel links to the offline NCCL bench when the profiler is active.</p>
-<p>Records are flushed at the end of each optimizer step (after optional GPU <code>synchronize()</code>). Pre/post hook pairs produce two rows; <strong>duration is set on the post row</strong> (<code>post forward</code>, <code>post step</code>, etc.).</p>
-<h3 id="collected-data-pythontorch_trace">Collected Data (<code>python.torch_trace</code>)<a class="headerlink" href="#collected-data-pythontorch_trace" title="Permanent link">&para;</a></h3>
-<p>Full column list: <a href="../../reference/sql-tables/#python-torch_trace">SQL Tables — torch_trace</a>.</p>
+<h1 id="torch-profiler-sql-conclusion-driven-virtual-tables">Torch Profiler → SQL (conclusion-driven virtual tables)<a class="headerlink" href="#torch-profiler-sql-conclusion-driven-virtual-tables" title="Permanent link">&para;</a></h1>
+<p>Turn on-demand <strong><code>torch.profiler</code></strong> capture into <strong>SQL that answers diagnostic questions</strong> — not a
+mirror of Kineto events. Virtual table schemas are derived from <strong>conclusions we need</strong>; the
+Adaptor compiles timeline data into those conclusion slots. Full Chrome timelines stay on HTTP/UI.</p>
+<p>Read with <a href="../profiling/">Profiling</a>, <a href="../federation/">Federated query engine</a>, <a href="../nccl-profiler/">NCCL Profiler</a>.</p>
+<p>中文: <a href="/zh/design/torch-profiler-sql/">中文版</a></p>
+<hr />
+<h2 id="1-design-principles">1. Design principles<a class="headerlink" href="#1-design-principles" title="Permanent link">&para;</a></h2>
+<h3 id="11-needs-first-not-profiler-first">1.1 Needs-first, not profiler-first<a class="headerlink" href="#11-needs-first-not-profiler-first" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
+<th>❌ Wrong starting point</th>
+<th>✅ Right starting point</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>local_step</code></td>
-<td>int</td>
-<td>Local training step (per rank)</td>
+<td>Mirror Kineto fields as SQL columns</td>
+<td>Define <strong>conclusions</strong> diagnostics require</td>
 </tr>
 <tr>
-<td>global_step</td>
-<td>int</td>
-<td>Global step (<code>step_snapshot</code>)</td>
+<td>One <code>traceEvents[]</code> row per SQL row</td>
+<td>Pre-aggregate <strong>time buckets</strong> for those conclusions</td>
 </tr>
 <tr>
-<td>rank</td>
-<td>int</td>
-<td><code>torch.distributed</code> rank</td>
+<td>Single-node timeline viewer</td>
+<td><strong>Cross-rank comparable</strong> facts at the same <code>local_step</code> + <code>global.*</code></td>
 </tr>
 <tr>
-<td>world_size</td>
-<td>int</td>
-<td>World size</td>
-</tr>
-<tr>
-<td>role</td>
-<td>string</td>
-<td>Parallel role key, e.g. <code>dp=2,pp=1,tp=0</code></td>
-</tr>
-<tr>
-<td>seq</td>
-<td>int</td>
-<td>Hook sequence within step</td>
-</tr>
-<tr>
-<td>module</td>
-<td>string</td>
-<td>Module name</td>
-</tr>
-<tr>
-<td>stage</td>
-<td>string</td>
-<td><code>pre forward</code>, <code>post forward</code>, <code>pre step</code>, <code>post step</code> (backward not collected by default)</td>
-</tr>
-<tr>
-<td>allocated</td>
-<td>float</td>
-<td>GPU memory allocated (MB); CUDA only</td>
-</tr>
-<tr>
-<td>max_allocated</td>
-<td>float</td>
-<td>Peak GPU memory (MB)</td>
-</tr>
-<tr>
-<td>cached</td>
-<td>float</td>
-<td>GPU memory reserved (MB)</td>
-</tr>
-<tr>
-<td>max_cached</td>
-<td>float</td>
-<td>Peak reserved (MB)</td>
-</tr>
-<tr>
-<td>time_offset</td>
-<td>float</td>
-<td>Seconds since step anchor</td>
-</tr>
-<tr>
-<td>duration</td>
-<td>float</td>
-<td>Stage duration (seconds); meaningful on post rows</td>
+<td>Table names reflect implementation</td>
+<td>Table names reflect <strong>analytical questions</strong></td>
 </tr>
 </tbody>
 </table>
-<p>Use <code>role</code> + <code>global_step</code> to join with <code>python.comm_collective</code> on the same rank.</p>
-<h3 id="collective-rows-pythoncomm_collective">Collective rows (<code>python.comm_collective</code>)<a class="headerlink" href="#collective-rows-pythoncomm_collective" title="Permanent link">&para;</a></h3>
-<p>Lite-mode hooks on <code>torch.distributed</code> write one row per collective with <code>duration_ms</code>,
-<code>bytes</code>, <code>op</code>, and the same step/role coordinates. See <a href="../../reference/sql-tables/#python-comm_collective">SQL Tables</a> and <a href="../../guide/sql-analytics/#python-comm_collective">SQL Analytics</a>.</p>
-<h3 id="enable-pytorch-profiling">Enable PyTorch Profiling<a class="headerlink" href="#enable-pytorch-profiling" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Environment variable (synced to probing.torch.profiling)</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span>on<span class="w"> </span>python<span class="w"> </span>train.py
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Full snapshot on 50% of steps</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span><span class="m">0</span>.5<span class="w"> </span>python<span class="w"> </span>train.py
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># 10% of steps, and within each hit 30% of layers</span>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span><span class="m">0</span>.1:0.3,tracepy<span class="o">=</span>on<span class="w"> </span>python<span class="w"> </span>train.py
-</span></code></pre></div>
-<p>Programmatic configuration:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">probing.profiling.torch_probe</span><span class="w"> </span><span class="kn">import</span> <span class="n">configure</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">configure</span><span class="p">(</span><span class="s2">&quot;on,rate=0.5,layer_rate=0.3&quot;</span><span class="p">)</span>
-</span></code></pre></div>
-<p>Profiling starts on the first <code>optimizer.step()</code> after torch is imported (optimizer post hook).</p>
-<h2 id="python-stack-profiling">Python Stack Profiling<a class="headerlink" href="#python-stack-profiling" title="Permanent link">&para;</a></h2>
-<h3 id="backtrace-collection">Backtrace Collection<a class="headerlink" href="#backtrace-collection" title="Permanent link">&para;</a></h3>
-<p>On-demand or periodic stack capture (SIGUSR2 / synchronous walk) into <code>python.backtrace</code>:</p>
-<ul>
-<li>Function names, file paths, line numbers</li>
-<li>Python and native frames (merged where possible)</li>
-</ul>
-<p>CPU sampling via pprof (<code>probing.pprof.sample_freq</code>) is separate from TorchProbe module hooks.</p>
-<h2 id="system-metrics">System Metrics<a class="headerlink" href="#system-metrics" title="Permanent link">&para;</a></h2>
-<p>Host CPU, memory, GPU utilization, and related metrics are collected on configurable intervals via environment variables such as <code>PROBING_GPU_SAMPLE_MS</code>.</p>
-<p><strong>Variable / tensor watch (<code>probing.inspect.trace</code>):</strong> logs go to the Python logger by default. Set <code>PROBING_TRACE_STDOUT=1</code> to emit updates on <strong>stdout</strong> instead (useful for quick local debugging; avoid in production training logs).</p>
-<h2 id="data-storage">Data Storage<a class="headerlink" href="#data-storage" title="Permanent link">&para;</a></h2>
-<p>Torch traces and other probe data are stored in <strong>columnar probe tables</strong> (e.g. <code>python.torch_trace</code>), queryable through the engine. Retention and federation follow memtable / server configuration—not a fixed-size in-process ring buffer.</p>
-<h2 id="query-interface">Query Interface<a class="headerlink" href="#query-interface" title="Permanent link">&para;</a></h2>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1">-- Skip discovery / warm-up steps</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">module</span><span class="p">,</span><span class="w"> </span><span class="n">stage</span><span class="p">,</span><span class="w"> </span><span class="k">AVG</span><span class="p">(</span><span class="n">duration</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">avg_sec</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">local_step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">duration</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">module</span><span class="p">,</span><span class="w"> </span><span class="n">stage</span>
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">avg_sec</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
-</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="c1">-- Per-module flamegraph input uses median(duration) on post rows</span>
-</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">module</span><span class="p">,</span><span class="w"> </span><span class="n">stage</span><span class="p">,</span><span class="w"> </span><span class="n">median</span><span class="p">(</span><span class="k">CAST</span><span class="p">(</span><span class="n">duration</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">DOUBLE</span><span class="p">))</span>
-</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span>
-</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">module</span><span class="w"> </span><span class="o">&lt;&gt;</span><span class="w"> </span><span class="s1">&#39;None&#39;</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">stage</span><span class="w"> </span><span class="k">LIKE</span><span class="w"> </span><span class="s1">&#39;post %&#39;</span>
-</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">module</span><span class="p">,</span><span class="w"> </span><span class="n">stage</span><span class="p">;</span>
-</span></code></pre></div>
-<h2 id="performance-overhead">Performance Overhead<a class="headerlink" href="#performance-overhead" title="Permanent link">&para;</a></h2>
-<p>Overhead depends on model size (all modules carry forward hooks), sampling mode/rate, and optional features (<code>sync</code>, <code>tracepy</code>, variable watch). Use lower <code>rate</code>, disable torch profiling when not needed, and filter early steps in SQL rather than adding a warmup schedule.</p>
+<p><strong>Adaptor role:</strong> at finalize, <strong>compile</strong> Kineto / EventList into conclusion fact rows; SQL never
+parses Chrome JSON.</p>
+<h3 id="12-fit-in-the-existing-diagnostic-stack">1.2 Fit in the existing diagnostic stack<a class="headerlink" href="#12-fit-in-the-existing-diagnostic-stack" title="Permanent link">&para;</a></h3>
+<pre class="mermaid"><code>flowchart LR
+    subgraph always_on["Always-on (MEMT)"]
+        TT[torch_trace → which Module]
+        CC[comm_collective / nccl.* → comm]
+        SR[slow_rank skill]
+    end
+    subgraph on_demand["On-demand (virtual tables)"]
+        PH[profile_hotspot → kernels inside Module]
+        PC[profile_capture → capture coordinates]
+    end
+    SR --&gt;|"lock step + rank"| PC
+    TT --&gt;|"lock module"| PH
+    CC --&gt;|"align step"| PH</code></pre>
 <table>
 <thead>
 <tr>
-<th>Scenario</th>
-<th>Typical impact</th>
+<th>Existing conclusion</th>
+<th>Source</th>
+<th>Profiler SQL adds</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Torch profiling off</td>
-<td>Baseline probe overhead only</td>
+<td>Which <strong>module</strong> is slow</td>
+<td><code>python.torch_trace</code></td>
+<td>Which <strong>kernels/ops</strong> under that module</td>
 </tr>
 <tr>
-<td><code>on</code> (default <code>0.05</code>, full snapshot)</td>
-<td>Low; ~5% of steps sampled</td>
+<td>Which <strong>rank</strong> is slow</td>
+<td><code>slow_rank</code> / <code>global.python.comm_collective</code></td>
+<td>Whether the slow rank has a <strong>different kernel profile</strong></td>
 </tr>
 <tr>
-<td><code>0.05:0.1</code></td>
-<td>Very low; 5% of steps, 10% of layers</td>
+<td>NCCL <strong>culprit/victim</strong></td>
+<td><code>nccl.proxy_ops</code></td>
+<td>Whether <strong>compute</strong> is also abnormal on that rank</td>
 </tr>
 <tr>
-<td><code>1.0</code></td>
-<td>Higher; full snapshot every step</td>
+<td>Overall <strong>step slowdown</strong></td>
+<td><code>python.torch_step_timing</code></td>
+<td><strong>GPU time composition</strong> for a step (compute/mem/sync/…)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="2-diagnostic-conclusions-catalog-ssot">2. Diagnostic conclusions catalog (SSOT)<a class="headerlink" href="#2-diagnostic-conclusions-catalog-ssot" title="Permanent link">&para;</a></h2>
+<p><strong>Q1–Q8</strong> below are the acceptance criteria for virtual tables, skills, and the Adaptor.</p>
+<h3 id="q1-where-does-gpu-time-go-on-this-step">Q1 — Where does GPU time go on this step?<a class="headerlink" href="#q1-where-does-gpu-time-go-on-this-step" title="Permanent link">&para;</a></h3>
+<p><strong>Conclusion:</strong> Top kernels/ops by time for a given <code>local_step</code> or capture.</p>
+<p><strong>Typical trigger:</strong> drill-down after <code>module_bottleneck</code>.</p>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">bucket_name</span><span class="p">,</span><span class="w"> </span><span class="n">bucket_kind</span><span class="p">,</span><span class="w"> </span><span class="n">self_us</span><span class="p">,</span><span class="w"> </span><span class="n">pct_of_capture</span><span class="p">,</span><span class="w"> </span><span class="n">calls</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">profile_hotspot</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">capture_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">@</span><span class="n">capture_id</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">bucket_kind</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;kernel&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;cpu_op&#39;</span><span class="p">)</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">self_us</span><span class="w"> </span><span class="k">DESC</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="k">LIMIT</span><span class="w"> </span><span class="mi">20</span><span class="p">;</span>
+</span></code></pre></div>
+<h3 id="q2-time-composition-compute-memcpy-runtime-other">Q2 — Time composition: compute / memcpy / runtime / other?<a class="headerlink" href="#q2-time-composition-compute-memcpy-runtime-other" title="Permanent link">&para;</a></h3>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">bucket_kind</span><span class="p">,</span><span class="w"> </span><span class="k">sum</span><span class="p">(</span><span class="n">self_us</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">us</span><span class="p">,</span><span class="w"> </span><span class="k">sum</span><span class="p">(</span><span class="n">pct_of_capture</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">pct</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">profile_hotspot</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">capture_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">@</span><span class="n">capture_id</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">bucket_kind</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">us</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+</span></code></pre></div>
+<p><code>bucket_kind</code> is an Adaptor mapping (§7), not raw Kineto <code>cat</code>.</p>
+<h3 id="q3-how-much-slower-is-a-rank-on-the-same-kernel-vs-cluster-median">Q3 — How much slower is a rank on the <strong>same kernel</strong> vs cluster median?<a class="headerlink" href="#q3-how-much-slower-is-a-rank-on-the-same-kernel-vs-cluster-median" title="Permanent link">&para;</a></h3>
+<p><strong>Core distributed conclusion</strong> — turning single-node timeline into cluster analysis.</p>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">WITH</span><span class="w"> </span><span class="n">per_rank</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="k">SELECT</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="n">bucket_name</span><span class="p">,</span><span class="w"> </span><span class="k">sum</span><span class="p">(</span><span class="n">self_us</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">us</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">python</span><span class="p">.</span><span class="n">profile_hotspot</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="k">WHERE</span><span class="w"> </span><span class="n">local_step</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">@</span><span class="n">step</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">bucket_kind</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;kernel&#39;</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="n">bucket_name</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="p">),</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="n">median</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">  </span><span class="k">SELECT</span><span class="w"> </span><span class="n">bucket_name</span><span class="p">,</span><span class="w"> </span><span class="n">median</span><span class="p">(</span><span class="n">us</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">med_us</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">  </span><span class="k">FROM</span><span class="w"> </span><span class="n">per_rank</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">  </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">bucket_name</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="p">)</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">bucket_name</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">us</span><span class="p">,</span>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">       </span><span class="n">m</span><span class="p">.</span><span class="n">med_us</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">us</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">m</span><span class="p">.</span><span class="n">med_us</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">delta_us</span><span class="p">,</span>
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="w">       </span><span class="p">(</span><span class="n">p</span><span class="p">.</span><span class="n">us</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">m</span><span class="p">.</span><span class="n">med_us</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="k">nullif</span><span class="p">(</span><span class="n">m</span><span class="p">.</span><span class="n">med_us</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">delta_ratio</span>
+</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="k">FROM</span><span class="w"> </span><span class="n">per_rank</span><span class="w"> </span><span class="n">p</span>
+</span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="k">JOIN</span><span class="w"> </span><span class="n">median</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">bucket_name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">m</span><span class="p">.</span><span class="n">bucket_name</span>
+</span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">us</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">m</span><span class="p">.</span><span class="n">med_us</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">1</span><span class="p">.</span><span class="mi">2</span>
+</span><span id="__span-2-18"><a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">delta_us</span><span class="w"> </span><span class="k">DESC</span>
+</span><span id="__span-2-19"><a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="k">LIMIT</span><span class="w"> </span><span class="mi">30</span><span class="p">;</span>
+</span></code></pre></div>
+<ul>
+<li>High <code>delta_ratio</code> on few ranks → <strong>straggler</strong> kernel slowness  </li>
+<li>All ranks high → <strong>shared</strong> algorithmic slowness</li>
+</ul>
+<h3 id="q4-does-the-slow-rank-have-a-different-hotspot-set">Q4 — Does the slow rank have a <strong>different hotspot set</strong>?<a class="headerlink" href="#q4-does-the-slow-rank-have-a-different-hotspot-set" title="Permanent link">&para;</a></h3>
+<p>Compare slow rank vs a reference rank on the same step (see §2 Q4 in zh doc for full query).</p>
+<h3 id="q5-can-module-hotspots-be-tied-to-kernels">Q5 — Can module hotspots be tied to kernels?<a class="headerlink" href="#q5-can-module-hotspots-be-tied-to-kernels" title="Permanent link">&para;</a></h3>
+<p>Join <code>python.torch_trace</code> with <code>profile_capture</code> / <code>profile_hotspot</code> on <code>local_step</code>.<br />
+v2: <code>module_hint</code> column when <code>with_stack=true</code>.</p>
+<h3 id="q6-shared-slowness-vs-single-rank-anomaly">Q6 — Shared slowness vs single-rank anomaly?<a class="headerlink" href="#q6-shared-slowness-vs-single-rank-anomaly" title="Permanent link">&para;</a></h3>
+<p>Cross-rank spread (<code>max - min</code>) per <code>bucket_name</code> on <code>global.python.profile_hotspot</code>.</p>
+<h3 id="q7-is-the-capture-aligned-with-the-right-training-step-collectives">Q7 — Is the capture aligned with the right training step / collectives?<a class="headerlink" href="#q7-is-the-capture-aligned-with-the-right-training-step-collectives" title="Permanent link">&para;</a></h3>
+<p>Query <code>profile_capture</code> against latest <code>torch_trace</code> step and <code>comm_collective</code> row counts.</p>
+<h3 id="q8-is-this-capture-trustworthy-truncated-failed">Q8 — Is this capture trustworthy (truncated / failed)?<a class="headerlink" href="#q8-is-this-capture-trustworthy-truncated-failed" title="Permanent link">&para;</a></h3>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">capture_id</span><span class="p">,</span><span class="w"> </span><span class="n">status</span><span class="p">,</span><span class="w"> </span><span class="n">truncated</span><span class="p">,</span><span class="w"> </span><span class="n">event_count</span><span class="p">,</span><span class="w"> </span><span class="n">error</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">profile_capture</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">capture_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">@</span><span class="n">capture_id</span><span class="p">;</span>
+</span></code></pre></div>
+<hr />
+<h2 id="3-conclusions-virtual-tables-minimal-schema">3. Conclusions → virtual tables (minimal schema)<a class="headerlink" href="#3-conclusions-virtual-tables-minimal-schema" title="Permanent link">&para;</a></h2>
+<p>Two core virtual tables (+ federated mirrors). <strong>No raw event table</strong> in v1.</p>
+<h3 id="31-pythonprofile_capture">3.1 <code>python.profile_capture</code><a class="headerlink" href="#31-pythonprofile_capture" title="Permanent link">&para;</a></h3>
+<p>One row per profiler window. <strong>Federation anchor.</strong></p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Serves</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>capture_id</code></td>
+<td>Primary filter</td>
 </tr>
 <tr>
-<td><code>sync=on</code></td>
-<td>Higher; synchronizes GPU each hook</td>
+<td><code>local_step</code>, <code>global_step</code></td>
+<td>Align with torch_trace / comm / nccl</td>
+</tr>
+<tr>
+<td><code>rank</code>, <code>world_size</code>, <code>role</code></td>
+<td>Coordinates</td>
+</tr>
+<tr>
+<td><code>trigger</code></td>
+<td>Audit (skill / manual)</td>
+</tr>
+<tr>
+<td><code>steps_profiled</code>, <code>wall_us</code></td>
+<td>Window metadata</td>
+</tr>
+<tr>
+<td><code>status</code>, <code>truncated</code>, <code>event_count</code>, <code>error</code></td>
+<td>Q8 data quality</td>
+</tr>
+</tbody>
+</table>
+<p>Federated: <code>global.python.profile_capture</code> + <code>_host</code>, <code>_addr</code>, <code>_rank</code>, <code>_role</code>.</p>
+<h3 id="32-pythonprofile_hotspot">3.2 <code>python.profile_hotspot</code><a class="headerlink" href="#32-pythonprofile_hotspot" title="Permanent link">&para;</a></h3>
+<p><strong>One row = one time bucket aggregated for one capture on one rank.</strong></p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Serves</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>capture_id</code>, <code>local_step</code>, <code>global_step</code>, <code>rank</code></td>
+<td>Keys</td>
+</tr>
+<tr>
+<td><code>bucket_kind</code></td>
+<td>Q2 — <code>kernel</code>, <code>cpu_op</code>, <code>cuda_runtime</code>, <code>memcpy</code>, <code>collective</code>, <code>other</code></td>
+</tr>
+<tr>
+<td><code>bucket_name</code></td>
+<td>Q1, Q3–Q6</td>
+</tr>
+<tr>
+<td><code>self_us</code></td>
+<td><strong>Primary sort metric</strong> (exclusive time when available)</td>
+</tr>
+<tr>
+<td><code>wall_us</code>, <code>calls</code></td>
+<td>Secondary</td>
+</tr>
+<tr>
+<td><code>pct_of_capture</code></td>
+<td>Q1, Q2</td>
+</tr>
+<tr>
+<td><code>module_hint</code></td>
+<td>Q5 (v2)</td>
+</tr>
+</tbody>
+</table>
+<p>Federated: <code>global.python.profile_hotspot</code> — primary surface for <strong>Q3–Q6</strong>.</p>
+<h3 id="33-intentionally-omitted-v1">3.3 Intentionally omitted (v1)<a class="headerlink" href="#33-intentionally-omitted-v1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Omitted</th>
+<th>Why</th>
+<th>Alternative</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Raw <code>traceEvents</code> table</td>
+<td>Millions of rows, no direct conclusion</td>
+<td>HTTP timeline</td>
+</tr>
+<tr>
+<td>Kineto <code>pid</code>/<code>tid</code> mirror</td>
+<td>Not operator-meaningful</td>
+<td><code>bucket_kind</code></td>
+</tr>
+<tr>
+<td>Precomputed <code>rank_delta</code> table</td>
+<td>Keep flexibility in SQL/skills</td>
+<td>§2 query patterns</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="4-distributed-analysis-patterns">4. Distributed analysis patterns<a class="headerlink" href="#4-distributed-analysis-patterns" title="Permanent link">&para;</a></h2>
+<h3 id="41-recommended-workflow">4.1 Recommended workflow<a class="headerlink" href="#41-recommended-workflow" title="Permanent link">&para;</a></h3>
+<ol>
+<li><code>slow_rank</code> or <code>module_bottleneck</code> locks <code>@step</code> (and optionally <code>@slow_rank</code>)</li>
+<li>Coordinated <code>profile/start</code> at that step (v2: all ranks)</li>
+<li>Adaptor fills <code>profile_capture</code> + <code>profile_hotspot</code> on each rank</li>
+<li>Run Q3–Q6 on <code>global.python.profile_hotspot</code></li>
+</ol>
+<h3 id="42-federation-contract">4.2 Federation contract<a class="headerlink" href="#42-federation-contract" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Alignment keys</td>
+<td><code>local_step</code> + <code>capture_id</code>; same <code>trigger</code> / <code>global_step</code> for one diagnostic action</td>
+</tr>
+<tr>
+<td>Missing ranks</td>
+<td>Contribute zero rows; existing <code>PROBING_FANOUT_STRICT</code> semantics</td>
+</tr>
+<tr>
+<td>Labels</td>
+<td><code>_rank</code>, <code>_host</code>, <code>_role</code> for Q3–Q6</td>
+</tr>
+<tr>
+<td>NCCL join</td>
+<td>Same <code>global_step</code> on <code>global.nccl.proxy_ops</code> (time-window join v2)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="43-planned-skills">4.3 Planned skills<a class="headerlink" href="#43-planned-skills" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Skill</th>
+<th>Prerequisite</th>
+<th>Conclusions</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kernel_bottleneck</code> (new)</td>
+<td><code>module_bottleneck</code></td>
+<td>Q1, Q2, Q5</td>
+</tr>
+<tr>
+<td><code>kernel_straggler</code> (new)</td>
+<td><code>slow_rank</code></td>
+<td>Q3, Q4, Q6</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="5-trigger-and-memory-summary">5. Trigger and memory (summary)<a class="headerlink" href="#5-trigger-and-memory-summary" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Design</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Trigger</td>
+<td>HTTP, REPL, MCP, skill chain</td>
+</tr>
+<tr>
+<td>Window</td>
+<td>Default <code>steps=1</code>; <code>local_step</code> written to <code>profile_capture</code></td>
+</tr>
+<tr>
+<td>Store</td>
+<td>In-process session; Adaptor outputs <strong>only §3 rows</strong></td>
+</tr>
+<tr>
+<td>Limits</td>
+<td>Env caps; <code>truncated=true</code> retains hotspot aggregates</td>
+</tr>
+<tr>
+<td>Chrome</td>
+<td>UI only</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="6-implementation-layering">6. Implementation layering<a class="headerlink" href="#6-implementation-layering" title="Permanent link">&para;</a></h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>Questions / SQL patterns (§2)
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>        ↓
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>Virtual schemas (§3) ← TableProvider / global.*
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>        ↓
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>KinetoSqlAdaptor: timeline → profile_capture + profile_hotspot rows
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>        ↓
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>ProfilerController + SessionStore + raw torch.profiler
+</span></code></pre></div>
+<hr />
+<h2 id="7-adaptor-mapping-appendix">7. Adaptor mapping (appendix)<a class="headerlink" href="#7-adaptor-mapping-appendix" title="Permanent link">&para;</a></h2>
+<p>Kineto is <strong>input</strong>, not <strong>output schema</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th>→ <code>profile_hotspot</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CUDA kernel name</td>
+<td><code>bucket_kind=kernel</code>, <code>bucket_name</code></td>
+</tr>
+<tr>
+<td>ATen op</td>
+<td><code>bucket_kind=cpu_op</code></td>
+</tr>
+<tr>
+<td>memcpy APIs</td>
+<td><code>bucket_kind=memcpy</code></td>
+</tr>
+<tr>
+<td>sync APIs</td>
+<td><code>bucket_kind=cuda_runtime</code></td>
+</tr>
+<tr>
+<td><code>nccl*</code> kernels</td>
+<td><code>bucket_kind=collective</code></td>
+</tr>
+<tr>
+<td>self cuda/cpu time</td>
+<td><code>self_us</code></td>
+</tr>
+<tr>
+<td>total cuda/cpu time</td>
+<td><code>wall_us</code></td>
+</tr>
+<tr>
+<td>count</td>
+<td><code>calls</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="8-control-api-draft">8. Control API (draft)<a class="headerlink" href="#8-control-api-draft" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST</code></td>
+<td><code>/apis/pythonext/pytorch/profile/start</code></td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/apis/pythonext/pytorch/profile/stop</code></td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/apis/pythonext/pytorch/profile/status</code></td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/apis/pythonext/pytorch/timeline</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="9-implementation-phases-by-conclusion-priority">9. Implementation phases (by conclusion priority)<a class="headerlink" href="#9-implementation-phases-by-conclusion-priority" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>Deliverable</th>
+<th>Validates</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>P0</strong></td>
+<td>Controller + Adaptor → hotspot rows</td>
+<td>Q1, Q2, Q8 local</td>
+</tr>
+<tr>
+<td><strong>P1</strong></td>
+<td>Virtual tables + local SQL</td>
+<td>Q5, Q7</td>
+</tr>
+<tr>
+<td><strong>P2</strong></td>
+<td><code>global.*</code> + <code>kernel_bottleneck</code> skill</td>
+<td>Q1–Q2 federated</td>
+</tr>
+<tr>
+<td><strong>P3</strong></td>
+<td><code>kernel_straggler</code> + coordinated trigger</td>
+<td>Q3, Q4, Q6</td>
+</tr>
+<tr>
+<td><strong>P4</strong></td>
+<td><code>module_hint</code> + nccl time join</td>
+<td>Q5 refined</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="10-risks">10. Risks<a class="headerlink" href="#10-risks" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Risk</th>
+<th>Mitigation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Wrong-step conclusions</td>
+<td><code>profile_capture</code> step fields; Q7 templates</td>
+</tr>
+<tr>
+<td>Misaligned federation</td>
+<td>v2 coordinated capture; check <code>ranks_seen</code> in skills</td>
+</tr>
+<tr>
+<td>Over-reliance on <code>self_us</code></td>
+<td>Document vs <code>wall_us</code>; Chrome for drill-down</td>
+</tr>
+<tr>
+<td>Profiler perturbation</td>
+<td>Short windows; skills label as intrusive measurement</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="11-related-code-today">11. Related code (today)<a class="headerlink" href="#11-related-code-today" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Path</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>REPL profiler</td>
+<td><code>python/probing/repl/torch_magic.py</code></td>
+</tr>
+<tr>
+<td>HTTP timeline</td>
+<td><code>python/probing/handlers/pythonext.py</code></td>
+</tr>
+<tr>
+<td>Module conclusions</td>
+<td><code>skills/module_bottleneck/</code></td>
+</tr>
+<tr>
+<td>Rank conclusions</td>
+<td><code>skills/slow_rank/</code></td>
+</tr>
+<tr>
+<td>Virtual table infra</td>
+<td><code>probing/core/src/core/data_source.rs</code></td>
 </tr>
 </tbody>
 </table>
