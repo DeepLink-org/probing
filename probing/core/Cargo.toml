@@ -24,7 +24,7 @@ similar_names = "allow"
 
 [features]
 test-utils = []
-default = ["builtin-schema-docs"]
+default = []
 builtin-schema-docs = ["dep:probing-hccl-shim", "dep:probing-nccl-profiler"]
 python-bridge = ["dep:pyo3"]
 
@@ -52,7 +52,7 @@ thiserror = { workspace = true }
 async-trait = "0.1.83"
 datafusion = { workspace = true }
 futures = "0.3.31"
-ureq = { version = "3.1.2", default-features = false, features = ["rustls"] }
+ureq = { workspace = true }
 sled = "0.34.7"
 bincode = "1.3.3"
 uuid = { version = "1.0", features = ["v4", "serde"] }
@@ -64,3 +64,5 @@ pyo3 = { version = "0.29.0", optional = true, default-features = false, features
 
 [dev-dependencies]
 tempfile = "3.8"
+probing-hccl-shim = { path = "../extensions/hccl-shim" }
+probing-nccl-profiler = { path = "../extensions/nccl-profiler" }

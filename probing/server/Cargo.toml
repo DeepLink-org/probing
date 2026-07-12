@@ -13,7 +13,7 @@ gpu = ["dep:probing-gpu"]
 gpu-cuda = ["gpu", "probing-gpu/cuda"]
 kmsg = ["probing-cc/kmsg"]
 default = ["extension-module", "kmsg", "rmcp"]
-rmcp = ["dep:rmcp", "dep:probing-cli", "dep:probing-skills"]
+rmcp = ["dep:rmcp", "dep:probing-skills"]
 
 [dependencies]
 probing-cc = { path = "../extensions/cc", default-features = false }
@@ -21,9 +21,10 @@ probing-gpu = { path = "../extensions/gpu", optional = true }
 probing-memtable = { path = "../memtable" }
 probing-python = { path = "../extensions/python", default-features = false }
 probing-proto = { path = "../proto" }
+probing-hccl-shim = { path = "../extensions/hccl-shim" }
+probing-nccl-profiler = { path = "../extensions/nccl-profiler" }
 probing-core = { path = "../core" }
 probing-store = { path = "../crates/store" }
-probing-cli = { path = "../cli", optional = true }
 probing-skills = { path = "../crates/skills", optional = true }
 
 datafusion = { workspace = true }
@@ -40,7 +41,7 @@ async-trait = "0.1.83"
 bytes = "1"
 nu-ansi-term = "0.50.1"
 base64 = "0.21.5"
-ureq = { version = "3.0.2", default-features = false, features = ["json"] }
+ureq = { workspace = true, features = ["json"] }
 axum = { version = "0.8.1", default-features = false, features = [
     "tokio",
     "http1",

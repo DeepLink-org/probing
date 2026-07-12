@@ -32,7 +32,7 @@ pub const FEDERATION_TAG_COLUMNS: &[&str] = &[
 
 fn record_batch(schema: Schema, columns: Vec<ArrayRef>, ctx: &'static str) -> Result<RecordBatch> {
     RecordBatch::try_new(Arc::new(schema), columns)
-        .map_err(|e| DataFusionError::Execution(format!("{ctx}: {e}")))
+        .map_err(|e| DataFusionError::ArrowError(Box::new(e), Some(ctx.to_string())))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

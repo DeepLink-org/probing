@@ -70,11 +70,7 @@ pub async fn request_size_limit_middleware(request: Request, next: Next) -> Resp
         Ok(bytes) => bytes,
         Err(e) => {
             log::warn!("Request body collection failed: {e}");
-            return (
-                StatusCode::PAYLOAD_TOO_LARGE,
-                format!("Request body too large (max {max_size} bytes allowed)"),
-            )
-                .into_response();
+            return (StatusCode::PAYLOAD_TOO_LARGE, e).into_response();
         }
     };
 
@@ -87,15 +83,18 @@ pub async fn request_size_limit_middleware(request: Request, next: Next) -> Resp
 }
 
 /// Collect body bytes with a size limit using BodyExt::collect()
-async fn collect_body_with_limit(body: Body, limit: usize) -> Result<Bytes, &'static str> {
-    // Use BodyExt::collect() which is already available
-    let collected = body.collect().await.map_err(|_| "Failed to collect body")?;
+async fn collect_body_with_limit(body: Body, limit: usize) -> Result<Bytes, String> {
+    let collected = body
+        .collect()
+        .await
+        .map_err(|e| format!("failed to collect request body: {e}"))?;
 
     let bytes = collected.to_bytes();
 
-    // Check size limit
     if bytes.len() > limit {
-        return Err("Request body size limit exceeded");
+        return Err(format!(
+            "request body size limit exceeded (max {limit} bytes)"
+        ));
     }
 
     Ok(bytes)

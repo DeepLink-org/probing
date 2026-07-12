@@ -42,6 +42,9 @@ pub struct PluginAdvancedTable {
     schema: SchemaRef,
     /// Partition layout expected by [`MemorySourceConfig`].
     partitions: Vec<Vec<RecordBatch>>,
+    /// When set, [`TableProvider::scan`] fails with this message instead of
+    /// returning misleading zero-row results (e.g. corrupt mmap).
+    scan_error: Option<String>,
 }
 
 impl PluginAdvancedTable {
@@ -63,6 +66,7 @@ impl PluginAdvancedTable {
             label,
             schema,
             partitions: vec![batches],
+            scan_error: None,
         })
     }
 
@@ -82,7 +86,26 @@ impl PluginAdvancedTable {
             label,
             schema,
             partitions,
+            scan_error: None,
         })
+    }
+
+    /// Sentinel for corrupt mmap inputs: schema/stats look empty, but `scan`
+    /// surfaces `message` as a DataFusion error instead of silent zero rows.
+    pub fn error_sentinel(label: impl Into<String>, message: impl Into<String>) -> Self {
+        let label = label.into();
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "_empty",
+            DataType::Int64,
+            true,
+        )]));
+        let empty = RecordBatch::new_empty(Arc::clone(&schema));
+        Self {
+            label,
+            schema,
+            partitions: vec![vec![empty]],
+            scan_error: Some(message.into()),
+        }
     }
 
     /// Sentinel for invalid mmap / empty inputs (zero-row, minimal schema).
@@ -98,6 +121,7 @@ impl PluginAdvancedTable {
             label,
             schema,
             partitions: vec![vec![empty]],
+            scan_error: None,
         }
     }
 
@@ -233,6 +257,9 @@ impl TableProvider for PluginAdvancedTable {
         filters: &[Expr],
         limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
+        if let Some(msg) = &self.scan_error {
+            return Err(DataFusionError::External(msg.clone().into()));
+        }
         scan_memory_partitions(
             state,
             self.schema(),
@@ -331,6 +358,21 @@ mod tests {
         assert_eq!(t.schema().field(0).name(), "_empty");
         let s = t.statistics().expect("stats");
         assert_eq!(s.num_rows, Precision::Exact(0));
+    }
+
+    #[tokio::test]
+    async fn error_sentinel_scan_surfaces_message() -> Result<()> {
+        let t = PluginAdvancedTable::error_sentinel("bad_mmap", "corrupt header");
+        let ctx = SessionContext::new();
+        ctx.register_table("bad_mmap", Arc::new(t))?;
+        let err = ctx
+            .sql("SELECT * FROM bad_mmap")
+            .await?
+            .collect()
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("corrupt header"));
+        Ok(())
     }
 
     // --- pushdown helpers ---

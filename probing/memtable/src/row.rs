@@ -2,33 +2,35 @@ use crate::layout::{chunk_header, col_desc, r32};
 use crate::schema::DType;
 use std::sync::atomic::Ordering;
 
-/// Unified panic for all stale-read conditions: the chunk was recycled while
-/// data was being accessed, or the offset arithmetic fell outside the buffer.
-#[cold]
-#[inline(never)]
-pub(crate) fn panic_stale(context: &str) -> ! {
-    panic!("stale read: chunk recycled ({context})")
-}
-
-fn read_i32(data: &[u8], off: usize) -> i32 {
+fn try_read_i32(data: &[u8], off: usize) -> Option<i32> {
     if off + 4 > data.len() {
-        panic_stale("read_i32");
+        return None;
     }
-    i32::from_le_bytes([data[off], data[off + 1], data[off + 2], data[off + 3]])
+    Some(i32::from_le_bytes([
+        data[off],
+        data[off + 1],
+        data[off + 2],
+        data[off + 3],
+    ]))
 }
 
-fn read_u32(data: &[u8], off: usize) -> u32 {
+fn try_read_u32(data: &[u8], off: usize) -> Option<u32> {
     if off + 4 > data.len() {
-        panic_stale("read_u32");
+        return None;
     }
-    u32::from_le_bytes([data[off], data[off + 1], data[off + 2], data[off + 3]])
+    Some(u32::from_le_bytes([
+        data[off],
+        data[off + 1],
+        data[off + 2],
+        data[off + 3],
+    ]))
 }
 
-fn read_i64(data: &[u8], off: usize) -> i64 {
+fn try_read_i64(data: &[u8], off: usize) -> Option<i64> {
     if off + 8 > data.len() {
-        panic_stale("read_i64");
+        return None;
     }
-    i64::from_le_bytes([
+    Some(i64::from_le_bytes([
         data[off],
         data[off + 1],
         data[off + 2],
@@ -37,14 +39,14 @@ fn read_i64(data: &[u8], off: usize) -> i64 {
         data[off + 5],
         data[off + 6],
         data[off + 7],
-    ])
+    ]))
 }
 
-fn read_u64(data: &[u8], off: usize) -> u64 {
+fn try_read_u64(data: &[u8], off: usize) -> Option<u64> {
     if off + 8 > data.len() {
-        panic_stale("read_u64");
+        return None;
     }
-    u64::from_le_bytes([
+    Some(u64::from_le_bytes([
         data[off],
         data[off + 1],
         data[off + 2],
@@ -53,21 +55,26 @@ fn read_u64(data: &[u8], off: usize) -> u64 {
         data[off + 5],
         data[off + 6],
         data[off + 7],
-    ])
+    ]))
 }
 
-fn read_f32(data: &[u8], off: usize) -> f32 {
+fn try_read_f32(data: &[u8], off: usize) -> Option<f32> {
     if off + 4 > data.len() {
-        panic_stale("read_f32");
+        return None;
     }
-    f32::from_le_bytes([data[off], data[off + 1], data[off + 2], data[off + 3]])
+    Some(f32::from_le_bytes([
+        data[off],
+        data[off + 1],
+        data[off + 2],
+        data[off + 3],
+    ]))
 }
 
-fn read_f64(data: &[u8], off: usize) -> f64 {
+fn try_read_f64(data: &[u8], off: usize) -> Option<f64> {
     if off + 8 > data.len() {
-        panic_stale("read_f64");
+        return None;
     }
-    f64::from_le_bytes([
+    Some(f64::from_le_bytes([
         data[off],
         data[off + 1],
         data[off + 2],
@@ -76,38 +83,38 @@ fn read_f64(data: &[u8], off: usize) -> f64 {
         data[off + 5],
         data[off + 6],
         data[off + 7],
-    ])
+    ]))
 }
 
-fn var_field_size(buf: &[u8], off: usize) -> usize {
-    let raw = read_i32(buf, off);
+fn try_var_field_size(buf: &[u8], off: usize) -> Option<usize> {
+    let raw = try_read_i32(buf, off)?;
     if raw < 0 {
-        4
+        Some(4)
     } else {
-        4 + raw as usize
+        Some(4 + raw as usize)
     }
 }
 
-fn resolve_var(buf: &[u8], off: usize, chunk_start: usize) -> &[u8] {
-    let raw = read_i32(buf, off);
+fn try_resolve_var(buf: &[u8], off: usize, chunk_start: usize) -> Option<&[u8]> {
+    let raw = try_read_i32(buf, off)?;
     if raw < 0 {
         let ref_off = chunk_start + (-raw) as usize;
         if ref_off + 4 > buf.len() {
-            panic_stale("resolve_var ref header");
+            return None;
         }
         let len = r32(buf, ref_off) as usize;
         let end = ref_off + 4 + len;
         if end > buf.len() {
-            panic_stale("resolve_var ref payload");
+            return None;
         }
-        &buf[ref_off + 4..end]
+        Some(&buf[ref_off + 4..end])
     } else {
         let len = raw as usize;
         let end = off + 4 + len;
         if end > buf.len() {
-            panic_stale("resolve_var inline");
+            return None;
         }
-        &buf[off + 4..end]
+        Some(&buf[off + 4..end])
     }
 }
 
@@ -143,30 +150,32 @@ impl<'a> Row<'a> {
         self.data
     }
 
-    fn col_offset(&self, col: usize) -> usize {
+    fn try_col_offset(&self, col: usize) -> Option<usize> {
         let mut off = 0;
         for i in 0..col {
-            let dt = DType::from_u32(col_desc(self.buf, i).dtype)
-                .unwrap_or_else(|| panic_stale("corrupt column dtype"));
+            let dt = DType::from_u32(col_desc(self.buf, i).dtype)?;
             if let Some(sz) = dt.fixed_size() {
                 off += sz;
             } else {
-                off += var_field_size(self.data, off);
+                off += try_var_field_size(self.data, off)?;
             }
         }
-        off
+        Some(off)
     }
 
-    fn resolve_var_col(&self, col: usize) -> &'a [u8] {
-        let off = self.col_offset(col);
-        resolve_var(self.buf, self.data_offset + off, self.chunk_start)
+    fn try_resolve_var_col(&self, col: usize) -> Option<&'a [u8]> {
+        let off = self.try_col_offset(col)?;
+        try_resolve_var(self.buf, self.data_offset + off, self.chunk_start)
     }
 
     pub fn col_u8(&self, col: usize) -> u8 {
         if !self.is_valid() {
             return 0;
         }
-        let off = self.col_offset(col);
+        let off = match self.try_col_offset(col) {
+            Some(o) => o,
+            None => return 0,
+        };
         if off >= self.data.len() {
             return 0;
         }
@@ -176,43 +185,70 @@ impl<'a> Row<'a> {
         if !self.is_valid() {
             return 0;
         }
-        read_u32(self.data, self.col_offset(col))
+        let off = match self.try_col_offset(col) {
+            Some(o) => o,
+            None => return 0,
+        };
+        try_read_u32(self.data, off).unwrap_or(0)
     }
     pub fn col_i32(&self, col: usize) -> i32 {
         if !self.is_valid() {
             return 0;
         }
-        read_i32(self.data, self.col_offset(col))
+        let off = match self.try_col_offset(col) {
+            Some(o) => o,
+            None => return 0,
+        };
+        try_read_i32(self.data, off).unwrap_or(0)
     }
     pub fn col_i64(&self, col: usize) -> i64 {
         if !self.is_valid() {
             return 0;
         }
-        read_i64(self.data, self.col_offset(col))
+        let off = match self.try_col_offset(col) {
+            Some(o) => o,
+            None => return 0,
+        };
+        try_read_i64(self.data, off).unwrap_or(0)
     }
     pub fn col_f32(&self, col: usize) -> f32 {
         if !self.is_valid() {
             return 0.0;
         }
-        read_f32(self.data, self.col_offset(col))
+        let off = match self.try_col_offset(col) {
+            Some(o) => o,
+            None => return 0.0,
+        };
+        try_read_f32(self.data, off).unwrap_or(0.0)
     }
     pub fn col_f64(&self, col: usize) -> f64 {
         if !self.is_valid() {
             return 0.0;
         }
-        read_f64(self.data, self.col_offset(col))
+        let off = match self.try_col_offset(col) {
+            Some(o) => o,
+            None => return 0.0,
+        };
+        try_read_f64(self.data, off).unwrap_or(0.0)
     }
     pub fn col_u64(&self, col: usize) -> u64 {
         if !self.is_valid() {
             return 0;
         }
-        read_u64(self.data, self.col_offset(col))
+        let off = match self.try_col_offset(col) {
+            Some(o) => o,
+            None => return 0,
+        };
+        try_read_u64(self.data, off).unwrap_or(0)
     }
     pub fn col_str(&self, col: usize) -> &str {
         if !self.is_valid() {
             return "";
         }
-        let b = self.resolve_var_col(col);
+        let b = match self.try_resolve_var_col(col) {
+            Some(b) => b,
+            None => return "",
+        };
         if b.is_empty() {
             ""
         } else {
@@ -223,7 +259,7 @@ impl<'a> Row<'a> {
         if !self.is_valid() {
             return &[];
         }
-        self.resolve_var_col(col)
+        self.try_resolve_var_col(col).unwrap_or(&[])
     }
 
     pub fn cursor(&self) -> RowCursor<'a> {
@@ -565,6 +601,26 @@ mod tests {
         assert!(c.is_stale());
         assert_eq!(c.next_i64(), 0);
         assert_eq!(c.next_str(), "");
+    }
+
+    #[test]
+    fn row_col_degrades_on_torn_bounds_without_panic() {
+        use super::Row;
+
+        let schema = Schema::new().col("v", DType::I64);
+        let mut t = MemTable::new(&schema, 4096, 1);
+        t.push_row(&[Value::I64(42)]);
+        let row = t.rows(0).next().unwrap();
+        // Truncate row data to simulate torn read while generation is still valid.
+        let torn = Row {
+            data: &row.data[..4],
+            buf: row.buf,
+            data_offset: row.data_offset,
+            chunk_start: row.chunk_start,
+            generation: row.generation,
+        };
+        assert!(torn.is_valid());
+        assert_eq!(torn.col_i64(0), 0);
     }
 
     #[test]

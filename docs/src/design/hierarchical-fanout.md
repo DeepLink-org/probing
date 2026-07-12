@@ -72,7 +72,7 @@ Hierarchical mode depends on metadata in `cluster.nodes`:
 | `local_rank` | Distinguish local0 (`0`) vs leaf |
 | `addr` | HTTP fan-out target |
 
-Filled automatically by torchrun heartbeat / `PUT /apis/nodes`. If the cluster view **lacks** these fields, probing **falls back to flat fan-out** (same as `hierarchical=false`).
+Filled automatically by torchrun heartbeat / `PUT /apis/nodes`. If the cluster view **lacks** these fields while hierarchical mode is on (default), **`POST /apis/cluster/query` returns HTTP 503** — probing does **not** silently fall back to flat fan-out. Use `hierarchical=false` (or `--flat`) only when you explicitly accept flat fan-out.
 
 ---
 
@@ -105,6 +105,8 @@ Filled automatically by torchrun heartbeat / `PUT /apis/nodes`. If the cluster v
   "scope": "coordinator",
   "nodes_queried": 3,
   "nodes_failed": [],
+  "peer_batches_dropped": 0,
+  "partial": false,
   "node_aggregators_queried": 1,
   "local_ranks_queried": 1
 }
@@ -112,6 +114,8 @@ Filled automatically by torchrun heartbeat / `PUT /apis/nodes`. If the cluster v
 
 | Field | Meaning |
 |-------|---------|
+| `partial` | `true` when any peer failed or merge dropped batches — HTTP **503** with partial `dataframe` (unless `PROBING_FANOUT_STRICT=1`, then the query fails entirely) |
+| `peer_batches_dropped` | Partial peer DataFrames dropped during coordinator merge |
 | `nodes_queried` | Successful **HTTP endpoints** in this query (local local0, local leaves, remote node aggs) |
 | `node_aggregators_queried` | Remote **local0** endpoints contacted at coordinator tier |
 | `local_ranks_queried` | **Leaf ranks** contacted on the coordinator machine |
@@ -159,9 +163,10 @@ Complex CTE + window queries should still be split into diagnostic chains (see [
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PROBING_CLUSTER_FANOUT_HIERARCHICAL` | `1` | `0` = global flat fan-out (legacy O(world_size) path) |
+| `PROBING_REMOTE_QUERY_TIMEOUT_SECS` | `30` | Per-peer HTTP timeout (per tier in hierarchical mode); see [Environment variables](../reference/env-vars.md) |
+| `PROBING_FANOUT_STRICT` | unset | When `1` or `true`, any peer failure or dropped batch fails the whole query (no partial 503) |
 
 When hierarchical mode is on (default) but `cluster.nodes` lacks `group_rank` / `local_rank` (heartbeat not converged), **`POST /apis/cluster/query` returns HTTP 503** instead of silently falling back to flat fan-out. Use `hierarchical=false` only when you explicitly accept flat fan-out.
-| `PROBING_REMOTE_QUERY_TIMEOUT_SECS` | `2` | Per-peer HTTP timeout (per tier in hierarchical mode) |
 
 Cluster heartbeat variables: [Environment variables — cluster](../reference/env-vars.md) and [Torchrun cluster heartbeat](torchrun-cluster.md).
 

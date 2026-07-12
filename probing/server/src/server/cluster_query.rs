@@ -1,10 +1,13 @@
 //! HTTP handler for on-demand cluster SQL fan-out.
 
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use super::cluster_fanout::{self, ClusterFanoutScope, FanoutQueryResponse};
-use super::error::ApiResult;
+use super::error::ApiError;
+use super::sql_guard::ensure_read_only_sql;
 use probing_core::core::cluster::is_hierarchical_metadata_unavailable;
 use probing_core::core::federation::validate_global_query;
 
@@ -40,24 +43,36 @@ impl From<FanoutQueryResponse> for ClusterQueryResponse {
     }
 }
 
-pub async fn post_cluster_query(
-    Json(body): Json<ClusterQueryRequest>,
-) -> ApiResult<Json<ClusterQueryResponse>> {
+pub async fn post_cluster_query(Json(body): Json<ClusterQueryRequest>) -> impl IntoResponse {
     if let Some(msg) = crate::engine_lifecycle::engine_not_ready_message() {
-        return Err(super::error::ApiError::service_unavailable(msg));
+        return ApiError::service_unavailable(msg).into_response();
     }
     let expr = body.expr.trim();
     if expr.is_empty() {
-        return Err(super::error::ApiError::bad_request(
-            "missing SQL expression",
-        ));
+        return ApiError::bad_request("missing SQL expression").into_response();
     }
-    validate_global_query(expr).map_err(|e| super::error::ApiError::bad_request(e.to_string()))?;
-    match cluster_fanout::fanout_query(expr, body.cluster, body.hierarchical, body.scope).await {
-        Ok(result) => Ok(Json(result.into())),
-        Err(err) if is_hierarchical_metadata_unavailable(&err) => {
-            Err(super::error::ApiError::service_unavailable(err.to_string()))
+    if let Err(msg) = ensure_read_only_sql(expr) {
+        return ApiError::bad_request(msg).into_response();
+    }
+    if body.cluster {
+        if let Err(e) = validate_global_query(expr) {
+            return ApiError::bad_request(format!("{e:#}")).into_response();
         }
-        Err(err) => Err(err.into()),
+    }
+    match cluster_fanout::fanout_query(expr, body.cluster, body.hierarchical, body.scope).await {
+        Ok(result) => {
+            let partial = result.meta.partial;
+            let response = ClusterQueryResponse::from(result);
+            let status = if partial {
+                StatusCode::SERVICE_UNAVAILABLE
+            } else {
+                StatusCode::OK
+            };
+            (status, Json(response)).into_response()
+        }
+        Err(err) if is_hierarchical_metadata_unavailable(&err) => {
+            ApiError::service_unavailable(format!("{err:#}")).into_response()
+        }
+        Err(err) => ApiError::from(err).into_response(),
     }
 }

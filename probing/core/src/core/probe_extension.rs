@@ -421,14 +421,19 @@ impl ExtensionOptions for ProbeExtensionManager {
     }
 
     fn set(&mut self, key: &str, value: &str) -> datafusion::error::Result<()> {
-        use futures::executor::block_on;
-        block_on(self.set_option(key, value)).map_err(datafusion::error::DataFusionError::from)
+        let fut = self.set_option(key, value);
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            tokio::task::block_in_place(|| handle.block_on(fut))
+                .map_err(datafusion::error::DataFusionError::from)
+        } else {
+            crate::runtime::CORE_RUNTIME
+                .block_on(fut)
+                .map_err(datafusion::error::DataFusionError::from)
+        }
     }
 
     fn entries(&self) -> Vec<datafusion::config::ConfigEntry> {
-        use futures::executor::block_on;
-
-        block_on(async {
+        let fut = async {
             self.options()
                 .await
                 .iter()
@@ -438,7 +443,12 @@ impl ExtensionOptions for ProbeExtensionManager {
                     description: option.help,
                 })
                 .collect()
-        })
+        };
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            tokio::task::block_in_place(|| handle.block_on(fut))
+        } else {
+            crate::runtime::CORE_RUNTIME.block_on(fut)
+        }
     }
 }
 

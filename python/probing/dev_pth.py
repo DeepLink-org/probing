@@ -13,11 +13,25 @@ import sys
 from pathlib import Path
 
 HOOK_PTH_NAME = "probing_hook.pth"
-HOOK_PTH_LINE = "import probing_hook\n"
 
 
 def repo_python_dir() -> Path:
     return Path(__file__).resolve().parents[1]
+
+
+def hook_pth_line() -> str:
+    """Single executable .pth line: repo ``python/`` then ``import probing_hook``.
+
+    During ``maturin develop`` pip may reload site with ``probing_hook.pth`` still
+    present while ``probing_hook.py`` was removed from site-packages — embedding the
+    repo path avoids ``ModuleNotFoundError`` in that window.
+    """
+    root = str(repo_python_dir())
+    return f"import sys; sys.path.insert(0, {root!r}); import probing_hook\n"
+
+
+# Kept for tests / docs that assert the shape of the line.
+HOOK_PTH_LINE_PREFIX = "import sys; sys.path.insert(0, "
 
 
 def hook_pth_path() -> Path:
@@ -26,7 +40,7 @@ def hook_pth_path() -> Path:
 
 def install_dev_hook() -> Path:
     target = hook_pth_path()
-    target.write_text(HOOK_PTH_LINE, encoding="utf-8")
+    target.write_text(hook_pth_line(), encoding="utf-8")
     return target
 
 
@@ -40,7 +54,7 @@ def remove_dev_hook() -> bool:
 
 def is_dev_hook_installed() -> bool:
     target = hook_pth_path()
-    return target.is_file() and target.read_text(encoding="utf-8") == HOOK_PTH_LINE
+    return target.is_file() and target.read_text(encoding="utf-8") == hook_pth_line()
 
 
 def main(argv: list[str] | None = None) -> int:

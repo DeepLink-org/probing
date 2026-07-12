@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use datafusion::arrow::array::{Int32Array, Int64Array, StringArray};
-use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
-use datafusion::arrow::record_batch::RecordBatch;
+use arrow::array::{Int32Array, Int64Array, StringArray};
+use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::record_batch::RecordBatch;
 
 use probing_core::core::{CustomTable, TableProbeDataSource};
 

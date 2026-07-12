@@ -1,7 +1,7 @@
 //! Browser HTTP backend for the shared skill runner.
 
 use probing_proto::prelude::DataFrame;
-use probing_skills::backend::{ClusterQueryMeta, SkillBackend};
+use probing_skills::backend::{parse_cluster_query_response, ClusterQueryMeta, SkillBackend};
 use probing_skills::runner::{Result, SkillRunError};
 
 use crate::api::ApiClient;
@@ -25,13 +25,12 @@ impl SkillBackend for WebBackend {
             .cluster_query(sql, true)
             .await
             .map_err(|e| SkillRunError(e.display_message()))?;
-        let meta = ClusterQueryMeta {
-            partial: !resp.meta.nodes_failed.is_empty(),
-            nodes_queried: resp.meta.nodes_queried,
-            nodes_failed: resp.meta.nodes_failed.clone(),
-            peer_batches_dropped: 0,
-        };
-        Ok((resp.dataframe, Some(meta)))
+        let value = serde_json::json!({
+            "dataframe": resp.dataframe,
+            "meta": resp.meta,
+        });
+        let (dataframe, meta) = parse_cluster_query_response(&value)?;
+        Ok((dataframe, meta))
     }
 
     async fn get(&self, path: &str) -> Result<String> {

@@ -9,6 +9,9 @@ pub mod loader;
 pub mod routing;
 pub mod runner;
 
+#[cfg(feature = "python-bridge")]
+pub mod pyo3;
+
 pub use api::{
     catalog_json, catalog_to_json, list_skills_json, load_skill_json, routing_json, skill_from_api,
     skill_to_json,
@@ -24,5 +27,6 @@ pub use routing::{
     match_intent_routes, match_routed_skills, match_skills, IntentRoute, SkillRoute,
 };
 pub use runner::{
-    execute_skill, plan_skill, resolve_use_global, run_step, RunOptions, RunResult, StepOutcome,
+    build_summary, cluster_integrity_findings, execute_skill, plan_skill, resolve_use_global,
+    run_step, RunOptions, RunResult, StepOutcome,
 };

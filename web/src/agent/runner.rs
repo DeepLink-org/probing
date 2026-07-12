@@ -18,6 +18,7 @@ pub enum StepOutcome {
         row_count: usize,
         empty_message: Option<String>,
         cluster_note: Option<String>,
+        cluster_meta: Option<probing_skills::backend::ClusterQueryMeta>,
     },
     ApiText {
         step_id: String,
@@ -54,6 +55,7 @@ fn map_outcome(
             dataframe,
             row_count,
             note,
+            cluster_meta,
             ..
         } => StepOutcome::Sql {
             step_id,
@@ -62,6 +64,7 @@ fn map_outcome(
             row_count,
             empty_message: None,
             cluster_note: note,
+            cluster_meta,
         },
         O::ApiText {
             step_id,

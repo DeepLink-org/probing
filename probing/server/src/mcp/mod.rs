@@ -4,14 +4,15 @@
 //! Phase 2: schema grounding (`describe_tables`, resources), cluster tools, gated write tools.
 
 mod helpers;
+mod skill_backend;
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::Router;
-use probing_cli::cli::skill::{list_skill_ids, load_skill, plan_skill, run_skill_json};
 use probing_proto::prelude::{Query, QueryDataFormat};
-use probing_skills::backend::parse_cluster_query_response;
+use probing_skills::loader::{list_skill_ids, load_skill};
+use probing_skills::runner::{execute_skill, plan_skill, run_result_to_json, RunOptions};
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{
@@ -30,11 +31,14 @@ use rmcp::ServerHandler;
 use serde::Deserialize;
 
 use crate::engine::handle_query;
+use crate::server::cluster_fanout::{self, ClusterFanoutScope};
+use crate::server::sql_guard::ensure_read_only_sql;
 use helpers::{
-    allow_mcp_write, audit_mcp_write, engine_query_json, ensure_read_only_sql, escape_sql_string,
-    local_ctrl, require_write_permission, tool_error, validate_config_key, DEFAULT_ROW_LIMIT,
+    allow_mcp_write, audit_mcp_write, engine_query_json, escape_sql_string, extension_request,
+    require_write_permission, tool_error, tool_error_from, validate_config_key, DEFAULT_ROW_LIMIT,
     MAX_ROW_LIMIT,
 };
+use skill_backend::ServerBackend;
 
 const SCHEMA_RESOURCE_PREFIX: &str = "probing://schema/";
 
@@ -215,7 +219,7 @@ impl ProbingMcp {
         &self,
         Parameters(PlanSkillArgs { skill_id, params }): Parameters<PlanSkillArgs>,
     ) -> Result<CallToolResult, rmcp::ErrorData> {
-        let value = plan_skill(&skill_id, params).map_err(|e| tool_error(e.0))?;
+        let value = plan_skill(&skill_id, params).map_err(tool_error_from)?;
         Ok(text_result(value.to_string()))
     }
 
@@ -231,26 +235,37 @@ impl ProbingMcp {
         if let Some(global) = use_global {
             params.insert("use_global".to_string(), global.to_string());
         }
-        let ctrl = local_ctrl();
-        match run_skill_json(ctrl, &skill_id, params).await {
-            Ok(value) => Ok(text_result(value.to_string())),
-            Err(err) => Err(tool_error(err.to_string())),
-        }
-    }
-
-    #[tool(description = "List registered cluster nodes from `GET /apis/nodes`.")]
-    async fn list_cluster_nodes(&self) -> Result<CallToolResult, rmcp::ErrorData> {
-        let ctrl = local_ctrl();
-        let body = ctrl
-            .get("/apis/nodes")
+        let result = execute_skill(&ServerBackend, &skill_id, params, RunOptions::default())
             .await
-            .map_err(|e| tool_error(e.to_string()))?;
-        Ok(text_result(body))
+            .map_err(tool_error_from)?;
+        let payload = run_result_to_json(&result);
+        if result.had_error {
+            return Err(tool_error(payload.to_string()));
+        }
+        Ok(text_result(payload.to_string()))
     }
 
-    #[tool(
-        description = "Run read-only SQL with optional cluster fan-out via `POST /apis/cluster/query`."
-    )]
+    #[tool(description = "List registered cluster nodes.")]
+    async fn list_cluster_nodes(&self) -> Result<CallToolResult, rmcp::ErrorData> {
+        use probing_core::core::cluster::get_nodes_page;
+        use probing_proto::prelude::NodeListResponse;
+
+        let (version, total, nodes) =
+            tokio::task::spawn_blocking(|| get_nodes_page(0, 10_000, None))
+                .await
+                .map_err(|e| tool_error(format!("cluster list task failed: {e}")))?;
+        let resp = NodeListResponse {
+            version,
+            total,
+            offset: 0,
+            nodes,
+        };
+        Ok(text_result(
+            serde_json::to_string_pretty(&resp).unwrap_or_else(|_| "{}".to_string()),
+        ))
+    }
+
+    #[tool(description = "Run read-only SQL with optional cluster fan-out.")]
     async fn cluster_query(
         &self,
         Parameters(ClusterQueryArgs {
@@ -259,26 +274,24 @@ impl ProbingMcp {
             limit,
         }): Parameters<ClusterQueryArgs>,
     ) -> Result<CallToolResult, rmcp::ErrorData> {
+        use probing_core::core::federation::validate_global_query;
+
         let limit = limit.clamp(1, MAX_ROW_LIMIT);
         ensure_read_only_sql(&sql).map_err(tool_error)?;
-        let body = serde_json::json!({
-            "expr": sql,
-            "cluster": cluster,
-        });
-        let reply = local_ctrl()
-            .post_json("/apis/cluster/query", &body.to_string())
+        if cluster {
+            validate_global_query(&sql).map_err(tool_error_from)?;
+        }
+        let result = cluster_fanout::fanout_query(&sql, cluster, true, ClusterFanoutScope::Auto)
             .await
-            .map_err(|e| tool_error(e.to_string()))?;
-        let value: serde_json::Value =
-            serde_json::from_str(&reply).map_err(|e| tool_error(e.to_string()))?;
-        let (dataframe, cluster_meta) =
-            parse_cluster_query_response(&value).map_err(|e| tool_error(e.0))?;
-        let rows = helpers::truncate_dataframe_json(&dataframe, limit);
-        let meta = value
-            .get("meta")
-            .cloned()
-            .unwrap_or(serde_json::Value::Null);
-        let partial = cluster_meta.as_ref().is_some_and(|m| m.partial);
+            .map_err(tool_error_from)?;
+        let partial = result.meta.partial;
+        let rows = helpers::truncate_dataframe_json(&result.dataframe, limit);
+        let meta = serde_json::to_value(&result.meta).unwrap_or(serde_json::Value::Null);
+        if partial && probing_core::core::federation::fanout_strict_enabled() {
+            return Err(tool_error(format!(
+                "federated fan-out strict mode: cluster query returned partial data ({meta})"
+            )));
+        }
         let payload = serde_json::json!({
             "dataframe": rows,
             "meta": meta,
@@ -310,7 +323,7 @@ impl ProbingMcp {
             opts: None,
         })
         .await
-        .map_err(|e| tool_error(e.to_string()))?;
+        .map_err(tool_error_from)?;
         Ok(text_result(format!(
             "{{\"status\":\"ok\",\"key\":\"{probe_key}\",\"write_enabled\":true}}"
         )))
@@ -325,10 +338,10 @@ impl ProbingMcp {
     ) -> Result<CallToolResult, rmcp::ErrorData> {
         require_write_permission("eval_python")?;
         audit_mcp_write("eval_python", &format!("code_len={}", code.len()));
-        let body = local_ctrl()
-            .eval_json(code)
+        let bytes = extension_request("/apis/pythonext/eval", code.as_bytes())
             .await
-            .map_err(|e| tool_error(e.to_string()))?;
+            .map_err(tool_error_from)?;
+        let body = String::from_utf8(bytes).map_err(tool_error_from)?;
         Ok(text_result(body))
     }
 }
@@ -372,7 +385,7 @@ impl ServerHandler for ProbingMcp {
             opts: None,
         })
         .await
-        .map_err(|e| tool_error(e.to_string()))?;
+        .map_err(tool_error_from)?;
         let QueryDataFormat::DataFrame(df) = reply else {
             return Ok(ListResourcesResult {
                 resources: vec![catalog_resource()],
@@ -506,7 +519,7 @@ fn text_result(text: String) -> CallToolResult {
 
 #[cfg(test)]
 mod tests {
-    use super::helpers::ensure_read_only_sql;
+    use crate::server::sql_guard::ensure_read_only_sql;
 
     #[test]
     fn ensure_read_only_sql_accepts_select() {
@@ -516,5 +529,16 @@ mod tests {
     #[test]
     fn ensure_read_only_sql_rejects_set() {
         assert!(ensure_read_only_sql("SET probing.sample_rate=0.1").is_err());
+    }
+
+    #[test]
+    fn ensure_read_only_sql_rejects_trailing_write() {
+        assert!(ensure_read_only_sql("SELECT 1; DELETE FROM python.t").is_err());
+        assert!(ensure_read_only_sql("SELECT 1; SET probing.sample_rate=0.1").is_err());
+    }
+
+    #[test]
+    fn ensure_read_only_sql_rejects_write_inside_with() {
+        assert!(ensure_read_only_sql("WITH x AS (DELETE FROM python.t) SELECT 1").is_err());
     }
 }

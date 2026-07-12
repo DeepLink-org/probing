@@ -3,7 +3,7 @@ use crate::overhead::sql::{self, NCCL_COUNTERS, TRAIN_STEP_MEDIAN};
 use crate::utils::error::{AppError, Result};
 use probing_proto::prelude::DataFrame;
 
-pub const OVERHEAD_POLL_MS: u32 = 5000;
+pub const OVERHEAD_POLL_MS: u32 = 2000;
 
 pub fn empty_dataframe() -> DataFrame {
     DataFrame {

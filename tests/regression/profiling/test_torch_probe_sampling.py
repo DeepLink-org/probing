@@ -163,6 +163,34 @@ def test_post_step_hook_records_probed_timing_after_flush(monkeypatch):
     assert order.index("finish") < order.index(timing_events[0])
 
 
+def test_post_step_hook_drains_deferred_after_step_timing(monkeypatch):
+    order = []
+
+    def track_timing(self, *, is_shadow: bool):
+        order.append("timing")
+
+    def track_drain(self):
+        order.append("drain")
+
+    monkeypatch.setattr(TorchProbe, "_record_step_timing", track_timing)
+    monkeypatch.setattr(TorchProbe, "_drain_deferred", track_drain)
+    monkeypatch.setattr(
+        TorchProbe, "_advance_step_cycle_for_next", lambda self: order.append("advance")
+    )
+    monkeypatch.setattr(
+        TorchProbe, "_mark_step_wall_start", lambda self: order.append("mark")
+    )
+
+    tracer, _, _ = _ready_tracer()
+    tracer.shadow_step = False
+    tracer.has_backend = False
+    tracer._mark_step_wall_start()
+
+    tracer.post_step_hook(None, (), {})
+
+    assert order[-4:] == ["timing", "drain", "advance", "mark"]
+
+
 def test_anchor_pre_always_pairs_post_even_when_layer_not_sampled():
     # layer_rate=0 → nothing sampled except the offset-0 time anchor.
     tracer, root, other = _ready_tracer(layer_rate=0.0)

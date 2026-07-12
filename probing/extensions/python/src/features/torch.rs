@@ -324,7 +324,7 @@ fn query_profiling_impl(query: &str) -> Result<probing_proto::types::DataFrame> 
             .async_query(&query)
             .await
             .context("Torch query failed")?;
-        Ok(result.unwrap_or_default())
+        result.ok_or_else(|| anyhow::anyhow!("engine returned no dataframe for torch query"))
     })
     .map_err(anyhow::Error::new)?
 }
@@ -352,9 +352,8 @@ fn run_torch_query(query: &str) -> Result<probing_proto::types::DataFrame> {
             .enable_all()
             .build()
             .context("failed to build tokio runtime")?;
-        Ok(rt
-            .block_on(async { engine.async_query(&query).await })?
-            .unwrap_or_default())
+        rt.block_on(async { engine.async_query(&query).await })?
+            .ok_or_else(|| anyhow::anyhow!("minimal engine returned no dataframe for torch query"))
     })
     .join()
     .map_err(|_| anyhow::anyhow!("error joining thread"))?

@@ -3,6 +3,7 @@ mod query_dto;
 mod repl;
 mod runtime;
 mod spa;
+pub mod sql_guard;
 
 pub use runtime::SERVER_RUNTIME;
 
@@ -38,6 +39,7 @@ pub const TOP_LEVEL_ROUTES: &[(&str, &str)] = &[
     ("POST", "/query/dto"),
     ("GET", "/config/{config_key}"),
     ("GET", "/ws"),
+    ("POST", "/mcp"),
 ];
 
 async fn get_config_value_handler(
@@ -120,8 +122,19 @@ pub async fn local_server() -> Result<()> {
     Ok(())
 }
 
+async fn run_local_server() {
+    if let Err(err) = local_server().await {
+        error!("local HTTP server exited: {err:#}");
+        crate::engine_lifecycle::mark_engine_failed(format!("local server: {err:#}"));
+        if crate::engine_lifecycle::engine_fail_fast_enabled() {
+            error!("PROBING_ENGINE_FAIL_FAST=1 — exiting after local server failure");
+            std::process::exit(1);
+        }
+    }
+}
+
 pub fn start_local() {
-    SERVER_RUNTIME.block_on(async move {
+    if let Err(err) = probing_core::runtime::block_on(async move {
         match initialize_engine().await {
             Ok(()) => {
                 log::info!("probing engine initialized");
@@ -136,15 +149,24 @@ pub fn start_local() {
                 }
             }
         }
-    });
+    }) {
+        error!("probing runtime unavailable during engine init: {err}");
+        crate::engine_lifecycle::mark_engine_failed(err.to_string());
+        if crate::engine_lifecycle::engine_fail_fast_enabled() {
+            error!("PROBING_ENGINE_FAIL_FAST=1 — exiting");
+            std::process::exit(1);
+        }
+    }
     SERVER_RUNTIME.spawn(async move {
-        let _ = local_server().await;
+        run_local_server().await;
     });
 }
 
 pub async fn remote_server(addr: Option<String>) -> Result<()> {
     let addr = addr.unwrap_or_else(|| "0.0.0.0:0".to_string());
     log::info!("Starting probe server at {addr}");
+
+    crate::auth::bootstrap_auth_from_env().await;
 
     let app = build_app(true);
     let listener = tokio::net::TcpListener::bind(addr).await?;
@@ -168,9 +190,20 @@ pub async fn remote_server(addr: Option<String>) -> Result<()> {
     Ok(())
 }
 
+async fn run_remote_server(addr: Option<String>) {
+    if let Err(err) = remote_server(addr).await {
+        error!("remote HTTP server exited: {err:#}");
+        crate::engine_lifecycle::mark_engine_failed(format!("remote server: {err:#}"));
+        if crate::engine_lifecycle::engine_fail_fast_enabled() {
+            error!("PROBING_ENGINE_FAIL_FAST=1 — exiting after remote server failure");
+            std::process::exit(1);
+        }
+    }
+}
+
 pub fn start_remote(addr: Option<String>) {
     SERVER_RUNTIME.spawn(async move {
-        let _ = remote_server(addr).await;
+        run_remote_server(addr).await;
     });
 }
 

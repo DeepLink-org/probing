@@ -155,7 +155,7 @@ print(f'是否 Inf: {torch.isinf(loss).item()}')"
 -- 找到最慢的操作
 SELECT module, stage, avg(duration) as avg_time
 FROM python.torch_trace
-WHERE step > (SELECT max(step) - 5 FROM python.torch_trace)
+WHERE local_step > (SELECT max(local_step) - 5 FROM python.torch_trace)
 GROUP BY module, stage
 ORDER BY avg_time DESC
 LIMIT 10;

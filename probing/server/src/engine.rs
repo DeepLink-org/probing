@@ -18,7 +18,12 @@ use probing_core::core::UnifiedMemtableProbeDataSource;
 pub use probing_core::ENGINE;
 use probing_python::extensions::python::PythonProbeDataSource;
 
+/// Composition root: wires L2 collectors/extensions into the engine.
+/// NCCL/HCCL schema docs are registered here (not via `probing-core` default features).
 pub async fn initialize_engine() -> Result<()> {
+    probing_hccl_shim::register_docs();
+    probing_nccl_profiler::register_docs();
+
     let builder = probing_core::create_engine()
         .with_data_source(cc::ClusterProbeDataSource::create("cluster", "nodes"))
         .with_data_source(cc::EnvProbeDataSource::create("process", "envs"))
@@ -200,7 +205,7 @@ pub async fn query(req: String) -> ApiResult<QueryHttpEnvelope> {
             // Error already logged in handle_query if it originated there
             QueryDataFormat::Error(QueryError {
                 code: ErrorCode::Internal,
-                message: err.to_string(),
+                message: format!("{err:#}"),
                 details: None,
             })
         }
