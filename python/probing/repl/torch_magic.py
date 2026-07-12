@@ -13,6 +13,8 @@ from IPython.core.magic import Magics, line_magic, magics_class
 import __main__
 from probing.repl import register_magic
 
+from probing.profiling.torch_profiler import ProfilerController, get_controller
+
 # Optional import - torch may not be installed
 try:
     import torch
@@ -105,8 +107,8 @@ Examples:
             print("Usage: %pytorch profile [steps=1]")
             return
 
-        # Check if profiler already exists (non-reentrant)
-        if __main__.__probing__.get(self.PROFILER_KEY) is not None:
+        controller = get_controller()
+        if controller.is_running:
             print("✗ Global profiler is already running")
             print(
                 "  The profiler can only be started once. Stop it first or wait for it to complete."
@@ -114,7 +116,9 @@ Examples:
             return
 
         try:
-            self._start_global_profiler(steps)
+            controller.start(steps=steps, trigger="repl")
+            __main__.__probing__[self.PROFILER_KEY] = controller
+            __main__.profiler = controller
             print(f"✓ Global profiler started for {steps} step(s)")
             print(
                 "  Profiler will automatically record data after each optimizer.step()"
@@ -127,23 +131,43 @@ Examples:
 
     def _cmd_summary(self) -> None:
         """Handle summary subcommand."""
-        profiler = __main__.__probing__.get(self.PROFILER_KEY)
-        if profiler is None:
+        controller = __main__.__probing__.get(self.PROFILER_KEY) or get_controller()
+        if not isinstance(controller, ProfilerController):
             print("No profiler found. Use '%pytorch profile' first.")
             return
 
-        profiler.summary()
+        profiler = controller._profiler  # noqa: SLF001 — REPL summary
+        if profiler is None:
+            print("Profiler has no active session.")
+            return
+
+        try:
+            events = profiler.events()
+            event_list = list(events) if events else []
+            if event_list:
+                print(f"Profiler collected {len(event_list)} events")
+                table = profiler.key_averages().table(
+                    sort_by="self_cuda_time_total", row_limit=10
+                )
+                print(table)
+            else:
+                status = controller.status()
+                print("Profiler has no events.")
+                print(
+                    f"  Step count: {status['steps_completed']}/{status['steps_target']}"
+                )
+        except Exception as e:
+            print(f"Error generating summary: {e}")
 
     def _cmd_timeline(self) -> None:
         """Handle timeline subcommand - export Chrome tracing format."""
-        profiler = __main__.__probing__.get(self.PROFILER_KEY)
-        if profiler is None:
+        controller = __main__.__probing__.get(self.PROFILER_KEY) or get_controller()
+        if not isinstance(controller, ProfilerController):
             print("No profiler found. Use '%pytorch profile' first.")
             return
 
-        timeline = profiler.export_timeline()
+        timeline = controller.export_timeline()
         if timeline:
-            # Print JSON to stdout (can be captured by API)
             print(timeline)
         else:
             print(
@@ -220,235 +244,18 @@ Examples:
 
         return args
 
-    def _start_global_profiler(self, steps: int = 1):
-        """Start a global profiler using context manager approach.
-
-        Args:
-            steps: Number of steps to profile.
-        """
+    def _start_global_profiler(
+        self, steps: int = 1, trigger: str = "http"
+    ) -> ProfilerController:
+        """Start profiler (HTTP / legacy callers)."""
         if not HAS_TORCH:
             raise ImportError(
                 "PyTorch is not installed. Please install it with: pip install torch"
             )
-
-        class _GlobalProfiler:
-            """Global profiler class using torch.profiler.profile context manager."""
-
-            def __init__(self, steps: int) -> None:
-                self._steps = steps
-                self._step_count = 0
-                self._profiler = None
-                self._cached_timeline = None
-                self._timeline_exported = False
-                self._hook_handle = None  # Store hook handle for removal
-
-                # Configure activities
-                activities = [torch.profiler.ProfilerActivity.CPU]
-                if torch.cuda.is_available():
-                    activities.append(torch.profiler.ProfilerActivity.CUDA)
-
-                self._profiler = torch.profiler.profile(
-                    record_shapes=True,
-                    with_stack=True,
-                    with_flops=True,
-                    activities=activities,
-                    on_trace_ready=None,
-                )
-
-                # Register optimizer step post hook to automatically drive profiler
-                from torch.optim.optimizer import register_optimizer_step_post_hook
-
-                profiler_instance = self
-
-                def profiler_step_hook(optimizer, *args, **kwargs):
-                    """Hook function that starts profiler and calls step() after optimizer.step()."""
-                    # Start profiler on first call (in training thread)
-                    if profiler_instance._step_count == 0:
-                        profiler_instance._profiler.__enter__()
-                        print(
-                            f"==== Profiler started (profiling {profiler_instance._steps} steps) ===="
-                        )
-
-                    # Record step if profiler is active and hasn't reached limit
-                    if (
-                        profiler_instance._profiler is not None
-                        and profiler_instance._step_count < profiler_instance._steps
-                    ):
-                        try:
-                            profiler_instance._profiler.step()
-                            profiler_instance._step_count += 1
-
-                            # Stop profiler when step limit is reached
-                            if (
-                                profiler_instance._step_count
-                                >= profiler_instance._steps
-                            ):
-                                profiler_instance._profiler.__exit__(None, None, None)
-                                print(
-                                    f"==== Profiler stopped (completed {profiler_instance._steps} steps) ===="
-                                )
-                                # Remove hook
-                                if profiler_instance._hook_handle is not None:
-                                    try:
-                                        from torch.optim.optimizer import (
-                                            remove_optimizer_step_post_hook,
-                                        )
-
-                                        remove_optimizer_step_post_hook(
-                                            profiler_instance._hook_handle
-                                        )
-                                        profiler_instance._hook_handle = None
-                                    except Exception:
-                                        pass
-                        except RuntimeError as e:
-                            # Profiler already stopped - ignore
-                            error_msg = str(e).lower()
-                            if (
-                                "can't disable" in error_msg
-                                or "not running" in error_msg
-                            ):
-                                if profiler_instance._hook_handle is not None:
-                                    try:
-                                        from torch.optim.optimizer import (
-                                            remove_optimizer_step_post_hook,
-                                        )
-
-                                        remove_optimizer_step_post_hook(
-                                            profiler_instance._hook_handle
-                                        )
-                                        profiler_instance._hook_handle = None
-                                    except Exception:
-                                        pass
-
-                self._hook_handle = register_optimizer_step_post_hook(
-                    profiler_step_hook
-                )
-
-            def step(self):
-                """Manually call step() after each iteration (usually not needed - hook handles it)."""
-                if self._profiler is None or self._step_count >= self._steps:
-                    return
-
-                try:
-                    self._profiler.step()
-                    self._step_count += 1
-
-                    if self._step_count >= self._steps:
-                        self._profiler.__exit__(None, None, None)
-                except Exception:
-                    pass
-
-            def stop(self):
-                """Manually stop the profiler."""
-                if self._profiler is None:
-                    return
-
-                if self._hook_handle is not None:
-                    try:
-                        from torch.optim.optimizer import (
-                            remove_optimizer_step_post_hook,
-                        )
-
-                        remove_optimizer_step_post_hook(self._hook_handle)
-                        self._hook_handle = None
-                    except Exception:
-                        pass
-
-                try:
-                    self._profiler.__exit__(None, None, None)
-                    print(
-                        f"==== Profiler stopped manually (completed {self._step_count}/{self._steps} steps) ===="
-                    )
-                except Exception:
-                    pass
-
-            def summary(self):
-                """Print profiler summary."""
-                if self._profiler is None:
-                    print("Profiler is not initialized")
-                    return
-
-                try:
-                    events = self._profiler.events()
-                    event_list = list(events) if events else []
-                    event_count = len(event_list)
-
-                    if event_count > 0:
-                        print(f"Profiler collected {event_count} events")
-                        table = self._profiler.key_averages().table(
-                            sort_by="cpu_time_total", row_limit=10
-                        )
-                        print(table)
-                    else:
-                        print("Profiler has no events.")
-                        print(f"  Step count: {self._step_count}/{self._steps}")
-                        if self._step_count < self._steps:
-                            print(
-                                "  Profiler may still be running. Wait for it to complete."
-                            )
-                except RuntimeError as e:
-                    error_msg = str(e).lower()
-                    if (
-                        "not enabled" in error_msg
-                        or "not started" in error_msg
-                        or "not running" in error_msg
-                    ):
-                        print("Profiler has been stopped.")
-                        print(f"  Step count: {self._step_count}/{self._steps}")
-                    else:
-                        raise
-                except Exception as e:
-                    print(f"Error generating summary: {e}")
-
-            def export_timeline(self) -> Optional[str]:
-                """Export profiler timeline in Chrome tracing format.
-
-                Returns:
-                    JSON string of Chrome tracing format, or None if profiler is not ready.
-                """
-                if self._timeline_exported and self._cached_timeline is not None:
-                    return self._cached_timeline
-
-                if self._profiler is None:
-                    return None
-
-                try:
-                    import json
-                    import os
-                    import tempfile
-
-                    tmp_fd, tmp_path = tempfile.mkstemp(suffix=".json", text=True)
-                    os.close(tmp_fd)
-
-                    try:
-                        self._profiler.export_chrome_trace(tmp_path)
-
-                        with open(tmp_path) as f:
-                            trace_json = f.read()
-
-                        # Verify it's valid JSON
-                        parsed = json.loads(trace_json)
-                        trace_events = parsed.get("traceEvents", [])
-
-                        if not trace_events:
-                            return None
-
-                        # Cache the timeline
-                        self._cached_timeline = trace_json
-                        self._timeline_exported = True
-
-                        return trace_json
-                    finally:
-                        try:
-                            os.unlink(tmp_path)
-                        except Exception:
-                            pass
-                except Exception:
-                    return None
-
-        # Create and store global profiler
-        profiler = _GlobalProfiler(steps)
-        __main__.__probing__[self.PROFILER_KEY] = profiler
-        __main__.profiler = profiler
-
-        return profiler
+        controller = get_controller()
+        if controller.is_running:
+            raise RuntimeError("profiler already running")
+        controller.start(steps=steps, trigger=trigger)
+        __main__.__probing__[self.PROFILER_KEY] = controller
+        __main__.profiler = controller
+        return controller

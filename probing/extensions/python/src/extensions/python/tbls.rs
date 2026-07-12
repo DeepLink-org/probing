@@ -44,7 +44,10 @@ impl From<pyo3::CastError<'_, '_>> for PythonTableError {
     }
 }
 
-fn try_record_batch(schema: SchemaRef, columns: Vec<ArrayRef>) -> TableResult<RecordBatch> {
+pub(crate) fn try_record_batch(
+    schema: SchemaRef,
+    columns: Vec<ArrayRef>,
+) -> TableResult<RecordBatch> {
     RecordBatch::try_new(schema, columns).map_err(|e| PythonTableError::BatchBuild(e.to_string()))
 }
 
@@ -218,7 +221,11 @@ impl CustomNamespace for PythonNamespace {
         // Extern tables (`probing.ExternalTable`) are mmap-backed and served
         // by the mmap SQL catalog (`probing_core::core::memtable_sql`), not
         // by this namespace.
-        vec!["backtrace".to_string()]
+        vec![
+            "backtrace".to_string(),
+            "profile_capture".to_string(),
+            "profile_hotspot".to_string(),
+        ]
     }
 
     fn data(expr: &str) -> Vec<RecordBatch> {
@@ -233,6 +240,22 @@ impl CustomNamespace for PythonNamespace {
                 }
                 Err(e) => {
                     error!("Error getting backtrace data: {e:?}");
+                    error_batch(&e.to_string())
+                }
+            }
+        } else if expr == "profile_capture" {
+            match super::profile_sql::profile_capture_batches() {
+                Ok(batches) => batches,
+                Err(e) => {
+                    error!("python.profile_capture: {e:?}");
+                    error_batch(&e.to_string())
+                }
+            }
+        } else if expr == "profile_hotspot" {
+            match super::profile_sql::profile_hotspot_batches() {
+                Ok(batches) => batches,
+                Err(e) => {
+                    error!("python.profile_hotspot: {e:?}");
                     error_batch(&e.to_string())
                 }
             }

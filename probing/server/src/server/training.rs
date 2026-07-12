@@ -336,6 +336,83 @@ fn ele_as_f64(v: Option<Ele>) -> f64 {
     }
 }
 
+#[derive(Debug, Deserialize)]
+pub struct DistributedFlamegraphParams {
+    pub step: Option<i64>,
+    pub metric: Option<String>,
+    pub cluster: Option<bool>,
+}
+
+/// SQL for one ``local_step`` snapshot of ``torch_trace`` across ranks (federated or local).
+///
+/// Uses the row's training ``rank`` column (not federation ``_rank`` tags, which are added
+/// after fan-out merge). ``COALESCE(_rank, …)`` breaks local ``python.torch_trace`` scans.
+pub fn distributed_torch_trace_sql(table: &str, step: Option<i64>) -> String {
+    let step_pred = match step {
+        Some(s) => format!("local_step = {s}"),
+        None => format!("local_step = (SELECT max(local_step) FROM {table})"),
+    };
+    format!(
+        r#"
+SELECT
+  CAST(COALESCE(rank, 0) AS BIGINT) AS rank,
+  module,
+  stage,
+  CAST(duration AS DOUBLE) AS duration,
+  CAST(allocated_delta AS DOUBLE) AS allocated_delta,
+  CAST(max_allocated_delta AS DOUBLE) AS max_allocated_delta,
+  CAST(allocated AS DOUBLE) AS allocated,
+  CAST(max_allocated AS DOUBLE) AS max_allocated,
+  CAST(local_step AS BIGINT) AS local_step
+FROM {table}
+WHERE {step_pred}
+  AND module <> 'None'
+  AND (stage LIKE 'post %' OR stage LIKE 'pre %')
+"#
+    )
+}
+
+/// SPMD flamegraph: same ``local_step``, all ranks — identical stacks merge, divergent paths split.
+pub async fn get_distributed_flamegraph_json(
+    axum::extract::Query(params): axum::extract::Query<DistributedFlamegraphParams>,
+) -> impl IntoResponse {
+    use axum::http::header;
+
+    if let Some(msg) = crate::engine_lifecycle::engine_not_ready_message() {
+        return ApiError::service_unavailable(msg).into_response();
+    }
+    let cluster = params.cluster.unwrap_or(true);
+    let table = if cluster {
+        "global.python.torch_trace"
+    } else {
+        "python.torch_trace"
+    };
+    let sql = distributed_torch_trace_sql(table, params.step);
+
+    let fanout = match cluster_fanout::fanout_query(
+        &sql,
+        cluster,
+        false,
+        cluster_fanout::ClusterFanoutScope::Auto,
+    )
+    .await
+    {
+        Ok(f) => f,
+        Err(err) => return ApiError::from(err).into_response(),
+    };
+    let partial = fanout.meta.partial;
+    let body = probing_python::features::torch::distributed_flamegraph_json_from_df(
+        &fanout.dataframe,
+        params.metric.as_deref(),
+    );
+    let status = if partial {
+        StatusCode::SERVICE_UNAVAILABLE
+    } else {
+        StatusCode::OK
+    };
+    (status, [(header::CONTENT_TYPE, "application/json")], body).into_response()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -345,6 +422,17 @@ mod tests {
         use probing_core::core::federation::{sql_has_limit, validate_global_query};
         assert!(validate_global_query(STEP_MATRIX_SQL).is_ok());
         assert!(sql_has_limit(STEP_MATRIX_SQL));
+    }
+
+    #[test]
+    fn distributed_torch_sql_valid_for_global_fanout() {
+        use probing_core::core::federation::validate_global_query;
+        let sql = super::distributed_torch_trace_sql("global.python.torch_trace", Some(42));
+        assert!(sql.contains("local_step = 42"));
+        assert!(sql.contains("COALESCE(rank, 0)"));
+        assert!(validate_global_query(&sql).is_ok());
+        let latest = super::distributed_torch_trace_sql("global.python.torch_trace", None);
+        assert!(latest.contains("max(local_step)"));
     }
 
     #[test]

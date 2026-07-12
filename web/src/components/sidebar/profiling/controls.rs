@@ -6,7 +6,8 @@ use crate::api::{ApiClient, ProfileResponse};
 use crate::components::colors::colors;
 use crate::hooks::use_api_simple;
 use crate::state::profiling::{
-    show_profiling_feedback, PROFILING_CHROME_LIMIT, PROFILING_PPROF_FREQ, PROFILING_PYTORCH_STEPS,
+    show_profiling_feedback, PROFILING_CHROME_LIMIT, PROFILING_DIST_CLUSTER, PROFILING_DIST_RELOAD,
+    PROFILING_DIST_STEP, PROFILING_PPROF_FREQ, PROFILING_PYTORCH_STEPS,
     PROFILING_PYTORCH_TIMELINE_RELOAD, PROFILING_RAY_TIMELINE_RELOAD, PROFILING_TORCH_ENABLED,
     PROFILING_TRACE_RELOAD,
 };
@@ -128,6 +129,68 @@ pub fn TorchControls(
                 span { class: "{toggle_label_class}",
                     if is_enabled { "Enabled" } else { "Disabled" }
                 }
+            }
+        }
+    }
+}
+
+#[component]
+pub fn TorchDistControls(
+    control_title_class: String,
+    control_value_class: String,
+    input_class: String,
+) -> Element {
+    let step = *PROFILING_DIST_STEP.read();
+    let cluster = *PROFILING_DIST_CLUSTER.read();
+    let step_label = step
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| "latest".to_string());
+
+    rsx! {
+        div {
+            class: "space-y-3",
+            div {
+                class: "space-y-1",
+                div { class: "{control_title_class}", "Training step" }
+                input {
+                    class: "{input_class} w-full",
+                    r#type: "number",
+                    min: "0",
+                    placeholder: "latest",
+                    value: step.map(|s| s.to_string()).unwrap_or_default(),
+                    oninput: move |ev| {
+                        let raw = ev.value().trim().to_string();
+                        if raw.is_empty() {
+                            *PROFILING_DIST_STEP.write() = None;
+                        } else if let Ok(s) = raw.parse::<i64>() {
+                            *PROFILING_DIST_STEP.write() = Some(s);
+                        }
+                    },
+                }
+                div { class: "{control_value_class} text-slate-400", "Step: {step_label}" }
+            }
+            label {
+                class: "flex items-center gap-2 cursor-pointer select-none text-xs text-slate-300",
+                input {
+                    r#type: "checkbox",
+                    checked: cluster,
+                    onchange: move |_| {
+                        *PROFILING_DIST_CLUSTER.write() = !*PROFILING_DIST_CLUSTER.read();
+                    },
+                }
+                "Cluster fan-out"
+            }
+            button {
+                class: format!(
+                    "w-full px-2 py-1.5 text-xs font-medium rounded bg-{} text-white hover:bg-{}",
+                    colors::PRIMARY,
+                    colors::PRIMARY_HOVER
+                ),
+                onclick: move |_| {
+                    *PROFILING_DIST_RELOAD.write() += 1;
+                    show_profiling_feedback("Reloading distributed flamegraph…", false);
+                },
+                "Reload flamegraph"
             }
         }
     }
