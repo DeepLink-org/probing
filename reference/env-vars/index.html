@@ -1127,6 +1127,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1187,6 +1191,62 @@
     
   
     Profiling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/overhead/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overhead
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/overhead-invariants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overhead invariants
   
 
     
@@ -2576,11 +2636,6 @@ by subsystem.</p>
 <td>URL path prefix for reverse proxy deployments (e.g. <code>/probing</code>).</td>
 </tr>
 <tr>
-<td><code>PROBING_REMOTE_QUERY_TIMEOUT_SECS</code></td>
-<td>server default</td>
-<td>Timeout for remote fan-out queries (federation).</td>
-</tr>
-<tr>
 <td><code>PROBING_ASSETS_ROOT</code></td>
 <td>built-in default</td>
 <td>Path to the web UI static assets directory.</td>
@@ -2638,6 +2693,11 @@ by subsystem.</p>
 <td><code>PROBING_SPAN_LOCATION</code></td>
 <td>unset</td>
 <td>Enable automatic location capture via <code>inspect.stack()</code> for every span. Adds overhead; use sparingly.</td>
+</tr>
+<tr>
+<td><code>PROBING_TRACE_STDOUT</code></td>
+<td>unset</td>
+<td>When <code>1</code>/<code>true</code>, <code>probing.inspect.trace</code> emits variable/tensor updates to <strong>stdout</strong> instead of the Python logger.</td>
 </tr>
 </tbody>
 </table>
@@ -3028,6 +3088,11 @@ These variables are read by PyTorch, not Probing, but should be set before
 <td>Max concurrent in-flight remote fan-out HTTP requests per query.</td>
 </tr>
 <tr>
+<td><code>PROBING_FANOUT_STRICT</code></td>
+<td>unset</td>
+<td>When <code>1</code> or <code>true</code>, any federated peer failure or dropped batch fails the whole query instead of returning partial results.</td>
+</tr>
+<tr>
 <td><code>PROBING_NCCL_CHUNK_BYTES</code></td>
 <td><code>65536</code></td>
 <td>NCCL profiler mmap ring chunk size (bytes).</td>
@@ -3070,7 +3135,7 @@ These variables are read by PyTorch, not Probing, but should be set before
 <tr>
 <td><code>PROBING_NCCL_MIN_MSG_BYTES</code></td>
 <td><code>0</code></td>
-<td>Drop events below this message size (bytes); <code>0</code> = record all.</td>
+<td>Drop events below this message size (bytes); <code>0</code> = record all. See also §NCCL above.</td>
 </tr>
 </tbody>
 </table>
@@ -3109,6 +3174,11 @@ These variables are read by PyTorch, not Probing, but should be set before
 <td>—</td>
 <td>Safe demonstration mode that restricts dangerous operations.</td>
 </tr>
+<tr>
+<td><code>PROBING_MCP_ALLOW_WRITE</code></td>
+<td>unset</td>
+<td>When <code>1</code>/<code>true</code>/<code>on</code>/<code>yes</code>, enables MCP write tools (<code>set_config</code>, <code>eval_python</code>). Default: read-only. See <code>probing/server/API.md</code>.</td>
+</tr>
 </tbody>
 </table>
 <h2 id="skill-tool-paths">Skill &amp; tool paths<a class="headerlink" href="#skill-tool-paths" title="Permanent link">&para;</a></h2>
@@ -3121,12 +3191,8 @@ These variables are read by PyTorch, not Probing, but should be set before
 </thead>
 <tbody>
 <tr>
-<td><code>PROBING_PROJECT_SKILLS_DIR</code></td>
-<td>Per-project skill directory (overrides <code>$PWD/.probing/skills/</code>).</td>
-</tr>
-<tr>
-<td><code>PROBING_USER_SKILLS_DIR</code></td>
-<td>Per-user skill directory (overrides <code>$HOME/.probing/skills/</code>).</td>
+<td><code>PROBING_SKILLS_DIR</code></td>
+<td>Extra skill root directory (appended after bundled/repo/user/project paths). Highest-priority filesystem override.</td>
 </tr>
 <tr>
 <td><code>PROBING_CODE_ROOT</code></td>

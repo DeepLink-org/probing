@@ -710,6 +710,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#diagnostic-skills" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Diagnostic skills
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#whats-next" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1262,6 +1273,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1322,6 +1337,62 @@
     
   
     Profiling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design/overhead/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overhead
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design/overhead-invariants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overhead invariants
   
 
     
@@ -2188,6 +2259,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#diagnostic-skills" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Diagnostic skills
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#whats-next" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2336,6 +2418,13 @@ ranks:</p>
 </span></code></pre></div>
 <p><code>_rank</code> is a federation tag added at query time — see <a href="../guide/concepts/">Core Concepts</a>
 for how this works.</p>
+<h2 id="diagnostic-skills">Diagnostic skills<a class="headerlink" href="#diagnostic-skills" title="Permanent link">&para;</a></h2>
+<p>After the server is running, run bundled diagnostic workflows:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>skill<span class="w"> </span>list
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>skill<span class="w"> </span>run<span class="w"> </span>health_overview
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>skill<span class="w"> </span>run<span class="w"> </span>slow_rank<span class="w"> </span>--global<span class="w">    </span><span class="c1"># multi-node straggler (from rank0)</span>
+</span></code></pre></div>
+<p>Skills execute SQL steps in-process and apply interpretation rules. See <a href="../guide/skills/">Skills</a> and <code>skills/catalog.yaml</code>.</p>
 <h2 id="whats-next">What's next<a class="headerlink" href="#whats-next" title="Permanent link">&para;</a></h2>
 <p>These three commands — <code>backtrace</code>, <code>eval</code>, <code>query</code> — cover the majority of
 day-to-day diagnostic work. Each is documented in detail in the <a href="../api-reference/">API
