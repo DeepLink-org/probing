@@ -16,7 +16,7 @@
         <link rel="prev" href="../cli/">
       
       
-        <link rel="next" href="../overhead/">
+        <link rel="next" href="../torch-profiler-sql/">
       
       
         
@@ -1143,6 +1143,8 @@
       
         
       
+        
+      
     
     
     
@@ -1432,6 +1434,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../torch-profiler-sql/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Torch Profiler SQL（Kineto 虚拟表）
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -2503,7 +2533,7 @@
     TABLES --&gt; QUERY</code></pre>
 <h2 id="pytorch-torchprobe">PyTorch 分析（TorchProbe）<a class="headerlink" href="#pytorch-torchprobe" title="Permanent link">&para;</a></h2>
 <h3 id="_4">设计定位<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
-<p>TorchProbe 面向<strong>注入后长期开启的 module 级训练遥测</strong>（<code>PROBING_TORCH_PROFILING=on</code>）。与 episodic 工具（<code>torch.profiler</code> / Kineto 的 op/kernel Chrome trace）互补，而非替代。</p>
+<p>TorchProbe 面向<strong>注入后长期开启的 module 级训练遥测</strong>（<code>PROBING_TORCH_PROFILING=on</code>）。与 episodic 工具（<code>torch.profiler</code> / Kineto 的 op/kernel Chrome trace）互补，而非替代。按需 Kineto 采集以<strong>虚拟 SQL 表</strong>暴露（不写 memtable）见 <strong><a href="../torch-profiler-sql/">Torch Profiler SQL</a></strong>。</p>
 <p><strong>不提供 warmup schedule API</strong>。跳过冷启动步请在 SQL 中过滤：</p>
 <div class="language-sql highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">local_step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
 </span></code></pre></div>
