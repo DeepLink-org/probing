@@ -33,7 +33,6 @@ docs/site/
 .venv/
 .coverage
 .pytest_cache/
-python/probing/bundled_web/
 python/probing/libs/
 python/probing/shim/
 web/target/
