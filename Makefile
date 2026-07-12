@@ -237,8 +237,8 @@ verify-wheel-contents:
 install-wheel: verify-wheel-contents
 	@WH=$$(ls -1 dist/probing-*.whl 2>/dev/null | head -1); \
 	test -n "$$WH" || { echo "run: make wheel"; exit 1; }; \
-	$(PYTHON) -m pip install -q -U pip && \
-	$(PYTHON) -m pip install --force-reinstall "$$WH" && \
+	PROBING=0 $(PYTHON) -m pip install -q -U pip && \
+	PROBING=0 $(PYTHON) -m pip install --force-reinstall "$$WH" && \
 	PROBING=0 $(PYTHON) -c "\
 import importlib.util; \
 import probing; from probing import _core; from pathlib import Path; \
@@ -322,7 +322,7 @@ test-python-regression: check-dev
 test-doctest:
 	${PYTEST_RUN} --doctest-modules python/probing --ignore=python/probing/cli/__main__.py
 
-test-python-wheel: install-wheel-test-deps
+test-python-wheel: install-wheel-test-deps install-wheel
 	PROBING=1 PROBING_VM_TRACER=0 PROBING_WHEEL_TEST=1 $(PYTHON) -m pytest $(PYTEST_WHEEL_FLAGS) $(PYTEST_WHEEL_EXTRA) $(PYTEST_WHEEL_ARGS)
 
 coverage-python-wheel:

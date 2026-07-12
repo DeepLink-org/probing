@@ -33,6 +33,4 @@ docs/site/
 .venv/
 .coverage
 .pytest_cache/
-python/probing/libs/
-python/probing/shim/
 web/target/

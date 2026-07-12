@@ -12,24 +12,34 @@ from pathlib import Path
 _repo_python = Path(__file__).parent / "python"
 
 
-def _installed_probing_is_complete() -> bool:
+def _missing_probing_modules() -> list[str]:
     try:
-        if importlib.util.find_spec("probing._core") is None:
-            return False
-        for mod in ("probing.skills.loader", "probing.ext", "probing.handlers"):
-            if importlib.util.find_spec(mod) is None:
-                return False
-        return True
+        import importlib.util
+
+        required = (
+            "probing._core",
+            "probing.skills.loader",
+            "probing.ext",
+            "probing.handlers",
+        )
+        return [name for name in required if importlib.util.find_spec(name) is None]
     except (ImportError, ModuleNotFoundError, ValueError):
-        return False
+        return ["probing (import system error)"]
+
+
+def _installed_probing_is_complete() -> bool:
+    return not _missing_probing_modules()
 
 
 if _repo_python.is_dir():
     _prepend_repo = not _installed_probing_is_complete()
     if os.environ.get("PROBING_WHEEL_TEST") == "1" and not _installed_probing_is_complete():
+        missing = ", ".join(_missing_probing_modules())
         raise RuntimeError(
-            "installed wheel is incomplete (missing probing.* Python modules); "
-            "run: make frontend && make wheel && make install-wheel"
+            "installed wheel is incomplete "
+            f"(missing: {missing}); "
+            "run: make frontend && make wheel && make install-wheel "
+            "(install with PROBING=0 — do not set PROBING=1 during pip install)"
         )
     if _prepend_repo:
         _repo_python_str = str(_repo_python)
