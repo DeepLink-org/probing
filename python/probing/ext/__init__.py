@@ -13,4 +13,6 @@ Responsibilities:
 Submodules:
 - `ray`: Ray task and actor tracing.
 - `torch`: PyTorch profiling hooks and utilities.
+- `megatron`: Megatron-LM role/step sync.
+- `vllm`: vLLM / vLLM-Metal inference role/step sync.
 """

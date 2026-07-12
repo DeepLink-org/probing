@@ -236,6 +236,36 @@ def sync_step_from_megatron(*, force: bool = False) -> None:
     _LAST_ITERATION = iteration
 
 
+def sync_step_from_iteration(
+    iteration: int,
+    *,
+    micro_batches: Optional[int] = None,
+    force: bool = False,
+) -> None:
+    """Align probing step with a Megatron-Core style optimizer iteration counter."""
+    global _LAST_ITERATION
+    if not step_sync_enabled():
+        return
+
+    value = _safe_int(iteration)
+    if value is None:
+        return
+
+    mb = micro_batches
+    if mb is None:
+        mb = _read_num_microbatches()
+    if mb is not None:
+        probing.step(micro_batches=mb)
+    else:
+        mb = int(probing.step.snapshot().micro_batches) or 1
+
+    if not force and value == _LAST_ITERATION:
+        return
+
+    probing.step(value * mb)
+    _LAST_ITERATION = value
+
+
 def _wrap_callable(module: Any, attr: str, wrapper_builder: Callable) -> None:
     original = getattr(module, attr, None)
     if original is None or getattr(original, "_probing_wrapped", False):

@@ -6,17 +6,18 @@ metadata:
   title: "NCCL culprit / victim 归因"
   title_en: "NCCL culprit vs victim attribution"
   category: distributed
-  tags: [NCCL, culprit, victim, proxy, wait, straggler]
+  tags: [NCCL, culprit, victim, proxy, wait, straggler, topology]
   triggers:
     keywords:
-      zh: ["罪魁祸首", "受害者", "recv_wait", "gpu_wait", "NCCL 等待", "proxy wait"]
-      en: ["NCCL culprit", "NCCL victim", "recv wait", "gpu wait", "proxy wait"]
+      zh: ["罪魁祸首", "受害者", "recv_wait", "gpu_wait", "NCCL 等待", "proxy wait", "拓扑"]
+      en: ["NCCL culprit", "NCCL victim", "recv wait", "gpu wait", "proxy wait", "topology"]
   docs: |
-    基于 nccl.proxy_ops 的 ProxyStep wait 分解，区分：
-    - culprit：send_gpu_wait_ns 高（本 rank GPU/计算慢）
-    - victim：recv_wait_ns 高（等 peer / 网络）
-    - send_peer_wait_ns 高（仅 v4 ABI）：等接收端 credits → 对端拥塞信号
-    需要 NCCL_PROFILER_PLUGIN 加载 probing-nccl-profiler；开发机可用 PROBING_NCCL_MOCK=1。
+    基于 nccl.proxy_ops 的 ProxyStep wait 分解，按 **rank↔peer 通信边** 归因（非全局 wait 排序）：
+    - culprit：send 边上 send_gpu_wait_ns 高（本 rank GPU/计算慢）
+    - victim：recv 边上 recv_wait_ns 高，且对端 send 边 send_gpu_wait 不高 → 等网络/relay
+    - propagated victim：recv 高但对端 send_gpu_wait 也高 → 根因在拓扑上游 peer
+    - send_peer_wait_ns 高（仅 v4 ABI）：等接收端 credits → 对端拥塞
+    需要 NCCL_PROFILER_PLUGIN；开发机可用 PROBING_NCCL_MOCK=1。
 
 spec:
   parameters:
@@ -62,48 +63,256 @@ spec:
         - export NCCL_PROFILE_EVENT_MASK=94
         - 或 macOS 开发: PROBING_NCCL_MOCK=1 PROBING=1
 
-    - id: culprit_ranking
-      title: "Culprit 候选 (send_gpu_wait)"
+    - id: topology_attribution
+      title: "拓扑边归因 (rank↔peer)"
       type: sql
       sql: |
+        WITH windowed AS (
+          SELECT *
+          FROM {nccl_proxy_table}
+          WHERE seq >= (
+            SELECT max(seq) - {seq_window}
+            FROM {nccl_proxy_table}
+          )
+            AND peer >= 0
+        ),
+        send_edges AS (
+          SELECT
+            rank AS sender_rank,
+            peer AS receiver_rank,
+            coll_func,
+            tp_rank,
+            pp_rank,
+            dp_rank,
+            sum(send_gpu_wait_ns) AS send_gpu_wait_ns,
+            sum(send_peer_wait_ns) AS send_peer_wait_ns,
+            sum(send_wait_ns) AS send_wait_ns,
+            count(*) AS send_ops
+          FROM windowed
+          WHERE is_send = 1
+          GROUP BY rank, peer, coll_func, tp_rank, pp_rank, dp_rank
+        ),
+        recv_edges AS (
+          SELECT
+            rank AS receiver_rank,
+            peer AS sender_rank,
+            coll_func,
+            tp_rank,
+            pp_rank,
+            dp_rank,
+            sum(recv_wait_ns) AS recv_wait_ns,
+            sum(recv_flush_wait_ns) AS recv_flush_wait_ns,
+            count(*) AS recv_ops
+          FROM windowed
+          WHERE is_send = 0
+          GROUP BY rank, peer, coll_func, tp_rank, pp_rank, dp_rank
+        )
+        SELECT
+          r.receiver_rank AS rank,
+          r.sender_rank AS peer,
+          r.coll_func,
+          r.tp_rank,
+          r.pp_rank,
+          r.dp_rank,
+          r.recv_wait_ns AS victim_wait_ns,
+          coalesce(s.send_gpu_wait_ns, 0) AS peer_send_gpu_wait_ns,
+          coalesce(s.send_peer_wait_ns, 0) AS peer_send_peer_wait_ns,
+          coalesce(s.send_wait_ns, 0) AS peer_send_wait_ns,
+          CASE
+            WHEN coalesce(s.send_gpu_wait_ns, 0) >= r.recv_wait_ns * 0.5
+              THEN r.sender_rank
+            ELSE r.receiver_rank
+          END AS attributed_root_rank,
+          CASE
+            WHEN coalesce(s.send_gpu_wait_ns, 0) >= r.recv_wait_ns * 0.5
+              THEN 'propagated_victim'
+            WHEN r.recv_wait_ns > coalesce(s.send_gpu_wait_ns, 0) * 2
+              THEN 'local_victim_or_network'
+            ELSE 'ambiguous'
+          END AS attribution_class,
+          r.recv_ops AS ops
+        FROM recv_edges r
+        LEFT JOIN send_edges s
+          ON s.sender_rank = r.sender_rank
+         AND s.receiver_rank = r.receiver_rank
+         AND s.coll_func = r.coll_func
+         AND s.tp_rank = r.tp_rank
+         AND s.pp_rank = r.pp_rank
+         AND s.dp_rank = r.dp_rank
+        WHERE r.recv_wait_ns > 0
+        ORDER BY r.recv_wait_ns DESC
+        LIMIT 15
+      on_empty: skip
+      empty_message: "无 peer>=0 的 recv 边 — collective 可能未填充 peer 列"
+
+    - id: culprit_ranking
+      title: "Culprit 候选 (send 边 send_gpu_wait)"
+      type: sql
+      sql: |
+        WITH windowed AS (
+          SELECT *
+          FROM {nccl_proxy_table}
+          WHERE seq >= (
+            SELECT max(seq) - {seq_window}
+            FROM {nccl_proxy_table}
+          )
+            AND peer >= 0
+        ),
+        send_edges AS (
+          SELECT
+            rank,
+            peer,
+            coll_func,
+            tp_rank,
+            pp_rank,
+            dp_rank,
+            sum(send_gpu_wait_ns) AS culprit_wait_ns,
+            sum(send_peer_wait_ns) AS peer_congestion_ns,
+            count(*) AS ops
+          FROM windowed
+          WHERE is_send = 1
+          GROUP BY rank, peer, coll_func, tp_rank, pp_rank, dp_rank
+        )
         SELECT
           rank,
+          peer,
+          coll_func,
           tp_rank,
           pp_rank,
           dp_rank,
-          coll_func,
-          sum(send_gpu_wait_ns) AS culprit_wait_ns,
-          count(*) AS ops
-        FROM {nccl_proxy_table}
-        WHERE seq >= (
-          SELECT max(seq) - {seq_window}
-          FROM {nccl_proxy_table}
-        )
-        GROUP BY rank, tp_rank, pp_rank, dp_rank, coll_func
+          culprit_wait_ns,
+          peer_congestion_ns,
+          ops
+        FROM send_edges
+        WHERE culprit_wait_ns > 0
         ORDER BY culprit_wait_ns DESC
         LIMIT 10
       on_empty: skip
 
     - id: victim_ranking
-      title: "Victim 候选 (recv_wait)"
+      title: "Victim 候选 (拓扑归因后)"
       type: sql
       sql: |
-        SELECT
-          rank,
-          tp_rank,
-          pp_rank,
-          dp_rank,
-          coll_func,
-          sum(recv_wait_ns) AS victim_wait_ns,
-          sum(recv_flush_wait_ns) AS flush_wait_ns,
-          count(*) AS ops
-        FROM {nccl_proxy_table}
-        WHERE seq >= (
-          SELECT max(seq) - {seq_window}
+        WITH windowed AS (
+          SELECT *
           FROM {nccl_proxy_table}
+          WHERE seq >= (
+            SELECT max(seq) - {seq_window}
+            FROM {nccl_proxy_table}
+          )
+            AND peer >= 0
+        ),
+        send_edges AS (
+          SELECT
+            rank AS sender_rank,
+            peer AS receiver_rank,
+            coll_func,
+            tp_rank,
+            pp_rank,
+            dp_rank,
+            sum(send_gpu_wait_ns) AS send_gpu_wait_ns
+          FROM windowed
+          WHERE is_send = 1
+          GROUP BY rank, peer, coll_func, tp_rank, pp_rank, dp_rank
+        ),
+        recv_edges AS (
+          SELECT
+            rank AS receiver_rank,
+            peer AS sender_rank,
+            coll_func,
+            tp_rank,
+            pp_rank,
+            dp_rank,
+            sum(recv_wait_ns) AS victim_wait_ns,
+            sum(recv_flush_wait_ns) AS flush_wait_ns,
+            count(*) AS ops
+          FROM windowed
+          WHERE is_send = 0
+          GROUP BY rank, peer, coll_func, tp_rank, pp_rank, dp_rank
         )
-        GROUP BY rank, tp_rank, pp_rank, dp_rank, coll_func
-        ORDER BY victim_wait_ns DESC
+        SELECT
+          r.receiver_rank AS rank,
+          r.sender_rank AS peer,
+          r.coll_func,
+          r.tp_rank,
+          r.pp_rank,
+          r.dp_rank,
+          r.victim_wait_ns,
+          r.flush_wait_ns,
+          coalesce(s.send_gpu_wait_ns, 0) AS peer_send_gpu_wait_ns,
+          CASE
+            WHEN coalesce(s.send_gpu_wait_ns, 0) >= r.victim_wait_ns * 0.5
+              THEN r.sender_rank
+            ELSE r.receiver_rank
+          END AS attributed_root_rank,
+          r.ops
+        FROM recv_edges r
+        LEFT JOIN send_edges s
+          ON s.sender_rank = r.sender_rank
+         AND s.receiver_rank = r.receiver_rank
+         AND s.coll_func = r.coll_func
+         AND s.tp_rank = r.tp_rank
+         AND s.pp_rank = r.pp_rank
+         AND s.dp_rank = r.dp_rank
+        WHERE r.victim_wait_ns > 0
+        ORDER BY r.victim_wait_ns DESC
+        LIMIT 10
+      on_empty: skip
+
+    - id: root_culprit_summary
+      title: "根因 rank 汇总 (沿 peer 边聚合)"
+      type: sql
+      sql: |
+        WITH windowed AS (
+          SELECT *
+          FROM {nccl_proxy_table}
+          WHERE seq >= (
+            SELECT max(seq) - {seq_window}
+            FROM {nccl_proxy_table}
+          )
+            AND peer >= 0
+        ),
+        send_edges AS (
+          SELECT
+            rank AS sender_rank,
+            peer AS receiver_rank,
+            sum(send_gpu_wait_ns) AS send_gpu_wait_ns
+          FROM windowed
+          WHERE is_send = 1
+          GROUP BY rank, peer
+        ),
+        recv_edges AS (
+          SELECT
+            rank AS receiver_rank,
+            peer AS sender_rank,
+            sum(recv_wait_ns) AS recv_wait_ns
+          FROM windowed
+          WHERE is_send = 0
+          GROUP BY rank, peer
+        ),
+        attributed AS (
+          SELECT
+            CASE
+              WHEN coalesce(s.send_gpu_wait_ns, 0) >= r.recv_wait_ns * 0.5
+                THEN r.sender_rank
+              ELSE r.receiver_rank
+            END AS root_rank,
+            r.recv_wait_ns AS recv_wait_ns,
+            coalesce(s.send_gpu_wait_ns, 0) AS send_gpu_wait_ns
+          FROM recv_edges r
+          LEFT JOIN send_edges s
+            ON s.sender_rank = r.sender_rank
+           AND s.receiver_rank = r.receiver_rank
+          WHERE r.recv_wait_ns > 0
+        )
+        SELECT
+          root_rank AS rank,
+          sum(recv_wait_ns) AS total_attributed_recv_wait_ns,
+          sum(send_gpu_wait_ns) AS total_peer_send_gpu_wait_ns,
+          count(*) AS edges
+        FROM attributed
+        GROUP BY root_rank
+        ORDER BY total_attributed_recv_wait_ns DESC
         LIMIT 10
       on_empty: skip
 
@@ -173,30 +382,35 @@ spec:
   interpretation:
     rules:
       - id: culprit_dominates
-        when: "step:rank_wait_summary | column:total_gpu_wait_ns | max/min(ratio) > 2"
+        when: "step:root_culprit_summary | column:total_attributed_recv_wait_ns | max/min(ratio) > 2"
         severity: warning
-        message: "某 rank 的 send_gpu_wait 显著高于其他 rank — 可能是 culprit (本地 GPU 慢)"
+        message: "某 root rank 在拓扑归因后 recv wait 显著集中 — 优先检查 attributed_root_rank"
 
       - id: victim_dominates
-        when: "step:rank_wait_summary | column:total_recv_wait_ns | max/min(ratio) > 2"
+        when: "step:topology_attribution | column:victim_wait_ns | max/min(ratio) > 2"
         severity: warning
-        message: "某 rank 的 recv_wait 显著高于其他 rank — 可能是 victim (等待 peer/网络)"
+        message: "某 recv 边 wait 显著偏高 — 查看 attribution_class 区分 propagated_victim vs local_victim"
+
+      - id: propagated_victim_chain
+        when: "step:topology_attribution | rows >= 1 | column:attribution_class | value = propagated_victim"
+        severity: info
+        message: "存在 propagated_victim — 根因在 peer 侧 send_gpu_wait，勿将 receiver 误判为 culprit"
 
       - id: culprit_not_victim
         when: "step:culprit_ranking | rows >= 1 | column:culprit_wait_ns | max > 1000000"
         severity: info
-        message: "查看 culprit_ranking 顶部 rank — 对比 victim_ranking 确认是否同一 rank"
+        message: "查看 culprit_ranking 的 (rank, peer) 边 — 对比 victim_ranking.attributed_root_rank"
 
   summary_template: |
-    ## NCCL culprit / victim
-    - **culprit_ranking**: `send_gpu_wait_ns` 最高 → 本地算力瓶颈
-    - **victim_ranking**: `recv_wait_ns` 最高 → 等待他人或网络
-    - **rank_wait_summary.total_peer_wait_ns**（仅 v4 ABI）高 → 对端接收拥塞
-    - **role_aligned**: 同 tp/pp/dp 切片对比（Megatron 拓扑）
-    - 若仅有 python.comm_collective → skill: comm_bottleneck
+    ## NCCL culprit / victim（拓扑感知）
+    - **topology_attribution**: recv 边 + 对端 send 边 join → `attributed_root_rank` / `attribution_class`
+    - **culprit_ranking**: send 边 `(rank→peer)` 上 `send_gpu_wait_ns` 最高 → 本地 GPU 慢
+    - **victim_ranking**: recv 边 + `attributed_root_rank`（区分 relay victim vs 根因）
+    - **root_culprit_summary**: 沿拓扑归因聚合的根因 rank
+    - **rank_wait_summary**: 全局 rank 视图（辅助；万卡场景以边级步骤为准）
 
   next_steps:
-    - "culprit 持续同一 rank → gpu_pressure / module_bottleneck"
-    - "victim 全体偏高 → 网络/RoCE: comm_bottleneck (rdma.mlx_hca)"
-    - "send_peer_wait_ns 偏高 → 对端 rank 接收侧拥塞，检查该 peer 的 GPU/网络"
-    - "单 rank victim + 其他 culprit → 典型 straggler: slow_rank"
+    - "attributed_root_rank 持续同一 rank → gpu_pressure / module_bottleneck"
+    - "attribution_class=local_victim_or_network 全体偏高 → comm_bottleneck (rdma.mlx_hca)"
+    - "peer_send_peer_wait_ns 偏高 → 对端 rank 接收侧拥塞"
+    - "propagated_victim 链 → 沿 topology_attribution 向 sender 追溯 root rank"

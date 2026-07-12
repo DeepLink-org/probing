@@ -139,7 +139,7 @@ impl Default for PyExternalTableConfig {
     fn default() -> Self {
         PyExternalTableConfig {
             chunk_size: 10000,
-            discard_threshold: 20_000_000,
+            discard_threshold: default_discard_threshold_bytes(),
             discard_strategy: "BaseMemorySize".to_string(),
         }
     }
@@ -172,6 +172,23 @@ impl PyExternalTableConfig {
     }
 }
 
+const DEFAULT_DISCARD_THRESHOLD_BYTES: usize = 20 * 1024 * 1024;
+
+fn default_discard_threshold_bytes() -> usize {
+    static DEFAULT: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+    *DEFAULT.get_or_init(|| {
+        std::env::var("PROBING_TABLE_DEFAULT_MB")
+            .ok()
+            .and_then(|v| v.trim().parse::<usize>().ok())
+            .filter(|mb| *mb > 0)
+            .map(|mb| mb * 1024 * 1024)
+            .unwrap_or(DEFAULT_DISCARD_THRESHOLD_BYTES)
+    })
+}
+
+fn resolve_discard_threshold(discard_threshold: Option<usize>) -> usize {
+    discard_threshold.unwrap_or_else(default_discard_threshold_bytes)
+}
 /// Total ring capacity in bytes derived from the (legacy) discard config.
 ///
 /// - `BaseMemorySize`: `discard_threshold` *is* a byte budget.
@@ -485,17 +502,18 @@ impl ExternalTable {
 #[pymethods]
 impl ExternalTable {
     #[new]
-    #[pyo3(signature = (name, columns, chunk_size = 10000, discard_threshold = 20_000_000, discard_strategy = "BaseMemorySize".to_string(), table_doc = None, column_docs = None))]
+    #[pyo3(signature = (name, columns, chunk_size = 10000, discard_threshold = None, discard_strategy = "BaseMemorySize".to_string(), table_doc = None, column_docs = None))]
     fn new(
         name: &str,
         columns: Vec<String>,
         chunk_size: usize,
-        discard_threshold: usize,
+        discard_threshold: Option<usize>,
         discard_strategy: String,
         table_doc: Option<String>,
         column_docs: Option<HashMap<String, String>>,
     ) -> PyResult<Self> {
         let _ = chunk_size; // ring chunking is byte-based; kept for API compat
+        let discard_threshold = resolve_discard_threshold(discard_threshold);
         let name = name.to_string();
         with_detached_native(move || {
             let ncolumn = columns.len();
@@ -529,19 +547,20 @@ impl ExternalTable {
     }
 
     #[classmethod]
-    #[pyo3(signature = (name, columns, chunk_size = 10000, discard_threshold = 20_000_000, discard_strategy = "BaseMemorySize".to_string(), table_doc = None, column_docs = None))]
+    #[pyo3(signature = (name, columns, chunk_size = 10000, discard_threshold = None, discard_strategy = "BaseMemorySize".to_string(), table_doc = None, column_docs = None))]
     #[allow(clippy::too_many_arguments)]
     fn get_or_create(
         _cls: &Bound<'_, PyType>,
         name: &str,
         columns: Vec<String>,
         chunk_size: usize,
-        discard_threshold: usize,
+        discard_threshold: Option<usize>,
         discard_strategy: String,
         table_doc: Option<String>,
         column_docs: Option<HashMap<String, String>>,
     ) -> PyResult<ExternalTable> {
         let _ = chunk_size;
+        let discard_threshold = resolve_discard_threshold(discard_threshold);
         let name = name.to_string();
         with_detached_native(move || {
             let mut binding = lock_extern_tables();
@@ -756,7 +775,7 @@ if not hasattr(probing, "_made_{name}"):
             "table1",
             vec!["a".to_string(), "b".to_string()],
             10000,
-            20000000,
+            Some(20000000),
             "BaseMemorySize".to_string(),
             None,
             None,
@@ -777,7 +796,7 @@ if not hasattr(probing, "_made_{name}"):
                 "op".to_string(),
             ],
             10000,
-            20_000_000,
+            Some(20_000_000),
             "BaseMemorySize".to_string(),
             None,
             None,
@@ -841,7 +860,7 @@ probing.ExternalTable.drop("table_to_drop")
             "roundtrip",
             vec!["x".to_string(), "msg".to_string()],
             10000,
-            1_000_000,
+            Some(1_000_000),
             "BaseMemorySize".to_string(),
             None,
             None,
@@ -871,7 +890,7 @@ probing.ExternalTable.drop("table_to_drop")
             "nccl.proxy_ops",
             vec!["rank".to_string()],
             10000,
-            1_000_000,
+            Some(1_000_000),
             "BaseMemorySize".to_string(),
             None,
             None,

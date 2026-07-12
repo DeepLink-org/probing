@@ -19,6 +19,7 @@ Prefix syntax: `init:SCRIPT+<mode>` runs `exec(open(SCRIPT).read())` after activ
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PROBING_DATA_DIR` | Platform-specific | Root directory for mmap ring buffer files (MEMT tables). Each process creates a subdirectory named by its PID. |
+| `PROBING_TABLE_DEFAULT_MB` | `20` | Default mmap ring byte budget per Python `@table` (and `ExternalTable` when `discard_threshold` is omitted). Override per table with `@table(capacity_bytes=…)`. Tables are created on first write, not at import. |
 | `PROBING_COLD` | unset | Set to `on` to enable hot-to-cold compaction of mmap tables. |
 | `PROBING_COLD_TARGET_MB` | — | Target size per cold chunk after compaction. |
 | `PROBING_COLD_MAX_TOTAL_MB` | — | Maximum total size of all cold storage files. |
@@ -144,6 +145,23 @@ or modules are detected. No training-script changes are required beyond `PROBING
 Import hooks run when `megatron.core.parallel_state` and `megatron.training.training`
 load: parallel ranks flow into `probing.set_role`, and `train_step` aligns step
 coordinates for SQL JOINs.
+
+### vLLM autostart
+
+vLLM integration is **best-effort** and enabled by default when vLLM env vars
+or modules are detected (including the macOS **vllm-metal** platform plugin).
+No inference-script changes are required beyond `PROBING=2`.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PROBING_VLLM` | `auto` | `auto` = on when vLLM env/modules detected; `on`/`off` to force. |
+| `PROBING_VLLM_STEP_SYNC` | `auto` | Sync `probing.step` with vLLM scheduler steps via wrapped `LLMEngine.step`. |
+| `probing.vllm.enable` | — | Config override for vLLM autostart (`probing.config.set`). |
+| `probing.vllm.step_sync` | — | Config override for engine step sync. |
+
+Import hooks run when `vllm_metal` (macOS Metal plugin), `vllm.v1.engine.llm_engine`,
+or `vllm.engine.llm_engine` load: distributed ranks and `backend=metal` flow into
+`probing.set_role`, and `LLMEngine.step` aligns step coordinates for SQL JOINs.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
