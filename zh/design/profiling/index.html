@@ -16,7 +16,7 @@
         <link rel="prev" href="../cli/">
       
       
-        <link rel="next" href="../nccl-profiler/">
+        <link rel="next" href="../overhead/">
       
       
         
@@ -1139,6 +1139,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1428,6 +1432,62 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overhead/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开销测量
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overhead-invariants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overhead invariants
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -2445,7 +2505,7 @@
 <h3 id="_4">设计定位<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
 <p>TorchProbe 面向<strong>注入后长期开启的 module 级训练遥测</strong>（<code>PROBING_TORCH_PROFILING=on</code>）。与 episodic 工具（<code>torch.profiler</code> / Kineto 的 op/kernel Chrome trace）互补，而非替代。</p>
 <p><strong>不提供 warmup schedule API</strong>。跳过冷启动步请在 SQL 中过滤：</p>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">local_step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
 </span></code></pre></div>
 <h3 id="_5">钩子<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
 <p>默认安装：</p>
@@ -2461,7 +2521,7 @@
 <p>文法:<code>rate[:layer_rate]</code>。仍接受前缀 <code>random:</code>/<code>ordered:</code> 以兼容旧配置(一律按 <code>random</code> 处理;旧的逐 step 轮转模块的 <code>ordered</code> 模式已移除)。</p>
 <p>启用时的默认值(<code>PROBING_TORCH_PROFILING=on</code>)：<strong><code>rate=0.05</code>,<code>layer_rate=1.0</code></strong>(约 5% 的 step 做全量快照)。<code>1.0</code> 表示每步都采样,<code>0.05:0.1</code> 表示 5% 的 step、每步采 10% 的 layer。</p>
 <p><strong>Shadow 基线 step（默认 <code>shadow=4:1</code>）</strong>：每 4 个正常训练 step 之后插入 1 个完全跳过 TorchProbe hook 的 step（不写 module 级 <code>python.torch_trace</code>）。NCCL、CPU/GPU 等其它采集不变。每个 step 写一行 <code>python.torch_step_timing</code>（shadow step 的 <code>is_shadow=1</code>）。可用 <code>shadow=off</code> 关闭。</p>
-<p>估算开销：</p>
+<p>估算开销（公式与测量方法见 <strong><a href="../overhead/">开销测量</a></strong>）：</p>
 <div class="language-sql highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">SELECT</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="n">round</span><span class="p">(</span><span class="n">median</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">step_duration_sec</span><span class="w"> </span><span class="k">END</span><span class="p">)</span>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">        </span><span class="o">/</span><span class="w"> </span><span class="k">nullif</span><span class="p">(</span><span class="n">median</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">step_duration_sec</span><span class="w"> </span><span class="k">END</span><span class="p">),</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">100</span>
@@ -2588,13 +2648,14 @@
 <p>按需或周期性栈采集（SIGUSR2 / 同步 walk）写入 <code>python.backtrace</code>。CPU 采样（pprof，<code>probing.pprof.sample_freq</code>）与 TorchProbe 模块钩子相互独立。</p>
 <h2 id="_7">系统指标<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h2>
 <p>通过 <code>PROBING_GPU_SAMPLE_MS</code> 等环境变量配置间隔，采集主机 CPU、内存、GPU 利用率等。</p>
+<p><strong>变量/张量 watch（<code>probing.inspect.trace</code>）：</strong> 默认写入 Python logger；设置 <code>PROBING_TRACE_STDOUT=1</code> 可改为 <strong>stdout</strong> 输出（本地调试方便，生产训练日志慎用）。</p>
 <h2 id="_8">数据存储<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h2>
 <p>探针数据存入<strong>列式探针表</strong>（如 <code>python.torch_trace</code>），由查询引擎访问。保留与联邦策略由 memtable / server 配置决定，而非进程内固定大小环形缓冲区。</p>
 <h2 id="_9">查询示例<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h2>
 <div class="language-sql highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1">-- 跳过 discovery / 冷启动</span>
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">module</span><span class="p">,</span><span class="w"> </span><span class="n">stage</span><span class="p">,</span><span class="w"> </span><span class="k">AVG</span><span class="p">(</span><span class="n">duration</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">avg_sec</span>
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">duration</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">local_step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">duration</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span>
 </span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">module</span><span class="p">,</span><span class="w"> </span><span class="n">stage</span>
 </span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">avg_sec</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
 </span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>

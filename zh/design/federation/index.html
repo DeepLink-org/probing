@@ -1137,6 +1137,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1200,6 +1204,62 @@
     
   
     性能分析
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overhead/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开销测量
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overhead-invariants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overhead invariants
   
 
     
@@ -2672,7 +2732,7 @@
 </tr>
 <tr>
 <td>部分失败</td>
-<td>peer 超时 → 丢弃分片，记录 <code>nodes_failed</code>；查询继续</td>
+<td>默认：peer 超时 → 丢弃分片，记录 <code>nodes_failed</code>；查询继续且 <code>partial=true</code>（集群 API 返回 HTTP 503）。设置 <code>PROBING_FANOUT_STRICT=1</code> 则整查失败。</td>
 </tr>
 <tr>
 <td>无跨 rank JOIN</td>
@@ -2941,7 +3001,23 @@
 </tr>
 <tr>
 <td>超时</td>
-<td>单 peer 超时记 <code>nodes_failed</code>，不拖垮整查（默认 2s，可 <code>PROBING_REMOTE_QUERY_TIMEOUT_SECS</code> 覆盖）</td>
+<td>失败 peer → <code>nodes_failed</code>；默认 <strong>30s</strong>（<code>PROBING_REMOTE_QUERY_TIMEOUT_SECS</code>）</td>
+</tr>
+<tr>
+<td>严格 fan-out</td>
+<td><code>PROBING_FANOUT_STRICT=1</code>：任一 <code>nodes_failed</code> 或 <code>peer_batches_dropped</code> 则整查失败（无 partial merge）</td>
+</tr>
+<tr>
+<td>Partial HTTP</td>
+<td>集群/fan-out API 在 <code>meta.partial=true</code> 时返回 <strong>503</strong> 及 partial <code>dataframe</code>（非 strict 模式）</td>
+</tr>
+<tr>
+<td>Peer 503 接受</td>
+<td>非 strict 模式下，分层 merge 可接受 peer HTTP 503 的 partial body</td>
+</tr>
+<tr>
+<td>联邦 scan 日志</td>
+<td>默认 peer 丢弃记 <strong>debug</strong>；<code>PROBING_FANOUT_STRICT=1</code> 时记 <strong>warn</strong></td>
 </tr>
 <tr>
 <td>分层 fan-out</td>
@@ -3126,7 +3202,7 @@
 </tr>
 </tbody>
 </table>
-<p><strong>部分失败：</strong> 成功 peer 的 partial 仍参与 merge；失败 addr 写入 <code>nodes_failed</code>。</p>
+<p><strong>部分失败：</strong> 默认成功 peer 的 partial 仍参与 merge；失败 addr 写入 <code>nodes_failed</code>，<code>meta.partial=true</code> 时 HTTP <strong>503</strong>（非 strict）。<code>PROBING_FANOUT_STRICT=1</code> 时任一失败即整查失败。</p>
 <h3 id="46-b-scan">4.6 路径 B — 联邦 scan<a class="headerlink" href="#46-b-scan" title="Permanent link">&para;</a></h3>
 <p><strong>目标：</strong> 单表探查、带 filter 的 raw 采样；lazy 拉取控制 coordinator 峰值内存。</p>
 <p><strong>执行模型</strong></p>

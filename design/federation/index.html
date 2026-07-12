@@ -1135,6 +1135,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1198,6 +1202,62 @@
     
   
     Profiling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overhead/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overhead
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overhead-invariants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overhead invariants
   
 
     
@@ -2737,7 +2797,7 @@ A coordinator query:</p>
 </tr>
 <tr>
 <td>Partial failure</td>
-<td>Peer timeout → omit shard, record <code>nodes_failed</code>; query continues</td>
+<td>Default: peer timeout → omit shard, record <code>nodes_failed</code>; query continues with <code>partial=true</code> (HTTP 503 for cluster API). Set <code>PROBING_FANOUT_STRICT=1</code> to fail the whole query instead.</td>
 </tr>
 <tr>
 <td>No cross-rank JOIN</td>
@@ -3000,7 +3060,23 @@ SQL matches §4.2 conditions.</p>
 </tr>
 <tr>
 <td>Timeout</td>
-<td>Failed peer → <code>nodes_failed</code>; default 2s (<code>PROBING_REMOTE_QUERY_TIMEOUT_SECS</code>)</td>
+<td>Failed peer → <code>nodes_failed</code>; default <strong>30s</strong> (<code>PROBING_REMOTE_QUERY_TIMEOUT_SECS</code>)</td>
+</tr>
+<tr>
+<td>Strict fan-out</td>
+<td><code>PROBING_FANOUT_STRICT=1</code> fails query on any <code>nodes_failed</code> or <code>peer_batches_dropped</code> (no partial merge)</td>
+</tr>
+<tr>
+<td>Partial HTTP</td>
+<td>Cluster/fan-out APIs return <strong>503</strong> with partial <code>dataframe</code> when <code>meta.partial=true</code> (non-strict only)</td>
+</tr>
+<tr>
+<td>Peer 503 accept</td>
+<td>Non-strict mode may accept peer HTTP 503 bodies with partial data during hierarchical merge</td>
+</tr>
+<tr>
+<td>Federated scan logs</td>
+<td>Peer drops log at <strong>debug</strong> by default; <strong>warn</strong> when <code>PROBING_FANOUT_STRICT=1</code></td>
 </tr>
 <tr>
 <td>Hierarchical fan-out</td>

@@ -1452,6 +1452,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1515,6 +1519,62 @@
     
   
     性能分析
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overhead/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开销测量
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overhead-invariants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overhead invariants
   
 
     
@@ -3019,6 +3079,14 @@
 <td>torch rank</td>
 </tr>
 <tr>
+<td><code>_node_rank</code></td>
+<td>节点 / worker 组 rank（<code>GROUP_RANK</code>）</td>
+</tr>
+<tr>
+<td><code>_local_rank</code></td>
+<td>节点内 GPU 序号（<code>LOCAL_RANK</code>）</td>
+</tr>
+<tr>
 <td><code>_role</code></td>
 <td>并行 role key</td>
 </tr>
@@ -3334,8 +3402,8 @@ python ext 扩散 import cli crate 内部。</p>
 </tr>
 <tr>
 <td>core → NCCL/HCCL</td>
-<td><code>probing-core</code> → nccl/hccl shim（<code>builtin-schema-docs</code>）供 <code>semantic_catalog</code></td>
-<td>改由采集器注册 docs，去掉 L1→L2 编译依赖</td>
+<td>~~<code>probing-core</code> → nccl/hccl shim（<code>builtin-schema-docs</code>）供 <code>semantic_catalog</code>~~</td>
+<td><strong>已完成</strong> — <code>register_docs()</code> 在 <code>server/engine.rs</code> 组装根调用；<code>probing-core</code> 默认 feature 为空</td>
 </tr>
 <tr>
 <td>core → skills YAML</td>

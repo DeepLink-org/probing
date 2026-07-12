@@ -1137,6 +1137,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1200,6 +1204,62 @@
     
   
     性能分析
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overhead/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开销测量
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overhead-invariants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overhead invariants
   
 
     
@@ -2514,7 +2574,7 @@
 </tr>
 </tbody>
 </table>
-<p>由 torchrun 心跳 / <code>PUT /apis/nodes</code> 自动填充。若集群视图 <strong>缺少</strong> 上述字段，自动 <strong>降级为扁平 fan-out</strong>（与 <code>hierarchical=false</code> 等价）。</p>
+<p>由 torchrun 心跳 / <code>PUT /apis/nodes</code> 自动填充。若集群视图 <strong>缺少</strong> 上述字段且分层模式开启（默认），<strong><code>POST /apis/cluster/query</code> 返回 HTTP 503</strong> — 不会静默降级为扁平 fan-out。仅在明确接受扁平 fan-out 时使用 <code>hierarchical=false</code>。</p>
 <hr />
 <h2 id="4-api">4. API<a class="headerlink" href="#4-api" title="Permanent link">&para;</a></h2>
 <h3 id="post-apisclusterquery"><code>POST /apis/cluster/query</code><a class="headerlink" href="#post-apisclusterquery" title="Permanent link">&para;</a></h3>
@@ -2678,10 +2738,19 @@
 <td><code>1</code></td>
 <td><code>0</code> = 全局扁平 fan-out（legacy O(world_size) 路径）</td>
 </tr>
+<tr>
+<td><code>PROBING_REMOTE_QUERY_TIMEOUT_SECS</code></td>
+<td><code>30</code></td>
+<td>单 peer HTTP 超时（分层下为 per-tier）；见 <a href="../../reference/env-vars/">环境变量</a></td>
+</tr>
+<tr>
+<td><code>PROBING_FANOUT_STRICT</code></td>
+<td>unset</td>
+<td><code>1</code>/<code>true</code> 时任一 peer 失败或 batch 丢弃则整查失败（无 partial 503）</td>
+</tr>
 </tbody>
 </table>
-<p>分层模式开启（默认）但 <code>cluster.nodes</code> 缺少 <code>group_rank</code> / <code>local_rank</code>（心跳未收敛）时，<strong><code>POST /apis/cluster/query</code> 返回 HTTP 503</strong>，不再静默回退扁平 fan-out。仅在明确接受扁平 fan-out 时使用 <code>hierarchical=false</code>。
-| <code>PROBING_REMOTE_QUERY_TIMEOUT_SECS</code> | <code>2</code> | 单 peer HTTP 超时（分层下为 per-tier） |</p>
+<p>分层模式开启（默认）但 <code>cluster.nodes</code> 缺少 <code>group_rank</code> / <code>local_rank</code>（心跳未收敛）时，<strong><code>POST /apis/cluster/query</code> 返回 HTTP 503</strong>，不再静默回退扁平 fan-out。仅在明确接受扁平 fan-out 时使用 <code>hierarchical=false</code>。</p>
 <p>集群心跳相关变量见 <a href="../../reference/env-vars/#集群">环境变量 — 集群</a> 与 <a href="../torchrun-cluster/">torchrun 集群心跳</a>。</p>
 <hr />
 <h2 id="7">7. 实现位置<a class="headerlink" href="#7" title="Permanent link">&para;</a></h2>

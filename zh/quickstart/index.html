@@ -712,6 +712,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#skill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        诊断 skill
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#_7" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1264,6 +1275,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1324,6 +1339,62 @@
     
   
     性能分析
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design/overhead/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开销测量
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design/overhead-invariants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overhead invariants
   
 
     
@@ -2190,6 +2261,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#skill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        诊断 skill
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#_7" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2321,6 +2403,13 @@ backtrace、skill）在服务器运行后全平台通用。</p>
 </span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="s2">&quot;</span>
 </span></code></pre></div>
 <p><code>_rank</code> 是查询时附加的联邦标签——工作原理见<a href="../guide/concepts/">核心概念</a>。</p>
+<h2 id="skill">诊断 skill<a class="headerlink" href="#skill" title="Permanent link">&para;</a></h2>
+<p>服务就绪后，可运行内置诊断流程：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>skill<span class="w"> </span>list
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>skill<span class="w"> </span>run<span class="w"> </span>health_overview
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>skill<span class="w"> </span>run<span class="w"> </span>slow_rank<span class="w"> </span>--global<span class="w">    </span><span class="c1"># 多机 straggler（在 rank0 执行）</span>
+</span></code></pre></div>
+<p>Skill 在进程内执行 SQL 步骤并应用 interpretation 规则。详见 <a href="../guide/skills/">Skills</a> 与 <code>skills/catalog.yaml</code>。</p>
 <h2 id="_7">下一步<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h2>
 <p>三个命令——<code>backtrace</code>、<code>eval</code>、<code>query</code>——覆盖了日常诊断的大部分场景。详细文档
 见 <a href="../api-reference/">API 参考</a>。</p>

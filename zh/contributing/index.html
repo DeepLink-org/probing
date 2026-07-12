@@ -1127,6 +1127,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1187,6 +1191,62 @@
     
   
     性能分析
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design/overhead/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开销测量
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design/overhead-invariants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overhead invariants
   
 
     
@@ -2706,7 +2766,7 @@
 </tr>
 </tbody>
 </table>
-<p><strong>Skill 数据 vs Python 包：</strong> skill <strong>内容</strong>改仓库根 <code>skills/</code>；<strong>加载/安装代码</strong>改 <code>python/probing/skills/</code>。<strong>不要</strong>手改 <code>python/probing/_skills/</code>（由 <code>make wheel</code> 自动生成）。</p>
+<p><strong>Skill 数据 vs Python 包：</strong> skill <strong>内容</strong>改仓库根 <code>skills/</code>（wheel 复制到 <code>python/probing/bundled_skills/</code>）；<strong>加载/安装代码</strong>改 <code>python/probing/skills/</code>。<strong>不要</strong>手改 <code>python/probing/bundled_skills/</code>（由 <code>make wheel</code> 自动生成）。</p>
 <p><strong>两个 <code>probing/</code> 目录：</strong> 仓库根 <code>probing/</code> 是 <strong>Rust</strong>；<code>python/probing/</code> 是 <strong>Python 包</strong>。根目录 <code>src/lib.rs</code> 是 PyO3 入口，构建为 <code>probing._core</code>。</p>
 <h3 id="pull-request">第一个 Pull Request<a class="headerlink" href="#pull-request" title="Permanent link">&para;</a></h3>
 <ol>
@@ -2876,7 +2936,7 @@
 <ul>
 <li><strong>编写</strong>：仓库根 <code>skills/</code>（<code>SKILL.md</code>、<code>steps.yaml</code>、<code>catalog.yaml</code>）</li>
 <li><strong>安装到 IDE</strong>：<code>./skills/install.sh</code> 或 <code>probing skill install</code></li>
-<li><strong>打进 wheel</strong>：<code>make wheel</code> 自动复制到 <code>python/probing/_skills/</code>、<code>python/probing/_web/</code></li>
+<li><strong>打进 wheel</strong>：<code>make wheel</code> 自动复制到 <code>python/probing/bundled_skills/</code>、<code>python/probing/bundled_web/</code></li>
 <li><strong>说明</strong>：<code>skills/README.md</code>、<a href="../design/extensibility/#path-2-diagnostic-skill">扩展机制 — 诊断 skill</a></li>
 </ul>
 <h2 id="_3">开发流程<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
@@ -2940,8 +3000,8 @@
 </span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>│   ├── probing/                  # Python 包（不是 Rust）
 </span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>│   │   ├── skills/               # skill 加载/安装代码 — 见 python/probing/skills/README.md
 </span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>│   │   ├── web_assets.py         # wheel _web/ + editable web/dist → PROBING_ASSETS_ROOT
-</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>│   │   ├── _skills/              # wheel 生成（make wheel），勿手改
-</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>│   │   └── _web/                 # wheel 生成（make wheel），勿手改
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>│   │   ├── bundled_skills/       # wheel 打包的 skill 数据（编写在 repo-root skills/）
+</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>│   │   └── bundled_web/          # wheel 打包的 UI（make frontend）
 </span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>│   ├── probing_hook.py
 </span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>│   └── probing.pth
 </span><span id="__span-11-11"><a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>├── src/lib.rs                    # PyO3 → probing._core

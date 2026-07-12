@@ -1135,6 +1135,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1198,6 +1202,62 @@
     
   
     Profiling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overhead/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overhead
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overhead-invariants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overhead invariants
   
 
     
@@ -2512,7 +2572,7 @@
 </tr>
 </tbody>
 </table>
-<p>Filled automatically by torchrun heartbeat / <code>PUT /apis/nodes</code>. If the cluster view <strong>lacks</strong> these fields, probing <strong>falls back to flat fan-out</strong> (same as <code>hierarchical=false</code>).</p>
+<p>Filled automatically by torchrun heartbeat / <code>PUT /apis/nodes</code>. If the cluster view <strong>lacks</strong> these fields while hierarchical mode is on (default), <strong><code>POST /apis/cluster/query</code> returns HTTP 503</strong> — probing does <strong>not</strong> silently fall back to flat fan-out. Use <code>hierarchical=false</code> (or <code>--flat</code>) only when you explicitly accept flat fan-out.</p>
 <hr />
 <h2 id="4-api">4. API<a class="headerlink" href="#4-api" title="Permanent link">&para;</a></h2>
 <h3 id="post-apisclusterquery"><code>POST /apis/cluster/query</code><a class="headerlink" href="#post-apisclusterquery" title="Permanent link">&para;</a></h3>
@@ -2586,9 +2646,11 @@
 </span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">&quot;scope&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;coordinator&quot;</span><span class="p">,</span>
 </span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="nt">&quot;nodes_queried&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span>
 </span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span><span class="nt">&quot;nodes_failed&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span><span class="nt">&quot;node_aggregators_queried&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">  </span><span class="nt">&quot;local_ranks_queried&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span>
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="p">}</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span><span class="nt">&quot;peer_batches_dropped&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">  </span><span class="nt">&quot;partial&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span><span class="nt">&quot;node_aggregators_queried&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">  </span><span class="nt">&quot;local_ranks_queried&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="p">}</span>
 </span></code></pre></div>
 <table>
 <thead>
@@ -2598,6 +2660,14 @@
 </tr>
 </thead>
 <tbody>
+<tr>
+<td><code>partial</code></td>
+<td><code>true</code> when any peer failed or merge dropped batches — HTTP <strong>503</strong> with partial <code>dataframe</code> (unless <code>PROBING_FANOUT_STRICT=1</code>, then the query fails entirely)</td>
+</tr>
+<tr>
+<td><code>peer_batches_dropped</code></td>
+<td>Partial peer DataFrames dropped during coordinator merge</td>
+</tr>
 <tr>
 <td><code>nodes_queried</code></td>
 <td>Successful <strong>HTTP endpoints</strong> in this query (local local0, local leaves, remote node aggs)</td>
@@ -2676,10 +2746,19 @@
 <td><code>1</code></td>
 <td><code>0</code> = global flat fan-out (legacy O(world_size) path)</td>
 </tr>
+<tr>
+<td><code>PROBING_REMOTE_QUERY_TIMEOUT_SECS</code></td>
+<td><code>30</code></td>
+<td>Per-peer HTTP timeout (per tier in hierarchical mode); see <a href="../../reference/env-vars/">Environment variables</a></td>
+</tr>
+<tr>
+<td><code>PROBING_FANOUT_STRICT</code></td>
+<td>unset</td>
+<td>When <code>1</code> or <code>true</code>, any peer failure or dropped batch fails the whole query (no partial 503)</td>
+</tr>
 </tbody>
 </table>
-<p>When hierarchical mode is on (default) but <code>cluster.nodes</code> lacks <code>group_rank</code> / <code>local_rank</code> (heartbeat not converged), <strong><code>POST /apis/cluster/query</code> returns HTTP 503</strong> instead of silently falling back to flat fan-out. Use <code>hierarchical=false</code> only when you explicitly accept flat fan-out.
-| <code>PROBING_REMOTE_QUERY_TIMEOUT_SECS</code> | <code>2</code> | Per-peer HTTP timeout (per tier in hierarchical mode) |</p>
+<p>When hierarchical mode is on (default) but <code>cluster.nodes</code> lacks <code>group_rank</code> / <code>local_rank</code> (heartbeat not converged), <strong><code>POST /apis/cluster/query</code> returns HTTP 503</strong> instead of silently falling back to flat fan-out. Use <code>hierarchical=false</code> only when you explicitly accept flat fan-out.</p>
 <p>Cluster heartbeat variables: <a href="../../reference/env-vars/">Environment variables — cluster</a> and <a href="../torchrun-cluster/">Torchrun cluster heartbeat</a>.</p>
 <hr />
 <h2 id="7-implementation">7. Implementation<a class="headerlink" href="#7-implementation" title="Permanent link">&para;</a></h2>

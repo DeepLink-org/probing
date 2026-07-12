@@ -1127,6 +1127,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1187,6 +1191,62 @@
     
   
     Profiling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/overhead/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overhead
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/overhead-invariants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overhead invariants
   
 
     
@@ -2554,25 +2614,74 @@ parameter (default <code>true</code>) that auto-detects cluster availability fro
 <code>GET /apis/nodes</code>.</p>
 <h3 id="interpretation-rules">Interpretation rules<a class="headerlink" href="#interpretation-rules" title="Permanent link">&para;</a></h3>
 <p>Rules evaluate query results and produce severity-graded findings. They run after
-all steps complete.</p>
+all steps complete. Clauses are joined with <code>|</code> (all must match).</p>
 <div class="language-yaml highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">interpretation</span><span class="p">:</span>
 </span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">rules</span><span class="p">:</span>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">high_gpu_mem</span>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">      </span><span class="nt">when</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;step:check_gpu_mem</span><span class="nv"> </span><span class="s">|</span><span class="nv"> </span><span class="s">avg(allocated)</span><span class="nv"> </span><span class="s">&gt;</span><span class="nv"> </span><span class="s">90%</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">gpu_total&quot;</span>
-</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">      </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">warning</span>
-</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">      </span><span class="nt">message</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;GPU</span><span class="nv"> </span><span class="s">memory</span><span class="nv"> </span><span class="s">usage</span><span class="nv"> </span><span class="s">({avg_allocated:.0f}MB)</span><span class="nv"> </span><span class="s">exceeds</span><span class="nv"> </span><span class="s">90%</span><span class="nv"> </span><span class="s">on</span><span class="nv"> </span><span class="s">rank</span><span class="nv"> </span><span class="s">{_rank}.</span><span class="nv"> </span><span class="s">Consider</span><span class="nv"> </span><span class="s">gradient</span><span class="nv"> </span><span class="s">checkpointing.&quot;</span>
-</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mem_leak</span>
-</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="w">      </span><span class="nt">when</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;step:check_gpu_mem</span><span class="nv"> </span><span class="s">|</span><span class="nv"> </span><span class="s">slope(allocated)</span><span class="nv"> </span><span class="s">&gt;</span><span class="nv"> </span><span class="s">0&quot;</span>
-</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="w">      </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">error</span>
-</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="w">      </span><span class="nt">message</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;GPU</span><span class="nv"> </span><span class="s">memory</span><span class="nv"> </span><span class="s">growing</span><span class="nv"> </span><span class="s">at</span><span class="nv"> </span><span class="s">{slope_rate:.1f}MB/step.</span><span class="nv"> </span><span class="s">Possible</span><span class="nv"> </span><span class="s">leak</span><span class="nv"> </span><span class="s">detected.&quot;</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">no_tables</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">      </span><span class="nt">when</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;step:available_tables</span><span class="nv"> </span><span class="s">|</span><span class="nv"> </span><span class="s">rows</span><span class="nv"> </span><span class="s">==</span><span class="nv"> </span><span class="s">0&quot;</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">      </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">error</span>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">      </span><span class="nt">message</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;No</span><span class="nv"> </span><span class="s">probe</span><span class="nv"> </span><span class="s">tables</span><span class="nv"> </span><span class="s">—</span><span class="nv"> </span><span class="s">confirm</span><span class="nv"> </span><span class="s">PROBING=1&quot;</span>
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">straggler</span>
+</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="w">      </span><span class="nt">when</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;step:rank_latency</span><span class="nv"> </span><span class="s">|</span><span class="nv"> </span><span class="s">column:avg_ms</span><span class="nv"> </span><span class="s">|</span><span class="nv"> </span><span class="s">max/min(ratio)</span><span class="nv"> </span><span class="s">&gt;</span><span class="nv"> </span><span class="s">1.5&quot;</span>
+</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="w">      </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">warning</span>
+</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="w">      </span><span class="nt">message</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Rank</span><span class="nv"> </span><span class="s">spread</span><span class="nv"> </span><span class="s">on</span><span class="nv"> </span><span class="s">avg_ms</span><span class="nv"> </span><span class="s">exceeds</span><span class="nv"> </span><span class="s">1.5×&quot;</span>
+</span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">chronic</span>
+</span><span id="__span-10-12"><a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="w">      </span><span class="nt">when</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;step:worst_fraction</span><span class="nv"> </span><span class="s">|</span><span class="nv"> </span><span class="s">rows</span><span class="nv"> </span><span class="s">&gt;=</span><span class="nv"> </span><span class="s">2</span><span class="nv"> </span><span class="s">|</span><span class="nv"> </span><span class="s">top(row).worst_fraction</span><span class="nv"> </span><span class="s">&gt;</span><span class="nv"> </span><span class="s">2</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">median(worst_fraction)&quot;</span>
+</span><span id="__span-10-13"><a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a><span class="w">      </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">info</span>
+</span><span id="__span-10-14"><a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="w">      </span><span class="nt">message</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;One</span><span class="nv"> </span><span class="s">rank</span><span class="nv"> </span><span class="s">dominates</span><span class="nv"> </span><span class="s">worst_fraction&quot;</span>
+</span><span id="__span-10-15"><a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cluster_dead</span>
+</span><span id="__span-10-16"><a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a><span class="w">      </span><span class="nt">when</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;step:cluster_nodes</span><span class="nv"> </span><span class="s">|</span><span class="nv"> </span><span class="s">column:status</span><span class="nv"> </span><span class="s">|</span><span class="nv"> </span><span class="s">any_contains(&#39;dead&#39;)&quot;</span>
+</span><span id="__span-10-17"><a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a><span class="w">      </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">warning</span>
+</span><span id="__span-10-18"><a id="__codelineno-10-18" name="__codelineno-10-18" href="#__codelineno-10-18"></a><span class="w">      </span><span class="nt">message</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Dead</span><span class="nv"> </span><span class="s">node</span><span class="nv"> </span><span class="s">in</span><span class="nv"> </span><span class="s">cluster.nodes&quot;</span>
 </span></code></pre></div>
+<p><strong><code>when</code> grammar (implemented in <code>probing-skills</code> / <code>interpret.rs</code>):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Fragment</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Step binding</td>
+<td><code>step:&lt;step_id&gt;</code> — required for row/column predicates</td>
+</tr>
+<tr>
+<td>Row count</td>
+<td><code>rows == 0</code>, <code>rows &gt;= 1</code></td>
+</tr>
+<tr>
+<td>Column predicate</td>
+<td><code>column:&lt;name&gt; \| &lt;tail&gt;</code> — pairs with the tail on the right</td>
+</tr>
+<tr>
+<td>Numeric compare</td>
+<td><code>value == 0</code>, <code>value &gt; 10</code>, <code>max &gt; 1e6</code>, <code>avg &gt; 5</code></td>
+</tr>
+<tr>
+<td>Spread</td>
+<td><code>max/min(ratio) &gt; 1.5</code></td>
+</tr>
+<tr>
+<td>Ratio of columns</td>
+<td><code>ratio(num_col/den_col) &gt; 0.3</code></td>
+</tr>
+<tr>
+<td>Text search</td>
+<td><code>any_contains('dead', 'stale')</code> — case-insensitive substring</td>
+</tr>
+<tr>
+<td>Top vs median</td>
+<td><code>top(row).&lt;col&gt; &gt; N * median(&lt;col&gt;)</code> — needs <code>rows &gt;= 2</code> on the step</td>
+</tr>
+</tbody>
+</table>
 <p>Rule fields:
 - <code>id</code>: Unique within the skill.
-- <code>when</code>: A predicate expression. Format: <code>step:&lt;id&gt; | &lt;aggregation&gt; &lt;op&gt; &lt;value&gt;</code>.
-  Supports <code>avg</code>, <code>max</code>, <code>min</code>, <code>count</code>, <code>slope</code>, <code>latest</code> aggregations, and <code>&gt;</code>,
-  <code>&lt;</code>, <code>&gt;=</code>, <code>&lt;=</code>, <code>==</code>, <code>!=</code> operators. <code>*</code> multiplies by a reference value.
+- <code>when</code>: Predicate string (see table above). <strong>Not</strong> arbitrary expressions like <code>slope()</code> or <code>avg(col) &gt; 90% * gpu_total</code> unless implemented in <code>interpret.rs</code>.
 - <code>severity</code>: <code>error</code>, <code>warning</code>, or <code>info</code>.
-- <code>message</code>: Template with <code>{column}</code> placeholders filled from the step's results.</p>
+- <code>message</code>: Template; <code>{step_id.column}</code> and <code>{column}</code> placeholders expand from the first matching row.</p>
 <h3 id="summary-template">Summary template<a class="headerlink" href="#summary-template" title="Permanent link">&para;</a></h3>
 <p>A template expanded with step result metadata after the run:</p>
 <div class="language-yaml highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nt">summary_template</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
@@ -2611,16 +2720,16 @@ frontmatter is parsed by agent systems; the markdown body is human-readable.</p>
 </span><span id="__span-13-18"><a id="__codelineno-13-18" name="__codelineno-13-18" href="#__codelineno-13-18"></a>and how to interpret the results.
 </span></code></pre></div>
 <h2 id="skill-resolution-and-overlay">Skill resolution and overlay<a class="headerlink" href="#skill-resolution-and-overlay" title="Permanent link">&para;</a></h2>
-<p>Skills are loaded from multiple roots in priority order:</p>
+<p>Skills are loaded from multiple roots in priority order (highest wins):</p>
 <ol>
-<li>Embedded (compiled into the CLI binary at build time)</li>
-<li><code>$HOME/.probing/skills/</code> — user-level overrides</li>
-<li><code>$PWD/.probing/skills/</code> — project-level overrides</li>
-<li><code>$PROBING_PROJECT_SKILLS_DIR</code> — environment override</li>
-<li><code>$PROBING_USER_SKILLS_DIR</code> — environment override</li>
+<li><code>$PROBING_SKILLS_DIR</code> — explicit extra root (when set)</li>
+<li><code>$PWD/.probing/skills/</code> — project overrides</li>
+<li><code>$HOME/.probing/skills/</code> — user overrides</li>
+<li>Repo / wheel bundled skills (<code>skills/</code> at dev time; <code>python/probing/bundled_skills/</code> in the wheel)</li>
+<li>Embedded defaults in the CLI binary (lowest)</li>
 </ol>
 <p>Later roots override earlier ones for the same skill ID. The catalog (<code>catalog.yaml</code>)
-is also merged across roots — entries in higher-priority roots replace embedded
+is also merged across roots — entries in higher-priority roots replace lower-priority
 entries with the same ID.</p>
 <p>This means you can override a built-in skill by placing a modified copy in your
 project's <code>.probing/skills/</code> directory.</p>

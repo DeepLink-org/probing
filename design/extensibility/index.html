@@ -1550,6 +1550,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1613,6 +1617,62 @@
     
   
     Profiling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overhead/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overhead
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overhead-invariants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overhead invariants
   
 
     
@@ -3179,7 +3239,7 @@ body into context, and runs <code>steps.yaml</code> via the shared Rust runner w
 </span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PROBING</span><span class="o">=</span><span class="m">2</span>
 </span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>torchrun<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">8</span><span class="w"> </span>train.py
 </span></code></pre></div>
-<p>Requires <strong>NCCL ≥ 2.26</strong> (PyTorch 2.8+). The plugin exports <code>ncclProfiler_v3</code> only and writes mmap tables consumed by probing SQL:</p>
+<p>Requires <strong>NCCL ≥ 2.26</strong> (PyTorch 2.8+). The plugin exports <strong><code>ncclProfiler_v4</code></strong> (NCCL 2.27+) and <strong><code>ncclProfiler_v3</code></strong> (NCCL 2.26) and writes mmap tables consumed by probing SQL:</p>
 <table>
 <thead>
 <tr>
@@ -3193,8 +3253,20 @@ body into context, and runs <code>steps.yaml</code> via the shared Rust runner w
 <td>Per-proxy-op wait: <code>send_gpu_wait_ns</code> (culprit), <code>recv_wait_ns</code> (victim), <code>tp_rank</code>/<code>pp_rank</code>/<code>dp_rank</code></td>
 </tr>
 <tr>
+<td><code>nccl.coll_perf</code></td>
+<td>Collective-level timing (v4)</td>
+</tr>
+<tr>
+<td><code>nccl.inflight_ops</code></td>
+<td>Watchdog snapshots of hung in-flight ops (<code>PROBING_NCCL_INFLIGHT_THRESHOLD_SECS</code>)</td>
+</tr>
+<tr>
 <td><code>nccl.net_qp</code></td>
 <td>Optional NetPlugin IB QP timing (mask bit 128)</td>
+</tr>
+<tr>
+<td><code>nccl.profiler_counters</code></td>
+<td>Pool/ring health counters (<code>pool_exhausted</code>, <code>write_errors</code>, …)</td>
 </tr>
 </tbody>
 </table>

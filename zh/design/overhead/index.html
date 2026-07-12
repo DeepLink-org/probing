@@ -1,0 +1,4059 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Dynamic Performance Profiler for Distributed AI">
+      
+      
+      
+        <link rel="canonical" href="https://github.com/DeepLink-org/probing/zh/design/overhead/">
+      
+      
+        <link rel="prev" href="../profiling/">
+      
+      
+        <link rel="next" href="../overhead-invariants/">
+      
+      
+        
+          <link rel="alternate" href="../../../design/overhead/" hreflang="en">
+        
+          <link rel="alternate" href="./" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>开销测量 - Probing 文档</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/home.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#overhead" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../../" title="Probing 文档" class="md-header__button md-logo" aria-label="Probing 文档" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Probing 文档
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              开销测量
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="选择当前语言">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../../design/overhead/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="分享" aria-label="分享" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/DeepLink-org/probing" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    DeepLink-org/probing
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="标签" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../" class="md-tabs__link">
+        
+  
+  
+    
+  
+  首页
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../installation/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  入门
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../guide/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  用户指南
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  架构
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../examples/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  示例
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  参考手册
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../contributing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  贡献指南
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../" title="Probing 文档" class="md-nav__button md-logo" aria-label="Probing 文档" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Probing 文档
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/DeepLink-org/probing" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    DeepLink-org/probing
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    首页
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    入门
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    入门
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    安装指南
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    快速开始
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    核心模型
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../guide/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    用户指南
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    用户指南
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/sql-analytics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQL 分析
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    诊断 Skill
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/memory-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    内存分析
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    现场调试
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    常见问题
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    架构
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    架构
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    平台核心
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    平台核心
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../modularity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    模块化与边界
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-layer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    数据层
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../extensibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    扩展机制
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI 命令树
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    采集与 Profiling
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    采集与 Profiling
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../profiling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    性能分析
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开销测量
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    开销测量
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. 目标与范围
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. 目标与范围">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        要回答的问题
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        明确不衡量
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#probing-bench-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        与 probing bench CLI 的区别
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. 术语表
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. 通用公式
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. 通用公式">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-overhead" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 相对 overhead（比值法）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-baseline-ab" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 相对 baseline（离线 A/B）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-paired" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 绝对增量（paired 训练基准）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34-nccl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4 NCCL 延迟增量
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-torchprobe-shadow-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. 运行时测量：TorchProbe Shadow Step
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. 运行时测量：TorchProbe Shadow Step">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 机制
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-step_duration_sec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 计时窗口（step_duration_sec）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-step-hook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 各 step 类型下 hook 行为
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. 指标目录
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. 指标目录">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#51-in-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.1 In-run 指标
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#52" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2 样本量与可信度
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#53" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3 辅助指标
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-make-bench" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. 离线基准：make bench
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. 离线基准：make bench">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#61" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.1 参数
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#62" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.2 三层测量
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6.2 三层测量">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-tracing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        层 A — tracing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b-torch_probe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        层 B — torch_probe（合成）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#c-torch_traintinynet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        层 C — torch_train（TinyNet）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#63-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.3 JSON 导出
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-nccl-profiler-overhead" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. NCCL Profiler Overhead（仅离线）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. NCCL Profiler Overhead（仅离线）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#71-e2e-allreduce-allgather" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.1 E2E AllReduce / AllGather
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#72-rust-criterion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2 微基准（Rust Criterion）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. 其他子系统
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. 阈值与门禁（当前仓库）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. 已知偏差与解释
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. 抗噪声与稳定性
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="11. 抗噪声与稳定性">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#111" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.1 噪声来源
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#1121-deferred" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.2.1 异步 deferred 回收（中期）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#112" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.2 稳定性设计原则
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#113" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.3 指标选用指南
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#114" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.4 调参建议（提高稳定性）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#115" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.5 未来增强（未实现）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. 操作指南
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="12. 操作指南">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-run-overhead" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        启用 in-run overhead
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        降低开销（优先级）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        快速冒烟
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13. 实现索引
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        相关文档
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overhead-invariants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overhead invariants
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nccl-profiler/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    NCCL Profiler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    调试引擎
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../training-phase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    训练阶段
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    分布式
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    分布式
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../distributed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    概览
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../torchrun-cluster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    torchrun 集群心跳
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../federation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    联邦查询引擎
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hierarchical-fanout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    分层集群查询
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cluster-pulsing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    基于 Pulsing 的集群
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    系统架构（旧版）
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../examples/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    示例
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    示例
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/training-debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    训练调试
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/memory-leak/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    内存泄漏
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/performance-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    性能分析
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../reference/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    参考手册
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6" id="__nav_6_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    参考手册
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/sql-tables/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQL 表目录
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI 与 Python API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/env-vars/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    环境变量
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/skill-format/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skill 格式规范
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../versions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    版本兼容性
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    贡献指南
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. 目标与范围
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. 目标与范围">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        要回答的问题
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        明确不衡量
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#probing-bench-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        与 probing bench CLI 的区别
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. 术语表
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. 通用公式
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. 通用公式">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-overhead" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 相对 overhead（比值法）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-baseline-ab" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 相对 baseline（离线 A/B）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-paired" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 绝对增量（paired 训练基准）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34-nccl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4 NCCL 延迟增量
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-torchprobe-shadow-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. 运行时测量：TorchProbe Shadow Step
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. 运行时测量：TorchProbe Shadow Step">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 机制
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-step_duration_sec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 计时窗口（step_duration_sec）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-step-hook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 各 step 类型下 hook 行为
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. 指标目录
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. 指标目录">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#51-in-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.1 In-run 指标
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#52" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2 样本量与可信度
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#53" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3 辅助指标
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-make-bench" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. 离线基准：make bench
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. 离线基准：make bench">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#61" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.1 参数
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#62" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.2 三层测量
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6.2 三层测量">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-tracing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        层 A — tracing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b-torch_probe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        层 B — torch_probe（合成）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#c-torch_traintinynet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        层 C — torch_train（TinyNet）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#63-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.3 JSON 导出
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-nccl-profiler-overhead" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. NCCL Profiler Overhead（仅离线）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. NCCL Profiler Overhead（仅离线）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#71-e2e-allreduce-allgather" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.1 E2E AllReduce / AllGather
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#72-rust-criterion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2 微基准（Rust Criterion）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. 其他子系统
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. 阈值与门禁（当前仓库）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. 已知偏差与解释
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. 抗噪声与稳定性
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="11. 抗噪声与稳定性">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#111" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.1 噪声来源
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#1121-deferred" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.2.1 异步 deferred 回收（中期）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#112" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.2 稳定性设计原则
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#113" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.3 指标选用指南
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#114" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.4 调参建议（提高稳定性）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#115" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.5 未来增强（未实现）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. 操作指南
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="12. 操作指南">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-run-overhead" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        启用 in-run overhead
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        降低开销（优先级）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        快速冒烟
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13. 实现索引
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        相关文档
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="overhead">Overhead 测量与公式定义<a class="headerlink" href="#overhead" title="Permanent link">&para;</a></h1>
+<p>本文是 Probing <strong>instrumentation overhead</strong> 的顶层设计文档：统一术语、公式、测量边界与离线/在线基准方法。实现细节见 <a href="../profiling/">性能分析</a>；表字段见 <a href="../../reference/sql-tables/#python-torch_step_timing">SQL 表 — torch_step_timing</a>。</p>
+<p><strong>不可变语义与回归测试</strong>（修改公式 / hook 顺序前必读）：<a href="../overhead-invariants/">overhead-invariants.zh.md</a>。</p>
+<h2 id="1">1. 目标与范围<a class="headerlink" href="#1" title="Permanent link">&para;</a></h2>
+<h3 id="_1">要回答的问题<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>问题</th>
+<th>典型场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TorchProbe 模块 hook 让每步慢多少？</td>
+<td>生产训练、<code>health_overview</code>、Web Overhead 面板</td>
+</tr>
+<tr>
+<td>Span / memtable 持久化成本？</td>
+<td><code>make bench</code> tracing 层、回归测试</td>
+</tr>
+<tr>
+<td>真实 TinyNet 训练上的端到端增量？</td>
+<td><code>make bench</code> torch_train 层</td>
+</tr>
+<tr>
+<td>NCCL profiler 对 collective 延迟的影响？</td>
+<td><code>run_nccl_profiler_bench.sh</code>（离线）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="_2">明确不衡量<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>业务吞吐 SLO</strong>（tokens/s、收敛速度）——需用户自有 baseline job 对比</li>
+<li><strong>NCCL collective 本身的执行时间</strong>（那是训练逻辑，不是探针税）</li>
+<li><strong>shadow step 上的「纯 PyTorch」</strong>——shadow 仍运行 NCCL/CPU/GPU 等其他采集器</li>
+</ul>
+<h3 id="probing-bench-cli">与 <code>probing bench</code> CLI 的区别<a class="headerlink" href="#probing-bench-cli" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>入口</th>
+<th>测量对象</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>make bench</code> → <code>examples/bench_instrumentation.py</code></td>
+<td>Python/Rust <strong>instrumentation</strong> 墙钟开销</td>
+</tr>
+<tr>
+<td><code>probing bench write</code>（隐藏 CLI）</td>
+<td>memtable <strong>写路径吞吐/延迟</strong>，不是训练 hook 税</td>
+</tr>
+</tbody>
+</table>
+<p>二者不可互换。</p>
+<hr />
+<h2 id="2">2. 术语表<a class="headerlink" href="#2" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>术语</th>
+<th>定义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>probed step</strong></td>
+<td><code>python.torch_step_timing.is_shadow = 0</code> 的正常训练步；TorchProbe 模块 hook 按配置执行（shadow 步除外）</td>
+</tr>
+<tr>
+<td><strong>shadow step</strong></td>
+<td><code>is_shadow = 1</code> 的基线步；模块/optimizer hook <strong>立即返回</strong>，不写 <code>python.torch_trace</code>，但仍写 timing 行</td>
+</tr>
+<tr>
+<td><strong>shadow cadence</strong></td>
+<td>默认 <code>4:1</code>：每 5 个 optimizer step 中 4 个 probed、1 个 shadow（<code>shadow=4:1</code>）</td>
+</tr>
+<tr>
+<td><strong>sampled step</strong></td>
+<td>probed 且 <code>sampled = 1</code>：该步会 flush module 级 trace（可能含 GPU defer/sync）</td>
+</tr>
+<tr>
+<td><strong>hook tax（混合）</strong></td>
+<td>中位数口径：全部 probed step（含采样+非采样）相对 shadow</td>
+</tr>
+<tr>
+<td><strong>dispatch overhead</strong></td>
+<td>中位数口径：仅 <code>sampled=0</code> 的 probed step 相对 shadow</td>
+</tr>
+<tr>
+<td><strong>sampled overhead</strong></td>
+<td>中位数口径：仅 sampled probed step 相对 shadow</td>
+</tr>
+<tr>
+<td><strong>total overhead（摊销）</strong></td>
+<td>加权口径：<code>(1−rate)×dispatch_overhead + rate×sampled_overhead</code>（Web UI）</td>
+</tr>
+<tr>
+<td><strong>in-run</strong></td>
+<td>训练进程内，靠 <code>python.torch_step_timing</code> 持续对比</td>
+</tr>
+<tr>
+<td><strong>offline</strong></td>
+<td>独立基准脚本，A/B 或 paired 对比</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="3">3. 通用公式<a class="headerlink" href="#3" title="Permanent link">&para;</a></h2>
+<h3 id="31-overhead">3.1 相对 overhead（比值法）<a class="headerlink" href="#31-overhead" title="Permanent link">&para;</a></h3>
+<p>适用于 TorchProbe in-run 与多数离线场景：</p>
+<p>$$
+\text{overhead_pct} = \left(\frac{M_{\text{probed}}}{M_{\text{shadow}}} - 1\right) \times 100
+$$</p>
+<p>其中 $M$ 为聚合函数（见下表）。当 $M_{\text{shadow}} = 0$ 时结果无定义，SQL 用 <code>nullif(..., 0)</code> 处理。</p>
+<h3 id="32-baseline-ab">3.2 相对 baseline（离线 A/B）<a class="headerlink" href="#32-baseline-ab" title="Permanent link">&para;</a></h3>
+<p>$$
+\text{vs_baseline_pct} = \left(\frac{T_{\text{measured}}}{T_{\text{beline}}} - 1\right) \times 100
+$$</p>
+<h3 id="33-paired">3.3 绝对增量（paired 训练基准）<a class="headerlink" href="#33-paired" title="Permanent link">&para;</a></h3>
+<p>$$
+\Delta T = T_{\text{instrumented}} - T_{\text{baseline}}, \quad T_{\text{inst_med}} = \text{median}(T_{\text{baseline}}) + \text{median}(\Delta T)
+$$</p>
+<h3 id="34-nccl">3.4 NCCL 延迟增量<a class="headerlink" href="#34-nccl" title="Permanent link">&para;</a></h3>
+<p>$$
+\text{pct_delta}(ref, x) = 100 \times \frac{x - ref}{ref}
+$$</p>
+<p>正值表示 profiled 模式更慢（延迟更高或吞吐更低）。</p>
+<hr />
+<h2 id="4-torchprobe-shadow-step">4. 运行时测量：TorchProbe Shadow Step<a class="headerlink" href="#4-torchprobe-shadow-step" title="Permanent link">&para;</a></h2>
+<h3 id="41">4.1 机制<a class="headerlink" href="#41" title="Permanent link">&para;</a></h3>
+<p>启用 <code>PROBING_TORCH_PROFILING=on</code>（默认含 <code>shadow=4:1</code>）后，每个 optimizer step 在 <code>python.torch_step_timing</code> 写一行。</p>
+<p><strong>Shadow 判定</strong>（<code>shadow_step_in_cycle</code>）：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>cycle_len = shadow_normal + shadow_baseline   # 默认 4 + 1 = 5
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>is_shadow = (cycle_index % cycle_len) &gt;= shadow_normal
+</span></code></pre></div>
+<p>默认下 index 0–3 为 probed，index 4 为 shadow。</p>
+<h3 id="42-step_duration_sec">4.2 计时窗口（<code>step_duration_sec</code>）<a class="headerlink" href="#42-step_duration_sec" title="Permanent link">&para;</a></h3>
+<p>使用 <code>time.perf_counter()</code> 墙钟，<strong>非</strong> GPU kernel 时间。</p>
+<pre class="mermaid"><code>sequenceDiagram
+    participant Train as forward/backward/opt
+    participant Hook as post_step_hook
+    participant T as torch_step_timing
+
+    Note over Hook: 上一步结束时 _mark_step_wall_start()
+    Train-&gt;&gt;Hook: optimizer.step() 返回
+    Hook-&gt;&gt;Hook: drain / flush / save（记时之后、下一步起点之前）
+    Hook-&gt;&gt;T: _record_step_timing()
+    Hook-&gt;&gt;Hook: _mark_step_wall_start()（下一步起点）</code></pre>
+<p><strong>边界定义</strong>：</p>
+<ul>
+<li><strong>起点</strong>：上一 optimizer step 的 <code>post_step_hook</code> 末尾调用 <code>_mark_step_wall_start()</code></li>
+<li><strong>终点</strong>：当前 step 的 <code>post_step_hook</code> 内 <code>_record_step_timing()</code> 调用时刻（<strong>早于</strong> <code>_drain_deferred()</code>）</li>
+</ul>
+<p>因此 <code>step_duration_sec</code> 覆盖：<strong>整步训练计算 + 本步 hook 收尾</strong>（含 sampled 步当步的 trace flush），<strong>不含</strong>前几步 deferred GPU event 的 <code>elapsed_time</code> 回收（回收在记时之后、下一步起点之前执行）。</p>
+<p><strong>与 <code>train.step</code> span 的区别</strong>：后者来自 <code>python.trace_event</code>，度量 span 包裹的计算区间，<strong>不含</strong> hook 派发与落盘；Web UI 同时展示两者，不可直接对比数值。</p>
+<h3 id="43-step-hook">4.3 各 step 类型下 hook 行为<a class="headerlink" href="#43-step-hook" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>模块 hook</th>
+<th>写 torch_trace</th>
+<th>timing 行</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>discovery（首步）</td>
+<td>注册模块</td>
+<td>否</td>
+<td>特殊路径</td>
+</tr>
+<tr>
+<td>probed + 非采样</td>
+<td>短路（无 module 记录）</td>
+<td>否</td>
+<td><code>is_shadow=0, sampled=0</code></td>
+</tr>
+<tr>
+<td>probed + 采样</td>
+<td>全量执行</td>
+<td>是</td>
+<td><code>is_shadow=0, sampled=1</code></td>
+</tr>
+<tr>
+<td>shadow</td>
+<td>立即 return</td>
+<td>否</td>
+<td><code>is_shadow=1</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>重要</strong>：<code>hook_tax</code> 比较的是 <strong>probed 步（含采样与非采样混合）</strong> vs <strong>shadow</strong> 的中位数。<code>sampled_overhead</code> 仅取 <code>sampled=1</code> 的 probed 子集，反映「重路径」开销。</p>
+<hr />
+<h2 id="5">5. 指标目录<a class="headerlink" href="#5" title="Permanent link">&para;</a></h2>
+<h3 id="51-in-run">5.1 In-run 指标<a class="headerlink" href="#51-in-run" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>分子 $M_{\text{probed}}$</th>
+<th>分母 $M_{\text{shadow}}$</th>
+<th>聚合</th>
+<th>窗口</th>
+<th>消费方</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>hook_tax_pct</strong></td>
+<td>全部 probed <code>step_duration_sec</code></td>
+<td>shadow</td>
+<td><strong>median</strong></td>
+<td>滚动 <strong>80</strong> 步</td>
+<td><code>health_overview</code>（混合，兼容）</td>
+</tr>
+<tr>
+<td><strong>dispatch_overhead_pct</strong></td>
+<td>probed 且 <code>sampled=0</code></td>
+<td>shadow</td>
+<td><strong>median</strong></td>
+<td>滚动 <strong>80</strong> 步</td>
+<td><strong>推荐告警口径</strong></td>
+</tr>
+<tr>
+<td><strong>sampled_overhead_pct</strong></td>
+<td>probed 且 <code>sampled=1</code></td>
+<td>shadow</td>
+<td><strong>median</strong></td>
+<td>滚动 <strong>80</strong> 步</td>
+<td><code>health_overview</code>、Web</td>
+</tr>
+<tr>
+<td><strong>Hook tax / Dispatch（Web）</strong></td>
+<td>dispatch（<code>sampled=0</code>）优先展示</td>
+<td>shadow</td>
+<td><strong>median</strong></td>
+<td>最近 <strong>80</strong> 步</td>
+<td>Web 侧栏 / 面板</td>
+</tr>
+<tr>
+<td><strong>Total overhead（Web 摊销）</strong></td>
+<td>dispatch + sampled 按采样率加权</td>
+<td>—</td>
+<td><strong>加权 %</strong></td>
+<td>最近 80 步</td>
+<td>Web 面板</td>
+</tr>
+<tr>
+<td><strong>Sampled overhead（Web）</strong></td>
+<td>probed 且 <code>sampled=1</code></td>
+<td>shadow</td>
+<td><strong>median</strong></td>
+<td>最近 80 步</td>
+<td>Web 面板</td>
+</tr>
+</tbody>
+</table>
+<p><strong>推荐 SQL（滚动窗口 + 分层指标）</strong>：</p>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">WITH</span><span class="w"> </span><span class="n">bounds</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="k">SELECT</span><span class="w"> </span><span class="n">GREATEST</span><span class="p">(</span><span class="k">COALESCE</span><span class="p">(</span><span class="k">MAX</span><span class="p">(</span><span class="n">local_step</span><span class="p">),</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">80</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">win_start</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_step_timing</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="p">)</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">SELECT</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="n">round</span><span class="p">((</span><span class="n">median</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">sampled</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">step_duration_sec</span><span class="w"> </span><span class="k">END</span><span class="p">)</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">        </span><span class="o">/</span><span class="w"> </span><span class="k">nullif</span><span class="p">(</span><span class="n">median</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">step_duration_sec</span><span class="w"> </span><span class="k">END</span><span class="p">),</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="k">AS</span><span class="w"> </span><span class="n">dispatch_overhead_pct</span><span class="p">,</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span><span class="n">round</span><span class="p">((</span><span class="n">median</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">step_duration_sec</span><span class="w"> </span><span class="k">END</span><span class="p">)</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">        </span><span class="o">/</span><span class="w"> </span><span class="k">nullif</span><span class="p">(</span><span class="n">median</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">step_duration_sec</span><span class="w"> </span><span class="k">END</span><span class="p">),</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">    </span><span class="k">AS</span><span class="w"> </span><span class="n">hook_tax_pct</span><span class="p">,</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">  </span><span class="n">round</span><span class="p">((</span><span class="n">median</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">sampled</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">step_duration_sec</span><span class="w"> </span><span class="k">END</span><span class="p">)</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">        </span><span class="o">/</span><span class="w"> </span><span class="k">nullif</span><span class="p">(</span><span class="n">median</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">step_duration_sec</span><span class="w"> </span><span class="k">END</span><span class="p">),</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">    </span><span class="k">AS</span><span class="w"> </span><span class="n">sampled_overhead_pct</span><span class="p">,</span>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">  </span><span class="k">sum</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">sampled</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">ELSE</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">END</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">dispatch_n</span><span class="p">,</span>
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">  </span><span class="k">sum</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">ELSE</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">END</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">probed_n</span><span class="p">,</span>
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">  </span><span class="k">sum</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">ELSE</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">END</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">shadow_n</span>
+</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_step_timing</span><span class="p">,</span><span class="w"> </span><span class="n">bounds</span>
+</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">local_step</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">bounds</span><span class="p">.</span><span class="n">win_start</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">local_step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+</span></code></pre></div>
+<p><strong>显示规则</strong>（Web）：$|\text{pct}| &lt; 0.5$ 显示为 <code>≈0%</code>；需 <code>shadow_n ≥ 5</code> 且 <code>dispatch_n ≥ 16</code> 才视为稳定估计（见 §5.2、§11）。</p>
+<h3 id="52">5.2 样本量与可信度<a class="headerlink" href="#52" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>条件</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>shadow_baseline = 0</code>（<code>shadow=off</code>）</td>
+<td>无法计算 overhead %</td>
+</tr>
+<tr>
+<td><code>shadow_n &lt; 5</code></td>
+<td>UI / 技能提示「样本不足」；百分比仅供参考</td>
+</tr>
+<tr>
+<td><code>dispatch_n &lt; 16</code>（默认 rate=0.05 时约需 320 步窗口）</td>
+<td><code>dispatch_overhead</code> 方差大，优先看趋势勿读单点</td>
+</tr>
+<tr>
+<td><code>probed_n = 0</code> 或 <code>shadow_n = 0</code></td>
+<td>跳过比率断言（soak）</td>
+</tr>
+<tr>
+<td>$|hook_tax - dispatch_overhead| &gt; 10\text{pp}$</td>
+<td>提示检查采样率 / GPU defer（混合指标被采样步拉高）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="53">5.3 辅助指标<a class="headerlink" href="#53" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>公式 / 来源</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>train_step_median_ms</code></td>
+<td><code>median(span_end.time - span_start.time)</code>，<code>name='train.step'</code></td>
+<td>计算区间参考（非 hook 税）</td>
+</tr>
+<tr>
+<td><code>nccl.profiler_counters</code></td>
+<td>最新一行计数器</td>
+<td>数据完整性（非 overhead %）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="6-make-bench">6. 离线基准：<code>make bench</code><a class="headerlink" href="#6-make-bench" title="Permanent link">&para;</a></h2>
+<p>脚本：<code>examples/bench_instrumentation.py</code>。须在 <strong>probing 注入进程</strong>内运行：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>bench<span class="w">          </span><span class="c1"># 完整</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>bench-quick<span class="w">    </span><span class="c1"># --quick</span>
+</span></code></pre></div>
+<h3 id="61">6.1 参数<a class="headerlink" href="#61" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>full（默认）</th>
+<th><code>--quick</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>span_iters</td>
+<td>300</td>
+<td>80</td>
+</tr>
+<tr>
+<td>probe_steps</td>
+<td>40</td>
+<td>12</td>
+</tr>
+<tr>
+<td>train batches</td>
+<td>30</td>
+<td>8</td>
+</tr>
+<tr>
+<td>warmup（外层轮次）</td>
+<td>2</td>
+<td>1</td>
+</tr>
+<tr>
+<td>runs（外层轮次）</td>
+<td>5</td>
+<td>3</td>
+</tr>
+</tbody>
+</table>
+<h3 id="62">6.2 三层测量<a class="headerlink" href="#62" title="Permanent link">&para;</a></h3>
+<h4 id="a-tracing">层 A — tracing<a class="headerlink" href="#a-tracing" title="Permanent link">&para;</a></h4>
+<p>对每个场景：</p>
+<ol>
+<li>内层 warmup <code>warmup</code> 次 + 计时 <code>runs</code> 次</li>
+<li>取 <strong>median(总墙钟秒)</strong></li>
+<li><code>vs_baseline_pct</code> 相对 <code>span (no backend)</code>（<code>PROBING_SPAN_BACKENDS</code> 空）</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>迭代内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>empty loop</td>
+<td>空循环基线</td>
+</tr>
+<tr>
+<td>span (no backend)</td>
+<td><code>probing.span</code>，无持久化</td>
+</tr>
+<tr>
+<td>span (memtable)</td>
+<td>span + memtable 落盘</td>
+</tr>
+<tr>
+<td>span + event</td>
+<td>span + event 行</td>
+</tr>
+<tr>
+<td>train.step span triple</td>
+<td>forward / backward / optimizer 三个 span + <code>probing.step()</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>每迭代微秒</strong>：</p>
+<p>$$
+\text{per_iter_us} = \frac{\text{median_sec}}{\text{iterations}} \times 10^6
+$$</p>
+<h4 id="b-torch_probe">层 B — torch_probe（合成）<a class="headerlink" href="#b-torch_probe" title="Permanent link">&para;</a></h4>
+<ul>
+<li>单假模块 <code>_FakeMod</code>，<code>DelayedRecord.save</code> 打桩</li>
+<li><strong>无</strong> 外层 warmup/runs；一次跑 <code>probe_steps</code> 步取 timing <strong>median</strong></li>
+<li>baseline：<code>hooks only (trace_spans=off, shadow=off)</code></li>
+<li><code>shadow=4:1</code> 场景额外输出 <code>hook_tax_pct</code>（与 §3.1 同公式，按 cycle index 分桶）</li>
+</ul>
+<blockquote>
+<p><strong>局限</strong>：无真实 backward/GPU；数值用于 <strong>回归对比</strong> 与配置敏感度，不能等同于生产大模型 overhead。</p>
+</blockquote>
+<h4 id="c-torch_traintinynet">层 C — torch_train（TinyNet）<a class="headerlink" href="#c-torch_traintinynet" title="Permanent link">&para;</a></h4>
+<ul>
+<li>设备：CUDA 可用则用 GPU，否则 CPU</li>
+<li>每轮 <strong>背靠背</strong>：先无 hook baseline，再带 phase/TorchProbe</li>
+<li>每场景内 2 步 warmup + <code>batches</code> 步计时</li>
+<li>报告 <code>paired_delta_ms</code> 与合成 <code>inst_med = median(base) + median(Δ)</code></li>
+</ul>
+<h3 id="63-json">6.3 JSON 导出<a class="headerlink" href="#63-json" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>python<span class="w"> </span>examples/bench_instrumentation.py<span class="w"> </span>--json-out<span class="w"> </span>/tmp/bench.json
+</span></code></pre></div>
+<hr />
+<h2 id="7-nccl-profiler-overhead">7. NCCL Profiler Overhead（仅离线）<a class="headerlink" href="#7-nccl-profiler-overhead" title="Permanent link">&para;</a></h2>
+<p><strong>无 in-run shadow</strong>。运行时只看 <code>nccl.profiler_counters</code> 健康度。</p>
+<h3 id="71-e2e-allreduce-allgather">7.1 E2E AllReduce / AllGather<a class="headerlink" href="#71-e2e-allreduce-allgather" title="Permanent link">&para;</a></h3>
+<p>脚本：<code>examples/nccl_profiler_overhead.py</code>；编排：<code>examples/run_nccl_profiler_bench.sh</code>。</p>
+<table>
+<thead>
+<tr>
+<th>模式</th>
+<th>环境</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>baseline</td>
+<td>无 <code>NCCL_PROFILER_PLUGIN</code>、无 <code>PROBING</code></td>
+</tr>
+<tr>
+<td>profiled</td>
+<td>插件 + <code>PROBING=2</code> + <code>PROBING_NCCL_INFLIGHT_THRESHOLD_SECS=0</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>流程</strong>：</p>
+<ol>
+<li><code>warmup_iters = 20</code></li>
+<li><code>bench_iters = 200</code>（默认 msg 1 MiB）</li>
+<li>每次 collective 前后 <code>cuda.synchronize()</code></li>
+<li>输出 <code>latency_us_{mean,p50,p99}</code>、<code>throughput_gbs</code></li>
+<li><code>--compare</code> 用 §3.4 算 <code>latency_*_pct</code>、<code>throughput_pct</code></li>
+</ol>
+<h3 id="72-rust-criterion">7.2 微基准（Rust Criterion）<a class="headerlink" href="#72-rust-criterion" title="Permanent link">&para;</a></h3>
+<p><code>probing/extensions/nccl-profiler/benches/callback_path.rs</code>：callback 路径、slot pool、<code>now_ns</code>——<strong>组件级</strong>，不与 E2E 数值直接对照。</p>
+<hr />
+<h2 id="8">8. 其他子系统<a class="headerlink" href="#8" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>子系统</th>
+<th>测量方法</th>
+<th>公式 / 阈值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Span + memtable</strong></td>
+<td><code>tests/regression/profiling/test_span_overhead.py</code></td>
+<td><code>T_on &lt; T_off × 8 + 0.05s</code>（300 iter）</td>
+</tr>
+<tr>
+<td><strong>TorchProbe module spans</strong></td>
+<td>同上</td>
+<td><code>med_on &lt; med_off × 6 + 0.02s</code>（20 steps）</td>
+</tr>
+<tr>
+<td><strong>memtable 写路径</strong></td>
+<td><code>probing bench write</code></td>
+<td>吞吐 / 可选延迟 reservoir</td>
+</tr>
+<tr>
+<td><strong>pprof</strong></td>
+<td><code>probing.pprof.sample_freq</code></td>
+<td>定性：SIGPROF 频率越高开销越大</td>
+</tr>
+<tr>
+<td><strong>PROBING_SPAN_LOCATION</strong></td>
+<td>无自动化公式</td>
+<td>定性：<code>inspect.stack()</code> 显著增开销</td>
+</tr>
+</tbody>
+</table>
+<p><strong>隔离栈成本</strong>：<code>PROBING_SPAN_BACKENDS=none</code> 或 bench 中 <code>configure_backends([])</code>。</p>
+<hr />
+<h2 id="9">9. 阈值与门禁（当前仓库）<a class="headerlink" href="#9" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>门禁</th>
+<th>条件</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>诊断 warning</td>
+<td><code>dispatch_overhead_pct &gt; 5%</code>（稳定口径）</td>
+<td><code>health_overview</code></td>
+</tr>
+<tr>
+<td>诊断 info（混合偏高）</td>
+<td><code>hook_tax_pct &gt; 5%</code> 且 <code>dispatch_overhead_pct ≤ 5%</code></td>
+<td>可选：采样步导致</td>
+</tr>
+<tr>
+<td>soak 失败</td>
+<td><code>hook_tax_pct &gt; 75%</code>（默认 <code>--max-hook-tax-pct</code>）</td>
+<td><code>examples/soak_assert.py</code></td>
+</tr>
+<tr>
+<td>CI 回归</td>
+<td>span 倍数上界（§8）</td>
+<td><code>test_span_overhead.py</code></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>注意</strong>：5%（告警）、75%（soak）、8×（回归）服务于不同目的，<strong>不是</strong>统一 SLO。发布前应结合目标硬件与模型自行标定。</p>
+</blockquote>
+<hr />
+<h2 id="10">10. 已知偏差与解释<a class="headerlink" href="#10" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Shadow 非真空基线</strong>：NCCL lite hook、CPU/GPU 周期性采集、span 等仍在 shadow 步运行；<code>hook_tax</code> 仅隔离 <strong>TorchProbe 模块 hook 路径</strong>。</li>
+<li><strong>采样步膨胀</strong>：sampled probed 步的 <code>step_duration_sec</code> 可能含 deferred GPU <code>elapsed_time</code> drain；用 <code>sampled_overhead</code> 看重路径，勿与非采样 probed 混读。</li>
+<li><strong>窗口已对齐</strong>：Web / <code>health_overview</code> 默认均为最近 80 步；全历史 SQL 方差更大。</li>
+<li><strong>合成 bench ≠ 生产</strong>：<code>bench_instrumentation</code> torch_probe 层无真实模型；torch_train 层仅 TinyNet。</li>
+<li><strong>多 rank</strong>：各 rank 独立写 <code>local_step</code>；联邦查询需注意 <code>rank</code> 切片。</li>
+<li><strong>discovery 步</strong>：<code>local_step = 1</code> 通常应过滤（<code>WHERE local_step &gt; 1</code>）。</li>
+</ol>
+<hr />
+<h2 id="11">11. 抗噪声与稳定性<a class="headerlink" href="#11" title="Permanent link">&para;</a></h2>
+<h3 id="111">11.1 噪声来源<a class="headerlink" href="#111" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>来源</th>
+<th>影响</th>
+<th>缓解</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>采样步混入</strong></td>
+<td><code>sampled=1</code> 步含 trace flush、GPU defer/sync，墙钟远高于非采样步</td>
+<td>用 <strong><code>dispatch_overhead</code></strong>（<code>sampled=0</code>）作 hook 税主指标</td>
+</tr>
+<tr>
+<td><strong>训练步本身抖动</strong></td>
+<td>数据加载、collective、checkpoint 等导致 step 时长尖峰</td>
+<td><strong>median</strong> 优于 mean；滚动窗口</td>
+</tr>
+<tr>
+<td><strong>窗口过短</strong></td>
+<td>全表或 &lt;20 步时 median 方差大</td>
+<td>默认 <strong>80 步</strong>滚动窗口（Web / health 对齐）</td>
+</tr>
+<tr>
+<td><strong>shadow 样本稀少</strong></td>
+<td>默认 4:1 下 80 步仅 ~16 个 shadow 点</td>
+<td>要求 <code>shadow_n ≥ 5</code>；长跑 job 更可信</td>
+</tr>
+<tr>
+<td><strong>冷启动 / discovery</strong></td>
+<td>首步注册模块、JIT、缓存预热</td>
+<td>过滤 <code>local_step &gt; 1</code>；离线 bench 用 warmup</td>
+</tr>
+<tr>
+<td><strong>混合 probed 聚合</strong></td>
+<td><code>hook_tax</code> 把轻/重路径平均</td>
+<td>分层报告 dispatch / sampled / blended</td>
+</tr>
+<tr>
+<td><strong>OS 调度 / 频率缩放</strong></td>
+<td>墙钟偶发毛刺</td>
+<td>离线 bench 多轮 median；in-run 看趋势勿盯单步</td>
+</tr>
+<tr>
+<td><strong>Deferred 回收阻塞 hook</strong></td>
+<td>GPU <code>elapsed_time</code> + memtable 写在 <code>post_step_hook</code> 内</td>
+<td>记时后再 drain；默认 <strong><code>PROBING_TORCH_DEFER_ASYNC=1</code></strong> 后台线程 + 有界队列</td>
+</tr>
+</tbody>
+</table>
+<h3 id="1121-deferred">11.2.1 异步 deferred 回收（中期）<a class="headerlink" href="#1121-deferred" title="Permanent link">&para;</a></h3>
+<p>默认开启（<code>PROBING_TORCH_DEFER_ASYNC=1</code>）。主线程在 <code>_record_step_timing</code> 之后只做非阻塞 <code>event.query()</code> 分区，将 ready 的 <code>DelayedRecord</code> 入队；后台 daemon 线程执行 <code>elapsed_time</code> + <code>save()</code>。队列满时回退到同步 <code>save()</code>。</p>
+<table>
+<thead>
+<tr>
+<th>环境变量</th>
+<th>默认</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PROBING_TORCH_DEFER_ASYNC</code></td>
+<td><code>1</code></td>
+<td><code>0</code> 关闭后台线程（测试 / 调试）</td>
+</tr>
+<tr>
+<td><code>PROBING_TORCH_DEFER_QUEUE_SIZE</code></td>
+<td><code>4096</code></td>
+<td>有界队列深度</td>
+</tr>
+</tbody>
+</table>
+<p>进程退出时 <code>atexit</code> 会 <code>flush</code> 队列。测试可调用 <code>flush_deferred_drain()</code>。</p>
+<h3 id="112">11.2 稳定性设计原则<a class="headerlink" href="#112" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>分层而非混合</strong>：dispatch（轻路径）与 sampled（重路径）分开；<code>hook_tax</code> 仅作兼容汇总。</li>
+<li><strong>稳健聚合</strong>：in-run 默认 <strong>median</strong>；摊销 overhead 用 <code>(1−rate)×dispatch + rate×sampled</code>，<strong>不用</strong> <code>mean(probed)/mean(shadow)</code>（步长抖动 + 小样本 shadow 会严重失真）。</li>
+<li><strong>滚动窗口</strong>：消费方统一 <code>WINDOW = 80</code>（约 16 个 shadow 周期 @ 4:1），避免冷启动与远古 outlier 污染。</li>
+<li><strong>成对对比</strong>：离线 torch_train 用 <strong>背靠背 paired Δ</strong>，抵消 run 间漂移。</li>
+<li><strong>周期对齐</strong>：shadow 按固定 cadence 插入，probed/shadow 经历相同 NCCL/GPU 背景采集。</li>
+<li><strong>显式可信度门控</strong>：样本不足时不报警，只提示 Collecting / 仅供参考。</li>
+</ol>
+<h3 id="113">11.3 指标选用指南<a class="headerlink" href="#113" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>目的</th>
+<th>推荐指标</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>日常告警 / 侧栏</td>
+<td><code>dispatch_overhead_pct</code></td>
+<td>与 shadow 路径最接近，抗采样噪声</td>
+</tr>
+<tr>
+<td>评估采样配置代价</td>
+<td><code>sampled_overhead_pct</code></td>
+<td>隔离重路径</td>
+</tr>
+<tr>
+<td>兼容旧面板 / soak</td>
+<td><code>hook_tax_pct</code>（混合）</td>
+<td>保守上界，易偏高</td>
+</tr>
+<tr>
+<td>发布前回归</td>
+<td><code>make bench</code> + CI 倍数上界</td>
+<td>可控环境、可重复</td>
+</tr>
+<tr>
+<td>长期趋势</td>
+<td>滚动 80 步 + 每 5min 采样一点</td>
+<td>避免逐步抖动</td>
+</tr>
+</tbody>
+</table>
+<h3 id="114">11.4 调参建议（提高稳定性）<a class="headerlink" href="#114" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># 更稳的 shadow 基线（更多 shadow 步，略增 cadence 开销）</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span>on,shadow<span class="o">=</span><span class="m">8</span>:2,rate<span class="o">=</span><span class="m">0</span>.05
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># 仅看轻路径时 temporarily 提高 rate 可增加 dispatch_n（更重）</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="c1"># 诊断 SQL 时务必加窗口：</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="c1"># WHERE local_step &gt;= (SELECT max(local_step) - 80 FROM python.torch_step_timing)</span>
+</span></code></pre></div>
+<h3 id="115">11.5 未来增强（未实现）<a class="headerlink" href="#115" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Trimmed mean / winsorize</strong>：去掉 probed 时长 top/bottom 5% 后再算比值</li>
+<li><strong>按 cadence 周期聚合</strong>：每 5 步一组先算组内 median，再跨组 median</li>
+<li><strong>EWMA 平滑</strong>：Web 侧栏显示指数滑动平均，降低逐步跳动</li>
+<li><strong>置信区间</strong>：bootstrap 或 shadow 周期自助法给出 ± 区间</li>
+<li><strong>NCCL in-run shadow</strong>：与 TorchProbe 对称的 collective 基线</li>
+</ul>
+<hr />
+<h2 id="12">12. 操作指南<a class="headerlink" href="#12" title="Permanent link">&para;</a></h2>
+<h3 id="in-run-overhead">启用 in-run overhead<a class="headerlink" href="#in-run-overhead" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># 默认：rate=0.05, shadow=4:1</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span>on<span class="w"> </span>python<span class="w"> </span>train.py
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># 或运行时配置</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="c1"># SET probing.torch.profiling = &#39;on,shadow=4:1,rate=0.05&#39;;</span>
+</span></code></pre></div>
+<h3 id="_3">降低开销（优先级）<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
+<ol>
+<li>降低 <code>rate</code> / <code>layer_rate</code></li>
+<li>关闭 <code>trace_spans</code>、<code>sync=on</code>、<code>backward=on</code></li>
+<li><code>shadow=off</code> 仅当不需要 in-run 估计</li>
+<li>关闭 torch profiling，仅保留基础探针</li>
+</ol>
+<h3 id="_4">快速冒烟<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>python<span class="w"> </span>examples/torch_probe_overhead_smoke.py<span class="w">   </span><span class="c1"># 无 GPU</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>bench-quick
+</span></code></pre></div>
+<hr />
+<h2 id="13">13. 实现索引<a class="headerlink" href="#13" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>路径</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Shadow 逻辑与计时</td>
+<td><code>python/probing/profiling/torch_probe.py</code></td>
+</tr>
+<tr>
+<td>离线基准</td>
+<td><code>examples/bench_instrumentation.py</code></td>
+</tr>
+<tr>
+<td>Web SQL</td>
+<td><code>web/src/overhead/sql.rs</code></td>
+</tr>
+<tr>
+<td>Web 格式化</td>
+<td><code>web/src/overhead/metrics.rs</code></td>
+</tr>
+<tr>
+<td>技能 SQL</td>
+<td><code>skills/health_overview/steps.yaml</code></td>
+</tr>
+<tr>
+<td>soak 断言</td>
+<td><code>examples/soak_assert.py</code></td>
+</tr>
+<tr>
+<td>NCCL E2E</td>
+<td><code>examples/nccl_profiler_overhead.py</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="_5">相关文档<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../profiling/">性能分析实现</a> — TorchProbe 采样、表结构</li>
+<li><a href="../tracing-spans/">Tracing Span</a> — span 分层与 bench 入口</li>
+<li><a href="../nccl-profiler/">NCCL Profiler</a> — 插件 ABI 与计数器</li>
+<li><a href="../../guide/troubleshooting/">常见问题 — High Overhead</a></li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  回到页面顶部
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      © 2025–2026 Probing. All rights reserved.
+    </div>
+  
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/DeepLink-org/probing" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://pypi.org/project/probing/" target="_blank" rel="noopener" title="pypi.org" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.8 200.5c-7.7-30.9-22.3-54.2-53.4-54.2h-40.1v47.4c0 36.8-31.2 67.8-66.8 67.8H172.7c-29.2 0-53.4 25-53.4 54.3v101.8c0 29 25.2 46 53.4 54.3 33.8 9.9 66.3 11.7 106.8 0 26.9-7.8 53.4-23.5 53.4-54.3v-40.7H226.2v-13.6h160.2c31.1 0 42.6-21.7 53.4-54.2 11.2-33.5 10.7-65.7 0-108.6M286.2 444.7a20.4 20.4 0 1 1 0-40.7 20.4 20.4 0 1 1 0 40.7M167.8 248.1h106.8c29.7 0 53.4-24.5 53.4-54.3V91.9c0-29-24.4-50.7-53.4-55.6-35.8-5.9-74.7-5.6-106.8.1-45.2 8-53.4 24.7-53.4 55.6v40.7h106.9v13.6h-147c-31.1 0-58.3 18.7-66.8 54.2-9.8 40.7-10.2 66.1 0 108.6 7.6 31.6 25.7 54.2 56.8 54.2H101v-48.8c0-35.3 30.5-66.4 66.8-66.4m-6.6-183.4a20.4 20.4 0 1 1 0 40.8 20.4 20.4 0 1 1 0-40.8"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.sections", "navigation.indexes", "navigation.tracking", "navigation.top", "search.highlight", "search.share", "content.code.copy", "content.code.annotate"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
