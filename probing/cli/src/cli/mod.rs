@@ -6,6 +6,7 @@ pub mod bench;
 pub mod cluster;
 pub mod commands;
 pub mod ctrl;
+pub mod fanout;
 pub mod help;
 pub mod mcp;
 pub mod repl;

@@ -399,12 +399,15 @@ export PROBING=2
 torchrun --nproc_per_node=8 train.py
 ```
 
-Requires **NCCL ≥ 2.26** (PyTorch 2.8+). The plugin exports `ncclProfiler_v3` only and writes mmap tables consumed by probing SQL:
+Requires **NCCL ≥ 2.26** (PyTorch 2.8+). The plugin exports **`ncclProfiler_v4`** (NCCL 2.27+) and **`ncclProfiler_v3`** (NCCL 2.26) and writes mmap tables consumed by probing SQL:
 
 | Table | Content |
 |-------|---------|
 | `nccl.proxy_ops` | Per-proxy-op wait: `send_gpu_wait_ns` (culprit), `recv_wait_ns` (victim), `tp_rank`/`pp_rank`/`dp_rank` |
+| `nccl.coll_perf` | Collective-level timing (v4) |
+| `nccl.inflight_ops` | Watchdog snapshots of hung in-flight ops (`PROBING_NCCL_INFLIGHT_THRESHOLD_SECS`) |
 | `nccl.net_qp` | Optional NetPlugin IB QP timing (mask bit 128) |
+| `nccl.profiler_counters` | Pool/ring health counters (`pool_exhausted`, `write_errors`, …) |
 
 ### Query and diagnose
 

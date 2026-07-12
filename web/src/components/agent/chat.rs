@@ -6,8 +6,10 @@ use dioxus::prelude::*;
 
 use crate::agent::{
     evaluate_rules_for_skill, format_findings, list_skill_ids, load_skill,
-    refresh_page_snapshot_for_route, resolve_skill_id, run_skill, select_skill, summarize_run,
+    refresh_page_snapshot_for_route, resolve_skill_id, run_skill, select_skill, skill_store_loaded,
+    summarize_run,
 };
+use crate::api::ApiClient;
 use crate::app::Route;
 use crate::components::agent::step_card::{step_outcome_to_card, AgentSkillRunCard, AgentStepCard};
 use crate::components::colors::colors;
@@ -525,6 +527,16 @@ fn spawn_run_skill(
     });
 }
 
+async fn ensure_skill_store_ready() -> std::result::Result<(), String> {
+    if skill_store_loaded() {
+        return Ok(());
+    }
+    ApiClient::new()
+        .load_skill_store()
+        .await
+        .map_err(|e| e.to_string())
+}
+
 async fn run_skill_flow(
     session: &UiTaskSession,
     skill_id: &str,
@@ -532,6 +544,13 @@ async fn run_skill_flow(
     llm_followup: Option<(LlmConfig, String)>,
 ) {
     if session.is_cancelled() {
+        return;
+    }
+
+    if let Err(msg) = ensure_skill_store_ready().await {
+        push_agent_message(AgentMessage::error(format!(
+            "Skill catalog not loaded: {msg}. Check that the probing server is running."
+        )));
         return;
     }
 
@@ -570,6 +589,11 @@ async fn run_skill_flow(
             }
             let findings = evaluate_rules_for_skill(&pb, &outcomes, &ctx);
             let evidence = crate::agent::outcomes_to_evidence(&outcomes);
+            let fallback_summary = if llm_followup.is_none() {
+                crate::agent::build_skill_summary(&pb, &outcomes, &ctx)
+            } else {
+                String::new()
+            };
             for outcome in outcomes {
                 push_agent_message(AgentMessage::step_card(step_outcome_to_card(outcome)));
             }
@@ -606,7 +630,9 @@ async fn run_skill_flow(
                     }
                 }
             } else {
-                if !pb.summary_template.is_empty() {
+                if !fallback_summary.is_empty() {
+                    push_agent_message(AgentMessage::assistant(fallback_summary));
+                } else if !pb.summary_template.is_empty() {
                     push_agent_message(AgentMessage::assistant(pb.summary_template.clone()));
                 }
                 if !pb.next_steps.is_empty() {

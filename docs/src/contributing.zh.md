@@ -42,7 +42,7 @@ make test-python-regression    # Python 冒烟；完整套件：make test
 | **Rust** | 引擎、服务、采集、CLI | `probing/`（Rust workspace） | [模块化](design/modularity.zh.md) | `probing/core`、`probing/server` 相关 issue |
 | **Web UI** | Investigate、各页面 | `web/` | [web/DESIGN.md](https://github.com/DeepLink-org/probing/blob/main/web/DESIGN.md) | Agent 体验（完整 wheel 构建需 `dx`） |
 
-**Skill 数据 vs Python 包：** skill **内容**改仓库根 `skills/`；**加载/安装代码**改 `python/probing/skills/`。**不要**手改 `python/probing/_skills/`（由 `make wheel` 自动生成）。
+**Skill 数据 vs Python 包：** skill **内容**改仓库根 `skills/`（wheel 复制到 `python/probing/bundled_skills/`）；**加载/安装代码**改 `python/probing/skills/`。**不要**手改 `python/probing/bundled_skills/`（由 `make wheel` 自动生成）。
 
 **两个 `probing/` 目录：** 仓库根 `probing/` 是 **Rust**；`python/probing/` 是 **Python 包**。根目录 `src/lib.rs` 是 PyO3 入口，构建为 `probing._core`。
 
@@ -176,7 +176,7 @@ PROBING=1 python examples/tracing.py
 
 - **编写**：仓库根 `skills/`（`SKILL.md`、`steps.yaml`、`catalog.yaml`）
 - **安装到 IDE**：`./skills/install.sh` 或 `probing skill install`
-- **打进 wheel**：`make wheel` 自动复制到 `python/probing/_skills/`、`python/probing/_web/`
+- **打进 wheel**：`make wheel` 自动复制到 `python/probing/bundled_skills/`、`python/probing/bundled_web/`
 - **说明**：`skills/README.md`、[扩展机制 — 诊断 skill](design/extensibility.zh.md#path-2-diagnostic-skill)
 
 ## 开发流程
@@ -246,8 +246,8 @@ probing/                          # 仓库根
 │   ├── probing/                  # Python 包（不是 Rust）
 │   │   ├── skills/               # skill 加载/安装代码 — 见 python/probing/skills/README.md
 │   │   ├── web_assets.py         # wheel _web/ + editable web/dist → PROBING_ASSETS_ROOT
-│   │   ├── _skills/              # wheel 生成（make wheel），勿手改
-│   │   └── _web/                 # wheel 生成（make wheel），勿手改
+│   │   ├── bundled_skills/       # wheel 打包的 skill 数据（编写在 repo-root skills/）
+│   │   └── bundled_web/          # wheel 打包的 UI（make frontend）
 │   ├── probing_hook.py
 │   └── probing.pth
 ├── src/lib.rs                    # PyO3 → probing._core

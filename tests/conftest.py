@@ -15,19 +15,44 @@ os.environ.setdefault("RUST_BACKTRACE", "1")
 os.environ.setdefault("PROBING_RUST_BACKTRACE", "1")
 
 # Fallback when tests run without ``make develop`` (no venv .pth files).
-# Skip when ``probing._core`` is already installed (wheel / maturin develop) so we
-# do not shadow site-packages with the checkout-only ``python/probing`` tree.
+# Skip when a complete ``probing`` wheel is installed so we do not shadow
+# site-packages with the checkout-only ``python/probing`` tree.
 _repo_python = Path(__file__).resolve().parents[1] / "python"
-if _repo_python.is_dir():
-    _repo_python_str = str(_repo_python)
-    _prepend_repo = True
+
+
+def _missing_probing_modules() -> list[str]:
     try:
         import importlib.util
 
-        if importlib.util.find_spec("probing._core") is not None:
-            _prepend_repo = False
+        required = (
+            "probing._core",
+            "probing.skills.loader",
+            "probing.ext",
+            "probing.handlers",
+        )
+        return [name for name in required if importlib.util.find_spec(name) is None]
     except (ImportError, ModuleNotFoundError, ValueError):
-        pass
+        return ["probing (import system error)"]
+
+
+def _installed_probing_is_complete() -> bool:
+    return not _missing_probing_modules()
+
+
+if _repo_python.is_dir():
+    _repo_python_str = str(_repo_python)
+    _prepend_repo = not _installed_probing_is_complete()
+    if (
+        os.environ.get("PROBING_WHEEL_TEST") == "1"
+        and not _installed_probing_is_complete()
+    ):
+        missing = ", ".join(_missing_probing_modules())
+        raise RuntimeError(
+            "installed wheel is incomplete "
+            f"(missing: {missing}); "
+            "run: make frontend && make wheel && make install-wheel "
+            "(install with PROBING=0 — do not set PROBING=1 during pip install)"
+        )
     if _prepend_repo and _repo_python_str not in sys.path:
         sys.path.insert(0, _repo_python_str)
 

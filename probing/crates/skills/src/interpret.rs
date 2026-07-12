@@ -62,7 +62,32 @@ fn expand_message(
     if let Some(step) = latest_step_value(steps) {
         msg = msg.replace("{latest_step}", &step);
     }
+    expand_step_column_placeholders(&mut msg, steps);
     msg
+}
+
+/// Replace `{step_id.column}` and bare `{column}` placeholders from the first matching row.
+pub fn expand_step_column_placeholders(msg: &mut String, steps: &[StepEvidence]) {
+    for ev in steps {
+        for col in &ev.dataframe.names {
+            let qualified = format!("{}.{}", ev.step_id, col);
+            if let Some(val) = cell_display_first(&ev.dataframe, col) {
+                *msg = msg.replace(&format!("{{{qualified}}}"), &val);
+                if msg.contains(&format!("{{{col}}}")) {
+                    *msg = msg.replace(&format!("{{{col}}}"), &val);
+                }
+            }
+        }
+    }
+}
+
+pub fn cell_display_first(df: &DataFrame, col: &str) -> Option<String> {
+    let idx = df.names.iter().position(|n| n == col)?;
+    let col_data = &df.cols[idx];
+    if col_data.is_empty() {
+        return None;
+    }
+    Some(ele_str(&col_data.get(0)))
 }
 
 fn step_by_id<'a>(steps: &'a [StepEvidence], id: &str) -> Option<&'a StepEvidence> {
@@ -101,7 +126,7 @@ fn rule_matches(when: &str, steps: &[StepEvidence], params: &HashMap<String, Str
             i += 2;
             continue;
         }
-        if !eval_clause(part, step_ev, steps, params) {
+        if !eval_clause(part, step_ev, params) {
             return false;
         }
         i += 1;
@@ -112,7 +137,6 @@ fn rule_matches(when: &str, steps: &[StepEvidence], params: &HashMap<String, Str
 fn eval_clause(
     clause: &str,
     step: Option<&StepEvidence>,
-    steps: &[StepEvidence],
     params: &HashMap<String, String>,
 ) -> bool {
     if clause == "always" {
@@ -123,7 +147,8 @@ fn eval_clause(
         return eval_rows_predicate(rest, ev.row_count, params);
     }
     if clause.contains("top(row)") {
-        return eval_top_vs_median(clause, steps);
+        let Some(ev) = step else { return false };
+        return eval_top_vs_median(clause, ev);
     }
     false
 }
@@ -178,6 +203,37 @@ fn eval_column_predicate(col_name: &str, tail: &str, ev: &StepEvidence) -> bool 
         let threshold = rhs.trim().parse::<f64>().unwrap_or(0.0);
         return nums.first().copied().unwrap_or(0.0) > threshold;
     }
+    if let Some(rhs) = tail.strip_prefix("value <") {
+        let threshold = rhs.trim().parse::<f64>().unwrap_or(0.0);
+        return nums.first().copied().unwrap_or(0.0) < threshold;
+    }
+    if let Some(rhs) = tail.strip_prefix("value ==") {
+        let threshold = rhs.trim().parse::<f64>().unwrap_or(f64::NAN);
+        let value = nums.first().copied().unwrap_or(0.0);
+        return (value - threshold).abs() < f64::EPSILON;
+    }
+    if let Some(rest) = tail.strip_prefix("ratio(") {
+        if let Some((expr, pred)) = rest.split_once(')') {
+            let threshold = pred
+                .trim()
+                .strip_prefix('>')
+                .map(str::trim)
+                .and_then(|s| s.parse::<f64>().ok())
+                .unwrap_or(0.0);
+            if let Some((num_col, den_col)) = expr.split_once('/') {
+                let num = column_f64(&ev.dataframe, num_col.trim())
+                    .first()
+                    .copied()
+                    .unwrap_or(0.0);
+                let den = column_f64(&ev.dataframe, den_col.trim())
+                    .first()
+                    .copied()
+                    .unwrap_or(0.0);
+                let ratio = if den <= 0.0 { 0.0 } else { num / den };
+                return ratio > threshold;
+            }
+        }
+    }
     if tail.starts_with("last >") {
         if let Some(rhs) = tail.strip_prefix("last >") {
             let rhs = rhs.trim();
@@ -206,26 +262,40 @@ fn eval_column_predicate(col_name: &str, tail: &str, ev: &StepEvidence) -> bool 
     false
 }
 
-fn eval_top_vs_median(clause: &str, steps: &[StepEvidence]) -> bool {
-    // step:rank_latency | rows >= 2 | top(row).avg_ms > 2 * median(avg_ms)
-    let parts: Vec<&str> = clause.split('|').map(|p| p.trim()).collect();
-    let step_id = parts
-        .first()
-        .and_then(|p| p.strip_prefix("step:"))
-        .unwrap_or("rank_latency");
-    let Some(ev) = step_by_id(steps, step_id) else {
-        return false;
-    };
+fn eval_top_vs_median(clause: &str, ev: &StepEvidence) -> bool {
+    // top(row).avg_ms > 2 * median(avg_ms)
+    // top(row).worst_fraction > 2 * median(worst_fraction)
     if ev.row_count < 2 {
         return false;
     }
-    let vals = column_f64(&ev.dataframe, "avg_ms");
+    let (col, factor) = parse_top_median_clause(clause);
+    let vals = column_f64(&ev.dataframe, col);
     if vals.is_empty() {
         return false;
     }
     let top = vals.iter().copied().fold(f64::NAN, f64::max);
     let med = median(&vals);
-    top > 2.0 * med
+    top > factor * med
+}
+
+fn parse_top_median_clause(clause: &str) -> (&str, f64) {
+    let mut col = "avg_ms";
+    let mut factor = 2.0;
+    if let Some(top_part) = clause.split('|').find(|p| p.contains("top(row)")) {
+        if let Some(rest) = top_part.strip_prefix("top(row).") {
+            if let Some((col_name, rhs)) = rest.split_once(" > ") {
+                col = col_name.trim();
+                if let Some((f_str, med_part)) = rhs.split_once(" * median(") {
+                    factor = f_str.trim().parse().unwrap_or(2.0);
+                    let med_col = med_part.trim_end_matches(')').trim();
+                    if !med_col.is_empty() {
+                        col = med_col;
+                    }
+                }
+            }
+        }
+    }
+    (col, factor)
 }
 
 fn column_f64(df: &DataFrame, name: &str) -> Vec<f64> {
@@ -365,6 +435,44 @@ mod tests {
     }
 
     #[test]
+    fn value_eq_zero_rule() {
+        let rules = vec![InterpretRule {
+            id: "shadow_off".into(),
+            when: "step:torch_probe_overhead | column:shadow_baseline | value == 0".into(),
+            severity: "info".into(),
+            message: "shadow off".into(),
+        }];
+        let steps = vec![StepEvidence {
+            step_id: "torch_probe_overhead".into(),
+            row_count: 1,
+            dataframe: df_one_col("shadow_baseline", vec![0.0]),
+        }];
+        let findings = evaluate_rules(&rules, &steps, &HashMap::new());
+        assert_eq!(findings.len(), 1);
+    }
+
+    #[test]
+    fn ratio_rule() {
+        let rules = vec![InterpretRule {
+            id: "many_slow".into(),
+            when: "step:job_slowdown_proxy | column:slow_steps | ratio(slow_steps/steps_in_window) > 0.3"
+                .into(),
+            severity: "warning".into(),
+            message: "slow".into(),
+        }];
+        let steps = vec![StepEvidence {
+            step_id: "job_slowdown_proxy".into(),
+            row_count: 1,
+            dataframe: DataFrame::new(
+                vec!["slow_steps".into(), "steps_in_window".into()],
+                vec![Seq::SeqF64(vec![4.0]), Seq::SeqF64(vec![10.0])],
+            ),
+        }];
+        let findings = evaluate_rules(&rules, &steps, &HashMap::new());
+        assert_eq!(findings.len(), 1);
+    }
+
+    #[test]
     fn max_min_ratio_rule() {
         let rules = vec![InterpretRule {
             id: "straggler".into(),
@@ -376,6 +484,24 @@ mod tests {
             step_id: "rank_latency".into(),
             row_count: 3,
             dataframe: df_one_col("avg_ms", vec![10.0, 20.0, 40.0]),
+        }];
+        let findings = evaluate_rules(&rules, &steps, &HashMap::new());
+        assert_eq!(findings.len(), 1);
+    }
+
+    #[test]
+    fn top_vs_median_worst_fraction() {
+        let rules = vec![InterpretRule {
+            id: "dominant".into(),
+            when: "step:worst_fraction | rows >= 2 | top(row).worst_fraction > 2 * median(worst_fraction)"
+                .into(),
+            severity: "info".into(),
+            message: "dominant".into(),
+        }];
+        let steps = vec![StepEvidence {
+            step_id: "worst_fraction".into(),
+            row_count: 3,
+            dataframe: df_one_col("worst_fraction", vec![0.1, 0.15, 0.6]),
         }];
         let findings = evaluate_rules(&rules, &steps, &HashMap::new());
         assert_eq!(findings.len(), 1);

@@ -27,9 +27,19 @@ use datafusion::physical_plan::{
 use futures::StreamExt;
 use probing_proto::prelude::{DataFrame, Node};
 
-use super::cluster_executor::{record_fanout_failure, record_fanout_success, ProbeClusterExecutor};
+use super::cluster_executor::{
+    fanout_strict_enabled, record_fanout_failure, record_fanout_success, ProbeClusterExecutor,
+};
 use super::convert::{align_batch_to_schema, dataframe_to_record_batch, tag_record_batch};
 use super::fanout_scope::FanoutScope;
+
+fn log_federated_peer_failure(context: &str, addr_tag: &str, detail: &str) {
+    if fanout_strict_enabled() {
+        log::warn!("{context} {addr_tag}: {detail}");
+    } else {
+        log::debug!("{context} {addr_tag}: {detail}");
+    }
+}
 
 /// Federated scan plan combining the local table with lazily fetched peers.
 #[derive(Debug)]
@@ -155,18 +165,30 @@ impl FederatedScanExec {
                         opt
                     }
                     Err(err) => {
-                        log::debug!("federated scan dropped {addr_tag}: {err}");
+                        log_federated_peer_failure(
+                            "federated scan dropped",
+                            &addr_tag,
+                            &err.to_string(),
+                        );
                         record_fanout_failure(&addr_tag);
                         None
                     }
                 },
                 Ok(Err(err)) => {
-                    log::debug!("federated scan skipped {addr_tag}: {err}");
+                    log_federated_peer_failure(
+                        "federated scan skipped",
+                        &addr_tag,
+                        &err.to_string(),
+                    );
                     record_fanout_failure(&addr_tag);
                     None
                 }
                 Err(err) => {
-                    log::debug!("federated scan join failed for {addr_tag}: {err}");
+                    log_federated_peer_failure(
+                        "federated scan join failed for",
+                        &addr_tag,
+                        &err.to_string(),
+                    );
                     record_fanout_failure(&addr_tag);
                     None
                 }

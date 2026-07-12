@@ -4,12 +4,14 @@
 
 use std::collections::HashSet;
 
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
 use axum::Json;
 use probing_proto::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use super::cluster_fanout;
-use super::error::ApiResult;
+use super::error::ApiError;
 
 const STEP_MATRIX_SQL: &str = r#"
 SELECT
@@ -52,25 +54,34 @@ pub struct StepMatrixResponse {
     pub rank_count: usize,
     pub step_count: usize,
     pub cluster: bool,
+    /// True when cluster fan-out returned partial data (some peers failed); HTTP 503 when set.
+    pub partial: bool,
     pub nodes_queried: usize,
     pub nodes_failed: Vec<String>,
 }
 
 pub async fn get_step_matrix(
     axum::extract::Query(params): axum::extract::Query<StepMatrixParams>,
-) -> ApiResult<Json<StepMatrixResponse>> {
+) -> impl IntoResponse {
+    if let Some(msg) = crate::engine_lifecycle::engine_not_ready_message() {
+        return ApiError::service_unavailable(msg).into_response();
+    }
     let step_window = params.limit.unwrap_or(STEP_WINDOW).clamp(1, 5_000);
     let cluster = params.cluster.unwrap_or(false);
-    // Fetch all completed train.step pairs; aggregate to unique local_step in Rust.
     let sql = STEP_MATRIX_SQL.to_string();
 
-    let fanout = cluster_fanout::fanout_query(
+    let fanout = match cluster_fanout::fanout_query(
         &sql,
         cluster,
         true,
         cluster_fanout::ClusterFanoutScope::Auto,
     )
-    .await?;
+    .await
+    {
+        Ok(f) => f,
+        Err(err) => return ApiError::from(err).into_response(),
+    };
+    let partial = fanout.meta.partial;
     let host = crate::report::get_hostname().unwrap_or_else(|_| "localhost".into());
     let addr = probing_core::core::cluster::local_addr_label();
     let samples =
@@ -83,14 +94,21 @@ pub async fn get_step_matrix(
         .collect::<HashSet<_>>()
         .len();
 
-    Ok(Json(StepMatrixResponse {
+    let response = StepMatrixResponse {
         samples,
         rank_count,
         step_count,
         cluster,
+        partial,
         nodes_queried: fanout.meta.nodes_queried,
         nodes_failed: fanout.meta.nodes_failed,
-    }))
+    };
+    let status = if partial {
+        StatusCode::SERVICE_UNAVAILABLE
+    } else {
+        StatusCode::OK
+    };
+    (status, Json(response)).into_response()
 }
 
 #[derive(Debug, Clone)]

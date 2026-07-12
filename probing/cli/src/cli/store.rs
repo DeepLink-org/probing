@@ -1,3 +1,4 @@
+use anyhow::Context;
 use anyhow::Result;
 
 use clap::Args;
@@ -50,7 +51,12 @@ pub struct StoreArgs {
 
 impl StoreCommand {
     pub async fn run(&self) -> Result<()> {
-        let store = TCPStore::new(self.args.endpoint.clone().unwrap());
+        let endpoint = self
+            .args
+            .endpoint
+            .clone()
+            .context("store commands require --endpoint (host:port)")?;
+        let store = TCPStore::new(endpoint);
 
         match &self.command {
             StoreSubCommand::Set { key, value } => {

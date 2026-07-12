@@ -174,6 +174,13 @@ fn mmap_table_exists(schema: &str, table: &str) -> bool {
     self_dir().join(mmap_filename_for(schema, table)).is_file()
 }
 
+/// Build a table provider that fails at scan time with a clear error.
+fn mmap_error_table(logical_name: &str, err: impl std::fmt::Display) -> Arc<dyn TableProvider> {
+    let message = format!("memtable mmap invalid for {logical_name}: {err}");
+    log::error!("{message}");
+    Arc::new(PluginAdvancedTable::error_sentinel(logical_name, message))
+}
+
 /// Mmap ring / MEMH → Arrow batches, then a [`PluginAdvancedTable`] so DataFusion can push
 /// filters and limits into the scan path.
 pub fn bytes_to_pushdown_table(data: &[u8], logical_name: &str) -> Arc<dyn TableProvider> {
@@ -181,22 +188,19 @@ pub fn bytes_to_pushdown_table(data: &[u8], logical_name: &str) -> Arc<dyn Table
         Some(TableKind::Ring) => {
             let view = match MemTableView::new(data) {
                 Ok(v) => v,
-                Err(_) => return Arc::new(PluginAdvancedTable::empty_sentinel(logical_name)),
+                Err(e) => return mmap_error_table(logical_name, e),
             };
             let schema = view_to_arrow_schema(&view);
             let batches = view_to_recordbatches(&view);
             match PluginAdvancedTable::try_new(logical_name, schema, batches) {
                 Ok(t) => Arc::new(t),
-                Err(e) => {
-                    log::error!("memtable PluginAdvancedTable (ring): {e}");
-                    Arc::new(PluginAdvancedTable::empty_sentinel(logical_name))
-                }
+                Err(e) => mmap_error_table(logical_name, e),
             }
         }
         Some(TableKind::Hash) => {
             let view = match MemhView::new(data) {
                 Ok(v) => v,
-                Err(_) => return Arc::new(PluginAdvancedTable::empty_sentinel(logical_name)),
+                Err(e) => return mmap_error_table(logical_name, e),
             };
             let schema = memh_kv_schema();
             let batches = memh_view_to_recordbatch(&view);
@@ -205,13 +209,14 @@ pub fn bytes_to_pushdown_table(data: &[u8], logical_name: &str) -> Arc<dyn Table
             }
             match PluginAdvancedTable::try_new(logical_name, schema, batches) {
                 Ok(t) => Arc::new(t),
-                Err(e) => {
-                    log::error!("memtable PluginAdvancedTable (memh): {e}");
-                    Arc::new(PluginAdvancedTable::empty_sentinel(logical_name))
-                }
+                Err(e) => mmap_error_table(logical_name, e),
             }
         }
-        None => Arc::new(PluginAdvancedTable::empty_sentinel(logical_name)),
+        None => {
+            let message = format!("unrecognized mmap layout for {logical_name}");
+            log::error!("{message}");
+            mmap_error_table(logical_name, message)
+        }
     }
 }
 
@@ -778,7 +783,7 @@ pub fn mapped_file_to_table(mapped: MappedFile, logical_name: &str) -> Arc<dyn T
     match detect_table(mapped.as_bytes()) {
         Some(TableKind::Ring) => match RingMmapTable::try_new(mapped) {
             Ok(t) => Arc::new(t),
-            Err(_) => Arc::new(PluginAdvancedTable::empty_sentinel(logical_name)),
+            Err(e) => mmap_error_table(logical_name, e),
         },
         _ => bytes_to_pushdown_table(mapped.as_bytes(), logical_name),
     }
@@ -863,7 +868,7 @@ fn prefer_semantic_python_table(
         if let Some(TableKind::Ring) = detect_table(mapped.as_bytes()) {
             match RingMmapTable::try_new(mapped) {
                 Ok(ring) => Arc::new(HotColdTable::new(ring, cold_dir(), basename)),
-                Err(_) => Arc::new(PluginAdvancedTable::empty_sentinel(name)),
+                Err(e) => mmap_error_table(name, e),
             }
         } else {
             mapped_file_to_table(mapped, name)
@@ -938,7 +943,7 @@ impl SchemaProvider for MmapFileSchemaProvider {
                 if let Some(TableKind::Ring) = detect_table(mapped.as_bytes()) {
                     return Ok(Some(match RingMmapTable::try_new(mapped) {
                         Ok(ring) => Arc::new(HotColdTable::new(ring, cold_dir(), basename)),
-                        Err(_) => Arc::new(PluginAdvancedTable::empty_sentinel(name)),
+                        Err(e) => mmap_error_table(name, e),
                     }));
                 }
                 return Ok(Some(mapped_file_to_table(mapped, name)));

@@ -275,7 +275,7 @@ impl<'a> InjectionAarch64<'a> {
                     return Ok(());
                 }
                 pete::Stop::SignalDelivery { signal } | pete::Stop::Group { signal } => {
-                    let pc = tracee.registers().unwrap().pc;
+                    let pc = tracee.registers().context("read tracee registers")?.pc;
                     return Err(anyhow::anyhow!(
                         "shellcode running in tracee sent unexpected signal {signal:?} at pc={pc:x}",
                     ));

@@ -16,6 +16,7 @@ pub use aggregate_pushdown::{
 #[cfg(any(test, feature = "test-utils"))]
 pub use cluster_executor::set_remote_query_hook;
 pub use cluster_executor::{
+    check_fanout_strict, enforce_fanout_strict, fanout_stats_partial, fanout_strict_enabled,
     remote_fanout_concurrency, remote_query_timeout, reset_fanout_stats, set_fanout_stats,
     take_fanout_stats, FanoutStats, ProbeClusterExecutor, RemoteFanoutResult,
 };

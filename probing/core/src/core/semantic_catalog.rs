@@ -471,6 +471,7 @@ mod tests {
 
     #[test]
     fn build_catalog_prefers_code_docs_for_hccl() {
+        probing_hccl_shim::register_docs();
         let parsed = build_semantic_catalog().unwrap();
         let host_ops = parsed
             .table_rows
@@ -523,6 +524,7 @@ mod tests {
 
     #[test]
     fn build_catalog_nccl_culprit_column_from_code() {
+        probing_nccl_profiler::register_docs();
         let parsed = build_semantic_catalog().unwrap();
         let row = parsed
             .column_rows

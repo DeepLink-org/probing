@@ -69,6 +69,12 @@ fn test_is_public_path_favicon() {
 }
 
 #[test]
+fn test_is_public_path_health_ready() {
+    assert!(is_public_path("/health"));
+    assert!(is_public_path("/ready"));
+}
+
+#[test]
 fn test_is_public_path_protected() {
     assert!(!is_public_path("/query"));
     assert!(!is_public_path("/apis/nodes"));

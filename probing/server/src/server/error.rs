@@ -81,7 +81,8 @@ where
     E: Into<anyhow::Error>,
 {
     fn from(err: E) -> Self {
-        Self::internal(err.into().to_string())
+        let err = err.into();
+        Self::internal(format!("{err:#}"))
     }
 }
 

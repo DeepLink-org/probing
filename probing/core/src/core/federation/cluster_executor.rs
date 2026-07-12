@@ -115,8 +115,53 @@ pub fn record_fanout_failure(addr: &str) {
     lock_fanout_stats().nodes_failed.push(addr.to_string());
 }
 
+/// Env var: when set to `1` or `true`, federated fan-out failures fail the query.
+const FANOUT_STRICT_ENV: &str = "PROBING_FANOUT_STRICT";
+
+fn parse_fanout_strict_env() -> bool {
+    std::env::var(FANOUT_STRICT_ENV)
+        .ok()
+        .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+}
+
+#[cfg(not(test))]
+static FANOUT_STRICT: LazyLock<bool> = LazyLock::new(parse_fanout_strict_env);
+
+/// Whether federated fan-out must succeed on every peer (fail-fast).
+pub fn fanout_strict_enabled() -> bool {
+    #[cfg(test)]
+    {
+        parse_fanout_strict_env()
+    }
+    #[cfg(not(test))]
+    {
+        *FANOUT_STRICT
+    }
+}
+
+pub fn fanout_stats_partial(stats: &FanoutStats) -> bool {
+    !stats.nodes_failed.is_empty() || stats.peer_batches_dropped > 0
+}
+
+/// Fail the query when strict fan-out is enabled and any peer was dropped.
+pub fn enforce_fanout_strict(stats: &FanoutStats) -> Result<()> {
+    if fanout_strict_enabled() && fanout_stats_partial(stats) {
+        return Err(DataFusionError::Execution(format!(
+            "federated fan-out strict mode: {} node(s) failed, {} peer batch(es) dropped",
+            stats.nodes_failed.len(),
+            stats.peer_batches_dropped
+        )));
+    }
+    Ok(())
+}
+
 pub fn take_fanout_stats() -> FanoutStats {
     std::mem::take(&mut *lock_fanout_stats())
+}
+
+/// Check global fan-out stats without consuming them (for post-query validation).
+pub fn check_fanout_strict() -> Result<()> {
+    enforce_fanout_strict(&lock_fanout_stats())
 }
 
 pub struct ProbeClusterExecutor;
@@ -368,5 +413,23 @@ impl ProbeClusterExecutor {
                 "remote timeseries query not supported".into(),
             )),
         }
+    }
+}
+
+#[cfg(test)]
+mod fanout_strict_tests {
+    use super::*;
+
+    #[test]
+    fn enforce_fanout_strict_respects_env() {
+        let stats = FanoutStats {
+            nodes_failed: vec!["10.0.0.2:8080".into()],
+            ..FanoutStats::default()
+        };
+        std::env::remove_var(FANOUT_STRICT_ENV);
+        assert!(enforce_fanout_strict(&stats).is_ok());
+        std::env::set_var(FANOUT_STRICT_ENV, "1");
+        assert!(enforce_fanout_strict(&stats).is_err());
+        std::env::remove_var(FANOUT_STRICT_ENV);
     }
 }

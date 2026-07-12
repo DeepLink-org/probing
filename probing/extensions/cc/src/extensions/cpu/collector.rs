@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc, Mutex, MutexGuard,
@@ -326,112 +327,120 @@ impl CpuCollector {
         let running = self.running.clone();
         let tables = self.shared_tables()?;
         let handle = thread::spawn(move || {
-            let sampler = host_sampler();
-            let platform = sampler.platform().to_string();
+            let panicked = catch_unwind(AssertUnwindSafe(|| {
+                let sampler = host_sampler();
+                let platform = sampler.platform().to_string();
 
-            let mut state = SampleState::new();
-            let mut iterations = config.iterations;
+                let mut state = SampleState::new();
+                let mut iterations = config.iterations;
 
-            while running.load(Ordering::SeqCst) {
-                if let Some(iter) = iterations.as_mut() {
-                    if *iter <= 0 {
-                        break;
+                while running.load(Ordering::SeqCst) {
+                    if let Some(iter) = iterations.as_mut() {
+                        if *iter <= 0 {
+                            break;
+                        }
+                        *iter -= 1;
                     }
-                    *iter -= 1;
-                }
 
-                let now = Instant::now();
-                let wall_ns = now.duration_since(state.last_wall).as_nanos() as u64;
-                let ts = ts_micros();
+                    let now = Instant::now();
+                    let wall_ns = now.duration_since(state.last_wall).as_nanos() as u64;
+                    let ts = ts_micros();
 
-                match sampler.sample_process() {
-                    Ok(curr) => {
-                        if let Some(prev) = &state.last_process {
+                    match sampler.sample_process() {
+                        Ok(curr) => {
+                            if let Some(prev) = &state.last_process {
+                                if wall_ns > 0 {
+                                    let delta_user =
+                                        curr.cputime_user_ns.saturating_sub(prev.cputime_user_ns);
+                                    let delta_sys =
+                                        curr.cputime_sys_ns.saturating_sub(prev.cputime_sys_ns);
+                                    let delta_vol =
+                                        curr.vol_ctxt.saturating_sub(prev.vol_ctxt) as i64;
+                                    let delta_invol =
+                                        curr.invol_ctxt.saturating_sub(prev.invol_ctxt) as i64;
+                                    push_utilization_row(
+                                        &mut lock_cpu_table(&tables.utilization),
+                                        ts,
+                                        &platform,
+                                        "process",
+                                        0,
+                                        "",
+                                        wall_ns,
+                                        delta_user,
+                                        delta_sys,
+                                        curr.cputime_user_ns as i64,
+                                        curr.cputime_sys_ns as i64,
+                                        (curr.rss_bytes / 1024) as i64,
+                                        curr.thread_count as i32,
+                                        delta_vol,
+                                        delta_invol,
+                                        "",
+                                        "",
+                                    );
+                                }
+                            }
+                            state.last_process = Some(curr);
+                        }
+                        Err(e) => log::warn!("cpu process sample failed: {e}"),
+                    }
+
+                    match sampler.sample_threads(config.thread_top_n) {
+                        Ok(threads) => {
                             if wall_ns > 0 {
-                                let delta_user =
-                                    curr.cputime_user_ns.saturating_sub(prev.cputime_user_ns);
-                                let delta_sys =
-                                    curr.cputime_sys_ns.saturating_sub(prev.cputime_sys_ns);
-                                let delta_vol = curr.vol_ctxt.saturating_sub(prev.vol_ctxt) as i64;
-                                let delta_invol =
-                                    curr.invol_ctxt.saturating_sub(prev.invol_ctxt) as i64;
-                                push_utilization_row(
-                                    &mut lock_cpu_table(&tables.utilization),
-                                    ts,
-                                    &platform,
-                                    "process",
-                                    0,
-                                    "",
-                                    wall_ns,
-                                    delta_user,
-                                    delta_sys,
-                                    curr.cputime_user_ns as i64,
-                                    curr.cputime_sys_ns as i64,
-                                    (curr.rss_bytes / 1024) as i64,
-                                    curr.thread_count as i32,
-                                    delta_vol,
-                                    delta_invol,
-                                    "",
-                                    "",
-                                );
+                                for thread in &threads {
+                                    let prev = state.last_threads.get(&thread.tid);
+                                    let delta_user = thread.cputime_user_ns.saturating_sub(
+                                        prev.map(|p| p.cputime_user_ns).unwrap_or(0),
+                                    );
+                                    let delta_sys = thread.cputime_sys_ns.saturating_sub(
+                                        prev.map(|p| p.cputime_sys_ns).unwrap_or(0),
+                                    );
+
+                                    push_utilization_row(
+                                        &mut lock_cpu_table(&tables.utilization),
+                                        ts,
+                                        &platform,
+                                        "thread",
+                                        thread.tid,
+                                        &thread.comm,
+                                        wall_ns,
+                                        delta_user,
+                                        delta_sys,
+                                        thread.cputime_user_ns as i64,
+                                        thread.cputime_sys_ns as i64,
+                                        0,
+                                        0,
+                                        0,
+                                        0,
+                                        thread.state.as_deref().unwrap_or(""),
+                                        thread.wchan.as_deref().unwrap_or(""),
+                                    );
+                                    push_tasks_row(
+                                        &mut lock_cpu_table(&tables.tasks),
+                                        ts,
+                                        &platform,
+                                        thread,
+                                        wall_ns,
+                                        delta_user,
+                                        delta_sys,
+                                    );
+                                }
                             }
+                            state.last_threads = threads.into_iter().map(|t| (t.tid, t)).collect();
                         }
-                        state.last_process = Some(curr);
+                        Err(e) => log::warn!("cpu thread sample failed: {e}"),
                     }
-                    Err(e) => log::warn!("cpu process sample failed: {e}"),
+
+                    state.last_wall = now;
+                    thread::sleep(config.interval);
                 }
-
-                match sampler.sample_threads(config.thread_top_n) {
-                    Ok(threads) => {
-                        if wall_ns > 0 {
-                            for thread in &threads {
-                                let prev = state.last_threads.get(&thread.tid);
-                                let delta_user = thread
-                                    .cputime_user_ns
-                                    .saturating_sub(prev.map(|p| p.cputime_user_ns).unwrap_or(0));
-                                let delta_sys = thread
-                                    .cputime_sys_ns
-                                    .saturating_sub(prev.map(|p| p.cputime_sys_ns).unwrap_or(0));
-
-                                push_utilization_row(
-                                    &mut lock_cpu_table(&tables.utilization),
-                                    ts,
-                                    &platform,
-                                    "thread",
-                                    thread.tid,
-                                    &thread.comm,
-                                    wall_ns,
-                                    delta_user,
-                                    delta_sys,
-                                    thread.cputime_user_ns as i64,
-                                    thread.cputime_sys_ns as i64,
-                                    0,
-                                    0,
-                                    0,
-                                    0,
-                                    thread.state.as_deref().unwrap_or(""),
-                                    thread.wchan.as_deref().unwrap_or(""),
-                                );
-                                push_tasks_row(
-                                    &mut lock_cpu_table(&tables.tasks),
-                                    ts,
-                                    &platform,
-                                    thread,
-                                    wall_ns,
-                                    delta_user,
-                                    delta_sys,
-                                );
-                            }
-                        }
-                        state.last_threads = threads.into_iter().map(|t| (t.tid, t)).collect();
-                    }
-                    Err(e) => log::warn!("cpu thread sample failed: {e}"),
-                }
-
-                state.last_wall = now;
-                thread::sleep(config.interval);
+            }))
+            .is_err();
+            if panicked {
+                log::error!("cpu collector thread panicked");
+            } else {
+                log::warn!("cpu collector thread exited");
             }
-
             running.store(false, Ordering::SeqCst);
         });
 

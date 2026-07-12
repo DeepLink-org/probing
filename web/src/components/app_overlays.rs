@@ -3,10 +3,10 @@
 use dioxus::prelude::*;
 
 use crate::api::OVERHEAD_POLL_MS;
-use crate::components::common::AsyncBoundary;
 use crate::components::icon::Icon;
 use crate::components::overhead::TorchOverheadPanel;
 use crate::components::overlay_shell::{OverlayAccent, OverlayShell};
+use crate::components::poll_status::PollStatusBar;
 use crate::components::source_viewer::SourceViewerOverlay;
 use crate::hooks::{use_page_visible, use_poll_tick_gated};
 use crate::state::overlays::{app_overlay, close_app_overlay, AppOverlay, SidebarMonitor};
@@ -122,21 +122,20 @@ fn OverheadMonitorOverlay(on_close: EventHandler<()>) -> Element {
     rsx! {
         OverlayShell {
             title: "Torch profiling overhead".to_string(),
-            subtitle: format!(
-                "TorchProbe in-run cost vs shadow baseline · refreshes every {}s · Esc to close",
-                OVERHEAD_POLL_MS / 1000
-            ),
+            subtitle: "Observed step times + computed hook overhead · Esc to close".to_string(),
             accent: OverlayAccent::Emerald,
             close_label: "Close overhead monitor".to_string(),
             on_close: on_close,
             header_icon: rsx! {
                 Icon { icon: &icondata::CgPerformance, class: "w-5 h-5" }
             },
-            header_actions: rsx! { div {} },
-            AsyncBoundary {
-                message: Some("Loading overhead…".to_string()),
-                TorchOverheadPanel { refresh_tick: refresh_tick }
-            }
+            header_actions: rsx! {
+                PollStatusBar {
+                    interval_secs: OVERHEAD_POLL_MS / 1000,
+                    poll_tick: refresh_tick,
+                }
+            },
+            TorchOverheadPanel { refresh_tick: refresh_tick }
         }
     }
 }

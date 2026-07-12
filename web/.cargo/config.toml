@@ -1,0 +1,3 @@
+# Share the repo-root target/ with the main workspace (avoid web/target duplication).
+[build]
+target-dir = "../target"

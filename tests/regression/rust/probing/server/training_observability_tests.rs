@@ -33,12 +33,14 @@ fn step_matrix_response_fields_serializable() {
         rank_count: 1,
         step_count: 1,
         cluster: false,
+        partial: false,
         nodes_queried: 1,
         nodes_failed: vec![],
     };
     let json = serde_json::to_string(&resp).unwrap();
     assert!(json.contains("nodes_queried"));
     assert!(json.contains("duration_ms"));
+    assert!(json.contains("partial"));
 }
 
 #[test]

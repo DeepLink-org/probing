@@ -196,6 +196,8 @@ HTTP 契约：`probing/server/API.md` + `tests/regression/spec/api_spec.json`。
 | `_host` | 对端主机 |
 | `_addr` | 对端地址 |
 | `_rank` | torch rank |
+| `_node_rank` | 节点 / worker 组 rank（`GROUP_RANK`） |
+| `_local_rank` | 节点内 GPU 序号（`LOCAL_RANK`） |
 | `_role` | 并行 role key |
 
 ---
@@ -325,7 +327,7 @@ sequenceDiagram
 |------|------|------|
 | python → cli | `probing-python` → `probing-cli` | **可接受**（maturin wheel，仅 `cli_main`）；禁止扩散 import |
 | python → cc | ~~`probing-python` → `probing-cc`~~ | **已完成** — `send_sigusr2_to_thread_id` 迁至 `probing-core::signal` |
-| core → NCCL/HCCL | `probing-core` → nccl/hccl shim（`builtin-schema-docs`）供 `semantic_catalog` | 改由采集器注册 docs，去掉 L1→L2 编译依赖 |
+| core → NCCL/HCCL | ~~`probing-core` → nccl/hccl shim（`builtin-schema-docs`）供 `semantic_catalog`~~ | **已完成** — `register_docs()` 在 `server/engine.rs` 组装根调用；`probing-core` 默认 feature 为空 |
 | core → skills YAML | ~~`semantic_catalog` `include_str!(skills/semantic/tables.yaml)`~~ | **已完成** — overlay 在 `probing/core/resources/tables.yaml`；描述 SSOT 为 `docs` 注册表 |
 | server → python features | ~~`server/profiling.rs`~~ 已删 | 火焰图走 Extension |
 | server → REPL 内部 | ~~`PythonRepl`~~ | `/ws` 仅用 `ReplSession` 门面 |

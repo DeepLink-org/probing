@@ -151,6 +151,18 @@ probing -t <master> query "
 
 `_rank` 是查询时附加的联邦标签——工作原理见[核心概念](guide/concepts.zh.md)。
 
+## 诊断 skill
+
+服务就绪后，可运行内置诊断流程：
+
+```bash
+probing $ENDPOINT skill list
+probing $ENDPOINT skill run health_overview
+probing $ENDPOINT skill run slow_rank --global    # 多机 straggler（在 rank0 执行）
+```
+
+Skill 在进程内执行 SQL 步骤并应用 interpretation 规则。详见 [Skills](guide/skills.zh.md) 与 `skills/catalog.yaml`。
+
 ## 下一步
 
 三个命令——`backtrace`、`eval`、`query`——覆盖了日常诊断的大部分场景。详细文档

@@ -25,6 +25,7 @@ Vocabulary: **[Core model](../guide/concepts.md)**.
 | Document | Description |
 |----------|-------------|
 | [Profiling](profiling.md) | Torch hooks, sampling, table write path |
+| [Overhead](overhead.md) | Formulas, shadow-step measurement, offline benchmarks |
 | [NCCL Profiler](nccl-profiler.md) | Plugin ABI, proxy-op wait decomposition |
 | [Debugging Engine](debugging.md) | eval / backtrace / REPL implementation |
 | [Training Phases](/zh/design/training-phase/) | Phase transitions and span model *(中文)* |

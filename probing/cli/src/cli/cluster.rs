@@ -1,3 +1,4 @@
+use crate::cli::fanout::fanout_strict_enabled;
 use anyhow::Result;
 use probing_proto::prelude::NodeListResponse;
 use probing_skills::backend::parse_cluster_query_response;
@@ -48,12 +49,26 @@ async fn cluster_query(
     let value: serde_json::Value = serde_json::from_str(&reply)?;
     let (dataframe, cluster_meta) =
         parse_cluster_query_response(&value).map_err(|e| anyhow::anyhow!(e.0))?;
-    if let Some(meta) = cluster_meta {
+    if let Some(meta) = &cluster_meta {
         eprintln!(
             "cluster query: cluster={cluster}, nodes_queried={}, nodes_failed={}",
             meta.nodes_queried,
             meta.nodes_failed.len()
         );
+        if meta.partial {
+            if fanout_strict_enabled() {
+                anyhow::bail!(
+                    "federated fan-out strict mode: cluster query returned partial data \
+                     (nodes_failed={}, peer_batches_dropped={})",
+                    meta.nodes_failed.len(),
+                    meta.peer_batches_dropped
+                );
+            }
+            eprintln!(
+                "warning: cluster query returned partial data (nodes_failed={})",
+                meta.nodes_failed.len()
+            );
+        }
     }
     render_dataframe(&dataframe);
     Ok(())

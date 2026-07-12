@@ -32,3 +32,5 @@ python/probing/probing
 docs/site/
 .venv/
 .coverage
+.pytest_cache/
+web/target/

@@ -38,11 +38,16 @@ pub async fn start_repl(ctrl: ProbeEndpoint) -> Result<()> {
         let editor = line_editor.clone();
         let prompt = prompt.clone();
         let sig = tokio::task::spawn_blocking(move || {
-            let mut editor = editor.lock().unwrap_or_else(|e| {
-                eprintln!("Failed to acquire lock on line editor (lock poisoned): {e}");
-                panic!("Lock poisoned: {e}")
-            });
-            editor.read_line(&prompt)
+            let mut editor = match editor.lock() {
+                Ok(guard) => guard,
+                Err(e) => {
+                    eprintln!("Failed to acquire lock on line editor (lock poisoned): {e}");
+                    return Err(anyhow::anyhow!("line editor lock poisoned: {e}"));
+                }
+            };
+            editor
+                .read_line(&prompt)
+                .map_err(|e| anyhow::anyhow!("{e}"))
         })
         .await
         .context("Error reading input task")?;

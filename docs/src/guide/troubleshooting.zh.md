@@ -71,7 +71,7 @@
 
 3. **等待数据写入**：
    表在训练进行时填充。先运行若干训练 step。
-   TorchProbe 第一个 step 为 discovery（无行）；必要时使用 `WHERE step > 1`。
+   TorchProbe 第一个 step 为 discovery（无行）；必要时使用 `WHERE local_step > 1`。
 
 ### 结果为空
 
@@ -92,7 +92,7 @@
 
 3. **检查步骤范围**：
    ```sql
-   SELECT MIN(step), MAX(step) FROM python.torch_trace;
+   SELECT MIN(local_step), MAX(local_step) FROM python.torch_trace;
    ```
 
 ## Eval 问题
@@ -147,7 +147,7 @@
 
 4. **用 SQL 过滤 step**，而非 warmup schedule：
    ```sql
-   SELECT * FROM python.torch_trace WHERE step > 10;
+   SELECT * FROM python.torch_trace WHERE local_step > 10;
    ```
 
 ### 查询超时
@@ -163,12 +163,12 @@
 
 2. **使用步骤过滤**：
    ```sql
-   WHERE step > (SELECT MAX(step) - 10 FROM python.torch_trace)
+   WHERE local_step > (SELECT MAX(local_step) - 10 FROM python.torch_trace)
    ```
 
 3. **聚合数据**：
    ```sql
-   SELECT step, AVG(duration) FROM python.torch_trace GROUP BY step;
+   SELECT local_step, AVG(duration) FROM python.torch_trace GROUP BY local_step;
    ```
 
 ## 数据问题
@@ -186,7 +186,7 @@
    probing $ENDPOINT config probing.torch.profiling
    ```
 
-2. **确认训练已推进** — 钩子在事件发生时写入；TorchProbe 第 1 步仅发现模块（可用 `WHERE step > 1`）。
+2. **确认训练已推进** — 钩子在事件发生时写入；TorchProbe 第 1 步仅发现模块（可用 `WHERE local_step > 1`）。
 
 3. **确认未关闭 TorchProbe**：
    ```bash

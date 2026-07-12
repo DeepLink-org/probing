@@ -1,3 +1,4 @@
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc, Mutex, MutexGuard,
@@ -254,31 +255,54 @@ impl GpuCollector {
         let table = self.shared_table()?;
 
         let handle = thread::spawn(move || {
-            let mut iterations = config.iterations;
-            while running.load(Ordering::SeqCst) {
-                if let Some(iter) = iterations.as_mut() {
-                    if *iter <= 0 {
-                        break;
+            let panicked = catch_unwind(AssertUnwindSafe(|| {
+                let mut iterations = config.iterations;
+                while running.load(Ordering::SeqCst) {
+                    if let Some(iter) = iterations.as_mut() {
+                        if *iter <= 0 {
+                            break;
+                        }
+                        *iter -= 1;
                     }
-                    *iter -= 1;
+
+                    let wall_start = Instant::now();
+                    let ts = ts_micros();
+                    let samples = sample_all(&backends);
+                    let wall_ns = wall_start.elapsed().as_nanos() as u64;
+
+                    let mut exposed = lock_gpu_table(&table);
+                    for sample in &samples {
+                        push_utilization_row(&mut exposed, ts, wall_ns, sample);
+                    }
+
+                    thread::sleep(config.interval);
                 }
-
-                let wall_start = Instant::now();
-                let ts = ts_micros();
-                let samples = sample_all(&backends);
-                let wall_ns = wall_start.elapsed().as_nanos() as u64;
-
-                let mut exposed = lock_gpu_table(&table);
-                for sample in &samples {
-                    push_utilization_row(&mut exposed, ts, wall_ns, sample);
-                }
-
-                thread::sleep(config.interval);
+            }))
+            .is_err();
+            if panicked {
+                log::error!("gpu collector thread panicked");
+            } else {
+                log::warn!("gpu collector thread exited");
             }
             running.store(false, Ordering::SeqCst);
         });
 
         *lock_gpu_collector(&self.handle) = Some(handle);
+        Ok(())
+    }
+
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub fn stop(&self) -> Result<(), CollectorError> {
+        if !self.running.swap(false, Ordering::SeqCst) {
+            return Ok(());
+        }
+
+        if let Some(handle) = lock_gpu_collector(&self.handle).take() {
+            handle
+                .join()
+                .map_err(|_| CollectorError::StopFailed("thread join failed".into()))?;
+        }
+
         Ok(())
     }
 }
@@ -348,5 +372,34 @@ mod tests {
         let _guard = ENV_TEST_LOCK.lock().unwrap();
         clear_gpu_env();
         assert!(autostart_interval_ms().is_none());
+    }
+
+    #[test]
+    fn stop_is_idempotent_when_not_running() {
+        let _guard = ENV_TEST_LOCK.lock().unwrap();
+        let collector = GpuCollector::instance();
+        let _ = collector.stop();
+        collector.stop().expect("stop when idle");
+    }
+
+    #[test]
+    fn collector_stop_after_bounded_iterations() {
+        let _guard = ENV_TEST_LOCK.lock().unwrap();
+        let collector = GpuCollector::instance();
+        let _ = collector.stop();
+
+        if discover_backends().is_empty() {
+            return;
+        }
+
+        collector
+            .start(GpuCollectorConfig {
+                interval: Duration::from_millis(1),
+                iterations: Some(5),
+            })
+            .expect("start collector");
+
+        std::thread::sleep(Duration::from_millis(50));
+        collector.stop().expect("stop collector");
     }
 }

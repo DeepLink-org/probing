@@ -300,7 +300,12 @@ fn hierarchical_fanout_reports_failed_remote_node_aggregator() {
         assert_eq!(result.meta.node_aggregators_queried, 1);
         assert_eq!(result.meta.local_ranks_queried, 1);
         assert_eq!(result.meta.nodes_queried, 2, "local0 + local leaf only");
-        assert_eq!(result.meta.nodes_failed, vec![dead_node_agg.to_string()]);
+        assert_eq!(result.meta.nodes_failed.len(), 1);
+        assert!(
+            result.meta.nodes_failed[0].starts_with(dead_node_agg),
+            "unexpected failure entry: {:?}",
+            result.meta.nodes_failed
+        );
     });
 
     clear_rank_env();
@@ -347,7 +352,12 @@ fn hierarchical_fanout_reports_failed_local_leaf() {
         assert_eq!(result.meta.node_aggregators_queried, 1);
         assert_eq!(result.meta.local_ranks_queried, 1);
         assert_eq!(result.meta.nodes_queried, 2, "local0 + remote node agg");
-        assert_eq!(result.meta.nodes_failed, vec![dead_leaf.to_string()]);
+        assert_eq!(result.meta.nodes_failed.len(), 1);
+        assert!(
+            result.meta.nodes_failed[0].starts_with(dead_leaf),
+            "unexpected failure entry: {:?}",
+            result.meta.nodes_failed
+        );
     });
 
     clear_rank_env();

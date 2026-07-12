@@ -42,8 +42,6 @@ jobs:
           make install-wheel
           make validate-skills
           make coverage-python-wheel
-        env:
-          PROBING: "1"
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@v4
@@ -89,11 +87,7 @@ jobs:
 
       - name: Install wheel and run tests
         working-directory: ${{ github.workspace }}
-        run: |
-          make install-wheel
-          make test-python-wheel
-        env:
-          PROBING: "1"
+        run: make test-python-wheel
 
   web-test:
     name: Web UI tests (Linux)
@@ -264,8 +258,6 @@ jobs:
           cargo nextest run -p probing-server --no-default-features --features kmsg,gpu
 
       - name: Build frontend and wheel, install, and run Python tests
-        env:
-          PROBING: "1"
         run: |
           make frontend
           make wheel-ci

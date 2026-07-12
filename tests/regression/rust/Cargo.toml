@@ -16,6 +16,7 @@ pyo3-build-config = "0.29.0"
 probing-core = { path = "../../../probing/core", features = ["test-utils"] }
 probing-server = { path = "../../../probing/server", default-features = false }
 probing-memtable = { path = "../../../probing/memtable" }
+probing-hccl-shim = { path = "../../../probing/extensions/hccl-shim" }
 probing-cli = { path = "../../../probing/cli" }
 probing-python = { path = "../../../probing/extensions/python", default-features = false }
 probing-proto = { path = "../../../probing/proto" }

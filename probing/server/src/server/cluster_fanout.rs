@@ -18,10 +18,10 @@ use probing_core::core::cluster::{
     local_listen_addrs, node_aggregator_peers,
 };
 use probing_core::core::federation::{
-    can_fanout_via_global_catalog, cluster_rank_for_endpoint, is_local0_from_env,
-    remote_fanout_concurrency, remote_query_timeout, reset_fanout_stats,
-    rewrite_sql_for_global_fanout, take_fanout_stats, validate_global_query, with_fanout_scope,
-    FanoutScope,
+    can_fanout_via_global_catalog, cluster_rank_for_endpoint, current_fanout_scope,
+    enforce_fanout_strict, fanout_strict_enabled, is_local0_from_env, remote_fanout_concurrency,
+    remote_query_timeout, reset_fanout_stats, rewrite_sql_for_global_fanout, set_fanout_scope,
+    take_fanout_stats, validate_global_query, FanoutScope, FanoutStats,
 };
 use probing_proto::prelude::*;
 
@@ -49,6 +49,22 @@ pub async fn query_local_df(sql: &str) -> anyhow::Result<DataFrame> {
     }
 }
 
+struct FanoutScopeGuard(FanoutScope);
+
+impl Drop for FanoutScopeGuard {
+    fn drop(&mut self) {
+        set_fanout_scope(self.0);
+    }
+}
+
+/// Run a local query with a thread-local fan-out tier, without blocking the async runtime.
+async fn query_local_df_in_scope(scope: FanoutScope, sql: &str) -> anyhow::Result<DataFrame> {
+    let previous = current_fanout_scope();
+    set_fanout_scope(scope);
+    let _guard = FanoutScopeGuard(previous);
+    query_local_df(sql).await
+}
+
 pub async fn remote_query_df(addr: &str, sql: &str) -> anyhow::Result<DataFrame> {
     let url = format!("http://{addr}/query");
     let request = Message::new(Query {
@@ -69,11 +85,28 @@ pub async fn remote_query_df(addr: &str, sql: &str) -> anyhow::Result<DataFrame>
 
     let status = response.status().as_u16();
     let text = response.into_body().read_to_string()?;
+    parse_remote_query_body(status, &text, addr)
+}
+
+fn parse_remote_query_body(status: u16, text: &str, addr: &str) -> anyhow::Result<DataFrame> {
     if status >= 400 {
+        if status == 503 && !fanout_strict_enabled() {
+            if let Ok(df) = decode_query_message_dataframe(text) {
+                log::warn!("accepted partial 503 dataframe from {addr}");
+                return Ok(df);
+            }
+            if let Ok(df) = decode_cluster_query_dataframe(text) {
+                log::warn!("accepted partial 503 cluster response from {addr}");
+                return Ok(df);
+            }
+        }
         anyhow::bail!("HTTP {status}: {text}");
     }
+    decode_query_message_dataframe(text)
+}
 
-    let msg: Message<QueryDataFormat> = serde_json::from_str(&text)?;
+fn decode_query_message_dataframe(text: &str) -> anyhow::Result<DataFrame> {
+    let msg: Message<QueryDataFormat> = serde_json::from_str(text)?;
     match msg.payload {
         QueryDataFormat::DataFrame(df) => Ok(df),
         QueryDataFormat::Nil => Ok(DataFrame {
@@ -84,6 +117,17 @@ pub async fn remote_query_df(addr: &str, sql: &str) -> anyhow::Result<DataFrame>
         QueryDataFormat::Error(err) => anyhow::bail!("remote query: {}", err.message),
         QueryDataFormat::TimeSeries(_) => anyhow::bail!("unexpected timeseries"),
     }
+}
+
+fn decode_cluster_query_dataframe(text: &str) -> anyhow::Result<DataFrame> {
+    let value: serde_json::Value = serde_json::from_str(text)?;
+    if let Some(err) = value.get("error").and_then(|v| v.as_str()) {
+        anyhow::bail!("remote cluster query: {err}");
+    }
+    let df = value
+        .get("dataframe")
+        .ok_or_else(|| anyhow::anyhow!("missing dataframe in cluster query response"))?;
+    Ok(serde_json::from_value(df.clone())?)
 }
 
 async fn remote_node_aggregate_df(addr: &str, sql: &str) -> anyhow::Result<DataFrame> {
@@ -110,17 +154,16 @@ async fn remote_node_aggregate_df(addr: &str, sql: &str) -> anyhow::Result<DataF
     let status = response.status().as_u16();
     let text = response.into_body().read_to_string()?;
     if status >= 400 {
+        if status == 503 && !fanout_strict_enabled() {
+            if let Ok(df) = decode_cluster_query_dataframe(&text) {
+                log::warn!("accepted partial 503 node aggregate from {addr}");
+                return Ok(df);
+            }
+        }
         anyhow::bail!("HTTP {status}: {text}");
     }
 
-    let value: serde_json::Value = serde_json::from_str(&text)?;
-    if let Some(err) = value.get("error").and_then(|v| v.as_str()) {
-        anyhow::bail!("remote node aggregate: {err}");
-    }
-    let df = value
-        .get("dataframe")
-        .ok_or_else(|| anyhow::anyhow!("missing dataframe in node aggregate response"))?;
-    Ok(serde_json::from_value(df.clone())?)
+    decode_cluster_query_dataframe(&text)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
@@ -180,7 +223,11 @@ impl FanoutMeta {
     }
 }
 
-fn finish_fanout(dataframe: DataFrame, mut meta: FanoutMeta, context: &str) -> FanoutQueryResponse {
+fn finish_fanout(
+    dataframe: DataFrame,
+    mut meta: FanoutMeta,
+    context: &str,
+) -> anyhow::Result<FanoutQueryResponse> {
     meta.finalize();
     if meta.partial {
         log::warn!(
@@ -189,8 +236,14 @@ fn finish_fanout(dataframe: DataFrame, mut meta: FanoutMeta, context: &str) -> F
             meta.nodes_failed.len(),
             meta.peer_batches_dropped,
         );
+        let stats = FanoutStats {
+            nodes_succeeded: meta.nodes_queried.saturating_sub(meta.nodes_failed.len()),
+            nodes_failed: meta.nodes_failed.clone(),
+            peer_batches_dropped: meta.peer_batches_dropped,
+        };
+        enforce_fanout_strict(&stats).map_err(|e| anyhow::anyhow!("{e}"))?;
     }
-    FanoutQueryResponse { dataframe, meta }
+    Ok(FanoutQueryResponse { dataframe, meta })
 }
 
 async fn fanout_remote_plain(
@@ -247,7 +300,7 @@ fn require_hierarchical_metadata() -> anyhow::Result<()> {
     if hierarchical_metadata_available() {
         Ok(())
     } else {
-        Err(hierarchical_metadata_unavailable_err())
+        Err(hierarchical_metadata_unavailable_err().into())
     }
 }
 
@@ -293,7 +346,7 @@ pub async fn fanout_query(
     match resolved_scope {
         ClusterFanoutScope::Local => {
             let dataframe = query_local_df(sql).await?;
-            Ok(finish_fanout(
+            finish_fanout(
                 dataframe,
                 FanoutMeta {
                     cluster: true,
@@ -307,7 +360,7 @@ pub async fn fanout_query(
                     partial: false,
                 },
                 "local",
-            ))
+            )
         }
         ClusterFanoutScope::Node => fanout_node_tier(sql, hierarchical).await,
         ClusterFanoutScope::Coordinator => fanout_coordinator_tier(sql, hierarchical).await,
@@ -319,7 +372,7 @@ pub async fn fanout_query(
 async fn fanout_node_tier(sql: &str, hierarchical: bool) -> anyhow::Result<FanoutQueryResponse> {
     if !is_local0_from_env() {
         let dataframe = query_local_df(sql).await?;
-        return Ok(finish_fanout(
+        return finish_fanout(
             dataframe,
             FanoutMeta {
                 cluster: true,
@@ -333,7 +386,7 @@ async fn fanout_node_tier(sql: &str, hierarchical: bool) -> anyhow::Result<Fanou
                 partial: false,
             },
             "node-tier-local-fallback",
-        ));
+        );
     }
 
     let host = local_host_label();
@@ -343,11 +396,7 @@ async fn fanout_node_tier(sql: &str, hierarchical: bool) -> anyhow::Result<Fanou
     let mut nodes_failed = Vec::new();
     let mut parts = Vec::new();
 
-    let local_df = with_fanout_scope(FanoutScope::Node, || {
-        tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(query_local_df(sql))
-        })
-    })?;
+    let local_df = query_local_df_in_scope(FanoutScope::Node, sql).await?;
     parts.push(tag_dataframe(local_df, &host, &addr, local_rank));
 
     let leaves = local_leaf_peers();
@@ -371,13 +420,13 @@ async fn fanout_node_tier(sql: &str, hierarchical: bool) -> anyhow::Result<Fanou
                 nodes_queried += 1;
             }
             Err(err) => {
-                log::warn!("local leaf fan-out {} failed: {err}", node.addr);
-                nodes_failed.push(node.addr);
+                log::warn!("local leaf fan-out {} failed: {err:#}", node.addr);
+                nodes_failed.push(format!("{}: {err:#}", node.addr));
             }
         }
     }
 
-    Ok(finish_fanout(
+    finish_fanout(
         merge_tagged_dataframes(&parts),
         FanoutMeta {
             cluster: true,
@@ -391,7 +440,7 @@ async fn fanout_node_tier(sql: &str, hierarchical: bool) -> anyhow::Result<Fanou
             partial: false,
         },
         "node-tier",
-    ))
+    )
 }
 
 /// Global coordinator: node aggregators (+ on-node leaves via broadcast path).
@@ -421,13 +470,9 @@ async fn fanout_via_global_catalog(
     reset_fanout_stats();
     let global_sql = rewrite_sql_for_global_fanout(sql);
     log::debug!("cluster fan-out via global catalog ({scope:?}): {global_sql}");
-    let dataframe = with_fanout_scope(scope, || {
-        tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(query_local_df(&global_sql))
-        })
-    })?;
+    let dataframe = query_local_df_in_scope(scope, &global_sql).await?;
     let stats = take_fanout_stats();
-    Ok(finish_fanout(
+    finish_fanout(
         dataframe,
         FanoutMeta {
             cluster: true,
@@ -449,7 +494,7 @@ async fn fanout_via_global_catalog(
             partial: false,
         },
         "global-catalog",
-    ))
+    )
 }
 
 async fn broadcast_fanout_query(
@@ -499,28 +544,24 @@ async fn broadcast_fanout_query(
                     meta.nodes_queried += 1;
                 }
                 Err(err) => {
-                    log::warn!("node aggregator fan-out {} failed: {err}", node.addr);
-                    meta.nodes_failed.push(node.addr);
+                    log::warn!("node aggregator fan-out {} failed: {err:#}", node.addr);
+                    meta.nodes_failed.push(format!("{}: {err:#}", node.addr));
                 }
             }
         }
 
-        return Ok(finish_fanout(
+        return finish_fanout(
             merge_tagged_dataframes(&parts),
             meta,
             "coordinator-broadcast",
-        ));
+        );
     }
 
     let host = local_host_label();
     let addr = probing_core::core::cluster::local_addr_label();
     let local_rank = cluster_rank_for_endpoint(&host, &addr);
     let mut parts = vec![tag_dataframe(
-        with_fanout_scope(FanoutScope::Local, || {
-            tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(query_local_df(sql))
-            })
-        })?,
+        query_local_df_in_scope(FanoutScope::Local, sql).await?,
         &host,
         &addr,
         local_rank,
@@ -565,13 +606,13 @@ async fn broadcast_fanout_query(
                 nodes_queried += 1;
             }
             Err(err) => {
-                log::warn!("cluster fan-out {} failed: {err}", node.addr);
-                nodes_failed.push(node.addr);
+                log::warn!("cluster fan-out {} failed: {err:#}", node.addr);
+                nodes_failed.push(format!("{}: {err:#}", node.addr));
             }
         }
     }
 
-    Ok(finish_fanout(
+    finish_fanout(
         merge_tagged_dataframes(&parts),
         FanoutMeta {
             cluster: true,
@@ -593,7 +634,7 @@ async fn broadcast_fanout_query(
             partial: false,
         },
         "broadcast",
-    ))
+    )
 }
 
 fn tag_dataframe(mut df: DataFrame, host: &str, addr: &str, rank: Option<i32>) -> DataFrame {

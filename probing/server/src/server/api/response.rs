@@ -28,13 +28,18 @@ pub struct ExtensionRouteSpec {
     pub response: ResponseMeta,
 }
 
-static ROUTE_MAP: Lazy<HashMap<String, ExtensionRouteSpec>> = Lazy::new(build_route_map);
+static ROUTE_MAP: Lazy<HashMap<String, ExtensionRouteSpec>> = Lazy::new(|| {
+    build_route_map().unwrap_or_else(|e| {
+        log::error!("failed to build extension route map: {e}; using empty map");
+        HashMap::new()
+    })
+});
 
-fn build_route_map() -> HashMap<String, ExtensionRouteSpec> {
+fn build_route_map() -> Result<HashMap<String, ExtensionRouteSpec>, String> {
     let spec: serde_json::Value = serde_json::from_str(include_str!(
         "../../../../../tests/regression/spec/api_spec.json"
     ))
-    .expect("parse api_spec.json");
+    .map_err(|e| format!("parse api_spec.json: {e}"))?;
 
     let defaults = spec
         .get("extension_response_defaults")
@@ -45,13 +50,17 @@ fn build_route_map() -> HashMap<String, ExtensionRouteSpec> {
 
     let ext = spec["routing"]["python_http_extension_name"]
         .as_str()
-        .expect("python_http_extension_name");
-    for handler in spec["pythonext_handlers"]
+        .ok_or("missing python_http_extension_name")?;
+    let handlers = spec["pythonext_handlers"]
         .as_array()
-        .expect("pythonext_handlers")
-    {
-        let local = handler["local_path"].as_str().expect("local_path");
-        let method = handler["method"].as_str().expect("method");
+        .ok_or("missing pythonext_handlers")?;
+    for handler in handlers {
+        let local = handler["local_path"]
+            .as_str()
+            .ok_or("missing local_path in pythonext_handlers entry")?;
+        let method = handler["method"]
+            .as_str()
+            .ok_or("missing method in pythonext_handlers entry")?;
         let response = handler.get("response").unwrap_or(&defaults);
         map.insert(
             format!("{ext}/{local}"),
@@ -62,13 +71,17 @@ fn build_route_map() -> HashMap<String, ExtensionRouteSpec> {
         );
     }
 
-    for entry in spec["other_extensions"]
+    let other_extensions = spec["other_extensions"]
         .as_array()
-        .expect("other_extensions")
-    {
-        let name = entry["extension_name"].as_str().expect("extension_name");
+        .ok_or("missing other_extensions")?;
+    for entry in other_extensions {
+        let name = entry["extension_name"]
+            .as_str()
+            .ok_or("missing extension_name in other_extensions entry")?;
         let local = entry["local_path"].as_str().unwrap_or("");
-        let method = entry["method"].as_str().expect("method");
+        let method = entry["method"]
+            .as_str()
+            .ok_or("missing method in other_extensions entry")?;
         let response = entry.get("response").unwrap_or(&defaults);
         let key = if local.is_empty() {
             name.to_string()
@@ -84,7 +97,7 @@ fn build_route_map() -> HashMap<String, ExtensionRouteSpec> {
         );
     }
 
-    map
+    Ok(map)
 }
 
 fn parse_method(method: &str) -> &'static str {
@@ -93,7 +106,10 @@ fn parse_method(method: &str) -> &'static str {
         "POST" => "POST",
         "PUT" => "PUT",
         "DELETE" => "DELETE",
-        other => panic!("unsupported HTTP method in api_spec.json: {other}"),
+        other => {
+            log::error!("unsupported HTTP method in api_spec.json: {other}; defaulting to GET");
+            "GET"
+        }
     }
 }
 
@@ -114,7 +130,13 @@ fn parse_response_meta(response: &serde_json::Value, defaults: &serde_json::Valu
             "application/json" => "application/json",
             "text/plain" => "text/plain",
             "text/html" => "text/html",
-            other => panic!("unsupported extension response content_type: {other}"),
+            other => {
+                log::error!(
+                    "unsupported extension response content_type in api_spec.json: {other}; \
+                     defaulting to text/plain"
+                );
+                "text/plain"
+            }
         },
         cors,
     }
@@ -240,5 +262,12 @@ mod tests {
             status_for_extension_body("text/plain", b"hello"),
             StatusCode::OK
         );
+    }
+
+    #[test]
+    fn lookup_unknown_path_uses_defaults_without_panic() {
+        let meta = lookup("/pythonext/does-not-exist");
+        assert_eq!(meta.content_type, "text/plain");
+        assert!(!meta.cors);
     }
 }

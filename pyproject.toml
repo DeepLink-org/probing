@@ -122,6 +122,7 @@ cargo-extra-args = "--features extension-module,gpu,kmsg"
 include = [
     "probing.pth",
     "probing_hook.py",
+    "probing/**/*.py",
     "probing/libs/*",
     "probing/bundled_skills/**",
     "probing/bundled_web/**",

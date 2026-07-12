@@ -1,3 +1,4 @@
+import logging
 import ctypes
 import contextlib
 import fnmatch
@@ -16,6 +17,30 @@ from types import FrameType, FunctionType, ModuleType
 from typing import Any, AnyStr, Callable, Dict, List, Set, Optional
 
 from probing.core.table import table
+
+logger = logging.getLogger(__name__)
+
+_TRACE_STDOUT = os.environ.get("PROBING_TRACE_STDOUT", "").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+
+
+def _trace_emit(message: str) -> None:
+    if _TRACE_STDOUT:
+        print(message)
+    else:
+        logger.info("%s", message)
+
+
+def _trace_warn(message: str) -> None:
+    if _TRACE_STDOUT:
+        print(message)
+    else:
+        logger.warning("%s", message)
+
 
 thread_global = threading.local()
 internal_directories = os.path.dirname((lambda: 0).__code__.co_filename)
@@ -833,7 +858,7 @@ class ProbingTracer:
 
                 # Print only if variable is in watch list (not silent_watch)
                 if k in self.watch:
-                    print(f"probing: variable update {k} = {new_value}")
+                    _trace_emit(f"probing: variable update {k} = {new_value}")
 
                 # Save variable change to trace_variables table (for both watch and silent_watch)
                 try:
@@ -855,7 +880,7 @@ class ProbingTracer:
                     ).save()
                 except Exception as e:
                     # Log error but don't disrupt the tracing process
-                    print(
+                    _trace_warn(
                         f"Warning: Failed to save variable change to trace_variables table: {e}"
                     )
 
@@ -903,7 +928,7 @@ def ProbingTensor(*args, **kwargs):
                 old_val = f"{args}"
                 ret = super().__torch_function__(func, types, args, kwargs)
                 ret_val = f"{args}"
-                print(
+                _trace_emit(
                     f"probing: tensor update with {func.__name__}: {old_val} => {ret_val}"
                 )
                 return ret
@@ -1010,12 +1035,12 @@ def trace(
             depth = 1
         depth = max(0, min(int(depth), MAX_TRACE_DEPTH))
         if func_or_name in traced_functions:
-            print(f"Function {func_or_name} is already being traced.")
+            _trace_warn(f"Function {func_or_name} is already being traced.")
             return
         try:
             func = get_func(func_or_name)
             if not isinstance(func, FunctionType):
-                print(f"Error: {func_or_name} is not a function")
+                _trace_warn(f"Error: {func_or_name} is not a function")
                 return
 
             # Store original attributes for restoration
@@ -1111,7 +1136,7 @@ def trace(
             )
 
         except Exception as e:
-            print(f"Function {func_or_name} not found: {e}")
+            _trace_warn(f"Function {func_or_name} not found: {e}")
             return
     else:
         raise NotImplementedError("Only string names are supported for tracing.")
@@ -1134,12 +1159,12 @@ def untrace(func_or_name):
     if isinstance(func_or_name, str):
         _validate_trace_name(func_or_name)
         if func_or_name not in traced_functions:
-            print(f"Function {func_or_name} is not being traced.")
+            _trace_warn(f"Function {func_or_name} is not being traced.")
             return
         try:
             func = get_func(func_or_name)
             if not isinstance(func, FunctionType):
-                print(f"Error: {func_or_name} is not a function")
+                _trace_warn(f"Error: {func_or_name} is not a function")
                 return
 
             # Get original attributes
@@ -1170,7 +1195,7 @@ def untrace(func_or_name):
                 object.__setattr__(func, "__closure__", original_attrs["__closure__"])
 
         except Exception as e:
-            print(f"Function {func_or_name} not found: {e}")
+            _trace_warn(f"Function {func_or_name} not found: {e}")
             return
     else:
         raise NotImplementedError("Only string names are supported for tracing.")

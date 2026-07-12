@@ -243,14 +243,14 @@ print(f'GPU alloc: {alloc:.0f}MB, reserved: {reserved:.0f}MB')
 ### Configuration Options
 ```bash
 # Environment variable configuration
-export PROBING_SAMPLE_RATE=0.1      # Set sampling rate
-export PROBING_RETENTION_DAYS=7     # Data retention period
+export PROBING_TORCH_PROFILING=0.05   # TorchProbe step sampling (see docs)
+export PROBING_RETENTION_DAYS=7       # Data retention period (when configured)
 
 # View current configuration
 probing -t <pid> config
 
 # Dynamic configuration updates
-probing -t <pid> config probing.sample_rate=0.05
+probing -t <pid> config probing.torch.profiling=0.05
 probing -t <pid> config probing.max_memory=1GB
 probing -t <pid> config "probing.rdma.hca.name='mlx5_cx6_0'"
 probing -t <pid> config "probing.rdma.sample.rate='5'"

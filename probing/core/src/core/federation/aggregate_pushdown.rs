@@ -20,7 +20,7 @@ use crate::core::arrow_convert::arrow_array_to_seq;
 use crate::core::Engine;
 
 use super::cluster_executor::{
-    reset_fanout_stats, set_fanout_stats, FanoutStats, ProbeClusterExecutor,
+    enforce_fanout_strict, reset_fanout_stats, set_fanout_stats, FanoutStats, ProbeClusterExecutor,
 };
 use super::convert::{
     cluster_rank_for_endpoint, is_federation_tag_column, proto_dataframe_to_record_batch,
@@ -117,6 +117,7 @@ pub async fn try_execute_aggregate_pushdown(
     append_fanout_outcomes(&mut proto_parts, &mut stats, &plan, outcomes);
 
     if proto_parts.is_empty() {
+        enforce_fanout_strict(&stats)?;
         set_fanout_stats(stats);
         return Ok(None);
     }
@@ -147,6 +148,7 @@ pub async fn try_execute_aggregate_pushdown(
         result
     };
 
+    enforce_fanout_strict(&stats)?;
     set_fanout_stats(stats);
     Ok(Some(result))
 }
@@ -167,7 +169,7 @@ fn append_fanout_outcomes(
                 proto_parts.push(df);
             }
             Err(err) => {
-                log::debug!("aggregate pushdown skipped {}: {err}", outcome.addr);
+                log::warn!("aggregate pushdown skipped {}: {err}", outcome.addr);
                 stats.nodes_failed.push(outcome.addr);
             }
         }

@@ -183,18 +183,7 @@ pub async fn execute_skill_pb<B: SkillBackend>(
     let mut findings = evaluate_rules(&pb.interpretation, &evidence, &ctx);
     findings.extend(cluster_integrity_findings(&outcomes));
 
-    let mut summary_ctx = ctx.clone();
-    for ev in &evidence {
-        summary_ctx.insert(
-            format!("{}.row_count", ev.step_id),
-            ev.row_count.to_string(),
-        );
-    }
-    let summary = if pb.summary_template.is_empty() {
-        String::new()
-    } else {
-        expand_template(&pb.summary_template, &summary_ctx)
-    };
+    let summary = build_summary(&pb, &evidence, &ctx);
 
     let had_error = outcomes
         .iter()
@@ -386,11 +375,21 @@ async fn run_sql_step<B: SkillBackend>(backend: &B, step: &SkillStep, sql: &str)
 async fn run_api_step<B: SkillBackend>(backend: &B, step: &SkillStep) -> StepOutcome {
     let path = step.path.clone().unwrap_or_default();
     match backend.get(&path).await {
-        Ok(body) => StepOutcome::ApiText {
-            step_id: step.id.clone(),
-            title: step.title.clone(),
-            text: body,
-        },
+        Ok(body) => {
+            if body.trim().is_empty() && step.on_empty == "warn" {
+                StepOutcome::ApiText {
+                    step_id: step.id.clone(),
+                    title: step.title.clone(),
+                    text: "(empty response — step may be unavailable)".to_string(),
+                }
+            } else {
+                StepOutcome::ApiText {
+                    step_id: step.id.clone(),
+                    title: step.title.clone(),
+                    text: body,
+                }
+            }
+        }
         Err(e) => StepOutcome::Error {
             step_id: step.id.clone(),
             title: step.title.clone(),
@@ -415,7 +414,32 @@ fn outcome_to_evidence(outcome: &StepOutcome) -> Option<StepEvidence> {
     }
 }
 
-fn cluster_integrity_findings(outcomes: &[StepOutcome]) -> Vec<InterpretFinding> {
+pub fn build_summary(
+    skill: &Skill,
+    evidence: &[StepEvidence],
+    ctx: &HashMap<String, String>,
+) -> String {
+    if skill.summary_template.is_empty() {
+        return String::new();
+    }
+    let mut summary_ctx = ctx.clone();
+    for ev in evidence {
+        summary_ctx.insert(
+            format!("{}.row_count", ev.step_id),
+            ev.row_count.to_string(),
+        );
+        for col in &ev.dataframe.names {
+            let key = format!("{}.{}", ev.step_id, col);
+            if let Some(val) = crate::interpret::cell_display_first(&ev.dataframe, col) {
+                summary_ctx.insert(key, val);
+            }
+        }
+    }
+    expand_template(&skill.summary_template, &summary_ctx)
+}
+
+/// Surface incomplete cluster fan-out as an explicit finding (shared by CLI and Web).
+pub fn cluster_integrity_findings(outcomes: &[StepOutcome]) -> Vec<InterpretFinding> {
     let mut findings = Vec::new();
     for outcome in outcomes {
         let StepOutcome::Sql {

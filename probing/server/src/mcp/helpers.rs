@@ -1,11 +1,13 @@
 //! Shared helpers for MCP tools (query shaping, write guard, audit).
 
-use probing_cli::cli::ctrl::ProbeEndpoint;
-use probing_core::core::federation::take_fanout_stats;
+use std::collections::HashMap;
+
+use probing_core::core::federation::{fanout_strict_enabled, take_fanout_stats};
+use probing_core::core::ProbeExtensionManager;
 use probing_proto::prelude::{Ele, Query, QueryDataFormat};
 use rmcp::ErrorData;
 
-use crate::engine::handle_query;
+use crate::engine::{handle_query, ENGINE};
 
 pub const DEFAULT_ROW_LIMIT: usize = 200;
 pub const MAX_ROW_LIMIT: usize = 1000;
@@ -40,27 +42,13 @@ pub fn audit_mcp_write(tool: &str, detail: &str) {
     log::info!("MCP write audit: tool={tool} detail={detail}");
 }
 
-pub fn local_ctrl() -> ProbeEndpoint {
-    ProbeEndpoint::Local {
-        pid: std::process::id() as i32,
-    }
-}
-
 pub fn tool_error(message: impl Into<String>) -> ErrorData {
     ErrorData::invalid_params(message.into(), None)
 }
 
-pub fn ensure_read_only_sql(sql: &str) -> Result<(), String> {
-    let upper = sql.trim().to_uppercase();
-    if upper.starts_with("SELECT")
-        || upper.starts_with("WITH")
-        || upper.starts_with("SHOW")
-        || upper.starts_with("DESCRIBE")
-    {
-        Ok(())
-    } else {
-        Err("Only read-only SQL is allowed (SELECT/WITH/SHOW/DESCRIBE)".to_string())
-    }
+/// Map a fallible error into MCP `ErrorData` while preserving anyhow cause chains (`{err:#}`).
+pub fn tool_error_from(err: impl std::fmt::Display) -> ErrorData {
+    tool_error(format!("{err:#}"))
 }
 
 pub fn validate_config_key(key: &str) -> Result<(), String> {
@@ -78,24 +66,62 @@ pub fn escape_sql_string(value: &str) -> String {
     value.replace('\'', "''")
 }
 
+pub(crate) fn split_api_path(path: &str) -> (&str, HashMap<String, String>) {
+    let path = path.strip_prefix("/apis").unwrap_or(path);
+    if let Some((p, q)) = path.split_once('?') {
+        (p, serde_urlencoded::from_str(q).unwrap_or_default())
+    } else {
+        (path, HashMap::new())
+    }
+}
+
+/// Call a registered probe extension in-process (no HTTP loopback).
+pub(crate) async fn extension_request(path: &str, body: &[u8]) -> Result<Vec<u8>, ErrorData> {
+    let (api_path, params) = split_api_path(path);
+    let eem = {
+        let engine = ENGINE.read().await;
+        engine
+            .context
+            .state()
+            .config()
+            .options()
+            .extensions
+            .get::<ProbeExtensionManager>()
+            .cloned()
+    };
+    let Some(eem) = eem else {
+        return Err(tool_error("Extension manager not available"));
+    };
+    eem.call(api_path, &params, body)
+        .await
+        .map_err(tool_error_from)
+}
+
 pub async fn engine_query_json(sql: String, limit: usize) -> Result<serde_json::Value, ErrorData> {
-    ensure_read_only_sql(&sql).map_err(tool_error)?;
+    crate::server::sql_guard::ensure_read_only_sql(&sql).map_err(tool_error)?;
     let reply = handle_query(Query {
         expr: sql,
         opts: None,
     })
     .await
-    .map_err(|e| tool_error(e.to_string()))?;
+    .map_err(tool_error_from)?;
     let mut payload = dataframe_reply_to_json(reply, limit)?;
-    attach_fanout_quality(&mut payload);
+    attach_fanout_quality(&mut payload)?;
     Ok(payload)
 }
 
 /// Surface federated / global-table fan-out completeness when peers were dropped.
-fn attach_fanout_quality(payload: &mut serde_json::Value) {
+fn attach_fanout_quality(payload: &mut serde_json::Value) -> Result<(), ErrorData> {
     let stats = take_fanout_stats();
     if stats.nodes_failed.is_empty() && stats.peer_batches_dropped == 0 {
-        return;
+        return Ok(());
+    }
+    if fanout_strict_enabled() {
+        return Err(tool_error(format!(
+            "federated fan-out strict mode: {} node(s) failed, {} peer batch(es) dropped",
+            stats.nodes_failed.len(),
+            stats.peer_batches_dropped
+        )));
     }
     if let Some(obj) = payload.as_object_mut() {
         obj.insert(
@@ -108,6 +134,7 @@ fn attach_fanout_quality(payload: &mut serde_json::Value) {
             }),
         );
     }
+    Ok(())
 }
 
 pub fn dataframe_reply_to_json(
@@ -179,5 +206,28 @@ mod tests {
         std::env::set_var("PROBING_MCP_ALLOW_WRITE", "1");
         assert!(allow_mcp_write());
         std::env::remove_var("PROBING_MCP_ALLOW_WRITE");
+    }
+
+    #[test]
+    fn ensure_read_only_sql_rejects_trailing_write() {
+        use crate::server::sql_guard::ensure_read_only_sql;
+        assert!(ensure_read_only_sql("SELECT 1; DELETE FROM t").is_err());
+    }
+
+    #[test]
+    fn ensure_read_only_sql_allows_multiple_selects() {
+        use crate::server::sql_guard::ensure_read_only_sql;
+        assert!(ensure_read_only_sql("SELECT 1; SELECT 2").is_ok());
+    }
+
+    #[test]
+    fn tool_error_from_preserves_anyhow_chain() {
+        let err = anyhow::anyhow!("root cause")
+            .context("middle")
+            .context("outer");
+        let data = tool_error_from(err);
+        let msg = data.message;
+        assert!(msg.contains("outer"));
+        assert!(msg.contains("root cause"));
     }
 }

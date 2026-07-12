@@ -26,7 +26,7 @@ fn current_thread_id() -> u64 {
     {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        let tid = thread::current().id();
+        let tid = std::thread::current().id();
         let mut h = DefaultHasher::new();
         // ThreadId only implements Debug; convert to string and hash.
         format!("{:?}", tid).hash(&mut h);

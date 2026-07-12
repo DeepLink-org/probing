@@ -25,7 +25,8 @@
     { "method": "POST", "path": "/query" },
     { "method": "POST", "path": "/query/dto" },
     { "method": "GET", "path": "/config/{config_key}" },
-    { "method": "GET", "path": "/ws" }
+    { "method": "GET", "path": "/ws" },
+    { "method": "POST", "path": "/mcp" }
   ],
   "pythonext_handlers": [
     {

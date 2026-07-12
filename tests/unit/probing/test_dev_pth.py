@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from probing.dev_pth import (
-    HOOK_PTH_LINE,
     HOOK_PTH_NAME,
+    HOOK_PTH_LINE_PREFIX,
+    hook_pth_line,
     hook_pth_path,
     install_dev_hook,
     is_dev_hook_installed,
@@ -27,7 +28,10 @@ def test_install_and_remove_dev_hook():
     path = install_dev_hook()
     assert path == hook_pth_path()
     assert path.name == HOOK_PTH_NAME
-    assert path.read_text(encoding="utf-8") == HOOK_PTH_LINE
+    line = path.read_text(encoding="utf-8")
+    assert line == hook_pth_line()
+    assert line.startswith(HOOK_PTH_LINE_PREFIX)
+    assert line.endswith("import probing_hook\n")
     assert is_dev_hook_installed()
 
     assert remove_dev_hook()

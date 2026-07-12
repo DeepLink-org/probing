@@ -72,7 +72,7 @@ POST /apis/cluster/query
 | `local_rank` | 识别 local0（`0`）与 leaf |
 | `addr` | HTTP fan-out 目标 |
 
-由 torchrun 心跳 / `PUT /apis/nodes` 自动填充。若集群视图 **缺少** 上述字段，自动 **降级为扁平 fan-out**（与 `hierarchical=false` 等价）。
+由 torchrun 心跳 / `PUT /apis/nodes` 自动填充。若集群视图 **缺少** 上述字段且分层模式开启（默认），**`POST /apis/cluster/query` 返回 HTTP 503** — 不会静默降级为扁平 fan-out。仅在明确接受扁平 fan-out 时使用 `hierarchical=false`。
 
 ---
 
@@ -159,9 +159,10 @@ probing -t rank0:8080 cluster query --flat "SELECT ..."
 | 变量 | 默认 | 说明 |
 |------|------|------|
 | `PROBING_CLUSTER_FANOUT_HIERARCHICAL` | `1` | `0` = 全局扁平 fan-out（legacy O(world_size) 路径） |
+| `PROBING_REMOTE_QUERY_TIMEOUT_SECS` | `30` | 单 peer HTTP 超时（分层下为 per-tier）；见 [环境变量](../reference/env-vars.zh.md) |
+| `PROBING_FANOUT_STRICT` | unset | `1`/`true` 时任一 peer 失败或 batch 丢弃则整查失败（无 partial 503） |
 
 分层模式开启（默认）但 `cluster.nodes` 缺少 `group_rank` / `local_rank`（心跳未收敛）时，**`POST /apis/cluster/query` 返回 HTTP 503**，不再静默回退扁平 fan-out。仅在明确接受扁平 fan-out 时使用 `hierarchical=false`。
-| `PROBING_REMOTE_QUERY_TIMEOUT_SECS` | `2` | 单 peer HTTP 超时（分层下为 per-tier） |
 
 集群心跳相关变量见 [环境变量 — 集群](../reference/env-vars.zh.md#集群) 与 [torchrun 集群心跳](torchrun-cluster.zh.md)。
 

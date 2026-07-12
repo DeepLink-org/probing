@@ -14,6 +14,10 @@ pub struct ClusterQueryMeta {
     pub cluster: bool,
     pub nodes_queried: usize,
     pub nodes_failed: Vec<String>,
+    #[serde(default)]
+    pub peer_batches_dropped: usize,
+    #[serde(default)]
+    pub partial: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

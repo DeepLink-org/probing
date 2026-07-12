@@ -10,7 +10,6 @@ use datafusion::error::DataFusionError;
 use datafusion::error::Result;
 use datafusion::execution::SessionState;
 use datafusion::prelude::{DataFrame, SessionConfig, SessionContext};
-use futures;
 
 use super::arrow_convert::{arrow_array_to_seq, empty_seq_for_data_type};
 use super::probe_extension::ProbeExtension;
@@ -55,10 +54,20 @@ pub struct Engine {
 
 impl Clone for Engine {
     fn clone(&self) -> Self {
-        // Note: This is a synchronous clone, so we need to block on the async lock
-        // In practice, this should be avoided in async contexts
-        use futures::executor::block_on;
-        let plugins_clone = block_on(async { self.data_sources.read().await.clone() });
+        let plugins_clone = match self.data_sources.try_read() {
+            Ok(guard) => guard.clone(),
+            Err(_) => {
+                log::warn!("Engine::clone: data_sources contended; blocking for read");
+                if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                    tokio::task::block_in_place(|| {
+                        handle.block_on(async { self.data_sources.read().await.clone() })
+                    })
+                } else {
+                    crate::runtime::CORE_RUNTIME
+                        .block_on(async { self.data_sources.read().await.clone() })
+                }
+            }
+        };
         Self {
             context: self.context.clone(),
             data_sources: RwLock::new(plugins_clone),
@@ -109,6 +118,7 @@ impl Engine {
         let original: String = query.into();
         let capped = federation::ensure_global_scan_limit(&original);
         if let Some(df) = federation::try_execute_aggregate_pushdown(self, &capped).await? {
+            federation::check_fanout_strict()?;
             return Ok(Some(df));
         }
         let default_schema = self.default_namespace();
@@ -118,6 +128,7 @@ impl Engine {
         let df = self.sql(query.as_str()).await?;
         let schema = df.schema().clone();
         let batches = df.collect().await?;
+        federation::check_fanout_strict()?;
         if batches.is_empty() {
             let names = schema
                 .fields()

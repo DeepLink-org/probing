@@ -264,7 +264,7 @@ impl<'a> Injection<'a> {
                     return Ok(());
                 }
                 pete::Stop::SignalDelivery { signal } | pete::Stop::Group { signal } => {
-                    let rip = tracee.registers().unwrap().rip;
+                    let rip = tracee.registers().context("read tracee registers")?.rip;
                     return Err(anyhow::anyhow!(
                         "shellcode running in tracee sent unexpected signal {signal:?} at rip={rip:x}",
                     ));

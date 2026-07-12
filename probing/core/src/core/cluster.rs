@@ -350,14 +350,14 @@ pub const HIERARCHICAL_METADATA_UNAVAILABLE: &str =
     "cluster hierarchical fan-out unavailable: cluster.nodes missing group_rank/local_rank metadata";
 
 /// Build a user-facing error for missing hierarchical metadata.
-pub fn hierarchical_metadata_unavailable_err() -> anyhow::Error {
-    anyhow::anyhow!(
+pub fn hierarchical_metadata_unavailable_err() -> crate::core::error::EngineError {
+    crate::core::error::EngineError::ClusterError(format!(
         "{HIERARCHICAL_METADATA_UNAVAILABLE} — wait for torchrun heartbeat to converge, \
          or set hierarchical=false / PROBING_CLUSTER_FANOUT_HIERARCHICAL=0 for legacy flat fan-out"
-    )
+    ))
 }
 
-pub fn is_hierarchical_metadata_unavailable(err: &anyhow::Error) -> bool {
+pub fn is_hierarchical_metadata_unavailable(err: &impl std::fmt::Display) -> bool {
     err.to_string()
         .starts_with(HIERARCHICAL_METADATA_UNAVAILABLE)
 }

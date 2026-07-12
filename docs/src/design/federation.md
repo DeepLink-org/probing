@@ -22,7 +22,7 @@ A coordinator query:
 |-----------|------------|
 | Write local, read on demand | No central store on the training path; fan-out only for `cluster query` / `global.*` |
 | Single engine entry | CLI, Web, skills, `probing.query()` share `Engine::async_query` |
-| Partial failure | Peer timeout → omit shard, record `nodes_failed`; query continues |
+| Partial failure | Default: peer timeout → omit shard, record `nodes_failed`; query continues with `partial=true` (HTTP 503 for cluster API). Set `PROBING_FANOUT_STRICT=1` to fail the whole query instead. |
 | No cross-rank JOIN | `global.a JOIN global.b` unsupported; join inside one process (path C) |
 
 **Entry points**
@@ -244,7 +244,11 @@ flowchart LR
 | Peer set | Snapshot of `cluster.nodes`, **excluding** coordinator listen addrs |
 | Peer execution | Always `probe.*`; peers must not fan-out again |
 | Concurrency | Parallel peer requests; latency ≈ slowest peer + coordinator merge |
-| Timeout | Failed peer → `nodes_failed`; default 2s (`PROBING_REMOTE_QUERY_TIMEOUT_SECS`) |
+| Timeout | Failed peer → `nodes_failed`; default **30s** (`PROBING_REMOTE_QUERY_TIMEOUT_SECS`) |
+| Strict fan-out | `PROBING_FANOUT_STRICT=1` fails query on any `nodes_failed` or `peer_batches_dropped` (no partial merge) |
+| Partial HTTP | Cluster/fan-out APIs return **503** with partial `dataframe` when `meta.partial=true` (non-strict only) |
+| Peer 503 accept | Non-strict mode may accept peer HTTP 503 bodies with partial data during hierarchical merge |
+| Federated scan logs | Peer drops log at **debug** by default; **warn** when `PROBING_FANOUT_STRICT=1` |
 | Hierarchical fan-out | Default on: coordinator → local0 → leaves; see [Hierarchical fan-out](hierarchical-fanout.md) |
 
 ### 4.2 Path selection

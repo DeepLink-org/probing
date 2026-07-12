@@ -4,15 +4,17 @@ extern crate ctor;
 use anyhow::Result;
 use pyo3::prelude::*;
 
+use probing_cli::pyo3::cli_main;
 use probing_core::{install_panic_hook, register_python_main_thread};
 use probing_python::extensions::python::{register_table_docs, ExternalTable};
 use probing_python::features::config;
-use probing_python::features::python_api::{cli_main, query_json};
+use probing_python::features::python_api::query_json;
 use probing_python::features::tracing;
 use probing_python::features::vm_tracer::{
     _get_python_frames, _get_python_stacks, disable_tracer, enable_tracer, initialize_globals,
 };
 use probing_server::sync_env_settings;
+use probing_skills::pyo3::register_skills_bindings;
 
 use probing_python::pkg::TCPStore;
 
@@ -228,21 +230,15 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(_get_python_stacks, m)?)?;
     m.add_function(wrap_pyfunction!(_get_python_frames, m)?)?;
     m.add_function(wrap_pyfunction!(cli_main, m)?)?;
-    use probing_python::features::python_api::{api_callstack, api_eval};
-    m.add_function(wrap_pyfunction!(api_callstack, m)?)?;
-    m.add_function(wrap_pyfunction!(api_eval, m)?)?;
-    use probing_python::features::skills_api::{
-        skills_catalog, skills_intents, skills_list, skills_load, skills_match, skills_pages,
-        skills_plan, skills_routing,
-    };
-    m.add_function(wrap_pyfunction!(skills_load, m)?)?;
-    m.add_function(wrap_pyfunction!(skills_catalog, m)?)?;
-    m.add_function(wrap_pyfunction!(skills_routing, m)?)?;
-    m.add_function(wrap_pyfunction!(skills_list, m)?)?;
-    m.add_function(wrap_pyfunction!(skills_plan, m)?)?;
-    m.add_function(wrap_pyfunction!(skills_match, m)?)?;
-    m.add_function(wrap_pyfunction!(skills_intents, m)?)?;
-    m.add_function(wrap_pyfunction!(skills_pages, m)?)?;
+    m.add_function(wrap_pyfunction!(
+        probing_python::features::python_api::api_callstack,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        probing_python::features::python_api::api_eval,
+        m
+    )?)?;
+    register_skills_bindings(m)?;
 
     // Add is_enabled function to help tests check state
     use probing_python::features::python_api::{is_enabled, should_enable_probing};

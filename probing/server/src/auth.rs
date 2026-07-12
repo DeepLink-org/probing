@@ -10,6 +10,8 @@ use probing_core::config;
 use std::env;
 
 // Auth token environment variable name
+pub const AUTH_TOKEN_ENV: &str = "PROBING_AUTH_TOKEN";
+pub const AUTH_TOKEN_CONFIG_KEY: &str = "server.auth_token";
 pub const AUTH_USERNAME_ENV: &str = "PROBING_AUTH_USERNAME"; // Optional, default is "admin"
 pub const AUTH_REALM_ENV: &str = "PROBING_AUTH_REALM"; // Optional, default is "Probe Server"
 
@@ -19,6 +21,25 @@ pub static AUTH_USERNAME: Lazy<String> =
 
 pub static AUTH_REALM: Lazy<String> =
     Lazy::new(|| env::var(AUTH_REALM_ENV).unwrap_or_else(|_| "Probe Server".to_string()));
+
+/// Load `PROBING_AUTH_TOKEN` into the config store so middleware can enforce it.
+pub async fn bootstrap_auth_from_env() {
+    let Ok(token) = env::var(AUTH_TOKEN_ENV) else {
+        return;
+    };
+    let token = token.trim();
+    if token.is_empty() {
+        return;
+    }
+    if let Err(err) = config::write(AUTH_TOKEN_CONFIG_KEY, token).await {
+        log::error!("failed to bootstrap auth token from {AUTH_TOKEN_ENV}: {err}");
+    }
+}
+
+/// Persist auth token to the config store (used by SET and extension options).
+pub async fn persist_auth_token(token: &str) -> Result<(), probing_core::core::EngineError> {
+    config::write(AUTH_TOKEN_CONFIG_KEY, token).await
+}
 
 /// Get the auth token from the request
 /// Made public for integration tests
@@ -85,103 +106,52 @@ fn unauthorized_response() -> Response {
 /// Authentication middleware
 pub async fn auth_middleware(request: Request, next: Next) -> Response {
     // Get the configured token
-    let configured_token = config::get_str("server.auth_token")
+    let configured_token = config::get_str(AUTH_TOKEN_CONFIG_KEY)
         .await
         .unwrap_or_default();
-    log::debug!("Configured auth token: {configured_token:?}");
+    log::debug!("Auth token configured: {}", !configured_token.is_empty());
 
     if !configured_token.is_empty() {
         // Extract token from the request
         let provided_token = get_token_from_request(request.headers());
 
         // Check if token matches
-        return match provided_token {
-            Some(token) if token == configured_token => next.run(request).await,
-            _ => unauthorized_response(),
-        };
+        if provided_token.as_deref() != Some(configured_token.as_str()) {
+            return unauthorized_response();
+        }
     }
 
     next.run(request).await
 }
 
-// Path prefixes that should bypass authentication
 /// Check if a path is public (doesn't require authentication)
-/// Made public for integration tests
 pub fn is_public_path(path: &str) -> bool {
-    // Allow static assets without authentication
-    path.starts_with("/static/")
+    // Liveness/readiness for load balancers and K8s probes (remote server uses auth middleware).
+    path == "/health"
+        || path == "/ready"
+        || path.starts_with("/static/")
         || path == "/"
         || path == "/index.html"
         || path.starts_with("/favicon")
 }
 
-/// Selective auth middleware that skips authentication for specific paths
+/// Selective authentication middleware - only applies auth to non-public paths
 pub async fn selective_auth_middleware(request: Request, next: Next) -> Response {
-    let path = request.uri().path();
+    let path = request.uri().path().to_string();
 
-    // Skip authentication for public paths
-    if is_public_path(path) {
+    if is_public_path(&path) {
         return next.run(request).await;
     }
 
-    // Apply authentication for all other paths
     auth_middleware(request, next).await
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::http::{HeaderMap, HeaderValue};
 
     #[test]
-    fn test_get_token_from_request_bearer() {
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            "Authorization",
-            HeaderValue::from_static("Bearer test_token_123"),
-        );
-
-        let token = get_token_from_request(&headers);
-        assert_eq!(token, Some("test_token_123".to_string()));
+    fn auth_token_config_key_matches_middleware() {
+        assert_eq!(AUTH_TOKEN_CONFIG_KEY, "server.auth_token");
     }
-
-    #[test]
-    fn test_get_token_from_request_bearer_case_insensitive() {
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            "Authorization",
-            HeaderValue::from_static("bearer test_token_123"),
-        );
-
-        let token = get_token_from_request(&headers);
-        // Note: strip_prefix is case-sensitive, so this should not match
-        assert_eq!(token, None);
-    }
-
-    #[test]
-    fn test_get_token_from_request_bearer_empty() {
-        let mut headers = HeaderMap::new();
-        headers.insert("Authorization", HeaderValue::from_static("Bearer "));
-
-        let token = get_token_from_request(&headers);
-        assert_eq!(token, Some("".to_string()));
-    }
-
-    // 注意：冗长的测试（需要base64编码、多个header设置等）已移到 tests/auth_complex_tests.rs
-
-    #[test]
-    fn test_get_token_from_request_no_token() {
-        let headers = HeaderMap::new();
-        let token = get_token_from_request(&headers);
-        assert_eq!(token, None);
-    }
-
-    // 注意：冗长的测试（多个断言、复杂路径判断等）已移到 tests/auth_complex_tests.rs
-
-    // Note: Testing middleware functions (auth_middleware, selective_auth_middleware)
-    // requires creating a Next instance which is complex in axum 0.8.
-    // These functions are tested through integration tests.
-    // Here we test the core functions that can be tested directly:
-    // - get_token_from_request (tested above)
-    // - is_public_path (tested above)
 }

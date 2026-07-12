@@ -3,6 +3,12 @@
 /// Rolling window size for overhead aggregates (larger → stabler medians).
 pub const WINDOW_STEPS: i64 = 80;
 
+/// Minimum shadow rows before treating overhead % as reliable (see docs/design/overhead.md).
+pub const MIN_SHADOW_SAMPLES: i64 = 5;
+
+/// Minimum non-sampled probed rows for stable dispatch overhead.
+pub const MIN_DISPATCH_SAMPLES: i64 = 16;
+
 /// Recent step bars in the timeline panel.
 pub const RECENT_STEPS: i64 = 24;
 
@@ -25,6 +31,8 @@ pub fn summary() -> String {
     format!(
         "SELECT \
          round((SELECT median({STEP_SEC}) FROM {TIMING_TABLE} \
+           WHERE {IS_SHADOW} = 0 AND {IS_SAMPLED} = 0 AND local_step >= {win}) * 1000, 1) AS dispatch_median_ms, \
+         round((SELECT median({STEP_SEC}) FROM {TIMING_TABLE} \
            WHERE {IS_SHADOW} = 0 AND local_step >= {win}) * 1000, 1) AS probed_median_ms, \
          round((SELECT median({STEP_SEC}) FROM {TIMING_TABLE} \
            WHERE {IS_SHADOW} = 0 AND {IS_SAMPLED} = 1 AND local_step >= {win}) * 1000, 1) AS sampled_median_ms, \
@@ -34,6 +42,8 @@ pub fn summary() -> String {
            WHERE {IS_SHADOW} = 0 AND local_step >= {win}) * 1000, 1) AS probed_mean_ms, \
          round((SELECT avg({STEP_SEC}) FROM {TIMING_TABLE} \
            WHERE {IS_SHADOW} = 1 AND local_step >= {win}) * 1000, 1) AS shadow_mean_ms, \
+         (SELECT count(*) FROM {TIMING_TABLE} \
+           WHERE {IS_SHADOW} = 0 AND {IS_SAMPLED} = 0 AND local_step >= {win}) AS dispatch_n, \
          (SELECT count(*) FROM {TIMING_TABLE} \
            WHERE {IS_SHADOW} = 0 AND local_step >= {win}) AS probed_n, \
          (SELECT count(*) FROM {TIMING_TABLE} \

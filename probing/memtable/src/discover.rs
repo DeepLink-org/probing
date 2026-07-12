@@ -76,6 +76,40 @@ pub fn default_dir() -> PathBuf {
     std::env::temp_dir().join("probing")
 }
 
+/// Check whether a process with the given PID currently exists.
+#[cfg(unix)]
+fn process_exists(pid: u32) -> bool {
+    let ret = unsafe { libc::kill(pid as libc::c_int, 0) };
+    if ret == 0 {
+        return true;
+    }
+    // EPERM means the process exists but we lack permission to signal it.
+    io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
+}
+
+#[cfg(windows)]
+fn process_exists(pid: u32) -> bool {
+    use std::ffi::c_void;
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn OpenProcess(dwDesiredAccess: u32, bInheritHandle: i32, dwProcessId: u32) -> *mut c_void;
+        fn CloseHandle(hObject: *mut c_void) -> i32;
+    }
+
+    // PROCESS_QUERY_LIMITED_INFORMATION — enough to test liveness without admin rights.
+    const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
+
+    unsafe {
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if handle.is_null() {
+            return false;
+        }
+        CloseHandle(handle);
+        true
+    }
+}
+
 /// Check whether the process identified by `(pid, start_time)` is still alive.
 ///
 /// - Returns `false` if the PID does not exist.
@@ -85,12 +119,8 @@ pub fn is_creator_alive(pid: u32, expected_start_time: u64) -> bool {
     if pid == 0 {
         return false;
     }
-    let ret = unsafe { libc::kill(pid as libc::c_int, 0) };
-    if ret != 0 {
-        let err = io::Error::last_os_error();
-        if err.raw_os_error() != Some(libc::EPERM) {
-            return false;
-        }
+    if !process_exists(pid) {
+        return false;
     }
     if expected_start_time != 0 {
         let actual = process_start_time(pid);

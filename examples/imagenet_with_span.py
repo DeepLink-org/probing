@@ -609,6 +609,7 @@ def train(
     model.train()
 
     end = time.time()
+    wall_start = time.perf_counter()
     for i, (images, target) in enumerate(train_loader):
         step_start = time.perf_counter()
         # time.sleep(1)
@@ -634,7 +635,9 @@ def train(
                 soak.tick()
             batch_time.update(time.time() - end)
             end = time.time()
-            step_elapsed_ms = (time.perf_counter() - step_start) * 1000.0
+            compute_elapsed_ms = (time.perf_counter() - step_start) * 1000.0
+            wall_elapsed_ms = (time.perf_counter() - wall_start) * 1000.0
+            wall_start = time.perf_counter()
             if soak is not None and soak.should_stop():
                 print(
                     f"=> soak stop in train(): {soak.stop_reason()} "
@@ -644,7 +647,8 @@ def train(
                 return True
             print(
                 f"Epoch [{epoch}] step [{i + 1}/{len(train_loader)}] "
-                f"time={step_elapsed_ms:.2f}ms loss={loss.item():.4f} "
+                f"wall={wall_elapsed_ms:.2f}ms compute={compute_elapsed_ms:.2f}ms "
+                f"loss={loss.item():.4f} "
                 f"acc1={acc1[0]:.2f}",
                 flush=True,
             )

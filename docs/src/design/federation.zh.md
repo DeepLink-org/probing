@@ -21,7 +21,7 @@
 |--------|------|
 | 本地写、按需读 | 训练路径无中心存储；仅 `cluster query` / `global.*` fan-out |
 | 单一引擎入口 | CLI、Web、skill、`probing.query()` 共用 `Engine::async_query` |
-| 部分失败 | peer 超时 → 丢弃分片，记录 `nodes_failed`；查询继续 |
+| 部分失败 | 默认：peer 超时 → 丢弃分片，记录 `nodes_failed`；查询继续且 `partial=true`（集群 API 返回 HTTP 503）。设置 `PROBING_FANOUT_STRICT=1` 则整查失败。 |
 | 无跨 rank JOIN | 不支持 `global.a JOIN global.b`；单进程内 join（路径 C） |
 
 **入口**
@@ -251,7 +251,11 @@ flowchart LR
 | Peer 集合 | `cluster.nodes` 快照，**排除** coordinator 自身 listen addr |
 | Peer 执行 | 永远 `probe.*`；禁止 peer 再 fan-out（防递归） |
 | 并发 | 各 peer 并行请求；总延迟 ≈ 最慢 peer + coordinator 合并 |
-| 超时 | 单 peer 超时记 `nodes_failed`，不拖垮整查（默认 2s，可 `PROBING_REMOTE_QUERY_TIMEOUT_SECS` 覆盖） |
+| 超时 | 失败 peer → `nodes_failed`；默认 **30s**（`PROBING_REMOTE_QUERY_TIMEOUT_SECS`） |
+| 严格 fan-out | `PROBING_FANOUT_STRICT=1`：任一 `nodes_failed` 或 `peer_batches_dropped` 则整查失败（无 partial merge） |
+| Partial HTTP | 集群/fan-out API 在 `meta.partial=true` 时返回 **503** 及 partial `dataframe`（非 strict 模式） |
+| Peer 503 接受 | 非 strict 模式下，分层 merge 可接受 peer HTTP 503 的 partial body |
+| 联邦 scan 日志 | 默认 peer 丢弃记 **debug**；`PROBING_FANOUT_STRICT=1` 时记 **warn** |
 | 分层 fan-out | 默认开启：`coordinator → 各机 local0 → 本机 leaf`；见 [分层集群查询](hierarchical-fanout.zh.md) |
 
 ### 4.2 路径选型
@@ -337,7 +341,7 @@ merge 后再 `GROUP BY` 数据列 + 用户请求的标签列（若有）。
 | `LIMIT` | 在 coordinator **merge + ORDER BY 之后**截断；全局 top-K |
 | 仅 `ORDER BY`/`LIMIT`、无聚合 | 不满足 A → 走路径 B 或 C |
 
-**部分失败：** 成功 peer 的 partial 仍参与 merge；失败 addr 写入 `nodes_failed`。
+**部分失败：** 默认成功 peer 的 partial 仍参与 merge；失败 addr 写入 `nodes_failed`，`meta.partial=true` 时 HTTP **503**（非 strict）。`PROBING_FANOUT_STRICT=1` 时任一失败即整查失败。
 
 ### 4.6 路径 B — 联邦 scan
 

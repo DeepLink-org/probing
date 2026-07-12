@@ -10,6 +10,10 @@ Set the `PROBING_AUTH_TOKEN` environment variable to enable authentication:
 export PROBING_AUTH_TOKEN="your-secret-token"
 ```
 
+The token is loaded into `server.auth_token` in the config store when the remote server starts. You can also set it at runtime with `SET server.auth_token='…'` or `SET auth_token='…'` (extension option).
+
+The CLI reads `PROBING_AUTH_TOKEN` and sends `Authorization: Bearer …` on remote HTTP requests.
+
 You can also optionally set the username (default is "admin") and the realm (default is "Probe Server"):
 
 ```bash
@@ -53,6 +57,8 @@ X-Probing-Token: your-secret-token
 
 Even when authentication is enabled, the following paths remain publicly accessible by default:
 
+- `/health` (liveness probe)
+- `/ready` (readiness probe)
 - `/` (home page)
 - `/index.html`
 - `/static/` (all static resources)

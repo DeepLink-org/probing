@@ -28,6 +28,7 @@ use crate::report::{build_local_node, get_hostname};
 use crate::server::SERVER_RUNTIME;
 use crate::start_remote;
 use crate::vars::read_probing_address;
+use probing_core::runtime::block_on;
 
 static STARTED: AtomicBool = AtomicBool::new(false);
 static CLUSTER_VERSION: AtomicU64 = AtomicU64::new(0);
@@ -353,7 +354,13 @@ fn nodes_for_upstream_report() -> Vec<Node> {
         return vec![build_torchrun_node()];
     }
     let local_base = local_http_base();
-    let store_nodes = fetch_nodes_blocking(&local_base).unwrap_or_default();
+    let store_nodes = match fetch_nodes_blocking(&local_base) {
+        Ok(nodes) => nodes,
+        Err(err) => {
+            log::warn!("probing torchrun: fetch local nodes from {local_base} failed: {err:#}");
+            return vec![build_torchrun_node()];
+        }
+    };
     let leaves = local_leaf_nodes(&store_nodes);
     if leaves.is_empty() {
         vec![build_torchrun_node()]
@@ -379,10 +386,14 @@ fn ensure_master_info() -> bool {
         return true;
     }
     let timeout = Duration::from_secs_f64(discover_timeout_secs());
-    if let Some(info) = SERVER_RUNTIME.block_on(poll_master_info(timeout)) {
+    if let Ok(Some(info)) = block_on(poll_master_info(timeout)) {
         *lock_mutex(&MASTER_INFO, "torchrun MASTER_INFO") = Some(info);
         return true;
     }
+    log::warn!(
+        "probing torchrun: master info discovery timed out after {:.1}s",
+        discover_timeout_secs()
+    );
     false
 }
 
@@ -394,10 +405,14 @@ fn ensure_local0_parent() -> bool {
         return true;
     }
     let timeout = Duration::from_secs_f64(discover_timeout_secs());
-    if let Some(base) = SERVER_RUNTIME.block_on(poll_local0_parent(timeout)) {
+    if let Ok(Some(base)) = block_on(poll_local0_parent(timeout)) {
         *lock_mutex(&LOCAL0_PARENT, "torchrun LOCAL0_PARENT") = Some(base);
         return true;
     }
+    log::warn!(
+        "probing torchrun: local0 parent discovery timed out after {:.1}s",
+        discover_timeout_secs()
+    );
     false
 }
 
@@ -459,8 +474,12 @@ async fn torchrun_setup() -> Result<()> {
         return Ok(());
     }
 
-    publish_master().await.ok();
-    publish_local0().await.ok();
+    if let Err(err) = publish_master().await {
+        log::warn!("probing torchrun: publish_master failed: {err:#}");
+    }
+    if let Err(err) = publish_local0().await {
+        log::warn!("probing torchrun: publish_local0 failed: {err:#}");
+    }
 
     if !cluster_report_enabled() {
         log::info!("probing torchrun: periodic cluster report disabled (PROBING_CLUSTER_REPORT=0)");

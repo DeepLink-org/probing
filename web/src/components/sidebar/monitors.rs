@@ -4,24 +4,41 @@ use dioxus::prelude::*;
 
 use crate::api::ApiClient;
 use crate::components::icon::Icon;
-use crate::components::overhead::{
-    overhead_trigger_label, table_missing_trigger_label, OVERHEAD_POLL_MS,
-};
+use crate::components::overhead::{table_missing_trigger_label, OVERHEAD_POLL_MS};
 use crate::components::sidebar::nav_item::SidebarSectionLabel;
-use crate::hooks::{use_app_resource, use_page_visible, use_poll_tick_gated};
+use crate::hooks::{use_api_with_options, use_page_visible, use_poll_tick_gated, ApiFetchOptions};
+use crate::overhead::{df_scalar_f64, OverheadSnapshot};
 use crate::state::overlays::{monitor_overlay_open, open_monitor_overlay, SidebarMonitor};
 use crate::state::ui_tasks::{ui_tasks_snapshot, UiTask, UiTaskStatus, UI_TASK_TICK};
 use crate::utils::error::AppError;
 
-fn overhead_trigger_label_from(
-    result: &Option<Result<probing_proto::prelude::DataFrame, AppError>>,
-) -> String {
-    match result {
-        None => "Loading…".to_string(),
-        Some(Err(err)) => {
-            table_missing_trigger_label(err).unwrap_or_else(|| "Overhead unavailable".to_string())
+fn overhead_sidebar_from(
+    summary: &Option<Result<probing_proto::prelude::DataFrame, AppError>>,
+    train_step: &Option<Result<probing_proto::prelude::DataFrame, AppError>>,
+) -> crate::overhead::SidebarOverheadCopy {
+    match summary {
+        None => crate::overhead::SidebarOverheadCopy {
+            headline: "Torch overhead".to_string(),
+            performance: "Loading…".to_string(),
+            overhead: "—".to_string(),
+            muted: true,
+        },
+        Some(Err(err)) => crate::overhead::SidebarOverheadCopy {
+            headline: "Torch overhead".to_string(),
+            performance: table_missing_trigger_label(err)
+                .unwrap_or_else(|| "Unavailable".to_string()),
+            overhead: "—".to_string(),
+            muted: true,
+        },
+        Some(Ok(df)) => {
+            let train_ms = train_step
+                .as_ref()
+                .and_then(|r| r.as_ref().ok())
+                .and_then(|df| df_scalar_f64(df, "train_step_median_ms", 0));
+            OverheadSnapshot::from_summary(df)
+                .with_train_step_median(train_ms)
+                .sidebar_copy()
         }
-        Some(Ok(df)) => overhead_trigger_label(df),
     }
 }
 
@@ -51,12 +68,34 @@ pub fn SidebarMonitors() -> Element {
     let visible = use_page_visible();
     let poll = use_poll_tick_gated(OVERHEAD_POLL_MS, Some(visible));
     let refresh_tick = poll();
+    let refresh_opts = ApiFetchOptions {
+        keep_previous_while_refreshing: true,
+    };
 
-    let summary = use_app_resource(move || {
-        let _ = refresh_tick;
-        async move { ApiClient::new().fetch_overhead_summary().await }
-    });
-    let overhead_label = overhead_trigger_label_from(&summary.read());
+    let summary = use_api_with_options(
+        move || {
+            let _ = refresh_tick;
+            async move { ApiClient::new().fetch_overhead_summary().await }
+        },
+        refresh_opts,
+    );
+    let train_step = use_api_with_options(
+        move || {
+            let _ = refresh_tick;
+            async move { ApiClient::new().fetch_overhead_train_step_median().await }
+        },
+        refresh_opts,
+    );
+
+    let overhead = overhead_sidebar_from(
+        &summary.data.read().clone(),
+        &train_step.data.read().clone(),
+    );
+    let oh_muted = if overhead.muted {
+        "text-slate-400"
+    } else {
+        "text-emerald-300"
+    };
 
     rsx! {
         div {
@@ -99,26 +138,36 @@ pub fn SidebarMonitors() -> Element {
             }
 
             button {
-                class: "w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md border border-slate-700/50 \
+                class: "w-full flex flex-col gap-0.5 px-2 py-1.5 rounded-md border border-slate-700/50 \
                          bg-slate-800/30 hover:bg-slate-800/60 hover:border-emerald-700/40 transition-colors \
                          text-left min-w-0",
-                title: "Open TorchProbe overhead monitor",
+                title: "Open TorchProbe overhead — step time & hook cost",
                 aria_expanded: if overlay_open == Some(SidebarMonitor::Overhead) { "true" } else { "false" },
                 onclick: move |e| {
                     e.stop_propagation();
                     open_monitor_overlay(SidebarMonitor::Overhead);
                 },
-                Icon {
-                    icon: &icondata::CgPerformance,
-                    class: "w-3 h-3 text-emerald-400/90 shrink-0"
+                div { class: "flex items-center gap-1.5 min-w-0",
+                    Icon {
+                        icon: &icondata::CgPerformance,
+                        class: "w-3 h-3 text-emerald-400/90 shrink-0"
+                    }
+                    span {
+                        class: "flex-1 min-w-0 text-[10px] text-slate-100 font-semibold truncate tabular-nums",
+                        "{overhead.headline}"
+                    }
+                    Icon {
+                        icon: &icondata::AiExpandAltOutlined,
+                        class: "w-3 h-3 text-slate-500 shrink-0"
+                    }
                 }
                 span {
-                    class: "flex-1 min-w-0 text-[10px] text-slate-200 truncate font-medium",
-                    "{overhead_label}"
+                    class: "text-[9px] text-slate-400 truncate pl-[18px]",
+                    "{overhead.performance}"
                 }
-                Icon {
-                    icon: &icondata::AiExpandAltOutlined,
-                    class: "w-3 h-3 text-slate-500 shrink-0"
+                span {
+                    class: "text-[9px] font-medium truncate pl-[18px] tabular-nums {oh_muted}",
+                    "{overhead.overhead}"
                 }
             }
         }

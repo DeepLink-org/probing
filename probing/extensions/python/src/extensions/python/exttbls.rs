@@ -17,7 +17,6 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::features::native_bridge::with_detached_native;
 use once_cell::sync::Lazy;
-use probing_core::runtime::{BlockOnFallback, RuntimeError};
 use probing_core::sync::lock_mutex;
 use probing_memtable::discover::ExposedTable;
 use probing_memtable::docs;
@@ -112,7 +111,10 @@ const MIN_CHUNK_BYTES: usize = 4 * 1024;
 const MAX_CHUNK_BYTES: usize = 8 * 1024 * 1024;
 
 fn value_to_object(py: Python, v: &Ele) -> Py<PyAny> {
-    ele_to_python(py, v).unwrap_or_else(|_| py.None())
+    ele_to_python(py, v).unwrap_or_else(|e| {
+        log::warn!("ExternalTable: failed to convert cell to Python ({e})");
+        py.None()
+    })
 }
 
 fn now_micros() -> i64 {
@@ -311,15 +313,9 @@ impl ExternBacking {
         Ok(())
     }
 
-    fn row_count(&self) -> usize {
-        self.table.as_ref().map_or(0, |t| {
-            let view = t.view();
-            (0..view.num_chunks()).map(|c| view.num_rows(c)).sum()
-        })
-    }
-
     fn ensure_table(&mut self, first_row: &[Ele]) -> Result<(), ExternTableError> {
-        if self.table.is_some() && self.row_count() > 0 {
+        let dtypes: Vec<DType> = first_row.iter().map(ele_dtype).collect();
+        if self.table.is_some() && self.dtypes == dtypes {
             return Ok(());
         }
         self.table = None;
@@ -453,13 +449,6 @@ fn require_backing(
         .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err(BRIDGE_DEGRADED_MSG))
 }
 
-impl BlockOnFallback for ExternalTable {
-    fn on_block_on_failure(err: RuntimeError) -> Self {
-        log::error!("ExternalTable bridge degraded: {err}; table unusable");
-        ExternalTable(None, 0)
-    }
-}
-
 impl ExternalTable {
     fn extract_eles(values: Vec<Py<PyAny>>) -> PyResult<Vec<Ele>> {
         Python::attach(|py| {
@@ -477,7 +466,7 @@ impl ExternalTable {
         discard_strategy: &str,
         table_doc: Option<String>,
         column_docs: HashMap<String, String>,
-    ) -> Arc<Mutex<ExternBacking>> {
+    ) -> PyResult<Arc<Mutex<ExternBacking>>> {
         let capacity = ring_capacity_bytes(discard_threshold, discard_strategy);
         let backing = Arc::new(Mutex::new(ExternBacking::new(
             name,
@@ -488,10 +477,8 @@ impl ExternalTable {
         )));
         lock_backing(backing.as_ref())
             .ensure_registered()
-            .unwrap_or_else(|e| {
-                log::error!("failed to register extern table for SQL catalog: {e}");
-            });
-        backing
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        Ok(backing)
     }
 }
 
@@ -507,7 +494,7 @@ impl ExternalTable {
         discard_strategy: String,
         table_doc: Option<String>,
         column_docs: Option<HashMap<String, String>>,
-    ) -> Self {
+    ) -> PyResult<Self> {
         let _ = chunk_size; // ring chunking is byte-based; kept for API compat
         let name = name.to_string();
         with_detached_native(move || {
@@ -519,9 +506,9 @@ impl ExternalTable {
                 &discard_strategy,
                 table_doc,
                 column_docs.unwrap_or_default(),
-            );
+            )?;
             lock_extern_tables().insert(name, backing.clone());
-            ExternalTable(Some(backing), ncolumn)
+            Ok(ExternalTable(Some(backing), ncolumn))
         })
     }
 
@@ -570,7 +557,7 @@ impl ExternalTable {
                     &discard_strategy,
                     table_doc,
                     column_docs.unwrap_or_default(),
-                );
+                )?;
                 binding.insert(name, backing.clone());
                 Ok(ExternalTable(Some(backing), ncolumn))
             }
@@ -773,7 +760,8 @@ if not hasattr(probing, "_made_{name}"):
             "BaseMemorySize".to_string(),
             None,
             None,
-        );
+        )
+        .unwrap();
         assert_eq!(table.names().unwrap(), vec!["a", "b"]);
     }
 
@@ -793,7 +781,8 @@ if not hasattr(probing, "_made_{name}"):
             "BaseMemorySize".to_string(),
             None,
             None,
-        );
+        )
+        .unwrap();
         let binding = lock_extern_tables();
         let backing = binding.get(&name).expect("backing");
         let guard = lock_backing(backing.as_ref());
@@ -856,7 +845,8 @@ probing.ExternalTable.drop("table_to_drop")
             "BaseMemorySize".to_string(),
             None,
             None,
-        );
+        )
+        .unwrap();
         Python::attach(|py| {
             let vals: Vec<Py<PyAny>> = vec![
                 1i64.into_pyobject(py).unwrap().into_any().unbind(),
@@ -885,7 +875,8 @@ probing.ExternalTable.drop("table_to_drop")
             "BaseMemorySize".to_string(),
             None,
             None,
-        );
+        )
+        .unwrap();
         Python::attach(|py| {
             let vals: Vec<Py<PyAny>> = vec![1i64.into_pyobject(py).unwrap().into_any().unbind()];
             nccl.append(vals).unwrap();

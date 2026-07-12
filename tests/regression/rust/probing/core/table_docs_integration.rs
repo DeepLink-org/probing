@@ -110,6 +110,7 @@ async fn describe_static_catalog_table_includes_comment_columns() -> Result<()> 
 
 #[tokio::test]
 async fn catalog_serves_builtin_hccl_and_yaml_synonyms() -> Result<()> {
+    probing_hccl_shim::register_docs();
     let engine = engine_with_memtable().await?;
 
     let col_df = engine

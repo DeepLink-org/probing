@@ -48,7 +48,7 @@ TorchProbe targets **always-on, module-level training telemetry** after probe in
 There is **no warmup schedule API**. Skip cold-start steps in SQL when needed:
 
 ```sql
-SELECT * FROM python.torch_trace WHERE step > 10;
+SELECT * FROM python.torch_trace WHERE local_step > 10;
 ```
 
 ### Hooks
@@ -74,7 +74,7 @@ Default when enabled (`PROBING_TORCH_PROFILING=on`): **`rate=0.05`, `layer_rate=
 
 **Shadow baseline steps (default `shadow=4:1`):** every 4 probed training steps are followed by 1 step where TorchProbe hooks are fully bypassed (no module-level `python.torch_trace` rows). NCCL, CPU/GPU sampling, and other collectors are unchanged. Each step writes one row to `python.torch_step_timing` (`is_shadow=1` for baseline steps). Disable with `shadow=off`.
 
-Estimate overhead:
+Estimate overhead (formulas and methodology: **[Overhead measurement](overhead.md)**):
 
 ```sql
 SELECT
@@ -106,7 +106,7 @@ Full column list: [SQL Tables — torch_trace](../reference/sql-tables.md#python
 
 | Field | Type | Description |
 |-------|------|-------------|
-| step | int | Local training step (per rank) |
+| `local_step` | int | Local training step (per rank) |
 | global_step | int | Global step (`step_snapshot`) |
 | rank | int | `torch.distributed` rank |
 | world_size | int | World size |
@@ -166,6 +166,8 @@ CPU sampling via pprof (`probing.pprof.sample_freq`) is separate from TorchProbe
 
 Host CPU, memory, GPU utilization, and related metrics are collected on configurable intervals via environment variables such as `PROBING_GPU_SAMPLE_MS`.
 
+**Variable / tensor watch (`probing.inspect.trace`):** logs go to the Python logger by default. Set `PROBING_TRACE_STDOUT=1` to emit updates on **stdout** instead (useful for quick local debugging; avoid in production training logs).
+
 ## Data Storage
 
 Torch traces and other probe data are stored in **columnar probe tables** (e.g. `python.torch_trace`), queryable through the engine. Retention and federation follow memtable / server configuration—not a fixed-size in-process ring buffer.
@@ -176,7 +178,7 @@ Torch traces and other probe data are stored in **columnar probe tables** (e.g. 
 -- Skip discovery / warm-up steps
 SELECT module, stage, AVG(duration) AS avg_sec
 FROM python.torch_trace
-WHERE step > 1 AND duration > 0
+WHERE local_step > 1 AND duration > 0
 GROUP BY module, stage
 ORDER BY avg_sec DESC;
 

@@ -6,11 +6,14 @@ that were previously embedded as Python code strings in Rust.
 
 import io
 import json
+import logging
 import sys
 import traceback
 from typing import Dict, List, Optional
 
 from probing.handlers.router import ext_handler, handle_request
+
+log = logging.getLogger(__name__)
 
 
 @ext_handler("pythonext", "callstack")
@@ -290,7 +293,7 @@ def get_chrome_tracing(limit: int = 1000) -> str:
                             chrome_event["args"] = json.loads(
                                 row.get("event_attributes")
                             )
-                        except:
+                        except (json.JSONDecodeError, TypeError, ValueError):
                             pass
                     trace_events.append(chrome_event)
 
@@ -673,7 +676,8 @@ def get_trace_variables(function: Optional[str] = None, limit: int = 100) -> str
             try:
                 df = probing.query(query)
                 break
-            except:
+            except Exception as e:
+                log.debug("trace_variables query failed: %s", e)
                 continue
 
         if df is None:

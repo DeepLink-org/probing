@@ -28,6 +28,33 @@ cases:
           avg_ms: [10.0, 20.0, 40.0]
     expect_count: 1
 
+  - name: ratio_slow_steps
+    rules:
+      - id: many_slow
+        when: "step:job_slowdown_proxy | column:slow_steps | ratio(slow_steps/steps_in_window) > 0.3"
+        severity: warning
+        message: slow
+    steps:
+      - step_id: job_slowdown_proxy
+        row_count: 1
+        columns:
+          slow_steps: [4.0]
+          steps_in_window: [10.0]
+    expect_count: 1
+
+  - name: value_eq_zero
+    rules:
+      - id: shadow_off
+        when: "step:torch_probe_overhead | column:shadow_baseline | value == 0"
+        severity: info
+        message: shadow off
+    steps:
+      - step_id: torch_probe_overhead
+        row_count: 1
+        columns:
+          shadow_baseline: [0.0]
+    expect_count: 1
+
   - name: param_rows_threshold
     rules:
       - id: growth
