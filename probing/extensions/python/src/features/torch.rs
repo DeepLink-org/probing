@@ -631,6 +631,7 @@ fn torch_flamegraph_options(metric: TorchMetric, subtitle: &str) -> FlamegraphOp
         kind: FlamegraphKind::TorchModule,
         subtitle: subtitle.to_string(),
         metric: Some(metric.id().to_string()),
+        profile: None,
     }
 }
 
@@ -701,6 +702,270 @@ pub fn flamegraph_json(metric: Option<&str>) -> String {
                 None => empty("No torch profiling samples collected", &result.subtitle),
             }
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct TorchTraceRow {
+    rank: i64,
+    local_step: i64,
+    module: String,
+    stage: String,
+    duration: f64,
+    allocated_delta: f64,
+    max_allocated_delta: f64,
+    allocated: f64,
+    max_allocated: f64,
+}
+
+fn col_index(names: &[String], candidates: &[&str]) -> Option<usize> {
+    names.iter().position(|n| candidates.contains(&n.as_str()))
+}
+
+fn parse_rank_col(ele: &probing_proto::types::Ele) -> i64 {
+    match ele {
+        probing_proto::types::Ele::I64(x) => *x,
+        probing_proto::types::Ele::I32(x) => *x as i64,
+        probing_proto::types::Ele::F64(x) => *x as i64,
+        probing_proto::types::Ele::F32(x) => *x as i64,
+        probing_proto::types::Ele::Text(s) => s.parse().unwrap_or(0),
+        _ => 0,
+    }
+}
+
+fn parse_torch_trace_rows(data: &probing_proto::types::DataFrame) -> Vec<TorchTraceRow> {
+    let nrows = data.cols.first().map(|c| c.len()).unwrap_or(0);
+    if nrows == 0 {
+        return Vec::new();
+    }
+
+    let rank_idx = col_index(&data.names, &["rank", "_rank"]).unwrap_or(0);
+    let module_idx = col_index(&data.names, &["module"]).unwrap_or(1);
+    let stage_idx = col_index(&data.names, &["stage"]).unwrap_or(2);
+    let step_idx = col_index(&data.names, &["local_step", "step"]);
+    let duration_idx = col_index(&data.names, &["duration"]);
+    let alloc_delta_idx = col_index(&data.names, &["allocated_delta"]);
+    let max_alloc_delta_idx = col_index(&data.names, &["max_allocated_delta"]);
+    let allocated_idx = col_index(&data.names, &["allocated"]);
+    let max_allocated_idx = col_index(&data.names, &["max_allocated"]);
+
+    let mut out = Vec::with_capacity(nrows);
+    for row in 0..nrows {
+        let rank = data
+            .cols
+            .get(rank_idx)
+            .map(|c| parse_rank_col(&c.get(row)))
+            .unwrap_or(0);
+        let local_step = step_idx
+            .and_then(|idx| data.cols.get(idx).and_then(|c| parse_i64_col(&c.get(row))))
+            .unwrap_or(0);
+        let module = data
+            .cols
+            .get(module_idx)
+            .map(|c| parse_text_col(&c.get(row)))
+            .unwrap_or_default();
+        let stage = data
+            .cols
+            .get(stage_idx)
+            .map(|c| parse_text_col(&c.get(row)))
+            .unwrap_or_default();
+        let duration = duration_idx
+            .and_then(|idx| data.cols.get(idx).map(|c| parse_value_col(&c.get(row))))
+            .unwrap_or(0.0);
+        let allocated_delta = alloc_delta_idx
+            .and_then(|idx| data.cols.get(idx).map(|c| parse_value_col(&c.get(row))))
+            .unwrap_or(0.0);
+        let max_allocated_delta = max_alloc_delta_idx
+            .and_then(|idx| data.cols.get(idx).map(|c| parse_value_col(&c.get(row))))
+            .unwrap_or(0.0);
+        let allocated = allocated_idx
+            .and_then(|idx| data.cols.get(idx).map(|c| parse_value_col(&c.get(row))))
+            .unwrap_or(0.0);
+        let max_allocated = max_allocated_idx
+            .and_then(|idx| data.cols.get(idx).map(|c| parse_value_col(&c.get(row))))
+            .unwrap_or(0.0);
+
+        out.push(TorchTraceRow {
+            rank,
+            local_step,
+            module,
+            stage,
+            duration,
+            allocated_delta,
+            max_allocated_delta,
+            allocated,
+            max_allocated,
+        });
+    }
+    out
+}
+
+fn distributed_duration_lines(rows: &[TorchTraceRow]) -> Vec<String> {
+    let post_rows = rows
+        .iter()
+        .filter(|r| r.stage.starts_with("post ") && r.duration > 0.0)
+        .map(|r| (r.module.clone(), r.stage.clone(), r.duration))
+        .collect::<Vec<_>>();
+    build_folded_lines(post_rows, value_to_ns, false)
+}
+
+fn distributed_memory_lines(rows: &[TorchTraceRow], use_peak: bool) -> Vec<String> {
+    let mut value_rows = rows
+        .iter()
+        .filter(|r| r.stage.starts_with("post "))
+        .filter_map(|r| {
+            let delta = if use_peak {
+                r.max_allocated_delta
+            } else {
+                r.allocated_delta
+            };
+            (delta > 0.0).then_some((r.module.clone(), r.stage.clone(), delta))
+        })
+        .collect::<Vec<_>>();
+
+    if value_rows.is_empty() {
+        let mut pre: HashMap<(String, String), (f64, f64)> = HashMap::new();
+        for r in rows {
+            let (is_pre, phase) = match hook_phase(&r.stage) {
+                Some(v) => v,
+                None => continue,
+            };
+            if is_pre {
+                pre.insert((r.module.clone(), phase), (r.allocated, r.max_allocated));
+            } else if let Some((pre_alloc, pre_max)) = pre.get(&(r.module.clone(), phase)) {
+                let delta = if use_peak {
+                    (r.max_allocated - *pre_max).max(0.0)
+                } else {
+                    (r.allocated - *pre_alloc).max(0.0)
+                };
+                if delta > 0.0 {
+                    value_rows.push((r.module.clone(), r.stage.clone(), delta));
+                }
+            }
+        }
+    }
+
+    if value_rows.is_empty() {
+        value_rows = rows
+            .iter()
+            .filter(|r| r.stage.starts_with("post "))
+            .filter_map(|r| {
+                let snapshot = if use_peak {
+                    r.max_allocated
+                } else {
+                    r.allocated
+                };
+                (snapshot > 0.0).then_some((r.module.clone(), r.stage.clone(), snapshot))
+            })
+            .collect();
+    }
+
+    build_folded_lines(value_rows, value_to_micro_mb, true)
+}
+
+/// Fold per-rank stacks at one training step; identical paths merge across ranks.
+fn build_distributed_folded_lines(
+    data: &probing_proto::types::DataFrame,
+    metric: TorchMetric,
+) -> (Vec<String>, i64, usize) {
+    let rows = parse_torch_trace_rows(data);
+    if rows.is_empty() {
+        return (Vec::new(), 0, 0);
+    }
+
+    let local_step = rows.iter().map(|r| r.local_step).max().unwrap_or(0);
+    let rank_count = rows.iter().map(|r| r.rank).collect::<HashSet<_>>().len();
+
+    let mut by_rank: BTreeMap<i64, Vec<TorchTraceRow>> = BTreeMap::new();
+    for row in rows {
+        by_rank.entry(row.rank).or_default().push(row);
+    }
+
+    let mut all_lines = Vec::new();
+    for (_rank, rank_rows) in by_rank {
+        let lines = match metric {
+            TorchMetric::Duration => distributed_duration_lines(&rank_rows),
+            TorchMetric::DeltaMb => distributed_memory_lines(&rank_rows, false),
+            TorchMetric::PeakMb => distributed_memory_lines(&rank_rows, true),
+        };
+        all_lines.extend(lines);
+    }
+
+    (all_lines, local_step, rank_count)
+}
+
+fn distributed_flamegraph_subtitle(
+    metric: TorchMetric,
+    lines: &[String],
+    local_step: i64,
+    rank_count: usize,
+) -> String {
+    let base = torch_flamegraph_subtitle(metric, lines);
+    format!(
+        "{base} · local_step {local_step} · {rank_count} ranks · SPMD snapshot (same step, merge identical stacks)"
+    )
+}
+
+fn distributed_torch_flamegraph_options(metric: TorchMetric, subtitle: &str) -> FlamegraphOptions {
+    FlamegraphOptions {
+        title: "Distributed module performance".to_string(),
+        count_name: metric.count_name().to_string(),
+        kind: FlamegraphKind::TorchModule,
+        subtitle: subtitle.to_string(),
+        metric: Some(metric.id().to_string()),
+        profile: Some("torch-distributed".to_string()),
+    }
+}
+
+/// JSON flamegraph from a federated or local ``torch_trace`` snapshot at one ``local_step``.
+pub fn distributed_flamegraph_json_from_df(
+    data: &probing_proto::types::DataFrame,
+    metric: Option<&str>,
+) -> String {
+    let metric = TorchMetric::parse(metric);
+
+    let empty = |msg: &str, subtitle: &str| {
+        json!({
+            "profile": "torch-distributed",
+            "title": "Distributed module performance",
+            "subtitle": subtitle,
+            "countName": metric.count_name(),
+            "metric": metric.id(),
+            "total": 0,
+            "width": 1400.0,
+            "frameHeight": 32.0,
+            "frames": [],
+            "emptyMessage": msg,
+        })
+        .to_string()
+    };
+
+    let (lines, local_step, rank_count) = build_distributed_folded_lines(data, metric);
+    if lines.is_empty() {
+        let subtitle = format!(
+            "{} · no rows for local_step {}",
+            metric.subtitle(),
+            if local_step > 0 {
+                local_step.to_string()
+            } else {
+                "(latest)".to_string()
+            }
+        );
+        return empty(
+            "No torch_trace rows for this step (enable torch profiling and run training)",
+            &subtitle,
+        );
+    }
+
+    let subtitle = distributed_flamegraph_subtitle(metric, &lines, local_step, rank_count);
+    let opts = distributed_torch_flamegraph_options(metric, &subtitle);
+
+    match Flamegraph::from_folded_lines(&lines) {
+        Some(fg) => fg.json_payload(&opts),
+        None => empty(
+            "No torch_trace samples after folding",
+            &format!("{subtitle} · rank_count={rank_count}"),
+        ),
     }
 }
 
@@ -973,5 +1238,223 @@ mod tests {
         assert!(lines
             .iter()
             .any(|l| l.starts_with("forward;conv1; 2000000")));
+    }
+
+    #[test]
+    fn distributed_merge_identical_stacks_across_ranks() {
+        use probing_proto::types::{DataFrame, Seq};
+
+        let df = DataFrame::new(
+            vec![
+                "rank".into(),
+                "module".into(),
+                "stage".into(),
+                "duration".into(),
+                "local_step".into(),
+            ],
+            vec![
+                Seq::SeqI64(vec![0, 1]),
+                Seq::SeqText(vec!["layer".into(), "layer".into()]),
+                Seq::SeqText(vec!["post forward".into(), "post forward".into()]),
+                Seq::SeqF64(vec![0.01, 0.01]),
+                Seq::SeqI64(vec![5, 5]),
+            ],
+        );
+
+        let (lines, step, rank_count) = build_distributed_folded_lines(&df, TorchMetric::Duration);
+        assert_eq!(step, 5);
+        assert_eq!(rank_count, 2);
+        assert_eq!(lines.len(), 2);
+        let json = distributed_flamegraph_json_from_df(&df, None);
+        assert!(json.contains("\"total\":20000000"));
+    }
+
+    #[test]
+    fn distributed_split_different_module_paths() {
+        use probing_proto::types::{DataFrame, Seq};
+
+        let df = DataFrame::new(
+            vec![
+                "rank".into(),
+                "module".into(),
+                "stage".into(),
+                "duration".into(),
+                "local_step".into(),
+            ],
+            vec![
+                Seq::SeqI64(vec![0, 1]),
+                Seq::SeqText(vec!["layer.a".into(), "layer.b".into()]),
+                Seq::SeqText(vec!["post forward".into(), "post forward".into()]),
+                Seq::SeqF64(vec![0.01, 0.02]),
+                Seq::SeqI64(vec![3, 3]),
+            ],
+        );
+
+        let (lines, _, rank_count) = build_distributed_folded_lines(&df, TorchMetric::Duration);
+        assert_eq!(rank_count, 2);
+        assert!(lines.iter().any(|l| l.starts_with("forward;layer;a;")));
+        assert!(lines.iter().any(|l| l.starts_with("forward;layer;b;")));
+        let json = distributed_flamegraph_json_from_df(&df, None);
+        assert!(json.contains("\"total\":30000000"));
+    }
+
+    #[test]
+    fn distributed_flamegraph_json_profile_tag() {
+        use probing_proto::types::{DataFrame, Seq};
+
+        let df = DataFrame::new(
+            vec![
+                "rank".into(),
+                "module".into(),
+                "stage".into(),
+                "duration".into(),
+                "local_step".into(),
+            ],
+            vec![
+                Seq::SeqI64(vec![0]),
+                Seq::SeqText(vec!["m".into()]),
+                Seq::SeqText(vec!["post forward".into()]),
+                Seq::SeqF64(vec![0.001]),
+                Seq::SeqI64(vec![1]),
+            ],
+        );
+
+        let json = distributed_flamegraph_json_from_df(&df, None);
+        assert!(json.contains("\"profile\":\"torch-distributed\""));
+        assert!(json.contains("local_step 1"));
+    }
+
+    #[test]
+    fn distributed_federation_rank_column() {
+        use probing_proto::types::{DataFrame, Seq};
+
+        let df = DataFrame::new(
+            vec![
+                "_rank".into(),
+                "module".into(),
+                "stage".into(),
+                "duration".into(),
+                "local_step".into(),
+            ],
+            vec![
+                Seq::SeqI64(vec![2, 3]),
+                Seq::SeqText(vec!["layer".into(), "layer".into()]),
+                Seq::SeqText(vec!["post forward".into(), "post forward".into()]),
+                Seq::SeqF64(vec![0.005, 0.005]),
+                Seq::SeqI64(vec![9, 9]),
+            ],
+        );
+
+        let (lines, step, rank_count) = build_distributed_folded_lines(&df, TorchMetric::Duration);
+        assert_eq!(step, 9);
+        assert_eq!(rank_count, 2);
+        let json = distributed_flamegraph_json_from_df(&df, None);
+        assert!(json.contains("\"total\":10000000"));
+        assert_eq!(lines.len(), 2);
+    }
+
+    #[test]
+    fn distributed_memory_delta_mb_merge() {
+        use probing_proto::types::{DataFrame, Seq};
+
+        let df = DataFrame::new(
+            vec![
+                "rank".into(),
+                "module".into(),
+                "stage".into(),
+                "allocated_delta".into(),
+                "local_step".into(),
+            ],
+            vec![
+                Seq::SeqI64(vec![0, 1]),
+                Seq::SeqText(vec!["layer".into(), "layer".into()]),
+                Seq::SeqText(vec!["post forward".into(), "post forward".into()]),
+                Seq::SeqF64(vec![1.0, 1.5]),
+                Seq::SeqI64(vec![4, 4]),
+            ],
+        );
+
+        let json = distributed_flamegraph_json_from_df(&df, Some("delta_mb"));
+        assert!(json.contains("\"metric\":\"delta_mb\""));
+        assert!(json.contains("\"total\":2500000"));
+    }
+
+    #[test]
+    fn distributed_hierarchy_merges_shared_parent() {
+        use probing_proto::types::{DataFrame, Seq};
+
+        let df = DataFrame::new(
+            vec![
+                "rank".into(),
+                "module".into(),
+                "stage".into(),
+                "duration".into(),
+                "local_step".into(),
+            ],
+            vec![
+                Seq::SeqI64(vec![0, 0, 1, 1]),
+                Seq::SeqText(vec![
+                    "model.layer".into(),
+                    "model.layer.conv".into(),
+                    "model.layer".into(),
+                    "model.layer.conv".into(),
+                ]),
+                Seq::SeqText(vec![
+                    "post forward".into(),
+                    "post forward".into(),
+                    "post forward".into(),
+                    "post forward".into(),
+                ]),
+                Seq::SeqF64(vec![0.01, 0.006, 0.01, 0.004]),
+                Seq::SeqI64(vec![2, 2, 2, 2]),
+            ],
+        );
+
+        let json = distributed_flamegraph_json_from_df(&df, None);
+        assert!(json.contains("\"frames\":["));
+        assert!(!json.contains("\"emptyMessage\""));
+        let payload: serde_json::Value = serde_json::from_str(&json).expect("json");
+        assert_eq!(payload["profile"], "torch-distributed");
+        assert!(payload["total"].as_u64().unwrap_or(0) > 0);
+    }
+
+    #[test]
+    fn distributed_prefers_training_rank_over_federation_tag() {
+        use probing_proto::types::{DataFrame, Seq};
+
+        let df = DataFrame::new(
+            vec![
+                "rank".into(),
+                "_rank".into(),
+                "module".into(),
+                "stage".into(),
+                "duration".into(),
+                "local_step".into(),
+            ],
+            vec![
+                Seq::SeqI64(vec![3]),
+                Seq::SeqI64(vec![99]),
+                Seq::SeqText(vec!["layer".into()]),
+                Seq::SeqText(vec!["post forward".into()]),
+                Seq::SeqF64(vec![0.01]),
+                Seq::SeqI64(vec![1]),
+            ],
+        );
+
+        let (lines, _, rank_count) = build_distributed_folded_lines(&df, TorchMetric::Duration);
+        assert_eq!(rank_count, 1);
+        let json = distributed_flamegraph_json_from_df(&df, None);
+        assert!(json.contains("\"total\":10000000"));
+        assert_eq!(lines.len(), 1);
+    }
+
+    #[test]
+    fn distributed_empty_dataframe_returns_empty_message() {
+        use probing_proto::types::DataFrame;
+
+        let df = DataFrame::new(vec![], vec![]);
+        let json = distributed_flamegraph_json_from_df(&df, None);
+        assert!(json.contains("\"emptyMessage\""));
+        assert!(json.contains("\"total\":0"));
     }
 }

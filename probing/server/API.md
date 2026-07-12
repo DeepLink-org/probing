@@ -22,6 +22,7 @@ Registered in `server/api/mod.rs`:
 | GET | `/apis/files?path=…` | Read workspace file |
 | GET/PUT | `/apis/nodes` | Cluster node list / register |
 | GET | `/apis/training/step_matrix` | Cross-rank train.step samples (`cluster=false` default; set `cluster=true` for on-demand fan-out) |
+| GET | `/apis/training/distributed_flamegraph/json` | SPMD torch module flamegraph at one `local_step` (`?step=` optional, `?metric=duration\|delta_mb\|peak_mb`, `cluster=true` default) |
 | POST | `/apis/cluster/query` | On-demand SQL fan-out (`{"expr":"…","cluster":true}`; read-only SQL only) |
 
 Flamegraphs are served by profiler extensions (extension fallback, not public routes):
@@ -63,7 +64,10 @@ All handlers live in `python/probing/handlers/pythonext.py`, one canonical local
 | GET | `/apis/pythonext/trace/variables` | `trace/variables` |
 | GET | `/apis/pythonext/trace/chrome-tracing` | `trace/chrome-tracing` |
 | GET | `/apis/pythonext/pytorch/timeline` | `pytorch/timeline` |
-| GET | `/apis/pythonext/pytorch/profile` | `pytorch/profile` |
+| GET | `/apis/pythonext/pytorch/profile` | `pytorch/profile` — start profiler (legacy) |
+| GET | `/apis/pythonext/pytorch/profile/start` | `pytorch/profile/start` — `steps`, `trigger` |
+| GET | `/apis/pythonext/pytorch/profile/stop` | `pytorch/profile/stop` — finalize capture |
+| GET | `/apis/pythonext/pytorch/profile/status` | `pytorch/profile/status` |
 | GET | `/apis/pythonext/ray/timeline` | `ray/timeline` |
 | GET | `/apis/pythonext/ray/timeline/chrome` | `ray/timeline/chrome` |
 | GET | `/apis/pythonext/magics` | `magics` |

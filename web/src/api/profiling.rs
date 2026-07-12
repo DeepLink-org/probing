@@ -57,4 +57,28 @@ impl ApiClient {
         };
         self.get_request(&path).await
     }
+
+    /// Distributed SPMD torch flamegraph at one ``local_step`` (cluster fan-out by default).
+    pub async fn get_distributed_flamegraph_json(
+        &self,
+        step: Option<i64>,
+        metric: Option<&str>,
+        cluster: bool,
+    ) -> Result<String> {
+        let mut parts = Vec::new();
+        if let Some(s) = step {
+            parts.push(format!("step={s}"));
+        }
+        if let Some(m) = metric {
+            if !m.is_empty() {
+                parts.push(format!("metric={}", urlencoding::encode(m)));
+            }
+        }
+        parts.push(format!("cluster={cluster}"));
+        let path = format!(
+            "/apis/training/distributed_flamegraph/json?{}",
+            parts.join("&")
+        );
+        self.get_request(&path).await
+    }
 }

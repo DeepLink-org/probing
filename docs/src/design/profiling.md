@@ -43,7 +43,7 @@ graph TB
 
 ### Design
 
-TorchProbe targets **always-on, module-level training telemetry** after probe injection or `PROBING_TORCH_PROFILING=on`. It is complementary to episodic tools such as `torch.profiler` / Kineto (op/kernel Chrome traces).
+TorchProbe targets **always-on, module-level training telemetry** after probe injection or `PROBING_TORCH_PROFILING=on`. It is complementary to episodic tools such as `torch.profiler` / Kineto (op/kernel Chrome traces). For on-demand Kineto capture exposed as **virtual SQL tables** (not memtable), see **[Torch Profiler SQL](torch-profiler-sql.md)**.
 
 There is **no warmup schedule API**. Skip cold-start steps in SQL when needed:
 

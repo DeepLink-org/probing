@@ -93,3 +93,7 @@ path = "probing/cli/inject_aarch64.rs"
 [[test]]
 name = "python_py_to_table"
 path = "probing/python/py_to_table.rs"
+
+[[test]]
+name = "python_distributed_flamegraph"
+path = "probing/python/distributed_flamegraph_tests.rs"

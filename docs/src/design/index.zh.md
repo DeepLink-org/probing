@@ -24,6 +24,7 @@
 | 文档 | 说明 |
 |------|------|
 | [性能分析](profiling.zh.md) | Torch hook、采样、落表路径 |
+| [Torch Profiler SQL](torch-profiler-sql.zh.md) | 按需 Kineto 采集 → 虚拟 SQL 表 |
 | [开销测量](overhead.zh.md) | 公式定义、shadow step、离线基准 |
 | [NCCL Profiler](nccl-profiler.zh.md) | 插件 ABI、proxy 等待分解 |
 | [调试引擎](debugging.zh.md) | eval / backtrace / REPL 实现 |

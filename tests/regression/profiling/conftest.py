@@ -13,3 +13,14 @@ def _sync_torch_deferred_drain(monkeypatch):
     monkeypatch.setenv("PROBING_TORCH_DEFER_ASYNC", "0")
     yield
     reset_deferred_drain_worker_for_tests()
+
+
+@pytest.fixture(autouse=True)
+def _reset_torch_profiler_state():
+    from probing.profiling.torch_profiler.controller import (
+        reset_torch_profiler_for_tests,
+    )
+
+    reset_torch_profiler_for_tests()
+    yield
+    reset_torch_profiler_for_tests()

@@ -61,3 +61,70 @@ fn cluster_query_request_roundtrip() {
     assert_eq!(back.expr, "SELECT 1");
     assert_eq!(back.scope, ClusterFanoutScope::Auto);
 }
+
+#[test]
+fn distributed_torch_sql_valid_for_global_fanout() {
+    use probing_core::core::federation::validate_global_query;
+    use probing_server::server::training::distributed_torch_trace_sql;
+
+    let sql = distributed_torch_trace_sql("global.python.torch_trace", Some(42));
+    assert!(sql.contains("local_step = 42"));
+    assert!(sql.contains("COALESCE(rank, 0)"));
+    assert!(validate_global_query(&sql).is_ok());
+    let latest = distributed_torch_trace_sql("global.python.torch_trace", None);
+    assert!(latest.contains("max(local_step)"));
+}
+
+#[test]
+fn distributed_flamegraph_json_contract_from_dataframe() {
+    use probing_proto::types::{DataFrame, Seq};
+    use probing_python::features::torch::distributed_flamegraph_json_from_df;
+
+    let df = DataFrame::new(
+        vec![
+            "rank".into(),
+            "module".into(),
+            "stage".into(),
+            "duration".into(),
+            "local_step".into(),
+        ],
+        vec![
+            Seq::SeqI64(vec![0, 1]),
+            Seq::SeqText(vec!["block".into(), "block".into()]),
+            Seq::SeqText(vec!["post forward".into(), "post forward".into()]),
+            Seq::SeqF64(vec![0.002, 0.002]),
+            Seq::SeqI64(vec![11, 11]),
+        ],
+    );
+
+    let json = distributed_flamegraph_json_from_df(&df, None);
+    let payload: serde_json::Value = serde_json::from_str(&json).expect("parse json");
+    assert_eq!(payload["profile"], "torch-distributed");
+    assert_eq!(payload["metric"], "duration");
+    assert_eq!(payload["countName"], "ns");
+    assert!(payload["subtitle"]
+        .as_str()
+        .unwrap_or("")
+        .contains("local_step 11"));
+    assert!(payload["subtitle"]
+        .as_str()
+        .unwrap_or("")
+        .contains("2 ranks"));
+    assert!(payload["frames"]
+        .as_array()
+        .map(|a| !a.is_empty())
+        .unwrap_or(false));
+    assert_eq!(payload["total"], 4_000_000);
+}
+
+#[test]
+fn distributed_flamegraph_params_roundtrip() {
+    use probing_server::server::training::DistributedFlamegraphParams;
+
+    let params: DistributedFlamegraphParams =
+        serde_json::from_str(r#"{"step":5,"metric":"peak_mb","cluster":false}"#)
+            .expect("deserialize");
+    assert_eq!(params.step, Some(5));
+    assert_eq!(params.metric.as_deref(), Some("peak_mb"));
+    assert_eq!(params.cluster, Some(false));
+}

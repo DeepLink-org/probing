@@ -56,6 +56,51 @@ tables:
     global_name: global.python.torch_step_timing
     federation_columns: [_host, _addr, _rank, _role]
 
+  python.profile_capture:
+    description: "按需 torch.profiler 采集锚点（step、rank、数据质量元数据）"
+    synonyms: [profile capture, kineto window, profiler anchor, 采集锚点]
+    key_columns:
+      capture_id: "采集主键（JOIN profile_hotspot）"
+      local_step: "本 rank 训练步"
+      global_step: "全局训练步"
+      rank: "torch.distributed rank（-1 未知）"
+      world_size: "world size（-1 未知）"
+      role: "并行角色键"
+      trigger: "触发来源（manual / repl / http / skill）"
+      steps_profiled: "profile 窗口步数"
+      wall_us: "采集墙钟时间（微秒）；Q2 分母"
+      started_at_us: "开始时间（epoch 微秒）"
+      ended_at_us: "结束时间（epoch 微秒）"
+      status: "running | completed | failed"
+      truncated: "1=事件列表被截断"
+      event_count: "聚合前原始事件数"
+      error: "失败信息"
+    global_name: global.python.profile_capture
+    federation_columns: [_host, _addr, _rank, _role]
+    notes:
+      - "虚拟表：进程内 Session，不写 memtable"
+      - "finalize 时由 KinetoSqlAdaptor 物化"
+
+  python.profile_hotspot:
+    description: "结论事实表：每个 capture 上 kernel/op 时间桶聚合（支撑 Q1/Q2/Q3–Q6）"
+    synonyms: [profile hotspot, kernel bottleneck, gpu time buckets, 热点事实表]
+    key_columns:
+      capture_id: "关联 profile_capture"
+      local_step: "训练步（无 capture_id 时按 step 查）"
+      global_step: "全局步"
+      rank: "产生本行的 rank"
+      bucket_kind: "kernel | cpu_op | memcpy | cuda_runtime | collective | other"
+      bucket_name: "kernel 或 op 名"
+      self_us: "self 时间（微秒），主排序指标"
+      wall_us: "wall/subtree 时间（微秒）"
+      calls: "调用次数"
+      pct_of_capture: "self_us / capture.wall_us"
+      module_hint: "栈映射 module 提示（v2）"
+    global_name: global.python.profile_hotspot
+    federation_columns: [_host, _addr, _rank, _role]
+    notes:
+      - "联邦 Q3–Q6 使用 global.python.profile_hotspot"
+
   python.comm_collective:
     description: "torch.distributed API 层集合通信记录（Python 墙钟计时，粗粒度回退；精准 NCCL 数据在 nccl.* 表）"
     synonyms: [collective, communication, 通信, all_reduce, torch.distributed]

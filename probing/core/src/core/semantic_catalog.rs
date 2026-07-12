@@ -268,9 +268,33 @@ fn python_extern_table_column_names(table_name: &str) -> Option<Vec<String>> {
     }
 }
 
-/// Whether `python.<name>` is a documented extern mmap table (not live `backtrace`).
+/// Live python namespace tables (virtual / on-demand), not mmap extern tables.
+pub fn is_live_python_table(table_name: &str) -> bool {
+    matches!(
+        table_name,
+        "backtrace" | "profile_capture" | "profile_hotspot"
+    )
+}
+
+/// Whether `python.<name>` is a documented extern mmap table (not live virtual tables).
 pub fn known_python_extern_table(table_name: &str) -> bool {
-    table_name != "backtrace" && python_extern_table_column_names(table_name).is_some()
+    !is_live_python_table(table_name) && python_extern_table_column_names(table_name).is_some()
+}
+
+#[cfg(test)]
+mod live_table_tests {
+    use super::*;
+
+    #[test]
+    fn profile_tables_are_live_not_mmap_extern() {
+        for name in ["profile_capture", "profile_hotspot"] {
+            assert!(is_live_python_table(name), "{name} should be live");
+            assert!(
+                !known_python_extern_table(name),
+                "{name} must not resolve as empty mmap extern"
+            );
+        }
+    }
 }
 
 /// Infer Arrow type for a documented `python.*` extern column (mmap placeholder or empty table).

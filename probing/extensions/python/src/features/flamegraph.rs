@@ -26,6 +26,8 @@ pub struct FlamegraphOptions {
     pub subtitle: String,
     /// Torch explorer metric id (`duration`, `delta_mb`, `peak_mb`).
     pub metric: Option<String>,
+    /// Override JSON `profile` (e.g. `torch-distributed`).
+    pub profile: Option<String>,
 }
 
 impl Default for FlamegraphOptions {
@@ -36,6 +38,7 @@ impl Default for FlamegraphOptions {
             kind: FlamegraphKind::Classic,
             subtitle: String::new(),
             metric: None,
+            profile: None,
         }
     }
 }
@@ -102,11 +105,14 @@ impl Flamegraph {
         };
         let frames = self.layout_frames(frame_height, width);
         let frames_json = frames_to_json(&frames, torch);
-        let profile = match options.kind {
-            FlamegraphKind::TorchModule if options.count_name == "samples" => "cpu-stack",
-            FlamegraphKind::TorchModule => "torch-module",
-            FlamegraphKind::Classic => "classic",
-        };
+        let profile = options
+            .profile
+            .as_deref()
+            .unwrap_or_else(|| match options.kind {
+                FlamegraphKind::TorchModule if options.count_name == "samples" => "cpu-stack",
+                FlamegraphKind::TorchModule => "torch-module",
+                FlamegraphKind::Classic => "classic",
+            });
         let mut payload = json!({
             "profile": profile,
             "title": options.title,
@@ -897,11 +903,26 @@ mod tests {
             kind: FlamegraphKind::TorchModule,
             subtitle: "Test subtitle".to_string(),
             metric: None,
+            profile: None,
         });
         assert!(html.contains("probing-torch-module"));
         assert!(html.contains("torch-search"));
         assert!(html.contains("\"phase\":\"forward\""));
         assert!(html.contains("Test subtitle"));
+    }
+
+    #[test]
+    fn json_payload_profile_override() {
+        let fg = Flamegraph::from_folded_lines(&["forward;model 10".to_string()]).unwrap();
+        let json = fg.json_payload(&FlamegraphOptions {
+            title: "T".to_string(),
+            count_name: "ns".to_string(),
+            kind: FlamegraphKind::TorchModule,
+            subtitle: "S".to_string(),
+            metric: Some("duration".to_string()),
+            profile: Some("torch-distributed".to_string()),
+        });
+        assert!(json.contains("\"profile\":\"torch-distributed\""));
     }
 
     #[test]
@@ -913,6 +934,7 @@ mod tests {
             kind: FlamegraphKind::TorchModule,
             subtitle: "S".to_string(),
             metric: Some("duration".to_string()),
+            profile: None,
         });
         assert!(json.contains("\"profile\":\"torch-module\""));
         assert!(json.contains("\"subtitle\":\"S\""));
