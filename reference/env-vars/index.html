@@ -2112,6 +2112,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#vllm-autostart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        vLLM autostart
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#pytorch-flight-recorder" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2430,6 +2441,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#vllm-autostart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        vLLM autostart
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#pytorch-flight-recorder" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2542,6 +2564,11 @@ by subsystem.</p>
 <td><code>PROBING_DATA_DIR</code></td>
 <td>Platform-specific</td>
 <td>Root directory for mmap ring buffer files (MEMT tables). Each process creates a subdirectory named by its PID.</td>
+</tr>
+<tr>
+<td><code>PROBING_TABLE_DEFAULT_MB</code></td>
+<td><code>20</code></td>
+<td>Default mmap ring byte budget per Python <code>@table</code> (and <code>ExternalTable</code> when <code>discard_threshold</code> is omitted). Override per table with <code>@table(capacity_bytes=…)</code>. Tables are created on first write, not at import.</td>
 </tr>
 <tr>
 <td><code>PROBING_COLD</code></td>
@@ -2948,6 +2975,44 @@ or modules are detected. No training-script changes are required beyond <code>PR
 <p>Import hooks run when <code>megatron.core.parallel_state</code> and <code>megatron.training.training</code>
 load: parallel ranks flow into <code>probing.set_role</code>, and <code>train_step</code> aligns step
 coordinates for SQL JOINs.</p>
+<h3 id="vllm-autostart">vLLM autostart<a class="headerlink" href="#vllm-autostart" title="Permanent link">&para;</a></h3>
+<p>vLLM integration is <strong>best-effort</strong> and enabled by default when vLLM env vars
+or modules are detected (including the macOS <strong>vllm-metal</strong> platform plugin).
+No inference-script changes are required beyond <code>PROBING=2</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PROBING_VLLM</code></td>
+<td><code>auto</code></td>
+<td><code>auto</code> = on when vLLM env/modules detected; <code>on</code>/<code>off</code> to force.</td>
+</tr>
+<tr>
+<td><code>PROBING_VLLM_STEP_SYNC</code></td>
+<td><code>auto</code></td>
+<td>Sync <code>probing.step</code> with vLLM scheduler steps via wrapped <code>LLMEngine.step</code>.</td>
+</tr>
+<tr>
+<td><code>probing.vllm.enable</code></td>
+<td>—</td>
+<td>Config override for vLLM autostart (<code>probing.config.set</code>).</td>
+</tr>
+<tr>
+<td><code>probing.vllm.step_sync</code></td>
+<td>—</td>
+<td>Config override for engine step sync.</td>
+</tr>
+</tbody>
+</table>
+<p>Import hooks run when <code>vllm_metal</code> (macOS Metal plugin), <code>vllm.v1.engine.llm_engine</code>,
+or <code>vllm.engine.llm_engine</code> load: distributed ranks and <code>backend=metal</code> flow into
+<code>probing.set_role</code>, and <code>LLMEngine.step</code> aligns step coordinates for SQL JOINs.</p>
 <table>
 <thead>
 <tr>
