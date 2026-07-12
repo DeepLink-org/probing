@@ -17,6 +17,7 @@
     { "method": "GET", "path": "/apis/nodes" },
     { "method": "PUT", "path": "/apis/nodes" },
     { "method": "GET", "path": "/apis/training/step_matrix" },
+    { "method": "GET", "path": "/apis/training/distributed_flamegraph/json" },
     { "method": "POST", "path": "/apis/cluster/query" }
   ],
   "top_level": [
@@ -85,6 +86,24 @@
     },
     {
       "local_path": "pytorch/profile",
+      "method": "GET",
+      "uses_body": false,
+      "response": { "content_type": "application/json", "cors": false }
+    },
+    {
+      "local_path": "pytorch/profile/start",
+      "method": "GET",
+      "uses_body": false,
+      "response": { "content_type": "application/json", "cors": false }
+    },
+    {
+      "local_path": "pytorch/profile/stop",
+      "method": "GET",
+      "uses_body": false,
+      "response": { "content_type": "application/json", "cors": false }
+    },
+    {
+      "local_path": "pytorch/profile/status",
       "method": "GET",
       "uses_body": false,
       "response": { "content_type": "application/json", "cors": false }
@@ -242,7 +261,8 @@
         "source": "web/src/api/profiling.rs",
         "calls": [
           { "method": "GET", "path": "/apis/torchextension/flamegraph/json" },
-          { "method": "GET", "path": "/apis/pprofextension/flamegraph/json" }
+          { "method": "GET", "path": "/apis/pprofextension/flamegraph/json" },
+          { "method": "GET", "path": "/apis/training/distributed_flamegraph/json" }
         ]
       },
       {
@@ -262,7 +282,10 @@
         "source": "web/src/api/pytorch.rs",
         "calls": [
           { "method": "GET", "path": "/apis/pythonext/pytorch/timeline" },
-          { "method": "GET", "path": "/apis/pythonext/pytorch/profile" }
+          { "method": "GET", "path": "/apis/pythonext/pytorch/profile" },
+          { "method": "GET", "path": "/apis/pythonext/pytorch/profile/start" },
+          { "method": "GET", "path": "/apis/pythonext/pytorch/profile/stop" },
+          { "method": "GET", "path": "/apis/pythonext/pytorch/profile/status" }
         ]
       },
       {

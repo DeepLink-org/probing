@@ -937,7 +937,7 @@ impl SchemaProvider for MmapFileSchemaProvider {
             // is unioned with its cold MEMC segments (keyed by the unique
             // on-disk basename) so one query spans both tiers.
             if let Ok(mapped) = MappedFile::open(&path) {
-                if self.schema == "python" && name != "backtrace" {
+                if self.schema == "python" && !super::semantic_catalog::is_live_python_table(name) {
                     return Ok(Some(prefer_semantic_python_table(name, mapped, basename)));
                 }
                 if let Some(TableKind::Ring) = detect_table(mapped.as_bytes()) {
@@ -949,7 +949,7 @@ impl SchemaProvider for MmapFileSchemaProvider {
                 return Ok(Some(mapped_file_to_table(mapped, name)));
             }
         }
-        if self.schema == "python" && name != "backtrace" {
+        if self.schema == "python" && !super::semantic_catalog::is_live_python_table(name) {
             if let Some(table) = super::semantic_catalog::empty_python_extern_table(name) {
                 return Ok(Some(table));
             }

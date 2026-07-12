@@ -99,6 +99,7 @@ plugins:
             Extensibility: 扩展机制
             CLI Command Tree: CLI 命令树
             Profiling: 性能分析
+            Torch Profiler SQL: Torch Profiler SQL（Kineto 虚拟表）
             Overhead: 开销测量
             NCCL Profiler: NCCL Profiler
             Debugging Engine: 调试引擎
@@ -156,6 +157,7 @@ nav:
       - CLI Command Tree: design/cli.md
     - Collectors & Profiling:
       - Profiling: design/profiling.md
+      - Torch Profiler SQL: design/torch-profiler-sql.md
       - Overhead: design/overhead.md
       - Overhead invariants: design/overhead-invariants.md
       - NCCL Profiler: design/nccl-profiler.md

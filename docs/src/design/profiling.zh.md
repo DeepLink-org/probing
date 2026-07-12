@@ -43,7 +43,7 @@ graph TB
 
 ### 设计定位
 
-TorchProbe 面向**注入后长期开启的 module 级训练遥测**（`PROBING_TORCH_PROFILING=on`）。与 episodic 工具（`torch.profiler` / Kineto 的 op/kernel Chrome trace）互补，而非替代。
+TorchProbe 面向**注入后长期开启的 module 级训练遥测**（`PROBING_TORCH_PROFILING=on`）。与 episodic 工具（`torch.profiler` / Kineto 的 op/kernel Chrome trace）互补，而非替代。按需 Kineto 采集以**虚拟 SQL 表**暴露（不写 memtable）见 **[Torch Profiler SQL](torch-profiler-sql.zh.md)**。
 
 **不提供 warmup schedule API**。跳过冷启动步请在 SQL 中过滤：
 

@@ -12,7 +12,7 @@ use crate::state::profiling::{normalize_profiling_view, profiling_view_label, PR
 
 mod controls;
 use controls::{
-    PprofControls, PyTorchTimelineControls, RayTimelineControls, TorchControls,
+    PprofControls, PyTorchTimelineControls, RayTimelineControls, TorchControls, TorchDistControls,
     TraceTimelineControls,
 };
 
@@ -20,6 +20,7 @@ fn profiling_view_icon(id: &str) -> &'static IconData {
     match id {
         "pprof" => &icondata::CgPerformance,
         "torch" => &icondata::AiFireOutlined,
+        "torch-dist" => &icondata::AiClusterOutlined,
         "trace" => &icondata::AiThunderboltOutlined,
         "pytorch" => &icondata::SiPytorch,
         "ray" => &icondata::AiClockCircleOutlined,
@@ -137,6 +138,13 @@ fn ProfilingControlsPanel(current_view: String) -> Element {
                             toggle_enabled_class: toggle_enabled_class,
                             toggle_disabled_class: toggle_disabled_class,
                             toggle_label_class: toggle_label_class,
+                        }
+                    },
+                    "torch-dist" => rsx! {
+                        TorchDistControls {
+                            control_title_class: control_title_class,
+                            control_value_class: control_value_class,
+                            input_class: input_class,
                         }
                     },
                     "trace" => rsx! {

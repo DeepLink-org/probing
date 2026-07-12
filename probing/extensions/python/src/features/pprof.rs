@@ -966,6 +966,7 @@ fn pprof_flamegraph_options() -> FlamegraphOptions {
         kind: FlamegraphKind::TorchModule,
         subtitle: "SIGPROF weighted stack samples".to_string(),
         metric: None,
+        profile: None,
     }
 }
 

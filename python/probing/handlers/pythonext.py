@@ -399,29 +399,55 @@ def get_pytorch_timeline() -> str:
 
 
 @ext_handler("pythonext", "pytorch/profile")
-def start_pytorch_profile(steps: int = 1) -> str:
-    """Start PyTorch global profiler.
-
-    Args:
-        steps: Number of steps to profile
-
-    Returns:
-        JSON string with success status
-    """
+def start_pytorch_profile(steps: int = 1, trigger: str = "http") -> str:
+    """Start PyTorch global profiler (legacy path)."""
     try:
-        # Use global profiler - call _start_global_profiler via _cmd_profile
         from probing.repl.torch_magic import TorchMagic
 
-        shell = None
-        torch_magic = TorchMagic(shell)
-        torch_magic._start_global_profiler(steps)
+        torch_magic = TorchMagic(None)
+        torch_magic._start_global_profiler(steps, trigger=trigger)
         return json.dumps(
-            {"success": True, "message": f"Global profiler started for {steps} step(s)"}
+            {
+                "success": True,
+                "message": f"Global profiler started for {steps} step(s)",
+                "trigger": trigger,
+            }
         )
     except Exception as e:
         return json.dumps(
             {"success": False, "error": str(e), "traceback": traceback.format_exc()}
         )
+
+
+@ext_handler("pythonext", "pytorch/profile/start")
+def start_pytorch_profile_v2(steps: int = 1, trigger: str = "http") -> str:
+    """Start on-demand torch.profiler capture."""
+    return start_pytorch_profile(steps=steps, trigger=trigger)
+
+
+@ext_handler("pythonext", "pytorch/profile/stop")
+def stop_pytorch_profile() -> str:
+    """Stop profiler early and materialize profile_capture / profile_hotspot rows."""
+    try:
+        from probing.profiling.torch_profiler import get_controller
+
+        capture_id = get_controller().stop()
+        return json.dumps({"success": True, "capture_id": capture_id})
+    except Exception as e:
+        return json.dumps(
+            {"success": False, "error": str(e), "traceback": traceback.format_exc()}
+        )
+
+
+@ext_handler("pythonext", "pytorch/profile/status")
+def pytorch_profile_status() -> str:
+    """Profiler running state and latest capture id."""
+    try:
+        from probing.profiling.torch_profiler import profiler_status
+
+        return json.dumps(profiler_status())
+    except Exception as e:
+        return json.dumps({"error": str(e), "traceback": traceback.format_exc()})
 
 
 @ext_handler("pythonext", "flight-recorder/snapshot")
