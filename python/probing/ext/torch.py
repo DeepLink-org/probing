@@ -87,6 +87,16 @@ def megatron_hook():
         pass
 
 
+def vllm_hook():
+    """Autostart vLLM role/step sync when vLLM loads before torch hooks."""
+    try:
+        from probing.ext.vllm import maybe_autostart
+
+        maybe_autostart()
+    except Exception:
+        pass
+
+
 _hook_registered = False
 
 
@@ -102,6 +112,7 @@ def init():
 
     collective_hook()
     megatron_hook()
+    vllm_hook()
     try:
         from probing.crash import install
 

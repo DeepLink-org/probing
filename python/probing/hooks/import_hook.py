@@ -52,6 +52,33 @@ def _get_megatron_training_init():
         return lambda: None
 
 
+def _get_vllm_metal_init():
+    try:
+        from probing.ext.vllm import init_metal_platform
+
+        return init_metal_platform
+    except ImportError:
+        return lambda: None
+
+
+def _get_vllm_v1_engine_init():
+    try:
+        from probing.ext.vllm import init_v1_engine
+
+        return init_v1_engine
+    except ImportError:
+        return lambda: None
+
+
+def _get_vllm_classic_engine_init():
+    try:
+        from probing.ext.vllm import init_classic_engine
+
+        return init_classic_engine
+    except ImportError:
+        return lambda: None
+
+
 # Mapping from module names to callback functions
 # Callbacks are called when the module is imported
 # Use lazy loading to avoid import errors
@@ -60,6 +87,9 @@ register = {
     "ray": _get_ray_init(),
     "megatron.core.parallel_state": _get_megatron_parallel_state_init(),
     "megatron.training.training": _get_megatron_training_init(),
+    "vllm_metal": _get_vllm_metal_init(),
+    "vllm.v1.engine.llm_engine": _get_vllm_v1_engine_init(),
+    "vllm.engine.llm_engine": _get_vllm_classic_engine_init(),
 }
 
 # Record modules that have been triggered

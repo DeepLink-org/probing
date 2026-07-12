@@ -41,6 +41,8 @@ pub use rewrite::{
     rewrite_global_catalog_to_probe, rewrite_sql_for_global_fanout,
 };
 pub use route::{
-    classify_cluster_sql, classify_federated_sql, explain_federation, explain_physical_plan,
-    FederatedQueryPath, FederationExplainReport,
+    classify_cluster_sql, classify_federated_sql, classify_federated_sql_with_context,
+    estimate_federation_cost, explain_federation, explain_physical_plan,
+    recommended_fanout_concurrency, FederatedQueryPath, FederationCostEstimate,
+    FederationExplainReport, FederationRouteContext,
 };
