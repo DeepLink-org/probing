@@ -1,6 +1,10 @@
+import logging
+
 import torch
 
 from ..types import TensorDef
+
+logger = logging.getLogger(__name__)
 
 NAME_CACHE = {}
 
@@ -23,13 +27,15 @@ def try_catch(maxtry=3):
         def wrapper(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
-            except:
+            except Exception:
                 nonlocal _maxtry
                 _maxtry -= 1
                 if _maxtry > 0:
-                    import traceback
-
-                    traceback.print_exc()
+                    logger.exception(
+                        "module_utils.%s failed; retries left=%s",
+                        func.__name__,
+                        _maxtry,
+                    )
 
         return wrapper
 

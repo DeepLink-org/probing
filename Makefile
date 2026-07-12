@@ -7,6 +7,9 @@
 #
 .DEFAULT_GOAL := help
 
+# Single Rust artifact tree (web/.cargo/config.toml points here too).
+export CARGO_TARGET_DIR := $(CURDIR)/target
+
 ifdef DEBUG
 	MATURIN_RELEASE :=
 	CARGO_RELEASE :=
@@ -19,7 +22,8 @@ UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Linux)
 	MATURIN_FEATURES := extension-module,gpu,gpu-cuda,kmsg
 else
-	MATURIN_FEATURES := extension-module,gpu,kmsg
+	# kmsg is Linux-only (rmesg); omit on macOS to avoid linking rmesg + clap v3.
+	MATURIN_FEATURES := extension-module,gpu
 endif
 
 MATURIN_FLAGS := $(MATURIN_RELEASE) --features $(MATURIN_FEATURES)
@@ -79,6 +83,7 @@ help:
 	@echo "Probing — make [target]    (see docs/src/contributing.md)"
 	@echo ""
 	@echo "  develop / dev     Bootstrap: _core, CLI, pytest, site hook"
+	@echo "                    Tip: DEBUG=1 make develop → dev profile (faster link)"
 	@echo "  core              Rebuild probing._core after Rust edits"
 	@echo "  frontend          Build UI into python/probing/bundled_web (dx bundle)"
 	@echo "  wheel             Build dist/*.whl (needs bundled_web; bundles skills + UI)"
@@ -158,7 +163,9 @@ sync-uv-groups: venv
 	uv sync --frozen --no-install-project $$args
 
 core: venv nccl-profiler-lib hccl-shim-lib
+	@$(VENV_PYTHON) $(DEV_PTH) remove 2>/dev/null || true
 	$(VENV_PYTHON) -m maturin develop $(MATURIN_FLAGS)
+	@$(VENV_PYTHON) $(DEV_PTH) install
 
 develop: venv install-build-deps core install-dev-python-deps
 	@echo "  Python: $$($(VENV_PYTHON) -c 'import sys; print(sys.executable)')"
@@ -202,16 +209,14 @@ frontend:
 	@test -n "$$SKIP_FRONTEND_CLEAN" || rm -rf python/probing/bundled_web
 	cd web && dx bundle --release
 	@test -f $(BUNDLED_WEB_PUBLIC)/index.html
-	@js=$$(grep -oE 'web-dxh[^" ]+\.js' $(BUNDLED_WEB_PUBLIC)/index.html | head -1); \
-	for f in $(BUNDLED_WEB_PUBLIC)/assets/web-dxh*.js; do \
-	  test "$$f" = "$(BUNDLED_WEB_PUBLIC)/assets/$$js" || rm -f "$$f"; \
-	done
+	@chmod +x scripts/prune-bundled-web.sh
+	@./scripts/prune-bundled-web.sh $(BUNDLED_WEB_PUBLIC)
 	@mkdir -p $(BUNDLED_WEB_PUBLIC)/assets
 	@cp -f web/assets/logo.svg $(BUNDLED_WEB_PUBLIC)/logo.svg 2>/dev/null || true
 	@cp -f web/assets/logo.svg $(BUNDLED_WEB_PUBLIC)/assets/logo.svg 2>/dev/null || true
 	@cp -f web/assets/tailwind.css $(BUNDLED_WEB_PUBLIC)/assets/tailwind.css
 	@rm -rf web/dist
-	@ln -s python/probing/bundled_web/public web/dist
+	@ln -sfn ../python/probing/bundled_web/public web/dist
 	@echo "$(BUNDLED_WEB_PUBLIC) ($$(du -sh $(BUNDLED_WEB_PUBLIC) | cut -f1))"
 
 wheel-bundle:
@@ -380,6 +385,8 @@ docs-clean:
 	@cd docs && $(MAKE) clean
 
 clean:
-	rm -rf dist docs/site python/probing/bundled_web web/dist
+	rm -rf dist docs/site python/probing/bundled_web web/dist web/target
+	rm -rf python/probing/libs python/probing/shim/hccl
+	rm -rf .pytest_cache .coverage coverage.xml coverage.lcov
 	cargo clean
-	rm -f coverage.lcov coverage.xml coverage.json
+	rm -f coverage.lcov coverage.json

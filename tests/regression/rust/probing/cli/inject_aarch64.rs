@@ -33,10 +33,14 @@ fn injection_basic_fails_on_missing_library() {
     match result {
         Ok(_) => panic!("Expected injection to fail due to missing library"),
         Err(e) => {
-            let error_msg = e.to_string();
+            // `Display` only shows the outermost context ("failed to perform aarch64
+            // injection"); the missing-file cause lives deeper (canonicalize or dlopen).
+            let chain = format!("{e:#}");
             assert!(
-                error_msg.contains("No such file") || error_msg.contains("dlopen"),
-                "unexpected error: {error_msg}"
+                chain.contains("No such file")
+                    || chain.contains("dlopen")
+                    || chain.contains("couldn't get absolute path"),
+                "unexpected error chain: {chain}"
             );
         }
     }

@@ -191,10 +191,10 @@ pub fn render_dataframe(df: &DataFrame) {
             table.put((row + 1, col).into(), value);
         }
     }
-    println!(
-        "{}",
-        table.draw(terminal_width().unwrap_or(80) as usize).unwrap()
-    );
+    let rendered = table
+        .draw(terminal_width().unwrap_or(80) as usize)
+        .unwrap_or_else(|| "(table render failed)".to_string());
+    println!("{rendered}");
 }
 
 fn terminal_width() -> Option<u32> {

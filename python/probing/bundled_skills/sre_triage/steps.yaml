@@ -237,9 +237,9 @@ spec:
   interpretation:
     rules:
       - id: cluster_unhealthy
-        when: "step:cluster_nodes | column:status | any_not_equal('alive')"
+        when: "step:cluster_nodes | column:status | any_contains('dead')"
         severity: warning
-        message: "存在非 alive 节点 — 优先确认 rank 是否退出、心跳是否中断"
+        message: "存在 dead 节点 — 优先确认 rank 是否退出、心跳是否中断"
 
       - id: collective_desync
         when: "step:flight_recorder_alignment | rows > 0"

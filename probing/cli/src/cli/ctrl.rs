@@ -1,7 +1,9 @@
+use crate::cli::fanout::fanout_strict_enabled;
 use anyhow::{Context, Result};
 use std::io::Write;
 
 use http_body_util::{BodyExt, Full};
+use hyper::header::{HeaderValue, AUTHORIZATION};
 use hyper_util::rt::TokioIo;
 
 use probing_proto::{prelude::*, protocol::process::CallFrame};
@@ -157,6 +159,11 @@ impl ProbeEndpoint {
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false)
             {
+                if fanout_strict_enabled() {
+                    return Err(anyhow::anyhow!(
+                        "federated fan-out strict mode: query returned partial data: {meta}"
+                    ));
+                }
                 eprintln!("warning: federated query returned partial data: {meta}");
             }
         }
@@ -244,13 +251,13 @@ pub async fn request(ctrl: ProbeEndpoint, url: &str, body: Option<String>) -> Re
         }
     };
     let request = if let Some(body) = body {
-        Request::builder()
+        apply_auth_headers(Request::builder())
             .method("POST")
             .uri(url)
             .body(Full::<Bytes>::from(body))
             .context("Failed to build POST request")?
     } else {
-        Request::builder()
+        apply_auth_headers(Request::builder())
             .method("GET")
             .uri(url)
             .body(Full::<Bytes>::default())
@@ -260,4 +267,16 @@ pub async fn request(ctrl: ProbeEndpoint, url: &str, body: Option<String>) -> Re
     let res = sender.send_request(request).await?;
 
     Ok(res.collect().await.map(|x| x.to_bytes().to_vec())?)
+}
+
+fn apply_auth_headers(builder: hyper::http::request::Builder) -> hyper::http::request::Builder {
+    if let Ok(token) = std::env::var("PROBING_AUTH_TOKEN") {
+        let token = token.trim();
+        if !token.is_empty() {
+            if let Ok(value) = HeaderValue::from_str(&format!("Bearer {token}")) {
+                return builder.header(AUTHORIZATION, value);
+            }
+        }
+    }
+    builder
 }

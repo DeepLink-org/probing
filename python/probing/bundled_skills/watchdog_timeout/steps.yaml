@@ -207,17 +207,17 @@ spec:
   interpretation:
     rules:
       - id: missing_rank
-        when: "step:collective_alignment | column:ranks_seen | any_lt(column:expected_world_size)"
+        when: "step:collective_alignment | rows >= 1"
         severity: warning
-        message: "某些 collective seq 缺少 rank — 常见于 CPU-side hang、rank 分支发散或某 rank 提前退出"
+        message: "collective 对齐异常（rank 缺失、op/shape/dtype/state 不一致）— 见 collective_alignment 表各行"
 
       - id: op_mismatch
-        when: "step:collective_alignment | columns:op_min,op_max | any_not_equal"
+        when: "step:collective_alignment | rows >= 1"
         severity: warning
         message: "同一 seq 上 collective 类型不一致 — 检查各 rank 控制流和 process group 使用"
 
       - id: shape_dtype_mismatch
-        when: "step:collective_alignment | columns:input_sizes_min,input_sizes_max,input_dtypes_min,input_dtypes_max | any_not_equal"
+        when: "step:collective_alignment | rows >= 1"
         severity: warning
         message: "collective 输入 shape/dtype 不一致 — 常见于 all_to_all split 或动态 shape 发散"
 

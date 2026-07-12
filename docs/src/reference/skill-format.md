@@ -205,28 +205,47 @@ parameter (default `true`) that auto-detects cluster availability from
 ### Interpretation rules
 
 Rules evaluate query results and produce severity-graded findings. They run after
-all steps complete.
+all steps complete. Clauses are joined with `|` (all must match).
 
 ```yaml
 interpretation:
   rules:
-    - id: high_gpu_mem
-      when: "step:check_gpu_mem | avg(allocated) > 90% * gpu_total"
-      severity: warning
-      message: "GPU memory usage ({avg_allocated:.0f}MB) exceeds 90% on rank {_rank}. Consider gradient checkpointing."
-    - id: mem_leak
-      when: "step:check_gpu_mem | slope(allocated) > 0"
+    - id: no_tables
+      when: "step:available_tables | rows == 0"
       severity: error
-      message: "GPU memory growing at {slope_rate:.1f}MB/step. Possible leak detected."
+      message: "No probe tables — confirm PROBING=1"
+    - id: straggler
+      when: "step:rank_latency | column:avg_ms | max/min(ratio) > 1.5"
+      severity: warning
+      message: "Rank spread on avg_ms exceeds 1.5×"
+    - id: chronic
+      when: "step:worst_fraction | rows >= 2 | top(row).worst_fraction > 2 * median(worst_fraction)"
+      severity: info
+      message: "One rank dominates worst_fraction"
+    - id: cluster_dead
+      when: "step:cluster_nodes | column:status | any_contains('dead')"
+      severity: warning
+      message: "Dead node in cluster.nodes"
 ```
+
+**`when` grammar (implemented in `probing-skills` / `interpret.rs`):**
+
+| Fragment | Example |
+|----------|---------|
+| Step binding | `step:<step_id>` — required for row/column predicates |
+| Row count | `rows == 0`, `rows >= 1` |
+| Column predicate | `column:<name> \| <tail>` — pairs with the tail on the right |
+| Numeric compare | `value == 0`, `value > 10`, `max > 1e6`, `avg > 5` |
+| Spread | `max/min(ratio) > 1.5` |
+| Ratio of columns | `ratio(num_col/den_col) > 0.3` |
+| Text search | `any_contains('dead', 'stale')` — case-insensitive substring |
+| Top vs median | `top(row).<col> > N * median(<col>)` — needs `rows >= 2` on the step |
 
 Rule fields:
 - `id`: Unique within the skill.
-- `when`: A predicate expression. Format: `step:<id> | <aggregation> <op> <value>`.
-  Supports `avg`, `max`, `min`, `count`, `slope`, `latest` aggregations, and `>`,
-  `<`, `>=`, `<=`, `==`, `!=` operators. `*` multiplies by a reference value.
+- `when`: Predicate string (see table above). **Not** arbitrary expressions like `slope()` or `avg(col) > 90% * gpu_total` unless implemented in `interpret.rs`.
 - `severity`: `error`, `warning`, or `info`.
-- `message`: Template with `{column}` placeholders filled from the step's results.
+- `message`: Template; `{step_id.column}` and `{column}` placeholders expand from the first matching row.
 
 ### Summary template
 
@@ -280,16 +299,16 @@ and how to interpret the results.
 
 ## Skill resolution and overlay
 
-Skills are loaded from multiple roots in priority order:
+Skills are loaded from multiple roots in priority order (highest wins):
 
-1. Embedded (compiled into the CLI binary at build time)
-2. `$HOME/.probing/skills/` — user-level overrides
-3. `$PWD/.probing/skills/` — project-level overrides
-4. `$PROBING_PROJECT_SKILLS_DIR` — environment override
-5. `$PROBING_USER_SKILLS_DIR` — environment override
+1. `$PROBING_SKILLS_DIR` — explicit extra root (when set)
+2. `$PWD/.probing/skills/` — project overrides
+3. `$HOME/.probing/skills/` — user overrides
+4. Repo / wheel bundled skills (`skills/` at dev time; `python/probing/bundled_skills/` in the wheel)
+5. Embedded defaults in the CLI binary (lowest)
 
 Later roots override earlier ones for the same skill ID. The catalog (`catalog.yaml`)
-is also merged across roots — entries in higher-priority roots replace embedded
+is also merged across roots — entries in higher-priority roots replace lower-priority
 entries with the same ID.
 
 This means you can override a built-in skill by placing a modified copy in your

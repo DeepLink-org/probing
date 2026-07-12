@@ -22,7 +22,7 @@ Registered in `server/api/mod.rs`:
 | GET | `/apis/files?path=…` | Read workspace file |
 | GET/PUT | `/apis/nodes` | Cluster node list / register |
 | GET | `/apis/training/step_matrix` | Cross-rank train.step samples (`cluster=false` default; set `cluster=true` for on-demand fan-out) |
-| POST | `/apis/cluster/query` | On-demand SQL fan-out (`{"expr":"…","cluster":true}`) |
+| POST | `/apis/cluster/query` | On-demand SQL fan-out (`{"expr":"…","cluster":true}`; read-only SQL only) |
 
 Flamegraphs are served by profiler extensions (extension fallback, not public routes):
 
@@ -38,7 +38,7 @@ Flamegraphs are served by profiler extensions (extension fallback, not public ro
 Training agents write to **local memtable only**. Cross-node aggregation is explicit:
 
 - **Local** (default): `GET /apis/training/step_matrix?cluster=false` or `POST /apis/cluster/query` with `"cluster": false`
-- **Cluster scan**: `cluster=true` fans out the same SQL to peer nodes from the in-memory cluster view (torchrun report / `PUT /apis/nodes`), merges rows, and tags `_probe_host` / `_probe_addr`
+- **Cluster scan**: `cluster=true` fans out the same SQL to peer nodes from the in-memory cluster view (torchrun report / `PUT /apis/nodes`), merges rows, and tags `_host` / `_addr` (plus `_rank`, `_node_rank`, `_local_rank`, `_role` on federated results)
 
 CLI:
 
@@ -109,13 +109,13 @@ When built with the `rmcp` feature (default in the PyPI wheel), the server expos
 
 | Tool | Purpose |
 |------|---------|
-| `query` | Read-only SQL against the in-process engine (`limit` caps rows) |
+| `query` | Read-only SQL against the in-process engine (`limit` caps rows; rejects multi-statement batches containing writes) |
 | `describe_tables` | Semantic docs from `probe.probing.table_docs` / `column_docs` |
 | `list_skills` | List diagnostic skills (bundled + entry-point extensions) |
 | `plan_skill` | Expand a skill into SQL/API steps (Rust in-process) |
 | `run_skill` | Execute a diagnostic skill (Rust in-process) |
 | `list_cluster_nodes` | `GET /apis/nodes` — registered cluster members |
-| `cluster_query` | Read-only SQL with optional cluster fan-out (`cluster` default `true`) |
+| `cluster_query` | Read-only SQL with optional cluster fan-out (`cluster` default `true`; AST-validated, same rules as `query`) |
 
 #### Write tools (disabled unless `PROBING_MCP_ALLOW_WRITE=1`)
 
@@ -174,6 +174,8 @@ Do not register the same capability in both places. Do not add path aliases.
 | Invalid query string on extension URL | 400 |
 | Missing config key | 404 |
 | Invalid `/query` JSON body | 400 |
+| `/query/dto` engine errors | Same HTTP status as underlying `ApiError` (e.g. 404, 503); DTO `code` mirrors status (`BAD_REQUEST`, `NOT_FOUND`, `SERVICE_UNAVAILABLE`, …) |
+| Partial cluster fan-out (`meta.partial` / `nodes_failed` non-empty) on `/query`, `/query/dto`, `POST /apis/cluster/query`, `GET /apis/training/step_matrix` | 503 (body still returned so clients can inspect partial data) |
 | SET statement failure on `/query` | 500 (payload `QueryDataFormat::Error`) |
 | Invalid file path / missing param | 400 |
 | File too large | 413 |

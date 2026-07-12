@@ -17,8 +17,6 @@ probing-core = { path = "../../core", features = ["python-bridge"] }
 probing-memtable = { path = "../../memtable" }
 probing-proto = { path = "../../proto" }
 probing-store = { path = "../../crates/store" }
-probing-cli = { path = "../../cli" }
-probing-skills = { path = "../../crates/skills" }
 
 anyhow = { workspace = true }
 thiserror = { workspace = true }

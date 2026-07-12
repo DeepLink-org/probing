@@ -48,6 +48,32 @@ fn try_record_batch(schema: SchemaRef, columns: Vec<ArrayRef>) -> TableResult<Re
     RecordBatch::try_new(schema, columns).map_err(|e| PythonTableError::BatchBuild(e.to_string()))
 }
 
+/// Single-row batch surfacing a hard failure in SQL (`SELECT _error FROM python.<expr>`).
+fn error_batch(message: &str) -> Vec<RecordBatch> {
+    let schema = SchemaRef::new(Schema::new(vec![Field::new(
+        "_error",
+        DataType::Utf8,
+        false,
+    )]));
+    match RecordBatch::try_new(
+        schema.clone(),
+        vec![Arc::new(StringArray::from(vec![message]))],
+    ) {
+        Ok(batch) => vec![batch],
+        Err(e) => {
+            error!("failed to build python namespace error batch: {e}");
+            const FALLBACK: &str = "python namespace error";
+            match RecordBatch::try_new(schema, vec![Arc::new(StringArray::from(vec![FALLBACK]))]) {
+                Ok(batch) => vec![batch],
+                Err(e2) => {
+                    error!("failed to build fallback error batch: {e2}");
+                    vec![]
+                }
+            }
+        }
+    }
+}
+
 #[derive(Default, Debug)]
 pub struct PythonNamespace {}
 
@@ -203,23 +229,25 @@ impl CustomNamespace for PythonNamespace {
                     if crate::features::stack_tracer::is_backtrace_busy(source) =>
                 {
                     debug!("python.backtrace skipped: {source}");
-                    vec![]
+                    error_batch("callstack capture busy")
                 }
                 Err(e) => {
                     error!("Error getting backtrace data: {e:?}");
-                    vec![]
+                    error_batch(&e.to_string())
                 }
             }
         } else if !expr.contains('.') {
             // Extern mmap tables (`comm_collective`, `torch_trace`, …) — not Python imports.
             debug!("python.{expr}: no live data (mmap empty or not created yet)");
-            vec![]
+            error_batch(&format!(
+                "python.{expr}: no live data (mmap empty or not created yet)"
+            ))
         } else {
             match Self::data_from_python(expr) {
                 Ok(batches) => batches,
                 Err(e) => {
-                    debug!("Python dynamic expr {expr}: {e:?}");
-                    vec![]
+                    error!("Python dynamic expr {expr}: {e:?}");
+                    error_batch(&e.to_string())
                 }
             }
         }
@@ -418,5 +446,28 @@ mod tests {
             .collect();
 
         assert!(parts3.is_empty());
+    }
+
+    #[test]
+    fn test_error_batch_surfaces_message_in_sql_column() {
+        let batches = error_batch("backtrace capture failed");
+        assert_eq!(batches.len(), 1);
+        let batch = &batches[0];
+        assert_eq!(batch.num_rows(), 1);
+        assert_eq!(batch.schema().field(0).name(), "_error");
+        let col = batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .expect("utf8 column");
+        assert_eq!(col.value(0), "backtrace capture failed");
+    }
+
+    #[test]
+    fn test_python_namespace_data_returns_error_batch_on_invalid_expr() {
+        pyo3::Python::initialize();
+        let batches = PythonNamespace::data("not_a_valid..expression");
+        assert_eq!(batches.len(), 1);
+        assert_eq!(batches[0].schema().field(0).name(), "_error");
     }
 }

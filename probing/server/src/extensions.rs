@@ -92,7 +92,14 @@ impl ServerProbeExtension {
     }
 
     fn set_auth_token(&mut self, auth_token: Maybe<String>) -> Result<(), EngineError> {
-        self.auth_token = auth_token;
+        self.auth_token = auth_token.clone();
+        let value: String = auth_token.into();
+        probing_core::block_on(
+            async move { crate::auth::persist_auth_token(value.as_str()).await },
+        )
+        .map_err(|err| {
+            EngineError::InternalError(format!("failed to persist auth token: {err:#}"))
+        })??;
         Ok(())
     }
 

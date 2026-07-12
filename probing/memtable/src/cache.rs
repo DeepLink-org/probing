@@ -1,5 +1,5 @@
 use crate::layout::{chunk_header, r32};
-use crate::row::{panic_stale, Row};
+use crate::row::Row;
 use std::collections::HashMap;
 use std::sync::atomic::Ordering;
 
@@ -62,7 +62,7 @@ impl<'a> CachedReader<'a> {
         let len = r32(self.buf, data_off) as usize;
         let end = data_off.saturating_add(4).saturating_add(len);
         if end > self.buf.len() {
-            panic_stale("CachedReader dedup resolve");
+            return &[];
         }
         let b = &self.buf[data_off + 4..end];
         self.last_key = key;
@@ -126,7 +126,13 @@ impl<'a> CachedCursor<'a, '_> {
         if self.stale {
             return [0u8; N];
         }
-        let v: [u8; N] = self.data[self.pos..self.pos + N].try_into().unwrap();
+        let end = self.pos + N;
+        if end > self.data.len() {
+            self.stale = true;
+            return [0u8; N];
+        }
+        let mut v = [0u8; N];
+        v.copy_from_slice(&self.data[self.pos..end]);
         self.pos += N;
         v
     }
@@ -136,11 +142,28 @@ impl<'a> CachedCursor<'a, '_> {
             return &[];
         }
         let raw = i32::from_le_bytes(self.read_fixed::<4>());
+        if self.stale {
+            return &[];
+        }
         if raw < 0 {
             let data_off = self.chunk_start + (-raw) as usize;
+            if data_off + 4 > self.cache.buf.len() {
+                self.stale = true;
+                return &[];
+            }
+            let len = r32(self.cache.buf, data_off) as usize;
+            let end = data_off + 4 + len;
+            if end > self.cache.buf.len() {
+                self.stale = true;
+                return &[];
+            }
             self.cache.resolve_ref(data_off, self.generation)
         } else {
             let len = raw as usize;
+            if self.pos + len > self.data.len() {
+                self.stale = true;
+                return &[];
+            }
             let b = &self.data[self.pos..self.pos + len];
             self.pos += len;
             b

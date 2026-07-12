@@ -90,13 +90,23 @@ pub fn step_outcome_to_card(outcome: StepOutcome) -> AgentStepCardData {
             row_count,
             empty_message,
             cluster_note,
+            cluster_meta,
+            ..
         } => {
-            let status = if row_count > 0 {
+            let partial = cluster_meta.as_ref().is_some_and(|m| m.partial);
+            let status = if partial {
+                AgentStepStatus::Warn
+            } else if row_count > 0 {
                 AgentStepStatus::Ok
             } else if empty_message.is_some() {
                 AgentStepStatus::Warn
             } else {
                 AgentStepStatus::Skipped
+            };
+            let cluster_note = match (partial, cluster_note) {
+                (true, Some(note)) => Some(format!("partial · {note}")),
+                (true, None) => Some("partial cluster data".to_string()),
+                (false, note) => note,
             };
             AgentStepCardData {
                 step_id,

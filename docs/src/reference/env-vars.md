@@ -40,7 +40,6 @@ Prefix syntax: `init:SCRIPT+<mode>` runs `exec(open(SCRIPT).read())` after activ
 | `PROBING_MAX_FILE_SIZE` | server default | Maximum file upload size in bytes. |
 | `PROBING_ALLOWED_FILE_DIRS` | server default | Colon-separated list of directories allowed for file reads. |
 | `PROBING_BASE_PATH` | unset | URL path prefix for reverse proxy deployments (e.g. `/probing`). |
-| `PROBING_REMOTE_QUERY_TIMEOUT_SECS` | server default | Timeout for remote fan-out queries (federation). |
 | `PROBING_ASSETS_ROOT` | built-in default | Path to the web UI static assets directory. |
 
 ## Authentication
@@ -58,6 +57,7 @@ Prefix syntax: `init:SCRIPT+<mode>` runs `exec(open(SCRIPT).read())` after activ
 | `PROBING_SPAN_BACKENDS` | `memtable` | Comma-separated span backends. Built-in: `memtable` (`python.trace_event`), `logger` (stderr), `otel` (OpenTelemetry), `none` (stack only, no persistence). `configure_backends([])` also disables until `reset_backends()`. Unknown names fall back to `memtable` only. Custom backends: `probing.span_backends` entry point. See [Span API](../design/tracing-spans.md). |
 | `PROBING_SPAN_LOG_LEVEL` | `INFO` | Log level for the `logger` span backend. |
 | `PROBING_SPAN_LOCATION` | unset | Enable automatic location capture via `inspect.stack()` for every span. Adds overhead; use sparingly. |
+| `PROBING_TRACE_STDOUT` | unset | When `1`/`true`, `probing.inspect.trace` emits variable/tensor updates to **stdout** instead of the Python logger. |
 
 ## Step coordinates
 
@@ -185,6 +185,7 @@ Hierarchical side-channel registration when `WORLD_SIZE > 1`. See [torchrun clus
 | `PROBING_CLUSTER_FANOUT_HIERARCHICAL` | `1` | Hierarchical cluster query fan-out (coordinator → local0 → leaves). `0` = flat fan-out to every peer. See [Hierarchical fan-out](../design/hierarchical-fanout.md). |
 | `PROBING_REMOTE_QUERY_TIMEOUT_SECS` | `30` | Per-peer timeout for remote federated / cluster queries (seconds). |
 | `PROBING_FANOUT_CONCURRENCY` | `128` | Max concurrent in-flight remote fan-out HTTP requests per query. |
+| `PROBING_FANOUT_STRICT` | unset | When `1` or `true`, any federated peer failure or dropped batch fails the whole query instead of returning partial results. |
 | `PROBING_NCCL_CHUNK_BYTES` | `65536` | NCCL profiler mmap ring chunk size (bytes). |
 | `PROBING_NCCL_NUM_CHUNKS` | `64` | NCCL profiler mmap ring chunk count (~4 MiB total per table at defaults). |
 | `PROBING_NCCL_MAX_COLL_SLOTS` | `512` | Max in-flight collective/P2P event slots per rank. |
@@ -193,7 +194,7 @@ Hierarchical side-channel registration when `WORLD_SIZE > 1`. See [torchrun clus
 | `PROBING_NCCL_MAX_KERNEL_CH_SLOTS` | `8192` | Max in-flight kernel-channel slots per rank. |
 | `PROBING_NCCL_MAX_NET_SLOTS` | `4096` | Max in-flight net-plugin slots per rank. |
 | `PROBING_NCCL_POOL_SHARDS` | `8` | Shard slot pools by comm hash (1–64); total slot limits are divided evenly across shards. |
-| `PROBING_NCCL_MIN_MSG_BYTES` | `0` | Drop events below this message size (bytes); `0` = record all. |
+| `PROBING_NCCL_MIN_MSG_BYTES` | `0` | Drop events below this message size (bytes); `0` = record all. See also §NCCL above. |
 
 ## Debugging & diagnostics
 
@@ -204,13 +205,13 @@ Hierarchical side-channel registration when `WORLD_SIZE > 1`. See [torchrun clus
 | `PROBING_CRASH_BACKTRACE` | enabled | Print a backtrace on fatal signals (SIGSEGV, SIGABRT, etc.). Set to `0` to disable. |
 | `PROBING_RUST_BACKTRACE` | — | Rust error backtrace detail (similar to `RUST_BACKTRACE`). |
 | `PROBING_SAFE_DEMO` | — | Safe demonstration mode that restricts dangerous operations. |
+| `PROBING_MCP_ALLOW_WRITE` | unset | When `1`/`true`/`on`/`yes`, enables MCP write tools (`set_config`, `eval_python`). Default: read-only. See `probing/server/API.md`. |
 
 ## Skill & tool paths
 
 | Variable | Description |
 |----------|-------------|
-| `PROBING_PROJECT_SKILLS_DIR` | Per-project skill directory (overrides `$PWD/.probing/skills/`). |
-| `PROBING_USER_SKILLS_DIR` | Per-user skill directory (overrides `$HOME/.probing/skills/`). |
+| `PROBING_SKILLS_DIR` | Extra skill root directory (appended after bundled/repo/user/project paths). Highest-priority filesystem override. |
 | `PROBING_CODE_ROOT` | Root directory for embedded Python monitoring code. |
 | `PROBING_CLI_MODE` | Set automatically by the CLI to prevent recursive engine initialization. |
 | `PROBING_PYTHON` | Path to the Python interpreter used by the CLI. Set automatically. |

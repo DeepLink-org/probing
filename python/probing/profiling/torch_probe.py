@@ -819,7 +819,9 @@ class Sampler:
             else:
                 self.layer_rate = 1.0
         except (ValueError, IndexError):
-            print(f"Invalid sampling expression: {expr}. Using default settings.")
+            logger.warning(
+                "Invalid sampling expression: %s. Using default settings.", expr
+            )
             self.rate = DEFAULT_SAMPLE_RATE
             self.layer_rate = 1.0
 
@@ -838,7 +840,7 @@ class PythonTracer:
         if event == "exception":
             exception, value, traceback = arg
             if isinstance(value, RuntimeError):
-                print(f"Exception: {exception}, Value: {value}")
+                logger.debug("Exception: %s, Value: %s", exception, value)
         return self.trace_exceptions
 
 
@@ -1422,47 +1424,63 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
         except Exception:
             pass
 
-    def _drain_deferred(self) -> None:
-        """Persist GPU-event timings stashed by earlier sampled steps.
-
-        Reading ``elapsed_time`` needs the events to have completed; doing that on
-        the sampled step forces a blocking ``synchronize`` on an async backend
-        (CUDA/MPS) — that stall is exactly what inflates sampled-step wall time.
-        Instead we stash the (record, events) and drain them here on later
-        optimizer steps once the GPU has naturally caught up.
-
-        A record is only read after it has aged ``_DEFER_MIN_SETTLE`` optimizer
-        steps *and* its end event reports ready (``event.query()``). The settle
-        window matters most for backward events, which are recorded near the end
-        of a step: draining them the very next step (while the kernels they
-        bracket are still in flight) makes each ``elapsed_time`` force its own
-        blocking commit — dozens of ms per sampled step. Letting them age a couple
-        of steps turns every read into a free cached lookup, exactly like forward
-        events already behave. Entries older than ``_DEFER_MAX_LAG`` cycles are
-        force-completed (rare).
-        """
+    def _collect_ready_deferred(self) -> list[tuple[Any, bool]]:
+        """Partition deferred records ready to persist (main thread, non-blocking)."""
         if not self._deferred:
-            return
+            return []
         cutoff = self._step_cycle - _DEFER_MAX_LAG
         settle = self._step_cycle - _DEFER_MIN_SETTLE
+        ready: list[tuple[Any, bool]] = []
         remaining = []
         for dr in self._deferred:
             defer_cycle = getattr(dr, "_defer_cycle", self._step_cycle)
             force = defer_cycle <= cutoff
-            # Only read events that have had a few optimizer steps to settle on
-            # the GPU. Reading ``elapsed_time`` too soon (e.g. the very next step,
-            # while the backward kernels those events bracket are still in flight)
-            # forces a blocking commit — that stall is the sampled-step overhead.
-            # Letting them age a couple of steps means the reads hit already
-            # completed work for free, exactly like forward events naturally do.
             settled = defer_cycle <= settle
             if force or (settled and self._deferred_events_ready(dr)):
-                if force:
-                    self._force_event_complete(dr)
-                dr.save()
+                ready.append((dr, force))
             else:
                 remaining.append(dr)
         self._deferred = remaining
+        return ready
+
+    def _persist_deferred_records(self, ready: list[tuple[Any, bool]]) -> None:
+        if not ready:
+            return
+        from probing.profiling.deferred_drain import get_deferred_drain_worker
+
+        worker = get_deferred_drain_worker()
+        overflow: list[tuple[Any, bool]] = []
+        if worker.enabled:
+            for dr, force in ready:
+                if not worker.submit(dr, force=force):
+                    overflow.append((dr, force))
+        else:
+            overflow = ready
+        for dr, force in overflow:
+            if force:
+                self._force_event_complete(dr)
+            dr.save()
+
+    def _drain_deferred(self) -> None:
+        """Persist GPU-event timings stashed by earlier sampled steps.
+
+        Called **after** ``_record_step_timing`` so deferred ``elapsed_time``
+        reads and memtable writes do not inflate ``python.torch_step_timing``
+        wall rows for the step that is finishing.
+
+        When ``PROBING_TORCH_DEFER_ASYNC`` is enabled (default), ready records
+        are enqueued for a background worker so ``post_step_hook`` returns
+        sooner. A full queue falls back to synchronous ``save()`` on this thread.
+        """
+        ready = self._collect_ready_deferred()
+        self._persist_deferred_records(ready)
+
+    def _close_step_wall(self, *, is_shadow: bool) -> None:
+        """Record step wall time, then schedule deferred GPU trace persistence."""
+        self._record_step_timing(is_shadow=is_shadow)
+        self._drain_deferred()
+        self._advance_step_cycle_for_next()
+        self._mark_step_wall_start()
 
     def post_step_hook(self, opt, args, kwargs):
         if not self.enabled:
@@ -1476,18 +1494,12 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
             self._begin_train_step_span(optimizer=opt)
             return
 
-        # Reclaim earlier sampled steps' GPU timings every optimizer step, off
-        # their critical path (runs for shadow / non-sampled / sampled alike).
-        self._drain_deferred()
-
         if self.shadow_step:
             self._end_train_step_span()
             self.curr_step = step.micro_step
             self._cleanup_step_resources()
             self.step_start = None
-            self._record_step_timing(is_shadow=True)
-            self._advance_step_cycle_for_next()
-            self._mark_step_wall_start()
+            self._close_step_wall(is_shadow=True)
             return
 
         self._end_train_step_span()
@@ -1500,9 +1512,7 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
             self._cleanup_step_resources()
             self.step_start = None
             self.pending.clear()
-            self._record_step_timing(is_shadow=False)
-            self._advance_step_cycle_for_next()
-            self._mark_step_wall_start()
+            self._close_step_wall(is_shadow=False)
             return
 
         super().post_step_hook(opt, args, kwargs)
@@ -1533,9 +1543,7 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
 
         self._cleanup_step_resources()
         self.step_start = None
-        self._record_step_timing(is_shadow=False)
-        self._advance_step_cycle_for_next()
-        self._mark_step_wall_start()
+        self._close_step_wall(is_shadow=False)
 
 
 def set_sampling_mode(mode):

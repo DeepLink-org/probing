@@ -1,6 +1,9 @@
 pub mod cli;
 pub mod table;
 
+#[cfg(feature = "python-bridge")]
+pub mod pyo3;
+
 #[cfg(target_os = "linux")]
 pub mod inject;
 

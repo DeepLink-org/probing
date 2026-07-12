@@ -71,7 +71,7 @@ Common issues and their solutions when using Probing.
 
 3. **Wait for data collection**:
    Tables are populated as operations occur. Run training steps first.
-   The first TorchProbe step is discovery only (no rows); use `WHERE step > 1` if needed.
+   The first TorchProbe step is discovery only (no rows); use `WHERE local_step > 1` if needed.
 
 ### Empty Results
 
@@ -92,7 +92,7 @@ Common issues and their solutions when using Probing.
 
 3. **Check step range**:
    ```sql
-   SELECT MIN(step), MAX(step) FROM python.torch_trace;
+   SELECT MIN(local_step), MAX(local_step) FROM python.torch_trace;
    ```
 
 ## Eval Issues
@@ -168,7 +168,7 @@ Common issues and their solutions when using Probing.
 
 4. **Use SQL step filters** instead of a warmup schedule:
    ```sql
-   SELECT * FROM python.torch_trace WHERE step > 10;
+   SELECT * FROM python.torch_trace WHERE local_step > 10;
    ```
 
 ### Query Timeout
@@ -184,12 +184,12 @@ Common issues and their solutions when using Probing.
 
 2. **Use step filtering**:
    ```sql
-   WHERE step > (SELECT MAX(step) - 10 FROM python.torch_trace)
+   WHERE local_step > (SELECT MAX(local_step) - 10 FROM python.torch_trace)
    ```
 
 3. **Aggregate data**:
    ```sql
-   SELECT step, AVG(duration) FROM python.torch_trace GROUP BY step;
+   SELECT local_step, AVG(duration) FROM python.torch_trace GROUP BY local_step;
    ```
 
 ## Data Issues
@@ -208,7 +208,7 @@ Common issues and their solutions when using Probing.
    ```
 
 2. **Confirm training has progressed** — rows append when hooks fire; step 1 of TorchProbe
-   is discovery-only (use `WHERE step > 1` if needed).
+   is discovery-only (use `WHERE local_step > 1` if needed).
 
 3. **Check TorchProbe is not off**:
    ```bash

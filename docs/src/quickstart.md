@@ -168,6 +168,18 @@ probing -t <master> query "
 `_rank` is a federation tag added at query time — see [Core Concepts](guide/concepts.md)
 for how this works.
 
+## Diagnostic skills
+
+After the server is running, run bundled diagnostic workflows:
+
+```bash
+probing $ENDPOINT skill list
+probing $ENDPOINT skill run health_overview
+probing $ENDPOINT skill run slow_rank --global    # multi-node straggler (from rank0)
+```
+
+Skills execute SQL steps in-process and apply interpretation rules. See [Skills](guide/skills.md) and `skills/catalog.yaml`.
+
 ## What's next
 
 These three commands — `backtrace`, `eval`, `query` — cover the majority of

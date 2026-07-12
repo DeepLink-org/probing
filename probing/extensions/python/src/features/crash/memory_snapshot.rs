@@ -40,7 +40,12 @@ impl MemorySnapshot {
             ..Default::default()
         };
         match block_on(fetch_table_hints()) {
-            Ok(Ok(hints)) => snap.merge_table_hints(hints),
+            Ok(Ok((hints, partial_unavailable))) => {
+                snap.merge_table_hints(hints);
+                if partial_unavailable {
+                    snap.table_hints_unavailable = true;
+                }
+            }
             Ok(Err(e)) => {
                 log::warn!("memory snapshot: table hints query failed: {e}");
                 snap.table_hints_unavailable = true;
@@ -77,45 +82,64 @@ struct TableMemoryHints {
     gpu_devices: Vec<GpuDeviceMemory>,
 }
 
-async fn fetch_table_hints() -> Result<TableMemoryHints, probing_core::runtime::RuntimeError> {
+async fn fetch_table_hints() -> Result<(TableMemoryHints, bool), probing_core::runtime::RuntimeError>
+{
     let engine = ENGINE.read().await;
     let mut hints = TableMemoryHints {
         sampled_rss_kb: -1,
         torch_allocated_bytes: -1,
         gpu_devices: Vec::new(),
     };
+    let mut unavailable = false;
 
-    if let Ok(Some(df)) = engine
+    match engine
         .async_query(
             "SELECT rss_kb FROM cpu.utilization \
              WHERE scope = 'process' ORDER BY ts DESC LIMIT 1",
         )
         .await
     {
-        hints.sampled_rss_kb = col_i64_first(&df, "rss_kb").unwrap_or(-1);
+        Ok(Some(df)) => hints.sampled_rss_kb = col_i64_first(&df, "rss_kb").unwrap_or(-1),
+        Ok(None) => unavailable = true,
+        Err(e) => {
+            log::warn!("memory snapshot: cpu.utilization query failed: {e}");
+            unavailable = true;
+        }
     }
 
-    if let Ok(Some(df)) = engine
+    match engine
         .async_query(
             "SELECT device_id, name, used_bytes, total_bytes, mem_used_pct \
              FROM gpu.utilization ORDER BY ts DESC LIMIT 32",
         )
         .await
     {
-        hints.gpu_devices = latest_gpu_devices(&df);
+        Ok(Some(df)) => hints.gpu_devices = latest_gpu_devices(&df),
+        Ok(None) => unavailable = true,
+        Err(e) => {
+            log::warn!("memory snapshot: gpu.utilization query failed: {e}");
+            unavailable = true;
+        }
     }
 
-    if let Ok(Some(df)) = engine
+    match engine
         .async_query(
             "SELECT max(allocated) AS torch_allocated FROM python.torch_trace \
              WHERE allocated IS NOT NULL",
         )
         .await
     {
-        hints.torch_allocated_bytes = col_i64_first(&df, "torch_allocated").unwrap_or(-1);
+        Ok(Some(df)) => {
+            hints.torch_allocated_bytes = col_i64_first(&df, "torch_allocated").unwrap_or(-1)
+        }
+        Ok(None) => unavailable = true,
+        Err(e) => {
+            log::warn!("memory snapshot: python.torch_trace query failed: {e}");
+            unavailable = true;
+        }
     }
 
-    Ok(hints)
+    Ok((hints, unavailable))
 }
 
 fn latest_gpu_devices(df: &DataFrame) -> Vec<GpuDeviceMemory> {

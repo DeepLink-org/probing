@@ -233,6 +233,8 @@ Every `global.*` row adds:
 | `_host` | Peer hostname |
 | `_addr` | Peer `host:port` |
 | `_rank` | `torch.distributed` rank from node registry |
+| `_node_rank` | Node / worker group rank (`GROUP_RANK`) |
+| `_local_rank` | GPU index on node (`LOCAL_RANK`) |
 | `_role` | Parallel role key from node registry |
 
 Collectors must not invent alternate peer tags.
@@ -382,7 +384,7 @@ Track and fix incrementally:
 |-------|---------|--------|
 | Python ext → CLI | `probing-python` → `probing-cli` | **Accepted** for maturin wheel (`cli_main` only); keep import surface minimal |
 | Python ext → CC | ~~`probing-python` → `probing-cc`~~ | **Done** — `send_sigusr2_to_thread_id` moved to `probing-core::signal` |
-| Core → NCCL/HCCL | `probing-core` → `probing-nccl-profiler` / `probing-hccl-shim` (`builtin-schema-docs` feature) for `semantic_catalog` | Register docs via collector hooks or manifest; drop L1→L2 compile deps |
+| Core → NCCL/HCCL | ~~`probing-core` → `probing-nccl-profiler` / `probing-hccl-shim` (`builtin-schema-docs` feature) for `semantic_catalog`~~ | **Done** — `register_docs()` called from `server/engine.rs` composition root; `probing-core` default features empty |
 | Core → skills YAML | ~~`semantic_catalog.rs` `include_str!(skills/semantic/tables.yaml)`~~ | **Done** — overlay at `probing/core/resources/tables.yaml`; descriptions SSOT in `docs` registry |
 | Server → python `features/*` | ~~`server/profiling.rs`~~ removed | Flamegraphs via `torchextension` / `pprofextension` `ProbeExtensionCall` |
 | Server → python REPL internals | ~~`PythonRepl` in server~~ | `/ws` uses `ReplSession` facade only |

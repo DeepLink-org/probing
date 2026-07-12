@@ -1,14 +1,16 @@
-//! Python-facing skill discovery APIs (``probing._core.skills_*``).
+//! PyO3 bindings for skill discovery (wheel / `_core` module — not L2 collector).
 
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 
-use probing_skills::api;
-use probing_skills::catalog::{load_intents, load_pages};
-use probing_skills::routing::match_skills;
-use probing_skills::runner::plan_skill;
+use crate::api;
+use crate::catalog::{load_intents, load_pages};
+use crate::routing::match_skills;
+use crate::runner::plan_skill;
 
-use crate::features::py_result::runtime_err;
+fn runtime_err(err: serde_json::Error) -> PyErr {
+    PyRuntimeError::new_err(err.to_string())
+}
 
 #[pyfunction]
 pub fn skills_intents() -> PyResult<String> {
@@ -74,4 +76,17 @@ fn json_scalar_to_string(value: &serde_json::Value) -> String {
         serde_json::Value::String(s) => s.clone(),
         other => other.to_string(),
     }
+}
+
+/// Register `skills_*` callables on the probing `_core` module.
+pub fn register_skills_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(skills_load, m)?)?;
+    m.add_function(wrap_pyfunction!(skills_catalog, m)?)?;
+    m.add_function(wrap_pyfunction!(skills_routing, m)?)?;
+    m.add_function(wrap_pyfunction!(skills_list, m)?)?;
+    m.add_function(wrap_pyfunction!(skills_plan, m)?)?;
+    m.add_function(wrap_pyfunction!(skills_match, m)?)?;
+    m.add_function(wrap_pyfunction!(skills_intents, m)?)?;
+    m.add_function(wrap_pyfunction!(skills_pages, m)?)?;
+    Ok(())
 }

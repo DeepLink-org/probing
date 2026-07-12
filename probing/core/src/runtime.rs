@@ -21,41 +21,17 @@ pub enum RuntimeError {
 
 impl From<RuntimeError> for datafusion::error::DataFusionError {
     fn from(e: RuntimeError) -> Self {
-        datafusion::error::DataFusionError::Execution(e.to_string())
+        datafusion::error::DataFusionError::External(Box::new(e))
     }
 }
 
-/// Fallback value when [`block_on`] cannot run the future (never panics or exits).
+/// Fallback value when the native bridge cannot recover a stored closure (internal only).
 pub trait BlockOnFallback: Send + 'static {
     fn on_block_on_failure(err: RuntimeError) -> Self;
 }
 
 impl BlockOnFallback for () {
     fn on_block_on_failure(_: RuntimeError) -> Self {}
-}
-
-impl BlockOnFallback for bool {
-    fn on_block_on_failure(_: RuntimeError) -> Self {
-        false
-    }
-}
-
-impl BlockOnFallback for usize {
-    fn on_block_on_failure(_: RuntimeError) -> Self {
-        0
-    }
-}
-
-impl BlockOnFallback for i32 {
-    fn on_block_on_failure(_: RuntimeError) -> Self {
-        0
-    }
-}
-
-impl<T: Send + 'static> BlockOnFallback for Option<T> {
-    fn on_block_on_failure(_: RuntimeError) -> Self {
-        None
-    }
 }
 
 impl<T, E> BlockOnFallback for Result<T, E>
@@ -71,29 +47,6 @@ where
 impl<T: Send + 'static> BlockOnFallback for Result<T, String> {
     fn on_block_on_failure(err: RuntimeError) -> Self {
         Err(err.to_string())
-    }
-}
-
-impl<K, V, S> BlockOnFallback for std::collections::HashMap<K, V, S>
-where
-    K: Eq + std::hash::Hash + Send + 'static,
-    V: Send + 'static,
-    S: Default + std::hash::BuildHasher + Send + 'static,
-{
-    fn on_block_on_failure(_: RuntimeError) -> Self {
-        Self::default()
-    }
-}
-
-impl BlockOnFallback for String {
-    fn on_block_on_failure(_: RuntimeError) -> Self {
-        String::new()
-    }
-}
-
-impl<T: Send + 'static> BlockOnFallback for Vec<T> {
-    fn on_block_on_failure(_: RuntimeError) -> Self {
-        Vec::new()
     }
 }
 
@@ -143,13 +96,13 @@ pub struct CoreRuntime {
     degraded: AtomicBool,
 }
 
-static FALLBACK_RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+static FALLBACK_RUNTIME: OnceLock<Option<&'static tokio::runtime::Runtime>> = OnceLock::new();
 
 /// Last-resort runtime for the server-side `block_on`/`spawn` methods, which —
 /// unlike the free [`block_on`] function — cannot return a `Result`. Tries a
 /// bounded number of times rather than spinning forever, so a catastrophic
 /// environment fails loudly instead of hanging a thread.
-fn build_emergency_runtime() -> tokio::runtime::Runtime {
+fn build_emergency_runtime() -> Option<tokio::runtime::Runtime> {
     const MAX_ATTEMPTS: u32 = 8;
     for attempt in 1..=MAX_ATTEMPTS {
         match tokio::runtime::Builder::new_current_thread()
@@ -157,7 +110,7 @@ fn build_emergency_runtime() -> tokio::runtime::Runtime {
             .thread_name("probing-runtime-fallback")
             .build()
         {
-            Ok(rt) => return rt,
+            Ok(rt) => return Some(rt),
             Err(e) => {
                 log::error!(
                     "probing: emergency runtime creation failed (attempt {attempt}/{MAX_ATTEMPTS}): {e}"
@@ -166,7 +119,43 @@ fn build_emergency_runtime() -> tokio::runtime::Runtime {
             }
         }
     }
-    panic!("probing: unable to create any tokio runtime after {MAX_ATTEMPTS} attempts");
+    log::error!(
+        "probing: unable to create any tokio runtime after {MAX_ATTEMPTS} attempts; \
+         async bridge will use ephemeral executors"
+    );
+    None
+}
+
+fn try_ephemeral_runtime() -> Option<&'static tokio::runtime::Runtime> {
+    static EPHEMERAL: OnceLock<Option<tokio::runtime::Runtime>> = OnceLock::new();
+    EPHEMERAL
+        .get_or_init(|| {
+            match tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .thread_name("probing-runtime-ephemeral")
+                .build()
+            {
+                Ok(rt) => Some(rt),
+                Err(e) => {
+                    log::error!("probing: ephemeral runtime build failed: {e}; retrying minimal");
+                    tokio::runtime::Builder::new_current_thread()
+                        .build()
+                        .map(Some)
+                        .unwrap_or_else(|e2| {
+                            log::error!("probing: minimal ephemeral runtime build failed: {e2}");
+                            None
+                        })
+                }
+            }
+        })
+        .as_ref()
+}
+
+fn fallback_runtime() -> Option<&'static tokio::runtime::Runtime> {
+    FALLBACK_RUNTIME
+        .get_or_init(|| build_emergency_runtime().map(|rt| Box::leak(Box::new(rt)) as &'static _))
+        .as_ref()
+        .copied()
 }
 
 impl CoreRuntime {
@@ -185,15 +174,16 @@ impl CoreRuntime {
         }
     }
 
-    fn runtime_ref(&self) -> &tokio::runtime::Runtime {
+    fn resolve_runtime(&self) -> Option<&tokio::runtime::Runtime> {
         if let Some(rt) = &self.inner {
-            return rt;
+            return Some(rt);
         }
-        FALLBACK_RUNTIME.get_or_init(|| {
-            self.mark_degraded();
-            log::error!("probing: activating emergency fallback tokio runtime");
-            build_emergency_runtime()
-        })
+        self.mark_degraded();
+        fallback_runtime().or_else(try_ephemeral_runtime)
+    }
+
+    fn ensure_runtime(&self) -> Option<&tokio::runtime::Runtime> {
+        self.resolve_runtime()
     }
 
     /// Whether the shared runtime is healthy enough for probing async work.
@@ -215,18 +205,79 @@ impl CoreRuntime {
         F: Future + Send + 'static,
         F::Output: Send + 'static,
     {
-        self.runtime_ref().spawn(future)
+        match self.ensure_runtime() {
+            Some(rt) => rt.spawn(future),
+            None => {
+                self.mark_degraded();
+                log::error!("probing: no tokio runtime for spawn; creating per-call ephemeral");
+                match tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                {
+                    Ok(rt) => rt.spawn(future),
+                    Err(e) => {
+                        log::error!("probing: per-call spawn runtime build failed: {e}");
+                        try_ephemeral_runtime()
+                            .expect("probing: no tokio runtime for spawn")
+                            .spawn(future)
+                    }
+                }
+            }
+        }
     }
 
-    pub fn handle(&self) -> tokio::runtime::Handle {
-        self.runtime_ref().handle().clone()
+    pub fn handle(&self) -> Option<tokio::runtime::Handle> {
+        self.ensure_runtime().map(|rt| rt.handle().clone())
     }
 
+    /// Run a future on this runtime; returns `Err` when no executor is available.
+    pub fn try_block_on<F, T>(&self, future: F) -> Result<T, RuntimeError>
+    where
+        F: Future<Output = T>,
+    {
+        if let Some(rt) = &self.inner {
+            return Ok(rt.block_on(future));
+        }
+        if let Some(rt) = fallback_runtime() {
+            self.mark_degraded();
+            return Ok(rt.block_on(future));
+        }
+        if let Some(rt) = try_ephemeral_runtime() {
+            self.mark_degraded();
+            log::error!(
+                "probing: no core/fallback runtime for try_block_on; using static ephemeral"
+            );
+            return Ok(rt.block_on(future));
+        }
+        self.mark_degraded();
+        log::error!(
+            "probing: no tokio runtime for try_block_on; using per-call ephemeral executor"
+        );
+        block_on_ephemeral(future)
+    }
+
+    /// Prefer [`try_block_on`] when the caller can surface bridge failures.
     pub fn block_on<F, T>(&self, future: F) -> T
     where
         F: Future<Output = T>,
     {
-        self.runtime_ref().block_on(future)
+        if let Some(rt) = &self.inner {
+            return rt.block_on(future);
+        }
+        if let Some(rt) = fallback_runtime() {
+            self.mark_degraded();
+            return rt.block_on(future);
+        }
+        if let Some(rt) = try_ephemeral_runtime() {
+            self.mark_degraded();
+            return rt.block_on(future);
+        }
+        self.mark_degraded();
+        log::error!("probing: CoreRuntime::block_on using per-call ephemeral executor");
+        block_on_ephemeral(future).unwrap_or_else(|err| {
+            log::error!("probing: CoreRuntime::block_on failed: {err}");
+            panic!("probing: async bridge unavailable: {err}");
+        })
     }
 }
 
@@ -267,7 +318,7 @@ fn take_from_mutex_cell<T>(cell: &Mutex<Option<T>>, context: &str) -> Option<T> 
     }
 }
 
-fn block_on_ephemeral<F, T>(future: F) -> T
+fn block_on_ephemeral<F, T>(future: F) -> Result<T, RuntimeError>
 where
     F: Future<Output = T>,
 {
@@ -275,11 +326,8 @@ where
         .enable_all()
         .build()
     {
-        Ok(rt) => rt.block_on(future),
-        Err(e) => {
-            log::error!("failed to create ephemeral block_on runtime: {e}; using futures executor");
-            futures::executor::block_on(future)
-        }
+        Ok(rt) => Ok(rt.block_on(future)),
+        Err(e) => block_on_failed(&format!("ephemeral runtime build failed: {e}")),
     }
 }
 
@@ -294,7 +342,7 @@ where
     F: Future<Output = T>,
 {
     match take_from_mutex_cell(future_cell, "block_on recovery") {
-        Some(fut) => Ok(block_on_ephemeral(fut)),
+        Some(fut) => block_on_ephemeral(fut),
         None => block_on_failed("future missing during block_on recovery"),
     }
 }
@@ -314,7 +362,13 @@ where
             log::error!("probing block_on worker: future missing from cell");
             return;
         };
-        let out = CORE_RUNTIME.block_on(fut);
+        let out = match CORE_RUNTIME.try_block_on(fut) {
+            Ok(v) => v,
+            Err(e) => {
+                log::error!("probing block_on worker: runtime unavailable: {e}");
+                return;
+            }
+        };
         let _ = tx.send(out);
     };
 
@@ -483,9 +537,10 @@ where
     }
     run_on_native_thread(move || {
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            CORE_RUNTIME.block_on(future)
+            CORE_RUNTIME.try_block_on(future)
         })) {
-            Ok(v) => Ok(v),
+            Ok(Ok(v)) => Ok(v),
+            Ok(Err(e)) => Err(e),
             Err(_) => {
                 log::error!("probing block_on panicked on native thread");
                 CORE_RUNTIME.mark_degraded();
@@ -498,6 +553,14 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn try_block_on_completes_on_current_runtime() {
+        let value = CORE_RUNTIME
+            .try_block_on(async { 21 + 21 })
+            .expect("runtime available in tests");
+        assert_eq!(value, 42);
+    }
 
     #[test]
     fn block_on_completes_on_current_runtime() {
@@ -515,9 +578,8 @@ mod tests {
 
     #[test]
     fn native_bridge_serializes_calls() {
-        let a = run_on_native_bridge(|| 1);
-        let b = run_on_native_bridge(|| 2);
-        assert_eq!(a + b, 3);
+        run_on_native_bridge(|| ());
+        run_on_native_bridge(|| ());
     }
 
     #[test]

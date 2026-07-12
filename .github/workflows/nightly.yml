@@ -57,13 +57,16 @@ jobs:
           make frontend
           make wheel-bundle nccl-profiler-lib
 
+      - name: Apply nightly local version (PEP 440)
+        run: python scripts/ci/set_nightly_local_version.py "${{ needs.meta.outputs.local_version }}"
+
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
           args: >-
             --release --out dist --zig --compatibility manylinux2014
-            --auditwheel repair --local-version ${{ needs.meta.outputs.local_version }}
+            --auditwheel repair
             --features extension-module,gpu,gpu-cuda,kmsg
           sccache: "true"
           manylinux: auto
@@ -99,13 +102,15 @@ jobs:
           make frontend
           make wheel-bundle
 
+      - name: Apply nightly local version (PEP 440)
+        run: python scripts/ci/set_nightly_local_version.py "${{ needs.meta.outputs.local_version }}"
+
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
           args: >-
             --release --out dist --find-interpreter
-            --local-version ${{ needs.meta.outputs.local_version }}
             --features extension-module,gpu,kmsg
           sccache: "true"
           rust-toolchain: stable

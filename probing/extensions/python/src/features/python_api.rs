@@ -1,10 +1,8 @@
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
-use pyo3::prelude::*;
-
-use probing_cli::cli_main as cli_main_impl;
 use probing_core::runtime::block_on;
 use probing_core::ENGINE;
+use pyo3::prelude::*;
 
 use crate::features::native_bridge::with_detached_native;
 use crate::features::py_result::runtime_err;
@@ -32,15 +30,15 @@ pub fn is_enabled() -> bool {
 #[pyfunction]
 pub fn query_json(_py: Python, sql: String) -> PyResult<String> {
     with_detached_native(move || {
-        let df = block_on(async move { ENGINE.read().await.async_query(sql.as_str()).await })
-            .map_err(runtime_err)?
-            .map_err(runtime_err)?
-            .ok_or_else(|| {
-                pyo3::exceptions::PyRuntimeError::new_err(
-                    "query returned no dataframe (engine unavailable or empty response)",
-                )
-            })?;
-        serde_json::to_string(&df).map_err(runtime_err)
+        let bridge = block_on(async move { ENGINE.read().await.async_query(sql.as_str()).await })
+            .map_err(|e| runtime_err(format!("probing runtime unavailable: {e}")))?;
+        match bridge {
+            Ok(Some(df)) => serde_json::to_string(&df).map_err(runtime_err),
+            Ok(None) => Err(pyo3::exceptions::PyRuntimeError::new_err(
+                "query returned nil (no tabular result; e.g. SET or non-SELECT)",
+            )),
+            Err(e) => Err(runtime_err(format!("engine SQL failed: {e}"))),
+        }
     })
 }
 
@@ -78,18 +76,4 @@ pub fn api_eval(code: &str) -> PyResult<String> {
         Ok(s) => Ok(s),
         Err(_) => Ok(serde_json::json!({"error": "REPL execution panicked"}).to_string()),
     }
-}
-
-#[pyfunction]
-pub fn cli_main(py: Python, args: Vec<String>) -> PyResult<()> {
-    // Skill install/update shells out to ``python -m probing.skills`` — use this interpreter.
-    if let Ok(exe) = py.import("sys")?.getattr("executable")?.extract::<String>() {
-        std::env::set_var("PROBING_PYTHON", exe);
-    }
-    if let Err(e) = cli_main_impl(args) {
-        return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-            e.to_string(),
-        ));
-    }
-    Ok(())
 }

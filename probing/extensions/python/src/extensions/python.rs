@@ -87,7 +87,7 @@ impl ProbeExtensionCall for PythonExt {
             return crate::features::crash::handle_http(normalized_path, params, body)
                 .map_err(EngineError::plugin);
         }
-        call_python_handler(normalized_path, params, body)
+        call_python_handler(normalized_path, params, body).await
     }
 }
 
@@ -277,7 +277,10 @@ fn backtrace(tid: Option<i32>) -> anyhow::Result<Vec<CallFrame>> {
 }
 
 /// Call Python handler through the router system.
-fn call_python_handler(
+///
+/// Runs on Tokio's blocking thread pool so the async HTTP/MCP worker is not
+/// held while the handler acquires the GIL and executes Python.
+async fn call_python_handler(
     path: &str,
     params: &HashMap<String, String>,
     body: &[u8],
@@ -285,6 +288,16 @@ fn call_python_handler(
     let path = path.to_string();
     let params = params.clone();
     let body = body.to_vec();
+    tokio::task::spawn_blocking(move || call_python_handler_blocking(path, params, body))
+        .await
+        .map_err(|e| EngineError::plugin(format!("python handler task join failed: {e}")))?
+}
+
+fn call_python_handler_blocking(
+    path: String,
+    params: HashMap<String, String>,
+    body: Vec<u8>,
+) -> EngineResult<Vec<u8>> {
     run_on_native_thread(move || {
         Python::attach(|py| {
             let router_module = py

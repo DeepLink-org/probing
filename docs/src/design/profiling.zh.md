@@ -48,7 +48,7 @@ TorchProbe 面向**注入后长期开启的 module 级训练遥测**（`PROBING_
 **不提供 warmup schedule API**。跳过冷启动步请在 SQL 中过滤：
 
 ```sql
-SELECT * FROM python.torch_trace WHERE step > 10;
+SELECT * FROM python.torch_trace WHERE local_step > 10;
 ```
 
 ### 钩子
@@ -74,7 +74,7 @@ SELECT * FROM python.torch_trace WHERE step > 10;
 
 **Shadow 基线 step（默认 `shadow=4:1`）**：每 4 个正常训练 step 之后插入 1 个完全跳过 TorchProbe hook 的 step（不写 module 级 `python.torch_trace`）。NCCL、CPU/GPU 等其它采集不变。每个 step 写一行 `python.torch_step_timing`（shadow step 的 `is_shadow=1`）。可用 `shadow=off` 关闭。
 
-估算开销：
+估算开销（公式与测量方法见 **[开销测量](overhead.zh.md)**）：
 
 ```sql
 SELECT
@@ -163,6 +163,8 @@ configure("on,rate=0.5,layer_rate=0.3")
 
 通过 `PROBING_GPU_SAMPLE_MS` 等环境变量配置间隔，采集主机 CPU、内存、GPU 利用率等。
 
+**变量/张量 watch（`probing.inspect.trace`）：** 默认写入 Python logger；设置 `PROBING_TRACE_STDOUT=1` 可改为 **stdout** 输出（本地调试方便，生产训练日志慎用）。
+
 ## 数据存储
 
 探针数据存入**列式探针表**（如 `python.torch_trace`），由查询引擎访问。保留与联邦策略由 memtable / server 配置决定，而非进程内固定大小环形缓冲区。
@@ -173,7 +175,7 @@ configure("on,rate=0.5,layer_rate=0.3")
 -- 跳过 discovery / 冷启动
 SELECT module, stage, AVG(duration) AS avg_sec
 FROM python.torch_trace
-WHERE step > 1 AND duration > 0
+WHERE local_step > 1 AND duration > 0
 GROUP BY module, stage
 ORDER BY avg_sec DESC;
 

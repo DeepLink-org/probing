@@ -19,10 +19,21 @@ impl ApiClient {
     pub async fn load_skill_store(&self) -> Result<()> {
         let routing = self.fetch_skills_routing().await?;
         let mut payloads = Vec::new();
+        let mut failed = Vec::new();
         for entry in &routing.catalog.skills {
-            if let Ok(payload) = self.fetch_skill_payload(&entry.id).await {
-                payloads.push(payload);
+            match self.fetch_skill_payload(&entry.id).await {
+                Ok(payload) => payloads.push(payload),
+                Err(err) => {
+                    log::warn!("skill store: failed to load {}: {}", entry.id, err);
+                    failed.push(entry.id.clone());
+                }
             }
+        }
+        if payloads.is_empty() && !routing.catalog.skills.is_empty() {
+            return Err(crate::utils::error::AppError::Api(format!(
+                "failed to load any skills ({} errors)",
+                failed.len()
+            )));
         }
         populate_skill_store(routing, payloads);
         Ok(())

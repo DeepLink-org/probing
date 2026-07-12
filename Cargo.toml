@@ -17,6 +17,20 @@ members = [
     "probing/crates/store",
     "probing/crates/skills",
 ]
+# `cargo build` without -p skips regression harness / cdylib-only crates.
+default-members = [
+    "probing/cli",
+    "probing/core",
+    "probing/server",
+    "probing/memtable",
+    "probing/proto",
+    "probing/extensions/python",
+    "probing/extensions/cc",
+    "probing/extensions/gpu",
+    "probing/extensions/nccl-profiler",
+    "probing/crates/skills",
+    "probing/crates/store",
+]
 
 [workspace.package]
 version = "0.2.5"
@@ -60,6 +74,7 @@ tokio = { version = "1.52.3", default-features = false, features = [
     "io-util",
     "rt-multi-thread",
 ] }
+ureq = { version = "3.3", default-features = false, features = ["json", "rustls"] }
 criterion = { version = "0.6.0", features = ["html_reports"] }
 
 [package]
@@ -96,7 +111,8 @@ probing-server = { path = "probing/server", default-features = false, features =
 probing-python = { path = "probing/extensions/python", default-features = false, features = [
     "tracing",
 ] }
-probing-cli = { path = "probing/cli" }
+probing-cli = { path = "probing/cli", features = ["python-bridge"] }
+probing-skills = { path = "probing/crates/skills", features = ["python-bridge"] }
 
 anyhow = { workspace = true }
 ctor = { workspace = true }
@@ -114,16 +130,26 @@ pyo3 = { version = "0.29.0", default-features = false, features = [
 [build-dependencies]
 pyo3-build-config = "0.29.0"
 
-# Faster compile + smaller artifacts than default dev (full DWARF).
-# Line tables still support breakpoints / backtraces; use `DEBUG=1 make develop` for this profile.
+# Dev (`DEBUG=1 make develop`, `cargo check`): prioritize compile speed + lean intermediates.
+# debug=1 → line tables only (breakpoints/backtraces without full DWARF).
 [profile.dev]
 debug = 1
 split-debuginfo = "unpacked"
-codegen-units = 16
+incremental = true
+codegen-units = 256
 
+[profile.dev.build-override]
+opt-level = 3
+
+# Release (`make develop`, wheels, CI): smaller artifacts; thin LTO beats fat LTO on link time.
+# opt-level "s" ≈ "z" size with faster codegen than aggressive "z".
 [profile.release]
-opt-level = "z"  # Optimize for size.
-panic = "unwind"
-strip = false    # Automatically strip symbols from the binary.
-# lto = "thin"
+opt-level = "s"
+lto = "thin"
 codegen-units = 16
+panic = "unwind"
+strip = true
+
+[profile.release.build-override]
+opt-level = 3
+codegen-units = 256

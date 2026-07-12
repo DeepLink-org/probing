@@ -7,7 +7,10 @@ Import hook：在指定模块被 import 时执行回调。
 
 import importlib.abc
 import importlib.util
+import logging
 import sys
+
+logger = logging.getLogger(__name__)
 
 
 # Lazy imports to avoid import errors if modules are not available
@@ -141,12 +144,12 @@ def _run_callbacks(module_name):
             try:
                 cb()
             except Exception as e:
-                print(f"Error in callback for {module_name}: {e}")  # noqa: T201
+                logger.warning("Error in callback for %s: %s", module_name, e)
     else:
         try:
             callbacks()
         except Exception as e:
-            print(f"Error in callback for {module_name}: {e}")  # noqa: T201
+            logger.warning("Error in callback for %s: %s", module_name, e)
 
 
 def register_module_callback(module_name, callback):
@@ -158,7 +161,7 @@ def register_module_callback(module_name, callback):
         try:
             callback(sys.modules[module_name])
         except Exception as e:
-            print(f"Error executing callback for {module_name}: {e}")  # noqa: T201
+            logger.warning("Error executing callback for %s: %s", module_name, e)
 
 
 def add_module_callback(module_name, callback):
