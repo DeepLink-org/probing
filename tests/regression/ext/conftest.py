@@ -21,6 +21,15 @@ collect_ignore = [
 
 
 @pytest.fixture(autouse=True)
+def _restore_import_hook_register():
+    from probing.hooks import import_hook
+
+    import_hook.reset_register()
+    yield
+    import_hook.reset_register()
+
+
+@pytest.fixture(autouse=True)
 def _reset_megatron_ext_state():
     megatron_ext._PARALLEL_STATE_INIT = False
     megatron_ext._TRAINING_INIT = False

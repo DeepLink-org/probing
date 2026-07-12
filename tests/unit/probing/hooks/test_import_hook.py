@@ -38,6 +38,8 @@ class TestImportHook(unittest.TestCase):
             if module_name.startswith("my_module"):
                 del sys.modules[module_name]
 
+        import_hook.reset_register()
+
     def test_import_hook_new_module(self):
         """Test callback execution when importing a new module."""
         callback_executed = []
