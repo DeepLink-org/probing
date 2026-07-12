@@ -1,5 +1,5 @@
 use crate::inject::{Injector, Process};
-use anyhow::{anyhow, Context, Error, Result};
+use anyhow::{anyhow, Error, Result};
 use clap::Args;
 use probing_proto::prelude::Query;
 
