@@ -30,7 +30,7 @@ axum = { version = "0.8.1", default-features = false, features = [
     "query",
     "json",
 ] }
-base64 = "0.21.5"
+base64 = "0.22.1"
 datafusion = { workspace = true }
 futures = "0.3.31"
 pyo3 = { version = "0.29.0", default-features = false, features = [
