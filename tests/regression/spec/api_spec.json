@@ -282,10 +282,7 @@
         "source": "web/src/api/pytorch.rs",
         "calls": [
           { "method": "GET", "path": "/apis/pythonext/pytorch/timeline" },
-          { "method": "GET", "path": "/apis/pythonext/pytorch/profile" },
-          { "method": "GET", "path": "/apis/pythonext/pytorch/profile/start" },
-          { "method": "GET", "path": "/apis/pythonext/pytorch/profile/stop" },
-          { "method": "GET", "path": "/apis/pythonext/pytorch/profile/status" }
+          { "method": "GET", "path": "/apis/pythonext/pytorch/profile" }
         ]
       },
       {
