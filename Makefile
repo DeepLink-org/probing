@@ -119,7 +119,7 @@ help:
 	fi
 
 # ==============================================================================
-.PHONY: core develop dev check-dev frontend wheel wheel-ci install-wheel wheel-bundle nccl-profiler-lib nccl-profiler-bench hccl-shim-lib venv venv-wheel install-build-deps install-wheel-test-deps
+.PHONY: core develop dev check-dev frontend wheel wheel-ci install-wheel verify-wheel-contents wheel-bundle nccl-profiler-lib nccl-profiler-bench hccl-shim-lib venv venv-wheel install-build-deps install-wheel-test-deps
 
 venv:
 	@BOOT="$(PYTHON_BOOTSTRAP)"; \
@@ -226,20 +226,26 @@ wheel-bundle:
 
 wheel: install-build-deps wheel-bundle nccl-profiler-lib hccl-shim-lib
 	$(PYTHON) -m maturin build $(MATURIN_FLAGS) --out dist
+	@$(MAKE) verify-wheel-contents
 
 wheel-ci:
 	$(MAKE) wheel
 
-install-wheel:
+verify-wheel-contents:
+	@$(PYTHON) scripts/verify_wheel_contents.py
+
+install-wheel: verify-wheel-contents
 	@WH=$$(ls -1 dist/probing-*.whl 2>/dev/null | head -1); \
 	test -n "$$WH" || { echo "run: make wheel"; exit 1; }; \
 	$(PYTHON) -m pip install -q -U pip && \
 	$(PYTHON) -m pip install --force-reinstall "$$WH" && \
 	PROBING=0 $(PYTHON) -c "\
+import importlib.util; \
 import probing; from probing import _core; from pathlib import Path; \
 root = Path(probing.__file__).resolve().parent; \
 assert (root / 'bundled_skills' / 'catalog.yaml').is_file(), f'missing bundled skills under {root}'; \
 assert (root / 'bundled_web' / 'public' / 'index.html').is_file() or (root / 'bundled_web' / 'index.html').is_file(), f'missing bundled web UI under {root}'; \
+assert all(importlib.util.find_spec(m) for m in ('probing.skills.loader', 'probing.ext', 'probing.handlers')), 'missing probing.* modules in installed wheel'; \
 print('probing', probing.VERSION)"
 
 # Linux NCCL plugin copied into python/probing/libs/ for the wheel.
@@ -317,7 +323,7 @@ test-doctest:
 	${PYTEST_RUN} --doctest-modules python/probing --ignore=python/probing/cli/__main__.py
 
 test-python-wheel: install-wheel-test-deps
-	PROBING=1 PROBING_VM_TRACER=0 $(PYTHON) -m pytest $(PYTEST_WHEEL_FLAGS) $(PYTEST_WHEEL_EXTRA) $(PYTEST_WHEEL_ARGS)
+	PROBING=1 PROBING_VM_TRACER=0 PROBING_WHEEL_TEST=1 $(PYTHON) -m pytest $(PYTEST_WHEEL_FLAGS) $(PYTEST_WHEEL_EXTRA) $(PYTEST_WHEEL_ARGS)
 
 coverage-python-wheel:
 	$(MAKE) test-python-wheel PYTEST_WHEEL_EXTRA="--cov=probing --cov=tests --cov-report=xml:coverage.xml"
