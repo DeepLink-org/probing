@@ -1,6 +1,9 @@
 import hashlib
 import logging
+import os
+import statistics
 import time
+from collections import deque
 from dataclasses import dataclass
 from typing import Any, Optional
 
@@ -53,6 +56,69 @@ _DEFER_MAX_LAG = 16
 # kernels it brackets are complete and ``elapsed_time`` is a free cached read
 # rather than a blocking commit against the live stream.
 _DEFER_MIN_SETTLE = 3
+# Rolling window for adaptive sample-rate feedback (matches Web overhead panel).
+_ADAPTIVE_WINDOW = 80
+_MIN_SHADOW_SAMPLES = 5
+_MIN_DISPATCH_SAMPLES = 16
+_DEFAULT_OVERHEAD_TARGET_PCT = 5.0
+_DEFAULT_OVERHEAD_HIGH_PCT = 10.0
+_DEFAULT_RATE_FLOOR = 0.01
+
+
+class _AdaptiveRateController:
+    """Closed-loop controller: shadow-step medians → adjust ``rate``."""
+
+    def __init__(
+        self,
+        *,
+        enabled: bool,
+        initial_rate: float,
+        rate_floor: float,
+        target_pct: float,
+        high_pct: float,
+    ) -> None:
+        self.enabled = enabled
+        self._initial_rate = initial_rate
+        self._rate_floor = rate_floor
+        self._target_pct = target_pct
+        self._high_pct = high_pct
+        self._window: deque[tuple[float, bool, bool]] = deque(maxlen=_ADAPTIVE_WINDOW)
+
+    def record(self, duration_sec: float, *, is_shadow: bool, sampled: bool) -> None:
+        self._window.append((duration_sec, is_shadow, sampled))
+
+    def _dispatch_overhead_pct(self) -> Optional[float]:
+        shadows = [d for d, sh, _ in self._window if sh]
+        dispatch = [d for d, sh, sa in self._window if not sh and not sa]
+        if len(shadows) < _MIN_SHADOW_SAMPLES or len(dispatch) < _MIN_DISPATCH_SAMPLES:
+            return None
+        shadow_med = statistics.median(shadows)
+        dispatch_med = statistics.median(dispatch)
+        if shadow_med <= 0:
+            return None
+        return (dispatch_med / shadow_med - 1.0) * 100.0
+
+    def maybe_adjust(self, tracer: "TorchProbe") -> None:
+        if not self.enabled:
+            return
+        pct = self._dispatch_overhead_pct()
+        if pct is None:
+            return
+        current = tracer.rate
+        new_rate = current
+        if pct > self._high_pct:
+            new_rate = max(self._rate_floor, current * 0.5)
+        elif pct < self._target_pct and current < self._initial_rate:
+            new_rate = min(self._initial_rate, current * 1.25)
+        if abs(new_rate - current) < 1e-9:
+            return
+        tracer.set_sampling_mode(str(new_rate))
+        logger.debug(
+            "adaptive sample rate %.4f -> %.4f (dispatch overhead %.1f%%)",
+            current,
+            new_rate,
+            pct,
+        )
 
 
 def shadow_step_in_cycle(
@@ -116,7 +182,13 @@ def torch_backend():
     return _backend
 
 
-@table
+# Per-table mmap ring budgets (bytes). High-volume trace tables use larger windows.
+_TORCH_TRACE_CAPACITY_BYTES = 8 * 1024 * 1024
+_TORCH_STEP_TIMING_CAPACITY_BYTES = 2 * 1024 * 1024
+_VARIABLES_CAPACITY_BYTES = 4 * 1024 * 1024
+
+
+@table(capacity_bytes=_TORCH_TRACE_CAPACITY_BYTES)
 @dataclass
 class TorchTrace:
     micro_step: Optional[int] = None
@@ -140,7 +212,7 @@ class TorchTrace:
     role: str = ""
 
 
-@table
+@table(capacity_bytes=_TORCH_STEP_TIMING_CAPACITY_BYTES)
 @dataclass
 class TorchStepTiming:
     """Per-step wall-clock timing for TorchProbe overhead monitoring."""
@@ -161,7 +233,7 @@ class TorchStepTiming:
     sample_mode: str = "random"
 
 
-@table
+@table(capacity_bytes=_VARIABLES_CAPACITY_BYTES)
 @dataclass
 class Variables:
     micro_step: Optional[int] = None
@@ -252,6 +324,10 @@ class TorchProbeConfig:
     exprs: str = ""
     shadow_normal: int = DEFAULT_SHADOW_NORMAL
     shadow_baseline: int = DEFAULT_SHADOW_BASELINE
+    adaptive_rate: bool = False
+    overhead_target_pct: float = _DEFAULT_OVERHEAD_TARGET_PCT
+    overhead_high_pct: float = _DEFAULT_OVERHEAD_HIGH_PCT
+    rate_floor: float = _DEFAULT_RATE_FLOOR
 
     @property
     def shadow_enabled(self) -> bool:
@@ -351,6 +427,29 @@ class TorchProbeConfig:
                 cfg.exprs = value
             elif key == "shadow":
                 cfg.apply_shadow_spec(value)
+            elif key == "adaptive":
+                cfg.adaptive_rate = value.lower() in TRUE_VALUES
+
+        env_adaptive = os.environ.get("PROBING_TORCH_ADAPTIVE_RATE", "").strip().lower()
+        if env_adaptive in TRUE_VALUES:
+            cfg.adaptive_rate = True
+        elif env_adaptive in FALSE_VALUES:
+            cfg.adaptive_rate = False
+
+        for env_key, attr, cast in (
+            ("PROBING_TORCH_OVERHEAD_TARGET_PCT", "overhead_target_pct", float),
+            ("PROBING_TORCH_OVERHEAD_HIGH_PCT", "overhead_high_pct", float),
+            ("PROBING_TORCH_RATE_FLOOR", "rate_floor", float),
+        ):
+            raw = os.environ.get(env_key, "").strip()
+            if not raw:
+                continue
+            try:
+                parsed = cast(raw)
+            except ValueError:
+                continue
+            if parsed > 0:
+                setattr(cfg, attr, parsed)
 
         return cfg
 
@@ -472,6 +571,17 @@ def _sync_live_tracers(config: TorchProbeConfig) -> None:
     for obj in _live_torch_probes():
         obj.config.backward = config.backward
         obj.config.trace_spans = config.trace_spans
+        obj.config.adaptive_rate = config.adaptive_rate
+        obj.config.overhead_target_pct = config.overhead_target_pct
+        obj.config.overhead_high_pct = config.overhead_high_pct
+        obj.config.rate_floor = config.rate_floor
+        obj._adaptive_controller.enabled = (
+            config.adaptive_rate and config.shadow_enabled
+        )
+        obj._adaptive_controller._initial_rate = config.rate
+        obj._adaptive_controller._rate_floor = config.rate_floor
+        obj._adaptive_controller._target_pct = config.overhead_target_pct
+        obj._adaptive_controller._high_pct = config.overhead_high_pct
         # Re-plan so a hot rate/layer_rate change takes effect next step.
         obj.rate = config.rate
         obj.layer_rate = config.layer_rate
@@ -953,6 +1063,13 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
         # the role is constant within a step, so resolve it once per step (see
         # ``_mark_step_wall_start``) and reuse it for every stamped row.
         self._role_this_step: str = current_role()
+        self._adaptive_controller = _AdaptiveRateController(
+            enabled=config.adaptive_rate and config.shadow_enabled,
+            initial_rate=config.rate,
+            rate_floor=config.rate_floor,
+            target_pct=config.overhead_target_pct,
+            high_pct=config.overhead_high_pct,
+        )
 
         super().__init__(
             tracepy=config.tracepy,
@@ -997,6 +1114,11 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
         if self._step_wall_started_at is None:
             return
         duration = time.perf_counter() - self._step_wall_started_at
+        self._adaptive_controller.record(
+            duration,
+            is_shadow=is_shadow,
+            sampled=not is_shadow and self.sampled_step,
+        )
         record = TorchStepTiming(
             step_duration_sec=duration,
             is_shadow=1 if is_shadow else 0,
@@ -1478,6 +1600,8 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
     def _close_step_wall(self, *, is_shadow: bool) -> None:
         """Record step wall time, then schedule deferred GPU trace persistence."""
         self._record_step_timing(is_shadow=is_shadow)
+        if is_shadow:
+            self._adaptive_controller.maybe_adjust(self)
         self._drain_deferred()
         self._advance_step_cycle_for_next()
         self._mark_step_wall_start()

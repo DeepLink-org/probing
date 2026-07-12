@@ -15,10 +15,11 @@ parameters:
 
 # NCCL culprit / victim attribution
 
-Uses **NCCL profiler plugin** wait decomposition (`nccl.proxy_ops`):
+Uses **NCCL profiler plugin** wait decomposition (`nccl.proxy_ops`) with **peer-topology attribution** (rank↔peer edges, not global wait sorting):
 
-- **Culprit** (slow local GPU): high `send_gpu_wait_ns`
-- **Victim** (waiting on peers / network): high `recv_wait_ns`
+- **Culprit** (slow local GPU): high `send_gpu_wait_ns` on a send edge `(rank → peer)`
+- **Victim** (waiting on peers / network): high `recv_wait_ns` on recv edge; check `attributed_root_rank`
+- **Propagated victim**: recv wait high but peer's `send_gpu_wait_ns` is also high — root cause is upstream
 - **Receiver congestion** (v4 ABI only): high `send_peer_wait_ns` — this rank's
   sends are stalled waiting for the *peer's* clear-to-send credits; investigate
   that peer

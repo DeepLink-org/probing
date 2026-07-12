@@ -812,3 +812,53 @@ def test_random_mode_short_circuits_non_sampled_steps():
         seen_idle |= not active
     # Non-sampled random steps exist and short-circuit (would previously always run).
     assert seen_active and seen_idle
+
+
+def test_adaptive_rate_lowers_on_high_dispatch_overhead():
+    from probing.profiling.torch_probe import (
+        _AdaptiveRateController,
+        _MIN_DISPATCH_SAMPLES,
+        _MIN_SHADOW_SAMPLES,
+        TorchProbeConfig,
+    )
+
+    cfg = TorchProbeConfig(
+        enabled=True,
+        rate=0.2,
+        adaptive_rate=True,
+        overhead_target_pct=5.0,
+        overhead_high_pct=10.0,
+        rate_floor=0.01,
+    )
+    tracer = TorchProbe(config=cfg)
+    ctrl = tracer._adaptive_controller
+    assert ctrl.enabled
+
+    shadow = 1.0
+    dispatch = 1.25  # 25% overhead
+    for _ in range(_MIN_SHADOW_SAMPLES):
+        ctrl.record(shadow, is_shadow=True, sampled=False)
+    for _ in range(_MIN_DISPATCH_SAMPLES):
+        ctrl.record(dispatch, is_shadow=False, sampled=False)
+
+    ctrl.maybe_adjust(tracer)
+    assert tracer.rate == 0.1
+
+
+def test_adaptive_rate_requires_minimum_samples():
+    from probing.profiling.torch_probe import (
+        _AdaptiveRateController,
+        TorchProbeConfig,
+        _MIN_DISPATCH_SAMPLES,
+        _MIN_SHADOW_SAMPLES,
+    )
+
+    cfg = TorchProbeConfig(enabled=True, rate=0.2, adaptive_rate=True)
+    tracer = TorchProbe(config=cfg)
+    ctrl = tracer._adaptive_controller
+    for _ in range(_MIN_SHADOW_SAMPLES - 1):
+        ctrl.record(1.0, is_shadow=True, sampled=False)
+    for _ in range(_MIN_DISPATCH_SAMPLES - 1):
+        ctrl.record(2.0, is_shadow=False, sampled=False)
+    ctrl.maybe_adjust(tracer)
+    assert tracer.rate == 0.2
