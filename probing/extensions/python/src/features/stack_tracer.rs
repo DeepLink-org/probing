@@ -1,23 +1,20 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::sync::mpsc;
-use std::sync::Mutex;
 use std::time::Duration;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use lazy_static::lazy_static;
-use nix::libc;
 use once_cell::sync::Lazy;
 use pyo3::Python;
 
 use probing_proto::prelude::CallFrame;
 
 use probing_core::is_python_main_thread;
-#[cfg(target_os = "macos")]
-use probing_core::signal::send_sigusr2_to_thread_id;
 
-use crate::features::vm_tracer::{get_python_frames_raw, get_python_stacks_raw};
+use crate::features::stack_capture::{self, RawStackSnapshot};
+use crate::features::stack_merge::merged_frames_to_folded_segments;
+use crate::features::stack_merge::{demangle_native_symbol, merge_python_native_stacks};
+use crate::features::vm_tracer::get_python_stacks_raw;
 
 #[derive(Debug, thiserror::Error)]
 #[error("backtrace capture busy: {0}")]
@@ -25,67 +22,6 @@ pub(crate) struct BacktraceBusy(String);
 
 pub(crate) fn is_backtrace_busy(err: &anyhow::Error) -> bool {
     err.downcast_ref::<BacktraceBusy>().is_some()
-}
-
-fn demangle_native_symbol(raw_name: &str) -> (String, Option<&'static str>) {
-    if let Ok(d) = rustc_demangle::try_demangle(raw_name) {
-        return (d.to_string(), Some("rust"));
-    }
-    // macOS C ABI adds a leading `_` to Rust v0 mangling (`_R...` -> `__R...`).
-    if raw_name.starts_with("__R") {
-        if let Ok(d) = rustc_demangle::try_demangle(&raw_name[1..]) {
-            return (d.to_string(), Some("rust"));
-        }
-    }
-    if let Some(demangled) = cpp_demangle::Symbol::new(raw_name)
-        .ok()
-        .and_then(|sym| sym.demangle().ok())
-    {
-        return (demangled, Some("cpp"));
-    }
-    (raw_name.to_string(), None)
-}
-
-lazy_static! {
-    static ref WHITELISTED_PREFIXES: HashSet<&'static str> = {
-        const PREFIXES: &[&str] = &[
-            "time",
-            "sys",
-            "gc",
-            "os",
-            "unicode",
-            "thread",
-            "stringio",
-            "sre",
-            "PyGilState",
-            "PyThread",
-            "lock",
-        ];
-        PREFIXES.iter().copied().collect()
-    };
-}
-
-#[derive(Copy, Clone)]
-enum MergeType {
-    Ignore,
-    MergeNativeFrame,
-    MergePythonFrame,
-}
-
-fn merge_strategy(frame: &CallFrame) -> MergeType {
-    let symbol = match frame {
-        CallFrame::CFrame { func, .. } => func,
-        CallFrame::PyFrame { func, .. } => func,
-    };
-    let mut tokens = symbol.split(['_', '.']).filter(|s| !s.is_empty());
-    match tokens.next() {
-        Some("PyEval") => match tokens.next() {
-            Some("EvalFrameDefault" | "EvalFrameEx") => MergeType::MergePythonFrame,
-            _ => MergeType::Ignore,
-        },
-        Some(prefix) if WHITELISTED_PREFIXES.contains(prefix) => MergeType::MergeNativeFrame,
-        _ => MergeType::MergeNativeFrame,
-    }
 }
 
 #[async_trait]
@@ -97,8 +33,9 @@ pub trait StackTracer: Send + Sync + std::fmt::Debug {
 pub struct SignalTracer;
 
 impl SignalTracer {
-    fn get_native_stacks() -> Option<Vec<CallFrame>> {
-        let mut frames = vec![];
+    /// Walk the current thread without signals (safe under any Python runtime layout).
+    pub fn trace_current_thread_merged() -> Vec<CallFrame> {
+        let mut native_leaf_to_root = Vec::new();
         backtrace::trace(|frame| {
             let ip = frame.ip();
             backtrace::resolve_frame(frame, |symbol| {
@@ -112,7 +49,7 @@ impl SignalTracer {
                     .filename()
                     .map(|path| path.to_string_lossy().into_owned())
                     .unwrap_or_default();
-                frames.push(CallFrame::CFrame {
+                native_leaf_to_root.push(CallFrame::CFrame {
                     ip: format!("{ip:p}"),
                     file: file_name,
                     func: func_name,
@@ -122,163 +59,86 @@ impl SignalTracer {
             });
             true
         });
-        Some(frames)
-    }
 
-    fn send_frames(frames: Vec<CallFrame>) -> Result<()> {
-        match NATIVE_CALLSTACK_SENDER_SLOT.try_lock() {
-            Ok(guard) => {
-                if let Some(sender) = guard.as_ref() {
-                    sender.send(frames)?;
-                    Ok(())
-                } else {
-                    Err(anyhow::anyhow!("No sender available in channel slot"))
-                }
-            }
-            Err(_) => Err(anyhow::anyhow!("Failed to send frames via channel")),
-        }
-    }
-
-    fn merge_python_native_stacks(
-        python_stacks: Vec<CallFrame>,
-        native_stacks: Vec<CallFrame>,
-    ) -> Vec<CallFrame> {
-        let mut merged = vec![];
-        let mut python_frame_index = 0;
-
-        for frame in native_stacks {
-            match merge_strategy(&frame) {
-                MergeType::Ignore => {}
-                MergeType::MergeNativeFrame => merged.push(frame),
-                MergeType::MergePythonFrame => {
-                    if let Some(py_frame) = python_stacks.get(python_frame_index) {
-                        merged.push(py_frame.clone());
-                    }
-                    python_frame_index += 1;
-                }
-            }
-        }
-        merged
-    }
-
-    /// Walk the current thread without signals (safe under any Python runtime layout).
-    pub fn trace_current_thread_merged() -> Result<Vec<CallFrame>> {
-        let native = Self::get_native_stacks().unwrap_or_default();
-        let python = Python::attach(|_py| {
-            let from_tracer = get_python_stacks_raw();
-            if !from_tracer.is_empty() {
-                from_tracer
-            } else {
-                get_python_frames_raw(None)
-            }
-        });
+        let python = Python::attach(|_py| get_python_stacks_raw());
         if python.is_empty() {
-            return Ok(native);
+            native_leaf_to_root.reverse();
+            return native_leaf_to_root;
         }
-        if native.is_empty() {
-            return Ok(python);
+        if native_leaf_to_root.is_empty() {
+            return python;
         }
-        Ok(Self::merge_python_native_stacks(python, native))
+        merge_python_native_stacks(&python, &native_leaf_to_root)
     }
 
-    fn default_signal_tid() -> i32 {
-        nix::unistd::getpid().as_raw()
+    fn merged_from_snapshot(snapshot: &RawStackSnapshot) -> Vec<CallFrame> {
+        let mut cache = HashMap::new();
+        stack_capture::snapshot_to_merged_frames(snapshot, &mut cache)
     }
 
-    fn clear_sender_slot() {
-        if let Ok(mut guard) = NATIVE_CALLSTACK_SENDER_SLOT.try_lock() {
-            guard.take();
+    /// Read the Python main thread stack without SIGUSR2 (safe from HTTP / SQL workers).
+    fn trace_main_thread_off_signal() -> Result<Vec<CallFrame>> {
+        let main_tid = stack_capture::python_main_os_tid()
+            .ok_or_else(|| anyhow::anyhow!("Python main thread is not registered yet"))?;
+
+        if let Some(snapshot) = stack_capture::latest_snapshot_for_tid(main_tid) {
+            return Ok(Self::merged_from_snapshot(&snapshot));
         }
+
+        if let Some(snapshot) = stack_capture::copy_registered_py_snapshot(main_tid) {
+            let frames = Self::merged_from_snapshot(&snapshot);
+            if !frames.is_empty() {
+                return Ok(frames);
+            }
+        }
+
+        Err(anyhow::anyhow!(
+            "main-thread stack unavailable; enable SIGPROF sampling or retry while training is active"
+        ))
+    }
+
+    fn is_main_tid(tid: i32) -> bool {
+        stack_capture::python_main_os_tid().is_some_and(|main| main == tid as u64)
     }
 
     fn trace_thread_signal(tid: i32) -> Result<Vec<CallFrame>> {
-        let pid = nix::unistd::getpid().as_raw();
+        if Self::is_main_tid(tid) {
+            return Self::trace_main_thread_off_signal();
+        }
 
-        // Only one signal-based capture can run at a time (shared SIGUSR2 +
-        // sender slot). Concurrent requests losing the race is a benign "busy"
-        // state — the outer `trace()` already downgrades it to an empty result —
-        // so log at debug to avoid flooding training output with errors.
+        if stack_capture::is_pprof_sampling_active() {
+            if let Some(snapshot) = stack_capture::latest_snapshot_for_tid(tid as u64) {
+                return Ok(Self::merged_from_snapshot(&snapshot));
+            }
+        }
+
         let _guard = BACKTRACE_MUTEX.try_lock().map_err(|e| {
             let busy = BacktraceBusy(e.to_string());
             log::debug!("{busy}; skipping concurrent request");
             anyhow::Error::new(busy)
         })?;
 
-        let (tx, rx) = mpsc::channel::<Vec<CallFrame>>();
-        NATIVE_CALLSTACK_SENDER_SLOT
-            .try_lock()
-            .map_err(|err| {
-                log::error!("Failed to lock CALLSTACK_SENDER_SLOT: {err}");
-                anyhow::anyhow!("Failed to lock call stack sender slot")
-            })?
-            .replace(tx);
+        let snapshot =
+            stack_capture::capture_thread_snapshot_signal(tid as u64, Duration::from_secs(2))
+                .ok_or_else(|| {
+                    anyhow::anyhow!("timed out waiting for stack snapshot on thread {tid}")
+                })?;
 
-        log::debug!("Sending SIGUSR2 signal to process {pid} (thread: {tid})");
-
-        #[cfg(target_os = "linux")]
-        {
-            let ret = unsafe { libc::syscall(libc::SYS_tgkill, pid, tid, libc::SIGUSR2) };
-            if ret != 0 {
-                let last_error = std::io::Error::last_os_error();
-                Self::clear_sender_slot();
-                return Err(anyhow::anyhow!(
-                    "Failed to send SIGUSR2 to process {pid} (thread: {tid}): {last_error}"
-                ));
-            }
-        }
-
-        #[cfg(target_os = "macos")]
-        {
-            let signal_result = if tid == pid {
-                let ret = unsafe { libc::kill(pid, libc::SIGUSR2) };
-                if ret != 0 {
-                    Err(std::io::Error::last_os_error())
-                } else {
-                    Ok(())
-                }
-            } else {
-                send_sigusr2_to_thread_id(tid)
-            };
-            if let Err(e) = signal_result {
-                Self::clear_sender_slot();
-                return Err(anyhow::anyhow!(
-                    "Failed to send SIGUSR2 to process {pid} (thread: {tid}): {e}"
-                ));
-            }
-        }
-
-        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
-        {
-            let _ = (pid, tid);
-            Self::clear_sender_slot();
-            return Err(anyhow::anyhow!(
-                "Stack tracing is not supported on this platform"
-            ));
-        }
-
-        let native_frames = match rx.recv_timeout(Duration::from_secs(2)) {
-            Ok(frames) => frames,
-            Err(err) => {
-                Self::clear_sender_slot();
-                return Err(err.into());
-            }
-        };
-        let python_frames = match rx.recv_timeout(Duration::from_secs(2)) {
-            Ok(frames) => frames,
-            Err(err) => {
-                Self::clear_sender_slot();
-                return Err(anyhow::anyhow!(
-                    "Python stack trace timed out or failed after native capture: {err}"
-                ));
-            }
-        };
-        Self::clear_sender_slot();
-
-        Ok(Self::merge_python_native_stacks(
-            python_frames,
-            native_frames,
-        ))
+        Ok(Self::merged_from_snapshot(&snapshot))
     }
+}
+
+/// On-demand main-thread stack as a single folded line (`"stack 1"`).
+pub fn main_thread_on_demand_folded_lines() -> Vec<String> {
+    let frames = match SignalTracer::trace_main_thread_off_signal() {
+        Ok(frames) if !frames.is_empty() => frames,
+        _ => return Vec::new(),
+    };
+    let segments = merged_frames_to_folded_segments(&frames);
+    if segments.is_empty() {
+        return Vec::new();
+    }
+    vec![format!("{} 1", segments.join(";"))]
 }
 
 #[async_trait]
@@ -286,14 +146,20 @@ impl StackTracer for SignalTracer {
     fn trace(&self, tid: Option<i32>) -> Result<Vec<CallFrame>> {
         log::debug!("Collecting backtrace for TID: {tid:?}");
 
-        // The CPU sampler now uses an async-signal-safe SIGPROF handler that does
-        // no heavy work, so it no longer conflicts with SIGUSR2 stack capture.
+        let explicit = tid.filter(|&t| t > 0);
 
-        if tid.is_none() && is_python_main_thread() {
-            return Self::trace_current_thread_merged();
+        if explicit.is_none() {
+            if is_python_main_thread() {
+                return Ok(Self::trace_current_thread_merged());
+            }
+            return Self::trace_main_thread_off_signal();
         }
 
-        let target = tid.unwrap_or_else(Self::default_signal_tid);
+        let target = explicit.unwrap();
+        if Self::is_main_tid(target) {
+            return Self::trace_main_thread_off_signal();
+        }
+
         match catch_unwind(AssertUnwindSafe(|| Self::trace_thread_signal(target))) {
             Ok(Ok(frames)) => Ok(frames),
             Ok(Err(err)) => {
@@ -306,7 +172,6 @@ impl StackTracer for SignalTracer {
             }
             Err(_) => {
                 log::warn!("Cross-thread stack trace panicked for tid {target}");
-                Self::clear_sender_slot();
                 Err(anyhow::anyhow!(
                     "cross-thread stack trace panicked for tid {target}"
                 ))
@@ -315,30 +180,4 @@ impl StackTracer for SignalTracer {
     }
 }
 
-pub fn backtrace_signal_handler() {
-    // Ignore stray SIGUSR2 (e.g. macOS tooling or other libraries). Only run
-    // capture logic while `trace_thread_signal` holds a receiver in the slot.
-    let expecting = NATIVE_CALLSTACK_SENDER_SLOT
-        .try_lock()
-        .ok()
-        .is_some_and(|guard| guard.is_some());
-    if !expecting {
-        return;
-    }
-
-    // Runs on the signaled thread: native unwind + thread-local eval-frame tracer stack.
-    let native_stacks = SignalTracer::get_native_stacks().unwrap_or_default();
-    if SignalTracer::send_frames(native_stacks).is_err() {
-        log::error!("Signal handler: failed to send native stacks (receiver may have timed out)");
-    }
-    let python_stacks = get_python_stacks_raw();
-    if SignalTracer::send_frames(python_stacks).is_err() {
-        log::error!("Signal handler: failed to send Python stacks from eval tracer");
-    }
-}
-
-/// Define a static Mutex for the backtrace function
 static BACKTRACE_MUTEX: Lazy<tokio::sync::Mutex<()>> = Lazy::new(|| tokio::sync::Mutex::new(()));
-
-pub static NATIVE_CALLSTACK_SENDER_SLOT: Lazy<Mutex<Option<mpsc::Sender<Vec<CallFrame>>>>> =
-    Lazy::new(|| Mutex::new(None));

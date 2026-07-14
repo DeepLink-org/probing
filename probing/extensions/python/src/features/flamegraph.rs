@@ -47,6 +47,8 @@ impl Default for FlamegraphOptions {
 struct Node {
     name: String,
     value: u64,
+    /// Training ranks that contributed samples under this node (distributed only).
+    ranks: std::collections::BTreeSet<i32>,
     children: Vec<Node>,
 }
 
@@ -60,6 +62,15 @@ struct PlacedFrame {
     y: f64,
     w: f64,
     depth: usize,
+    ranks: Vec<i32>,
+}
+
+/// Folded stack with sample count and contributing training ranks.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AttributedFoldedLine {
+    pub path: Vec<String>,
+    pub count: u64,
+    pub ranks: Vec<i32>,
 }
 
 #[derive(Debug)]
@@ -70,16 +81,33 @@ pub struct Flamegraph {
 
 impl Flamegraph {
     pub fn from_folded_lines(lines: &[String]) -> Option<Self> {
+        let attributed: Vec<AttributedFoldedLine> = lines
+            .iter()
+            .filter_map(|line| {
+                let (path, count) = parse_folded_line(line)?;
+                Some(AttributedFoldedLine {
+                    path,
+                    count,
+                    ranks: Vec::new(),
+                })
+            })
+            .collect();
+        Self::from_attributed_folded_lines(&attributed)
+    }
+
+    pub fn from_attributed_folded_lines(lines: &[AttributedFoldedLine]) -> Option<Self> {
         let mut root = Node {
             name: "all".to_string(),
             value: 0,
+            ranks: std::collections::BTreeSet::new(),
             children: Vec::new(),
         };
 
         for line in lines {
-            if let Some((path, value)) = parse_folded_line(line) {
-                insert_path(&mut root, &path, value);
+            if line.count == 0 || line.path.is_empty() {
+                continue;
             }
+            insert_path(&mut root, &line.path, line.count, &line.ranks);
         }
 
         if root.value == 0 {
@@ -339,6 +367,9 @@ fn frames_to_json(frames: &[PlacedFrame], torch: bool) -> Vec<serde_json::Value>
                 let module_path = module_path_for(f, frames);
                 obj["phase"] = json!(phase);
                 obj["modulePath"] = json!(module_path);
+            }
+            if !f.ranks.is_empty() {
+                obj["ranks"] = json!(f.ranks);
             }
             obj
         })
@@ -770,6 +801,200 @@ background:#0b0f14;color:#8b9bb4;font-family:ui-sans-serif,system-ui,sans-serif;
     }
 }
 
+/// Whether a folded segment is a per-process thread bucket (`thread-{tid}` or `thread-{tid} (name)`).
+fn is_thread_folded_segment(seg: &str) -> bool {
+    let Some(rest) = seg.strip_prefix("thread-") else {
+        return false;
+    };
+    let digit_len = rest.chars().take_while(|c| c.is_ascii_digit()).count();
+    digit_len > 0
+        && (rest.len() == digit_len
+            || matches!(rest.as_bytes().get(digit_len), Some(b' ') | Some(b'(')))
+}
+
+/// Drop root `all` and per-process `thread-*` prefixes so identical stacks merge across ranks.
+pub fn normalize_distributed_stack_folded_line(line: &str) -> Option<String> {
+    let (mut path, count) = parse_folded_line(line)?;
+    while path.first().is_some_and(|s| s == "all") {
+        path.remove(0);
+    }
+    while path.first().is_some_and(|s| is_thread_folded_segment(s)) {
+        path.remove(0);
+    }
+    if path.is_empty() {
+        return None;
+    }
+    let path = crate::features::stack_merge::canonicalize_folded_segments(&path);
+    if path.is_empty() {
+        return None;
+    }
+    Some(format!("{} {}", path.join(";"), count))
+}
+
+/// Keep only `[py] …` segments so native/C frames do not fork the flamegraph.
+pub fn filter_folded_line_python_only(line: &str) -> Option<String> {
+    let (path, count) = parse_folded_line(line)?;
+    let py_path: Vec<String> = path.into_iter().filter(|s| s.starts_with("[py]")).collect();
+    if py_path.is_empty() {
+        return None;
+    }
+    Some(format!("{} {}", py_path.join(";"), count))
+}
+
+pub fn filter_folded_lines_python_only(lines: &[String]) -> Vec<String> {
+    lines
+        .iter()
+        .filter_map(|line| filter_folded_line_python_only(line))
+        .collect()
+}
+
+/// Keep only `[py]` segments while preserving rank attribution.
+pub fn filter_attributed_folded_lines_python_only(
+    lines: &[AttributedFoldedLine],
+) -> Vec<AttributedFoldedLine> {
+    lines
+        .iter()
+        .filter_map(|line| {
+            let py_path: Vec<String> = line
+                .path
+                .iter()
+                .filter(|s| s.starts_with("[py]"))
+                .cloned()
+                .collect();
+            if py_path.is_empty() {
+                return None;
+            }
+            Some(AttributedFoldedLine {
+                path: py_path,
+                count: line.count,
+                ranks: line.ranks.clone(),
+            })
+        })
+        .collect()
+}
+
+/// Merge folded stack lines across ranks after [`normalize_distributed_stack_folded_line`].
+pub fn merge_distributed_stack_folded_line_sets(sets: &[Vec<String>]) -> Vec<String> {
+    let attributed: Vec<(Option<i32>, Vec<String>)> =
+        sets.iter().map(|lines| (None, lines.clone())).collect();
+    merge_distributed_stack_attributed(&attributed)
+        .into_iter()
+        .map(|line| format!("{} {}", line.path.join(";"), line.count))
+        .collect()
+}
+
+/// Merge per-rank folded stacks, summing counts and collecting contributing ranks.
+///
+/// `sets` entries are `(rank, folded lines)`. When `rank` is `None`, the lines still
+/// contribute to counts but are not attributed to a training rank id.
+pub fn merge_distributed_stack_attributed(
+    sets: &[(Option<i32>, Vec<String>)],
+) -> Vec<AttributedFoldedLine> {
+    use std::collections::{BTreeSet, HashMap};
+    let mut counts: HashMap<String, u64> = HashMap::new();
+    let mut ranks: HashMap<String, BTreeSet<i32>> = HashMap::new();
+    for (rank, lines) in sets {
+        for line in lines {
+            let Some(normalized) = normalize_distributed_stack_folded_line(line) else {
+                continue;
+            };
+            let Some((path, count)) = parse_folded_line(&normalized) else {
+                continue;
+            };
+            let key = path.join(";");
+            *counts.entry(key.clone()).or_insert(0) += count;
+            if let Some(r) = rank {
+                ranks.entry(key).or_default().insert(*r);
+            }
+        }
+    }
+    let mut merged: Vec<AttributedFoldedLine> = counts
+        .into_iter()
+        .filter_map(|(key, count)| {
+            let path: Vec<String> = key.split(';').map(str::to_string).collect();
+            if path.is_empty() {
+                return None;
+            }
+            let ranks = ranks
+                .remove(&key)
+                .map(|s| s.into_iter().collect())
+                .unwrap_or_default();
+            Some(AttributedFoldedLine { path, count, ranks })
+        })
+        .collect();
+    merged.sort_by(|a, b| a.path.cmp(&b.path));
+    merged
+}
+
+/// Merge folded `"stack;path count"` lines from multiple ranks; identical paths sum counts.
+pub fn merge_folded_line_sets(sets: &[Vec<String>]) -> Vec<String> {
+    use std::collections::HashMap;
+    let mut counts: HashMap<String, u64> = HashMap::new();
+    for lines in sets {
+        for line in lines {
+            if let Some((path, count)) = parse_folded_line(line) {
+                let key = path.join(";");
+                *counts.entry(key).or_insert(0) += count;
+            }
+        }
+    }
+    let mut merged: Vec<String> = counts
+        .into_iter()
+        .map(|(path, count)| format!("{path} {count}"))
+        .collect();
+    merged.sort();
+    merged
+}
+
+/// Reconstruct folded lines from a Web UI flamegraph JSON payload (leaf frames only).
+pub fn folded_lines_from_flamegraph_json(body: &str) -> Vec<String> {
+    #[derive(serde::Deserialize)]
+    struct Payload {
+        frames: Vec<Frame>,
+    }
+    #[derive(serde::Deserialize)]
+    struct Frame {
+        id: usize,
+        parent: Option<usize>,
+        name: String,
+        value: u64,
+    }
+
+    let payload: Payload = match serde_json::from_str(body) {
+        Ok(p) => p,
+        Err(_) => return Vec::new(),
+    };
+    if payload.frames.is_empty() {
+        return Vec::new();
+    }
+    let by_id: std::collections::HashMap<usize, &Frame> =
+        payload.frames.iter().map(|f| (f.id, f)).collect();
+    let parents: std::collections::HashSet<usize> =
+        payload.frames.iter().filter_map(|f| f.parent).collect();
+    let mut lines = Vec::new();
+    for leaf in payload.frames.iter().filter(|f| !parents.contains(&f.id)) {
+        if leaf.value == 0 {
+            continue;
+        }
+        let mut path = Vec::new();
+        let mut cur = Some(leaf.id);
+        while let Some(id) = cur {
+            let Some(frame) = by_id.get(&id) else {
+                break;
+            };
+            if frame.name != "all" {
+                path.push(frame.name.clone());
+            }
+            cur = frame.parent;
+        }
+        path.reverse();
+        if !path.is_empty() {
+            lines.push(format!("{} {}", path.join(";"), leaf.value));
+        }
+    }
+    lines
+}
+
 fn parse_folded_line(line: &str) -> Option<(Vec<String>, u64)> {
     let line = line.trim();
     if line.is_empty() {
@@ -791,21 +1016,25 @@ fn parse_folded_line(line: &str) -> Option<(Vec<String>, u64)> {
     Some((frames, count))
 }
 
-fn insert_path(node: &mut Node, path: &[String], value: u64) {
+fn insert_path(node: &mut Node, path: &[String], value: u64, ranks: &[i32]) {
     node.value += value;
+    for &r in ranks {
+        node.ranks.insert(r);
+    }
     if path.is_empty() {
         return;
     }
     let head = &path[0];
     if let Some(child) = node.children.iter_mut().find(|c| c.name == *head) {
-        insert_path(child, &path[1..], value);
+        insert_path(child, &path[1..], value, ranks);
     } else {
         let mut child = Node {
             name: head.clone(),
             value: 0,
+            ranks: std::collections::BTreeSet::new(),
             children: Vec::new(),
         };
-        insert_path(&mut child, &path[1..], value);
+        insert_path(&mut child, &path[1..], value, ranks);
         node.children.push(child);
     }
 }
@@ -837,6 +1066,7 @@ fn layout_node(
         y,
         w: width,
         depth,
+        ranks: node.ranks.iter().copied().collect(),
     });
 
     if node.value == 0 || width < MIN_RENDER_WIDTH {
@@ -870,6 +1100,117 @@ fn layout_node(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn filter_folded_line_python_only_strips_native() {
+        let out = filter_folded_line_python_only(
+            "[py] train (a.py:1);_PyObject_Vectorcall;[py] forward (b.py:2) 4",
+        )
+        .unwrap();
+        assert_eq!(
+            out,
+            "[py] train (a.py:1);[py] forward (b.py:2) 4".to_string()
+        );
+    }
+
+    #[test]
+    fn merge_distributed_stacks_canonicalizes_interpreter_prefix() {
+        let merged = merge_distributed_stack_folded_line_sets(&[
+            vec![
+                "[py] <module> (imagenet_with_span.py:1);[py] train (imagenet_with_span.py:659) 2"
+                    .to_string(),
+            ],
+            vec![
+                "_Py_RunMain;_pymain_run_file;[py] <module> (imagenet_with_span.py:1);[py] train (imagenet_with_span.py:659) 1"
+                    .to_string(),
+            ],
+        ]);
+        assert_eq!(
+            merged,
+            vec![
+                "[py] <module> (imagenet_with_span.py:1);[py] train (imagenet_with_span.py:659) 3"
+            ]
+        );
+    }
+
+    #[test]
+    fn merge_distributed_stacks_strips_thread_prefix_across_ranks() {
+        let merged = merge_distributed_stack_folded_line_sets(&[
+            vec!["thread-100;[py] main (train.py:1) 3".to_string()],
+            vec!["thread-200;[py] main (train.py:1) 2".to_string()],
+        ]);
+        assert_eq!(merged, vec!["[py] main (train.py:1) 5".to_string()]);
+    }
+
+    #[test]
+    fn merge_distributed_attributed_collects_ranks_per_path() {
+        let merged = merge_distributed_stack_attributed(&[
+            (
+                Some(0),
+                vec!["thread-1;[py] main (a.py:1);[py] train (a.py:2) 2".to_string()],
+            ),
+            (
+                Some(1),
+                vec!["thread-2;[py] main (a.py:1);[py] train (a.py:2) 3".to_string()],
+            ),
+            (
+                Some(1),
+                vec!["thread-3;[py] platform;[py] train (a.py:2) 1".to_string()],
+            ),
+        ]);
+        let shared = merged
+            .iter()
+            .find(|l| l.path == ["[py] main (a.py:1)", "[py] train (a.py:2)"])
+            .expect("shared path");
+        assert_eq!(shared.count, 5);
+        assert_eq!(shared.ranks, vec![0, 1]);
+
+        let fork = merged
+            .iter()
+            .find(|l| l.path == ["[py] platform", "[py] train (a.py:2)"])
+            .expect("fork path");
+        assert_eq!(fork.count, 1);
+        assert_eq!(fork.ranks, vec![1]);
+
+        let json = Flamegraph::from_attributed_folded_lines(&merged)
+            .unwrap()
+            .json_payload(&FlamegraphOptions {
+                title: "T".to_string(),
+                count_name: "samples".to_string(),
+                kind: FlamegraphKind::Classic,
+                subtitle: String::new(),
+                metric: None,
+                profile: Some("cpu-stack-distributed".to_string()),
+            });
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let frames = v["frames"].as_array().unwrap();
+        let platform = frames
+            .iter()
+            .find(|f| f["name"] == "[py] platform")
+            .expect("platform frame");
+        assert_eq!(platform["ranks"], json!([1]));
+        let shared_frame = frames
+            .iter()
+            .find(|f| f["name"] == "[py] main (a.py:1)")
+            .expect("main frame");
+        assert_eq!(shared_frame["ranks"], json!([0, 1]));
+    }
+
+    #[test]
+    fn folded_lines_from_json_skips_all_root() {
+        let json = Flamegraph::from_folded_lines(&["thread-1;leaf 4".to_string()])
+            .unwrap()
+            .json_payload(&FlamegraphOptions {
+                title: "T".to_string(),
+                count_name: "samples".to_string(),
+                kind: FlamegraphKind::Classic,
+                subtitle: String::new(),
+                metric: None,
+                profile: Some("cpu-stack-distributed".to_string()),
+            });
+        let lines = folded_lines_from_flamegraph_json(&json);
+        assert_eq!(lines, vec!["thread-1;leaf 4".to_string()]);
+    }
 
     #[test]
     fn parse_folded_line_splits_stack_and_count() {

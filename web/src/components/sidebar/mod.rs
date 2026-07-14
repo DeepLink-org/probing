@@ -62,7 +62,10 @@ pub fn Sidebar() -> Element {
     use_effect(move || {
         if matches!(
             route_for_stack,
-            Route::StackPage {} | Route::StackWithTidPage { .. }
+            Route::StackPage {}
+                | Route::StackDistributedFullPage {}
+                | Route::StackDistributedPyPage {}
+                | Route::StackWithTidPage { .. }
         ) {
             *show_stack_dropdown.write() = true;
         }

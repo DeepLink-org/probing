@@ -413,6 +413,36 @@ pub async fn get_distributed_flamegraph_json(
     (status, [(header::CONTENT_TYPE, "application/json")], body).into_response()
 }
 
+#[derive(Debug, Deserialize)]
+pub struct DistributedStackFlamegraphParams {
+    pub cluster: Option<bool>,
+    /// `mixed` (default) = Python + native; `py` = Python frames only.
+    pub mode: Option<String>,
+}
+
+/// Distributed CPU stack flamegraph: merge SIGPROF folded stacks across cluster ranks.
+pub async fn get_distributed_stack_flamegraph_json(
+    axum::extract::Query(params): axum::extract::Query<DistributedStackFlamegraphParams>,
+) -> impl IntoResponse {
+    use axum::http::header;
+
+    if let Some(msg) = crate::engine_lifecycle::engine_not_ready_message() {
+        return ApiError::service_unavailable(msg).into_response();
+    }
+
+    let cluster = params.cluster.unwrap_or(true);
+    let mode = params.mode.as_deref().unwrap_or("mixed");
+    let (body, partial) =
+        probing_python::features::pprof::collect_distributed_stack_flamegraph_json(cluster, mode)
+            .await;
+    let status = if partial {
+        StatusCode::SERVICE_UNAVAILABLE
+    } else {
+        StatusCode::OK
+    };
+    (status, [(header::CONTENT_TYPE, "application/json")], body).into_response()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

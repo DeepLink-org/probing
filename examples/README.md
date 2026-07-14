@@ -18,6 +18,7 @@ Framework integration **contract tests** live under `tests/regression/ext/` (e.g
 | **`torch_probe_overhead_smoke.py`** | none | TorchProbe shadow-step overhead smoke (no GPU) |
 | **`bench_instrumentation.py`** | `torch` (optional) | One-shot report: span / phase hooks / TorchProbe overhead (`make bench`) |
 | **`run_soak.sh`** | `torch`, `torchvision` | Long-running soak (synthetic ImageNet + probing); used by CI `soak.yml` |
+| **`run_imagenet_ddp.sh`** | `torch`, `torchvision` | **默认 2-rank torchrun** DDP demo（cluster query / 分布式火焰图 / `global.python.profile_*`） |
 | **`run_megatron_soak.sh`** | `megatron-core`, CUDA | Megatron-Core torchrun soak（默认 2 GPU / TP=2，`PROBING_PORT=18080`） |
 | **`run_vllm_soak.sh`** | `vllm` / `vllm-metal` | vLLM 真实推理 soak（默认 10min，`PROBING_PORT=18081`） |
 | **`soak_assert.py`** | none (beyond probing) | Post-soak SQL / overhead assertions |
@@ -58,6 +59,10 @@ DURATION_SEC=60 ./examples/run_soak.sh
 
 # 2-rank gloo DDP (assertions on rank 0)
 NPROC=2 DIST_BACKEND=gloo DURATION_SEC=120 ./examples/run_soak.sh
+
+# dedicated distributed demo (default 2 ranks, Web UI on :18080)
+./examples/run_imagenet_ddp.sh
+DURATION_SEC=60 ./examples/run_imagenet_ddp.sh
 ```
 
 On Linux you can also attach with `probing -t <pid> inject` instead of `PROBING=1` at startup.

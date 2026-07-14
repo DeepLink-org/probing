@@ -17,9 +17,8 @@ use crate::state::investigation::{
 };
 use crate::state::profiling::{
     apply_profiler_config, normalize_profiling_view, profiling_view_spec, PROFILING_CHROME_LIMIT,
-    PROFILING_CONFIG_LOADED, PROFILING_DIST_CLUSTER, PROFILING_DIST_RELOAD, PROFILING_DIST_STEP,
-    PROFILING_PPROF_FREQ, PROFILING_PYTORCH_TIMELINE_RELOAD, PROFILING_RAY_TIMELINE_RELOAD,
-    PROFILING_TORCH_ENABLED, PROFILING_TRACE_RELOAD,
+    PROFILING_CONFIG_LOADED, PROFILING_PPROF_FREQ, PROFILING_PYTORCH_TIMELINE_RELOAD,
+    PROFILING_RAY_TIMELINE_RELOAD, PROFILING_TORCH_ENABLED, PROFILING_TRACE_RELOAD,
 };
 
 #[component]
@@ -54,7 +53,7 @@ pub fn Profiling(view: String) -> Element {
 fn view_icon(view: &str) -> &'static icondata::Icon {
     match view {
         "pprof" => &icondata::CgPerformance,
-        "torch" | "torch-dist" => &icondata::SiPytorch,
+        "torch" => &icondata::SiPytorch,
         "trace" => &icondata::AiThunderboltOutlined,
         "pytorch" => &icondata::SiPytorch,
         "ray" => &icondata::AiClockCircleOutlined,
@@ -66,9 +65,6 @@ fn view_subtitle(view: &str) -> String {
     match view {
         "pprof" => "SIGPROF stack explorer · statistical sampling".to_string(),
         "torch" => "Module flamegraph from TorchProbe hooks".to_string(),
-        "torch-dist" => {
-            "SPMD flamegraph — one training step, all ranks (merge identical stacks)".to_string()
-        }
         "trace" => "Chrome trace events from probing buffers — not distributed spans".to_string(),
         "pytorch" => "PyTorch profiler chrome trace".to_string(),
         "ray" => "Ray task timeline".to_string(),
@@ -97,12 +93,6 @@ fn ProfilerConfigGate(view: String) -> Element {
             AsyncBoundary {
                 message: Some("Loading flamegraph…".to_string()),
                 FlamegraphLoader { key: "{view}", view: view.clone() }
-            }
-        },
-        "torch-dist" => rsx! {
-            AsyncBoundary {
-                message: Some("Loading distributed flamegraph…".to_string()),
-                DistributedFlamegraphLoader { key: "{view}", view: view.clone() }
             }
         },
         "trace" => rsx! {
@@ -232,79 +222,6 @@ fn FlamegraphData(profiler_name: String) -> Element {
         Err(err) => rsx! {
             ProfilingErrorPanel {
                 title: "Flamegraph Error".to_string(),
-                error: err.display_message(),
-            }
-        },
-    }
-}
-
-#[component]
-fn DistributedFlamegraphLoader(view: String) -> Element {
-    let _ = view;
-    let torch_enabled = *PROFILING_TORCH_ENABLED.read();
-    if !torch_enabled {
-        return rsx! {
-            ProfilerDisabledNotice { profiler_name: "torch" }
-        };
-    }
-
-    let reload = *PROFILING_DIST_RELOAD.read();
-    let step = *PROFILING_DIST_STEP.read();
-    let cluster = *PROFILING_DIST_CLUSTER.read();
-
-    rsx! {
-        AsyncBoundary {
-            message: Some("Loading distributed flamegraph…".to_string()),
-            DistributedFlamegraphData {
-                key: "torch-dist-{reload}-{step:?}-{cluster}",
-                step,
-                cluster,
-            }
-        }
-    }
-}
-
-#[component]
-fn DistributedFlamegraphData(step: Option<i64>, cluster: bool) -> Element {
-    let mut metric = use_signal(|| "duration".to_string());
-    let fetch_step = step;
-    let fetch_cluster = cluster;
-
-    let payload = use_app_resource(move || {
-        let m = metric();
-        async move {
-            let client = ApiClient::new();
-            let body = client
-                .get_distributed_flamegraph_json(fetch_step, Some(&m), fetch_cluster)
-                .await?;
-            let parsed: FlamegraphPayload = serde_json::from_str(&body).map_err(|e| {
-                crate::utils::error::AppError::Api(format!("Invalid flamegraph JSON: {e}"))
-            })?;
-            Ok(parsed)
-        }
-    });
-
-    match payload.suspend()?() {
-        Ok(data) => rsx! {
-            div { class: "flex flex-col flex-1 min-h-0 min-w-0",
-                ProfileSnapshotBar {
-                    key: "torch-dist-{metric()}",
-                    profiler: "torch-dist".to_string(),
-                    metric: Some(metric()),
-                    payload: data.clone(),
-                }
-                FlamegraphView {
-                    key: "torch-dist-{metric()}",
-                    payload: data,
-                    thread_tid: None,
-                    torch_metric: Some(metric),
-                    on_torch_metric: Some(EventHandler::new(move |m: String| metric.set(m))),
-                }
-            }
-        },
-        Err(err) => rsx! {
-            ProfilingErrorPanel {
-                title: "Distributed Flamegraph Error".to_string(),
                 error: err.display_message(),
             }
         },

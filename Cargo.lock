@@ -3580,10 +3580,10 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "signal-hook-registry",
  "tempfile",
  "thiserror 2.0.12",
  "tokio",
+ "ureq",
  "uuid",
 ]
 

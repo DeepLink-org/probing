@@ -21,6 +21,7 @@ pub const PUBLIC_API_ROUTES: &[(&str, &str)] = &[
     ("PUT", "/nodes"),
     ("GET", "/training/step_matrix"),
     ("GET", "/training/distributed_flamegraph/json"),
+    ("GET", "/training/distributed_stack_flamegraph/json"),
     ("POST", "/cluster/query"),
 ];
 
@@ -39,6 +40,10 @@ fn public_routes() -> Router {
         .route(
             "/training/distributed_flamegraph/json",
             get(training::get_distributed_flamegraph_json),
+        )
+        .route(
+            "/training/distributed_stack_flamegraph/json",
+            get(training::get_distributed_stack_flamegraph_json),
         )
         .route("/cluster/query", post(cluster_query::post_cluster_query))
 }

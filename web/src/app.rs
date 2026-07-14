@@ -11,8 +11,15 @@ use crate::components::app_overlays::AppOverlays;
 use crate::components::common::LoadingState;
 use crate::components::layout::AppLayout;
 use crate::pages::{
-    agent::Agent, analytics::Analytics, cluster::Cluster, dashboard::Dashboard,
-    profiling::Profiling, pulsing::Pulsing, python::Python, stack::Stack, traces::Traces,
+    agent::Agent,
+    analytics::Analytics,
+    cluster::Cluster,
+    dashboard::Dashboard,
+    profiling::Profiling,
+    pulsing::Pulsing,
+    python::Python,
+    stack::{Stack, StackDistributed},
+    traces::Traces,
     training::Training,
 };
 use crate::state::profiling::normalize_profiling_view;
@@ -29,6 +36,10 @@ pub enum Route {
     ClusterPage {},
     #[route("/stacks")]
     StackPage {},
+    #[route("/stacks/distributed")]
+    StackDistributedFullPage {},
+    #[route("/stacks/distributed/py")]
+    StackDistributedPyPage {},
     #[route("/stacks/:tid")]
     StackWithTidPage { tid: String },
     #[route("/profiling")]
@@ -79,6 +90,26 @@ pub fn StackWithTidPage(tid: String) -> Element {
 }
 
 #[component]
+pub fn StackDistributedFullPage() -> Element {
+    rsx! {
+        AppLayout {
+            fullscreen: true,
+            StackDistributed { mode: "mixed".to_string() }
+        }
+    }
+}
+
+#[component]
+pub fn StackDistributedPyPage() -> Element {
+    rsx! {
+        AppLayout {
+            fullscreen: true,
+            StackDistributed { mode: "py".to_string() }
+        }
+    }
+}
+
+#[component]
 pub fn ProfilingRedirect() -> Element {
     let nav = dioxus_router::use_navigator();
     use_effect(move || {
@@ -113,6 +144,11 @@ pub fn ChromeTracingRedirect() -> Element {
 #[component]
 pub fn ProfilingViewPage(view: String) -> Element {
     let canonical = normalize_profiling_view(&view).to_string();
+    if view == "torch-dist" || canonical == "torch-dist" {
+        return rsx! {
+            StackDistributedRedirect {}
+        };
+    }
     if view != canonical {
         return rsx! {
             ProfilingSlugRedirect { target: canonical }
@@ -123,6 +159,20 @@ pub fn ProfilingViewPage(view: String) -> Element {
         AppLayout {
             fullscreen: true,
             Profiling { key: "{canonical}", view: canonical }
+        }
+    }
+}
+
+#[component]
+fn StackDistributedRedirect() -> Element {
+    let nav = dioxus_router::use_navigator();
+    use_effect(move || {
+        nav.replace(Route::StackDistributedFullPage {});
+    });
+    rsx! {
+        AppLayout {
+            fullscreen: true,
+            LoadingState { message: Some("Opening distributed stacks…".to_string()) }
         }
     }
 }

@@ -108,6 +108,10 @@ pub fn StackExplorerView(
         .map(|f| (f.name.clone(), f.id))
         .collect();
 
+    let selected_ranks = root.as_ref().map(|r| r.ranks.clone()).unwrap_or_default();
+    let is_distributed = profile.contains("distributed");
+    let rank_count = payload.rank_count;
+
     let reset_view = move |_| {
         zoom_id.set(root_id);
         phase_filter.set("all".to_string());
@@ -137,6 +141,13 @@ pub fn StackExplorerView(
                     }
                 }),
                 on_metric: on_torch_metric,
+            }
+            if is_distributed {
+                RankPartitionPanel {
+                    ranks: selected_ranks,
+                    rank_count,
+                    frame_name: root.as_ref().map(label_for_frame).unwrap_or_default(),
+                }
             }
             ExplorerBreadcrumbs {
                 ancestor_chain,
@@ -168,6 +179,54 @@ pub fn StackExplorerView(
             }
             if let Some(tip) = tooltip.read().clone() {
                 FloatingTooltip { state: tip }
+            }
+        }
+    }
+}
+
+#[component]
+fn RankPartitionPanel(ranks: Vec<i32>, rank_count: Option<usize>, frame_name: String) -> Element {
+    let ranks_label = if ranks.is_empty() {
+        "unknown".to_string()
+    } else {
+        ranks
+            .iter()
+            .map(|r| r.to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let coverage = match rank_count {
+        Some(n) if n > 0 && !ranks.is_empty() => {
+            format!(" · {}/{} ranks", ranks.len(), n)
+        }
+        _ if !ranks.is_empty() => format!(" · {} ranks", ranks.len()),
+        _ => String::new(),
+    };
+    let title = if frame_name.is_empty() || frame_name == "all" {
+        "Selected partition".to_string()
+    } else {
+        format!("Selected: {frame_name}")
+    };
+
+    rsx! {
+        div {
+            class: "px-4 py-2.5 border-b border-slate-200 bg-slate-50 flex flex-wrap items-start gap-2",
+            div { class: "min-w-0 flex-1",
+                p { class: "text-[10px] uppercase tracking-wide text-slate-500 mb-1", "{title}" }
+                p { class: "text-xs text-slate-600",
+                    span { class: "text-slate-500", "Ranks in this fork{coverage}: " }
+                    span { class: "font-mono text-slate-800 font-medium", "{ranks_label}" }
+                }
+            }
+            if !ranks.is_empty() {
+                div { class: "flex flex-wrap gap-1",
+                    for r in ranks.iter() {
+                        span {
+                            class: "inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-mono bg-white border border-slate-200 text-slate-700",
+                            "rank {r}"
+                        }
+                    }
+                }
             }
         }
     }
@@ -349,6 +408,15 @@ fn ExplorerFrameNode(
                         format_pct(frame_value, total),
                     ),
                 ];
+                if !frame.ranks.is_empty() {
+                    let ranks = frame
+                        .ranks
+                        .iter()
+                        .map(|r| r.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    lines.push(format!("Ranks: {ranks}"));
+                }
                 if let Some(path) = &frame.module_path {
                     lines.push(format!("{path_prefix}: {path}"));
                 }
