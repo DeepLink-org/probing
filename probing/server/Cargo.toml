@@ -40,7 +40,7 @@ tokio = { workspace = true, features = ["fs"] }
 async-trait = "0.1.83"
 bytes = "1"
 nu-ansi-term = "0.50.1"
-base64 = "0.21.5"
+base64 = "0.22.1"
 ureq = { workspace = true, features = ["json"] }
 axum = { version = "0.8.1", default-features = false, features = [
     "tokio",
@@ -54,10 +54,10 @@ axum = { version = "0.8.1", default-features = false, features = [
 http-body-util = { version = "0.1" }
 serde_urlencoded = "0.7.1"
 futures-util = "0.3"
-rmcp = { version = "1.8.0", features = ["server", "macros", "transport-streamable-http-server", "schemars"], optional = true }
+rmcp = { version = "2.2.0", features = ["server", "macros", "transport-streamable-http-server", "schemars"], optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-procfs = { version = "0.17.0", default-features = false, features = ["chrono"] }
+procfs = { version = "0.18.0", default-features = false, features = ["chrono"] }
 
 [dev-dependencies]
 tempfile = "3.8"
