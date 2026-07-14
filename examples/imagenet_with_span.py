@@ -233,6 +233,86 @@ def _training_device(
     return torch.device("cpu")
 
 
+def _configure_distributed_args(args) -> None:
+    """Honor ``torchrun`` env (``RANK`` / ``WORLD_SIZE`` / ``LOCAL_RANK``)."""
+    if "WORLD_SIZE" in os.environ:
+        args.world_size = int(os.environ["WORLD_SIZE"])
+    elif args.dist_url == "env://" and args.world_size == -1:
+        args.world_size = int(os.environ["WORLD_SIZE"])
+    if "RANK" in os.environ and args.rank == -1:
+        args.rank = int(os.environ["RANK"])
+    args.distributed = args.world_size > 1 or args.multiprocessing_distributed
+
+
+def _init_distributed(args, gpu: int | None, ngpus_per_node: int) -> None:
+    if not args.distributed:
+        return
+    if "RANK" in os.environ and "WORLD_SIZE" in os.environ:
+        if args.rank == -1:
+            args.rank = int(os.environ["RANK"])
+        if args.world_size < 1:
+            args.world_size = int(os.environ["WORLD_SIZE"])
+        dist.init_process_group(backend=args.dist_backend)
+        return
+    if args.dist_url == "env://" and args.rank == -1:
+        args.rank = int(os.environ["RANK"])
+    if args.multiprocessing_distributed:
+        args.rank = args.rank * ngpus_per_node + gpu
+    dist.init_process_group(
+        backend=args.dist_backend,
+        init_method=args.dist_url,
+        world_size=args.world_size,
+        rank=args.rank,
+    )
+
+
+def _sync_probing_ddp_role() -> None:
+    if not dist.is_available() or not dist.is_initialized():
+        return
+    rank = dist.get_rank()
+    world = dist.get_world_size()
+    os.environ["DATA_PARALLEL_RANK"] = str(rank)
+    os.environ["DATA_PARALLEL_SIZE"] = str(world)
+    probing.set_role(dp=rank)
+
+
+def _is_primary_rank(args) -> bool:
+    if not args.distributed:
+        return True
+    if dist.is_available() and dist.is_initialized():
+        return dist.get_rank() == 0
+    return args.rank in (-1, 0)
+
+
+def _log_distributed_probing_banner() -> None:
+    if not dist.is_available() or not dist.is_initialized() or dist.get_rank() != 0:
+        return
+    port = os.environ.get("PROBING_PORT", "18080")
+    world = dist.get_world_size()
+    print(
+        f"=> probing distributed demo: world_size={world}  "
+        f"Web UI http://127.0.0.1:{port}/",
+        flush=True,
+    )
+    print(
+        "=> try: probing -t 127.0.0.1:"
+        f"{port} cluster nodes",
+        flush=True,
+    )
+
+
+def _per_rank_batch_size(args, *, ngpus_per_node: int, device: torch.device) -> int:
+    if not args.distributed:
+        return args.batch_size
+    if device.type == "cuda":
+        divisor = ngpus_per_node
+    elif dist.is_available() and dist.is_initialized():
+        divisor = dist.get_world_size()
+    else:
+        divisor = max(1, args.world_size)
+    return max(1, int(args.batch_size / divisor))
+
+
 def main():
     args = parser.parse_args()
 
@@ -255,10 +335,7 @@ def main():
             "disable data parallelism."
         )
 
-    if args.dist_url == "env://" and args.world_size == -1:
-        args.world_size = int(os.environ["WORLD_SIZE"])
-
-    args.distributed = args.world_size > 1 or args.multiprocessing_distributed
+    _configure_distributed_args(args)
 
     if torch.cuda.is_available():
         ngpus_per_node = torch.cuda.device_count()
@@ -292,18 +369,9 @@ def main_worker(gpu, ngpus_per_node, args):
         print(f"Use LOCAL_RANK: {local_rank} for distributed training")
 
     if args.distributed:
-        if args.dist_url == "env://" and args.rank == -1:
-            args.rank = int(os.environ["RANK"])
-        if args.multiprocessing_distributed:
-            # For multiprocessing distributed training, rank needs to be the
-            # global rank among all the processes
-            args.rank = args.rank * ngpus_per_node + gpu
-        dist.init_process_group(
-            backend=args.dist_backend,
-            init_method=args.dist_url,
-            world_size=args.world_size,
-            rank=args.rank,
-        )
+        _init_distributed(args, args.gpu, ngpus_per_node)
+        _sync_probing_ddp_role()
+        _log_distributed_probing_banner()
     # create model
     with probing.span("model.init"):
         if args.pretrained:
@@ -324,13 +392,18 @@ def main_worker(gpu, ngpus_per_node, args):
         if device.type == "cuda":
             torch.cuda.set_device(local_rank)
             model = model.to(device)
-            args.batch_size = int(args.batch_size / ngpus_per_node)
+            args.batch_size = _per_rank_batch_size(
+                args, ngpus_per_node=ngpus_per_node, device=device
+            )
             args.workers = int((args.workers + ngpus_per_node - 1) / ngpus_per_node)
             model = torch.nn.parallel.DistributedDataParallel(
                 model, device_ids=[local_rank]
             )
         else:
             model = model.to(device)
+            args.batch_size = _per_rank_batch_size(
+                args, ngpus_per_node=ngpus_per_node, device=device
+            )
             model = torch.nn.parallel.DistributedDataParallel(model)
     elif args.gpu is not None and torch.cuda.is_available():
         torch.cuda.set_device(args.gpu)
@@ -546,7 +619,7 @@ def main_worker(gpu, ngpus_per_node, args):
                     )
             probing.event("epoch.end", attributes=[{"best_acc1": float(best_acc1)}])
 
-    if args.soak_assert and (not args.distributed or args.rank == 0):
+    if args.soak_assert and _is_primary_rank(args):
         _run_soak_assert(args)
 
 

@@ -134,17 +134,21 @@ class TestDistributedFlamegraphContract:
         paths = {(r["method"], r["path"]) for r in spec["server_public"]}
         assert ("GET", "/apis/training/distributed_flamegraph/json") in paths
 
-    def test_web_client_declares_distributed_path(self):
+    def test_web_client_declares_distributed_stack_path(self):
         from pathlib import Path
 
         spec_path = Path(__file__).resolve().parents[1] / "spec" / "api_spec.json"
         spec = json.loads(spec_path.read_text(encoding="utf-8"))
-        profiling_calls: list[str] = []
+        stack_calls: list[str] = []
         for entry in spec["client_contracts"]["web"]:
-            if entry["source"] != "web/src/api/profiling.rs":
+            if entry["source"] != "web/src/api/stack.rs":
                 continue
-            profiling_calls.extend(c["path"] for c in entry["calls"])
-        assert "/apis/training/distributed_flamegraph/json" in profiling_calls
+            stack_calls.extend(c["path"] for c in entry["calls"])
+        assert "/apis/training/distributed_stack_flamegraph/json" in stack_calls
+
+        # Legacy torch SPMD endpoint remains server-public; Web UI uses stack flamegraph.
+        paths = {(r["method"], r["path"]) for r in spec["server_public"]}
+        assert ("GET", "/apis/training/distributed_flamegraph/json") in paths
 
     @staticmethod
     def _normalize_profiling_view(view: str) -> str:

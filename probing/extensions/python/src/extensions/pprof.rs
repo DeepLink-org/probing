@@ -19,7 +19,7 @@ impl ProbeExtensionCall for PprofProbeExtension {
     async fn call(
         &self,
         path: &str,
-        _params: &HashMap<String, String>,
+        params: &HashMap<String, String>,
         _body: &[u8],
     ) -> Result<Vec<u8>, EngineError> {
         match path.trim_start_matches('/') {
@@ -27,6 +27,22 @@ impl ProbeExtensionCall for PprofProbeExtension {
                 .map(|html| html.into_bytes())
                 .map_err(|e| EngineError::CallError(e.to_string())),
             "flamegraph/json" => Ok(crate::features::pprof::flamegraph_json().into_bytes()),
+            "flamegraph/folded/json" => {
+                Ok(crate::features::pprof::folded_lines_json().into_bytes())
+            }
+            "flamegraph/distributed/json" => {
+                let cluster = params
+                    .get("cluster")
+                    .map(|v| v.as_str())
+                    .map(|v| v != "0" && v != "false")
+                    .unwrap_or(true);
+                let mode = params.get("mode").map(|s| s.as_str()).unwrap_or("mixed");
+                let (body, _) = crate::features::pprof::collect_distributed_stack_flamegraph_json(
+                    cluster, mode,
+                )
+                .await;
+                Ok(body.into_bytes())
+            }
             _ => Err(EngineError::UnsupportedCall),
         }
     }

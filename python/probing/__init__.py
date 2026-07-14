@@ -13,11 +13,15 @@ Public Interfaces (full import):
 
 from __future__ import annotations
 
-from probing._entrypoint import is_lightweight_module, is_probing_cli
+from probing._entrypoint import (
+    is_elastic_supervisor,
+    is_lightweight_module,
+    is_probing_cli,
+)
 
 VERSION = "0.2.5"
 
-if is_lightweight_module():
+if is_lightweight_module() or is_elastic_supervisor():
     __all__ = ["VERSION"]
 elif is_probing_cli():
     # Must set PROBING_CLI_MODE before loading _core so #[ctor] skips engine startup.

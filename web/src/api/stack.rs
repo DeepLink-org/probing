@@ -23,4 +23,20 @@ impl ApiClient {
         let response = self.get_request(&path).await?;
         Self::parse_json(&response)
     }
+
+    /// Distributed CPU stack flamegraph (`mode`: `mixed` | `py`).
+    pub async fn get_distributed_stack_flamegraph_json(
+        &self,
+        cluster: bool,
+        mode: &str,
+    ) -> Result<String> {
+        let mode = match mode {
+            "py" | "mixed" => mode,
+            _ => "mixed",
+        };
+        let path = format!(
+            "/apis/training/distributed_stack_flamegraph/json?cluster={cluster}&mode={mode}"
+        );
+        self.get_request(&path).await
+    }
 }

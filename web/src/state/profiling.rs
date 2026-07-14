@@ -12,7 +12,6 @@ pub fn normalize_profiling_view(view: &str) -> &'static str {
     match view {
         "" | "pprof" => "pprof",
         "torch" => "torch",
-        "torch-dist" | "distributed-torch" | "torch-distributed" => "torch-dist",
         "trace" | "trace-timeline" => "trace",
         "pytorch" | "pytorch-timeline" => "pytorch",
         "ray" | "ray-timeline" => "ray",
@@ -55,10 +54,6 @@ pub static PROFILING_PYTORCH_STEPS: GlobalSignal<i32> = Signal::global(|| 5);
 pub static PROFILING_PYTORCH_TIMELINE_RELOAD: GlobalSignal<i32> = Signal::global(|| 0);
 pub static PROFILING_RAY_TIMELINE_RELOAD: GlobalSignal<i32> = Signal::global(|| 0);
 pub static PROFILING_TRACE_RELOAD: GlobalSignal<i32> = Signal::global(|| 0);
-/// Optional ``local_step`` for distributed torch flamegraph (``None`` = latest on server).
-pub static PROFILING_DIST_STEP: GlobalSignal<Option<i64>> = Signal::global(|| None);
-pub static PROFILING_DIST_CLUSTER: GlobalSignal<bool> = Signal::global(|| true);
-pub static PROFILING_DIST_RELOAD: GlobalSignal<i32> = Signal::global(|| 0);
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProfilingFeedback {
@@ -105,12 +100,6 @@ pub const PROFILING_VIEWS: &[ProfilingViewSpec] = &[
         label: "Torch modules",
         sidebar_label: "Torch flamegraph",
         tooltip: "PyTorch module hook durations · statistical flamegraph (not the profiler timeline)",
-    },
-    ProfilingViewSpec {
-        id: "torch-dist",
-        label: "Distributed torch",
-        sidebar_label: "Distributed flamegraph",
-        tooltip: "SPMD snapshot at one training step — merge identical module stacks across ranks",
     },
     ProfilingViewSpec {
         id: "trace",

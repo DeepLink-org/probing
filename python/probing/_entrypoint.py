@@ -80,3 +80,28 @@ def is_lightweight_module() -> bool:
     except (ValueError, IndexError):
         return False
     return mod in _LIGHTWEIGHT_MODULES
+
+
+def is_elastic_supervisor() -> bool:
+    """True for torchrun / ``python -m torch.distributed.run`` launcher (not a worker rank)."""
+    if os.environ.get("LOCAL_RANK") is not None or os.environ.get("RANK") is not None:
+        return False
+    if os.environ.get("TORCHELASTIC_RUN_ID"):
+        return True
+    if current_script_name() == "torchrun":
+        return True
+    if sys.argv[:1] == ["-m"]:
+        if len(sys.argv) >= 2 and not sys.argv[1].startswith("-"):
+            return False
+        return True
+    try:
+        idx = sys.argv.index("-m")
+        mod = sys.argv[idx + 1]
+    except (ValueError, IndexError):
+        mod = None
+    if mod in ("torch.distributed.run", "torch.distributed.launch"):
+        return True
+    return any(
+        (arg or "").endswith("torchrun") or "torch/distributed/run" in (arg or "")
+        for arg in sys.argv
+    )

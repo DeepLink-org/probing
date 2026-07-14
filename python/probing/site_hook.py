@@ -11,6 +11,7 @@ import sys
 
 from probing._entrypoint import (
     current_script_name,
+    is_elastic_supervisor,
     is_lightweight_module,
     is_probing_cli,
     should_activate_probing,
@@ -27,14 +28,7 @@ def run_site_hook() -> None:
     _RAN = True
 
     try:
-        import re
-
-        script = current_script_name()
-        if (
-            re.search("torchrun", script) is not None
-            or is_probing_cli()
-            or is_lightweight_module()
-        ):
+        if is_elastic_supervisor() or is_probing_cli() or is_lightweight_module():
             return
         _init_probing()
     except Exception as exc:

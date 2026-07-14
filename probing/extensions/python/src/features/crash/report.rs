@@ -142,9 +142,7 @@ fn format_event(
                 super::context::hold_file_path(event.pid)
             ));
         } else if hold_active {
-            lines.push(
-                "  hold       active — kill -USR2 or POST /apis/pythonext/crash/release".into(),
-            );
+            lines.push("  hold       active — POST /apis/pythonext/crash/release".into());
         }
     } else {
         lines.push(

@@ -15,6 +15,8 @@ pub struct StackSnapshot {
 
 pub static STACK_MODE: GlobalSignal<String> = Signal::global(|| String::from("mixed"));
 pub static STACK_REFRESH: GlobalSignal<u32> = Signal::global(|| 0);
+pub static STACK_DIST_CLUSTER: GlobalSignal<bool> = Signal::global(|| true);
+pub static STACK_DIST_RELOAD: GlobalSignal<i32> = Signal::global(|| 0);
 pub static STACK_SNAPSHOT: GlobalSignal<StackSnapshot> = Signal::global(StackSnapshot::default);
 
 pub fn stack_tid_label(tid: Option<&str>) -> String {

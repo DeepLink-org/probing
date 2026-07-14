@@ -8,7 +8,11 @@ pub mod pprof;
 pub mod py_result;
 pub mod python_api;
 pub mod spy;
-/// Native stack capture, Python/native merge, and signal handling (`SIGUSR2`).
+/// Async-signal-safe raw stack snapshotting (SIGPROF / SIGUSR2).
+pub mod stack_capture;
+/// Unified Python / native stack merge.
+pub mod stack_merge;
+/// On-demand stack capture (`SIGUSR2`) and synchronous walks.
 pub mod stack_tracer;
 pub mod torch;
 pub mod tracing;

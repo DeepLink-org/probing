@@ -1012,6 +1012,10 @@ video {
   margin-bottom: 0.125rem;
 }
 
+.-mb-px {
+  margin-bottom: -1px;
+}
+
 .-mt-0\.5 {
   margin-top: -0.125rem;
 }
@@ -1958,6 +1962,10 @@ video {
   border-bottom-width: 1px;
 }
 
+.border-b-2 {
+  border-bottom-width: 2px;
+}
+
 .border-l {
   border-left-width: 1px;
 }
@@ -2267,6 +2275,10 @@ video {
 
 .border-slate-700\/50 {
   border-color: rgb(51 65 85 / 0.5);
+}
+
+.border-slate-700\/80 {
+  border-color: rgb(51 65 85 / 0.8);
 }
 
 .border-slate-800 {

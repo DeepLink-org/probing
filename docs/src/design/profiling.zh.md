@@ -157,7 +157,16 @@ configure("on,rate=0.5,layer_rate=0.3")
 
 ## Python 堆栈分析
 
-按需或周期性栈采集（SIGUSR2 / 同步 walk）写入 `python.backtrace`。CPU 采样（pprof，`probing.pprof.sample_freq`）与 TorchProbe 模块钩子相互独立。
+按需栈采集与 CPU 采样（`SIGPROF`，`probing.pprof.sample_freq`）共用同一套基础设施：
+
+- **Python 帧**：eval-frame hook（`vm_tracer` / `PYSTACKS`）是唯一数据源；符号在 GIL 下 intern（保留完整路径供源码查看，火焰图展示 basename），signal 路径只拷贝指针。
+- **C++ 帧**：`SIGPROF` 与跨线程 `SIGUSR2` 使用相同的安全 handler——仅在 signal 内做 frame-pointer walk + 拷贝 POD 快照；symbolize 与 Python/native 合并在 signal 外完成（尽力而为，不向上抛错）。
+- **合并**：`stack_merge` 在 eval 帧边界将 Python 帧拼入 native 塔（leaf 对齐）。
+- **复用**：`SIGPROF` 开启时，主线程 HTTP/火焰图路径优先复用该线程最近一次 SIGPROF 快照，避免重复 signal。
+- **主线程 HTTP 路径**：不发 `SIGUSR2`（避免中断训练主线程）；无 SIGPROF 时回退为同步读取 `PYSTACKS`（Python 帧为主，单次快照）。跨线程按需采集仍使用 `SIGUSR2`（与 crash grace 分离，grace release 仅 HTTP）。
+- **分布式火焰图**：跨 rank merge 后每个 frame 携带 `ranks`（该分区下贡献样本的 training rank）；Web 点选/缩放某个分叉时展示这些 rank。
+
+TorchProbe 模块钩子与上述栈采集相互独立。分布式 CPU 混合栈火焰图见 `GET /apis/training/distributed_stack_flamegraph/json`（Web：**Stacks → Distributed**）。旧版 torch 模块级 API `/apis/training/distributed_flamegraph/json` 仍保留。
 
 ## 系统指标
 

@@ -29,6 +29,7 @@ serde_json = { workspace = true }
 sha2 = "0.10"
 uuid = { version = "1.0", features = ["v4"] }
 tokio = { workspace = true }
+ureq = { workspace = true }
 html-escape = "0.2"
 
 include_dir = "=0.7.4"
@@ -48,7 +49,6 @@ pyo3 = { version = "0.29.0", default-features = false, features = [
 # symbolization done off the signal path on a consumer thread.
 lazy_static = "1.4.0"
 async-trait = "0.1.83"
-signal-hook-registry = "1.4.2"
 regex = ">=1.6.0"
 
 [dev-dependencies]

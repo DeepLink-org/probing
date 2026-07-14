@@ -33,6 +33,8 @@ pub fn page_id_for_route(route: &Route) -> String {
         Route::AgentPage {} => "agent".into(),
         Route::ClusterPage {} => "cluster".into(),
         Route::StackPage {} => "stacks".into(),
+        Route::StackDistributedFullPage {} => "stacks/distributed".into(),
+        Route::StackDistributedPyPage {} => "stacks/distributed/py".into(),
         Route::StackWithTidPage { tid } => format!("stacks/{tid}"),
         Route::ProfilingViewPage { view } => {
             format!("profiling/{}", normalize_profiling_view(view))
