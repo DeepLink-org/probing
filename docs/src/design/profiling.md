@@ -155,12 +155,15 @@ Profiling starts on the first `optimizer.step()` after torch is imported (optimi
 
 ### Backtrace Collection
 
-On-demand or periodic stack capture (SIGUSR2 / synchronous walk) into `python.backtrace`:
+On-demand stack capture and CPU sampling (`SIGPROF`, `probing.pprof.sample_freq`) share one stack pipeline:
 
-- Function names, file paths, line numbers
-- Python and native frames (merged where possible)
+- **Python frames:** eval-frame hook (`vm_tracer` / `PYSTACKS`) is the sole source; symbols are interned under the GIL (full path for source view, basename in flamegraph labels); signal handlers copy pointer keys only.
+- **Native frames:** `SIGPROF` and cross-thread `SIGUSR2` use the same safe handler—frame-pointer walk + POD snapshot in-signal; symbolization and Python/native merge run off-signal (best-effort, no errors propagated upward).
+- **Merge:** `stack_merge` splices Python frames at CPython eval boundaries (leaf-aligned).
+- **Reuse:** when `SIGPROF` sampling is active, the main-thread HTTP/flamegraph path reuses the latest per-thread SIGPROF snapshot when available.
+- **Main-thread HTTP path:** does not deliver `SIGUSR2` (avoids interrupting the training main thread); without SIGPROF it falls back to a synchronous `PYSTACKS` read (Python-heavy, one-shot). Cross-thread on-demand capture still uses `SIGUSR2` (dedicated to stack capture; crash grace release is HTTP-only).
 
-CPU sampling via pprof (`probing.pprof.sample_freq`) is separate from TorchProbe module hooks.
+TorchProbe module hooks are independent. The distributed flamegraph (`GET /apis/training/distributed_flamegraph/json`) currently aggregates `python.torch_trace`; cross-rank CPU mixed-mode flamegraphs should prefer the unified SIGPROF data source (cluster fan-out of folded stacks) rather than per-path merge logic.
 
 ## System Metrics
 

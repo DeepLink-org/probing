@@ -51,14 +51,14 @@ unsafe extern "C" fn rust_eval_frame(
     with_spy_state(|state| {
         // Mark this thread as a Python thread once; lets the SIGPROF sampler know its
         // thread-local `PYSTACKS` is allocated and safe to read from a signal handler.
-        crate::features::pprof::register_python_thread();
+        crate::features::stack_capture::register_python_thread();
 
         // Resolve this frame's callee symbol *now*, while the code object is alive
         // under the GIL, and cache it by pointer. The SIGPROF consumer later looks
         // the label up by integer key instead of dereferencing a possibly-freed
         // `PyCodeObject` off the signal path.
         let loc = RawCallLocation::from(frame as usize, Some(ts as usize));
-        crate::features::pprof::intern_py_frame(&loc);
+        crate::features::stack_capture::intern_py_frame(&loc);
 
         // Bracket the `PYSTACKS` mutation so a SIGPROF sample taken mid-realloc is
         // discarded instead of reading a torn `Vec`.
@@ -127,7 +127,7 @@ pub fn disable_tracer() -> PyResult<()> {
             });
         }
     }
-    crate::features::pprof::clear_py_symbols();
+    crate::features::stack_capture::clear_py_symbols();
     Ok(())
 }
 

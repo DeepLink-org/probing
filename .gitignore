@@ -34,3 +34,4 @@ docs/site/
 .coverage
 .pytest_cache/
 web/target/
+frontend/

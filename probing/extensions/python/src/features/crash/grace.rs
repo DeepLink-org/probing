@@ -93,8 +93,9 @@ fn register_signals() {
     {
         use nix::sys::signal::{self, SigHandler, Signal};
         unsafe {
+            // SIGUSR1 = hold. Release is HTTP-only (`POST /apis/pythonext/crash/release`)
+            // so SIGUSR2 remains dedicated to stack capture (installed at process start).
             let _ = signal::signal(Signal::SIGUSR1, SigHandler::Handler(on_hold_signal));
-            let _ = signal::signal(Signal::SIGUSR2, SigHandler::Handler(on_release_signal));
         }
     }
 }
@@ -102,11 +103,6 @@ fn register_signals() {
 #[cfg(unix)]
 extern "C" fn on_hold_signal(_: nix::libc::c_int) {
     request_hold();
-}
-
-#[cfg(unix)]
-extern "C" fn on_release_signal(_: nix::libc::c_int) {
-    request_release(true);
 }
 
 fn hold_triggered(pid: i32) -> bool {
@@ -128,7 +124,7 @@ fn print_hold_banner(pid: i32, rank: i32) {
            attach : gdb -p {pid}\n\
            python : py-spy dump --pid {pid}\n\
            release: curl -X POST http://127.0.0.1:<port>/apis/pythonext/crash/release\n\
-                    rm {} && kill -USR2 {pid}\n",
+                    rm {}\n",
         context::hold_file_path(pid)
     );
 }

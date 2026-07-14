@@ -203,6 +203,7 @@ fn start_local() {
 #[pymodule(gil_used = true)]
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     register_python_main_thread();
+    probing_python::features::stack_capture::register_main_os_tid();
 
     // Initialize logging (try_init to avoid conflicts if already initialized via #[ctor])
     let _ = env_logger::try_init_from_env(env_logger::Env::new().filter(ENV_PROBING_LOGLEVEL));

@@ -15,6 +15,9 @@ pub struct FlameFrame {
     pub phase: Option<String>,
     #[serde(rename = "modulePath", default)]
     pub module_path: Option<String>,
+    /// Training ranks that contributed samples under this frame (distributed only).
+    #[serde(default)]
+    pub ranks: Vec<i32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -38,4 +41,7 @@ pub struct FlamegraphPayload {
     /// as a warning; 0 / absent for profilers that don't report it.
     #[serde(default)]
     pub dropped: u64,
+    /// Number of ranks included in a distributed merge (when present).
+    #[serde(rename = "rankCount", default)]
+    pub rank_count: Option<usize>,
 }

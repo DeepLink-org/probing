@@ -7,15 +7,27 @@ use crate::app::Route;
 use crate::components::colors::colors;
 use crate::components::icon::Icon;
 use crate::components::sidebar::nav_item::sidebar_item_class;
-use crate::state::stack::{bump_stack_refresh, stack_tid_label, STACK_MODE, STACK_SNAPSHOT};
+use crate::state::stack::{
+    bump_stack_refresh, stack_tid_label, STACK_DIST_CLUSTER, STACK_DIST_RELOAD, STACK_MODE,
+    STACK_SNAPSHOT,
+};
 use crate::utils::callframe::{mode_for_kind, FrameKind};
 
 #[component]
 pub fn StackSidebarItem(show_dropdown: Signal<bool>) -> Element {
     let route = use_route::<Route>();
-    let is_active = matches!(route, Route::StackPage {} | Route::StackWithTidPage { .. });
+    let is_active = matches!(
+        route,
+        Route::StackPage {}
+            | Route::StackDistributedFullPage {}
+            | Route::StackDistributedPyPage {}
+            | Route::StackWithTidPage { .. }
+    );
     let expanded = *show_dropdown.read();
     let on_default = matches!(route, Route::StackPage {});
+    let on_dist_full = matches!(route, Route::StackDistributedFullPage {});
+    let on_dist_py = matches!(route, Route::StackDistributedPyPage {});
+    let on_distributed = on_dist_full || on_dist_py;
     let tid = match &route {
         Route::StackWithTidPage { tid } => Some(tid.clone()),
         _ => None,
@@ -32,7 +44,7 @@ pub fn StackSidebarItem(show_dropdown: Signal<bool>) -> Element {
                 class: "{button_class}",
                 aria_expanded: if expanded { "true" } else { "false" },
                 aria_label: "Stacks menu",
-                title: "Live call stack — expand for filters",
+                title: "Live call stack and distributed CPU flamegraph",
                 onclick: move |_| {
                     let current = *show_dropdown.read();
                     *show_dropdown.write() = !current;
@@ -50,6 +62,18 @@ pub fn StackSidebarItem(show_dropdown: Signal<bool>) -> Element {
                         is_selected: on_default,
                         route: Route::StackPage {},
                     }
+                    StackSubLink {
+                        label: "Distributed · Full stack",
+                        hint: "Cluster flamegraph · Python + native merged across ranks",
+                        is_selected: on_dist_full,
+                        route: Route::StackDistributedFullPage {},
+                    }
+                    StackSubLink {
+                        label: "Distributed · Python",
+                        hint: "Cluster flamegraph · Python frames only across ranks",
+                        is_selected: on_dist_py,
+                        route: Route::StackDistributedPyPage {},
+                    }
                     if let Some(tid) = tid {
                         StackSubLink {
                             label: format!("tid {tid}"),
@@ -59,7 +83,11 @@ pub fn StackSidebarItem(show_dropdown: Signal<bool>) -> Element {
                         }
                     }
                     if is_active {
-                        StackControlsPanel {}
+                        if on_distributed {
+                            StackDistributedControlsPanel {}
+                        } else {
+                            StackControlsPanel {}
+                        }
                     }
                 }
             }
@@ -144,6 +172,54 @@ fn StackControlsPanel() -> Element {
                     onclick: move |_| bump_stack_refresh(),
                     "Refresh"
                 }
+            }
+        }
+    }
+}
+
+#[component]
+fn StackDistributedControlsPanel() -> Element {
+    let cluster = *STACK_DIST_CLUSTER.read();
+    let panel_border = colors::SIDEBAR_PANEL_BORDER;
+    let title_class = colors::SIDEBAR_CONTROL_TITLE;
+
+    rsx! {
+        div {
+            class: "{panel_border}",
+            div {
+                class: "px-1 space-y-3",
+                p {
+                    class: "text-[10px] uppercase tracking-wide text-slate-500",
+                    "Distributed flamegraph"
+                }
+                p {
+                    class: "text-[11px] text-slate-400 leading-snug",
+                    "Merge main-thread stacks from all ranks. Requires SIGPROF sampling (Profiling → CPU) for accumulated samples."
+                }
+                label {
+                    class: "flex items-center gap-2 cursor-pointer select-none text-xs text-slate-300",
+                    input {
+                        r#type: "checkbox",
+                        checked: cluster,
+                        onchange: move |_| {
+                            *STACK_DIST_CLUSTER.write() = !*STACK_DIST_CLUSTER.read();
+                        },
+                    }
+                    "Cluster fan-out"
+                }
+                button {
+                    r#type: "button",
+                    class: format!(
+                        "w-full px-2 py-1.5 text-xs font-medium rounded bg-{} text-white hover:bg-{}",
+                        colors::PRIMARY,
+                        colors::PRIMARY_HOVER
+                    ),
+                    onclick: move |_| {
+                        *STACK_DIST_RELOAD.write() += 1;
+                    },
+                    "Reload flamegraph"
+                }
+                p { class: "{title_class} text-[10px] text-slate-500", "Pprof frequency lives under Profiling → CPU (pprof)." }
             }
         }
     }
