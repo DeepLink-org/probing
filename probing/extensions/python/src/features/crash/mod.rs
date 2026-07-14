@@ -19,6 +19,9 @@ pub use api::{
 };
 pub use signal::install_crash_handler;
 
+/// Whether crash grace is currently holding the process (skip SIGUSR2 stack capture).
+pub(crate) use grace::is_held as is_crash_held;
+
 pub(crate) mod config {
     pub fn enabled() -> bool {
         match std::env::var("PROBING_CRASH") {

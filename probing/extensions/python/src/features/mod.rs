@@ -1,20 +1,26 @@
-pub mod config;
-pub mod convert;
-/// Backtrace-on-crash handler for fatal signals (`SIGSEGV`/`SIGBUS`/...).
-pub mod crash;
-pub mod flamegraph;
-pub mod native_bridge;
-pub mod pprof;
-pub mod py_result;
-pub mod python_api;
-pub mod spy;
-/// Async-signal-safe raw stack snapshotting (SIGPROF / SIGUSR2).
-pub mod stack_capture;
-/// Unified Python / native stack merge.
-pub mod stack_merge;
-/// On-demand stack capture (`SIGUSR2`) and synchronous walks.
-pub mod stack_tracer;
+//! Feature modules for the Python extension (`probing-python`).
+//!
+//! Grouped by concern:
+//!
+//! | Module | Role |
+//! |--------|------|
+//! | [`python`] | PyO3 glue — bridge, bindings, tracing |
+//! | [`stacktrace`] | Call-stack capture, merge, tracers (vm / pprof / dynamic) |
+//! | [`torch`] | Module profiling from `python.torch_trace` |
+//! | [`flamegraph`] | Shared flamegraph render + distributed stack fold merge |
+//! | [`crash`] | Fatal-signal backtrace / grace |
+
+/// PyO3-facing surface (`bridge` / `bindings` / `tracing`).
+pub mod python;
+
+/// Unified stack expression, merge, CPython ABI (spy), and tracers.
+pub mod stacktrace;
+
+/// Torch module profiling (`python.torch_trace` → flamegraph / JSON).
 pub mod torch;
-pub mod tracing;
-/// Python eval-frame hook; source of Python call frames for stack tracing.
-pub mod vm_tracer;
+
+/// Shared HTML/JSON flamegraph renderer (CPU stacks + torch modules).
+pub mod flamegraph;
+
+/// Backtrace-on-crash for fatal signals (`SIGSEGV` / `SIGBUS` / …).
+pub mod crash;

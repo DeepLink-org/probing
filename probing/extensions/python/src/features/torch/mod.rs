@@ -1,3 +1,8 @@
+//! Torch module profiling: flamegraph / JSON from `python.torch_trace`.
+//!
+//! HTTP entrypoints live in [`crate::extensions::torch`]; rendering uses
+//! [`crate::features::flamegraph`].
+
 use std::{collections::BTreeMap, collections::HashMap, collections::HashSet, thread};
 
 use anyhow::{Context, Result};

@@ -155,15 +155,44 @@ Profiling starts on the first `optimizer.step()` after torch is imported (optimi
 
 ### Backtrace Collection
 
-On-demand stack capture and CPU sampling (`SIGPROF`, `probing.pprof.sample_freq`) share one stack pipeline:
+Feature layout under `probing/extensions/python/src/features/`:
 
-- **Python frames:** eval-frame hook (`vm_tracer` / `PYSTACKS`) is the sole source; symbols are interned under the GIL (full path for source view, basename in flamegraph labels); signal handlers copy pointer keys only.
-- **Native frames:** `SIGPROF` and cross-thread `SIGUSR2` use the same safe handler—frame-pointer walk + POD snapshot in-signal; symbolization and Python/native merge run off-signal (best-effort, no errors propagated upward).
-- **Merge:** `stack_merge` splices Python frames at CPython eval boundaries (leaf-aligned).
-- **Reuse:** when `SIGPROF` sampling is active, the main-thread HTTP/flamegraph path reuses the latest per-thread SIGPROF snapshot when available.
-- **Main-thread HTTP path:** does not deliver `SIGUSR2` (avoids interrupting the training main thread); without SIGPROF it falls back to a synchronous `PYSTACKS` read (Python-heavy, one-shot). Cross-thread on-demand capture still uses `SIGUSR2` (dedicated to stack capture; crash grace release is HTTP-only).
+| Dir | Role |
+|-----|------|
+| `python/` | PyO3: `bridge` / `bindings` / `tracing` |
+| `stacktrace/` | Stack capture, merge, tracers |
+| `torch/` | Module profiling (`python.torch_trace`) |
+| `flamegraph/` | Shared flamegraph render + distributed folded merge |
+| `crash/` | Fatal-signal backtrace |
 
-TorchProbe module hooks are independent. The distributed flamegraph (`GET /apis/training/distributed_flamegraph/json`) currently aggregates `python.torch_trace`; cross-rank CPU mixed-mode flamegraphs should prefer the unified SIGPROF data source (cluster fan-out of folded stacks) rather than per-path merge logic.
+`stacktrace/` pipeline: `StackSnapshot` → `ParsedStacks` → `FoldedStacks`.
+
+| Module | Role |
+|--------|------|
+| `snapshot` | Capture document + `StackSource` / flags (only signal-writable form) |
+| `compact` | Heap-sized sampler bucket payload (used frame lengths only) |
+| `fingerprint` | Aggregation key = `tid` + flags + PCs + py keys (no demangle); pprof also filters to main tid |
+| `parse` | Snapshot → CallFrames (multi-slot `(tid,seq)` FIFO view cache) |
+| `fold` | Parsed/Snapshot → flamegraph / distributed aggregation |
+| `metrics` | JSON groups `sampler` (drop / fingerprint / export-fold) vs `view` (parse / cache) |
+| `merge` | Python ⊕ native splice + canonicalize |
+| `capture` | Thread registry, intern, signal fill (does not own parse/fold) |
+| `spy` | CPython ABI / TLS (py-spy-derived) |
+| `tracers/vm` | Eval-frame hook (sole Python frame source) |
+| `tracers/pprof` | `SIGPROF` sampling (SQL / continuous profiling) |
+| `tracers/dynamic` | `SIGUSR2` + command/HTTP on-demand (always via parse) |
+
+On-demand and CPU sampling share one pipeline:
+
+- **Python frames:** only from the **vm tracer** (`PYSTACKS`); symbols are interned under the GIL (full path for source view, basename in flamegraph labels); signal handlers copy pointer keys only.
+- **Native frames:** `SIGPROF` / `SIGUSR2` fill a POD via `fill_raw_snapshot` on a dedicated `SA_ONSTACK` alt stack (in-place into the ring / slot)—avoid constructing a full snapshot on the interrupted training stack (deep frames previously led to resume-time `SIGILL`); symbolize/merge run off-signal.
+- **metrics JSON:** `sampler.*` (ring drop / fingerprint / fold-on-**export**) vs `view.*` (parse / `(tid,seq)` cache)—do not read a burst of export `parse_calls` as per-sample demangle cost.
+- **Fetch paths:** dynamic (command/HTTP) or pprof (SQL / `sample_freq`); both read Python frames recorded by the vm tracer.
+- **Reuse:** when `SIGPROF` is active, the main-thread HTTP/flamegraph path reuses the latest per-thread SIGPROF snapshot when available.
+- **Main-thread HTTP path:** prefer the latest SIGPROF mixed snapshot; **never `SIGUSR2` the main tid while `sample_freq` is active** (Distributed included). Only when sampling is off may `PROBING_STACK_SIGUSR2_MAIN=1` enable on-demand signal; otherwise fall back to bare `PYSTACKS`. Cross-thread on-demand still uses `SIGUSR2`.
+- **Distributed flamegraph:** with sampling on, export only aggregated SIGPROF buckets per rank (empty buckets → empty graph; no on-demand fallback).
+
+TorchProbe module hooks are independent. Distributed CPU mixed-mode flamegraphs: `GET /apis/training/distributed_stack_flamegraph/json` (Web: **Stacks → Distributed**). Legacy torch module API `/apis/training/distributed_flamegraph/json` remains.
 
 ## System Metrics
 

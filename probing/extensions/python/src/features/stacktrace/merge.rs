@@ -1,6 +1,7 @@
-//! Unified Python / native stack merge for SIGPROF, SIGUSR2, and synchronous walks.
+//! Unified Python / native (C++ / Rust) stack merge for all tracers.
 //!
-//! Python frames always come from the eval-frame hook (`vm_tracer` / `PYSTACKS`).
+//! Python frames always come from the eval-frame hook
+//! ([`crate::features::stacktrace::tracers::vm`] / `PYSTACKS`).
 //! Native frames are spliced at CPython eval-frame boundaries
 //! (`_PyEval_EvalFrameDefault` / `EvalFrameEx`).
 
@@ -181,6 +182,9 @@ fn is_stdlib_bootstrap_py_segment(seg: &str) -> bool {
         || seg.contains("importlib/")
         || seg.contains("runpy.py")
         || seg.contains("zipimport.py")
+        // platform.<module> often appears above user main_worker via import side-effects.
+        || seg.contains("(platform.py:")
+        || seg.ends_with("(platform.py)")
 }
 
 /// CPython main / import bootstrap that sometimes appears above user `[py]` frames.
@@ -284,6 +288,23 @@ mod tests {
             "[py] train (train.py:10)".to_string(),
         ];
         assert_eq!(canonicalize_folded_segments(&user), user);
+    }
+
+    #[test]
+    fn canonicalize_drops_platform_import_root_before_user() {
+        // Observed distributed fork: platform.py:<module> vs imagenet script root.
+        let raw = vec![
+            "[py] <module> (platform.py:1)".to_string(),
+            "[py] main_worker (imagenet_with_span.py:361)".to_string(),
+            "[py] train (imagenet_with_span.py:659)".to_string(),
+        ];
+        assert_eq!(
+            canonicalize_folded_segments(&raw),
+            vec![
+                "[py] main_worker (imagenet_with_span.py:361)".to_string(),
+                "[py] train (imagenet_with_span.py:659)".to_string(),
+            ]
+        );
     }
 
     #[test]

@@ -1,8 +1,9 @@
 //! CPU profiling via `SIGPROF` sampling ("model two": trigger in-signal, process
 //! off-signal).
 //!
-//! Raw capture and Python/native merge live in [`stack_capture`] /
-//! [`stack_merge`]; this module owns the ring buffer, timer, and folded output.
+//! Raw capture and Python/native merge live in [`crate::features::stacktrace::capture`]
+//! / [`crate::features::stacktrace::merge`]; this module owns the ring buffer,
+//! timer, and folded output. Python frames always come from the [`super::vm`] tracer.
 
 use std::cell::UnsafeCell;
 use std::collections::HashMap;
@@ -18,7 +19,12 @@ use once_cell::sync::Lazy;
 use serde_json::json;
 
 use crate::features::flamegraph::{FlamegraphKind, FlamegraphOptions};
-use crate::features::stack_capture::{self, RawStackSnapshot};
+use crate::features::stacktrace::capture;
+use crate::features::stacktrace::compact::CompactStack;
+use crate::features::stacktrace::fingerprint;
+use crate::features::stacktrace::fold::{fold_snapshot, FoldOptions};
+use crate::features::stacktrace::metrics;
+use crate::features::stacktrace::snapshot::{StackFlags, StackSnapshot, StackSource};
 
 const DEFAULT_SAMPLE_FREQ: i32 = 100;
 const MIN_SAMPLE_FREQ: i32 = 1;
@@ -34,7 +40,7 @@ const MAX_FOLDED_STACKS: usize = 1 << 17;
 
 struct Cell {
     seq: AtomicUsize,
-    data: UnsafeCell<RawStackSnapshot>,
+    data: UnsafeCell<StackSnapshot>,
 }
 
 struct Ring {
@@ -52,7 +58,7 @@ impl Ring {
         for i in 0..RING_SIZE {
             v.push(Cell {
                 seq: AtomicUsize::new(i),
-                data: UnsafeCell::new(RawStackSnapshot::zeroed()),
+                data: UnsafeCell::new(StackSnapshot::zeroed()),
             });
         }
         Ring {
@@ -62,7 +68,11 @@ impl Ring {
         }
     }
 
-    fn enqueue(&self, sample: &RawStackSnapshot) -> bool {
+    /// Claim a ring cell and fill it in place (keeps large snapshots off the
+    /// interrupted thread stack — important under `SIGPROF` + deep frames).
+    ///
+    /// `fill` should return `false` to abort the claim (cell is released unused).
+    fn enqueue_with(&self, fill: impl FnOnce(&mut StackSnapshot) -> bool) -> bool {
         let mut pos = self.enqueue_pos.load(Ordering::Relaxed);
         loop {
             let cell = &self.buffer[pos & RING_MASK];
@@ -74,9 +84,21 @@ impl Ring {
                     .compare_exchange_weak(pos, pos + 1, Ordering::Relaxed, Ordering::Relaxed)
                     .is_ok()
                 {
-                    unsafe { *cell.data.get() = *sample };
+                    let dst = unsafe { &mut *cell.data.get() };
+                    if fill(dst) {
+                        cell.seq.store(pos + 1, Ordering::Release);
+                        return true;
+                    }
+                    // Release unused claim; zero in place (no StackSnapshot temporary).
+                    unsafe {
+                        core::ptr::write_bytes(
+                            dst as *mut StackSnapshot as *mut u8,
+                            0,
+                            core::mem::size_of::<StackSnapshot>(),
+                        );
+                    }
                     cell.seq.store(pos + 1, Ordering::Release);
-                    return true;
+                    return false;
                 }
             } else if diff < 0 {
                 return false;
@@ -86,7 +108,7 @@ impl Ring {
         }
     }
 
-    fn dequeue(&self, out: &mut RawStackSnapshot) -> bool {
+    fn dequeue(&self, out: &mut StackSnapshot) -> bool {
         let mut pos = self.dequeue_pos.load(Ordering::Relaxed);
         loop {
             let cell = &self.buffer[pos & RING_MASK];
@@ -112,7 +134,6 @@ impl Ring {
 }
 
 static RING_PTR: AtomicPtr<Ring> = AtomicPtr::new(std::ptr::null_mut());
-static DROPPED: AtomicU64 = AtomicU64::new(0);
 static SAMPLER_ENABLED: AtomicBool = AtomicBool::new(false);
 static HANDLER_ACTIVE: AtomicUsize = AtomicUsize::new(0);
 static PPROF_OWNS_TRACER: AtomicBool = AtomicBool::new(false);
@@ -139,19 +160,38 @@ unsafe extern "C" fn sigprof_handler(_sig: c_int, _info: *mut libc::siginfo_t, u
         return;
     }
     let _active = ActiveGuard::new();
+    if !capture::on_signal_altstack() {
+        // No per-thread alt stack — do nothing rather than smash the training stack.
+        return;
+    }
     let ring = RING_PTR.load(Ordering::Acquire);
     if ring.is_null() {
         return;
     }
     let ring = &*ring;
 
-    let snapshot = stack_capture::capture_raw_snapshot(uctx);
-    if snapshot.is_empty() {
+    let opts = capture::FillOpts {
+        walk_native: true,
+    };
+    let mut filled = false;
+    if ring.enqueue_with(|dst| {
+        filled = true;
+        capture::fill_raw_snapshot_with(dst, uctx, opts);
+        dst.source = StackSource::Sigprof;
+        if dst.is_empty() {
+            return false;
+        }
+        capture::store_latest_snapshot(dst);
+        true
+    }) {
         return;
     }
-    stack_capture::store_latest_snapshot(&snapshot);
-    if !ring.enqueue(&snapshot) {
-        DROPPED.fetch_add(1, Ordering::Relaxed);
+    if filled {
+        return;
+    }
+
+    if capture::fill_latest_from_uctx_with(uctx, StackSource::Sigprof, opts) {
+        metrics::inc_dropped_ring();
     }
 }
 
@@ -160,11 +200,13 @@ fn install_handler() {
     if HANDLER_INSTALLED.swap(true, Ordering::AcqRel) {
         return;
     }
+    capture::ensure_signal_altstack();
     unsafe {
         let mut sa: libc::sigaction = std::mem::zeroed();
         sa.sa_sigaction = sigprof_handler as *const () as usize;
-        sa.sa_flags = libc::SA_SIGINFO | libc::SA_RESTART;
+        sa.sa_flags = libc::SA_SIGINFO | libc::SA_RESTART | libc::SA_ONSTACK;
         libc::sigemptyset(&mut sa.sa_mask);
+        libc::sigaddset(&mut sa.sa_mask, libc::SIGUSR2);
         libc::sigaction(libc::SIGPROF, &sa, std::ptr::null_mut());
     }
 }
@@ -198,9 +240,18 @@ fn disarm_timer() {
 #[cfg(not(unix))]
 fn disarm_timer() {}
 
+/// Aggregated bucket: count + one compact representative for later fold.
+///
+/// Fingerprint includes `tid`; this consumer still **filters to the Python main
+/// OS tid only** so distributed main-thread flamegraphs stay clean.
+struct AggregatedSample {
+    count: u64,
+    representative: CompactStack,
+}
+
 struct SamplerState {
     generation: AtomicU64,
-    samples: Mutex<HashMap<String, u64>>,
+    samples: Mutex<HashMap<u64, AggregatedSample>>,
 }
 
 static SAMPLER: Lazy<SamplerState> = Lazy::new(|| SamplerState {
@@ -208,33 +259,52 @@ static SAMPLER: Lazy<SamplerState> = Lazy::new(|| SamplerState {
     samples: Mutex::new(HashMap::new()),
 });
 
-fn process_sample(
-    s: &RawStackSnapshot,
-    cache: &mut HashMap<usize, probing_proto::prelude::CallFrame>,
-) {
-    if let Some(main_tid) = stack_capture::python_main_os_tid() {
-        if s.tid != main_tid {
-            return;
-        }
+/// Keep only samples from the registered Python main OS tid.
+///
+/// When the main tid is unknown, drop the sample — otherwise worker threads can
+/// leak into the distributed main-thread flamegraph.
+fn accepts_main_thread_sample(sample_tid: u64, main_tid: Option<u64>) -> bool {
+    match main_tid {
+        Some(main) => sample_tid == main,
+        None => false,
     }
-    let line = stack_capture::snapshot_to_folded_line(s, cache);
-    if line.is_empty() {
+}
+
+fn process_sample(s: &StackSnapshot) {
+    if s.flags.contains(StackFlags::PY_TORN) {
+        metrics::inc_dropped_torn();
         return;
     }
+    // Contract: only Python main OS tid enters the CPU flamegraph map.
+    if !accepts_main_thread_sample(s.tid, capture::python_main_os_tid()) {
+        metrics::inc_dropped_not_main();
+        return;
+    }
+    if s.is_empty() {
+        return;
+    }
+    let fp = fingerprint::fingerprint(s);
     if let Ok(mut map) = SAMPLER.samples.lock() {
-        if let Some(count) = map.get_mut(&line) {
-            *count += 1;
+        if let Some(entry) = map.get_mut(&fp) {
+            entry.count = entry.count.saturating_add(1);
+            metrics::inc_fingerprint_hit();
         } else if map.len() < MAX_FOLDED_STACKS {
-            map.insert(line, 1);
+            map.insert(
+                fp,
+                AggregatedSample {
+                    count: 1,
+                    representative: CompactStack::from_snapshot(s),
+                },
+            );
+            metrics::inc_fingerprint_miss();
         } else {
-            DROPPED.fetch_add(1, Ordering::Relaxed);
+            metrics::inc_dropped_capacity();
         }
     }
 }
 
 fn consumer_loop(my_gen: u64) {
-    let mut sample = RawStackSnapshot::zeroed();
-    let mut cache = HashMap::new();
+    let mut sample = StackSnapshot::zeroed();
     loop {
         let stopping = SAMPLER.generation.load(Ordering::SeqCst) != my_gen;
         let ring = RING_PTR.load(Ordering::Acquire);
@@ -243,7 +313,7 @@ fn consumer_loop(my_gen: u64) {
             let ring = unsafe { &*ring };
             while ring.dequeue(&mut sample) {
                 drained = true;
-                process_sample(&sample, &mut cache);
+                process_sample(&sample);
             }
         }
         if stopping {
@@ -297,12 +367,12 @@ fn setup_unix(freq: u64) -> Result<()> {
     if let Ok(mut map) = SAMPLER.samples.lock() {
         map.clear();
     }
-    DROPPED.store(0, Ordering::Relaxed);
+    metrics::reset_sampler_counters();
 
-    crate::features::vm_tracer::initialize_globals();
+    crate::features::stacktrace::tracers::vm::initialize_globals();
     pyo3::Python::attach(|_py| {
-        let already_on = crate::features::vm_tracer::is_tracer_enabled();
-        match crate::features::vm_tracer::enable_tracer() {
+        let already_on = crate::features::stacktrace::tracers::vm::is_tracer_enabled();
+        match crate::features::stacktrace::tracers::vm::enable_tracer() {
             Ok(()) => {
                 if !already_on {
                     PPROF_OWNS_TRACER.store(true, Ordering::Release);
@@ -318,7 +388,7 @@ fn setup_unix(freq: u64) -> Result<()> {
     install_handler();
 
     let my_gen = SAMPLER.generation.fetch_add(1, Ordering::SeqCst) + 1;
-    stack_capture::set_pprof_sampling_active(true);
+    capture::set_pprof_sampling_active(true);
     SAMPLER_ENABLED.store(true, Ordering::Release);
 
     thread::Builder::new()
@@ -333,7 +403,7 @@ fn setup_unix(freq: u64) -> Result<()> {
 
 pub fn reset() {
     disarm_timer();
-    stack_capture::set_pprof_sampling_active(false);
+    capture::set_pprof_sampling_active(false);
     SAMPLER_ENABLED.store(false, Ordering::Release);
     SAMPLER.generation.fetch_add(1, Ordering::SeqCst);
 
@@ -356,11 +426,11 @@ pub fn reset() {
 
     if PPROF_OWNS_TRACER.swap(false, Ordering::AcqRel) {
         pyo3::Python::attach(|_py| {
-            let _ = crate::features::vm_tracer::disable_tracer();
+            let _ = crate::features::stacktrace::tracers::vm::disable_tracer();
         });
     }
 
-    stack_capture::clear_py_symbols();
+    capture::clear_py_symbols();
 }
 
 pub fn pprof_handler() {
@@ -379,25 +449,44 @@ fn pprof_flamegraph_options() -> FlamegraphOptions {
 }
 
 fn folded_lines_from_sampler() -> Vec<String> {
-    match SAMPLER.samples.lock() {
+    let buckets = match SAMPLER.samples.lock() {
         Ok(map) => map
-            .iter()
-            .map(|(stack, count)| format!("{stack} {count}"))
-            .collect(),
-        Err(_) => Vec::new(),
-    }
-}
-
-/// Local folded stacks: SIGPROF main-thread samples when active, else a one-shot
-/// main-thread PYSTACKS snapshot (no signal on the HTTP path).
-fn local_folded_lines() -> Vec<String> {
-    if is_sampling_active() {
-        let lines = folded_lines_from_sampler();
-        if !lines.is_empty() {
-            return lines;
+            .values()
+            .map(|e| (e.representative.clone(), e.count))
+            .collect::<Vec<_>>(),
+        Err(_) => return Vec::new(),
+    };
+    let mut cache = HashMap::new();
+    let mut lines = Vec::with_capacity(buckets.len());
+    for (compact, count) in buckets {
+        let snap = compact.to_snapshot();
+        let folded = fold_snapshot(
+            &snap,
+            &mut cache,
+            &FoldOptions {
+                thread_prefix: true,
+                canonicalize: true,
+                count,
+            },
+        );
+        if !folded.is_empty() {
+            lines.push(folded.to_folded_line());
         }
     }
-    crate::features::stack_tracer::main_thread_on_demand_folded_lines()
+    lines
+}
+
+/// Local folded stacks for Distributed / pprof export.
+///
+/// When `sample_freq` is on, **only** return aggregated SIGPROF buckets — never
+/// fall back to on-demand `SIGUSR2` / one-shot PYSTACKS (empty buckets → empty
+/// flamegraph until samples arrive). That fallback was racing training and
+/// resuming as `SIGILL` on Darwin when refreshing Distributed stacks.
+fn local_folded_lines() -> Vec<String> {
+    if is_sampling_active() {
+        return folded_lines_from_sampler();
+    }
+    crate::features::stacktrace::tracers::dynamic::main_thread_on_demand_folded_lines()
 }
 
 fn folded_lines() -> Vec<String> {
@@ -422,7 +511,7 @@ pub fn distributed_stack_flamegraph_json(
     } else {
         "cpu-stack-distributed"
     };
-    let dropped = DROPPED.load(Ordering::Relaxed);
+    let dropped = metrics::dropped_ring();
     let empty = |msg: &str| {
         json!({
             "profile": profile,
@@ -445,9 +534,9 @@ pub fn distributed_stack_flamegraph_json(
 
     if lines.is_empty() {
         return empty(if python_only {
-            "no Python stack samples yet; enable SIGPROF (probing.pprof.sample_freq) on each rank and let training run"
+            "no Python stack samples yet; set probing.pprof.sample_freq=50 on each rank (Distributed refresh no longer SIGUSR2s the main thread)"
         } else {
-            "no main-thread CPU stack samples yet; enable SIGPROF (probing.pprof.sample_freq) on each rank"
+            "no mixed CPU stacks yet; set probing.pprof.sample_freq=50 on each rank — without SIGPROF only PYSTACKS (Python-only) is available"
         });
     }
 
@@ -626,7 +715,7 @@ pub fn flamegraph() -> Result<String> {
         ));
     }
 
-    let dropped = DROPPED.load(Ordering::Relaxed);
+    let dropped = metrics::dropped_ring();
     if dropped > 0 {
         log::warn!("probing: {dropped} CPU samples dropped (ring full or cardinality cap)");
     }
@@ -637,7 +726,7 @@ pub fn flamegraph() -> Result<String> {
 }
 
 pub fn flamegraph_json() -> String {
-    let dropped = DROPPED.load(Ordering::Relaxed);
+    let dropped = metrics::dropped_ring();
     let empty = |msg: String| {
         json!({
             "profile": "cpu-stack",
@@ -649,6 +738,7 @@ pub fn flamegraph_json() -> String {
             "frameHeight": 32.0,
             "frames": [],
             "dropped": dropped,
+            "metrics": metrics::snapshot_json(),
             "emptyMessage": msg,
         })
         .to_string()
@@ -668,6 +758,7 @@ pub fn flamegraph_json() -> String {
                 Ok(mut v) => {
                     if let Some(obj) = v.as_object_mut() {
                         obj.insert("dropped".to_string(), json!(dropped));
+                        obj.insert("metrics".to_string(), metrics::snapshot_json());
                     }
                     v.to_string()
                 }
@@ -675,5 +766,199 @@ pub fn flamegraph_json() -> String {
             }
         }
         None => empty("no valid folded stacks".to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::features::stacktrace::metrics;
+    use crate::features::stacktrace::snapshot::{StackFlags, StackSnapshot, StackSource};
+    use std::sync::Mutex;
+    use std::time::{Duration, Instant};
+
+    /// Serialize sampler-map mutation tests (non-signal).
+    static SAMPLER_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    fn with_sampler_lock<R>(f: impl FnOnce() -> R) -> R {
+        let _g = SAMPLER_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        f()
+    }
+
+    fn clear_sampler_buckets() {
+        if let Ok(mut map) = SAMPLER.samples.lock() {
+            map.clear();
+        }
+        metrics::reset_sampler_counters();
+    }
+
+    #[cfg(unix)]
+    fn ensure_ring() {
+        if RING_PTR.load(Ordering::Acquire).is_null() {
+            let ptr = Box::into_raw(Box::new(Ring::new()));
+            let _ = RING_PTR.compare_exchange(
+                std::ptr::null_mut(),
+                ptr,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            );
+            if RING_PTR.load(Ordering::Acquire) != ptr {
+                unsafe { drop(Box::from_raw(ptr)) };
+            }
+        }
+    }
+
+    #[test]
+    fn accepts_only_registered_python_main_tid() {
+        assert!(accepts_main_thread_sample(10, Some(10)));
+        assert!(!accepts_main_thread_sample(11, Some(10)));
+        // Unknown main tid: drop sample so worker threads cannot pollute flamegraph.
+        assert!(!accepts_main_thread_sample(10, None));
+    }
+
+    #[test]
+    fn fingerprint_hit_defers_fold_until_export() {
+        with_sampler_lock(|| {
+            capture::register_main_os_tid();
+            let main = capture::python_main_os_tid().expect("main tid");
+            clear_sampler_buckets();
+
+            let snap = StackSnapshot::from_parts(
+                main,
+                StackSource::Sigprof,
+                &[0x1111_aaa0, 0x2222_bbb0],
+                &[],
+                StackFlags::PY_ABSENT,
+            );
+            process_sample(&snap);
+            process_sample(&snap);
+            process_sample(&snap);
+
+            assert_eq!(metrics::fingerprint_misses(), 1);
+            assert_eq!(metrics::fingerprint_hits(), 2);
+            assert_eq!(
+                metrics::fold_calls(),
+                0,
+                "lazy pipeline: fold must wait for export"
+            );
+
+            let folds_before = metrics::fold_calls();
+            let lines = folded_lines_from_sampler();
+            assert_eq!(metrics::fold_calls(), folds_before + 1);
+            assert_eq!(lines.len(), 1);
+            assert!(
+                lines[0].ends_with(" 3"),
+                "aggregated count should be 3, got {:?}",
+                lines[0]
+            );
+        });
+    }
+
+    #[test]
+    fn non_main_tid_increments_dropped_not_main() {
+        with_sampler_lock(|| {
+            capture::register_main_os_tid();
+            let main = capture::python_main_os_tid().expect("main tid");
+            clear_sampler_buckets();
+            let before = metrics::dropped_not_main();
+
+            let snap = StackSnapshot::from_parts(
+                main.wrapping_add(9_001),
+                StackSource::Sigprof,
+                &[0x10],
+                &[],
+                StackFlags::PY_ABSENT,
+            );
+            process_sample(&snap);
+            assert!(metrics::dropped_not_main() > before);
+            assert_eq!(metrics::fingerprint_misses(), 0);
+            assert!(SAMPLER.samples.lock().unwrap().is_empty());
+        });
+    }
+
+    /// Real `SIGPROF` → handler → `latest` slot with a native PC.
+    #[cfg(unix)]
+    #[test]
+    fn sigprof_signal_publishes_latest_native_pc() {
+        capture::with_signal_test_lock(|| {
+            ensure_ring();
+            install_handler();
+            capture::register_python_thread();
+            capture::register_main_os_tid();
+            let tid = capture::current_tid();
+
+            SAMPLER_ENABLED.store(true, Ordering::Release);
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let deadline = Instant::now() + Duration::from_secs(2);
+                loop {
+                    unsafe {
+                        libc::raise(libc::SIGPROF);
+                    }
+                    if let Some((snap, _)) = capture::latest_snapshot_with_seq(tid) {
+                        if snap.source == StackSource::Sigprof && snap.native_len >= 1 {
+                            return;
+                        }
+                    }
+                    if Instant::now() >= deadline {
+                        panic!(
+                            "SIGPROF handler did not publish a native PC on tid={tid} within timeout"
+                        );
+                    }
+                    thread::sleep(Duration::from_millis(2));
+                }
+            }));
+            SAMPLER_ENABLED.store(false, Ordering::Release);
+            result.expect("sigprof integration");
+        });
+    }
+
+    #[test]
+    fn sampling_active_folded_export_skips_on_demand_fallback() {
+        with_sampler_lock(|| {
+            clear_sampler_buckets();
+            SAMPLER_ENABLED.store(true, Ordering::Release);
+            let lines = local_folded_lines();
+            SAMPLER_ENABLED.store(false, Ordering::Release);
+            assert!(
+                lines.is_empty(),
+                "with sample_freq on and empty buckets, must not invent on-demand lines: {lines:?}"
+            );
+        });
+    }
+
+    /// Ring survives a real SIGPROF enqueue and consumer-side dequeue.
+    #[cfg(unix)]
+    #[test]
+    fn sigprof_ring_enqueue_from_handler_is_dequeued() {
+        capture::with_signal_test_lock(|| {
+            ensure_ring();
+            install_handler();
+            capture::register_python_thread();
+            capture::register_main_os_tid();
+
+            let ring = unsafe { &*RING_PTR.load(Ordering::Acquire) };
+            let mut junk = StackSnapshot::zeroed();
+            while ring.dequeue(&mut junk) {}
+
+            SAMPLER_ENABLED.store(true, Ordering::Release);
+            let deadline = Instant::now() + Duration::from_secs(2);
+            let mut got = StackSnapshot::zeroed();
+            let mut ok = false;
+            while Instant::now() < deadline {
+                unsafe {
+                    libc::raise(libc::SIGPROF);
+                }
+                if ring.dequeue(&mut got)
+                    && got.source == StackSource::Sigprof
+                    && got.native_len >= 1
+                {
+                    ok = true;
+                    break;
+                }
+                thread::sleep(Duration::from_millis(2));
+            }
+            SAMPLER_ENABLED.store(false, Ordering::Release);
+            assert!(ok, "expected SIGPROF sample on ring with native PC");
+        });
     }
 }
