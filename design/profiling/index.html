@@ -2704,12 +2704,15 @@
 <p>Profiling starts on the first <code>optimizer.step()</code> after torch is imported (optimizer post hook).</p>
 <h2 id="python-stack-profiling">Python Stack Profiling<a class="headerlink" href="#python-stack-profiling" title="Permanent link">&para;</a></h2>
 <h3 id="backtrace-collection">Backtrace Collection<a class="headerlink" href="#backtrace-collection" title="Permanent link">&para;</a></h3>
-<p>On-demand or periodic stack capture (SIGUSR2 / synchronous walk) into <code>python.backtrace</code>:</p>
+<p>On-demand stack capture and CPU sampling (<code>SIGPROF</code>, <code>probing.pprof.sample_freq</code>) share one stack pipeline:</p>
 <ul>
-<li>Function names, file paths, line numbers</li>
-<li>Python and native frames (merged where possible)</li>
+<li><strong>Python frames:</strong> eval-frame hook (<code>vm_tracer</code> / <code>PYSTACKS</code>) is the sole source; symbols are interned under the GIL (full path for source view, basename in flamegraph labels); signal handlers copy pointer keys only.</li>
+<li><strong>Native frames:</strong> <code>SIGPROF</code> and cross-thread <code>SIGUSR2</code> use the same safe handler—frame-pointer walk + POD snapshot in-signal; symbolization and Python/native merge run off-signal (best-effort, no errors propagated upward).</li>
+<li><strong>Merge:</strong> <code>stack_merge</code> splices Python frames at CPython eval boundaries (leaf-aligned).</li>
+<li><strong>Reuse:</strong> when <code>SIGPROF</code> sampling is active, the main-thread HTTP/flamegraph path reuses the latest per-thread SIGPROF snapshot when available.</li>
+<li><strong>Main-thread HTTP path:</strong> does not deliver <code>SIGUSR2</code> (avoids interrupting the training main thread); without SIGPROF it falls back to a synchronous <code>PYSTACKS</code> read (Python-heavy, one-shot). Cross-thread on-demand capture still uses <code>SIGUSR2</code> (dedicated to stack capture; crash grace release is HTTP-only).</li>
 </ul>
-<p>CPU sampling via pprof (<code>probing.pprof.sample_freq</code>) is separate from TorchProbe module hooks.</p>
+<p>TorchProbe module hooks are independent. The distributed flamegraph (<code>GET /apis/training/distributed_flamegraph/json</code>) currently aggregates <code>python.torch_trace</code>; cross-rank CPU mixed-mode flamegraphs should prefer the unified SIGPROF data source (cluster fan-out of folded stacks) rather than per-path merge logic.</p>
 <h2 id="system-metrics">System Metrics<a class="headerlink" href="#system-metrics" title="Permanent link">&para;</a></h2>
 <p>Host CPU, memory, GPU utilization, and related metrics are collected on configurable intervals via environment variables such as <code>PROBING_GPU_SAMPLE_MS</code>.</p>
 <p><strong>Variable / tensor watch (<code>probing.inspect.trace</code>):</strong> logs go to the Python logger by default. Set <code>PROBING_TRACE_STDOUT=1</code> to emit updates on <strong>stdout</strong> instead (useful for quick local debugging; avoid in production training logs).</p>

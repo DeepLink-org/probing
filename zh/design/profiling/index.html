@@ -2675,7 +2675,16 @@
 </span></code></pre></div>
 <p>在 torch 导入后首次 <code>optimizer.step()</code> 时通过 optimizer post hook 启动。</p>
 <h2 id="python">Python 堆栈分析<a class="headerlink" href="#python" title="Permanent link">&para;</a></h2>
-<p>按需或周期性栈采集（SIGUSR2 / 同步 walk）写入 <code>python.backtrace</code>。CPU 采样（pprof，<code>probing.pprof.sample_freq</code>）与 TorchProbe 模块钩子相互独立。</p>
+<p>按需栈采集与 CPU 采样（<code>SIGPROF</code>，<code>probing.pprof.sample_freq</code>）共用同一套基础设施：</p>
+<ul>
+<li><strong>Python 帧</strong>：eval-frame hook（<code>vm_tracer</code> / <code>PYSTACKS</code>）是唯一数据源；符号在 GIL 下 intern（保留完整路径供源码查看，火焰图展示 basename），signal 路径只拷贝指针。</li>
+<li><strong>C++ 帧</strong>：<code>SIGPROF</code> 与跨线程 <code>SIGUSR2</code> 使用相同的安全 handler——仅在 signal 内做 frame-pointer walk + 拷贝 POD 快照；symbolize 与 Python/native 合并在 signal 外完成（尽力而为，不向上抛错）。</li>
+<li><strong>合并</strong>：<code>stack_merge</code> 在 eval 帧边界将 Python 帧拼入 native 塔（leaf 对齐）。</li>
+<li><strong>复用</strong>：<code>SIGPROF</code> 开启时，主线程 HTTP/火焰图路径优先复用该线程最近一次 SIGPROF 快照，避免重复 signal。</li>
+<li><strong>主线程 HTTP 路径</strong>：不发 <code>SIGUSR2</code>（避免中断训练主线程）；无 SIGPROF 时回退为同步读取 <code>PYSTACKS</code>（Python 帧为主，单次快照）。跨线程按需采集仍使用 <code>SIGUSR2</code>（与 crash grace 分离，grace release 仅 HTTP）。</li>
+<li><strong>分布式火焰图</strong>：跨 rank merge 后每个 frame 携带 <code>ranks</code>（该分区下贡献样本的 training rank）；Web 点选/缩放某个分叉时展示这些 rank。</li>
+</ul>
+<p>TorchProbe 模块钩子与上述栈采集相互独立。分布式 CPU 混合栈火焰图见 <code>GET /apis/training/distributed_stack_flamegraph/json</code>（Web：<strong>Stacks → Distributed</strong>）。旧版 torch 模块级 API <code>/apis/training/distributed_flamegraph/json</code> 仍保留。</p>
 <h2 id="_7">系统指标<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h2>
 <p>通过 <code>PROBING_GPU_SAMPLE_MS</code> 等环境变量配置间隔，采集主机 CPU、内存、GPU 利用率等。</p>
 <p><strong>变量/张量 watch（<code>probing.inspect.trace</code>）：</strong> 默认写入 Python logger；设置 <code>PROBING_TRACE_STDOUT=1</code> 可改为 <strong>stdout</strong> 输出（本地调试方便，生产训练日志慎用）。</p>
