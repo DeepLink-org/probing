@@ -607,6 +607,11 @@ pub unsafe fn fill_raw_snapshot(out: &mut StackSnapshot, uctx: *mut c_void) {
 }
 
 /// Like [`fill_raw_snapshot`] with explicit options.
+///
+/// # Safety
+///
+/// Same as [`fill_raw_snapshot`]: `uctx` must be a valid `ucontext_t` from a
+/// signal handler (or null); `out` must not be shared with concurrent writers.
 pub unsafe fn fill_raw_snapshot_with(out: &mut StackSnapshot, uctx: *mut c_void, opts: FillOpts) {
     // Zero in place — NEVER `*out = StackSnapshot::zeroed()` which materializes
     // a ~1.4 KiB stack temporary and has caused resume SIGILL at `_platform_strlen`.
@@ -671,6 +676,11 @@ pub unsafe fn fill_raw_snapshot_with(out: &mut StackSnapshot, uctx: *mut c_void,
 }
 
 /// Convenience wrapper (not for deep signal paths — prefer [`fill_raw_snapshot`]).
+///
+/// # Safety
+///
+/// Same as [`fill_raw_snapshot`]: `uctx` must be a valid `ucontext_t` from a
+/// signal handler (or null).
 pub unsafe fn capture_raw_snapshot(uctx: *mut c_void) -> StackSnapshot {
     let mut sample = StackSnapshot::zeroed();
     fill_raw_snapshot(&mut sample, uctx);
