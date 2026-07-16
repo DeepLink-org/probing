@@ -64,6 +64,31 @@ pub fn is_interp_shim(frame: &CallFrame) -> bool {
     frame_symbol(frame).contains("rust_eval_frame")
 }
 
+/// CPython call-protocol / extension-init noise between user `[py]` frames.
+///
+/// Kept out of flamegraphs so Distributed stacks do not fan out under
+/// `_PyObject_Vectorcall` / probing's `_PyInit__core` after enabling pprof.
+fn is_cpython_interpreter_noise(name: &str) -> bool {
+    if is_eval_frame_name(name) {
+        return false;
+    }
+    // CPython extension module init (Darwin often shows a leading `_`).
+    if name.contains("PyInit_") || name.contains("PyInit__") {
+        return true;
+    }
+    name.contains("vectorcall")
+        || name.contains("Vectorcall")
+        || name.starts_with("_PyObject_")
+        || name.starts_with("PyObject_")
+        || name.starts_with("slot_tp_")
+        || name.starts_with("_PyFunction_")
+        || name.starts_with("cfunction_")
+        || name.starts_with("method_vectorcall")
+        || name.starts_with("_method_vectorcall")
+        || name.starts_with("_PyEval_")
+        || name.starts_with("PyEval_")
+}
+
 fn merge_action(frame: &CallFrame) -> MergeAction {
     if is_interp_shim(frame) {
         return MergeAction::Drop;
@@ -73,6 +98,9 @@ fn merge_action(frame: &CallFrame) -> MergeAction {
     }
     if is_eval_frame(frame) {
         return MergeAction::SplicePython;
+    }
+    if is_cpython_interpreter_noise(frame_symbol(frame)) {
+        return MergeAction::Drop;
     }
     let symbol = frame_symbol(frame);
     let mut tokens = symbol.split(['_', '.']).filter(|s| !s.is_empty());
@@ -158,14 +186,10 @@ pub fn merge_python_native_stacks(
             merged_leaf_to_root.extend_from_slice(&py_inner_to_outer[pi..]);
         }
     } else {
-        merged_leaf_to_root.extend(py_inner_to_outer);
-        merged_leaf_to_root.extend(
-            native_leaf_to_root
-                .iter()
-                .filter(|f| !is_interp_shim(f))
-                .filter(|f| !is_interpreter_startup_native(frame_symbol(f)))
-                .cloned(),
-        );
+        // No eval-frame splice anchors (typical for SyncWalk mid-hook): do not
+        // concatenate the entire native tower under Python — that was the
+        // `_PyInit__core` / vectorcall soup on Distributed after enabling pprof.
+        return python_outer_to_inner.to_vec();
     }
 
     merged_leaf_to_root.reverse();
@@ -325,6 +349,38 @@ mod tests {
                 py("inner.py", "inner", 2),
                 c("leaf_native"),
             ]
+        );
+    }
+
+    #[test]
+    fn no_eval_anchor_prefers_python_over_native_soup() {
+        let native = vec![
+            c("_PyObject_Vectorcall"),
+            c("_PyInit__core"),
+            c("slot_tp_call"),
+        ];
+        let python = vec![
+            py("imagenet_with_span.py", "train", 659),
+            py("module.py", "_call_impl", 10),
+        ];
+        let merged = merge_python_native_stacks(&python, &native);
+        assert_eq!(merged, python);
+    }
+
+    #[test]
+    fn drops_vectorcall_and_extension_init_between_eval_splices() {
+        let native = vec![
+            c("torch_kernel"),
+            c("_PyObject_Vectorcall"),
+            c("_PyEval_EvalFrameDefault"),
+            c("_PyInit__core"),
+            c("caller_native"),
+        ];
+        let python = vec![py("a.py", "a", 1)];
+        let merged = merge_python_native_stacks(&python, &native);
+        assert_eq!(
+            merged,
+            vec![c("caller_native"), py("a.py", "a", 1), c("torch_kernel")]
         );
     }
 

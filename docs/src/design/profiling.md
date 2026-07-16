@@ -185,12 +185,12 @@ Feature layout under `probing/extensions/python/src/features/`:
 On-demand and CPU sampling share one pipeline:
 
 - **Python frames:** only from the **vm tracer** (`PYSTACKS`); symbols are interned under the GIL (full path for source view, basename in flamegraph labels); signal handlers copy pointer keys only.
-- **Native frames:** `SIGPROF` / `SIGUSR2` fill a POD via `fill_raw_snapshot` on a dedicated `SA_ONSTACK` alt stack (in-place into the ring / slot)—avoid constructing a full snapshot on the interrupted training stack (deep frames previously led to resume-time `SIGILL`); symbolize/merge run off-signal.
+- **Native frames (Linux):** `SIGPROF` / `SIGUSR2` fill a POD via `fill_raw_snapshot` on a per-thread `SA_ONSTACK` alt stack (in-place into the ring / slot). **macOS:** async `ITIMER_PROF` into Apple libc SIMD (`_platform_strlen`) has caused fixed-PC `SIGILL`; `sample_freq` defaults to rate-limited eval-frame cooperative capture of **`PYSTACKS` only** (no mid-hook SyncWalk — that used to paste `_PyInit__core` / vectorcall under every `[py]` frame). `PROBING_PPROF_SIGPROF=1` forces async SIGPROF. Merge drops CPython call-protocol / extension `PyInit_*` noise. Symbolize/merge run off-signal.
 - **metrics JSON:** `sampler.*` (ring drop / fingerprint / fold-on-**export**) vs `view.*` (parse / `(tid,seq)` cache)—do not read a burst of export `parse_calls` as per-sample demangle cost.
 - **Fetch paths:** dynamic (command/HTTP) or pprof (SQL / `sample_freq`); both read Python frames recorded by the vm tracer.
-- **Reuse:** when `SIGPROF` is active, the main-thread HTTP/flamegraph path reuses the latest per-thread SIGPROF snapshot when available.
-- **Main-thread HTTP path:** prefer the latest SIGPROF mixed snapshot; **never `SIGUSR2` the main tid while `sample_freq` is active** (Distributed included). Only when sampling is off may `PROBING_STACK_SIGUSR2_MAIN=1` enable on-demand signal; otherwise fall back to bare `PYSTACKS`. Cross-thread on-demand still uses `SIGUSR2`.
-- **Distributed flamegraph:** with sampling on, export only aggregated SIGPROF buckets per rank (empty buckets → empty graph; no on-demand fallback).
+- **Reuse:** when sampling is active, the main-thread HTTP/flamegraph path reuses the latest per-thread snapshot when available.
+- **Main-thread HTTP path:** prefer the latest mixed snapshot; **never `SIGUSR2` the main tid while `sample_freq` is active** (Distributed included). Only when sampling is off may `PROBING_STACK_SIGUSR2_MAIN=1` enable on-demand signal; otherwise fall back to bare `PYSTACKS`. Cross-thread on-demand still uses `SIGUSR2`.
+- **Distributed flamegraph:** with sampling on, export only aggregated sampler buckets per rank (empty buckets → empty graph; no on-demand fallback).
 
 TorchProbe module hooks are independent. Distributed CPU mixed-mode flamegraphs: `GET /apis/training/distributed_stack_flamegraph/json` (Web: **Stacks → Distributed**). Legacy torch module API `/apis/training/distributed_flamegraph/json` remains.
 

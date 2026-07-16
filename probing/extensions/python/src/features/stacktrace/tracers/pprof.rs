@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Context, Result};
 use core::ffi::{c_int, c_void};
@@ -138,6 +138,123 @@ static SAMPLER_ENABLED: AtomicBool = AtomicBool::new(false);
 static HANDLER_ACTIVE: AtomicUsize = AtomicUsize::new(0);
 static PPROF_OWNS_TRACER: AtomicBool = AtomicBool::new(false);
 static HANDLER_INSTALLED: AtomicBool = AtomicBool::new(false);
+/// Eval-frame cooperative sampling (no `ITIMER_PROF`). Period 0 = off.
+static COOP_PERIOD_NS: AtomicU64 = AtomicU64::new(0);
+static COOP_LAST_NS: AtomicU64 = AtomicU64::new(0);
+static COOP_MODE: AtomicBool = AtomicBool::new(false);
+
+fn env_flag_truthy(name: &str) -> bool {
+    match std::env::var(name) {
+        Ok(v) => matches!(
+            v.trim().to_ascii_lowercase().as_str(),
+            "1" | "true" | "yes" | "on"
+        ),
+        Err(_) => false,
+    }
+}
+
+/// Whether to use async `ITIMER_PROF`/`SIGPROF`.
+///
+/// Darwin default: **false**. Delivering SIGPROF into Apple libc SIMD string
+/// routines has repeatedly resumed as fixed-PC `SIGILL` at `_platform_strlen`
+/// (observed at `0x18beb8adc`). macOS therefore samples from the eval-frame
+/// hook instead. Opt into SIGPROF with `PROBING_PPROF_SIGPROF=1`. Force the
+/// cooperative path everywhere with `PROBING_PPROF_COOPERATIVE=1`.
+fn use_async_sigprof() -> bool {
+    if env_flag_truthy("PROBING_PPROF_COOPERATIVE") {
+        return false;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        env_flag_truthy("PROBING_PPROF_SIGPROF")
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        true
+    }
+}
+
+fn monotonic_ns() -> u64 {
+    static START: Lazy<Instant> = Lazy::new(Instant::now);
+    START.elapsed().as_nanos() as u64
+}
+
+fn fill_cooperative_snapshot(out: &mut StackSnapshot) {
+    // PYSTACKS only. A SyncWalk `backtrace::trace` from inside `rust_eval_frame`
+    // never sees `_PyEval_EvalFrameDefault` splice points, so merge used to
+    // concatenate interpreter trampolines (`_PyObject_Vectorcall`, probing's
+    // `_PyInit__core`, …) under every `[py]` frame — the "messy distributed
+    // stacks after enabling pprof" failure mode. Match the pre-pprof on-demand
+    // path: clean Python stacks with sample_freq weighting.
+    unsafe {
+        core::ptr::write_bytes(
+            out as *mut StackSnapshot as *mut u8,
+            0,
+            core::mem::size_of::<StackSnapshot>(),
+        );
+    }
+    out.tid = capture::current_tid();
+    out.source = StackSource::Vm;
+
+    if let Some(py) = capture::copy_registered_py_snapshot(out.tid) {
+        let plen = py.py_len as usize;
+        out.py[..plen].copy_from_slice(&py.py[..plen]);
+        out.py_len = py.py_len;
+        out.flags.insert(StackFlags(py.flags.0 & !StackFlags::PY_ABSENT.0));
+        if py.flags.contains(StackFlags::PY_TRUNCATED) {
+            out.flags.insert(StackFlags::PY_TRUNCATED);
+        }
+        if py.flags.contains(StackFlags::PY_TORN) {
+            out.flags.insert(StackFlags::PY_TORN);
+        }
+    } else {
+        out.flags.insert(StackFlags::PY_ABSENT);
+    }
+}
+
+/// Rate-limited sample from the eval-frame hook (GIL held). No-op unless
+/// cooperative mode is active.
+#[inline]
+pub fn maybe_cooperative_sample() {
+    if !SAMPLER_ENABLED.load(Ordering::Relaxed) || !COOP_MODE.load(Ordering::Relaxed) {
+        return;
+    }
+    let period = COOP_PERIOD_NS.load(Ordering::Relaxed);
+    if period == 0 {
+        return;
+    }
+    let tid = capture::current_tid();
+    if !accepts_main_thread_sample(tid, capture::python_main_os_tid()) {
+        return;
+    }
+    let now = monotonic_ns();
+    let last = COOP_LAST_NS.load(Ordering::Relaxed);
+    if now.saturating_sub(last) < period {
+        return;
+    }
+    if COOP_LAST_NS
+        .compare_exchange(last, now, Ordering::AcqRel, Ordering::Relaxed)
+        .is_err()
+    {
+        return;
+    }
+
+    let ring = RING_PTR.load(Ordering::Acquire);
+    if ring.is_null() {
+        return;
+    }
+    let ring = unsafe { &*ring };
+    if !ring.enqueue_with(|dst| {
+        fill_cooperative_snapshot(dst);
+        if dst.is_empty() {
+            return false;
+        }
+        capture::store_latest_snapshot(dst);
+        true
+    }) {
+        metrics::inc_dropped_ring();
+    }
+}
 
 struct ActiveGuard;
 impl ActiveGuard {
@@ -170,8 +287,10 @@ unsafe extern "C" fn sigprof_handler(_sig: c_int, _info: *mut libc::siginfo_t, u
     }
     let ring = &*ring;
 
+    // On Darwin even opt-in SIGPROF: PC + PYSTACKS only — FP walks enlarge the
+    // handler frame and have correlated with resume SIGILL into strlen.
     let opts = capture::FillOpts {
-        walk_native: true,
+        walk_native: !cfg!(target_os = "macos"),
     };
     let mut filled = false;
     if ring.enqueue_with(|dst| {
@@ -385,7 +504,16 @@ fn setup_unix(freq: u64) -> Result<()> {
         }
     });
 
-    install_handler();
+    let async_sigprof = use_async_sigprof();
+    COOP_MODE.store(!async_sigprof, Ordering::Release);
+    if async_sigprof {
+        COOP_PERIOD_NS.store(0, Ordering::Release);
+        install_handler();
+    } else {
+        let period_ns = (1_000_000_000u64 / freq as u64).max(1);
+        COOP_PERIOD_NS.store(period_ns, Ordering::Release);
+        COOP_LAST_NS.store(0, Ordering::Release);
+    }
 
     let my_gen = SAMPLER.generation.fetch_add(1, Ordering::SeqCst) + 1;
     capture::set_pprof_sampling_active(true);
@@ -396,13 +524,22 @@ fn setup_unix(freq: u64) -> Result<()> {
         .spawn(move || consumer_loop(my_gen))
         .context("failed to spawn sampler consumer thread")?;
 
-    arm_timer(freq);
-    log::info!("probing: SIGPROF CPU sampler started ({freq} Hz, Python+native)");
+    if async_sigprof {
+        arm_timer(freq);
+        log::info!("probing: SIGPROF CPU sampler started ({freq} Hz, Python+native)");
+    } else {
+        log::info!(
+            "probing: cooperative CPU sampler started ({freq} Hz, eval-frame; \
+             Darwin defaults to this — set PROBING_PPROF_SIGPROF=1 to force ITIMER_PROF)"
+        );
+    }
     Ok(())
 }
 
 pub fn reset() {
     disarm_timer();
+    COOP_MODE.store(false, Ordering::Release);
+    COOP_PERIOD_NS.store(0, Ordering::Release);
     capture::set_pprof_sampling_active(false);
     SAMPLER_ENABLED.store(false, Ordering::Release);
     SAMPLER.generation.fetch_add(1, Ordering::SeqCst);
@@ -438,11 +575,16 @@ pub fn pprof_handler() {
 }
 
 fn pprof_flamegraph_options() -> FlamegraphOptions {
+    let subtitle = if COOP_MODE.load(Ordering::Relaxed) {
+        "eval-frame cooperative stack samples".to_string()
+    } else {
+        "SIGPROF weighted stack samples".to_string()
+    };
     FlamegraphOptions {
         title: "CPU sampling".to_string(),
         count_name: "samples".to_string(),
         kind: FlamegraphKind::Classic,
-        subtitle: "SIGPROF weighted stack samples".to_string(),
+        subtitle,
         metric: None,
         profile: Some("cpu-stack".to_string()),
     }
@@ -478,15 +620,22 @@ fn folded_lines_from_sampler() -> Vec<String> {
 
 /// Local folded stacks for Distributed / pprof export.
 ///
-/// When `sample_freq` is on, **only** return aggregated SIGPROF buckets — never
+/// When `sample_freq` is on, **only** return aggregated sampler buckets — never
 /// fall back to on-demand `SIGUSR2` / one-shot PYSTACKS (empty buckets → empty
-/// flamegraph until samples arrive). That fallback was racing training and
-/// resuming as `SIGILL` on Darwin when refreshing Distributed stacks.
+/// flamegraph until samples arrive).
 fn local_folded_lines() -> Vec<String> {
     if is_sampling_active() {
         return folded_lines_from_sampler();
     }
     crate::features::stacktrace::tracers::dynamic::main_thread_on_demand_folded_lines()
+}
+
+fn sampler_mode_label() -> &'static str {
+    if COOP_MODE.load(Ordering::Relaxed) {
+        "eval-frame Python samples (cooperative)"
+    } else {
+        "SIGPROF main-thread samples"
+    }
 }
 
 fn folded_lines() -> Vec<String> {
@@ -542,15 +691,21 @@ pub fn distributed_stack_flamegraph_json(
 
     let subtitle = if python_only {
         if is_sampling_active() {
-            format!("Python frames only · SIGPROF main-thread samples · {rank_count} ranks merged")
+            format!(
+                "Python frames only · {} · {rank_count} ranks merged",
+                sampler_mode_label()
+            )
         } else {
             format!("Python frames only · one-shot PYSTACKS snapshot · {rank_count} ranks merged")
         }
     } else if is_sampling_active() {
-        format!("Full mixed stack · SIGPROF main-thread samples · {rank_count} ranks merged")
+        format!(
+            "Full mixed stack · {} · {rank_count} ranks merged",
+            sampler_mode_label()
+        )
     } else {
         format!(
-            "Full mixed stack · one-shot main-thread snapshot (enable SIGPROF for accumulation) · {rank_count} ranks merged"
+            "Full mixed stack · one-shot main-thread snapshot (enable sample_freq for accumulation) · {rank_count} ranks merged"
         )
     };
     let opts = FlamegraphOptions {
@@ -596,6 +751,29 @@ fn local_training_rank() -> Option<i32> {
                 .ok()
                 .and_then(|s| s.trim().parse().ok())
         })
+}
+
+/// Distinct training ranks that contributed non-empty folded stacks.
+///
+/// Do **not** count HTTP fan-out successes: a duplicate peer scrape of the
+/// local rank (addr mismatch) previously inflated `rankCount` to 3 on a
+/// 2-rank job while frame `ranks` still showed `0, 1`.
+fn unique_contributor_rank_count(sets: &[(Option<i32>, Vec<String>)]) -> usize {
+    use std::collections::BTreeSet;
+    let mut ranks = BTreeSet::new();
+    let mut unranked = 0usize;
+    for (rank, lines) in sets {
+        if lines.is_empty() {
+            continue;
+        }
+        match rank {
+            Some(r) => {
+                ranks.insert(*r);
+            }
+            None => unranked += 1,
+        }
+    }
+    ranks.len() + unranked
 }
 
 fn remote_pprof_folded_lines_blocking(addr: &str) -> anyhow::Result<Vec<String>> {
@@ -656,11 +834,17 @@ pub async fn collect_distributed_stack_flamegraph_json(
 ) -> (String, bool) {
     let mode = if mode == "py" { "py" } else { "mixed" };
     use probing_core::core::cluster::{get_nodes, is_node_alive, local_listen_addrs};
+    use std::collections::BTreeSet;
 
-    let mut line_sets: Vec<(Option<i32>, Vec<String>)> =
-        vec![(local_training_rank(), folded_lines_snapshot())];
+    let mut line_sets: Vec<(Option<i32>, Vec<String>)> = Vec::new();
+    let mut seen_ranks: BTreeSet<i32> = BTreeSet::new();
     let mut nodes_failed = Vec::new();
-    let mut rank_count = 1usize;
+
+    let local_rank = local_training_rank();
+    if let Some(r) = local_rank {
+        seen_ranks.insert(r);
+    }
+    line_sets.push((local_rank, folded_lines_snapshot()));
 
     if cluster {
         let local_addrs = local_listen_addrs();
@@ -673,12 +857,22 @@ pub async fn collect_distributed_stack_flamegraph_json(
         for node in peers {
             let addr = node.addr.clone();
             let peer_rank = node.rank;
+            if let Some(r) = peer_rank {
+                if seen_ranks.contains(&r) {
+                    log::debug!(
+                        "distributed stack flamegraph: skip duplicate rank {r} from {addr}"
+                    );
+                    continue;
+                }
+            }
             match tokio::task::spawn_blocking(move || remote_pprof_folded_lines_fallback(&addr))
                 .await
             {
                 Ok(Ok(lines)) => {
+                    if let Some(r) = peer_rank {
+                        seen_ranks.insert(r);
+                    }
                     line_sets.push((peer_rank, lines));
-                    rank_count += 1;
                 }
                 Ok(Err(err)) => {
                     log::warn!(
@@ -694,6 +888,7 @@ pub async fn collect_distributed_stack_flamegraph_json(
         }
     }
 
+    let rank_count = unique_contributor_rank_count(&line_sets);
     let mut merged = crate::features::flamegraph::merge_distributed_stack_attributed(&line_sets);
     if mode == "py" {
         merged = crate::features::flamegraph::filter_attributed_folded_lines_python_only(&merged);
@@ -910,6 +1105,26 @@ mod tests {
             SAMPLER_ENABLED.store(false, Ordering::Release);
             result.expect("sigprof integration");
         });
+    }
+
+    #[test]
+    fn unique_contributor_rank_count_dedupes_duplicate_rank_scrapes() {
+        let sets = vec![
+            (Some(0), vec!["[py] a 1".to_string()]),
+            (Some(0), vec!["[py] a 1".to_string()]), // duplicate local scrape
+            (Some(1), vec!["[py] a 1".to_string()]),
+        ];
+        assert_eq!(unique_contributor_rank_count(&sets), 2);
+    }
+
+    #[test]
+    fn unique_contributor_rank_count_ignores_empty_line_sets() {
+        let sets = vec![
+            (Some(0), vec!["[py] a 1".to_string()]),
+            (Some(1), Vec::new()),
+            (None, vec!["[py] b 1".to_string()]),
+        ];
+        assert_eq!(unique_contributor_rank_count(&sets), 2);
     }
 
     #[test]

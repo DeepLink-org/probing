@@ -67,6 +67,10 @@ unsafe extern "C" fn rust_eval_frame(
         compiler_fence(Ordering::SeqCst);
         (*state).writing = false;
 
+        // macOS default: sample here (no ITIMER_PROF). After PYSTACKS push so
+        // the current frame is visible. No-op when async SIGPROF is armed.
+        crate::features::stacktrace::tracers::pprof::maybe_cooperative_sample();
+
         let ret = ((*state).frame_eval)(ts, frame, extra);
 
         (*state).writing = true;

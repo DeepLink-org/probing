@@ -187,12 +187,12 @@ configure("on,rate=0.5,layer_rate=0.3")
 按需栈与 CPU 采样共用同一套基础设施：
 
 - **Python 帧**：仅来自 **vm tracer**（`PYSTACKS`）；符号在 GIL 下 intern（完整路径供源码查看，火焰图展示 basename），signal 路径只拷贝指针。
-- **C++/Rust 帧**：`SIGPROF` / `SIGUSR2` 共用安全 handler；**每个 Python 线程**安装 `sigaltstack`（Darwin/Linux 为 per-thread，不能只在 HTTP 线程装一次），`SA_ONSTACK` 上原地 `fill_raw_snapshot` 写入 ring/latest（禁止训练栈上构造整份 POD）。否则深栈信号返回后易在 `_platform_strlen` 一带 `SIGILL`。symbolize / merge 在 signal 外完成。
+- **C++/Rust 帧**：Linux 上 `SIGPROF` / `SIGUSR2` 共用 `SA_ONSTACK` 安全 handler（每 Python 线程 `sigaltstack`，原地 `fill_raw_snapshot`）。**macOS 默认不用 `ITIMER_PROF`**：异步 SIGPROF 打进 `_platform_strlen` 等 SIMD 例程后会固定 PC `SIGILL`；`sample_freq` 改为 eval-frame 节流协作采样（**只记 `PYSTACKS`，不做 mid-hook SyncWalk**，避免 `_PyInit__core` / vectorcall 把分布式火焰图打散；`PROBING_PPROF_SIGPROF=1` 可强制异步）。merge 丢弃 CPython call-protocol / 扩展 `PyInit_*` 噪声。symbolize / merge 在 signal 外完成。
 - **metrics JSON**：`sampler.*`（ring drop / fingerprint / **导出时** fold）与 `view.*`（parse / `(tid,seq)` cache）分栏；不要把导出批次的 `parse_calls` 读成「每样本都在 demangle」。
 - **获取路径**：dynamic（命令/HTTP）或 pprof（SQL/`sample_freq`）；二者取 Python 信息时都读 vm tracer 已记录的帧。
-- **复用**：`SIGPROF` 开启时，主线程 HTTP/火焰图优先复用该线程最近一次 SIGPROF 快照。
-- **主线程 HTTP 路径**：优先复用最新 SIGPROF 混合快照；**`sample_freq` 开启时禁止对主线程 `SIGUSR2`**（含 Distributed）；仅在采样关闭时可经 `PROBING_STACK_SIGUSR2_MAIN=1` 按需信号，否则回退纯 `PYSTACKS`。跨线程按需仍可走 `SIGUSR2`。
-- **分布式火焰图**：`sample_freq` 开启后只聚合各 rank 的 SIGPROF 桶（采样为空则空图，不回退 on-demand）；跨 rank merge 后每个 frame 携带 `ranks`。
+- **复用**：采样开启时，主线程 HTTP/火焰图优先复用该线程最近一次采样快照。
+- **主线程 HTTP 路径**：优先复用最新采样混合快照；**`sample_freq` 开启时禁止对主线程 `SIGUSR2`**（含 Distributed）；仅在采样关闭时可经 `PROBING_STACK_SIGUSR2_MAIN=1` 按需信号，否则回退纯 `PYSTACKS`。跨线程按需仍可走 `SIGUSR2`。
+- **分布式火焰图**：`sample_freq` 开启后只聚合各 rank 采样桶（为空则空图，不回退 on-demand）；跨 rank merge 后每个 frame 携带 `ranks`。
 - **canonicalize**：剥 `_Py_RunMain` / importlib / `platform.py` 等 bootstrap；SIGPROF 仅统计已注册 Python 主线程样本。
 
 TorchProbe 模块钩子与上述栈采集相互独立。分布式 CPU 混合栈火焰图见 `GET /apis/training/distributed_stack_flamegraph/json`（Web：**Stacks → Distributed**）。旧版 torch 模块级 API `/apis/training/distributed_flamegraph/json` 仍保留。

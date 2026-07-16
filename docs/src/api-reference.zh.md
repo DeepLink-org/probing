@@ -214,6 +214,8 @@ probing -t $ENDPOINT config probing.torch.profiling=0.1
 | `PROBING_PORT` | 远程 CLI 的 TCP 端口 |
 | `PROBING_TORCH_PROFILING` | TorchProbe 规格 |
 | `PROBING_PPROF_SAMPLE_FREQ` | CPU pprof Hz |
+| `PROBING_PPROF_SIGPROF` | macOS：强制 `ITIMER_PROF`/`SIGPROF`（默认改用 eval-frame 协作采样；易触发 `SIGILL`） |
+| `PROBING_PPROF_COOPERATIVE` | 强制全平台协作采样（关闭异步 SIGPROF） |
 | `PROBING_AUTH_TOKEN` | HTTP 认证令牌 |
 | `PROBING_ROLE_<NAME>` | 自定义并行维度，参与 `role` 推导 |
 
