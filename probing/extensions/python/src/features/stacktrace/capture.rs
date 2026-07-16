@@ -489,7 +489,10 @@ unsafe fn regs_from_uctx(uctx: *mut c_void) -> (usize, usize) {
     {
         let uc = uctx as *const libc::ucontext_t;
         let mc = &(*uc).uc_mcontext;
-        (strip_ptr_tag(mc.pc as usize), strip_ptr_tag(mc.regs[29] as usize))
+        (
+            strip_ptr_tag(mc.pc as usize),
+            strip_ptr_tag(mc.regs[29] as usize),
+        )
     }
     #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
     {
@@ -499,7 +502,10 @@ unsafe fn regs_from_uctx(uctx: *mut c_void) -> (usize, usize) {
             return (0, 0);
         }
         let ss = &(*mc).__ss;
-        (strip_ptr_tag(ss.__rip as usize), strip_ptr_tag(ss.__rbp as usize))
+        (
+            strip_ptr_tag(ss.__rip as usize),
+            strip_ptr_tag(ss.__rbp as usize),
+        )
     }
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     {
@@ -509,7 +515,10 @@ unsafe fn regs_from_uctx(uctx: *mut c_void) -> (usize, usize) {
             return (0, 0);
         }
         let ss = &(*mc).__ss;
-        (strip_ptr_tag(ss.__pc as usize), strip_ptr_tag(ss.__fp as usize))
+        (
+            strip_ptr_tag(ss.__pc as usize),
+            strip_ptr_tag(ss.__fp as usize),
+        )
     }
     #[cfg(not(any(
         all(target_os = "linux", target_arch = "x86_64"),
@@ -526,11 +535,7 @@ unsafe fn walk_frame_pointers(start_fp: usize, out: &mut [usize], lo: usize, hi:
     let bounded = hi != 0 && lo < hi;
     // Without registered stack bounds, do not walk far — unbounded FP walks on a
     // deep training stack have caused signal-stack overflows / resume SIGILL.
-    let max = if bounded {
-        out.len()
-    } else {
-        out.len().min(8)
-    };
+    let max = if bounded { out.len() } else { out.len().min(8) };
     let in_stack =
         |fp: usize| !bounded || (fp >= lo && fp + 2 * std::mem::size_of::<usize>() <= hi);
 
@@ -602,11 +607,7 @@ pub unsafe fn fill_raw_snapshot(out: &mut StackSnapshot, uctx: *mut c_void) {
 }
 
 /// Like [`fill_raw_snapshot`] with explicit options.
-pub unsafe fn fill_raw_snapshot_with(
-    out: &mut StackSnapshot,
-    uctx: *mut c_void,
-    opts: FillOpts,
-) {
+pub unsafe fn fill_raw_snapshot_with(out: &mut StackSnapshot, uctx: *mut c_void, opts: FillOpts) {
     // Zero in place — NEVER `*out = StackSnapshot::zeroed()` which materializes
     // a ~1.4 KiB stack temporary and has caused resume SIGILL at `_platform_strlen`.
     core::ptr::write_bytes(
@@ -898,13 +899,7 @@ unsafe extern "C" fn sigusr2_stack_handler(
     let target = SIGUSR2_TARGET_TID.load(Ordering::Acquire);
     let slot = &mut *SIGUSR2_SNAPSHOT.0.get();
     // On-demand UI capture: PC + Python keys only (no FP walk).
-    fill_raw_snapshot_with(
-        slot,
-        uctx,
-        FillOpts {
-            walk_native: false,
-        },
-    );
+    fill_raw_snapshot_with(slot, uctx, FillOpts { walk_native: false });
     slot.source = StackSource::Sigusr2;
     if !sigusr2_snapshot_matches_target(slot, target) {
         core::ptr::write_bytes(

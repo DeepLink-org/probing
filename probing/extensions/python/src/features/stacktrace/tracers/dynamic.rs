@@ -132,9 +132,7 @@ impl SignalTracer {
                     }
                 }
                 Err(e) => {
-                    log::debug!(
-                        "main-thread SIGUSR2 skipped (concurrent stack capture): {e}"
-                    );
+                    log::debug!("main-thread SIGUSR2 skipped (concurrent stack capture): {e}");
                 }
             }
         }

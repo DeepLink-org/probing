@@ -200,7 +200,8 @@ fn fill_cooperative_snapshot(out: &mut StackSnapshot) {
         let plen = py.py_len as usize;
         out.py[..plen].copy_from_slice(&py.py[..plen]);
         out.py_len = py.py_len;
-        out.flags.insert(StackFlags(py.flags.0 & !StackFlags::PY_ABSENT.0));
+        out.flags
+            .insert(StackFlags(py.flags.0 & !StackFlags::PY_ABSENT.0));
         if py.flags.contains(StackFlags::PY_TRUNCATED) {
             out.flags.insert(StackFlags::PY_TRUNCATED);
         }
