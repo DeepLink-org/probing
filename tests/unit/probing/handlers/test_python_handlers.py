@@ -120,6 +120,30 @@ class TestHandlerRouter:
         assert parsed2["required"] == "test"
         assert parsed2["optional"] is None
 
+    def test_optional_parameter_uses_function_default(self):
+        """Optional query params should fall back to handler defaults."""
+
+        @ext_handler("test", "test/defaults")
+        def test_handler(
+            required: str,
+            engine_type: str = "sglang",
+            metrics_path: str = "/engine_metrics",
+            count: int = 10,
+        ) -> str:
+            return json.dumps(
+                {
+                    "required": required,
+                    "engine_type": engine_type,
+                    "metrics_path": metrics_path,
+                    "count": count,
+                }
+            )
+
+        parsed = json.loads(handle_request("test/defaults", {"required": "ok"}))
+        assert parsed["engine_type"] == "sglang"
+        assert parsed["metrics_path"] == "/engine_metrics"
+        assert parsed["count"] == 10
+
 
 class TestUnifiedEntryPoint:
     """Test the unified entry point."""

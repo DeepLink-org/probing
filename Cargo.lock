@@ -3625,6 +3625,8 @@ dependencies = [
  "datafusion",
  "futures-util",
  "http-body-util",
+ "hyper",
+ "hyper-util",
  "log",
  "nix 0.31.3",
  "nu-ansi-term",

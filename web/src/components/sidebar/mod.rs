@@ -145,6 +145,13 @@ pub fn Sidebar() -> Element {
                             label: "Perfetto",
                             is_active: route == Route::PerfettoPage {},
                         }
+                        SidebarNavItem {
+                            to: Route::InferencePage {},
+                            icon: &icondata::AiDashboardOutlined,
+                            label: "Inference",
+                            title: "Inference engine Prometheus metrics",
+                            is_active: route == Route::InferencePage {},
+                        }
 
                         SidebarSectionLabel { label: "Analysis" }
                         ProfilingSidebarItem {

@@ -2706,3 +2706,6 @@ fn EventView(event: EventInfo) -> Element {
         }
     }
 }
+
+mod inference;
+pub use inference::Inference;

@@ -18,7 +18,7 @@ use crate::pages::{
     profiling::Profiling,
     pulsing::Pulsing,
     python::Python,
-    rl::{RlObservability, RlViewMode},
+    rl::{Inference, RlObservability, RlViewMode},
     stack::{Stack, StackDistributed},
     traces::Traces,
     training::Training,
@@ -42,6 +42,8 @@ pub enum Route {
     ProcessTimelinePage {},
     #[route("/rl/perfetto")]
     PerfettoPage {},
+    #[route("/rl/inference")]
+    InferencePage {},
     #[route("/agent")]
     AgentPage {},
     #[route("/cluster")]
@@ -104,6 +106,11 @@ pub fn PerfettoPage() -> Element {
             RlObservability { view: RlViewMode::Perfetto }
         }
     }
+}
+
+#[component]
+pub fn InferencePage() -> Element {
+    rsx! { AppLayout { Inference {} } }
 }
 
 #[component]

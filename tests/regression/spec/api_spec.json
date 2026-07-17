@@ -308,6 +308,51 @@
         "content_type": "application/json",
         "cors": false
       }
+    },
+    {
+      "local_path": "engines/register",
+      "method": "GET",
+      "uses_body": false,
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
+    },
+    {
+      "local_path": "engines/register_slime",
+      "method": "GET",
+      "uses_body": false,
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
+    },
+    {
+      "local_path": "engines/list",
+      "method": "GET",
+      "uses_body": false,
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
+    },
+    {
+      "local_path": "engines/scrape",
+      "method": "GET",
+      "uses_body": false,
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
+    },
+    {
+      "local_path": "engines/snapshot",
+      "method": "GET",
+      "uses_body": false,
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
     }
   ],
   "other_extensions": [

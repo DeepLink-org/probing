@@ -11,8 +11,10 @@ Responsibilities:
 3.  Normalize framework-specific events into Probing spans.
 
 Submodules:
-- `ray`: Ray task and actor tracing.
+- `ray`: Ray task and actor tracing (framework-neutral identity via PROBING_* env).
 - `torch`: PyTorch profiling hooks and utilities.
 - `megatron`: Megatron-LM role/step sync.
 - `vllm`: vLLM / vLLM-Metal inference role/step sync.
+- `engines`: Inference-engine Prometheus metrics adapters (e.g. SGLang) for agentic RL.
+- `slime`: Slime adapter — cmdline/env → neutral process roles; Slime router registration.
 """

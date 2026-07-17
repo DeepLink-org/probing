@@ -377,11 +377,6 @@ fn trace_processes_from_df(df: DataFrame) -> Vec<TraceProcessInfo> {
         });
     }
 
-    processes.sort_by(|a, b| {
-        process_sort_rank(a)
-            .cmp(&process_sort_rank(b))
-            .then_with(|| a.pid.cmp(&b.pid))
-    });
     processes
 }
 
@@ -394,48 +389,17 @@ fn merge_local_processes(processes: &mut Vec<TraceProcessInfo>, local_processes:
         if process.pid <= 0 || !known.insert(process.pid) {
             continue;
         }
+        // `/apis/processes/local` does not populate `env`; roles come from
+        // `python.ray_process` (framework adapters call `register_current_process`).
         processes.push(TraceProcessInfo {
             pid: process.pid,
-            process_role: Some(local_process_role(&process.cmd)),
+            process_role: None,
             hostname: None,
             ray_worker_id: None,
             ray_actor_id: None,
-            ray_actor_name: local_actor_name(&process.cmd),
+            ray_actor_name: None,
         });
     }
-}
-
-fn local_process_role(cmd: &str) -> String {
-    if cmd.contains("RolloutManager.generate") {
-        "rollout_actor".to_string()
-    } else if cmd.contains("MegatronTrainRayActor.train") {
-        "train_actor".to_string()
-    } else if cmd.contains("SGLangEngine") {
-        "sglang_engine".to_string()
-    } else if cmd.contains("JobSupervisor") {
-        "ray_job_supervisor".to_string()
-    } else if cmd.contains("Lock") {
-        "ray_lock".to_string()
-    } else if cmd.contains("train_async.py") {
-        "driver".to_string()
-    } else {
-        "process".to_string()
-    }
-}
-
-fn local_actor_name(cmd: &str) -> Option<String> {
-    for marker in [
-        "RolloutManager.generate",
-        "MegatronTrainRayActor.train",
-        "SGLangEngine",
-        "JobSupervisor",
-        "Lock",
-    ] {
-        if cmd.contains(marker) {
-            return Some(format!("ray::{marker}"));
-        }
-    }
-    None
 }
 
 fn process_sort_rank(process: &TraceProcessInfo) -> usize {
@@ -614,5 +578,59 @@ fn attr_string(attributes: &Option<String>, key: &str) -> Option<String> {
         serde_json::Value::Number(n) => Some(n.to_string()),
         serde_json::Value::Bool(b) => Some(b.to_string()),
         _ => None,
+    }
+}
+
+// --- Inference engine metrics (framework-neutral scrape API) ---
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct EngineInfo {
+    pub engine_id: String,
+    pub engine_type: String,
+    pub router_addr: String,
+    pub metrics_url: String,
+    pub framework: String,
+    pub status: String,
+    #[serde(default)]
+    pub last_scrape_error: Option<String>,
+    #[serde(default)]
+    pub last_normalized: serde_json::Map<String, serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct EngineListResponse {
+    pub engines: Vec<EngineInfo>,
+}
+
+impl ApiClient {
+    pub async fn fetch_inference_engines(&self) -> Result<EngineListResponse> {
+        let response = self
+            .get_request("/apis/pythonext/engines/snapshot")
+            .await?;
+        Self::parse_json(&response)
+    }
+
+    pub async fn scrape_inference_engines(&self) -> Result<String> {
+        self.get_request("/apis/pythonext/engines/scrape").await
+    }
+
+    pub async fn fetch_inference_engine_metrics(&self, limit: i64) -> Result<DataFrame> {
+        self.execute_query(&format!(
+            "SELECT timestamp_ns, engine_id, engine_type, metric_name, metric_value, labels \
+             FROM python.inference_engine_metric \
+             WHERE metric_name LIKE 'normalized.%' \
+             ORDER BY timestamp_ns DESC LIMIT {limit}"
+        ))
+        .await
+    }
+
+    pub async fn fetch_inference_engine_raw_metrics(&self, limit: i64) -> Result<DataFrame> {
+        self.execute_query(&format!(
+            "SELECT timestamp_ns, engine_id, engine_type, metric_name, metric_value, labels \
+             FROM python.inference_engine_metric \
+             WHERE metric_name NOT LIKE 'normalized.%' \
+             ORDER BY timestamp_ns DESC LIMIT {limit}"
+        ))
+        .await
     }
 }

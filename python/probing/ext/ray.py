@@ -198,8 +198,16 @@ def _process_identity_attrs(process_role: str = "") -> dict[str, Any]:
     except Exception:
         hostname = ""
 
+    # Optional framework adapters bridge their env into PROBING_* once.
+    try:
+        from probing.ext.slime import apply_env_bridge
+
+        apply_env_bridge()
+    except Exception:
+        pass
+
     node_ip = (
-        os.environ.get("SLIME_NODE_IP")
+        os.environ.get("PROBING_NODE_IP")
         or os.environ.get("POD_IP")
         or os.environ.get("RAY_NODE_IP")
         or ""
@@ -216,7 +224,11 @@ def _process_identity_attrs(process_role: str = "") -> dict[str, Any]:
         "node_ip": node_ip,
     }
     attrs.update(_current_ray_context_attrs())
-    role = process_role or os.environ.get("SLIME_PROBING_ROLE", "")
+    role = (
+        process_role
+        or os.environ.get("PROBING_RAY_PROCESS_ROLE", "")
+        or os.environ.get("PROBING_PROCESS_ROLE", "")
+    )
     if role:
         attrs["process_role"] = role
     return attrs
@@ -255,12 +267,7 @@ def register_current_process(process_role: str = "") -> None:
 
 def _ray_span_attributes() -> dict[str, Any]:
     """Attributes added to manual probing spans in Ray driver/worker processes."""
-    attrs = _process_identity_attrs()
-    if not attrs.get("process_role"):
-        role = os.environ.get("PROBING_RAY_PROCESS_ROLE", "")
-        if role:
-            attrs["process_role"] = role
-    return attrs
+    return _process_identity_attrs()
 
 
 def enable_span_context() -> None:
@@ -438,17 +445,24 @@ def setup_tracing() -> None:
         from opentelemetry.sdk.trace import TracerProvider
 
         os.environ["PROBING"] = os.environ.get("PROBING", "1")
-        os.environ["PROBING_RAY_PROCESS_ROLE"] = os.environ.get(
-            "SLIME_PROBING_ROLE", "ray_worker"
+        try:
+            from probing.ext.slime import apply_env_bridge
+
+            apply_env_bridge()
+        except Exception:
+            pass
+        worker_role = (
+            os.environ.get("PROBING_RAY_PROCESS_ROLE", "").strip()
+            or os.environ.get("PROBING_PROCESS_ROLE", "").strip()
+            or "ray_worker"
         )
+        os.environ["PROBING_RAY_PROCESS_ROLE"] = worker_role
         enable_span_context()
 
         trace.set_tracer_provider(TracerProvider())
         trace.get_tracer_provider().add_span_processor(ProbingSpanProcessor())
 
-        register_current_process(
-            process_role=os.environ.get("SLIME_PROBING_ROLE", "ray_worker")
-        )
+        register_current_process(process_role=worker_role)
         _wrap_task_execution_in_worker()
     except Exception:
         pass
