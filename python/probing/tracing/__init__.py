@@ -27,7 +27,7 @@ from probing.tracing.phases import (
     phase,
     reset_phase,
 )
-from probing.tracing.span import event, record_span, span
+from probing.tracing.span import add_span_attribute_provider, event, record_span, span
 from probing.tracing.table import SPANS_SQL, TraceEvent
 
 bind_table(TraceEvent)
@@ -46,6 +46,7 @@ __all__ = [
     "attach_training_phases",
     "detach_training_phases",
     "owns_training_phases",
+    "add_span_attribute_provider",
     "FORWARD",
     "BACKWARD",
     "OPTIMIZER",

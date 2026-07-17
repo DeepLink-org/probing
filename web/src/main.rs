@@ -9,6 +9,7 @@ mod components;
 mod hooks;
 mod overhead;
 mod pages;
+mod rl_contract;
 mod state;
 mod utils;
 

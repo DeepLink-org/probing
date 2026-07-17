@@ -18,6 +18,7 @@ use crate::pages::{
     profiling::Profiling,
     pulsing::Pulsing,
     python::Python,
+    rl::{RlObservability, RlViewMode},
     stack::{Stack, StackDistributed},
     traces::Traces,
     training::Training,
@@ -30,6 +31,17 @@ use crate::state::profiling::normalize_profiling_view;
 pub enum Route {
     #[route("/")]
     DashboardPage {},
+    #[route("/rl")]
+    #[route("/rl/rollout")]
+    RolloutPage {},
+    #[route("/rl/train")]
+    TrainPage {},
+    #[route("/rl/spans")]
+    RlSpansPage {},
+    #[route("/rl/process-timeline")]
+    ProcessTimelinePage {},
+    #[route("/rl/perfetto")]
+    PerfettoPage {},
     #[route("/agent")]
     AgentPage {},
     #[route("/cluster")]
@@ -63,6 +75,36 @@ pub enum Route {
 }
 
 // --- Page route components: each wraps a page in AppLayout ---
+
+#[component]
+pub fn RolloutPage() -> Element {
+    rsx! { AppLayout { RlObservability { view: RlViewMode::Rollout } } }
+}
+
+#[component]
+pub fn TrainPage() -> Element {
+    rsx! { AppLayout { RlObservability { view: RlViewMode::Train } } }
+}
+
+#[component]
+pub fn RlSpansPage() -> Element {
+    rsx! { AppLayout { RlObservability { view: RlViewMode::Spans } } }
+}
+
+#[component]
+pub fn ProcessTimelinePage() -> Element {
+    rsx! { AppLayout { RlObservability { view: RlViewMode::ProcessTimeline } } }
+}
+
+#[component]
+pub fn PerfettoPage() -> Element {
+    rsx! {
+        AppLayout {
+            compact: true,
+            RlObservability { view: RlViewMode::Perfetto }
+        }
+    }
+}
 
 #[component]
 pub fn DashboardPage() -> Element {

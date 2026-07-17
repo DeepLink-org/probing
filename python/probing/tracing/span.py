@@ -24,12 +24,31 @@ _LOCATION_ENV = frozenset({"1", "true", "yes", "on"})
 
 # Rust Span cannot hold arbitrary Python attrs; track deferred persistence by id.
 _DEFERRED: dict[int, "_DeferredState"] = {}
+_span_attribute_providers: list[Callable[[], dict]] = []
 
 
 @dataclass
 class _DeferredState:
     merged: dict
     start_persisted: bool = False
+
+
+def add_span_attribute_provider(provider: Callable[[], dict]) -> None:
+    """Register a runtime provider for attributes attached to every new span."""
+    if provider not in _span_attribute_providers:
+        _span_attribute_providers.append(provider)
+
+
+def _provider_attrs() -> dict:
+    merged: dict = {}
+    for provider in list(_span_attribute_providers):
+        try:
+            provided = provider()
+            if provided:
+                merged.update(provided)
+        except Exception as exc:
+            warnings.warn(f"Span attribute provider failed: {exc}")
+    return merged
 
 
 def _recorder():
@@ -100,8 +119,10 @@ class _RecordedSpan:
             location = _caller_location()
 
         self._persist = _persistence_enabled()
+        merged_attrs = dict(_provider_attrs())
+        merged_attrs.update(self.attrs)
         self._merged = (
-            span_attrs(self.attrs, source=self.source) if self._persist else {}
+            span_attrs(merged_attrs, source=self.source) if self._persist else {}
         )
 
         span_obj = _spawn_span(self.name, self.phase, location=location)
@@ -202,6 +223,10 @@ def _parse_span_kwargs(
     kwargs: dict,
 ) -> tuple[Optional[str], str, Optional[str], dict, bool]:
     phase = kwargs.pop("phase", None)
+    # Backward-compatible alias used by older RL helpers.
+    kind = kwargs.pop("kind", None)
+    if phase is None and kind is not None:
+        phase = kind
     source = kwargs.pop("source", "manual")
     location = kwargs.pop("location", None)
     auto_location = location is None and _location_enabled()
