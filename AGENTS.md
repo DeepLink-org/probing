@@ -175,7 +175,7 @@ Keep the propagation chain clean — don't reintroduce scattered `map_err`/`insp
 - **One error type per crate.** `probing/core` funnels everything into `EngineError` (`probing/core/src/core/error.rs`); app layers (`server`, `cli`) use `anyhow`. Prefer `?` with `#[from]`/`#[source]`; never add `From<String>`, and don't `map_err` an error into a flat string (it drops the cause chain). Attach context with `anyhow::Context` (`.context` / `.with_context`).
 - **One boundary conversion.** `EngineError → DataFusionError` lives in a single `From` impl; DataFusion trait impls just use `?` instead of hand-rolling `DataFusionError::Execution(format!(...))`.
 - **`block_on` never fabricates data.** `probing_core::runtime::block_on` returns `Result<T, RuntimeError>` — on a degraded async bridge it returns `Err`, not an empty/`default` value. Surface it; for a diagnostics tool, a silent "no data" is worse than a clear failure.
-- **No `unwrap`/`expect`/`panic!` on production paths.** Propagate with `?`. Exempt: tests and vendored py-spy bindings under `probing/extensions/python/src/features/spy/python_bindings/`.
+- **No `unwrap`/`expect`/`panic!` on production paths.** Propagate with `?`. Exempt: tests and vendored py-spy bindings under `probing/extensions/python/src/features/stacktrace/spy/python_bindings/`.
 - **Never pollute the host process's stdout.** Use `log` (Rust) / `logging` (Python), not `print!`/`println!`. Expected contention/busy states (e.g. a concurrent stack-trace request) belong at `debug`, not `error`.
 
 ## Skills

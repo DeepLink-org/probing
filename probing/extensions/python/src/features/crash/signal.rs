@@ -41,10 +41,14 @@ const FATAL_SIGNALS: [c_int; 5] = [
     libc::SIGFPE,
 ];
 
-const MAX_FRAMES: usize = 256;
+/// Dedicated alt stack for crash handlers (`SA_ONSTACK`). Sized to match
+/// stacktrace's per-thread minimum so `ensure_signal_altstack` can reuse it.
 const ALT_STACK_SIZE: usize = 256 * 1024;
-
 static mut ALT_STACK: [u8; ALT_STACK_SIZE] = [0u8; ALT_STACK_SIZE];
+
+/// Keep short — `backtrace::resolve_*` is not async-signal-safe and has nested
+/// into `_platform_strlen` (SIGILL) on Darwin, wiping the dump.
+const MAX_FRAMES: usize = 32;
 
 fn sig_name(sig: c_int) -> &'static str {
     match sig {
@@ -152,6 +156,9 @@ unsafe extern "C" fn crash_handler(sig: c_int, info: *mut libc::siginfo_t, _uctx
 
     write_str("native backtrace (crashing thread):\n");
 
+    // Print raw IPs first — `resolve_frame_unsynchronized` calls into libc
+    // (`strlen` etc.) and has nested-faulted leaving an empty backtrace section
+    // when the original SIGILL was already inside `_platform_strlen`.
     let mut idx = 0usize;
     backtrace::trace_unsynchronized(|frame| {
         let ip = frame.ip() as usize;
@@ -159,27 +166,41 @@ unsafe extern "C" fn crash_handler(sig: c_int, info: *mut libc::siginfo_t, _uctx
         write_dec(idx);
         write_str("  0x");
         write_hex(ip);
-        write_str("  ");
-
-        let mut wrote_name = false;
-        backtrace::resolve_frame_unsynchronized(frame, |symbol| {
-            if !wrote_name {
-                if let Some(name) = symbol.name() {
-                    if let Some(s) = name.as_str() {
-                        write_bytes(s.as_bytes());
-                        wrote_name = true;
-                    }
-                }
-            }
-        });
-        if !wrote_name {
-            write_str("<unknown>");
-        }
         write_str("\n");
-
         idx += 1;
         idx < MAX_FRAMES
     });
+
+    // Optional symbolization (may allocate / call unsafe-in-signal libc).
+    if idx > 0 && !env_is_truthy("PROBING_CRASH_NO_RESOLVE") {
+        write_str("symbols (best-effort):\n");
+        let mut sidx = 0usize;
+        backtrace::trace_unsynchronized(|frame| {
+            let ip = frame.ip() as usize;
+            write_str("  #");
+            write_dec(sidx);
+            write_str("  0x");
+            write_hex(ip);
+            write_str("  ");
+            let mut wrote_name = false;
+            backtrace::resolve_frame_unsynchronized(frame, |symbol| {
+                if !wrote_name {
+                    if let Some(name) = symbol.name() {
+                        if let Some(s) = name.as_str() {
+                            write_bytes(s.as_bytes());
+                            wrote_name = true;
+                        }
+                    }
+                }
+            });
+            if !wrote_name {
+                write_str("<unknown>");
+            }
+            write_str("\n");
+            sidx += 1;
+            sidx < MAX_FRAMES
+        });
+    }
 
     write_str("==== end probing backtrace; re-raising ");
     write_str(sig_name(sig));

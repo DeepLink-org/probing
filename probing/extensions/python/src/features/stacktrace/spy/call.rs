@@ -1,8 +1,10 @@
-use crate::features::spy::python_bindings;
-use crate::features::spy::python_interpreters::FrameObject;
-use crate::features::spy::PYVERSION;
+use crate::features::stacktrace::spy::python_bindings;
+use crate::features::stacktrace::spy::python_interpreters::FrameObject;
+use crate::features::stacktrace::spy::PYVERSION;
 
-use crate::features::spy::python_interpreters::{BytesObject, CodeObject, StringObject};
+use crate::features::stacktrace::spy::python_interpreters::{
+    BytesObject, CodeObject, StringObject,
+};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct RawCallLocation {

@@ -433,7 +433,9 @@ pub async fn get_distributed_stack_flamegraph_json(
     let cluster = params.cluster.unwrap_or(true);
     let mode = params.mode.as_deref().unwrap_or("mixed");
     let (body, partial) =
-        probing_python::features::pprof::collect_distributed_stack_flamegraph_json(cluster, mode)
+        probing_python::features::stacktrace::tracers::pprof::collect_distributed_stack_flamegraph_json(
+            cluster, mode,
+        )
             .await;
     let status = if partial {
         StatusCode::SERVICE_UNAVAILABLE

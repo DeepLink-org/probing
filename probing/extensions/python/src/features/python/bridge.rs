@@ -1,16 +1,32 @@
-//! Unified Python-Ele conversion module
-//!
-//! This module provides centralized conversion functions between Python objects
-//! and Ele types, replacing scattered conversion logic throughout the codebase.
+//! FFI helpers shared by PyO3 bindings: thread bridge, Ele convert, errors.
 
+use probing_core::{on_native_bridge_thread, run_on_native_thread};
 use probing_proto::prelude::Ele;
+use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyFloat, PyInt, PyString};
+use pyo3::PyErr;
 
-/// Convert Ele to Python object
+/// Map a displayable error into `PyRuntimeError` (Python API boundary).
+pub fn runtime_err(err: impl std::fmt::Display) -> PyErr {
+    PyRuntimeError::new_err(err.to_string())
+}
+
+/// Run Rust/Python bridge work off the Python main thread and Tokio workers.
 ///
-/// This is the unified implementation that should be used throughout
-/// the codebase instead of scattered conversion functions.
+/// When already on the ``probing-native`` bridge worker (e.g. loading a Python
+/// plugin from ``execute_python_code``), avoid ``py.detach`` — an extra thread
+/// plus nested GIL handoffs can SIGABRT on Linux CI (pytest-cov + torch).
+pub fn with_detached_native<R: Send + probing_core::runtime::BlockOnFallback + 'static>(
+    f: impl FnOnce() -> R + Send + 'static,
+) -> R {
+    if on_native_bridge_thread() {
+        return run_on_native_thread(f);
+    }
+    Python::attach(|py| py.detach(|| run_on_native_thread(f)))
+}
+
+/// Convert `Ele` to a Python object.
 pub fn ele_to_python(py: Python, ele: &Ele) -> PyResult<Py<PyAny>> {
     let obj: Py<PyAny> = match ele {
         Ele::Nil => py.None(),
@@ -39,42 +55,31 @@ pub fn ele_to_python(py: Python, ele: &Ele) -> PyResult<Py<PyAny>> {
     Ok(obj)
 }
 
-/// Convert Python object to Ele
-///
-/// This is the unified implementation that should be used throughout
-/// the codebase instead of scattered conversion functions.
+/// Convert a Python object to `Ele`.
 pub fn python_to_ele(value: &Bound<'_, PyAny>) -> PyResult<Ele> {
-    // Handle None
     if value.is_none() {
         return Ok(Ele::Nil);
     }
 
-    // Try bool
     if let Ok(b) = value.extract::<bool>() {
         return Ok(Ele::BOOL(b));
     }
 
-    // Try int (i64)
     if let Ok(i) = value.extract::<i64>() {
-        // Store as I64 for large integers, I32 for smaller ones
         if i >= i32::MIN as i64 && i <= i32::MAX as i64 {
             return Ok(Ele::I32(i as i32));
         }
         return Ok(Ele::I64(i));
     }
 
-    // Try float (f64)
     if let Ok(f) = value.extract::<f64>() {
-        // Store as F64 for precision
         return Ok(Ele::F64(f));
     }
 
-    // Try str
     if let Ok(s) = value.extract::<String>() {
         return Ok(Ele::Text(s));
     }
 
-    // Fallback: convert to string
     let s = value.str()?.to_string();
     Ok(Ele::Text(s))
 }

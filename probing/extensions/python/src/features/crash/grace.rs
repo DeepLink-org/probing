@@ -118,13 +118,47 @@ fn hold_triggered(pid: i32) -> bool {
     false
 }
 
-fn print_hold_banner(pid: i32, rank: i32) {
-    eprintln!(
+fn hold_banner_text(pid: i32, rank: i32) -> String {
+    format!(
         "\nProcess HELD for debugging (pid={pid}, rank={rank}).\n\
            attach : gdb -p {pid}\n\
            python : py-spy dump --pid {pid}\n\
            release: curl -X POST http://127.0.0.1:<port>/apis/pythonext/crash/release\n\
                     rm {}\n",
         context::hold_file_path(pid)
-    );
+    )
+}
+
+fn print_hold_banner(pid: i32, rank: i32) {
+    eprint!("{}", hold_banner_text(pid, rank));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hold_banner_release_is_http_not_sigusr2() {
+        let text = hold_banner_text(1234, 0);
+        assert!(text.contains("/apis/pythonext/crash/release"));
+        assert!(text.contains("gdb"));
+        assert!(
+            !text.contains("USR2") && !text.contains("SIGUSR2"),
+            "SIGUSR2 is reserved for stack capture; release must stay HTTP-only: {text}"
+        );
+    }
+
+    #[test]
+    fn grace_does_not_install_sigusr2_handler() {
+        // Contract: grace must not install a SIGUSR2 handler (conflicts with stack capture).
+        // Only scan production code (exclude this tests module, which mentions the forbidden API).
+        let src = include_str!("grace.rs");
+        let production = src.split("#[cfg(test)]").next().unwrap_or(src);
+        assert!(
+            !production.contains("signal(Signal::SIGUSR2")
+                && !production.contains("on_release_signal"),
+            "crash grace must not install SIGUSR2 release handler"
+        );
+        assert!(production.contains("Signal::SIGUSR1"));
+    }
 }

@@ -1,7 +1,8 @@
-//! Interactive HTML visualizations without inferno.
+//! Interactive HTML / JSON flamegraph visualizations (shared by stack + torch).
 //!
-//! - `FlamegraphKind::Classic` — stacked CPU-style flamegraph (pprof).
-//! - `FlamegraphKind::TorchModule` — modern module performance explorer for torch.
+//! - [`FlamegraphKind::Classic`] — CPU stacked flamegraph (pprof / stacktrace).
+//! - [`FlamegraphKind::TorchModule`] — module performance explorer (torch).
+//! - [`distributed`] — multi-rank folded-stack normalize / merge / filter.
 
 use html_escape::encode_text;
 use serde_json::json;
@@ -72,6 +73,9 @@ pub struct AttributedFoldedLine {
     pub count: u64,
     pub ranks: Vec<i32>,
 }
+
+mod distributed;
+pub use distributed::*;
 
 #[derive(Debug)]
 pub struct Flamegraph {
@@ -801,151 +805,6 @@ background:#0b0f14;color:#8b9bb4;font-family:ui-sans-serif,system-ui,sans-serif;
     }
 }
 
-/// Whether a folded segment is a per-process thread bucket (`thread-{tid}` or `thread-{tid} (name)`).
-fn is_thread_folded_segment(seg: &str) -> bool {
-    let Some(rest) = seg.strip_prefix("thread-") else {
-        return false;
-    };
-    let digit_len = rest.chars().take_while(|c| c.is_ascii_digit()).count();
-    digit_len > 0
-        && (rest.len() == digit_len
-            || matches!(rest.as_bytes().get(digit_len), Some(b' ') | Some(b'(')))
-}
-
-/// Drop root `all` and per-process `thread-*` prefixes so identical stacks merge across ranks.
-pub fn normalize_distributed_stack_folded_line(line: &str) -> Option<String> {
-    let (mut path, count) = parse_folded_line(line)?;
-    while path.first().is_some_and(|s| s == "all") {
-        path.remove(0);
-    }
-    while path.first().is_some_and(|s| is_thread_folded_segment(s)) {
-        path.remove(0);
-    }
-    if path.is_empty() {
-        return None;
-    }
-    let path = crate::features::stack_merge::canonicalize_folded_segments(&path);
-    if path.is_empty() {
-        return None;
-    }
-    Some(format!("{} {}", path.join(";"), count))
-}
-
-/// Keep only `[py] …` segments so native/C frames do not fork the flamegraph.
-pub fn filter_folded_line_python_only(line: &str) -> Option<String> {
-    let (path, count) = parse_folded_line(line)?;
-    let py_path: Vec<String> = path.into_iter().filter(|s| s.starts_with("[py]")).collect();
-    if py_path.is_empty() {
-        return None;
-    }
-    Some(format!("{} {}", py_path.join(";"), count))
-}
-
-pub fn filter_folded_lines_python_only(lines: &[String]) -> Vec<String> {
-    lines
-        .iter()
-        .filter_map(|line| filter_folded_line_python_only(line))
-        .collect()
-}
-
-/// Keep only `[py]` segments while preserving rank attribution.
-pub fn filter_attributed_folded_lines_python_only(
-    lines: &[AttributedFoldedLine],
-) -> Vec<AttributedFoldedLine> {
-    lines
-        .iter()
-        .filter_map(|line| {
-            let py_path: Vec<String> = line
-                .path
-                .iter()
-                .filter(|s| s.starts_with("[py]"))
-                .cloned()
-                .collect();
-            if py_path.is_empty() {
-                return None;
-            }
-            Some(AttributedFoldedLine {
-                path: py_path,
-                count: line.count,
-                ranks: line.ranks.clone(),
-            })
-        })
-        .collect()
-}
-
-/// Merge folded stack lines across ranks after [`normalize_distributed_stack_folded_line`].
-pub fn merge_distributed_stack_folded_line_sets(sets: &[Vec<String>]) -> Vec<String> {
-    let attributed: Vec<(Option<i32>, Vec<String>)> =
-        sets.iter().map(|lines| (None, lines.clone())).collect();
-    merge_distributed_stack_attributed(&attributed)
-        .into_iter()
-        .map(|line| format!("{} {}", line.path.join(";"), line.count))
-        .collect()
-}
-
-/// Merge per-rank folded stacks, summing counts and collecting contributing ranks.
-///
-/// `sets` entries are `(rank, folded lines)`. When `rank` is `None`, the lines still
-/// contribute to counts but are not attributed to a training rank id.
-pub fn merge_distributed_stack_attributed(
-    sets: &[(Option<i32>, Vec<String>)],
-) -> Vec<AttributedFoldedLine> {
-    use std::collections::{BTreeSet, HashMap};
-    let mut counts: HashMap<String, u64> = HashMap::new();
-    let mut ranks: HashMap<String, BTreeSet<i32>> = HashMap::new();
-    for (rank, lines) in sets {
-        for line in lines {
-            let Some(normalized) = normalize_distributed_stack_folded_line(line) else {
-                continue;
-            };
-            let Some((path, count)) = parse_folded_line(&normalized) else {
-                continue;
-            };
-            let key = path.join(";");
-            *counts.entry(key.clone()).or_insert(0) += count;
-            if let Some(r) = rank {
-                ranks.entry(key).or_default().insert(*r);
-            }
-        }
-    }
-    let mut merged: Vec<AttributedFoldedLine> = counts
-        .into_iter()
-        .filter_map(|(key, count)| {
-            let path: Vec<String> = key.split(';').map(str::to_string).collect();
-            if path.is_empty() {
-                return None;
-            }
-            let ranks = ranks
-                .remove(&key)
-                .map(|s| s.into_iter().collect())
-                .unwrap_or_default();
-            Some(AttributedFoldedLine { path, count, ranks })
-        })
-        .collect();
-    merged.sort_by(|a, b| a.path.cmp(&b.path));
-    merged
-}
-
-/// Merge folded `"stack;path count"` lines from multiple ranks; identical paths sum counts.
-pub fn merge_folded_line_sets(sets: &[Vec<String>]) -> Vec<String> {
-    use std::collections::HashMap;
-    let mut counts: HashMap<String, u64> = HashMap::new();
-    for lines in sets {
-        for line in lines {
-            if let Some((path, count)) = parse_folded_line(line) {
-                let key = path.join(";");
-                *counts.entry(key).or_insert(0) += count;
-            }
-        }
-    }
-    let mut merged: Vec<String> = counts
-        .into_iter()
-        .map(|(path, count)| format!("{path} {count}"))
-        .collect();
-    merged.sort();
-    merged
-}
-
 /// Reconstruct folded lines from a Web UI flamegraph JSON payload (leaf frames only).
 pub fn folded_lines_from_flamegraph_json(body: &str) -> Vec<String> {
     #[derive(serde::Deserialize)]
@@ -995,7 +854,7 @@ pub fn folded_lines_from_flamegraph_json(body: &str) -> Vec<String> {
     lines
 }
 
-fn parse_folded_line(line: &str) -> Option<(Vec<String>, u64)> {
+pub(crate) fn parse_folded_line(line: &str) -> Option<(Vec<String>, u64)> {
     let line = line.trim();
     if line.is_empty() {
         return None;
@@ -1140,6 +999,67 @@ mod tests {
             vec!["thread-200;[py] main (train.py:1) 2".to_string()],
         ]);
         assert_eq!(merged, vec!["[py] main (train.py:1) 5".to_string()]);
+    }
+
+    #[test]
+    fn filter_attributed_python_only_preserves_ranks() {
+        let lines = vec![AttributedFoldedLine {
+            path: vec![
+                "[py] main (a.py:1)".into(),
+                "native_fn".into(),
+                "[py] train (a.py:2)".into(),
+            ],
+            count: 4,
+            ranks: vec![0, 2],
+        }];
+        let out = filter_attributed_folded_lines_python_only(&lines);
+        assert_eq!(out.len(), 1);
+        assert_eq!(
+            out[0].path,
+            vec![
+                "[py] main (a.py:1)".to_string(),
+                "[py] train (a.py:2)".to_string()
+            ]
+        );
+        assert_eq!(out[0].count, 4);
+        assert_eq!(out[0].ranks, vec![0, 2]);
+    }
+
+    #[test]
+    fn normalize_strips_named_thread_prefix() {
+        let out = normalize_distributed_stack_folded_line(
+            "thread-123 (MainThread);[py] main (train.py:1) 7",
+        )
+        .unwrap();
+        assert_eq!(out, "[py] main (train.py:1) 7");
+    }
+
+    #[test]
+    fn merge_distributed_joins_platform_rooted_fork_with_user_path() {
+        // Repro: one rank rooted at platform.<module>, another already at main_worker.
+        let merged = merge_distributed_stack_attributed(&[
+            (
+                Some(0),
+                vec!["[py] main_worker (a.py:1);[py] train (a.py:2) 2".to_string()],
+            ),
+            (
+                Some(1),
+                vec![
+                    "[py] <module> (platform.py:1);[py] main_worker (a.py:1);[py] train (a.py:2) 3"
+                        .to_string(),
+                ],
+            ),
+        ]);
+        assert_eq!(merged.len(), 1);
+        assert_eq!(
+            merged[0].path,
+            vec![
+                "[py] main_worker (a.py:1)".to_string(),
+                "[py] train (a.py:2)".to_string()
+            ]
+        );
+        assert_eq!(merged[0].count, 5);
+        assert_eq!(merged[0].ranks, vec![0, 1]);
     }
 
     #[test]

@@ -215,6 +215,8 @@ There is **no** `probing.sample_rate` key. Torch sampling is controlled via `pro
 | `PROBING_PORT` | TCP listen port for remote CLI |
 | `PROBING_TORCH_PROFILING` | TorchProbe spec (mirrors `probing.torch.profiling`) |
 | `PROBING_PPROF_SAMPLE_FREQ` | CPU pprof Hz |
+| `PROBING_PPROF_SIGPROF` | macOS: force `ITIMER_PROF`/`SIGPROF` (default is eval-frame cooperative; may `SIGILL`) |
+| `PROBING_PPROF_COOPERATIVE` | Force cooperative sampling everywhere (disable async SIGPROF) |
 | `PROBING_AUTH_TOKEN` | HTTP auth token |
 | `PROBING_ROLE_<NAME>` | Custom parallel dimension for `role` derivation |
 

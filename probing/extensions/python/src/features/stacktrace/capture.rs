@@ -1,8 +1,7 @@
-//! Async-signal-safe stack snapshotting shared by SIGPROF and SIGUSR2.
+//! Async-signal-safe fill of [`StackSnapshot`] for SIGPROF and SIGUSR2.
 //!
-//! Signal handlers only copy raw PCs and eval-hook frame keys into a fixed POD
-//! struct. Symbolization and Python/native merge happen off the signal path via
-//! [`snapshot_to_merged_frames`].
+//! Handlers only copy raw PCs and eval-hook keys. Symbolize / merge / fold live
+//! in [`crate::features::stacktrace::parse`] and [`crate::features::stacktrace::fold`].
 
 use std::cell::UnsafeCell;
 use std::collections::HashMap;
@@ -15,41 +14,15 @@ use nix::libc;
 use once_cell::sync::Lazy;
 use probing_proto::prelude::CallFrame;
 
-use crate::features::spy::call::RawCallLocation;
-use crate::features::spy::spy_tls_addrs;
-use crate::features::stack_merge::{demangle_native_symbol, merge_python_native_stacks};
+use crate::features::stacktrace::merge::demangle_native_symbol;
+use crate::features::stacktrace::spy::call::RawCallLocation;
+use crate::features::stacktrace::spy::spy_tls_addrs;
 
-pub const MAX_NATIVE: usize = 48;
-pub const MAX_PY: usize = 128;
+pub use crate::features::stacktrace::snapshot::{
+    RawStackSnapshot, StackFlags, StackSnapshot, StackSource, MAX_NATIVE, MAX_PY,
+};
+
 const REG_SIZE: usize = 1024;
-
-/// Fixed-size POD snapshot copied from signal handlers.
-#[derive(Clone, Copy)]
-pub struct RawStackSnapshot {
-    pub tid: u64,
-    pub native_len: u32,
-    pub py_len: u32,
-    /// Native return addresses, leaf -> root.
-    pub native: [usize; MAX_NATIVE],
-    /// Callee `PyCodeObject` pointers, outermost -> innermost (`PYSTACKS` order).
-    pub py: [usize; MAX_PY],
-}
-
-impl RawStackSnapshot {
-    pub fn zeroed() -> Self {
-        RawStackSnapshot {
-            tid: 0,
-            native_len: 0,
-            py_len: 0,
-            native: [0usize; MAX_NATIVE],
-            py: [0usize; MAX_PY],
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.native_len == 0 && self.py_len == 0
-    }
-}
 
 // ---------------------------------------------------------------------------
 // Python-thread registry (TLS pointers resolved in normal context)
@@ -61,7 +34,7 @@ struct ThreadSlot {
     writing: AtomicPtr<bool>,
     stack_lo: AtomicUsize,
     stack_hi: AtomicUsize,
-    latest: UnsafeCell<RawStackSnapshot>,
+    latest: UnsafeCell<StackSnapshot>,
     latest_seq: AtomicU64,
 }
 
@@ -75,13 +48,7 @@ static REG_TABLE: [ThreadSlot; REG_SIZE] = [const {
         writing: AtomicPtr::new(std::ptr::null_mut()),
         stack_lo: AtomicUsize::new(0),
         stack_hi: AtomicUsize::new(0),
-        latest: UnsafeCell::new(RawStackSnapshot {
-            tid: 0,
-            native_len: 0,
-            py_len: 0,
-            native: [0usize; MAX_NATIVE],
-            py: [0usize; MAX_PY],
-        }),
+        latest: UnsafeCell::new(StackSnapshot::zeroed()),
         latest_seq: AtomicU64::new(0),
     }
 }; REG_SIZE];
@@ -92,6 +59,7 @@ static PPROF_SAMPLING_ACTIVE: AtomicBool = AtomicBool::new(false);
 
 /// Record the Python main thread's OS tid (pthread id on macOS, gettid on Linux).
 pub fn register_main_os_tid() {
+    ensure_signal_altstack();
     let tid = current_tid();
     if tid == 0 {
         return;
@@ -118,6 +86,9 @@ pub fn is_pprof_sampling_active() -> bool {
 
 thread_local! {
     static THREAD_REGISTERED: std::cell::UnsafeCell<bool> = const { std::cell::UnsafeCell::new(false) };
+    /// Per-thread signal alt stack installed (`sigaltstack` is per-thread on Darwin/Linux).
+    #[cfg(unix)]
+    static THREAD_ALTSTACK_READY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 static THREAD_NAMES: Lazy<RwLock<HashMap<u64, String>>> = Lazy::new(|| RwLock::new(HashMap::new()));
@@ -233,6 +204,9 @@ pub fn register_python_thread() {
         *flag.get() = true;
         false
     });
+    // Always ensure alt stack on this thread (idempotent) — even on re-entry
+    // after fork / late attach, so SIGPROF/SIGUSR2 never run on the training stack.
+    ensure_signal_altstack();
     if already {
         return;
     }
@@ -299,14 +273,20 @@ fn thread_slot(tid: u64) -> Option<&'static ThreadSlot> {
 }
 
 /// Copy the registered thread's Python stack (PYSTACKS) without delivering a signal.
-pub fn copy_registered_py_snapshot(tid: u64) -> Option<RawStackSnapshot> {
+pub fn copy_registered_py_snapshot(tid: u64) -> Option<StackSnapshot> {
     let slot = thread_slot(tid)?;
-    let mut sample = RawStackSnapshot::zeroed();
+    let mut sample = StackSnapshot::zeroed();
     sample.tid = tid;
+    sample.source = StackSource::Vm;
 
     let wr = slot.writing.load(Ordering::Acquire);
     let ps = slot.pystacks.load(Ordering::Acquire);
-    if wr.is_null() || ps.is_null() || unsafe { *wr } {
+    if wr.is_null() || ps.is_null() {
+        sample.flags.insert(StackFlags::PY_ABSENT);
+        return None;
+    }
+    if unsafe { *wr } {
+        sample.flags.insert(StackFlags::PY_TORN);
         return None;
     }
     compiler_fence(Ordering::SeqCst);
@@ -317,19 +297,38 @@ pub fn copy_registered_py_snapshot(tid: u64) -> Option<RawStackSnapshot> {
     }
     compiler_fence(Ordering::SeqCst);
     if unsafe { *wr } {
+        sample.flags.insert(StackFlags::PY_TORN);
         return None;
     }
     sample.py_len = n as u32;
+    if stacks.len() > MAX_PY {
+        sample.flags.insert(StackFlags::PY_TRUNCATED);
+    }
     if sample.is_empty() {
+        sample.flags.insert(StackFlags::PY_ABSENT);
         None
     } else {
         Some(sample)
     }
 }
 
-/// Store the latest SIGPROF snapshot for a thread so on-demand SIGUSR2 capture
-/// can reuse it without delivering another signal.
-pub fn store_latest_snapshot(snapshot: &RawStackSnapshot) {
+/// Whether a latest-slot read is consistent and belongs to `tid`.
+fn latest_snapshot_read_ok(
+    seq_before: u64,
+    seq_after: u64,
+    snap: &StackSnapshot,
+    tid: u64,
+) -> bool {
+    seq_before != 0 && seq_before == seq_after && snap.tid == tid && !snap.is_empty()
+}
+
+/// Whether a SIGUSR2 snapshot may be published / accepted for `target_tid`.
+fn sigusr2_snapshot_matches_target(snap: &StackSnapshot, target_tid: u64) -> bool {
+    target_tid != 0 && !snap.is_empty() && snap.tid == target_tid
+}
+
+/// Store the latest SIGPROF snapshot for a thread so on-demand capture can reuse it.
+pub fn store_latest_snapshot(snapshot: &StackSnapshot) {
     if snapshot.is_empty() {
         return;
     }
@@ -337,13 +336,48 @@ pub fn store_latest_snapshot(snapshot: &RawStackSnapshot) {
         return;
     };
     unsafe {
-        *slot.latest.get() = *snapshot;
+        // Avoid a Rust temporary of the full POD (can blow a near-full training stack).
+        core::ptr::copy_nonoverlapping(snapshot, slot.latest.get(), 1);
     }
     slot.latest_seq.fetch_add(1, Ordering::Release);
 }
 
+/// Fill the current thread's latest slot from `uctx` (no large stack locals).
+///
+/// # Safety
+/// Same as [`fill_raw_snapshot`].
+pub unsafe fn fill_latest_from_uctx(uctx: *mut c_void, source: StackSource) -> bool {
+    fill_latest_from_uctx_with(uctx, source, FillOpts::default())
+}
+
+/// # Safety
+/// Same as [`fill_raw_snapshot`].
+pub unsafe fn fill_latest_from_uctx_with(
+    uctx: *mut c_void,
+    source: StackSource,
+    opts: FillOpts,
+) -> bool {
+    let tid = current_tid();
+    let Some(slot) = thread_slot(tid) else {
+        return false;
+    };
+    let latest = &mut *slot.latest.get();
+    fill_raw_snapshot_with(latest, uctx, opts);
+    latest.source = source;
+    if latest.is_empty() {
+        return false;
+    }
+    slot.latest_seq.fetch_add(1, Ordering::Release);
+    true
+}
+
 /// Reuse the latest SIGPROF snapshot for `tid` when CPU sampling is active.
-pub fn latest_snapshot_for_tid(tid: u64) -> Option<RawStackSnapshot> {
+pub fn latest_snapshot_for_tid(tid: u64) -> Option<StackSnapshot> {
+    latest_snapshot_with_seq(tid).map(|(snap, _)| snap)
+}
+
+/// Like [`latest_snapshot_for_tid`], also returning the slot generation for view caches.
+pub fn latest_snapshot_with_seq(tid: u64) -> Option<(StackSnapshot, u64)> {
     let slot = thread_slot(tid)?;
     for _ in 0..4 {
         let seq_before = slot.latest_seq.load(Ordering::Acquire);
@@ -352,8 +386,8 @@ pub fn latest_snapshot_for_tid(tid: u64) -> Option<RawStackSnapshot> {
         }
         let snap = unsafe { *slot.latest.get() };
         let seq_after = slot.latest_seq.load(Ordering::Acquire);
-        if seq_before == seq_after && snap.tid == tid && !snap.is_empty() {
-            return Some(snap);
+        if latest_snapshot_read_ok(seq_before, seq_after, &snap, tid) {
+            return Some((snap, seq_after));
         }
     }
     None
@@ -391,7 +425,7 @@ pub fn clear_py_symbols() {
     }
 }
 
-fn resolve_py_label(key: usize) -> String {
+pub(crate) fn resolve_py_label(key: usize) -> String {
     if key != 0 {
         if let Ok(g) = PY_SYMBOLS.read() {
             if let Some(sym) = g.get(&key) {
@@ -402,7 +436,7 @@ fn resolve_py_label(key: usize) -> String {
     "[py] <unknown>".to_string()
 }
 
-fn resolve_py_call_frame(key: usize) -> CallFrame {
+pub(crate) fn resolve_py_call_frame(key: usize) -> CallFrame {
     if key != 0 {
         if let Ok(g) = PY_SYMBOLS.read() {
             if let Some(sym) = g.get(&key) {
@@ -418,8 +452,23 @@ fn resolve_py_call_frame(key: usize) -> CallFrame {
     }
 }
 
+/// Canonicalize user-space pointers (strip top-byte / PAC bits on aarch64).
+#[inline]
+fn strip_ptr_tag(p: usize) -> usize {
+    #[cfg(target_arch = "aarch64")]
+    {
+        // Keep low 48 bits — safe for both TBI and pointer-auth tags.
+        p & ((1usize << 48) - 1)
+    }
+    #[cfg(not(target_arch = "aarch64"))]
+    {
+        p
+    }
+}
+
 #[inline]
 fn plausible(p: usize) -> bool {
+    let p = strip_ptr_tag(p);
     (0x1000..0x0001_0000_0000_0000).contains(&p)
 }
 
@@ -434,25 +483,42 @@ unsafe fn regs_from_uctx(uctx: *mut c_void) -> (usize, usize) {
         let mc = &(*uc).uc_mcontext;
         let pc = mc.gregs[libc::REG_RIP as usize] as usize;
         let fp = mc.gregs[libc::REG_RBP as usize] as usize;
-        (pc, fp)
+        (strip_ptr_tag(pc), strip_ptr_tag(fp))
     }
     #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
     {
         let uc = uctx as *const libc::ucontext_t;
         let mc = &(*uc).uc_mcontext;
-        (mc.pc as usize, mc.regs[29] as usize)
+        (
+            strip_ptr_tag(mc.pc as usize),
+            strip_ptr_tag(mc.regs[29] as usize),
+        )
     }
     #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
     {
         let uc = uctx as *const libc::ucontext_t;
-        let ss = &(*(*uc).uc_mcontext).__ss;
-        (ss.__rip as usize, ss.__rbp as usize)
+        let mc = (*uc).uc_mcontext;
+        if mc.is_null() {
+            return (0, 0);
+        }
+        let ss = &(*mc).__ss;
+        (
+            strip_ptr_tag(ss.__rip as usize),
+            strip_ptr_tag(ss.__rbp as usize),
+        )
     }
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     {
         let uc = uctx as *const libc::ucontext_t;
-        let ss = &(*(*uc).uc_mcontext).__ss;
-        (ss.__pc as usize, ss.__fp as usize)
+        let mc = (*uc).uc_mcontext;
+        if mc.is_null() {
+            return (0, 0);
+        }
+        let ss = &(*mc).__ss;
+        (
+            strip_ptr_tag(ss.__pc as usize),
+            strip_ptr_tag(ss.__fp as usize),
+        )
     }
     #[cfg(not(any(
         all(target_os = "linux", target_arch = "x86_64"),
@@ -467,17 +533,20 @@ unsafe fn regs_from_uctx(uctx: *mut c_void) -> (usize, usize) {
 
 unsafe fn walk_frame_pointers(start_fp: usize, out: &mut [usize], lo: usize, hi: usize) -> usize {
     let bounded = hi != 0 && lo < hi;
+    // Without registered stack bounds, do not walk far — unbounded FP walks on a
+    // deep training stack have caused signal-stack overflows / resume SIGILL.
+    let max = if bounded { out.len() } else { out.len().min(8) };
     let in_stack =
         |fp: usize| !bounded || (fp >= lo && fp + 2 * std::mem::size_of::<usize>() <= hi);
 
-    let mut fp = start_fp;
+    let mut fp = strip_ptr_tag(start_fp);
     let mut count = 0usize;
-    while count < out.len() {
+    while count < max {
         if !plausible(fp) || (fp & 0x7) != 0 || !in_stack(fp) {
             break;
         }
-        let saved_fp = *(fp as *const usize);
-        let ret = *((fp + std::mem::size_of::<usize>()) as *const usize);
+        let saved_fp = strip_ptr_tag(*(fp as *const usize));
+        let ret = strip_ptr_tag(*((fp + std::mem::size_of::<usize>()) as *const usize));
         if !plausible(ret) {
             break;
         }
@@ -491,19 +560,69 @@ unsafe fn walk_frame_pointers(start_fp: usize, out: &mut [usize], lo: usize, hi:
     count
 }
 
-/// Async-signal-safe snapshot of the interrupted thread's native + Python stacks.
+/// Options for signal-safe snapshot fill.
+#[derive(Clone, Copy, Debug)]
+pub struct FillOpts {
+    /// Walk frame pointers beyond the interrupted PC. Off for on-demand
+    /// `SIGUSR2` (UI refresh) — cheaper and less likely to disturb resume state.
+    pub walk_native: bool,
+}
+
+impl Default for FillOpts {
+    fn default() -> Self {
+        Self { walk_native: true }
+    }
+}
+
+/// Whether the calling thread is currently running on its signal alt stack.
+#[cfg(unix)]
+#[inline]
+pub fn on_signal_altstack() -> bool {
+    unsafe {
+        let mut cur: libc::stack_t = std::mem::zeroed();
+        if libc::sigaltstack(std::ptr::null(), &mut cur) != 0 {
+            return false;
+        }
+        (cur.ss_flags & libc::SS_ONSTACK) != 0
+    }
+}
+
+#[cfg(not(unix))]
+#[inline]
+pub fn on_signal_altstack() -> bool {
+    false
+}
+
+/// Fill `out` from `ucontext` + registered `PYSTACKS` (async-signal-safe).
+///
+/// Prefer this over returning [`StackSnapshot`] by value in signal handlers.
+/// Caller sets [`StackSnapshot::source`].
 ///
 /// # Safety
 ///
-/// `uctx` must be a valid `ucontext_t` pointer from a signal handler (or null,
-/// in which case native registers are skipped). Must only be called from an
-/// async-signal-safe context on the interrupted thread; the returned snapshot
-/// must not be shared with concurrent writers without synchronization.
-pub unsafe fn capture_raw_snapshot(uctx: *mut c_void) -> RawStackSnapshot {
-    let mut sample = RawStackSnapshot::zeroed();
-    sample.tid = current_tid();
+/// `uctx` must be a valid `ucontext_t` from a signal handler (or null).
+/// `out` must not be shared with concurrent writers.
+pub unsafe fn fill_raw_snapshot(out: &mut StackSnapshot, uctx: *mut c_void) {
+    fill_raw_snapshot_with(out, uctx, FillOpts::default());
+}
 
-    let slot = thread_slot(sample.tid);
+/// Like [`fill_raw_snapshot`] with explicit options.
+///
+/// # Safety
+///
+/// Same as [`fill_raw_snapshot`]: `uctx` must be a valid `ucontext_t` from a
+/// signal handler (or null); `out` must not be shared with concurrent writers.
+pub unsafe fn fill_raw_snapshot_with(out: &mut StackSnapshot, uctx: *mut c_void, opts: FillOpts) {
+    // Zero in place — NEVER `*out = StackSnapshot::zeroed()` which materializes
+    // a ~1.4 KiB stack temporary and has caused resume SIGILL at `_platform_strlen`.
+    core::ptr::write_bytes(
+        out as *mut StackSnapshot as *mut u8,
+        0,
+        core::mem::size_of::<StackSnapshot>(),
+    );
+    out.tid = current_tid();
+
+    let slot = thread_slot(out.tid);
     let (lo, hi) = match slot {
         Some(s) => (
             s.stack_lo.load(Ordering::Acquire),
@@ -515,31 +634,112 @@ pub unsafe fn capture_raw_snapshot(uctx: *mut c_void) -> RawStackSnapshot {
     let (pc, fp) = regs_from_uctx(uctx);
     let mut nlen = 0usize;
     if plausible(pc) {
-        sample.native[nlen] = pc;
+        out.native[nlen] = pc;
         nlen += 1;
     }
-    if nlen < MAX_NATIVE {
-        nlen += walk_frame_pointers(fp, &mut sample.native[nlen..], lo, hi);
+    if opts.walk_native && nlen < MAX_NATIVE {
+        nlen += walk_frame_pointers(fp, &mut out.native[nlen..], lo, hi);
     }
-    sample.native_len = nlen as u32;
+    out.native_len = nlen as u32;
+    if opts.walk_native && nlen == MAX_NATIVE {
+        out.flags.insert(StackFlags::NATIVE_TRUNCATED);
+    }
 
     if let Some(slot) = slot {
         let wr = slot.writing.load(Ordering::Acquire);
         let ps = slot.pystacks.load(Ordering::Acquire);
-        if !wr.is_null() && !ps.is_null() && !*wr {
+        if wr.is_null() || ps.is_null() {
+            out.flags.insert(StackFlags::PY_ABSENT);
+        } else if *wr {
+            out.flags.insert(StackFlags::PY_TORN);
+        } else {
             compiler_fence(Ordering::SeqCst);
             let stacks = &*ps;
             let n = stacks.len().min(MAX_PY);
             for (i, stack) in stacks.iter().enumerate().take(n) {
-                sample.py[i] = stack.callee();
+                out.py[i] = stack.callee();
             }
             compiler_fence(Ordering::SeqCst);
-            sample.py_len = if *wr { 0 } else { n as u32 };
+            if *wr {
+                out.py_len = 0;
+                out.flags.insert(StackFlags::PY_TORN);
+            } else {
+                out.py_len = n as u32;
+                if stacks.len() > MAX_PY {
+                    out.flags.insert(StackFlags::PY_TRUNCATED);
+                }
+            }
         }
+    } else {
+        out.flags.insert(StackFlags::PY_ABSENT);
     }
+}
 
+/// Convenience wrapper (not for deep signal paths — prefer [`fill_raw_snapshot`]).
+///
+/// # Safety
+///
+/// Same as [`fill_raw_snapshot`]: `uctx` must be a valid `ucontext_t` from a
+/// signal handler (or null).
+pub unsafe fn capture_raw_snapshot(uctx: *mut c_void) -> StackSnapshot {
+    let mut sample = StackSnapshot::zeroed();
+    fill_raw_snapshot(&mut sample, uctx);
     sample
 }
+
+/// Install a **per-thread** signal alt stack for `SA_ONSTACK` handlers.
+///
+/// Critical on Darwin/Linux: `sigaltstack` is not process-wide. Installing only
+/// on the HTTP / init thread leaves the Python main thread without an alt stack;
+/// SIGPROF/SIGUSR2 then run on a deep training stack and resume as `SIGILL`
+/// (observed at `_platform_strlen` after signal-frame corruption).
+/// Minimum alt-stack size shared with the crash handler (256 KiB).
+const SIGNAL_ALTSTACK_BYTES: usize = 256 * 1024;
+
+#[cfg(unix)]
+pub fn ensure_signal_altstack() {
+    THREAD_ALTSTACK_READY.with(|ready| {
+        if ready.get() {
+            return;
+        }
+        unsafe {
+            // Reuse crash-handler / prior alt stack — do NOT replace a larger
+            // stack with a smaller one (that made SIGILL backtraces empty and
+            // left stack capture on an undersized buffer).
+            let mut cur: libc::stack_t = std::mem::zeroed();
+            if libc::sigaltstack(std::ptr::null(), &mut cur) == 0
+                && (cur.ss_flags & libc::SS_DISABLE) == 0
+                && cur.ss_size >= SIGNAL_ALTSTACK_BYTES
+            {
+                ready.set(true);
+                return;
+            }
+        }
+        let mut buf = vec![0u8; SIGNAL_ALTSTACK_BYTES];
+        let sp = buf.as_mut_ptr() as *mut c_void;
+        let size = buf.len();
+        std::mem::forget(buf);
+        unsafe {
+            let ss = libc::stack_t {
+                ss_sp: sp,
+                ss_size: size,
+                ss_flags: 0,
+            };
+            if libc::sigaltstack(&ss, std::ptr::null_mut()) != 0 {
+                log::warn!(
+                    "probing: per-thread sigaltstack failed (tid={}); \
+                     SIGPROF/SIGUSR2 may be unsafe on deep stacks",
+                    current_tid()
+                );
+                return;
+            }
+        }
+        ready.set(true);
+    });
+}
+
+#[cfg(not(unix))]
+pub fn ensure_signal_altstack() {}
 
 pub fn symbolize_native_addr(addr: usize, cache: &mut HashMap<usize, CallFrame>) -> CallFrame {
     if let Some(frame) = cache.get(&addr) {
@@ -574,67 +774,14 @@ pub fn symbolize_native_addr(addr: usize, cache: &mut HashMap<usize, CallFrame>)
     frame
 }
 
-/// Best-effort symbolize + merge off the signal path. Never propagates errors.
-pub fn snapshot_to_merged_frames(
-    snapshot: &RawStackSnapshot,
-    cache: &mut HashMap<usize, CallFrame>,
-) -> Vec<CallFrame> {
-    let nlen = snapshot.native_len as usize;
-    let plen = snapshot.py_len as usize;
-
-    let native_leaf_to_root: Vec<CallFrame> = (0..nlen)
-        .map(|i| {
-            let resolve_addr = if i == 0 {
-                snapshot.native[i]
-            } else {
-                snapshot.native[i].wrapping_sub(1)
-            };
-            symbolize_native_addr(resolve_addr, cache)
-        })
-        .collect();
-
-    let python_outer_to_inner: Vec<CallFrame> = snapshot.py[..plen]
-        .iter()
-        .map(|&key| resolve_py_call_frame(key))
-        .collect();
-
-    merge_python_native_stacks(&python_outer_to_inner, &native_leaf_to_root)
-}
-
-pub fn snapshot_to_folded_line(
-    snapshot: &RawStackSnapshot,
-    cache: &mut HashMap<usize, CallFrame>,
-) -> String {
-    let merged = snapshot_to_merged_frames(snapshot, cache);
-    if merged.is_empty() {
-        return String::new();
-    }
-    let segments = crate::features::stack_merge::merged_frames_to_folded_segments(&merged);
-    let mut line = match thread_name(snapshot.tid) {
-        Some(name) => format!("thread-{} ({})", snapshot.tid, name),
-        None => format!("thread-{}", snapshot.tid),
-    };
-    for seg in segments {
-        line.push(';');
-        line.push_str(&seg);
-    }
-    line
-}
-
 // ---------------------------------------------------------------------------
 // SIGUSR2 on-demand capture (same safe handler body as SIGPROF)
 // ---------------------------------------------------------------------------
 
-struct Sigusr2SnapshotSlot(UnsafeCell<RawStackSnapshot>);
+struct Sigusr2SnapshotSlot(UnsafeCell<StackSnapshot>);
 unsafe impl Sync for Sigusr2SnapshotSlot {}
 
-const ZERO_SNAPSHOT: RawStackSnapshot = RawStackSnapshot {
-    tid: 0,
-    native_len: 0,
-    py_len: 0,
-    native: [0usize; MAX_NATIVE],
-    py: [0usize; MAX_PY],
-};
+const ZERO_SNAPSHOT: StackSnapshot = StackSnapshot::zeroed();
 
 static SIGUSR2_HANDLER_INSTALLED: AtomicBool = AtomicBool::new(false);
 static SIGUSR2_ARMED: AtomicBool = AtomicBool::new(false);
@@ -652,7 +799,7 @@ pub fn set_sigusr2_armed(armed: bool) {
     SIGUSR2_ARMED.store(armed, Ordering::Release);
 }
 
-pub fn take_sigusr2_snapshot(after_seq: u64) -> Option<RawStackSnapshot> {
+pub fn take_sigusr2_snapshot(after_seq: u64) -> Option<StackSnapshot> {
     if SIGUSR2_SEQ.load(Ordering::Acquire) <= after_seq {
         return None;
     }
@@ -683,7 +830,7 @@ impl Drop for Sigusr2ArmGuard {
 
 /// Arm, deliver SIGUSR2 to `tid`, and wait for an async-signal-safe snapshot slot.
 #[cfg(unix)]
-pub fn capture_thread_snapshot_signal(tid: u64, timeout: Duration) -> Option<RawStackSnapshot> {
+pub fn capture_thread_snapshot_signal(tid: u64, timeout: Duration) -> Option<StackSnapshot> {
     use std::time::Instant;
 
     let _guard = Sigusr2ArmGuard::new(tid);
@@ -715,7 +862,7 @@ pub fn capture_thread_snapshot_signal(tid: u64, timeout: Duration) -> Option<Raw
     let deadline = Instant::now() + timeout;
     while Instant::now() < deadline {
         if let Some(snap) = take_sigusr2_snapshot(seq_before) {
-            if snap.tid == tid {
+            if sigusr2_snapshot_matches_target(&snap, tid) {
                 return Some(snap);
             }
         }
@@ -725,7 +872,7 @@ pub fn capture_thread_snapshot_signal(tid: u64, timeout: Duration) -> Option<Raw
 }
 
 #[cfg(not(unix))]
-pub fn capture_thread_snapshot_signal(_tid: u64, _timeout: Duration) -> Option<RawStackSnapshot> {
+pub fn capture_thread_snapshot_signal(_tid: u64, _timeout: Duration) -> Option<StackSnapshot> {
     None
 }
 
@@ -734,11 +881,14 @@ pub fn install_sigusr2_handler() {
     if SIGUSR2_HANDLER_INSTALLED.swap(true, Ordering::AcqRel) {
         return;
     }
+    ensure_signal_altstack();
     unsafe {
         let mut sa: libc::sigaction = std::mem::zeroed();
         sa.sa_sigaction = sigusr2_stack_handler as *const () as usize;
-        sa.sa_flags = libc::SA_SIGINFO | libc::SA_RESTART;
+        sa.sa_flags = libc::SA_SIGINFO | libc::SA_RESTART | libc::SA_ONSTACK;
         libc::sigemptyset(&mut sa.sa_mask);
+        // Avoid nesting with SIGPROF while filling on the shared alt stack.
+        libc::sigaddset(&mut sa.sa_mask, libc::SIGPROF);
         libc::sigaction(libc::SIGUSR2, &sa, std::ptr::null_mut());
     }
 }
@@ -752,16 +902,22 @@ unsafe extern "C" fn sigusr2_stack_handler(
     if !SIGUSR2_ARMED.load(Ordering::Acquire) {
         return;
     }
+    // Refuse to run on the training stack — would corrupt resume into SIGILL.
+    if !on_signal_altstack() {
+        return;
+    }
     let target = SIGUSR2_TARGET_TID.load(Ordering::Acquire);
-    if target == 0 {
+    let slot = &mut *SIGUSR2_SNAPSHOT.0.get();
+    // On-demand UI capture: PC + Python keys only (no FP walk).
+    fill_raw_snapshot_with(slot, uctx, FillOpts { walk_native: false });
+    slot.source = StackSource::Sigusr2;
+    if !sigusr2_snapshot_matches_target(slot, target) {
+        core::ptr::write_bytes(
+            slot as *mut StackSnapshot as *mut u8,
+            0,
+            core::mem::size_of::<StackSnapshot>(),
+        );
         return;
-    }
-    let snapshot = capture_raw_snapshot(uctx);
-    if snapshot.is_empty() || snapshot.tid != target {
-        return;
-    }
-    unsafe {
-        *SIGUSR2_SNAPSHOT.0.get() = snapshot;
     }
     SIGUSR2_SEQ.fetch_add(1, Ordering::Release);
 }
@@ -769,9 +925,48 @@ unsafe extern "C" fn sigusr2_stack_handler(
 #[cfg(not(unix))]
 pub fn install_sigusr2_handler() {}
 
+/// Serialize process-global signal handler tests (SIGPROF / SIGUSR2).
+#[cfg(all(test, unix))]
+pub(crate) fn with_signal_test_lock<R>(f: impl FnOnce() -> R) -> R {
+    use std::sync::{Mutex, OnceLock};
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    let lock = LOCK.get_or_init(|| Mutex::new(()));
+    let _guard = lock.lock().unwrap_or_else(|e| e.into_inner());
+    f()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn sample_with_tid(tid: u64) -> StackSnapshot {
+        let mut s = StackSnapshot::zeroed();
+        s.source = StackSource::Sigusr2;
+        s.tid = tid;
+        s.py_len = 1;
+        s.py[0] = 0x1000;
+        s
+    }
+
+    fn claim_test_slot(tid: u64) {
+        let start = slot_hash(tid);
+        for i in 0..REG_SIZE {
+            let slot = &REG_TABLE[(start + i) & (REG_SIZE - 1)];
+            let v = slot.tid.load(Ordering::Acquire);
+            if v == tid {
+                return;
+            }
+            if v == 0
+                && slot
+                    .tid
+                    .compare_exchange(0, tid, Ordering::AcqRel, Ordering::Acquire)
+                    .is_ok()
+            {
+                return;
+            }
+        }
+        panic!("could not claim registry slot for tid={tid}");
+    }
 
     #[test]
     fn register_main_os_tid_is_idempotent() {
@@ -810,5 +1005,61 @@ mod tests {
             }
             other => panic!("expected PyFrame, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn sigusr2_rejects_wrong_tid_and_empty_snapshot() {
+        let good = sample_with_tid(42);
+        assert!(sigusr2_snapshot_matches_target(&good, 42));
+        assert!(!sigusr2_snapshot_matches_target(&good, 99));
+        assert!(!sigusr2_snapshot_matches_target(&good, 0));
+        assert!(!sigusr2_snapshot_matches_target(
+            &StackSnapshot::zeroed(),
+            42
+        ));
+    }
+
+    #[test]
+    fn latest_snapshot_read_rejects_torn_or_mismatched_tid() {
+        let snap = sample_with_tid(7);
+        assert!(latest_snapshot_read_ok(3, 3, &snap, 7));
+        assert!(!latest_snapshot_read_ok(0, 0, &snap, 7));
+        assert!(!latest_snapshot_read_ok(3, 4, &snap, 7));
+        assert!(!latest_snapshot_read_ok(3, 3, &snap, 8));
+        assert!(!latest_snapshot_read_ok(3, 3, &StackSnapshot::zeroed(), 7));
+    }
+
+    #[test]
+    fn latest_snapshot_roundtrip_requires_registered_tid() {
+        // High tid to avoid colliding with live process threads during tests.
+        let tid = 0xC0FF_EE42u64;
+        claim_test_slot(tid);
+        let snap = sample_with_tid(tid);
+        store_latest_snapshot(&snap);
+        let got = latest_snapshot_for_tid(tid).expect("latest snapshot");
+        assert_eq!(got.tid, tid);
+        assert_eq!(got.py_len, 1);
+        assert!(latest_snapshot_for_tid(tid + 1).is_none());
+    }
+
+    /// Real SIGUSR2 delivery → async-signal-safe fill → `native_len >= 1`.
+    #[cfg(unix)]
+    #[test]
+    fn sigusr2_signal_path_captures_native_pc() {
+        with_signal_test_lock(|| {
+            install_sigusr2_handler();
+            register_python_thread();
+            register_main_os_tid();
+            let tid = current_tid();
+            let snap = capture_thread_snapshot_signal(tid, Duration::from_secs(2))
+                .expect("SIGUSR2 should publish a snapshot for the current thread");
+            assert_eq!(snap.tid, tid);
+            assert_eq!(snap.source, StackSource::Sigusr2);
+            assert!(
+                snap.native_len >= 1,
+                "ucontext PC should yield at least one native frame, got native_len=0 flags={:?}",
+                snap.flags
+            );
+        });
     }
 }

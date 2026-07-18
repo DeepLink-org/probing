@@ -23,12 +23,14 @@ impl ProbeExtensionCall for PprofProbeExtension {
         _body: &[u8],
     ) -> Result<Vec<u8>, EngineError> {
         match path.trim_start_matches('/') {
-            "flamegraph" => crate::features::pprof::flamegraph()
+            "flamegraph" => crate::features::stacktrace::tracers::pprof::flamegraph()
                 .map(|html| html.into_bytes())
                 .map_err(|e| EngineError::CallError(e.to_string())),
-            "flamegraph/json" => Ok(crate::features::pprof::flamegraph_json().into_bytes()),
+            "flamegraph/json" => {
+                Ok(crate::features::stacktrace::tracers::pprof::flamegraph_json().into_bytes())
+            }
             "flamegraph/folded/json" => {
-                Ok(crate::features::pprof::folded_lines_json().into_bytes())
+                Ok(crate::features::stacktrace::tracers::pprof::folded_lines_json().into_bytes())
             }
             "flamegraph/distributed/json" => {
                 let cluster = params
@@ -37,7 +39,7 @@ impl ProbeExtensionCall for PprofProbeExtension {
                     .map(|v| v != "0" && v != "false")
                     .unwrap_or(true);
                 let mode = params.get("mode").map(|s| s.as_str()).unwrap_or("mixed");
-                let (body, _) = crate::features::pprof::collect_distributed_stack_flamegraph_json(
+                let (body, _) = crate::features::stacktrace::tracers::pprof::collect_distributed_stack_flamegraph_json(
                     cluster, mode,
                 )
                 .await;
@@ -55,14 +57,14 @@ impl PprofProbeExtension {
         let freq = match pprof_sample_freq {
             Maybe::Just(freq) if freq >= 1 => freq,
             _ => {
-                crate::features::pprof::reset();
+                crate::features::stacktrace::tracers::pprof::reset();
                 self.sample_freq = Maybe::Nothing;
                 return Ok(());
             }
         };
         // Re-settable: `setup` bumps the sampler generation, retires the old
         // consumer thread, and re-arms the timer at the new rate.
-        crate::features::pprof::setup(freq as u64).map_err(|e| {
+        crate::features::stacktrace::tracers::pprof::setup(freq as u64).map_err(|e| {
             EngineError::InvalidOptionValue(Self::OPTION_SAMPLE_FREQ.to_string(), e.to_string())
         })?;
         self.sample_freq = pprof_sample_freq.clone();

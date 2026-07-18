@@ -11,7 +11,7 @@ use probing_core::trace::{
     Event as RawEvent, SpanStatus, StepSnapshot, Timestamp,
 };
 
-use crate::features::convert::{ele_to_python, python_to_ele};
+use crate::features::python::bridge::{ele_to_python, python_to_ele};
 
 fn lock_span(m: &Mutex<RawSpan>) -> MutexGuard<'_, RawSpan> {
     lock_mutex(m, "span")

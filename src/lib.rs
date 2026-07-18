@@ -7,10 +7,10 @@ use pyo3::prelude::*;
 use probing_cli::pyo3::cli_main;
 use probing_core::{install_panic_hook, register_python_main_thread};
 use probing_python::extensions::python::{register_table_docs, ExternalTable};
-use probing_python::features::config;
-use probing_python::features::python_api::query_json;
-use probing_python::features::tracing;
-use probing_python::features::vm_tracer::{
+use probing_python::features::python::bindings;
+use probing_python::features::python::bindings::query_json;
+use probing_python::features::python::tracing;
+use probing_python::features::stacktrace::vm::{
     _get_python_frames, _get_python_stacks, disable_tracer, enable_tracer, initialize_globals,
 };
 use probing_server::sync_env_settings;
@@ -203,7 +203,7 @@ fn start_local() {
 #[pymodule(gil_used = true)]
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     register_python_main_thread();
-    probing_python::features::stack_capture::register_main_os_tid();
+    probing_python::features::stacktrace::capture::register_main_os_tid();
 
     // Initialize logging (try_init to avoid conflicts if already initialized via #[ctor])
     let _ = env_logger::try_init_from_env(env_logger::Env::new().filter(ENV_PROBING_LOGLEVEL));
@@ -232,17 +232,17 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(_get_python_frames, m)?)?;
     m.add_function(wrap_pyfunction!(cli_main, m)?)?;
     m.add_function(wrap_pyfunction!(
-        probing_python::features::python_api::api_callstack,
+        probing_python::features::python::bindings::api_callstack,
         m
     )?)?;
     m.add_function(wrap_pyfunction!(
-        probing_python::features::python_api::api_eval,
+        probing_python::features::python::bindings::api_eval,
         m
     )?)?;
     register_skills_bindings(m)?;
 
     // Add is_enabled function to help tests check state
-    use probing_python::features::python_api::{is_enabled, should_enable_probing};
+    use probing_python::features::python::bindings::{is_enabled, should_enable_probing};
     m.add_function(wrap_pyfunction!(is_enabled, m)?)?;
     m.add_function(wrap_pyfunction!(should_enable_probing, m)?)?;
     use probing_python::features::crash::{
@@ -269,7 +269,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(refresh_torchrun_cluster_role, m)?)?;
 
     // Register config functions directly to the module (flattened)
-    config::register_config_functions(m)?;
+    bindings::register_config_functions(m)?;
 
     // Register tracing classes and functions directly to the module (flattened)
     tracing::register_tracing_functions(m)?;

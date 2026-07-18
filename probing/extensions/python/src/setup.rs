@@ -22,6 +22,6 @@ fn setup() {
             nix::libc::signal(nix::libc::SIGUSR2, nix::libc::SIG_IGN);
         }
     } else {
-        crate::features::stack_capture::install_sigusr2_handler();
+        crate::features::stacktrace::capture::install_sigusr2_handler();
     }
 }

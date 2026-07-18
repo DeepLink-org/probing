@@ -13,7 +13,7 @@ use sha2::{Digest, Sha256};
 use std::sync::Mutex;
 use uuid::Uuid;
 
-use crate::features::tracing::crash_span_snapshot;
+use crate::features::python::tracing::crash_span_snapshot;
 
 use super::grace;
 use super::memory_snapshot::{self, MemorySnapshot};

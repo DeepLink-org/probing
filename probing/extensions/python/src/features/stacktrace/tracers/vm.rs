@@ -4,14 +4,13 @@ use pyo3::prelude::*;
 
 use probing_proto::prelude::CallFrame;
 
-use crate::features::spy::call::RawCallLocation;
-use crate::features::spy::{get_current_frame, get_prev_frame};
+use crate::features::stacktrace::spy::call::RawCallLocation;
+use crate::features::stacktrace::spy::{get_current_frame, get_prev_frame};
 
-use super::spy::python_bindings;
-
-use crate::features::spy::ffi;
-use crate::features::spy::with_spy_state;
-use crate::features::spy::PYVERSION;
+use crate::features::stacktrace::spy::ffi;
+use crate::features::stacktrace::spy::python_bindings;
+use crate::features::stacktrace::spy::with_spy_state;
+use crate::features::stacktrace::spy::PYVERSION;
 
 #[allow(static_mut_refs)]
 pub fn initialize_globals() -> bool {
@@ -51,14 +50,14 @@ unsafe extern "C" fn rust_eval_frame(
     with_spy_state(|state| {
         // Mark this thread as a Python thread once; lets the SIGPROF sampler know its
         // thread-local `PYSTACKS` is allocated and safe to read from a signal handler.
-        crate::features::stack_capture::register_python_thread();
+        crate::features::stacktrace::capture::register_python_thread();
 
         // Resolve this frame's callee symbol *now*, while the code object is alive
         // under the GIL, and cache it by pointer. The SIGPROF consumer later looks
         // the label up by integer key instead of dereferencing a possibly-freed
         // `PyCodeObject` off the signal path.
         let loc = RawCallLocation::from(frame as usize, Some(ts as usize));
-        crate::features::stack_capture::intern_py_frame(&loc);
+        crate::features::stacktrace::capture::intern_py_frame(&loc);
 
         // Bracket the `PYSTACKS` mutation so a SIGPROF sample taken mid-realloc is
         // discarded instead of reading a torn `Vec`.
@@ -67,6 +66,10 @@ unsafe extern "C" fn rust_eval_frame(
         (*state).stacks.push(loc);
         compiler_fence(Ordering::SeqCst);
         (*state).writing = false;
+
+        // macOS default: sample here (no ITIMER_PROF). After PYSTACKS push so
+        // the current frame is visible. No-op when async SIGPROF is armed.
+        crate::features::stacktrace::tracers::pprof::maybe_cooperative_sample();
 
         let ret = ((*state).frame_eval)(ts, frame, extra);
 
@@ -127,7 +130,7 @@ pub fn disable_tracer() -> PyResult<()> {
             });
         }
     }
-    crate::features::stack_capture::clear_py_symbols();
+    crate::features::stacktrace::capture::clear_py_symbols();
     Ok(())
 }
 
@@ -171,6 +174,37 @@ pub fn _get_python_frames(py: Python) -> PyResult<Py<PyAny>> {
         }
     }
     Ok(py_list.into())
+}
+
+/// Copy TLS `PYSTACKS` callee keys (outer → inner), same order as signal fill.
+///
+/// Returns `None` when the TLS buffer is unavailable, empty, or mid-mutation
+/// (`writing`). Interns each key while the GIL holds code objects.
+#[allow(static_mut_refs)]
+pub fn copy_pystacks_callee_keys() -> Option<Vec<usize>> {
+    use std::sync::atomic::{compiler_fence, Ordering};
+
+    with_spy_state(|state| unsafe {
+        if (*state).stacks.capacity() == 0 {
+            return None;
+        }
+        if (*state).writing {
+            return None;
+        }
+        compiler_fence(Ordering::SeqCst);
+        let keys: Vec<usize> = (*state).stacks.iter().map(|loc| loc.callee()).collect();
+        compiler_fence(Ordering::SeqCst);
+        if (*state).writing {
+            return None;
+        }
+        if keys.is_empty() {
+            return None;
+        }
+        for loc in (*state).stacks.iter() {
+            crate::features::stacktrace::capture::intern_py_frame(loc);
+        }
+        Some(keys)
+    })
 }
 
 #[allow(static_mut_refs)]
