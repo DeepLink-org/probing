@@ -12,174 +12,347 @@
     "cors": false
   },
   "server_public": [
-    { "method": "GET", "path": "/apis/overview" },
-    { "method": "GET", "path": "/apis/files" },
-    { "method": "GET", "path": "/apis/nodes" },
-    { "method": "PUT", "path": "/apis/nodes" },
-    { "method": "GET", "path": "/apis/training/step_matrix" },
-    { "method": "GET", "path": "/apis/training/distributed_flamegraph/json" },
-    { "method": "GET", "path": "/apis/training/distributed_stack_flamegraph/json" },
-    { "method": "POST", "path": "/apis/cluster/query" }
+    {
+      "method": "GET",
+      "path": "/apis/overview"
+    },
+    {
+      "method": "GET",
+      "path": "/apis/files"
+    },
+    {
+      "method": "GET",
+      "path": "/apis/nodes"
+    },
+    {
+      "method": "PUT",
+      "path": "/apis/nodes"
+    },
+    {
+      "method": "GET",
+      "path": "/apis/training/step_matrix"
+    },
+    {
+      "method": "GET",
+      "path": "/apis/training/distributed_flamegraph/json"
+    },
+    {
+      "method": "GET",
+      "path": "/apis/training/distributed_stack_flamegraph/json"
+    },
+    {
+      "method": "POST",
+      "path": "/apis/cluster/query"
+    },
+    {
+      "method": "GET",
+      "path": "/apis/processes/local"
+    },
+    {
+      "method": "POST",
+      "path": "/apis/query/local-pid"
+    }
   ],
   "top_level": [
-    { "method": "GET", "path": "/health" },
-    { "method": "GET", "path": "/ready" },
-    { "method": "POST", "path": "/query" },
-    { "method": "POST", "path": "/query/dto" },
-    { "method": "GET", "path": "/config/{config_key}" },
-    { "method": "GET", "path": "/ws" },
-    { "method": "POST", "path": "/mcp" }
+    {
+      "method": "GET",
+      "path": "/health"
+    },
+    {
+      "method": "GET",
+      "path": "/ready"
+    },
+    {
+      "method": "POST",
+      "path": "/query"
+    },
+    {
+      "method": "POST",
+      "path": "/query/dto"
+    },
+    {
+      "method": "GET",
+      "path": "/config/{config_key}"
+    },
+    {
+      "method": "GET",
+      "path": "/ws"
+    },
+    {
+      "method": "POST",
+      "path": "/mcp"
+    }
   ],
   "pythonext_handlers": [
     {
       "local_path": "callstack",
       "method": "GET",
       "uses_body": false,
-      "response": { "content_type": "application/json", "cors": false }
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
     },
     {
       "local_path": "eval",
       "method": "POST",
       "uses_body": true,
-      "response": { "content_type": "text/plain", "cors": false }
+      "response": {
+        "content_type": "text/plain",
+        "cors": false
+      }
     },
     {
       "local_path": "trace/list",
       "method": "GET",
       "uses_body": false,
-      "response": { "content_type": "application/json", "cors": false }
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
     },
     {
       "local_path": "trace/show",
       "method": "GET",
       "uses_body": false,
-      "response": { "content_type": "application/json", "cors": false }
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
     },
     {
       "local_path": "trace/start",
       "method": "GET",
       "uses_body": false,
-      "response": { "content_type": "application/json", "cors": false }
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
     },
     {
       "local_path": "trace/stop",
       "method": "GET",
       "uses_body": false,
-      "response": { "content_type": "application/json", "cors": false }
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
     },
     {
       "local_path": "trace/variables",
       "method": "GET",
       "uses_body": false,
-      "response": { "content_type": "application/json", "cors": false }
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
     },
     {
       "local_path": "trace/chrome-tracing",
       "method": "GET",
       "uses_body": false,
-      "response": { "content_type": "application/json", "cors": true }
+      "response": {
+        "content_type": "application/json",
+        "cors": true
+      }
     },
     {
       "local_path": "pytorch/timeline",
       "method": "GET",
       "uses_body": false,
-      "response": { "content_type": "application/json", "cors": true }
+      "response": {
+        "content_type": "application/json",
+        "cors": true
+      }
     },
     {
       "local_path": "pytorch/profile",
       "method": "GET",
       "uses_body": false,
-      "response": { "content_type": "application/json", "cors": false }
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
     },
     {
       "local_path": "pytorch/profile/start",
       "method": "GET",
       "uses_body": false,
-      "response": { "content_type": "application/json", "cors": false }
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
     },
     {
       "local_path": "pytorch/profile/stop",
       "method": "GET",
       "uses_body": false,
-      "response": { "content_type": "application/json", "cors": false }
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
     },
     {
       "local_path": "pytorch/profile/status",
       "method": "GET",
       "uses_body": false,
-      "response": { "content_type": "application/json", "cors": false }
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
     },
     {
       "local_path": "ray/timeline",
       "method": "GET",
       "uses_body": false,
-      "response": { "content_type": "application/json", "cors": true }
+      "response": {
+        "content_type": "application/json",
+        "cors": true
+      }
     },
     {
       "local_path": "ray/timeline/chrome",
       "method": "GET",
       "uses_body": false,
-      "response": { "content_type": "application/json", "cors": true }
+      "response": {
+        "content_type": "application/json",
+        "cors": true
+      }
     },
     {
       "local_path": "magics",
       "method": "GET",
       "uses_body": false,
-      "response": { "content_type": "application/json", "cors": false }
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
     },
     {
       "local_path": "flight-recorder/snapshot",
       "method": "GET",
       "uses_body": false,
-      "response": { "content_type": "application/json", "cors": false }
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
     },
     {
       "local_path": "crash/hold",
       "method": "GET",
       "uses_body": false,
-      "response": { "content_type": "application/json", "cors": false }
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
     },
     {
       "local_path": "crash/release",
       "method": "GET",
       "uses_body": false,
-      "response": { "content_type": "application/json", "cors": false }
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
     },
     {
       "local_path": "skills/list",
       "method": "GET",
       "uses_body": false,
-      "response": { "content_type": "application/json", "cors": false }
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
     },
     {
       "local_path": "skills/load",
       "method": "GET",
       "uses_body": false,
-      "response": { "content_type": "application/json", "cors": false }
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
     },
     {
       "local_path": "skills/catalog",
       "method": "GET",
       "uses_body": false,
-      "response": { "content_type": "application/json", "cors": false }
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
     },
     {
       "local_path": "skills/routing",
       "method": "GET",
       "uses_body": false,
-      "response": { "content_type": "application/json", "cors": false }
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
     },
     {
       "local_path": "skills/roots",
       "method": "GET",
       "uses_body": false,
-      "response": { "content_type": "application/json", "cors": false }
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
     },
     {
       "local_path": "extensions/list",
       "method": "GET",
       "uses_body": false,
-      "response": { "content_type": "application/json", "cors": false }
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
+    },
+    {
+      "local_path": "engines/register",
+      "method": "GET",
+      "uses_body": false,
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
+    },
+    {
+      "local_path": "engines/register_slime",
+      "method": "GET",
+      "uses_body": false,
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
+    },
+    {
+      "local_path": "engines/list",
+      "method": "GET",
+      "uses_body": false,
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
+    },
+    {
+      "local_path": "engines/scrape",
+      "method": "GET",
+      "uses_body": false,
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
+    },
+    {
+      "local_path": "engines/snapshot",
+      "method": "GET",
+      "uses_body": false,
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
     }
   ],
   "other_extensions": [
@@ -188,49 +361,70 @@
       "method": "GET",
       "path": "/apis/torchextension/flamegraph",
       "local_path": "flamegraph",
-      "response": { "content_type": "text/html", "cors": false }
+      "response": {
+        "content_type": "text/html",
+        "cors": false
+      }
     },
     {
       "extension_name": "torchextension",
       "method": "GET",
       "path": "/apis/torchextension/flamegraph/json",
       "local_path": "flamegraph/json",
-      "response": { "content_type": "application/json", "cors": false }
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
     },
     {
       "extension_name": "pprofextension",
       "method": "GET",
       "path": "/apis/pprofextension/flamegraph",
       "local_path": "flamegraph",
-      "response": { "content_type": "text/html", "cors": false }
+      "response": {
+        "content_type": "text/html",
+        "cors": false
+      }
     },
     {
       "extension_name": "pprofextension",
       "method": "GET",
       "path": "/apis/pprofextension/flamegraph/json",
       "local_path": "flamegraph/json",
-      "response": { "content_type": "application/json", "cors": false }
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
     },
     {
       "extension_name": "pprofextension",
       "method": "GET",
       "path": "/apis/pprofextension/flamegraph/folded/json",
       "local_path": "flamegraph/folded/json",
-      "response": { "content_type": "application/json", "cors": false }
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
     },
     {
       "extension_name": "pprofextension",
       "method": "GET",
       "path": "/apis/pprofextension/flamegraph/distributed/json",
       "local_path": "flamegraph/distributed/json",
-      "response": { "content_type": "application/json", "cors": false }
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
     },
     {
       "extension_name": "rdmaextension",
       "method": "POST",
       "path": "/apis/rdmaextension/",
       "local_path": "",
-      "response": { "content_type": "text/plain", "cors": false }
+      "response": {
+        "content_type": "text/plain",
+        "cors": false
+      }
     }
   ],
   "deprecated_paths": [
@@ -259,76 +453,150 @@
     "web": [
       {
         "source": "web/src/api/dashboard.rs",
-        "calls": [{ "method": "GET", "path": "/apis/overview" }]
+        "calls": [
+          {
+            "method": "GET",
+            "path": "/apis/overview"
+          }
+        ]
       },
       {
         "source": "web/src/api/cluster.rs",
         "calls": [
-          { "method": "GET", "path": "/apis/nodes" },
-          { "method": "POST", "path": "/apis/cluster/query" }
+          {
+            "method": "GET",
+            "path": "/apis/nodes"
+          },
+          {
+            "method": "POST",
+            "path": "/apis/cluster/query"
+          }
         ]
       },
       {
         "source": "web/src/api/files.rs",
-        "calls": [{ "method": "GET", "path": "/apis/files" }]
+        "calls": [
+          {
+            "method": "GET",
+            "path": "/apis/files"
+          }
+        ]
       },
       {
         "source": "web/src/api/profiling.rs",
         "calls": [
-          { "method": "GET", "path": "/apis/torchextension/flamegraph/json" },
-          { "method": "GET", "path": "/apis/pprofextension/flamegraph/json" }
+          {
+            "method": "GET",
+            "path": "/apis/torchextension/flamegraph/json"
+          },
+          {
+            "method": "GET",
+            "path": "/apis/pprofextension/flamegraph/json"
+          }
         ]
       },
       {
         "source": "web/src/api/stack.rs",
         "calls": [
-          { "method": "GET", "path": "/apis/pythonext/callstack" },
-          { "method": "GET", "path": "/apis/training/distributed_stack_flamegraph/json" }
+          {
+            "method": "GET",
+            "path": "/apis/pythonext/callstack"
+          },
+          {
+            "method": "GET",
+            "path": "/apis/training/distributed_stack_flamegraph/json"
+          }
         ]
       },
       {
         "source": "web/src/api/trace.rs",
         "calls": [
-          { "method": "GET", "path": "/apis/pythonext/trace/list" },
-          { "method": "GET", "path": "/apis/pythonext/trace/show" },
-          { "method": "GET", "path": "/apis/pythonext/trace/start" },
-          { "method": "GET", "path": "/apis/pythonext/trace/stop" }
+          {
+            "method": "GET",
+            "path": "/apis/pythonext/trace/list"
+          },
+          {
+            "method": "GET",
+            "path": "/apis/pythonext/trace/show"
+          },
+          {
+            "method": "GET",
+            "path": "/apis/pythonext/trace/start"
+          },
+          {
+            "method": "GET",
+            "path": "/apis/pythonext/trace/stop"
+          }
         ]
       },
       {
         "source": "web/src/api/pytorch.rs",
         "calls": [
-          { "method": "GET", "path": "/apis/pythonext/pytorch/timeline" },
-          { "method": "GET", "path": "/apis/pythonext/pytorch/profile" }
+          {
+            "method": "GET",
+            "path": "/apis/pythonext/pytorch/timeline"
+          },
+          {
+            "method": "GET",
+            "path": "/apis/pythonext/pytorch/profile"
+          }
         ]
       },
       {
         "source": "web/src/api/traces.rs",
         "calls": [
-          { "method": "GET", "path": "/apis/pythonext/ray/timeline" },
-          { "method": "GET", "path": "/apis/pythonext/ray/timeline/chrome" }
+          {
+            "method": "GET",
+            "path": "/apis/pythonext/ray/timeline"
+          },
+          {
+            "method": "GET",
+            "path": "/apis/pythonext/ray/timeline/chrome"
+          }
         ]
       },
       {
         "source": "web/src/api/repl.rs",
         "calls": [
-          { "method": "GET", "path": "/apis/pythonext/magics" },
-          { "method": "POST", "path": "/apis/pythonext/eval" }
+          {
+            "method": "GET",
+            "path": "/apis/pythonext/magics"
+          },
+          {
+            "method": "POST",
+            "path": "/apis/pythonext/eval"
+          }
         ]
       },
       {
         "source": "web/src/api/training.rs",
-        "calls": [{ "method": "GET", "path": "/apis/training/step_matrix" }]
+        "calls": [
+          {
+            "method": "GET",
+            "path": "/apis/training/step_matrix"
+          }
+        ]
       },
       {
         "source": "web/src/api/analytics.rs",
-        "calls": [{ "method": "POST", "path": "/query" }]
+        "calls": [
+          {
+            "method": "POST",
+            "path": "/query"
+          }
+        ]
       },
       {
         "source": "web/src/api/skills.rs",
         "calls": [
-          { "method": "GET", "path": "/apis/pythonext/skills/routing" },
-          { "method": "GET", "path": "/apis/pythonext/skills/load" }
+          {
+            "method": "GET",
+            "path": "/apis/pythonext/skills/routing"
+          },
+          {
+            "method": "GET",
+            "path": "/apis/pythonext/skills/load"
+          }
         ]
       }
     ],
@@ -336,26 +604,61 @@
       {
         "source": "probing/cli/src/cli/cluster.rs",
         "calls": [
-          { "method": "GET", "path": "/apis/nodes" },
-          { "method": "POST", "path": "/apis/cluster/query" }
+          {
+            "method": "GET",
+            "path": "/apis/nodes"
+          },
+          {
+            "method": "POST",
+            "path": "/apis/cluster/query"
+          }
         ]
       },
       {
         "source": "probing/cli/src/cli/ctrl.rs",
         "calls": [
-          { "method": "GET", "path": "/apis/pythonext/callstack" },
-          { "method": "POST", "path": "/apis/pythonext/eval" },
-          { "method": "POST", "path": "/apis/rdmaextension/" },
-          { "method": "POST", "path": "/query" },
-          { "method": "GET", "path": "/apis/torchextension/flamegraph" },
-          { "method": "GET", "path": "/apis/torchextension/flamegraph/json" },
-          { "method": "GET", "path": "/apis/pprofextension/flamegraph" },
-          { "method": "GET", "path": "/apis/pprofextension/flamegraph/json" }
+          {
+            "method": "GET",
+            "path": "/apis/pythonext/callstack"
+          },
+          {
+            "method": "POST",
+            "path": "/apis/pythonext/eval"
+          },
+          {
+            "method": "POST",
+            "path": "/apis/rdmaextension/"
+          },
+          {
+            "method": "POST",
+            "path": "/query"
+          },
+          {
+            "method": "GET",
+            "path": "/apis/torchextension/flamegraph"
+          },
+          {
+            "method": "GET",
+            "path": "/apis/torchextension/flamegraph/json"
+          },
+          {
+            "method": "GET",
+            "path": "/apis/pprofextension/flamegraph"
+          },
+          {
+            "method": "GET",
+            "path": "/apis/pprofextension/flamegraph/json"
+          }
         ]
       },
       {
         "source": "probing/cli/src/cli/repl.rs",
-        "calls": [{ "method": "GET", "path": "/ws" }]
+        "calls": [
+          {
+            "method": "GET",
+            "path": "/ws"
+          }
+        ]
       }
     ]
   }

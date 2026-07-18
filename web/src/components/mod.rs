@@ -39,6 +39,7 @@ pub mod poll_status;
 pub mod profile_snapshot_bar;
 pub mod profiling;
 pub mod profiling_sidebar_hint;
+pub mod rl;
 pub mod sidebar;
 pub mod source_viewer;
 pub mod span_timeline;

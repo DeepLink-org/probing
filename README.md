@@ -18,7 +18,7 @@
 >
 > Uncover the hidden truth of AI performance.
 
-Probing is an **Agent-Native performance analysis & diagnosis tool** for distributed AI. Instead of producing flamegraphs for humans to squint at, it turns a live training job into **queryable, actionable evidence**—relational telemetry that an agent (or you) can `SELECT`, join, and act on.
+Probing is an **Agent-Native performance analysis & diagnosis tool** for distributed AI. Instead of producing flamegraphs for humans to squint at, it turns a live training job into **queryable, actionable evidence**—relational telemetry that an agent (or you) can `SELECT`, join, and act on. It can also be used as a performance analysis tool for **agentic RL** training (rollout / train timelines in the Web UI under the RL panel).
 
 It's built **from the system layer up**: zero-instrumentation probe injection, SQL-queryable telemetry, NCCL wait decomposition, and cross-node federation—so the data is structured for an agent to consume, not just for a human to read.
 

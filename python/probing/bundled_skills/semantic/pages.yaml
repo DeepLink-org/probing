@@ -74,3 +74,39 @@ pages:
     path: /python
     description: "Live Python variable tracing on functions."
     skills: []
+
+  rl/rollout:
+    title: "RL · Rollout"
+    path: /rl/rollout
+    description: "Per-trajectory phase timing across rollout workers."
+    skills: []
+
+  rl/train:
+    title: "RL · Train"
+    path: /rl/train
+    description: "Training batch phases keyed by train step."
+    skills: []
+
+  rl/spans:
+    title: "RL · Spans"
+    path: /rl/spans
+    description: "Distributed agentic-RL span hierarchy with cross-process linking."
+    skills: []
+
+  rl/process-timeline:
+    title: "RL · Process Timeline"
+    path: /rl/process-timeline
+    description: "Per-process span timing and batch drill-down."
+    skills: []
+
+  rl/perfetto:
+    title: "RL · Perfetto"
+    path: /rl/perfetto
+    description: "Chrome trace export for the loaded RL span set."
+    skills: []
+
+  rl/inference:
+    title: "RL · Inference"
+    path: /rl/inference
+    description: "Inference-engine Prometheus metrics for agentic RL rollouts."
+    skills: []
