@@ -27,7 +27,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -35,7 +35,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -2704,15 +2704,107 @@
 <p>Profiling starts on the first <code>optimizer.step()</code> after torch is imported (optimizer post hook).</p>
 <h2 id="python-stack-profiling">Python Stack Profiling<a class="headerlink" href="#python-stack-profiling" title="Permanent link">&para;</a></h2>
 <h3 id="backtrace-collection">Backtrace Collection<a class="headerlink" href="#backtrace-collection" title="Permanent link">&para;</a></h3>
-<p>On-demand stack capture and CPU sampling (<code>SIGPROF</code>, <code>probing.pprof.sample_freq</code>) share one stack pipeline:</p>
+<p>Feature layout under <code>probing/extensions/python/src/features/</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Dir</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>python/</code></td>
+<td>PyO3: <code>bridge</code> / <code>bindings</code> / <code>tracing</code></td>
+</tr>
+<tr>
+<td><code>stacktrace/</code></td>
+<td>Stack capture, merge, tracers</td>
+</tr>
+<tr>
+<td><code>torch/</code></td>
+<td>Module profiling (<code>python.torch_trace</code>)</td>
+</tr>
+<tr>
+<td><code>flamegraph/</code></td>
+<td>Shared flamegraph render + distributed folded merge</td>
+</tr>
+<tr>
+<td><code>crash/</code></td>
+<td>Fatal-signal backtrace</td>
+</tr>
+</tbody>
+</table>
+<p><code>stacktrace/</code> pipeline: <code>StackSnapshot</code> → <code>ParsedStacks</code> → <code>FoldedStacks</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>snapshot</code></td>
+<td>Capture document + <code>StackSource</code> / flags (only signal-writable form)</td>
+</tr>
+<tr>
+<td><code>compact</code></td>
+<td>Heap-sized sampler bucket payload (used frame lengths only)</td>
+</tr>
+<tr>
+<td><code>fingerprint</code></td>
+<td>Aggregation key = <code>tid</code> + flags + PCs + py keys (no demangle); pprof also filters to main tid</td>
+</tr>
+<tr>
+<td><code>parse</code></td>
+<td>Snapshot → CallFrames (multi-slot <code>(tid,seq)</code> FIFO view cache)</td>
+</tr>
+<tr>
+<td><code>fold</code></td>
+<td>Parsed/Snapshot → flamegraph / distributed aggregation</td>
+</tr>
+<tr>
+<td><code>metrics</code></td>
+<td>JSON groups <code>sampler</code> (drop / fingerprint / export-fold) vs <code>view</code> (parse / cache)</td>
+</tr>
+<tr>
+<td><code>merge</code></td>
+<td>Python ⊕ native splice + canonicalize</td>
+</tr>
+<tr>
+<td><code>capture</code></td>
+<td>Thread registry, intern, signal fill (does not own parse/fold)</td>
+</tr>
+<tr>
+<td><code>spy</code></td>
+<td>CPython ABI / TLS (py-spy-derived)</td>
+</tr>
+<tr>
+<td><code>tracers/vm</code></td>
+<td>Eval-frame hook (sole Python frame source)</td>
+</tr>
+<tr>
+<td><code>tracers/pprof</code></td>
+<td><code>SIGPROF</code> sampling (SQL / continuous profiling)</td>
+</tr>
+<tr>
+<td><code>tracers/dynamic</code></td>
+<td><code>SIGUSR2</code> + command/HTTP on-demand (always via parse)</td>
+</tr>
+</tbody>
+</table>
+<p>On-demand and CPU sampling share one pipeline:</p>
 <ul>
-<li><strong>Python frames:</strong> eval-frame hook (<code>vm_tracer</code> / <code>PYSTACKS</code>) is the sole source; symbols are interned under the GIL (full path for source view, basename in flamegraph labels); signal handlers copy pointer keys only.</li>
-<li><strong>Native frames:</strong> <code>SIGPROF</code> and cross-thread <code>SIGUSR2</code> use the same safe handler—frame-pointer walk + POD snapshot in-signal; symbolization and Python/native merge run off-signal (best-effort, no errors propagated upward).</li>
-<li><strong>Merge:</strong> <code>stack_merge</code> splices Python frames at CPython eval boundaries (leaf-aligned).</li>
-<li><strong>Reuse:</strong> when <code>SIGPROF</code> sampling is active, the main-thread HTTP/flamegraph path reuses the latest per-thread SIGPROF snapshot when available.</li>
-<li><strong>Main-thread HTTP path:</strong> does not deliver <code>SIGUSR2</code> (avoids interrupting the training main thread); without SIGPROF it falls back to a synchronous <code>PYSTACKS</code> read (Python-heavy, one-shot). Cross-thread on-demand capture still uses <code>SIGUSR2</code> (dedicated to stack capture; crash grace release is HTTP-only).</li>
+<li><strong>Python frames:</strong> only from the <strong>vm tracer</strong> (<code>PYSTACKS</code>); symbols are interned under the GIL (full path for source view, basename in flamegraph labels); signal handlers copy pointer keys only.</li>
+<li><strong>Native frames (Linux):</strong> <code>SIGPROF</code> / <code>SIGUSR2</code> fill a POD via <code>fill_raw_snapshot</code> on a per-thread <code>SA_ONSTACK</code> alt stack (in-place into the ring / slot). <strong>macOS:</strong> async <code>ITIMER_PROF</code> into Apple libc SIMD (<code>_platform_strlen</code>) has caused fixed-PC <code>SIGILL</code>; <code>sample_freq</code> defaults to rate-limited eval-frame cooperative capture of <strong><code>PYSTACKS</code> only</strong> (no mid-hook SyncWalk — that used to paste <code>_PyInit__core</code> / vectorcall under every <code>[py]</code> frame). <code>PROBING_PPROF_SIGPROF=1</code> forces async SIGPROF. Merge drops CPython call-protocol / extension <code>PyInit_*</code> noise. Symbolize/merge run off-signal.</li>
+<li><strong>metrics JSON:</strong> <code>sampler.*</code> (ring drop / fingerprint / fold-on-<strong>export</strong>) vs <code>view.*</code> (parse / <code>(tid,seq)</code> cache)—do not read a burst of export <code>parse_calls</code> as per-sample demangle cost.</li>
+<li><strong>Fetch paths:</strong> dynamic (command/HTTP) or pprof (SQL / <code>sample_freq</code>); both read Python frames recorded by the vm tracer.</li>
+<li><strong>Reuse:</strong> when sampling is active, the main-thread HTTP/flamegraph path reuses the latest per-thread snapshot when available.</li>
+<li><strong>Main-thread HTTP path:</strong> prefer the latest mixed snapshot; <strong>never <code>SIGUSR2</code> the main tid while <code>sample_freq</code> is active</strong> (Distributed included). Only when sampling is off may <code>PROBING_STACK_SIGUSR2_MAIN=1</code> enable on-demand signal; otherwise fall back to bare <code>PYSTACKS</code>. Cross-thread on-demand still uses <code>SIGUSR2</code>.</li>
+<li><strong>Distributed flamegraph:</strong> with sampling on, export only aggregated sampler buckets per rank (empty buckets → empty graph; no on-demand fallback).</li>
 </ul>
-<p>TorchProbe module hooks are independent. The distributed flamegraph (<code>GET /apis/training/distributed_flamegraph/json</code>) currently aggregates <code>python.torch_trace</code>; cross-rank CPU mixed-mode flamegraphs should prefer the unified SIGPROF data source (cluster fan-out of folded stacks) rather than per-path merge logic.</p>
+<p>TorchProbe module hooks are independent. Distributed CPU mixed-mode flamegraphs: <code>GET /apis/training/distributed_stack_flamegraph/json</code> (Web: <strong>Stacks → Distributed</strong>). Legacy torch module API <code>/apis/training/distributed_flamegraph/json</code> remains.</p>
 <h2 id="system-metrics">System Metrics<a class="headerlink" href="#system-metrics" title="Permanent link">&para;</a></h2>
 <p>Host CPU, memory, GPU utilization, and related metrics are collected on configurable intervals via environment variables such as <code>PROBING_GPU_SAMPLE_MS</code>.</p>
 <p><strong>Variable / tensor watch (<code>probing.inspect.trace</code>):</strong> logs go to the Python logger by default. Set <code>PROBING_TRACE_STDOUT=1</code> to emit updates on <strong>stdout</strong> instead (useful for quick local debugging; avoid in production training logs).</p>
@@ -2848,7 +2940,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.indexes", "navigation.tracking", "navigation.top", "search.highlight", "search.share", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>
