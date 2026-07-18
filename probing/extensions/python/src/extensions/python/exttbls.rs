@@ -15,7 +15,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use crate::features::native_bridge::with_detached_native;
+use crate::features::python::bridge::with_detached_native;
 use once_cell::sync::Lazy;
 use probing_core::sync::lock_mutex;
 use probing_memtable::discover::ExposedTable;
@@ -27,7 +27,7 @@ use pyo3::types::{PyDict, PyType};
 use pyo3::{pyclass, pymethods, Bound, PyResult, Python};
 use thiserror::Error;
 
-use crate::features::convert::{ele_to_python, python_to_ele};
+use crate::features::python::bridge::{ele_to_python, python_to_ele};
 
 type PyTableRow = (Py<PyAny>, Vec<Py<PyAny>>);
 

@@ -233,7 +233,7 @@ impl CustomNamespace for PythonNamespace {
             match Self::get_backtrace_data() {
                 Ok(batches) => batches,
                 Err(PythonTableError::Backtrace(ref source))
-                    if crate::features::stack_tracer::is_backtrace_busy(source) =>
+                    if crate::features::stacktrace::is_backtrace_busy(source) =>
                 {
                     debug!("python.backtrace skipped: {source}");
                     error_batch("callstack capture busy")

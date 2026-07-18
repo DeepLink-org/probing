@@ -97,3 +97,7 @@ path = "probing/python/py_to_table.rs"
 [[test]]
 name = "python_distributed_flamegraph"
 path = "probing/python/distributed_flamegraph_tests.rs"
+
+[[test]]
+name = "python_stacktrace_signal"
+path = "probing/python/stacktrace_signal_tests.rs"

@@ -19,7 +19,7 @@ pub use exttbls::PyExternalTableConfig;
 pub use exttbls::{register_table_docs, ExternalTable};
 pub use tbls::PythonProbeDataSource;
 
-use crate::features::stack_tracer::{SignalTracer, StackTracer};
+use crate::features::stacktrace::{SignalTracer, StackTracer};
 use crate::python::enable_crash_handler;
 use crate::python::enable_monitoring;
 

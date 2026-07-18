@@ -224,4 +224,14 @@ mod tests {
         assert!(text.contains("train.step"));
         assert!(!text.contains("memtable"));
     }
+
+    #[test]
+    fn hold_active_release_hint_is_http_not_sigusr2() {
+        let text = format_event(&sample_event(), true, 0, true, None);
+        assert!(text.contains("POST /apis/pythonext/crash/release"));
+        assert!(
+            !text.contains("USR2") && !text.contains("SIGUSR2"),
+            "hold release must not recommend kill -USR2: {text}"
+        );
+    }
 }
