@@ -27,7 +27,7 @@
       
       
       <link rel="icon" href="../../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -35,7 +35,7 @@
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -2675,14 +2675,106 @@
 </span></code></pre></div>
 <p>在 torch 导入后首次 <code>optimizer.step()</code> 时通过 optimizer post hook 启动。</p>
 <h2 id="python">Python 堆栈分析<a class="headerlink" href="#python" title="Permanent link">&para;</a></h2>
-<p>按需栈采集与 CPU 采样（<code>SIGPROF</code>，<code>probing.pprof.sample_freq</code>）共用同一套基础设施：</p>
+<p><code>probing/extensions/python/src/features/</code> 按关注点分组：</p>
+<table>
+<thead>
+<tr>
+<th>目录</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>python/</code></td>
+<td>PyO3：<code>bridge</code> / <code>bindings</code> / <code>tracing</code></td>
+</tr>
+<tr>
+<td><code>stacktrace/</code></td>
+<td>堆栈捕获、merge、tracers</td>
+</tr>
+<tr>
+<td><code>torch/</code></td>
+<td>模块级 profiling（<code>python.torch_trace</code>）</td>
+</tr>
+<tr>
+<td><code>flamegraph/</code></td>
+<td>共享火焰图渲染 + 分布式 folded merge</td>
+</tr>
+<tr>
+<td><code>crash/</code></td>
+<td>致命信号回溯</td>
+</tr>
+</tbody>
+</table>
+<p><code>stacktrace/</code> 数据管线：<code>StackSnapshot</code> → <code>ParsedStacks</code> → <code>FoldedStacks</code>。</p>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>snapshot</code></td>
+<td>采集单据 + <code>StackSource</code> / flags（信号路径唯一可写）</td>
+</tr>
+<tr>
+<td><code>compact</code></td>
+<td>采样桶堆上紧凑 payload（按实际帧长，避免整份 POD）</td>
+</tr>
+<tr>
+<td><code>fingerprint</code></td>
+<td>聚合键 = <code>tid</code> + flags + PCs + py keys（不 demangle）；pprof 另过滤仅主线程</td>
+</tr>
+<tr>
+<td><code>parse</code></td>
+<td>Snapshot → CallFrame（<code>(tid,seq)</code> 多槽 FIFO 视图缓存）</td>
+</tr>
+<tr>
+<td><code>fold</code></td>
+<td>Parsed/Snapshot → 火焰图 / 分布式聚合</td>
+</tr>
+<tr>
+<td><code>metrics</code></td>
+<td>JSON 分 <code>sampler</code>（drop / fingerprint / export-fold）与 <code>view</code>（parse / cache）</td>
+</tr>
+<tr>
+<td><code>merge</code></td>
+<td>Python ⊕ native splice + canonicalize</td>
+</tr>
+<tr>
+<td><code>capture</code></td>
+<td>线程注册、intern、信号 fill（不拥有 parse/fold）</td>
+</tr>
+<tr>
+<td><code>spy</code></td>
+<td>CPython ABI / TLS（py-spy 衍生）</td>
+</tr>
+<tr>
+<td><code>tracers/vm</code></td>
+<td>解释器 eval-frame 钩子（Python 帧唯一来源）</td>
+</tr>
+<tr>
+<td><code>tracers/pprof</code></td>
+<td><code>SIGPROF</code> 采样（SQL / 连续 profiling）</td>
+</tr>
+<tr>
+<td><code>tracers/dynamic</code></td>
+<td><code>SIGUSR2</code> + 命令/HTTP 按需采集（一律走 parse）</td>
+</tr>
+</tbody>
+</table>
+<p>按需栈与 CPU 采样共用同一套基础设施：</p>
 <ul>
-<li><strong>Python 帧</strong>：eval-frame hook（<code>vm_tracer</code> / <code>PYSTACKS</code>）是唯一数据源；符号在 GIL 下 intern（保留完整路径供源码查看，火焰图展示 basename），signal 路径只拷贝指针。</li>
-<li><strong>C++ 帧</strong>：<code>SIGPROF</code> 与跨线程 <code>SIGUSR2</code> 使用相同的安全 handler——仅在 signal 内做 frame-pointer walk + 拷贝 POD 快照；symbolize 与 Python/native 合并在 signal 外完成（尽力而为，不向上抛错）。</li>
-<li><strong>合并</strong>：<code>stack_merge</code> 在 eval 帧边界将 Python 帧拼入 native 塔（leaf 对齐）。</li>
-<li><strong>复用</strong>：<code>SIGPROF</code> 开启时，主线程 HTTP/火焰图路径优先复用该线程最近一次 SIGPROF 快照，避免重复 signal。</li>
-<li><strong>主线程 HTTP 路径</strong>：不发 <code>SIGUSR2</code>（避免中断训练主线程）；无 SIGPROF 时回退为同步读取 <code>PYSTACKS</code>（Python 帧为主，单次快照）。跨线程按需采集仍使用 <code>SIGUSR2</code>（与 crash grace 分离，grace release 仅 HTTP）。</li>
-<li><strong>分布式火焰图</strong>：跨 rank merge 后每个 frame 携带 <code>ranks</code>（该分区下贡献样本的 training rank）；Web 点选/缩放某个分叉时展示这些 rank。</li>
+<li><strong>Python 帧</strong>：仅来自 <strong>vm tracer</strong>（<code>PYSTACKS</code>）；符号在 GIL 下 intern（完整路径供源码查看，火焰图展示 basename），signal 路径只拷贝指针。</li>
+<li><strong>C++/Rust 帧</strong>：Linux 上 <code>SIGPROF</code> / <code>SIGUSR2</code> 共用 <code>SA_ONSTACK</code> 安全 handler（每 Python 线程 <code>sigaltstack</code>，原地 <code>fill_raw_snapshot</code>）。<strong>macOS 默认不用 <code>ITIMER_PROF</code></strong>：异步 SIGPROF 打进 <code>_platform_strlen</code> 等 SIMD 例程后会固定 PC <code>SIGILL</code>；<code>sample_freq</code> 改为 eval-frame 节流协作采样（<strong>只记 <code>PYSTACKS</code>，不做 mid-hook SyncWalk</strong>，避免 <code>_PyInit__core</code> / vectorcall 把分布式火焰图打散；<code>PROBING_PPROF_SIGPROF=1</code> 可强制异步）。merge 丢弃 CPython call-protocol / 扩展 <code>PyInit_*</code> 噪声。symbolize / merge 在 signal 外完成。</li>
+<li><strong>metrics JSON</strong>：<code>sampler.*</code>（ring drop / fingerprint / <strong>导出时</strong> fold）与 <code>view.*</code>（parse / <code>(tid,seq)</code> cache）分栏；不要把导出批次的 <code>parse_calls</code> 读成「每样本都在 demangle」。</li>
+<li><strong>获取路径</strong>：dynamic（命令/HTTP）或 pprof（SQL/<code>sample_freq</code>）；二者取 Python 信息时都读 vm tracer 已记录的帧。</li>
+<li><strong>复用</strong>：采样开启时，主线程 HTTP/火焰图优先复用该线程最近一次采样快照。</li>
+<li><strong>主线程 HTTP 路径</strong>：优先复用最新采样混合快照；<strong><code>sample_freq</code> 开启时禁止对主线程 <code>SIGUSR2</code></strong>（含 Distributed）；仅在采样关闭时可经 <code>PROBING_STACK_SIGUSR2_MAIN=1</code> 按需信号，否则回退纯 <code>PYSTACKS</code>。跨线程按需仍可走 <code>SIGUSR2</code>。</li>
+<li><strong>分布式火焰图</strong>：<code>sample_freq</code> 开启后只聚合各 rank 采样桶（为空则空图，不回退 on-demand）；跨 rank merge 后每个 frame 携带 <code>ranks</code>。</li>
+<li><strong>canonicalize</strong>：剥 <code>_Py_RunMain</code> / importlib / <code>platform.py</code> 等 bootstrap；SIGPROF 仅统计已注册 Python 主线程样本。</li>
 </ul>
 <p>TorchProbe 模块钩子与上述栈采集相互独立。分布式 CPU 混合栈火焰图见 <code>GET /apis/training/distributed_stack_flamegraph/json</code>（Web：<strong>Stacks → Distributed</strong>）。旧版 torch 模块级 API <code>/apis/training/distributed_flamegraph/json</code> 仍保留。</p>
 <h2 id="_7">系统指标<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h2>
@@ -2820,7 +2912,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.sections", "navigation.indexes", "navigation.tracking", "navigation.top", "search.highlight", "search.share", "content.code.copy", "content.code.annotate"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
     
     
-      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>
