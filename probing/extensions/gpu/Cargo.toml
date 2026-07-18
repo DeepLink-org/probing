@@ -32,4 +32,4 @@ cudarc = { version = "0.19.7", default-features = false, features = [
 
 # macOS-only: Metal + sysctl + ioreg. Not resolved when building for Linux.
 [target.'cfg(target_os = "macos")'.dependencies]
-metal = "0.31.0"
+metal = "0.33.0"

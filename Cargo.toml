@@ -41,7 +41,7 @@ description = "Performance and Stability Diagnostic Tool for AI Applications"
 
 [workspace.dependencies]
 anyhow = "1.0"
-arrow = { version = "58.3.0", default-features = false, features = ["csv"] }
+arrow = { version = "59.1.0", default-features = false, features = ["csv"] }
 datafusion = { version = "54.0.0", default-features = false, features = [
     "datetime_expressions",
     "sql",
@@ -49,7 +49,7 @@ datafusion = { version = "54.0.0", default-features = false, features = [
     "string_expressions",
 ] }
 chrono = { version = "0.4", features = ["serde"] }
-ctor = { version = "0.4.1", features = [] }
+ctor = { version = "1.0.9", features = [] }
 env_logger = { version = "0.11.6", default-features = false, features = [
     "humantime",
 ] }
@@ -75,7 +75,7 @@ tokio = { version = "1.52.3", default-features = false, features = [
     "rt-multi-thread",
 ] }
 ureq = { version = "3.3", default-features = false, features = ["json", "rustls"] }
-criterion = { version = "0.6.0", features = ["html_reports"] }
+criterion = { version = "0.8.2", features = ["html_reports"] }
 
 [package]
 name = "probing"
