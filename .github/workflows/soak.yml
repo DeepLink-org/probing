@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup build environment
         uses: ./.github/actions/setup-build-env
@@ -76,7 +76,7 @@ jobs:
 
       - name: Upload soak data
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: soak-cpu-single-data
           path: /tmp/probing_soak_single
@@ -89,7 +89,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup build environment
         uses: ./.github/actions/setup-build-env
@@ -133,7 +133,7 @@ jobs:
 
       - name: Upload soak data
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: soak-cpu-ddp-data
           path: /tmp/probing_soak_ddp
@@ -148,7 +148,7 @@ jobs:
     runs-on: [self-hosted, linux, gpu]
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup build environment
         uses: ./.github/actions/setup-build-env

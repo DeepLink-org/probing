@@ -28,7 +28,7 @@ jobs:
       matrix:
         target: [x86_64]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Setup Build Environment
         uses: ./.github/actions/setup-build-env
         with:
@@ -52,7 +52,7 @@ jobs:
           rust-toolchain: stable
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-linux-${{ matrix.target }}
           path: dist
@@ -63,7 +63,7 @@ jobs:
       matrix:
         target: [x86_64, aarch64]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Setup Build Environment
         uses: ./.github/actions/setup-build-env
         with:
@@ -86,7 +86,7 @@ jobs:
           rust-toolchain: stable
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-macos-${{ matrix.target }}
           path: dist
@@ -97,7 +97,7 @@ jobs:
       matrix:
         target: [x64]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Setup Build Environment
         uses: ./.github/actions/setup-build-env
         with:
@@ -128,7 +128,7 @@ jobs:
           rust-toolchain: stable
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-windows-${{ matrix.target }}
           path: dist
@@ -136,7 +136,7 @@ jobs:
   sdist:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Setup Build Environment
         uses: ./.github/actions/setup-build-env
         with:
@@ -157,7 +157,7 @@ jobs:
           rust-toolchain: stable
 
       - name: Upload sdist
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-sdist
           path: dist
@@ -168,7 +168,7 @@ jobs:
     needs: [linux, macos, windows, sdist]
     if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.publish == true)
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: wheels-*
           merge-multiple: true

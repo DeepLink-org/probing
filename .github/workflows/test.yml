@@ -10,7 +10,7 @@ jobs:
     name: Build wheel and Python tests (Linux 3.12)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Build Environment
         uses: ./.github/actions/setup-build-env
@@ -44,14 +44,14 @@ jobs:
           make coverage-python-wheel
 
       - name: Upload wheel artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: probing-wheel
           path: dist/probing-*.whl
           retention-days: 7
 
       - name: Upload Python coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: python-coverage
           path: coverage.xml
@@ -66,7 +66,7 @@ jobs:
       matrix:
         python-version: ["3.13", "3.12", "3.11", "3.10"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Python test environment
         uses: ./.github/actions/setup-build-env
@@ -80,7 +80,7 @@ jobs:
           cache-wheel-test-deps: "true"
 
       - name: Download wheel
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: probing-wheel
           path: dist
@@ -93,7 +93,7 @@ jobs:
     name: Web UI tests (Linux)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Build Environment
         uses: ./.github/actions/setup-build-env
@@ -114,7 +114,7 @@ jobs:
     name: Rust tests (Linux x86_64)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Build Environment
         uses: ./.github/actions/setup-build-env
@@ -143,7 +143,7 @@ jobs:
           cargo llvm-cov report --lcov --output-path coverage.lcov
 
       - name: Upload Rust coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: rust-coverage
           path: coverage.lcov
@@ -153,7 +153,7 @@ jobs:
     name: Rust tests (Linux aarch64)
     runs-on: ubuntu-24.04-arm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Build Environment
         uses: ./.github/actions/setup-build-env
@@ -173,7 +173,7 @@ jobs:
     name: Windows (Rust + wheel)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -196,7 +196,7 @@ jobs:
           cargo nextest run -p probing-server --no-default-features --features kmsg,gpu
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -240,7 +240,7 @@ jobs:
       matrix:
         python-version: ["3.13", "3.12", "3.10"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Build Environment
         uses: ./.github/actions/setup-build-env
@@ -272,16 +272,16 @@ jobs:
     if: success()
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Download Rust coverage report
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: rust-coverage
           path: .
 
       - name: Download Python coverage report
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: python-coverage
           path: .
@@ -292,7 +292,7 @@ jobs:
           test -f coverage.xml
 
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         with:
           files: coverage.lcov,coverage.xml
           token: ${{ secrets.CODECOV_TOKEN }}
