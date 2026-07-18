@@ -45,6 +45,12 @@ pub fn page_id_for_route(route: &Route) -> String {
         Route::SpansPage {} | Route::TracesRedirect {} => "spans".into(),
         Route::PulsingPage {} => "pulsing".into(),
         Route::TrainingPage {} => "training".into(),
+        Route::RolloutPage {} => "rl/rollout".into(),
+        Route::TrainPage {} => "rl/train".into(),
+        Route::RlSpansPage {} => "rl/spans".into(),
+        Route::ProcessTimelinePage {} => "rl/process-timeline".into(),
+        Route::PerfettoPage {} => "rl/perfetto".into(),
+        Route::InferencePage {} => "rl/inference".into(),
     }
 }
 

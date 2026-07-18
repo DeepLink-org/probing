@@ -10,7 +10,7 @@ use axum::{
     Router,
 };
 
-use super::{cluster, cluster_query, file_api, system, training};
+use super::{cluster, cluster_query, file_api, local_query, system, training};
 
 /// Canonical public `/apis` routes (method, path suffix under `/apis`).
 /// Keep in sync with `tests/regression/spec/api_spec.json` — verified by `spec_tests`.
@@ -23,6 +23,8 @@ pub const PUBLIC_API_ROUTES: &[(&str, &str)] = &[
     ("GET", "/training/distributed_flamegraph/json"),
     ("GET", "/training/distributed_stack_flamegraph/json"),
     ("POST", "/cluster/query"),
+    ("GET", "/processes/local"),
+    ("POST", "/query/local-pid"),
 ];
 
 /// Build the `/apis` router mounted by the root application.
@@ -46,6 +48,8 @@ fn public_routes() -> Router {
             get(training::get_distributed_stack_flamegraph_json),
         )
         .route("/cluster/query", post(cluster_query::post_cluster_query))
+        .route("/processes/local", get(system::get_local_processes_json))
+        .route("/query/local-pid", post(local_query::query_local_pid))
 }
 
 #[cfg(test)]

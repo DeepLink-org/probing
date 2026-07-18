@@ -14,6 +14,7 @@ pub mod config;
 pub mod error;
 pub mod file_api;
 pub mod health;
+pub mod local_query;
 pub mod middleware;
 pub mod system;
 pub mod training;
@@ -218,6 +219,7 @@ pub fn sync_env_settings() {
                     "PROBING_SERVER_ADDRPATTERN",
                     "PROBING_AUTH_TOKEN",
                     "PROBING_BASE_PATH",
+                    "PROBING_ORIGINAL",
                 ]
                 .contains(&k.as_str())
         })

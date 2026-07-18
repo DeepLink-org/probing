@@ -5,6 +5,7 @@ pub mod dashboard;
 pub mod profiling;
 pub mod pulsing;
 pub mod python;
+pub mod rl;
 pub mod stack;
 pub mod traces;
 pub mod training;

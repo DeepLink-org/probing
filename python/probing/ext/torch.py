@@ -63,11 +63,19 @@ def optimizer_step_post_hook(optimizer, *args, **kwargs):
             config.exprs or "",
         )
 
-        models = get_toplevel_module()
-        for model in models:
-            install_hooks(model, tracer=tracer, backward=config.backward)
-        install_hooks(opt=optimizer, tracer=tracer, backward=config.backward)
-        hooks[optimizer] = tracer
+        try:
+            models = get_toplevel_module()
+            for model in models:
+                install_hooks(model, tracer=tracer, backward=config.backward)
+            install_hooks(opt=optimizer, tracer=tracer, backward=config.backward)
+            hooks[optimizer] = tracer
+        except ReferenceError as exc:
+            logging.getLogger(__name__).warning(
+                "Skip torch profiling hook install because a weak reference expired: %s",
+                exc,
+            )
+            hooks[optimizer] = None
+            return
 
 
 def collective_hook():

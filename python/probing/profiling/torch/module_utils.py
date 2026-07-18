@@ -98,9 +98,20 @@ def get_toplevel_module():
     # noise is not about our modules — silence it just for this scan.
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", FutureWarning)
-        objs = [obj for obj in gc.get_objects() if isinstance(obj, torch.nn.Module)]
+        objs = []
+        for obj in gc.get_objects():
+            try:
+                if isinstance(obj, torch.nn.Module):
+                    objs.append(obj)
+            except ReferenceError:
+                # Some distributed/runtime objects are weak proxies that can expire
+                # while gc is being scanned. They are not usable modules, so skip.
+                continue
     is_child = set()
     for obj in objs:
-        for child in obj.children():
-            is_child.add(id(child))
+        try:
+            for child in obj.children():
+                is_child.add(id(child))
+        except ReferenceError:
+            continue
     return [obj for obj in objs if id(obj) not in is_child]

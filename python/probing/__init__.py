@@ -62,6 +62,8 @@ else:
         step,
     )
 
+    import probing.rl as rl
+
     try:
         from probing.nccl.mock import maybe_auto_seed
 
@@ -109,6 +111,7 @@ else:
         "phase",
         "attach_training_phases",
         "owns_training_phases",
+        "rl",
         "set_role",
         "clear_role",
         "current_role",

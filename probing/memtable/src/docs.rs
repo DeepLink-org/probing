@@ -44,9 +44,21 @@ pub fn infer_extern_column_dtype(name: &str) -> DType {
         "rank" | "world_size" | "group_rank" | "group_size" | "bytes" | "async_op"
         | "micro_batches" | "micro_step" | "local_step" | "global_step" | "seq" | "role_rank"
         | "role_world_size" | "lineno" | "depth" | "ts" | "used_bytes" | "total_bytes"
-        | "mem_used_pct" | "gpu_util_pct" | "rss_kb" | "thread_count" | "cpu_total_pct" => {
-            DType::I64
-        }
+        | "mem_used_pct" | "gpu_util_pct" | "rss_kb" | "thread_count" | "cpu_total_pct"
+        | "timestamp_ns" => DType::I64,
+        "engine_id" | "engine_type" | "metric_name" | "labels" | "framework" | "status"
+        | "router_addr" | "metrics_url" | "message" | "error" => DType::Str,
+        "metric_value" | "value" => DType::F64,
+        _ if name.ends_with("_name")
+            || name.ends_with("_type")
+            || name.ends_with("_url")
+            || name.ends_with("_addr") => DType::Str,
+        _ if name.ends_with("_value")
+            || name.ends_with("_ratio")
+            || name.ends_with("_ms")
+            || name.ends_with("_tps")
+            || name.ends_with("_bytes")
+            || name.ends_with("_seconds") => DType::F64,
         _ if name.starts_with("is_") => DType::I64,
         _ if name.ends_with("_sec") || name.ends_with("_rate") => DType::F64,
         _ if name.ends_with("_id") => DType::I64,
@@ -179,6 +191,9 @@ mod tests {
         assert_eq!(infer_extern_column_dtype("time"), DType::I64);
         assert_eq!(infer_extern_column_dtype("trace_id"), DType::I64);
         assert_eq!(infer_extern_column_dtype("op"), DType::Str);
+        assert_eq!(infer_extern_column_dtype("engine_id"), DType::Str);
+        assert_eq!(infer_extern_column_dtype("metric_value"), DType::F64);
+        assert_eq!(infer_extern_column_dtype("timestamp_ns"), DType::I64);
     }
 
     #[test]

@@ -113,6 +113,46 @@ pub fn Sidebar() -> Element {
                             show_dropdown: show_stack_dropdown,
                         }
 
+                        SidebarSectionLabel { label: "RL" }
+                        SidebarNavItem {
+                            to: Route::RolloutPage {},
+                            icon: &icondata::AiDeploymentUnitOutlined,
+                            label: "Rollout",
+                            is_active: route == Route::RolloutPage {},
+                        }
+                        SidebarNavItem {
+                            to: Route::TrainPage {},
+                            icon: &icondata::AiRadarChartOutlined,
+                            label: "Train",
+                            is_active: route == Route::TrainPage {},
+                        }
+                        SidebarNavItem {
+                            to: Route::RlSpansPage {},
+                            icon: &icondata::AiApartmentOutlined,
+                            label: "RL Spans",
+                            title: "Distributed RL span hierarchy with cross-process linking",
+                            is_active: route == Route::RlSpansPage {},
+                        }
+                        SidebarNavItem {
+                            to: Route::ProcessTimelinePage {},
+                            icon: &icondata::AiClockCircleOutlined,
+                            label: "Process Timeline",
+                            is_active: route == Route::ProcessTimelinePage {},
+                        }
+                        SidebarNavItem {
+                            to: Route::PerfettoPage {},
+                            icon: &icondata::AiThunderboltOutlined,
+                            label: "Perfetto",
+                            is_active: route == Route::PerfettoPage {},
+                        }
+                        SidebarNavItem {
+                            to: Route::InferencePage {},
+                            icon: &icondata::AiDashboardOutlined,
+                            label: "Inference",
+                            title: "Inference engine Prometheus metrics",
+                            is_active: route == Route::InferencePage {},
+                        }
+
                         SidebarSectionLabel { label: "Analysis" }
                         ProfilingSidebarItem {
                             show_dropdown: show_profiling_dropdown,

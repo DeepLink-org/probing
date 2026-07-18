@@ -16,10 +16,280 @@ Usage:
 """
 
 import functools
+import hashlib
 import os
-from typing import Optional
+import socket
+from typing import Any, Optional
 
 from probing.utils.py import _get_attr, _get_ray
+
+
+RAY_PROCESS_FIELDS = [
+    "timestamp_ns",
+    "pid",
+    "hostname",
+    "node_ip",
+    "ray_job_id",
+    "ray_node_id",
+    "ray_worker_id",
+    "ray_task_id",
+    "ray_actor_id",
+    "ray_actor_name",
+    "ray_namespace",
+    "process_role",
+]
+
+RAY_TASK_FIELDS = [
+    "timestamp_ns",
+    "task_id",
+    "parent_task_id",
+    "actor_id",
+    "function_name",
+    "task_type",
+    "state",
+    "job_id",
+    "node_id",
+    "worker_id",
+    "worker_pid",
+    "start_time_ns",
+    "end_time_ns",
+]
+
+RAY_ACTOR_FIELDS = [
+    "timestamp_ns",
+    "actor_id",
+    "class_name",
+    "state",
+    "job_id",
+    "node_id",
+    "worker_id",
+    "worker_pid",
+    "start_time_ns",
+    "end_time_ns",
+]
+
+_ray_tables: dict[str, Any] = {}
+_span_context_enabled = False
+
+
+def _ray_table(name: str, fields: list[str]):
+    import probing
+
+    table = _ray_tables.get(name)
+    if table is not None:
+        return table
+
+    try:
+        table = probing.ExternalTable.get(name)
+        if table.names() != fields:
+            probing.ExternalTable.drop(name)
+            table = probing.ExternalTable.get_or_create(name, fields)
+    except Exception:
+        table = probing.ExternalTable.get_or_create(name, fields)
+    _ray_tables[name] = table
+    return table
+
+
+def _append_ray_row(name: str, fields: list[str], row: dict[str, Any]) -> None:
+    try:
+        _ray_table(name, fields).append([row.get(field, "") for field in fields])
+    except Exception:
+        pass
+
+
+def _now_ns() -> int:
+    import time
+
+    return time.time_ns()
+
+
+def _stable_int(value: str, modulo: int = 2_000_000_000) -> int:
+    if not value:
+        return 1
+    digest = hashlib.blake2b(value.encode("utf-8"), digest_size=8).digest()
+    return int.from_bytes(digest, "big") % modulo + 1
+
+
+def _safe_str(value: Any) -> str:
+    if value is None:
+        return ""
+    try:
+        return str(value)
+    except Exception:
+        return ""
+
+
+def _safe_int(value: Any, default: int = 0) -> int:
+    if value is None or value == "":
+        return default
+    try:
+        return int(value)
+    except Exception:
+        return default
+
+
+def _call_attr(obj: Any, names: list[str], default: Any = "") -> Any:
+    for name in names:
+        try:
+            attr = getattr(obj, name, None)
+            if attr is None:
+                continue
+            value = attr() if callable(attr) else attr
+            if value is not None:
+                return value
+        except Exception:
+            continue
+    return default
+
+
+def _current_ray_context_attrs() -> dict[str, str]:
+    """Return Ray runtime identity for the current driver/worker process."""
+    attrs: dict[str, str] = {}
+    try:
+        ray = _get_ray()
+        if not ray.is_initialized():
+            return attrs
+        ctx = ray.get_runtime_context()
+    except Exception:
+        return attrs
+
+    for key, names in {
+        "ray_job_id": ["get_job_id", "job_id"],
+        "ray_node_id": ["get_node_id", "node_id"],
+        "ray_namespace": ["namespace"],
+    }.items():
+        value = _call_attr(ctx, names)
+        if value:
+            attrs[key] = _safe_str(value)
+
+    is_worker = False
+    try:
+        worker_module = getattr(getattr(ray, "_private", None), "worker", None)
+        global_worker = getattr(worker_module, "global_worker", None)
+        worker_mode = getattr(worker_module, "WORKER_MODE", None)
+        is_worker = (
+            global_worker is not None
+            and worker_mode is not None
+            and getattr(global_worker, "mode", None) == worker_mode
+        )
+    except Exception:
+        is_worker = False
+
+    if is_worker:
+        for key, names in {
+            "ray_worker_id": ["get_worker_id", "worker_id"],
+            "ray_task_id": ["get_task_id", "task_id"],
+            "ray_actor_id": ["get_actor_id", "actor_id"],
+        }.items():
+            value = _call_attr(ctx, names)
+            if value:
+                attrs[key] = _safe_str(value)
+
+        actor_name = _call_attr(ctx, ["get_actor_name", "actor_name"])
+        if actor_name:
+            attrs["ray_actor_name"] = _safe_str(actor_name)
+
+    return attrs
+
+
+def _process_identity_attrs(process_role: str = "") -> dict[str, Any]:
+    try:
+        hostname = socket.gethostname()
+    except Exception:
+        hostname = ""
+
+    # Optional framework adapters bridge their env into PROBING_* once.
+    try:
+        from probing.ext.slime import apply_env_bridge
+
+        apply_env_bridge()
+    except Exception:
+        pass
+
+    node_ip = (
+        os.environ.get("PROBING_NODE_IP")
+        or os.environ.get("POD_IP")
+        or os.environ.get("RAY_NODE_IP")
+        or ""
+    )
+    if not node_ip and hostname:
+        try:
+            node_ip = socket.gethostbyname(hostname)
+        except Exception:
+            node_ip = ""
+
+    attrs: dict[str, Any] = {
+        "pid": os.getpid(),
+        "hostname": hostname,
+        "node_ip": node_ip,
+    }
+    attrs.update(_current_ray_context_attrs())
+    role = (
+        process_role
+        or os.environ.get("PROBING_RAY_PROCESS_ROLE", "")
+        or os.environ.get("PROBING_PROCESS_ROLE", "")
+    )
+    if role:
+        attrs["process_role"] = role
+    return attrs
+
+
+def current_process_identity(process_role: str = "") -> dict[str, Any]:
+    """Return the current process identity used to correlate Ray spans."""
+    return _process_identity_attrs(process_role)
+
+
+def register_current_process(process_role: str = "") -> None:
+    """Persist the current Ray process identity, if Ray/probing are available."""
+    try:
+        attrs = _process_identity_attrs(process_role)
+        _append_ray_row(
+            "ray_process",
+            RAY_PROCESS_FIELDS,
+            {
+                "timestamp_ns": _now_ns(),
+                "pid": os.getpid(),
+                "hostname": _safe_str(attrs.get("hostname")),
+                "node_ip": _safe_str(attrs.get("node_ip")),
+                "ray_job_id": _safe_str(attrs.get("ray_job_id")),
+                "ray_node_id": _safe_str(attrs.get("ray_node_id")),
+                "ray_worker_id": _safe_str(attrs.get("ray_worker_id")),
+                "ray_task_id": _safe_str(attrs.get("ray_task_id")),
+                "ray_actor_id": _safe_str(attrs.get("ray_actor_id")),
+                "ray_actor_name": _safe_str(attrs.get("ray_actor_name")),
+                "ray_namespace": _safe_str(attrs.get("ray_namespace")),
+                "process_role": _safe_str(attrs.get("process_role")),
+            },
+        )
+    except Exception:
+        pass
+
+
+def _ray_span_attributes() -> dict[str, Any]:
+    """Attributes added to manual probing spans in Ray driver/worker processes."""
+    return _process_identity_attrs()
+
+
+def enable_span_context() -> None:
+    """Attach Ray process identity to every manual ``probing.span`` in this process."""
+    global _span_context_enabled
+    if _span_context_enabled:
+        return
+    try:
+        from probing.tracing import add_span_attribute_provider
+
+        add_span_attribute_provider(_ray_span_attributes)
+        _span_context_enabled = True
+    except Exception:
+        pass
+
+
+def setup_driver(process_role: str = "driver") -> None:
+    """Enable Ray span attributes and record the current driver process identity."""
+    if process_role:
+        os.environ["PROBING_RAY_PROCESS_ROLE"] = process_role
+    enable_span_context()
+    register_current_process(process_role=process_role)
 
 
 class ProbingSpanProcessor:
@@ -60,11 +330,21 @@ class ProbingSpanProcessor:
             span_kind = kind_map.get(span.kind)
             if span_kind:
                 attrs["otel.span_kind"] = span_kind
+            attrs.update({k: _safe_str(v) for k, v in _process_identity_attrs().items()})
+
+            span_context = span.get_span_context()
+            attrs["otel_trace_id"] = format(span_context.trace_id, "032x")
+            attrs["otel_span_id"] = format(span_context.span_id, "016x")
+            try:
+                parent = getattr(span, "parent", None)
+                if parent:
+                    attrs["otel_parent_span_id"] = format(parent.span_id, "016x")
+            except Exception:
+                pass
 
             probing_span = probing.span(span_name, **attrs)
             probing_span.__enter__()
 
-            span_context = span.get_span_context()
             self._span_map[(span_context.trace_id, span_context.span_id)] = probing_span
         except Exception:
             pass
@@ -151,8 +431,7 @@ def _wrap_task_execution_in_worker():
 
 def init():
     """Initialize Ray tracing integration (called by import hook)."""
-    # Users should explicitly use: ray.init(_tracing_startup_hook="probing.ext.ray:setup_tracing")
-    pass
+    enable_span_context()
 
 
 def setup_tracing() -> None:
@@ -165,13 +444,80 @@ def setup_tracing() -> None:
         from opentelemetry import trace
         from opentelemetry.sdk.trace import TracerProvider
 
+        os.environ["PROBING"] = os.environ.get("PROBING", "1")
+        try:
+            from probing.ext.slime import apply_env_bridge
+
+            apply_env_bridge()
+        except Exception:
+            pass
+        worker_role = (
+            os.environ.get("PROBING_RAY_PROCESS_ROLE", "").strip()
+            or os.environ.get("PROBING_PROCESS_ROLE", "").strip()
+            or "ray_worker"
+        )
+        os.environ["PROBING_RAY_PROCESS_ROLE"] = worker_role
+        enable_span_context()
+
         trace.set_tracer_provider(TracerProvider())
         trace.get_tracer_provider().add_span_processor(ProbingSpanProcessor())
 
-        os.environ["PROBING"] = os.environ.get("PROBING", "1")
+        register_current_process(process_role=worker_role)
         _wrap_task_execution_in_worker()
     except Exception:
         pass
+
+
+def _worker_pid(worker_info) -> int:
+    return _safe_int(
+        _get_attr(
+            worker_info,
+            [
+                "pid",
+                "worker_pid",
+                "process_id",
+                "processId",
+            ],
+        )
+    )
+
+
+def _worker_id(worker_info) -> str:
+    return _safe_str(_get_attr(worker_info, ["worker_id", "workerId", "id"], ""))
+
+
+def _worker_node_id(worker_info) -> str:
+    return _safe_str(_get_attr(worker_info, ["node_id", "nodeId"], ""))
+
+
+def _collect_worker_info() -> dict[str, dict[str, Any]]:
+    """Return worker_id -> state metadata from Ray state API when available."""
+    try:
+        from ray.util.state import list_workers
+
+        workers = list(list_workers(detail=True))
+    except Exception:
+        return {}
+
+    result: dict[str, dict[str, Any]] = {}
+    for worker in workers:
+        worker_id = _worker_id(worker)
+        if not worker_id:
+            continue
+        result[worker_id] = {
+            "pid": _worker_pid(worker),
+            "node_id": _worker_node_id(worker),
+            "worker_type": _safe_str(_get_attr(worker, ["worker_type", "type"], "")),
+        }
+    return result
+
+
+def _process_id_for_worker(worker_id: str, node_id: str = "", worker_pid: int = 0) -> int:
+    if worker_pid > 0:
+        return _stable_int(f"{node_id}:{worker_pid}")
+    if worker_id:
+        return _stable_int(worker_id)
+    return 1
 
 
 def _extract_time_from_events(events):
@@ -219,7 +565,7 @@ def _extract_time_from_events(events):
     return start_time_ms, end_time_ms
 
 
-def _convert_task_to_timeline_entry(task, index=0, total=1, worker_to_pid=None):
+def _convert_task_to_timeline_entry(task, index=0, total=1, worker_info=None):
     """Convert Ray TaskState to timeline entry.
 
     Note: If start_time_ms and end_time_ms are None, we use a relative timeline
@@ -234,8 +580,8 @@ def _convert_task_to_timeline_entry(task, index=0, total=1, worker_to_pid=None):
         Task index for relative timeline fallback
     total : int
         Total number of tasks for relative timeline fallback
-    worker_to_pid : dict, optional
-        Mapping from worker_id to process_id (pid). If None, will use hash of worker_id.
+    worker_info : dict, optional
+        Mapping from worker_id to process metadata.
     """
     task_id = _get_attr(task, ["task_id"], "")
     func_name = _get_attr(
@@ -279,20 +625,20 @@ def _convert_task_to_timeline_entry(task, index=0, total=1, worker_to_pid=None):
 
     # Get worker_id and determine process_id (pid)
     worker_id = _get_attr(task, ["worker_id"], "")
-    if worker_to_pid is not None and worker_id:
-        process_id = worker_to_pid.get(worker_id, hash(worker_id) % 10000 + 1)
-    elif worker_id:
-        # Use hash of worker_id to generate a consistent pid
-        process_id = abs(hash(worker_id)) % 10000 + 1
-    else:
-        process_id = 1  # Default pid for tasks without worker_id
+    node_id = _safe_str(_get_attr(task, ["node_id"], ""))
+    info = (worker_info or {}).get(worker_id, {}) if worker_id else {}
+    worker_pid = _safe_int(info.get("pid"))
+    if info.get("node_id") and not node_id:
+        node_id = _safe_str(info.get("node_id"))
+    process_id = _process_id_for_worker(_safe_str(worker_id), node_id, worker_pid)
 
     attributes = {
         "task_id": str(task_id),
         "function_name": func_name,
         "state": _get_attr(task, ["state"], "unknown"),
         "worker_id": str(worker_id),
-        "node_id": str(_get_attr(task, ["node_id"], "")),
+        "worker_pid": str(worker_pid),
+        "node_id": node_id,
         "job_id": str(_get_attr(task, ["job_id"], "")),
         "task_type": str(task_type),
     }
@@ -334,19 +680,20 @@ def _convert_task_to_timeline_entry(task, index=0, total=1, worker_to_pid=None):
         "kind": entry_type,
         "thread_id": 0,
         "process_id": process_id,  # Add process_id for Chrome tracing format
+        "worker_pid": worker_pid,
         "attributes": attributes,
     }
 
 
-def _convert_actor_to_timeline_entry(actor, worker_to_pid=None):
+def _convert_actor_to_timeline_entry(actor, worker_info=None):
     """Convert Ray actor to timeline entry.
 
     Parameters
     ----------
     actor : ActorState
         Ray actor state object
-    worker_to_pid : dict, optional
-        Mapping from worker_id to process_id (pid). If None, will use hash of worker_id.
+    worker_info : dict, optional
+        Mapping from worker_id to process metadata.
     """
     actor_id = _get_attr(actor, ["actor_id"], "")
     class_name = _get_attr(
@@ -374,20 +721,20 @@ def _convert_actor_to_timeline_entry(actor, worker_to_pid=None):
 
     # Get worker_id and determine process_id (pid)
     worker_id = _get_attr(actor, ["worker_id"], "")
-    if worker_to_pid is not None and worker_id:
-        process_id = worker_to_pid.get(worker_id, hash(worker_id) % 10000 + 1)
-    elif worker_id:
-        # Use hash of worker_id to generate a consistent pid
-        process_id = abs(hash(worker_id)) % 10000 + 1
-    else:
-        process_id = 1  # Default pid for actors without worker_id
+    node_id = _safe_str(_get_attr(actor, ["node_id"], ""))
+    info = (worker_info or {}).get(worker_id, {}) if worker_id else {}
+    worker_pid = _safe_int(info.get("pid"))
+    if info.get("node_id") and not node_id:
+        node_id = _safe_str(info.get("node_id"))
+    process_id = _process_id_for_worker(_safe_str(worker_id), node_id, worker_pid)
 
     attributes = {
         "actor_id": str(actor_id),
         "class_name": class_name,
         "state": _get_attr(actor, ["state"], "unknown"),
         "worker_id": str(worker_id),
-        "node_id": str(_get_attr(actor, ["node_id"], "")),
+        "worker_pid": str(worker_pid),
+        "node_id": node_id,
         "job_id": str(_get_attr(actor, ["job_id"], "")),
     }
 
@@ -403,8 +750,58 @@ def _convert_actor_to_timeline_entry(actor, worker_to_pid=None):
         "kind": "actor",
         "thread_id": 0,
         "process_id": process_id,  # Add process_id for Chrome tracing format
+        "worker_pid": worker_pid,
         "attributes": attributes,
     }
+
+
+def _save_ray_task_entry(entry: dict[str, Any]) -> None:
+    try:
+        attrs = entry.get("attributes", {})
+        _append_ray_row(
+            "ray_task",
+            RAY_TASK_FIELDS,
+            {
+                "timestamp_ns": _now_ns(),
+                "task_id": _safe_str(attrs.get("task_id")),
+                "parent_task_id": _safe_str(attrs.get("parent_task_id")),
+                "actor_id": _safe_str(attrs.get("actor_id")),
+                "function_name": _safe_str(attrs.get("function_name")),
+                "task_type": _safe_str(attrs.get("task_type")),
+                "state": _safe_str(attrs.get("state")),
+                "job_id": _safe_str(attrs.get("job_id")),
+                "node_id": _safe_str(attrs.get("node_id")),
+                "worker_id": _safe_str(attrs.get("worker_id")),
+                "worker_pid": _safe_int(attrs.get("worker_pid")),
+                "start_time_ns": _safe_int(entry.get("start_time")),
+                "end_time_ns": _safe_int(entry.get("end_time")),
+            },
+        )
+    except Exception:
+        pass
+
+
+def _save_ray_actor_entry(entry: dict[str, Any]) -> None:
+    try:
+        attrs = entry.get("attributes", {})
+        _append_ray_row(
+            "ray_actor",
+            RAY_ACTOR_FIELDS,
+            {
+                "timestamp_ns": _now_ns(),
+                "actor_id": _safe_str(attrs.get("actor_id")),
+                "class_name": _safe_str(attrs.get("class_name")),
+                "state": _safe_str(attrs.get("state")),
+                "job_id": _safe_str(attrs.get("job_id")),
+                "node_id": _safe_str(attrs.get("node_id")),
+                "worker_id": _safe_str(attrs.get("worker_id")),
+                "worker_pid": _safe_int(attrs.get("worker_pid")),
+                "start_time_ns": _safe_int(entry.get("start_time")),
+                "end_time_ns": _safe_int(entry.get("end_time")),
+            },
+        )
+    except Exception:
+        pass
 
 
 def get_ray_timeline(
@@ -440,9 +837,6 @@ def get_ray_timeline(
 
         timeline: list[dict] = []
 
-        # Build worker_id -> process_id mapping in a first pass
-        worker_ids: set[str] = set()
-
         task_filters = {"func_or_class_name": task_filter} if task_filter else {}
         actor_filters = {"class_name": actor_filter} if actor_filter else {}
 
@@ -458,26 +852,14 @@ def get_ray_timeline(
         except Exception:
             actors_list = []
 
-        for task in tasks_list:
-            worker_id = _get_attr(task, "worker_id", "")
-            if worker_id:
-                worker_ids.add(worker_id)
+        worker_info = _collect_worker_info()
 
-        for actor in actors_list:
-            worker_id = _get_attr(actor, "worker_id", "")
-            if worker_id:
-                worker_ids.add(worker_id)
-
-        worker_to_pid = {
-            worker_id: idx for idx, worker_id in enumerate(sorted(worker_ids), start=1)
-        }
-
-        # Second pass: convert tasks with worker_to_pid mapping
+        # Second pass: convert tasks with worker metadata mapping
         total_tasks = len(tasks_list)
 
         for index, task in enumerate(tasks_list):
             entry = _convert_task_to_timeline_entry(
-                task, index, total_tasks, worker_to_pid
+                task, index, total_tasks, worker_info
             )
 
             # Apply time filters
@@ -485,16 +867,18 @@ def get_ray_timeline(
                 continue
             if end_time and entry["end_time"] and entry["end_time"] > end_time:
                 continue
+            _save_ray_task_entry(entry)
             timeline.append(entry)
 
-        # Convert actors with worker_to_pid mapping
+        # Convert actors with worker metadata mapping
         for actor in actors_list:
-            entry = _convert_actor_to_timeline_entry(actor, worker_to_pid)
+            entry = _convert_actor_to_timeline_entry(actor, worker_info)
             # Apply time filters
             if start_time and entry["start_time"] and entry["start_time"] < start_time:
                 continue
             if end_time and entry["end_time"] and entry["end_time"] > end_time:
                 continue
+            _save_ray_actor_entry(entry)
             timeline.append(entry)
 
         timeline.sort(key=lambda x: x["start_time"])
@@ -534,7 +918,7 @@ def get_ray_timeline_chrome_format(
             if worker_id and worker_id not in worker_to_info:
                 worker_to_info[worker_id] = {
                     "node_id": attributes.get("node_id", ""),
-                    "worker_pid": None,  # worker_pid is not in attributes, we'll try to get it from task
+                    "worker_pid": _safe_int(attributes.get("worker_pid")),
                 }
 
         # Build process_id to worker_id reverse mapping and update worker info
@@ -551,6 +935,9 @@ def get_ray_timeline_chrome_format(
                     node_id = attributes.get("node_id", "")
                     if node_id and not worker_to_info[worker_id]["node_id"]:
                         worker_to_info[worker_id]["node_id"] = node_id
+                    worker_pid = _safe_int(attributes.get("worker_pid"))
+                    if worker_pid and not worker_to_info[worker_id]["worker_pid"]:
+                        worker_to_info[worker_id]["worker_pid"] = worker_pid
 
         trace_events = []
 
