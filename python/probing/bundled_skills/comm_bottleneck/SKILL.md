@@ -25,7 +25,7 @@ parameters:
 | NCCL profiler 插件（**优先**） | `nccl.coll_perf`、`nccl.proxy_ops` | NCCL 原生事件，执行时间/带宽精准（见 `timing_source`） |
 | Torch API 层插桩（回退） | `python.comm_collective` | Python 墙钟，launch 层粗粒度；独有 `global_step` 上下文 |
 
-NCCL 插件启用时 Torch 侧插桩默认关闭（`probing.torch.collective.enable=1` 可强制同开）。
+Torch 侧插桩**默认关闭**（含多 rank）；需 `PROBING_TORCH_COLLECTIVE_ENABLE=1` 或 `SET probing.torch.collective.enable=1`。
 
 ## Parameters
 

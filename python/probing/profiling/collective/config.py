@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import os
 from dataclasses import dataclass
 from typing import Optional
@@ -12,8 +11,6 @@ import probing
 from probing.util.env import parse_bool_flag
 
 from .record import CommRecordMode
-
-logger = logging.getLogger(__name__)
 
 
 def _parse_mode(raw: Optional[str]) -> CommRecordMode:
@@ -58,25 +55,20 @@ def collective_tracing_enabled() -> bool:
     """Resolve whether Torch-side collective hooks should be installed.
 
     Policy:
-    1. Explicit ``probing.torch.collective.enable`` always wins.
-    2. If the NCCL profiler plugin is active, default **off** — the plugin's
-       ``nccl.*`` tables are the precise source; keeping both on would record
-       the same collectives twice with conflicting timing semantics.
-    3. Otherwise, default on for multi-rank torch jobs (coarse fallback).
+    1. Explicit ``probing.torch.collective.enable`` always wins
+       (``PROBING_TORCH_COLLECTIVE_ENABLE=1`` / ``SET …=1``).
+    2. Otherwise **default off** — including multi-rank jobs — to avoid
+       silent Megatron / multi-process overhead. The NCCL profiler plugin
+       (``nccl.*``) remains the preferred precise source when configured;
+       enable Torch-API tracing only when you need ``python.comm_collective``
+       / ``global_step`` context.
     """
     explicit = parse_bool_flag(
         probing.config.get_str("probing.torch.collective.enable")
     )
     if explicit is not None:
         return explicit
-    if nccl_profiler_plugin_active():
-        logger.info(
-            "Torch-side collective tracing disabled: NCCL profiler plugin is "
-            "active (nccl.* tables). Set probing.torch.collective.enable=1 "
-            "to force both."
-        )
-        return False
-    return is_distributed_torch_job()
+    return False
 
 
 @dataclass(frozen=True)

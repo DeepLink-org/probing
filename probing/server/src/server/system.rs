@@ -66,11 +66,10 @@ pub async fn get_overview_json() -> ApiResult<axum::Json<Process>> {
     Ok(axum::Json(overview))
 }
 
-
 /// Get local processes that currently expose probing memtables.
 pub fn get_local_processes() -> Result<Vec<Process>> {
-    use std::collections::HashSet;
     use probing_memtable::discover;
+    use std::collections::HashSet;
 
     let mut pids = HashSet::<i32>::new();
     for table in discover::discover()? {
@@ -79,10 +78,7 @@ pub fn get_local_processes() -> Result<Vec<Process>> {
         }
     }
 
-    let mut processes = pids
-        .into_iter()
-        .map(process_from_pid)
-        .collect::<Vec<_>>();
+    let mut processes = pids.into_iter().map(process_from_pid).collect::<Vec<_>>();
     processes.sort_by_key(|process| process.pid);
     Ok(processes)
 }

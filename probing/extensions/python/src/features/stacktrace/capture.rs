@@ -981,7 +981,7 @@ mod tests {
     fn py_frame_symbol_folded_label_uses_basename() {
         let sym = PyFrameSymbol {
             func: "main".into(),
-            file: "examples/imagenet_with_span.py".into(),
+            file: "examples/imagenet/imagenet_with_span.py".into(),
             lineno: 316,
         };
         assert_eq!(sym.folded_label(), "[py] main (imagenet_with_span.py:316)");
@@ -991,7 +991,7 @@ mod tests {
     fn py_frame_symbol_call_frame_keeps_full_path() {
         let sym = PyFrameSymbol {
             func: "main".into(),
-            file: "examples/imagenet_with_span.py".into(),
+            file: "examples/imagenet/imagenet_with_span.py".into(),
             lineno: 316,
         };
         let frame = sym.to_call_frame();
@@ -999,7 +999,7 @@ mod tests {
             CallFrame::PyFrame {
                 file, func, lineno, ..
             } => {
-                assert_eq!(file, "examples/imagenet_with_span.py");
+                assert_eq!(file, "examples/imagenet/imagenet_with_span.py");
                 assert_eq!(func, "main");
                 assert_eq!(lineno, 316);
             }

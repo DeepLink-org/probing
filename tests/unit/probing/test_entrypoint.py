@@ -15,10 +15,14 @@ from probing import _entrypoint as ep
         (["python", "-m", "torch.distributed.run", "--standalone"], {}, True),
         (["-m", "--help"], {}, True),
         (["/usr/bin/torchrun", "train.py"], {}, True),
-        (["python", "examples/imagenet_with_span.py"], {"RANK": "0"}, False),
-        (["python", "examples/imagenet_with_span.py"], {"LOCAL_RANK": "1"}, False),
+        (["python", "examples/imagenet/imagenet_with_span.py"], {"RANK": "0"}, False),
+        (
+            ["python", "examples/imagenet/imagenet_with_span.py"],
+            {"LOCAL_RANK": "1"},
+            False,
+        ),
         (["python", "-m", "torch.distributed.run"], {"TORCHELASTIC_RUN_ID": "x"}, True),
-        (["python", "examples/tracing.py"], {}, False),
+        (["python", "examples/getting-started/tracing.py"], {}, False),
         (["-m", "probing.skills"], {}, False),
     ],
 )

@@ -889,7 +889,7 @@ fn render_comm_local_result(
                 },
                 children: rsx! {
                     EmptyState {
-                        message: "No collective samples on this node. Auto-enabled for torchrun (WORLD_SIZE>1).".to_string()
+                        message: "No collective samples on this node. Enable with PROBING_TORCH_COLLECTIVE_ENABLE=1 or SET probing.torch.collective.enable=1.".to_string()
                     }
                 },
             }

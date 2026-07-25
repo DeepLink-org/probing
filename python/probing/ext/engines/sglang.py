@@ -42,6 +42,7 @@ def resolve_metrics_path(metrics_path: str | None = None) -> str:
         return DEFAULT_METRICS_PATH
     return raw if raw.startswith("/") else f"/{raw}"
 
+
 # Canonical metric names consumed by the Web UI.
 NORMALIZED_METRICS = (
     "inflight_requests",
@@ -78,7 +79,9 @@ def _latency_seconds_to_ms(value_seconds: float) -> float:
     return value_seconds * 1000.0 if value_seconds < 10 else value_seconds
 
 
-def build_metrics_url(router_addr: str, metrics_path: str = DEFAULT_METRICS_PATH) -> str:
+def build_metrics_url(
+    router_addr: str, metrics_path: str = DEFAULT_METRICS_PATH
+) -> str:
     base = router_addr.rstrip("/")
     if not base.startswith(("http://", "https://")):
         base = f"http://{base}"
@@ -110,7 +113,9 @@ def normalize_sglang_samples(samples: list[PrometheusSample]) -> dict[str, float
     if queue is not None:
         normalized["queue_depth"] = queue
 
-    throughput = pick_metric(samples, "gen_throughput", "generation_throughput", "token_throughput")
+    throughput = pick_metric(
+        samples, "gen_throughput", "generation_throughput", "token_throughput"
+    )
     if throughput is not None:
         normalized["throughput_tps"] = throughput
 
@@ -157,9 +162,13 @@ def normalize_sglang_samples(samples: list[PrometheusSample]) -> dict[str, float
 def _resolve_kv_cache_usage_ratio(samples: list[PrometheusSample]) -> float | None:
     """Map SGLang KV pool occupancy to a 0..1 ratio."""
 
-    max_tokens = pick_metric(samples, "max_total_num_tokens", "max_num_tokens", "token_capacity")
+    max_tokens = pick_metric(
+        samples, "max_total_num_tokens", "max_num_tokens", "token_capacity"
+    )
     if max_tokens in (None, 0):
-        return pick_metric(samples, "token_usage_ratio", "kv_cache_usage", "cache_usage")
+        return pick_metric(
+            samples, "token_usage_ratio", "kv_cache_usage", "cache_usage"
+        )
 
     # ``launch_server`` exposes pool occupancy via kv_* gauges; ``token_usage`` may stay 0.
     kv_used = pick_metric(samples, "kv_used_tokens")
@@ -229,7 +238,9 @@ def flatten_samples_for_storage(
 
     rows: list[tuple[int, str, str, str, float, str]] = []
     for sample in samples:
-        labels = ",".join(f"{key}={value}" for key, value in sorted(sample.labels.items()))
+        labels = ",".join(
+            f"{key}={value}" for key, value in sorted(sample.labels.items())
+        )
         rows.append(
             (
                 timestamp_ns,

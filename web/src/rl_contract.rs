@@ -20,7 +20,8 @@ pub fn attr_string(attributes: &Option<String>, key: &str) -> Option<String> {
 
 /// Rollout/sample timeline requires trajectory or sample identity on each span.
 pub fn has_trajectory_identity(attributes: &Option<String>) -> bool {
-    attr_string(attributes, "trajectory_id").is_some() || attr_string(attributes, "sample_id").is_some()
+    attr_string(attributes, "trajectory_id").is_some()
+        || attr_string(attributes, "sample_id").is_some()
 }
 
 /// Training timeline spans must be tagged as train phases and keyed by step/batch.
@@ -36,8 +37,10 @@ pub fn is_train_phase_span(
     if attr_string(attributes, "actor_role").as_deref() == Some("trainer") {
         return true;
     }
-    matches!(kind, Some("rl.train") | Some("train.step") | Some("rl.phase"))
-        && (phase.contains("train") || name.contains("train"))
+    matches!(
+        kind,
+        Some("rl.train") | Some("train.step") | Some("rl.phase")
+    ) && (phase.contains("train") || name.contains("train"))
 }
 
 pub fn is_train_timeline_span(
@@ -46,7 +49,8 @@ pub fn is_train_timeline_span(
     kind: Option<&str>,
     attributes: &Option<String>,
 ) -> bool {
-    if attr_string(attributes, "train_step_id").is_none() && attr_string(attributes, "batch_id").is_none()
+    if attr_string(attributes, "train_step_id").is_none()
+        && attr_string(attributes, "batch_id").is_none()
     {
         return false;
     }
@@ -99,7 +103,10 @@ pub fn logical_step_key(span: &SpanInfo) -> Option<LogicalStepKey> {
         return None;
     }
 
-    Some(LogicalStepKey { rollout_id, step_id })
+    Some(LogicalStepKey {
+        rollout_id,
+        step_id,
+    })
 }
 
 #[derive(Clone, Eq, PartialEq)]

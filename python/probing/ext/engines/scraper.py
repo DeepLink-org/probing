@@ -101,11 +101,17 @@ def _scraper_loop() -> None:
 
 def ensure_scraper_running() -> None:
     global _scraper_started
-    if os.environ.get("PROBING_ENGINE_SCRAPE", "1").strip().lower() in {"0", "false", "off"}:
+    if os.environ.get("PROBING_ENGINE_SCRAPE", "1").strip().lower() in {
+        "0",
+        "false",
+        "off",
+    }:
         return
     with _scraper_lock:
         if _scraper_started:
             return
-        thread = threading.Thread(target=_scraper_loop, name="probing-engine-scraper", daemon=True)
+        thread = threading.Thread(
+            target=_scraper_loop, name="probing-engine-scraper", daemon=True
+        )
         thread.start()
         _scraper_started = True

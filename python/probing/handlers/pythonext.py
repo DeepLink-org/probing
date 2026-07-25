@@ -651,13 +651,7 @@ def extensions_list_api() -> str:
     return vendor_extensions_json()
 
 
-@ext_handler(
-    "pythonext",
-    [
-        "engines/register",
-        "pythonext/engines/register",
-    ],
-)
+@ext_handler("pythonext", "engines/register")
 def register_inference_engine(
     router_addr: str,
     engine_id: str = "inference-engine",
@@ -684,13 +678,7 @@ def register_inference_engine(
     )
 
 
-@ext_handler(
-    "pythonext",
-    [
-        "engines/register_slime",
-        "pythonext/engines/register_slime",
-    ],
-)
+@ext_handler("pythonext", "engines/register_slime")
 def register_slime_inference_engine(
     router_addr: str,
     engine_id: str = "sglang-router",
@@ -715,26 +703,14 @@ def register_slime_inference_engine(
     )
 
 
-@ext_handler(
-    "pythonext",
-    [
-        "engines/list",
-        "pythonext/engines/list",
-    ],
-)
+@ext_handler("pythonext", "engines/list")
 def list_inference_engines() -> str:
     from probing.ext.engines import list_engines
 
     return json.dumps({"engines": [engine.to_dict() for engine in list_engines()]})
 
 
-@ext_handler(
-    "pythonext",
-    [
-        "engines/scrape",
-        "pythonext/engines/scrape",
-    ],
-)
+@ext_handler("pythonext", "engines/scrape")
 def scrape_inference_engines(engine_id: Optional[str] = None) -> str:
     from probing.ext.engines import scrape_all, scrape_engine
     from probing.ext.engines.registry import get_engine
@@ -747,13 +723,7 @@ def scrape_inference_engines(engine_id: Optional[str] = None) -> str:
     return json.dumps({"results": scrape_all()})
 
 
-@ext_handler(
-    "pythonext",
-    [
-        "engines/snapshot",
-        "pythonext/engines/snapshot",
-    ],
-)
+@ext_handler("pythonext", "engines/snapshot")
 def inference_engine_snapshot(engine_id: Optional[str] = None) -> str:
     from probing.ext.engines import list_engines
 

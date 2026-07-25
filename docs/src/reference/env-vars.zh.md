@@ -23,7 +23,7 @@ Probing 读取的全部 `PROBING_*` 环境变量参考（按子系统分组）�
 | `PROBING_CLUSTER_STALE_SEC` | `25` | 无心跳超过此秒数标记为 `dead`；应大于最大间隔。 |
 | `PROBING_CLUSTER_DISCOVER_TIMEOUT_SEC` | `2` | 每次 master/local0 发现超时。 |
 | `PROBING_CLUSTER_REPORT_TIMEOUT_SEC` | `5` | 集群 report HTTP PUT 超时。 |
-| `PROBING_CLUSTER_PRESET` | — | `examples/run_cluster_multinode.sh` 使用：`demo`、`fast`、`steady`。 |
+| `PROBING_CLUSTER_PRESET` | — | `examples/cluster/run_multinode.sh` 使用：`demo`、`fast`、`steady`。 |
 | `PROBING_CLUSTER_FANOUT_HIERARCHICAL` | `1` | 分层集群查询 fan-out；`0` = 扁平 fan-out 到所有 peer。 |
 | `PROBING_REMOTE_QUERY_TIMEOUT_SECS` | `30` | 远程联邦 / 集群查询的单 peer 超时（秒）。 |
 | `PROBING_FANOUT_CONCURRENCY` | `128` | 单次 cluster fan-out 的最大并发远程 HTTP 请求数。 |

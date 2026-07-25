@@ -1,0 +1,2310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Probing — Agent-Native 分布式AI训练诊断</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --primary: #1a56db;
+    --primary-light: #3b82f6;
+    --primary-dark: #1e3a8a;
+    --accent: #0d9488;
+    --accent-light: #14b8a6;
+    --bg: #f8fafc;
+    --card-bg: #ffffff;
+    --text: #1e293b;
+    --text-secondary: #64748b;
+    --text-light: #94a3b8;
+    --border: #e2e8f0;
+    --red: #dc2626;
+    --green: #16a34a;
+    --orange: #ea580c;
+    --purple: #7c3aed;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+    --shadow-lg: 0 10px 25px rgba(0,0,0,0.08), 0 4px 10px rgba(0,0,0,0.04);
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    background: #ffffff;
+    color: var(--text);
+    overflow: visible;
+    height: auto;
+    margin: 0;
+    padding: 0;
+  }
+
+  .slide-container {
+    width: 1280px;
+    display: block;
+    position: relative;
+  }
+
+  .slide {
+    width: 1280px;
+    height: 720px;
+    background: var(--bg);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: var(--shadow-lg);
+    border-radius: 12px;
+    page-break-after: always;
+    margin-bottom: 0;
+  }
+
+  
+
+  /* Navigation */
+  .nav-bar { display: none !important;
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: rgba(30, 41, 59, 0.9);
+    
+    padding: 8px 20px;
+    border-radius: 100px;
+    z-index: 1000;
+  }
+  .nav-bar button {
+    background: none;
+    border: none;
+    color: #cbd5e1;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: all 0.2s;
+  }
+  .nav-bar button:hover { background: rgba(255,255,255,0.1); color: #fff; }
+  .nav-bar .page-num { color: #94a3b8; font-size: 13px; font-weight: 500; }
+
+  /* Common slide styles */
+  .slide-padding { padding: 50px 60px; }
+
+  .slide-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .slide-section-tag {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--primary);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    background: #dbeafe;
+    padding: 4px 12px;
+    border-radius: 100px;
+  }
+  .slide-title {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.3;
+  }
+  .slide-subtitle {
+    font-size: 15px;
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+    line-height: 1.5;
+  }
+
+  /* ====== TITLE SLIDE ====== */
+  .title-slide {
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #0f172a 100%);
+    color: #fff;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 80px 80px;
+  }
+  .title-slide .logo-area {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+  .title-slide .logo-icon {
+    width: 56px;
+    height: 56px;
+    background: linear-gradient(135deg, var(--accent-light), var(--primary-light));
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    font-weight: 800;
+    color: #fff;
+  }
+  .title-slide .logo-text {
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+  .title-slide h1 {
+    font-size: 52px;
+    font-weight: 800;
+    line-height: 1.2;
+    margin-bottom: 16px;
+    letter-spacing: -1px;
+    color: #93c5fd;
+  }
+  .title-slide .tagline {
+    font-size: 20px;
+    color: #93c5fd;
+    margin-bottom: 48px;
+    line-height: 1.5;
+    max-width: 800px;
+  }
+  .title-slide .meta-row {
+    display: flex;
+    gap: 32px;
+    margin-top: auto;
+  }
+  .title-slide .meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .title-slide .meta-label {
+    font-size: 12px;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .title-slide .meta-value {
+    font-size: 16px;
+    color: #cbd5e1;
+    font-weight: 500;
+  }
+  .title-slide .deco-line {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--accent-light), var(--primary-light), var(--purple));
+  }
+
+  /* ====== AGENDA ====== */
+  .agenda-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-top: 20px;
+  }
+  .agenda-card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 28px;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    transition: transform 0.2s;
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+  }
+  .agenda-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+  .agenda-num {
+    font-size: 36px;
+    font-weight: 800;
+    color: var(--primary);
+    line-height: 1;
+    min-width: 48px;
+  }
+  .agenda-card:nth-child(2) .agenda-num { color: var(--accent); }
+  .agenda-card:nth-child(3) .agenda-num { color: var(--purple); }
+  .agenda-card:nth-child(4) .agenda-num { color: var(--orange); }
+  .agenda-card h3 {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .agenda-card p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  /* ====== CARDS ====== */
+  .card {
+    background: var(--card-bg);
+    border-radius: 10px;
+    padding: 20px;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+  }
+  .card-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-body { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+
+  /* ====== METRICS ====== */
+  .metric-row {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 24px;
+  }
+  .metric {
+    flex: 1;
+    background: var(--card-bg);
+    border-radius: 10px;
+    padding: 20px;
+    border: 1px solid var(--border);
+    text-align: center;
+    box-shadow: var(--shadow);
+  }
+  .metric-value {
+    font-size: 36px;
+    font-weight: 800;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .metric-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .metric-value.primary { color: var(--primary); }
+  .metric-value.accent { color: var(--accent); }
+  .metric-value.purple { color: var(--purple); }
+  .metric-value.orange { color: var(--orange); }
+
+  /* ====== TABLE ====== */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    background: var(--card-bg);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .data-table th {
+    background: #f1f5f9;
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 700;
+    color: var(--text);
+    border-bottom: 2px solid var(--border);
+  }
+  .data-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+  }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tr.highlight td { background: #eff6ff; color: var(--text); font-weight: 600; }
+  .data-table .score {
+    font-weight: 700;
+    font-size: 14px;
+  }
+  .score-high { color: var(--green); }
+  .score-mid { color: var(--orange); }
+  .score-low { color: var(--red); }
+
+  /* ====== BADGES ====== */
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge-blue { background: #dbeafe; color: var(--primary); }
+  .badge-green { background: #dcfce7; color: var(--green); }
+  .badge-orange { background: #ffedd5; color: var(--orange); }
+  .badge-purple { background: #ede9fe; color: var(--purple); }
+  .badge-red { background: #fee2e2; color: var(--red); }
+  .badge-teal { background: #ccfbf1; color: var(--accent); }
+
+  /* ====== ARCHITECTURE DIAGRAM ====== */
+  .arch-diagram {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 16px 0;
+  }
+  .arch-layer {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+  }
+  .arch-layer-tag {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 6px;
+    min-width: 60px;
+    text-align: center;
+  }
+  .arch-layer-content {
+    flex: 1;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .arch-layer-content strong { color: var(--text); }
+  .arch-arrow {
+    text-align: center;
+    color: var(--text-light);
+    font-size: 14px;
+  }
+
+  /* ====== COMPARISON CHART ====== */
+  .bar-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .bar-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .bar-label {
+    width: 140px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    text-align: right;
+  }
+  .bar-track {
+    flex: 1;
+    height: 24px;
+    background: #f1f5f9;
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    padding-left: 10px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    transition: width 0.6s ease;
+  }
+
+  /* ====== FEATURE GRID ====== */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .feature-item {
+    background: var(--card-bg);
+    border-radius: 10px;
+    padding: 18px;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+  }
+  .feature-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    margin-bottom: 10px;
+  }
+  .feature-item h4 {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .feature-item p {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  /* ====== TIMELINE ====== */
+  .timeline {
+    display: flex;
+    gap: 0;
+    margin-top: 20px;
+    position: relative;
+  }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    top: 28px;
+    left: 5%;
+    right: 5%;
+    height: 3px;
+    background: linear-gradient(90deg, var(--primary), var(--accent), var(--purple), var(--orange));
+    border-radius: 3px;
+  }
+  .timeline-item {
+    flex: 1;
+    text-align: center;
+    position: relative;
+    z-index: 1;
+  }
+  .timeline-dot {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--card-bg);
+    border: 3px solid var(--primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 12px;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--primary);
+  }
+  .timeline-item:nth-child(2) .timeline-dot { border-color: var(--accent); color: var(--accent); }
+  .timeline-item:nth-child(3) .timeline-dot { border-color: var(--purple); color: var(--purple); }
+  .timeline-item:nth-child(4) .timeline-dot { border-color: var(--orange); color: var(--orange); }
+  .timeline-item h4 {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .timeline-item p {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    padding: 0 8px;
+  }
+
+  /* ====== TWO COLUMN ====== */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  /* ====== HIGHLIGHT BOX ====== */
+  .highlight-box {
+    background: linear-gradient(135deg, #eff6ff 0%, #f0fdfa 100%);
+    border-left: 4px solid var(--primary);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 12px 0;
+  }
+  .highlight-box strong { color: var(--primary-dark); }
+
+  /* ====== COMPARISON CARDS ====== */
+  .vs-container {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 16px;
+    align-items: center;
+    margin-top: 16px;
+  }
+  .vs-card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 24px;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+  }
+  .vs-card.probing {
+    border: 2px solid var(--primary);
+    background: linear-gradient(135deg, #eff6ff 0%, #fff 100%);
+  }
+  .vs-card h4 {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+  .vs-card ul {
+    list-style: none;
+    padding: 0;
+  }
+  .vs-card li {
+    font-size: 13px;
+    color: var(--text-secondary);
+    padding: 4px 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    line-height: 1.5;
+  }
+  .vs-card li::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    margin-top: 6px;
+    flex-shrink: 0;
+  }
+  .vs-card.probing li::before { background: var(--green); }
+  .vs-card.traditional li::before { background: var(--red); }
+  .vs-divider {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--text-light);
+  }
+
+  /* ====== RADAR / SCORING ====== */
+  .scoring-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .score-card {
+    background: var(--card-bg);
+    border-radius: 10px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    text-align: center;
+    box-shadow: var(--shadow);
+  }
+  .score-card .dim-name {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    font-weight: 500;
+  }
+  .score-card .dim-score {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--green);
+  }
+  .score-card .dim-max {
+    font-size: 14px;
+    color: var(--text-light);
+  }
+
+  /* ====== UNIQUE CAPABILITIES ====== */
+  .unique-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .unique-item {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    background: var(--card-bg);
+    border-radius: 10px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+  }
+  .unique-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .unique-item h4 {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .unique-item p {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+  }
+
+  /* ====== FLOW DIAGRAM ====== */
+  .flow-diagram {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 20px 0;
+  }
+  .flow-step {
+    background: var(--card-bg);
+    border: 2px solid var(--primary);
+    border-radius: 10px;
+    padding: 16px 20px;
+    text-align: center;
+    min-width: 140px;
+    box-shadow: var(--shadow);
+  }
+  .flow-step .step-num {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--primary);
+    text-transform: uppercase;
+  }
+  .flow-step .step-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 4px 0;
+  }
+  .flow-step .step-desc {
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .flow-arrow {
+    font-size: 24px;
+    color: var(--text-light);
+  }
+
+  /* ====== SUMMARY SLIDE ====== */
+  .summary-slide {
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+    color: #fff;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 60px;
+  }
+  .summary-slide h2 {
+    font-size: 36px;
+    font-weight: 800;
+    margin-bottom: 32px;
+    color: #93c5fd;
+  }
+  .summary-points {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  .summary-point {
+    background: rgba(255,255,255,0.08);
+    
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 12px;
+    padding: 24px;
+    text-align: left;
+  }
+  .summary-point h4 {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: #93c5fd;
+  }
+  .summary-point p {
+    font-size: 14px;
+    color: #cbd5e1;
+    line-height: 1.6;
+  }
+
+  /* Slide number indicator */
+  .slide-indicator {
+    position: absolute;
+    bottom: 16px;
+    right: 24px;
+    font-size: 12px;
+    color: var(--text-light);
+    font-weight: 500;
+  }
+
+  /* Tag list */
+  .tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  /* Code block */
+  .code-block {
+    background: #0f172a;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-family: "SF Mono", "Fira Code", monospace;
+    font-size: 12px;
+    color: #93c5fd;
+    margin: 8px 0;
+    line-height: 1.6;
+    overflow-x: auto;
+  }
+
+  /* Progress bar at top */
+  .progress-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--primary), var(--accent));
+    z-index: 999;
+    transition: width 0.3s ease;
+  }
+
+  @page {
+    size: 1280px 720px;
+    margin: 0;
+  }
+  @page :first {
+    margin: 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progressBar" style="width: 4.55%"></div>
+
+<div class="slide-container">
+
+<!-- ==================== SLIDE 1: TITLE ==================== -->
+<div class="slide title-slide active">
+  <div class="logo-area">
+    <div class="logo-icon">P</div>
+    <div class="logo-text">Probing</div>
+  </div>
+  <h1>Agent-Native<br>分布式AI训练诊断系统</h1>
+  <div class="tagline">让 Coding Agent 长出看穿分布式训练的眼睛和手<br>揭开 AI 性能的真相</div>
+  <div class="meta-row">
+    <div class="meta-item">
+      <div class="meta-label">版本</div>
+      <div class="meta-value">v0.2.5 (Beta)</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">代码规模</div>
+      <div class="meta-value">Rust 86K + Python 15K + Web 21K</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">开源协议</div>
+      <div class="meta-value">Apache 2.0</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">日期</div>
+      <div class="meta-value">2026.07</div>
+    </div>
+  </div>
+  <div class="deco-line"></div>
+</div>
+
+<!-- ==================== SLIDE 2: AGENDA ==================== -->
+<div class="slide slide-padding">
+  <div class="slide-header">
+    <span class="slide-section-tag">Agenda</span>
+  </div>
+  <div class="slide-title">汇报内容</div>
+  <div class="slide-subtitle">从价值到技术到增长 — 用云原生语言理解 Probing</div>
+  <div class="agenda-grid">
+    <div class="agenda-card">
+      <div class="agenda-num">01</div>
+      <div>
+        <h3>价值和意义</h3>
+        <p>万卡训练时代的诊断范式革命。用 K8s 类比定位：Probing 之于 AI 训练诊断 ≈ K8s 之于容器编排 — 从碎片化工具到统一平台，但难度更高（不能停机）</p>
+      </div>
+    </div>
+    <div class="agenda-card">
+      <div class="agenda-num">02</div>
+      <div>
+        <h3>技术方案和独特性</h3>
+        <p>四层架构设计、没有北向流量的范式选择、五大创新设计原则、SQL 联邦查询、分布式火焰图、Python 变量跟踪、NCCL 等待分解 — 6 项业界首创</p>
+      </div>
+    </div>
+    <div class="agenda-card">
+      <div class="agenda-num">03</div>
+      <div>
+        <h3>技术深度与竞品比较</h3>
+        <p>10 款业界工具逐维度对比，总分 3.85 架构领先但成熟度差距明显。诚实评估五大短板，明确互补而非替代的定位</p>
+      </div>
+    </div>
+    <div class="agenda-card">
+      <div class="agenda-num">04</div>
+      <div>
+        <h3>增长计划</h3>
+        <p>目标用户：AI Infra 团队。框架无关统一接入，AI Agent 自动诊断。增长飞轮：部署→零改动接入→自动诊断→Skill 沉淀。从工具到平台</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-indicator">2 / 22</div>
+</div>
+
+<!-- ==================== SLIDE 3: VALUE - THE PROBLEM ==================== -->
+<div class="slide slide-padding">
+  <div class="slide-header">
+    <span class="slide-section-tag">01 价值和意义</span>
+  </div>
+  <div class="slide-title">万卡训练时代，传统诊断范式正在崩溃</div>
+  <div class="slide-subtitle">GPU 规模从 256 扩展到 10,000+，传统 "先收集再分析" 范式在三个维度同时失效</div>
+
+  <div class="metric-row">
+    <div class="metric">
+      <div class="metric-value primary">O(N²)</div>
+      <div class="metric-label">数据传输爆炸<br>万卡全量 trace 达 TB 级，收集本身成为瓶颈</div>
+    </div>
+    <div class="metric">
+      <div class="metric-value orange">3h+</div>
+      <div class="metric-label">人工不可行<br>10K rank 逐个检查，即使每 rank 1 秒也需近 3 小时</div>
+    </div>
+    <div class="metric">
+      <div class="metric-value red">误判</div>
+      <div class="metric-label">级联故障误归因<br>ring/tree 拓扑中 1 个慢点多跳传播，统计方法将受害者误判为罪魁</div>
+    </div>
+  </div>
+
+  <div class="highlight-box">
+    <strong>核心矛盾：</strong>训练规模在指数级增长，但诊断工具仍停留在"生成火焰图 → 人工解读"的旧范式。当 GPU 数量超过 1,000 时，没有任何人类专家能有效遍历所有 rank 的性能数据。
+  </div>
+
+  <div class="two-col" style="margin-top:16px;">
+    <div class="card">
+      <div class="card-title">传统 Profiler 的困境</div>
+      <div class="card-body">
+        PyTorch Profiler、Nsight Systems 生成 GB 级 trace 文件，需要人工通过 GUI 分析；不支持结构化查询；不支持跨 rank 联邦聚合；无 AI Agent 接口；诊断知识不可复用。
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">需要的范式转换</div>
+      <div class="card-body">
+        从 <strong>"收集 → 分析"</strong> 转向 <strong>"查询 → 归因 → 闭环"</strong>：查询推送到数据所在位置，利用执行模型做确定性归因，AI Agent 自主完成诊断闭环。
+      </div>
+    </div>
+  </div>
+  <div class="slide-indicator">3 / 22</div>
+</div>
+
+<!-- ==================== SLIDE 4: VALUE - THE SOLUTION ==================== -->
+<div class="slide slide-padding">
+  <div class="slide-header">
+    <span class="slide-section-tag">01 价值和意义</span>
+  </div>
+  <div class="slide-title">Probing：Agent-Native 诊断范式</div>
+  <div class="slide-subtitle">不是又一个 Profiler，而是让 AI Agent 成为诊断流程一等公民的基础设施</div>
+
+  <div class="flow-diagram">
+    <div class="flow-step">
+      <div class="step-num">Step 1</div>
+      <div class="step-title">观测</div>
+      <div class="step-desc">SQL 查询活体遥测<br>python.torch_trace, nccl.proxy_ops</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="step-num">Step 2</div>
+      <div class="step-title">诊断</div>
+      <div class="step-desc">运行结构化 Skill<br>health_overview, slow_rank</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="step-num">Step 3</div>
+      <div class="step-title">行动</div>
+      <div class="step-desc">干预活体进程<br>eval, config, inject</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="step-num">Step 4</div>
+      <div class="step-title">验证</div>
+      <div class="step-desc">再次查询确认<br>闭环诊断回路</div>
+    </div>
+  </div>
+
+  <div class="two-col" style="margin-top:20px;">
+    <div class="card">
+      <div class="card-title">三大用户价值</div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
+        <div style="display:flex;gap:8px;align-items:flex-start;">
+          <span class="badge badge-blue">研究员</span>
+          <span style="font-size:13px;color:var(--text-secondary);">调试训练不稳定性，实时检查张量值和梯度，无需停止训练</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:flex-start;">
+          <span class="badge badge-teal">框架开发者</span>
+          <span style="font-size:13px;color:var(--text-secondary);">零侵入分析框架内部，在生产环境中调试用户报告的问题</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:flex-start;">
+          <span class="badge badge-purple">MLOps</span>
+          <span style="font-size:13px;color:var(--text-secondary);">无需重启服务即可监控，跨节点关联性能问题</span>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">安全边界设计</div>
+      <div class="card-body">
+        MCP 接口默认<strong>只读</strong>：仅接受 SELECT/WITH/SHOW/DESCRIBE，结果有大小上限。<br><br>
+        干预类工具（set_config、eval_python）需显式设置 <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:12px;">PROBING_MCP_ALLOW_WRITE=1</code> 才启用，且每次写入都有审计日志。<br><br>
+        Agent 能放手诊断，只有在你明确授权时才可改动训练任务。
+      </div>
+    </div>
+  </div>
+  <div class="slide-indicator">4 / 22</div>
+</div>
+
+<!-- ==================== SLIDE 4.5: K8S ANALOGY ==================== -->
+<div class="slide slide-padding">
+  <div class="slide-header">
+    <span class="slide-section-tag">01 价值和意义</span>
+  </div>
+  <div class="slide-title">如果用云原生语言理解 Probing</div>
+  <div class="slide-subtitle" style="font-size:15px;">Probing 之于 AI 训练诊断 ≈ K8s 之于容器编排 — 从碎片化工具到统一平台</div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:6px;">
+    <!-- Left column: K8s → Probing mapping -->
+    <div>
+      <div style="font-size:13px;font-weight:700;color:var(--primary);margin-bottom:8px;">K8s / 云原生 &nbsp;→&nbsp; Probing</div>
+      <div style="display:flex;flex-direction:column;gap:5px;">
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#eff6ff;border-radius:6px;">
+          <span style="font-size:11px;font-weight:600;color:var(--text-secondary);min-width:130px;">Kubelet in every Node</span>
+          <span style="color:var(--text-light);">→</span>
+          <span style="font-size:11px;font-weight:600;color:var(--primary);">Probe in every Rank</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#eff6ff;border-radius:6px;">
+          <span style="font-size:11px;font-weight:600;color:var(--text-secondary);min-width:130px;">kubectl (声明式 YAML)</span>
+          <span style="color:var(--text-light);">→</span>
+          <span style="font-size:11px;font-weight:600;color:var(--primary);">SQL (声明式查询)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f0fdfa;border-radius:6px;">
+          <span style="font-size:11px;font-weight:600;color:var(--text-secondary);min-width:130px;">CRD / Operator</span>
+          <span style="color:var(--text-light);">→</span>
+          <span style="font-size:11px;font-weight:600;color:var(--accent);">Skills (steps.yaml)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f0fdfa;border-radius:6px;">
+          <span style="font-size:11px;font-weight:600;color:var(--text-secondary);min-width:130px;">CSI / CNI 标准接口</span>
+          <span style="color:var(--text-light);">→</span>
+          <span style="font-size:11px;font-weight:600;color:var(--accent);">ProbeDataSource 契约</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#fff7ed;border-radius:6px;">
+          <span style="font-size:11px;font-weight:600;color:var(--text-secondary);min-width:130px;">KubeFed / Cluster API</span>
+          <span style="color:var(--text-light);">→</span>
+          <span style="font-size:11px;font-weight:600;color:var(--orange);">global.* 联邦查询</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#fff7ed;border-radius:6px;">
+          <span style="font-size:11px;font-weight:600;color:var(--text-secondary);min-width:130px;">Prometheus pull-based</span>
+          <span style="color:var(--text-light);">→</span>
+          <span style="font-size:11px;font-weight:600;color:var(--orange);">没有北向流量</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#faf5ff;border-radius:6px;">
+          <span style="font-size:11px;font-weight:600;color:var(--text-secondary);min-width:130px;">Sidecar 注入 (webhook)</span>
+          <span style="color:var(--text-light);">→</span>
+          <span style="font-size:11px;font-weight:600;color:var(--purple);">PROBING=1 / inject</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#faf5ff;border-radius:6px;">
+          <span style="font-size:11px;font-weight:600;color:var(--text-secondary);min-width:130px;">OperatorHub / Helm Hub</span>
+          <span style="color:var(--text-light);">→</span>
+          <span style="font-size:11px;font-weight:600;color:var(--purple);">Skills 社区市场</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right column: Significance & Difficulty -->
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div class="card" style="padding:14px;">
+        <div class="card-title" style="font-size:13px;">同一个级别的意义</div>
+        <div style="font-size:12px;color:var(--text-secondary);line-height:1.7;margin-top:6px;">
+          K8s 统一了碎片化的容器编排生态：<strong>Mesos / Swarm / Nomad → 统一 API + 声明式模型</strong>。<br><br>
+          Probing 正在统一碎片化的训练诊断生态：<strong>Nsight / PyTorch Profiler / Megatron profiler → 统一 SQL + Agent 接口</strong>。<br><br>
+          两者都是<strong>从"每个团队写脚本"到"声明一个意图"</strong>的范式跃迁。
+        </div>
+      </div>
+      <div class="card" style="padding:14px;border-left:4px solid var(--red);">
+        <div class="card-title" style="font-size:13px;color:var(--red);">但难度更高</div>
+        <div style="font-size:12px;color:var(--text-secondary);line-height:1.7;margin-top:6px;">
+          K8s 管理的是<strong>无状态容器</strong>——Pod 挂了可以重启，调度失败可以重试。<br><br>
+          Probing 管理的是<strong>有状态训练进程</strong>——<span style="color:var(--red);font-weight:600;">不能重启、不能中断、不能有可感知开销</span>。万卡训练一次中断损失数十万元，zero-overhead 不是优化目标而是生存约束。<br><br>
+          相当于在<strong>不能停机的生产数据库内部</strong>建一套 K8s 控制面。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="highlight-box" style="margin-top:10px;padding:10px 16px;">
+    <strong>一句话给老板：</strong>K8s 让部署从写脚本变成写 YAML；Probing 让诊断从写脚本变成写 SQL。K8s 管无状态容器可重启，Probing 管有状态训练进程不能中断——这是更硬的约束，也是更深的护城河。
+  </div>
+  <div class="slide-indicator">5 / 22</div>
+</div>
+
+<!-- ==================== SLIDE 5: VALUE - KEY NUMBERS ==================== -->
+<div class="slide slide-padding">
+  <div class="slide-header">
+    <span class="slide-section-tag">01 价值和意义</span>
+  </div>
+  <div class="slide-title">项目规模与技术资产</div>
+  <div class="slide-subtitle">Probing 已具备完整的系统级实现，覆盖从底层存储到 Agent 接口的全链路</div>
+
+  <div class="metric-row" style="grid-template-columns: repeat(4,1fr); display:grid; gap:16px;">
+    <div class="metric">
+      <div class="metric-value primary">86K</div>
+      <div class="metric-label">Rust 代码行<br>(不含 Web)</div>
+    </div>
+    <div class="metric">
+      <div class="metric-value accent">15K</div>
+      <div class="metric-label">Python SDK<br>代码行</div>
+    </div>
+    <div class="metric">
+      <div class="metric-value purple">21K</div>
+      <div class="metric-label">Web UI<br>(Dioxus WASM)</div>
+    </div>
+    <div class="metric">
+      <div class="metric-value orange">15</div>
+      <div class="metric-label">Workspace<br>Crates</div>
+    </div>
+  </div>
+
+  <div class="two-col" style="margin-top:8px;">
+    <div class="card">
+      <div class="card-title">诊断能力覆盖</div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
+        <div style="display:flex;justify-content:space-between;font-size:13px;">
+          <span style="color:var(--text-secondary);">预置诊断 Skill</span>
+          <strong>13 个</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;">
+          <span style="color:var(--text-secondary);">MCP 工具</span>
+          <strong>8 个</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;">
+          <span style="color:var(--text-secondary);">SQL 数据表</span>
+          <strong>20+ 表</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;">
+          <span style="color:var(--text-secondary);">联邦标签列</span>
+          <strong>6 个</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;">
+          <span style="color:var(--text-secondary);">开销不变量</span>
+          <strong>6 条形式化</strong>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">硬件与生态支持</div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
+        <div style="display:flex;justify-content:space-between;font-size:13px;">
+          <span style="color:var(--text-secondary);">NVIDIA NCCL</span>
+          <span class="badge badge-green">v3 + v4 ABI</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;">
+          <span style="color:var(--text-secondary);">华为昇腾 HCCL</span>
+          <span class="badge badge-orange">Shim 兼容层</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;">
+          <span style="color:var(--text-secondary);">PyTorch</span>
+          <span class="badge badge-blue">2.8+ 推荐</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;">
+          <span style="color:var(--text-secondary);">Agent 集成</span>
+          <span class="badge badge-purple">Cursor/Claude/Codex</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;">
+          <span style="color:var(--text-secondary);">平台</span>
+          <span class="badge badge-teal">Linux (macOS 部分)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="highlight-box" style="margin-top:16px;">
+    <strong>安装即用：</strong><code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:12px;">pip install probing</code> — 零代码修改，<code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:12px;">PROBING=1 python train.py</code> 即可启用，或 <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:12px;">probing -t PID inject</code> 注入运行中进程。
+  </div>
+  <div class="slide-indicator">6 / 22</div>
+</div>
+
+<!-- ==================== SLIDE 6: ARCH - FOUR LAYERS ==================== -->
+<div class="slide slide-padding">
+  <div class="slide-header">
+    <span class="slide-section-tag">02 技术方案和独特性</span>
+  </div>
+  <div class="slide-title">四层分层架构 — 教科书级 Clean Architecture</div>
+  <div class="slide-subtitle">依赖方向严格单向向下，6 个公共契约定义模块交互边界，组合根只存在于 engine.rs</div>
+
+  <div class="arch-diagram">
+    <div class="arch-layer" style="border-left:4px solid var(--purple); background:#faf5ff;">
+      <div class="arch-layer-tag" style="background:#ede9fe;color:var(--purple);">L4</div>
+      <div class="arch-layer-content">
+        <strong>Experience 体验层</strong> — skills/ (13个诊断剧本) · web/ (Dioxus WASM UI) · Python hooks &nbsp;<span style="font-size:11px;background:#ede9fe;color:var(--purple);padding:1px 8px;border-radius:3px;">≈ Helm / Operator 生态</span><br>
+        <span style="font-size:12px;">诊断 UX、声明式知识库、可视化</span>
+      </div>
+    </div>
+    <div class="arch-arrow">↓ 依赖方向</div>
+    <div class="arch-layer" style="border-left:4px solid var(--orange); background:#fff7ed;">
+      <div class="arch-layer-tag" style="background:#ffedd5;color:var(--orange);">L3</div>
+      <div class="arch-layer-content">
+        <strong>Control 控制层</strong> — probing/server (HTTP/MCP) · probing/cli (命令行) &nbsp;<span style="font-size:11px;background:#ffedd5;color:var(--orange);padding:1px 8px;border-radius:3px;">≈ API Server + kubectl</span><br>
+        <span style="font-size:12px;">HTTP API、MCP 工具、注入、联邦 fan-out</span>
+      </div>
+    </div>
+    <div class="arch-arrow">↓</div>
+    <div class="arch-layer" style="border-left:4px solid var(--accent); background:#f0fdfa;">
+      <div class="arch-layer-tag" style="background:#ccfbf1;color:var(--accent);">L2</div>
+      <div class="arch-layer-content">
+        <strong>Collectors 采集层</strong> — probing-python · probing-nccl-profiler · probing-gpu · probing-cc &nbsp;<span style="font-size:11px;background:#ccfbf1;color:var(--accent);padding:1px 8px;border-radius:3px;">≈ CSI / CNI 驱动</span><br>
+        <span style="font-size:12px;">指标采集：Torch trace、NCCL proxy、GPU 利用率、系统指标</span>
+      </div>
+    </div>
+    <div class="arch-arrow">↓</div>
+    <div class="arch-layer" style="border-left:4px solid var(--primary); background:#eff6ff;">
+      <div class="arch-layer-tag" style="background:#dbeafe;color:var(--primary);">L1</div>
+      <div class="arch-layer-content">
+        <strong>Platform 平台层</strong> — probing-core (SQL引擎/联邦) · memtable (无锁存储) · proto (wire types) · macros &nbsp;<span style="font-size:11px;background:#dbeafe;color:var(--primary);padding:1px 8px;border-radius:3px;">≈ etcd + controller manager</span><br>
+        <span style="font-size:12px;">Apache DataFusion SQL 引擎、联邦三路径路由、MEMT 二进制格式</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="two-col" style="margin-top:12px;">
+    <div class="card">
+      <div class="card-title">6 个公共契约</div>
+      <div class="card-body">
+        <span class="badge badge-blue">ProbeDataSource</span> SQL 表注册<br>
+        <span class="badge badge-teal">ProbeExtension</span> 配置 + HTTP API<br>
+        <span class="badge badge-purple">@table</span> Python 数据表<br>
+        <span class="badge badge-orange">skills YAML</span> 诊断剧本<br>
+        <span class="badge badge-blue">proto DTOs</span> 线协议<br>
+        <span class="badge badge-green">Federation tags</span> 联邦标签
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">关键设计原则</div>
+      <div class="card-body">
+        组合根只在 <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;font-size:12px;">engine.rs</code> · 不允许 L2 collector 交叉依赖 · 禁止 CLI/Web 链接 probing-core · modularity.md 以表格追踪技术债务 · AGENTS.md 为 AI 协作设计编码规范
+      </div>
+    </div>
+  </div>
+  <div class="slide-indicator">7 / 22</div>
+</div>
+
+<!-- ==================== SLIDE 7: ARCH - CORE TECH ==================== -->
+<div class="slide slide-padding">
+  <div class="slide-header">
+    <span class="slide-section-tag">02 技术方案和独特性</span>
+  </div>
+  <div class="slide-title">核心技术能力</div>
+  <div class="slide-subtitle">从系统层做起：免插桩注入、SQL 化遥测、NCCL 等待分解、跨节点联邦 — 数据天生是给 Agent 消费的结构</div>
+
+  <div class="feature-grid">
+    <div class="feature-item">
+      <div class="feature-icon" style="background:#dbeafe;">🔍</div>
+      <h4>动态探针注入</h4>
+      <p>运行时附加到进程，无需代码修改。通过 Python .pth hook 或 <code style="font-size:11px;">probing inject</code> 注入。支持远程进程。</p>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon" style="background:#ccfbf1;">🗄️</div>
+      <h4>SQL 查询引擎</h4>
+      <p>嵌入 Apache DataFusion，支持 JOIN/窗口函数/CTE/子查询。自定义表只需实现 TableProvider trait。</p>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon" style="background:#ede9fe;">🌐</div>
+      <h4>联邦三路径路由</h4>
+      <p>AST 级 SQL 分析：聚合下推 O(1)、流式扫描 O(N)、广播 O(N²)。自动注入联邦标签列和查询护栏。</p>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon" style="background:#ffedd5;">⚡</div>
+      <h4>NCCL 等待分解</h4>
+      <p>导出 ncclProfiler_v3/v4 C 符号，零侵入采集。Proxy Step Wait 三段分解：SendGpuWait → PeerWait → SendWait。</p>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon" style="background:#dcfce7;">🧪</div>
+      <h4>Shadow Step 校准</h4>
+      <p>4:1 节奏 A/B 对照：4 个 probed step + 1 个 shadow baseline，自动量化探测开销本身。</p>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon" style="background:#fee2e2;">🤖</div>
+      <h4>MCP Agent 接口</h4>
+      <p>8 个 MCP 工具：query/run_skill/list_tables 等。写入操作受环境变量控制，默认只读。</p>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon" style="background:#dbeafe;">📝</div>
+      <h4>声明式诊断剧本</h4>
+      <p>13 个预置 Skill：health_overview, slow_rank, nccl_culprit_victim 等。YAML + MD 双文件，可在 CLI/Web/MCP 三端运行。</p>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon" style="background:#ccfbf1;">💾</div>
+      <h4>无锁 mmap 存储</h4>
+      <p>自描述 MEMT 格式：环形缓冲 + generation 计数。单写者 + 无锁读者，零拷贝零序列化跨进程共享。</p>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon" style="background:#ede9fe;">🔄</div>
+      <h4>延迟 GPU 事件读取</h4>
+      <p>采样步延迟 3~16 步后异步读取 GPU 事件，将 sync 频率从"每步一次"降低到"每 16 步一次"。</p>
+    </div>
+  </div>
+  <div class="slide-indicator">8 / 22</div>
+</div>
+
+<!-- ==================== SLIDE 8: VIVID FEATURES ==================== -->
+<div class="slide slide-padding">
+  <div class="slide-header">
+    <span class="slide-section-tag">02 技术方案和独特性</span>
+  </div>
+  <div class="slide-title">杀手级功能 — 三个鲜活场景</div>
+  <div class="slide-subtitle">不是抽象的"低开销采集"，而是老板能看懂的具体能力：分布式火焰图、Python 变量跟踪、分布式 Query 热力图</div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+
+    <!-- 分布式火焰图 -->
+    <div class="card" style="display:flex;flex-direction:column;">
+      <div class="card-title">
+        <span style="font-size:18px;">🔥</span>
+        分布式火焰图
+      </div>
+      <!-- Mini flame graph visual -->
+      <div style="background:#0f172a;border-radius:8px;padding:10px;margin-bottom:10px;">
+        <div style="display:flex;gap:1px;margin-bottom:1px;">
+          <div style="flex:1;height:14px;background:#3b82f6;border-radius:2px 2px 0 0;"></div>
+        </div>
+        <div style="display:flex;gap:1px;margin-bottom:1px;">
+          <div style="flex:2;height:14px;background:#0d9488;border-radius:2px 2px 0 0;"></div>
+          <div style="flex:1;height:14px;background:#7c3aed;border-radius:2px 2px 0 0;"></div>
+        </div>
+        <div style="display:flex;gap:1px;margin-bottom:1px;">
+          <div style="flex:1;height:14px;background:#ea580c;border-radius:2px;"></div>
+          <div style="flex:2;height:14px;background:#16a34a;border-radius:2px 2px 0 0;"></div>
+          <div style="flex:1;height:14px;background:#dc2626;border-radius:2px;"></div>
+        </div>
+        <div style="display:flex;gap:1px;">
+          <div style="flex:1;height:12px;background:#f59e0b;border-radius:0 0 2px 2px;"></div>
+          <div style="flex:1;height:12px;background:#8b5cf6;"></div>
+          <div style="flex:1;height:12px;background:#06b6d4;"></div>
+          <div style="flex:1;height:12px;background:#ef4444;border-radius:0 0 2px 2px;"></div>
+        </div>
+        <div style="text-align:center;font-size:9px;color:#64748b;margin-top:4px;">rank 0~127 栈聚合</div>
+      </div>
+      <div class="card-body" style="font-size:12px;">
+        <strong>跨 rank 栈自动聚合</strong>：128 个 rank 执行相同代码的栈合并 count，不同路径分叉显示。Python/Native 栈在 <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;font-size:11px;">_PyEval_EvalFrameDefault</code> 边界拼接。
+        <div class="code-block" style="margin-top:8px;font-size:10px;padding:8px;">
+-- 联邦查询所有 rank 的模块栈<br>
+SELECT module, stage,<br>
+&nbsp;&nbsp;median(duration)<br>
+FROM global.python.torch_trace<br>
+WHERE local_step = 7<br>
+GROUP BY module, stage
+        </div>
+      </div>
+    </div>
+
+    <!-- Python 变量跟踪 -->
+    <div class="card" style="display:flex;flex-direction:column;">
+      <div class="card-title">
+        <span style="font-size:18px;">🐍</span>
+        Python 变量跟踪
+      </div>
+      <!-- Variable tracking visual -->
+      <div style="background:#0f172a;border-radius:8px;padding:10px;margin-bottom:10px;font-family:monospace;font-size:10px;color:#93c5fd;line-height:1.8;">
+        <span style="color:#64748b;"># 运行时注入，零代码修改</span><br>
+        <span style="color:#14b8a6;">trace</span>(<span style="color:#fbbf24;">"train_loop"</span>,<br>
+        &nbsp;&nbsp;watch=[<span style="color:#fbbf24;">"loss"</span>, <span style="color:#fbbf24;">"grad_norm"</span>])<br>
+        <span style="color:#64748b;"># loss 变化自动记录 ↓</span><br>
+        <span style="color:#94a3b8;">step=42 loss=</span><span style="color:#f87171;">2.31</span><br>
+        <span style="color:#94a3b8;">step=43 loss=</span><span style="color:#fbbf24;">2.18</span><br>
+        <span style="color:#94a3b8;">step=44 loss=</span><span style="color:#34d399;">1.95</span>
+      </div>
+      <div class="card-body" style="font-size:12px;">
+        <strong>运行时追踪任意变量</strong>：变量 <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;font-size:11px;">id()</code> 变化即记录函数名、行号、值、类型。<code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;font-size:11px;">torch.Tensor</code> inplace 操作自动拦截。
+        <div class="code-block" style="margin-top:8px;font-size:10px;padding:8px;">
+-- 查询 loss 变更历史<br>
+SELECT lineno, variable_name,<br>
+&nbsp;&nbsp;value, value_type<br>
+FROM python.trace_variables<br>
+WHERE variable_name = <span style="color:#fbbf24;">'loss'</span><br>
+ORDER BY lineno
+        </div>
+      </div>
+    </div>
+
+    <!-- 分布式 Query 热力图 -->
+    <div class="card" style="display:flex;flex-direction:column;">
+      <div class="card-title">
+        <span style="font-size:18px;">🗺️</span>
+        分布式 Query 热力图
+      </div>
+      <!-- Heatmap visual -->
+      <div style="background:#0f172a;border-radius:8px;padding:10px;margin-bottom:10px;">
+        <div style="display:flex;gap:2px;margin-bottom:2px;">
+          <div style="width:20px;font-size:8px;color:#64748b;text-align:right;padding-right:2px;">r0</div>
+          <div style="flex:1;display:flex;gap:1px;">
+            <div style="flex:1;height:12px;background:#34d399;border-radius:1px;"></div>
+            <div style="flex:1;height:12px;background:#34d399;border-radius:1px;"></div>
+            <div style="flex:1;height:12px;background:#fbbf24;border-radius:1px;"></div>
+            <div style="flex:1;height:12px;background:#34d399;border-radius:1px;"></div>
+            <div style="flex:1;height:12px;background:#34d399;border-radius:1px;"></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:2px;margin-bottom:2px;">
+          <div style="width:20px;font-size:8px;color:#64748b;text-align:right;padding-right:2px;">r1</div>
+          <div style="flex:1;display:flex;gap:1px;">
+            <div style="flex:1;height:12px;background:#34d399;border-radius:1px;"></div>
+            <div style="flex:1;height:12px;background:#34d399;border-radius:1px;"></div>
+            <div style="flex:1;height:12px;background:#34d399;border-radius:1px;"></div>
+            <div style="flex:1;height:12px;background:#34d399;border-radius:1px;"></div>
+            <div style="flex:1;height:12px;background:#34d399;border-radius:1px;"></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:2px;margin-bottom:2px;">
+          <div style="width:20px;font-size:8px;color:#f87171;text-align:right;padding-right:2px;font-weight:700;">r2</div>
+          <div style="flex:1;display:flex;gap:1px;">
+            <div style="flex:1;height:12px;background:#ef4444;border-radius:1px;"></div>
+            <div style="flex:1;height:12px;background:#f87171;border-radius:1px;"></div>
+            <div style="flex:1;height:12px;background:#ef4444;border-radius:1px;"></div>
+            <div style="flex:1;height:12px;background:#f87171;border-radius:1px;"></div>
+            <div style="flex:1;height:12px;background:#ef4444;border-radius:1px;"></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:2px;margin-bottom:2px;">
+          <div style="width:20px;font-size:8px;color:#64748b;text-align:right;padding-right:2px;">r3</div>
+          <div style="flex:1;display:flex;gap:1px;">
+            <div style="flex:1;height:12px;background:#34d399;border-radius:1px;"></div>
+            <div style="flex:1;height:12px;background:#fbbf24;border-radius:1px;"></div>
+            <div style="flex:1;height:12px;background:#34d399;border-radius:1px;"></div>
+            <div style="flex:1;height:12px;background:#34d399;border-radius:1px;"></div>
+            <div style="flex:1;height:12px;background:#34d399;border-radius:1px;"></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:2px;">
+          <div style="width:20px;font-size:8px;color:#64748b;text-align:right;padding-right:2px;">...</div>
+          <div style="flex:1;display:flex;gap:1px;">
+            <div style="flex:1;height:12px;background:#34d399;border-radius:1px;"></div>
+            <div style="flex:1;height:12px;background:#34d399;border-radius:1px;"></div>
+            <div style="flex:1;height:12px;background:#fbbf24;border-radius:1px;"></div>
+            <div style="flex:1;height:12px;background:#34d399;border-radius:1px;"></div>
+            <div style="flex:1;height:12px;background:#34d399;border-radius:1px;"></div>
+          </div>
+        </div>
+        <div style="text-align:center;font-size:9px;color:#64748b;margin-top:4px;">🔴 rank 2 是 straggler</div>
+      </div>
+      <div class="card-body" style="font-size:12px;">
+        <strong>一条 SQL 跨 rank 聚合</strong>：rank × step 矩阵，颜色深浅 = 步时长。一眼识别 straggler 和异常 step。联邦下推 O(1) 传输。
+        <div class="code-block" style="margin-top:8px;font-size:10px;padding:8px;">
+-- 跨 rank 步时长热力图<br>
+SELECT _rank, global_step,<br>
+&nbsp;&nbsp;avg(duration_ms)<br>
+FROM global.python.comm_collective<br>
+GROUP BY _rank, global_step
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="highlight-box" style="margin-top:14px;">
+    <strong>这三个功能的共同点：</strong>数据天然是结构化的、可 SQL 查询的、跨 rank 联邦的。传统 Profiler 生成 trace 文件后需要人工用 GUI 分析；Probing 让 Agent 用一条 SQL 就能拿到跨 128 个 rank 的聚合结果 — 这就是 Agent-Native 的具体含义。
+  </div>
+  <div class="slide-indicator">9 / 22</div>
+</div>
+
+<!-- ==================== SLIDE 9: ARCH - UNIQUE INNOVATIONS ==================== -->
+<div class="slide slide-padding">
+  <div class="slide-header">
+    <span class="slide-section-tag">02 技术方案和独特性</span>
+  </div>
+  <div class="slide-title">6 项业界首创 — 套壳工具伪造不出来的护城河</div>
+  <div class="slide-subtitle">护城河在底下的系统层：活体注入、关系型遥测、NCCL 分解、跨节点联邦 — 这些是 Agent 集成能触达的基础</div>
+
+  <div class="unique-list">
+    <div class="unique-item">
+      <div class="unique-icon" style="background:#dbeafe;">1</div>
+      <div>
+        <h4>联邦 SQL 查询</h4>
+        <p>业界首个支持跨 rank SQL 联邦查询的训练诊断系统。AST 级路由，聚合下推 O(1) 传输。</p>
+      </div>
+    </div>
+    <div class="unique-item">
+      <div class="unique-icon" style="background:#ccfbf1;">2</div>
+      <div>
+        <h4>MCP 协议集成</h4>
+        <p>业界首个为 AI Agent 设计的训练诊断接口。8 个 MCP 工具，Cursor/Claude Code/Codex 原生支持。</p>
+      </div>
+    </div>
+    <div class="unique-item">
+      <div class="unique-icon" style="background:#ede9fe;">3</div>
+      <div>
+        <h4>声明式诊断剧本</h4>
+        <p>业界首个将诊断知识固化为可执行 YAML 的系统。13 个预置 Skill，可复用、可扩展。</p>
+      </div>
+    </div>
+    <div class="unique-item">
+      <div class="unique-icon" style="background:#ffedd5;">4</div>
+      <div>
+        <h4>Culprit/Victim 自动归因</h4>
+        <p>业界首个从 NCCL 时间戳自动推导故障 rank 的系统。区分"谁慢"和"谁因别人慢而等待"。</p>
+      </div>
+    </div>
+    <div class="unique-item">
+      <div class="unique-icon" style="background:#dcfce7;">5</div>
+      <div>
+        <h4>Shadow Step 开销校准</h4>
+        <p>业界首个自动量化探测开销的训练采样器。4:1 A/B 对照，6 条形式化开销不变量 + 自动化测试守护。</p>
+      </div>
+    </div>
+    <div class="unique-item">
+      <div class="unique-icon" style="background:#fee2e2;">6</div>
+      <div>
+        <h4>跨硬件生态兼容</h4>
+        <p>同时支持 NVIDIA NCCL (v3+v4 ABI) 和华为昇腾 HCCL。dlopen 拦截 libprofapi.so，映射到统一采集路径。</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-indicator">10 / 22</div>
+</div>
+
+<!-- ==================== SLIDE A: INNOVATION - NO NORTHBOUND TRAFFIC ==================== -->
+<div class="slide slide-padding">
+  <div class="slide-header">
+    <span class="slide-section-tag">02 技术方案和独特性</span>
+  </div>
+  <div class="slide-title">创新设计 (一)：没有北向流量 — 范式的根本选择</div>
+  <div class="slide-subtitle">不是实现细节，而是架构哲学：数据不动，查询动</div>
+
+  <div class="vs-container" style="margin-top:8px;">
+    <div class="vs-card traditional" style="padding:18px;">
+      <h4 style="color:var(--text-secondary);font-size:14px;">传统方案：北向汇聚</h4>
+      <div style="font-size:12px;color:var(--text-secondary);line-height:1.8;margin-top:8px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <span style="background:#fee2e2;color:var(--red);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">rank 0</span>
+          <span>→ collector →</span>
+          <span style="background:#f1f5f9;padding:2px 8px;border-radius:4px;font-size:11px;">中心服务器</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <span style="background:#fee2e2;color:var(--red);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">rank 1</span>
+          <span>→ collector →</span>
+          <span style="background:#f1f5f9;padding:2px 8px;border-radius:4px;font-size:11px;">中心服务器</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <span style="background:#fee2e2;color:var(--red);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">rank N</span>
+          <span>→ collector →</span>
+          <span style="background:#f1f5f9;padding:2px 8px;border-radius:4px;font-size:11px;">中心服务器</span>
+        </div>
+        <div style="margin-top:10px;padding:8px;background:#fef2f2;border-radius:6px;">
+          <strong style="color:var(--red);font-size:11px;">四大问题：</strong><br>
+          <span style="font-size:11px;">• 带宽 O(N) 放大，中心节点网络瓶颈<br>
+          • 中心节点单点故障 = 诊断全断<br>
+          • 序列化+网络IO 侵入训练热路径<br>
+          • 中心节点需存储全量数据</span>
+        </div>
+      </div>
+    </div>
+    <div class="vs-divider" style="font-size:20px;">VS</div>
+    <div class="vs-card probing" style="padding:18px;">
+      <h4 style="color:var(--primary);font-size:14px;">Probing：数据留存在本地</h4>
+      <div style="font-size:12px;color:var(--text-secondary);line-height:1.8;margin-top:8px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <span style="background:#dbeafe;color:var(--primary);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">rank 0</span>
+          <span style="font-size:11px;">① → ② → ③ → ④ memtable</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <span style="background:#dbeafe;color:var(--primary);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">rank 1</span>
+          <span style="font-size:11px;">① → ② → ③ → ④ memtable</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <span style="background:#dbeafe;color:var(--primary);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">rank N</span>
+          <span style="font-size:11px;">① → ② → ③ → ④ memtable</span>
+        </div>
+        <div style="margin-top:6px;text-align:center;font-size:11px;color:var(--text-light);">训练期间零网络流量 ↓</div>
+        <div style="text-align:center;font-size:11px;color:var(--accent);font-weight:600;margin-top:2px;">诊断时 coordinator 按需拉取（南向）</div>
+        <div style="margin-top:10px;padding:8px;background:#eff6ff;border-radius:6px;">
+          <strong style="color:var(--primary);font-size:11px;">四大收益：</strong><br>
+          <span style="font-size:11px;">• 训练热路径只做 mmap append，开销可控<br>
+          • memtable 内存有界，格式统一<br>
+          • 进程退出后文件仍可 attach 查询<br>
+          • 路径 A 聚合下推：peer 只返回少量行</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="two-col" style="margin-top:12px;">
+    <div class="card" style="padding:14px;">
+      <div class="card-title" style="font-size:13px;">有意的 Tradeoff</div>
+      <div class="card-body" style="font-size:11px;">
+        放弃实时 dashboard 的「好看」，换取训练热路径的「不干扰」。放弃跨 global 表 JOIN 的灵活性，换取联邦查询的正确性和可推理性。<strong>这些约束是设计选择，不是技术缺陷。</strong>
+      </div>
+    </div>
+    <div class="card" style="padding:14px;">
+      <div class="card-title" style="font-size:13px;">为什么是创新的</div>
+      <div class="card-body" style="font-size:11px;">
+        NVIDIA Nsight、PyTorch Profiler、Megatron 内置 profiling 全部走北向汇聚。Probing 是<strong>第一个</strong>把完整诊断栈嵌入训练进程、数据零上报、查询按需拉取的系统。这个范式选择决定了后续所有设计的走向。
+      </div>
+    </div>
+  </div>
+  <div class="slide-indicator">11 / 22</div>
+</div>
+
+<!-- ==================== SLIDE B: INNOVATION - FIVE DESIGN PRINCIPLES ==================== -->
+<div class="slide slide-padding">
+  <div class="slide-header">
+    <span class="slide-section-tag">02 技术方案和独特性</span>
+  </div>
+  <div class="slide-title">创新设计 (二)：五大设计原则及其创新逻辑</div>
+  <div class="slide-subtitle">每个设计都有明确的 tradeoff，而且这些 tradeoff 是有意为之的</div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+
+    <!-- 1. SQL as unified interface -->
+    <div class="card" style="padding:16px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <div style="width:28px;height:28px;border-radius:6px;background:#dbeafe;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--primary);">1</div>
+        <h4 style="font-size:14px;">SQL 作为统一诊断接口</h4>
+      </div>
+      <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">
+        <strong>原则：</strong>诊断逻辑写在 skill SQL 中，不在 engine 硬编码分支。<br>
+        <strong>创新理由：</strong>传统 profiler 的诊断逻辑硬编码在工具里。Probing 让"找最慢模块"变成一条 SQL，<strong>任何诊断逻辑都能被 Agent 自动化执行</strong>。engine.rs 只负责注册和路由，新诊断 = 新 skill SQL，不需要改引擎代码。
+      </div>
+      <div class="code-block" style="margin-top:8px;font-size:10px;padding:8px;">
+SELECT module, median(duration)<br>
+FROM python.torch_trace<br>
+WHERE stage LIKE 'post forward%'<br>
+GROUP BY module ORDER BY 2 DESC
+      </div>
+    </div>
+
+    <!-- 2. probe.* vs global.* -->
+    <div class="card" style="padding:16px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <div style="width:28px;height:28px;border-radius:6px;background:#ccfbf1;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--accent);">2</div>
+        <h4 style="font-size:14px;">probe.* 与 global.* 的二象性</h4>
+      </div>
+      <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">
+        <strong>原则：</strong>同一组物理表的两个视图，差异仅在于是否跨 rank fan-out。<br>
+        <strong>创新理由：</strong>coordinator 收到 <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;font-size:11px;">global.*</code> 时改写为 <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;font-size:11px;">probe.*</code> 发给 peer。<strong>peer 侧永远执行 probe.*</strong> — 从根本上杜绝递归联邦。不是两张表，而是同一张表的安全视图切换。
+      </div>
+      <div style="margin-top:8px;display:flex;gap:8px;">
+        <div style="flex:1;background:#eff6ff;padding:8px;border-radius:6px;text-align:center;">
+          <div style="font-size:11px;font-weight:700;color:var(--primary);">probe.*</div>
+          <div style="font-size:10px;color:var(--text-secondary);">本地扫描<br>单 rank 调试</div>
+        </div>
+        <div style="flex:1;background:#f0fdfa;padding:8px;border-radius:6px;text-align:center;">
+          <div style="font-size:11px;font-weight:700;color:var(--accent);">global.*</div>
+          <div style="font-size:10px;color:var(--text-secondary);">联邦 fan-out<br>跨 rank 聚合</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Six federation labels -->
+    <div class="card" style="padding:16px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <div style="width:28px;height:28px;border-radius:6px;background:#ede9fe;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--purple);">3</div>
+        <h4 style="font-size:14px;">六列联邦标签自动注入</h4>
+      </div>
+      <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">
+        <strong>原则：</strong>合并结果时自动附加 6 列标签，但显式列清单不自动带。<br>
+        <strong>创新理由：</strong>这是一个<strong>有意的设计约束</strong> — 防止用户在不知情情况下拿到带标签的列导致聚合出错。SELECT * 自动展开标签方便探索；明确指定列时则严格只返回请求的列。安全与灵活的精确平衡。
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;">
+        <span style="background:#ede9fe;color:var(--purple);padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;">_host</span>
+        <span style="background:#ede9fe;color:var(--purple);padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;">_addr</span>
+        <span style="background:#ede9fe;color:var(--purple);padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;">_rank</span>
+        <span style="background:#ede9fe;color:var(--purple);padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;">_node_rank</span>
+        <span style="background:#ede9fe;color:var(--purple);padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;">_local_rank</span>
+        <span style="background:#ede9fe;color:var(--purple);padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;">_role</span>
+      </div>
+    </div>
+
+    <!-- 4. AST-level federation routing -->
+    <div class="card" style="padding:16px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <div style="width:28px;height:28px;border-radius:6px;background:#ffedd5;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--orange);">4</div>
+        <h4 style="font-size:14px;">联邦三路径 — SQL AST 级选型</h4>
+      </div>
+      <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">
+        <strong>原则：</strong>不是字符串匹配，是解析 SQL 抽象语法树判断路由路径。<br>
+        <strong>创新理由：</strong>路径 A 检测到可 merge 的 GROUP BY → 各 peer 先聚合，只返回少量行（<strong>80% 集群查询走这条路径</strong>）。解析失败时<strong>保守走 C</strong> — 宁可慢，不能错。这是分布式查询优化器在训练诊断场景的首次应用。
+      </div>
+      <div style="margin-top:8px;display:flex;gap:4px;">
+        <div style="flex:1;background:#dcfce7;padding:6px;border-radius:4px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--green);">路径 A</div>
+          <div style="font-size:9px;color:var(--text-secondary);">聚合下推 O(1)</div>
+        </div>
+        <div style="flex:1;background:#ffedd5;padding:6px;border-radius:4px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--orange);">路径 B</div>
+          <div style="font-size:9px;color:var(--text-secondary);">联邦扫描 O(N)</div>
+        </div>
+        <div style="flex:1;background:#fee2e2;padding:6px;border-radius:4px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--red);">路径 C</div>
+          <div style="font-size:9px;color:var(--text-secondary);">广播 O(N²)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. Agent-Native from day one -->
+    <div class="card" style="padding:16px;grid-column:span 2;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <div style="width:28px;height:28px;border-radius:6px;background:#dcfce7;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--green);">5</div>
+        <h4 style="font-size:14px;">Agent-Native 不是事后添加，是架构第一天就有的</h4>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">
+          <strong>原则：</strong>MCP 暴露的 query / run_skill / cluster_query 和 CLI / Web / skill 走的是<strong>同一个 Engine::async_query 入口</strong>。<br>
+          <strong>创新理由：</strong>Agent 不需要学新 API，只需要会写 SQL 或调用 skill。默认只读，写入需 PROBING_MCP_ALLOW_WRITE=1。这不是给传统工具"加个 API"，而是<strong>从架构第一天就把 Agent 作为一等公民设计</strong>。
+        </div>
+        <div class="code-block" style="font-size:10px;padding:8px;margin:0;">
+{<br>
+&nbsp;&nbsp;"mcpServers": {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;"probing": {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"url": "http://127.0.0.1:8080/mcp"<br>
+&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+&nbsp;&nbsp;}<br>
+}<br>
+<span style="color:#64748b;">// 一行配置，Agent 即获得完整的诊断能力</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <div class="slide-indicator">12 / 22</div>
+</div>
+
+<!-- ==================== SLIDE 9: DEPTH - MEMTABLE ==================== -->
+<div class="slide slide-padding">
+  <div class="slide-header">
+    <span class="slide-section-tag">03 技术深度</span>
+  </div>
+  <div class="slide-title">技术深度 (一)：无锁存储 + 联邦路由</div>
+  <div class="slide-subtitle">两个设计最精巧的组件，构成了低开销采集和跨节点查询的基础</div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">MEMT 无锁存储格式</div>
+      <div class="card-body" style="margin-top:8px;">
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div><strong>环形缓冲区 + generation 计数</strong><br><span style="font-size:12px;">固定 chunk 组成环形，回收时 generation+1，读者比较前后值检测并丢弃回收 chunk</span></div>
+          <div><strong>单写者 + 无锁读者</strong><br><span style="font-size:12px;">写者 &mut self 排他，读者通过 Acquire/Release 内存序完全无锁</span></div>
+          <div><strong>三种后端统一抽象</strong><br><span style="font-size:12px;">Heap (进程内) / Shm (shm_open 跨进程) / File (mmap 持久化)</span></div>
+          <div><strong>per-chunk 字符串去重</strong><br><span style="font-size:12px;">DedupState 哈希去重，存储为 4 字节回引用，可节省 20%+ 空间</span></div>
+        </div>
+        <div class="highlight-box" style="margin-top:12px;">
+          训练进程写入 mmap 文件，probing 服务器通过同一文件读取 — <strong>零拷贝、零序列化</strong>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">联邦三路径路由 (~3,066 行)</div>
+      <div class="card-body" style="margin-top:8px;">
+        <table class="data-table" style="font-size:12px;">
+          <tr>
+            <th>路径</th><th>场景</th><th>传输</th>
+          </tr>
+          <tr>
+            <td><strong style="color:var(--green);">A 下推</strong></td>
+            <td>单表 global.* + SUM/COUNT/MIN/MAX</td>
+            <td><strong>O(1)</strong></td>
+          </tr>
+          <tr>
+            <td><strong style="color:var(--orange);">B 扫描</strong></td>
+            <td>单表 global.* 非聚合</td>
+            <td><strong>O(N)</strong></td>
+          </tr>
+          <tr>
+            <td><strong style="color:var(--red);">C 广播</strong></td>
+            <td>JOIN/CTE/UNION/子查询</td>
+            <td><strong>O(N²)</strong></td>
+          </tr>
+        </table>
+        <div style="margin-top:12px;font-size:12px;color:var(--text-secondary);line-height:1.6;">
+          基于 <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;font-size:11px;">sqlparser-rs</code> AST 级分析（非字符串匹配）<br>
+          查询护栏：强制 broadcast 需 LIMIT，自动注入 LIMIT 10000<br>
+          每行联邦数据自动附加 6 个标签列：_host, _addr, _rank, _node_rank, _local_rank, _role
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="slide-indicator">13 / 22</div>
+</div>
+
+<!-- ==================== SLIDE 10: DEPTH - NCCL ==================== -->
+<div class="slide slide-padding">
+  <div class="slide-header">
+    <span class="slide-section-tag">03 技术深度</span>
+  </div>
+  <div class="slide-title">技术深度 (二)：NCCL 等待分解 + Culprit/Victim 归因</div>
+  <div class="slide-subtitle">整个项目中技术最硬核的部分：从低级时间戳数据到可操作诊断结论的跃迁</div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">Proxy Step Wait 三段分解</div>
+      <div class="card-body" style="margin-top:8px;">
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div style="display:flex;gap:8px;align-items:center;">
+            <div style="width:12px;height:12px;border-radius:3px;background:var(--red);flex-shrink:0;"></div>
+            <div><strong>SendGpuWait</strong> — proxy 等待本地 GPU 完成 send buffer<br><span style="font-size:11px;color:var(--red);">Culprit 信号：本地 GPU 慢</span></div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <div style="width:12px;height:12px;border-radius:3px;background:var(--orange);flex-shrink:0;"></div>
+            <div><strong>SendPeerWait</strong> (v4) — 等待对端 rank 的 network buffer<br><span style="font-size:11px;color:var(--orange);">接收方拥塞信号</span></div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <div style="width:12px;height:12px;border-radius:3px;background:var(--primary);flex-shrink:0;"></div>
+            <div><strong>SendWait</strong> — 实际发送操作耗时</div>
+          </div>
+        </div>
+        <div style="margin-top:12px;font-size:12px;color:var(--text-secondary);line-height:1.5;">
+          <strong>首次进入优先设计：</strong>只有第一次进入某状态时才记录起始时间戳，正确处理 proxy progress loop 重试行为。<br><br>
+          <strong>引用计数完成模型：</strong>通过 live_children + stopped 标志判断 collective 是否真正完成，处理异步完成语义。
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Culprit/Victim 自动归因</div>
+      <div class="card-body" style="margin-top:8px;">
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div style="background:#fee2e2;padding:10px;border-radius:8px;">
+            <strong style="color:var(--red);">Culprit（罪魁）</strong><br>
+            <span style="font-size:12px;">send 边 (rank→peer) 上的高 send_gpu_wait_ns<br>本地 GPU 慢，导致其他 rank 等待</span>
+          </div>
+          <div style="background:#ffedd5;padding:10px;border-radius:8px;">
+            <strong style="color:var(--orange);">Victim（受害者）</strong><br>
+            <span style="font-size:12px;">recv 边上的高 recv_wait_ns<br>等待对端发送，自身无过错</span>
+          </div>
+          <div style="background:#ffedd5;padding:10px;border-radius:8px;">
+            <strong style="color:var(--orange);">Propagated Victim</strong><br>
+            <span style="font-size:12px;">recv wait 高但 peer 的 send_gpu_wait 也高<br>根因在上游</span>
+          </div>
+          <div style="background:#ede9fe;padding:10px;border-radius:8px;">
+            <strong style="color:var(--purple);">Receiver Congestion (v4)</strong><br>
+            <span style="font-size:12px;">高 send_peer_wait_ns<br>send 被 peer 的 clear-to-send 信用阻塞</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="highlight-box" style="margin-top:12px;">
+    <strong>Slot Pool 内存管理：</strong>预分配固定大小 slot pool，避免高频采集路径分配内存。三重验证（bounds + liveness + 指针身份）防止 stale handle。pool_pressure.rs 在 pool 接近满时自动降级采样率。分片锁 + try_lock 避免阻塞 NCCL 回调。
+  </div>
+  <div class="slide-indicator">14 / 22</div>
+</div>
+
+<!-- ==================== SLIDE 11: COMPETITION - OVERALL ==================== -->
+<div class="slide slide-padding">
+  <div class="slide-header">
+    <span class="slide-section-tag">03 竞品比较</span>
+  </div>
+  <div class="slide-title">加权总分：Probing 3.85 架构领先，成熟度差距明显</div>
+  <div class="slide-subtitle">10 维度加权评分，覆盖架构、采集、分析、分布式、AI Agent、开销、扩展、易用、生态、创新</div>
+
+  <div class="bar-chart">
+    <div class="bar-row">
+      <div class="bar-label">Probing</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:77%;background:linear-gradient(90deg,#1a56db,#3b82f6);">3.85</div>
+      </div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">DeepFlow</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:67.6%;background:#94a3b8;">3.38</div>
+      </div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Nsight Systems</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:65.4%;background:#94a3b8;">3.27</div>
+      </div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">NCCL Flight Rec</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:62.4%;background:#94a3b8;">3.12</div>
+      </div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Coroot</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:61.4%;background:#94a3b8;">3.07</div>
+      </div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">PyTorch Profiler</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:59.2%;background:#94a3b8;">2.96</div>
+      </div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">DLRover</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:56.4%;background:#94a3b8;">2.82</div>
+      </div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Nsight Compute</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:56.4%;background:#94a3b8;">2.82</div>
+      </div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">DeepSpeed Flops</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:51%;background:#94a3b8;">2.55</div>
+      </div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">HTA</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:50.6%;background:#94a3b8;">2.53</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="highlight-box" style="margin-top:12px;">
+    <strong>诚实评估：</strong>架构设计 (4.5) 和分布式诊断 (4.5) 确实领先，但易用性 (3.0) 和生态成熟度 (2.5) 是明显短板。总分 3.85 领先但差距不大 — DeepFlow (3.38) 和 Nsight Systems (3.27) 在成熟度和用户基础上远超我们。<strong>架构优势尚未转化为采用优势。</strong>
+  </div>
+  <div class="slide-indicator">15 / 22</div>
+</div>
+
+<!-- ==================== SLIDE 12: COMPETITION - DIMENSIONS ==================== -->
+<div class="slide slide-padding">
+  <div class="slide-header">
+    <span class="slide-section-tag">03 竞品比较</span>
+  </div>
+  <div class="slide-title">逐维度评分：架构与分布式领先，易用与生态是短板</div>
+  <div class="slide-subtitle">不回避弱项 — 诚实的自评比满屏 5.0 更有说服力</div>
+
+  <div class="scoring-grid">
+    <div class="score-card">
+      <div class="dim-name">架构设计</div>
+      <div class="dim-score" style="color:var(--green);">4.5</div>
+      <div class="dim-max">/5.0</div>
+      <div style="font-size:11px;color:var(--text-light);margin-top:4px;">DeepFlow 4.0</div>
+    </div>
+    <div class="score-card">
+      <div class="dim-name">分布式诊断</div>
+      <div class="dim-score" style="color:var(--green);">4.5</div>
+      <div class="dim-max">/5.0</div>
+      <div style="font-size:11px;color:var(--text-light);margin-top:4px;">HTA 3.5</div>
+    </div>
+    <div class="score-card">
+      <div class="dim-name">创新性</div>
+      <div class="dim-score" style="color:var(--green);">4.5</div>
+      <div class="dim-max">/5.0</div>
+      <div style="font-size:11px;color:var(--text-light);margin-top:4px;">DeepFlow 4.0</div>
+    </div>
+    <div class="score-card">
+      <div class="dim-name">AI Agent</div>
+      <div class="dim-score" style="color:var(--accent);">4.0</div>
+      <div class="dim-max">/5.0</div>
+      <div style="font-size:11px;color:var(--text-light);margin-top:4px;">DLRover 1.0</div>
+    </div>
+    <div class="score-card">
+      <div class="dim-name">分析深度</div>
+      <div class="dim-score" style="color:var(--accent);">4.0</div>
+      <div class="dim-max">/5.0</div>
+      <div style="font-size:11px;color:var(--text-light);margin-top:4px;">Nsight C 4.5</div>
+    </div>
+    <div class="score-card">
+      <div class="dim-name">易用性</div>
+      <div class="dim-score" style="color:var(--orange);">3.0</div>
+      <div class="dim-max">/5.0</div>
+      <div style="font-size:11px;color:var(--text-light);margin-top:4px;">Nsight S 4.5</div>
+    </div>
+    <div class="score-card">
+      <div class="dim-name">生态成熟度</div>
+      <div class="dim-score" style="color:var(--red);">2.5</div>
+      <div class="dim-max">/5.0</div>
+      <div style="font-size:11px;color:var(--text-light);margin-top:4px;">Nsight S 5.0</div>
+    </div>
+  </div>
+
+  <div class="two-col" style="margin-top:16px;">
+    <div class="card">
+      <div class="card-title">差异化能力（竞品尚未覆盖）</div>
+      <div style="display:flex;flex-direction:column;gap:5px;margin-top:8px;">
+        <div style="display:flex;gap:8px;align-items:center;font-size:12px;">
+          <span class="badge badge-green">差异</span>
+          <span>联邦 SQL 查询 — 跨 rank 声明式查询</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;font-size:12px;">
+          <span class="badge badge-green">差异</span>
+          <span>MCP 协议集成 — AI Agent 原生接口</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;font-size:12px;">
+          <span class="badge badge-green">差异</span>
+          <span>声明式诊断剧本 — 知识可复用</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;font-size:12px;">
+          <span class="badge badge-green">差异</span>
+          <span>Culprit/Victim 自动归因</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;font-size:12px;">
+          <span class="badge badge-green">差异</span>
+          <span>Shadow Step 开销校准</span>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">主要短板与互补关系</div>
+      <div class="card-body" style="margin-top:8px;">
+        <strong style="color:var(--red);">主要短板：</strong><br>
+        <span style="font-size:12px;">• 跨 rank 实时聚合需按需联邦查询（非持续推送）<br>
+        • 0.x Beta，缺乏大规模生产验证<br>
+        • SQL 门槛高（skill 部分缓解）<br>
+        • 无 Prometheus/Grafana 集成<br>
+        • 仅 NVIDIA + 昇腾，无 AMD ROCm</span>
+        <br><br>
+        <strong style="color:var(--accent);">互补而非替代：</strong><br>
+        <span style="font-size:12px;">Probing 作为诊断入口和 Agent 接口；Nsight Systems 做深度下钻；NCCL Flight Recorder 补充层数据；Nsight Compute 做 kernel 级优化。</span>
+      </div>
+    </div>
+  </div>
+  <div class="slide-indicator">16 / 22</div>
+</div>
+
+<!-- ==================== SLIDE 13: COMPETITION - VS TRADITIONAL ==================== -->
+<div class="slide slide-padding">
+  <div class="slide-header">
+    <span class="slide-section-tag">03 竞品比较</span>
+  </div>
+  <div class="slide-title">范式对比：Agent-Native vs 传统 Profiler</div>
+  <div class="slide-subtitle">Probing 不是在做"又一个 profiler"，而是在重新定义诊断的交互范式</div>
+
+  <div class="vs-container">
+    <div class="vs-card probing">
+      <h4 style="color:var(--primary);">Probing (Agent-Native)</h4>
+      <ul>
+        <li>运行时实时查询，在线诊断</li>
+        <li>SQL + MCP + Skills 声明式接口</li>
+        <li>AI Agent 自动执行诊断剧本</li>
+        <li>联邦查询跨 rank 聚合</li>
+        <li>Skills 可扩展诊断知识库</li>
+        <li>Shadow Step 自动校准开销</li>
+        <li>Culprit/Victim 确定性归因</li>
+        <li>支持 NVIDIA + 华为昇腾</li>
+      </ul>
+    </div>
+    <div class="vs-divider">VS</div>
+    <div class="vs-card traditional">
+      <h4 style="color:var(--text-secondary);">传统 Profiler</h4>
+      <ul>
+        <li>生成 trace 文件，事后离线分析</li>
+        <li>图形界面 (Nsight GUI, TensorBoard)</li>
+        <li>人工解读火焰图/时间线</li>
+        <li>单进程视角，无联邦聚合</li>
+        <li>固定分析维度，不可扩展</li>
+        <li>开销固定，无法校准</li>
+        <li>依赖统计相关性推断</li>
+        <li>通常仅支持 NVIDIA</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="highlight-box" style="margin-top:20px;">
+    <strong>定位：</strong>Probing 不是替代 Nsight Systems 或 PyTorch Profiler，而是补全它们缺失的维度 — 分布式联邦视角、Agent 原生接口、声明式诊断知识复用。深度下钻仍需 Nsight，kernel 级优化仍需 Nsight Compute。Probing 的价值在于<strong>把诊断从"人看图"变成"Agent 查 SQL"</strong>，以及跨 rank 的联邦聚合能力。
+  </div>
+  <div class="slide-indicator">17 / 22</div>
+</div>
+
+<!-- ==================== SLIDE 14: GROWTH - TARGET USER & STRATEGY ==================== -->
+<div class="slide slide-padding">
+  <div class="slide-header">
+    <span class="slide-section-tag">04 增长计划</span>
+  </div>
+  <div class="slide-title">增长策略：谁在用 Probing，为什么用</div>
+  <div class="slide-subtitle">不是给单个研究员用的 profiler，是给 AI Infra 团队用的统一诊断平台</div>
+
+  <div class="two-col" style="margin-top:8px;">
+    <div class="card" style="padding:18px;">
+      <div class="card-title" style="font-size:15px;">目标用户：AI Infra / 平台团队</div>
+      <div style="font-size:12px;color:var(--text-secondary);line-height:1.8;margin-top:10px;">
+        <strong>谁：</strong>百卡以上 GPU 集群的 AI 平台 / Infra 团队<br>
+        <strong>场景：</strong>支撑多个业务团队，每个团队用不同框架训练<br>
+        <strong>痛点：</strong>
+        <ul style="margin-left:16px;margin-top:4px;">
+          <li>每个框架自带 profiler，接口不统一</li>
+          <li>Megatron 的问题 Nsight 看不懂</li>
+          <li>业务方报"训练慢"，Infra 团队无从下手</li>
+          <li>人工诊断 3h+，排障靠经验传承</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card" style="padding:18px;">
+      <div class="card-title" style="font-size:15px;">Probing 的价值主张</div>
+      <div style="font-size:12px;color:var(--text-secondary);line-height:1.8;margin-top:10px;">
+        <strong>一个工具，统一接入所有框架：</strong>
+        <ul style="margin-left:16px;margin-top:4px;">
+          <li><code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;font-size:11px;">PROBING=1</code> 一行环境变量，不改业务代码</li>
+          <li>PyTorch / Megatron / DeepSpeed / FSDP 通吃</li>
+          <li>所有框架的数据统一成 SQL 表</li>
+        </ul>
+        <strong>AI Agent 自动诊断：</strong>
+        <ul style="margin-left:16px;margin-top:4px;">
+          <li>业务方报"慢"→ Agent 自动跑 skill → 给结论</li>
+          <li>Skill = 可复用的诊断知识，经验沉淀</li>
+          <li>Infra 团队不用每个 case 都人肉看图</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:16px;background:#eff6ff;border-radius:8px;padding:16px;border-left:4px solid var(--primary);">
+    <div style="font-size:13px;font-weight:700;color:var(--primary);margin-bottom:8px;">增长飞轮</div>
+    <div style="display:flex;align-items:center;gap:12px;font-size:12px;">
+      <div style="background:#dbeafe;padding:8px 12px;border-radius:6px;text-align:center;flex:1;">
+        <strong>Infra 团队部署</strong><br>
+        <span style="color:var(--text-secondary);">一次部署，全集群可用</span>
+      </div>
+      <span style="font-size:18px;color:var(--primary);">→</span>
+      <div style="background:#ccfbf1;padding:8px 12px;border-radius:6px;text-align:center;flex:1;">
+        <strong>业务方零改动接入</strong><br>
+        <span style="color:var(--text-secondary);">PROBING=1 即可</span>
+      </div>
+      <span style="font-size:18px;color:var(--primary);">→</span>
+      <div style="background:#fef3c7;padding:8px 12px;border-radius:6px;text-align:center;flex:1;">
+        <strong>Agent 自动诊断</strong><br>
+        <span style="color:var(--text-secondary);">Skill 沉淀经验</span>
+      </div>
+      <span style="font-size:18px;color:var(--primary);">→</span>
+      <div style="background:#ede9fe;padding:8px 12px;border-radius:6px;text-align:center;flex:1;">
+        <strong>更多 Skill → 更多场景</strong><br>
+        <span style="color:var(--text-secondary);">正反馈飞轮</span>
+      </div>
+    </div>
+  </div>
+  <div class="slide-indicator">18 / 22</div>
+</div>
+
+<!-- ==================== SLIDE 15: GROWTH - INFRA PLATFORM VISION ==================== -->
+<div class="slide slide-padding">
+  <div class="slide-header">
+    <span class="slide-section-tag">04 增长计划</span>
+  </div>
+  <div class="slide-title">系统性 Infra 解决方案：框架无关的统一诊断层</div>
+  <div class="slide-subtitle">不管业务方用什么框架，Probing 都能统一接入、监控、诊断和优化</div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px;">
+
+    <!-- Left: Framework-agnostic -->
+    <div class="card" style="padding:16px;">
+      <div class="card-title" style="font-size:14px;">框架无关 — 统一接入</div>
+      <div style="font-size:12px;color:var(--text-secondary);line-height:1.7;margin-top:8px;">
+        探针注入训练进程，hook PyTorch runtime 层，<strong>不依赖具体框架实现</strong>。无论业务方用 Megatron、DeepSpeed、FSDP 还是 raw PyTorch，采集到的数据 schema 完全一致。
+      </div>
+      <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+        <div style="background:#eff6ff;padding:8px;border-radius:6px;text-align:center;font-size:11px;">
+          <strong style="color:var(--primary);">Megatron-LM</strong><br>
+          <span style="color:var(--text-secondary);">PP/TP/DP</span>
+        </div>
+        <div style="background:#eff6ff;padding:8px;border-radius:6px;text-align:center;font-size:11px;">
+          <strong style="color:var(--primary);">DeepSpeed</strong><br>
+          <span style="color:var(--text-secondary);">ZeRO 1/2/3</span>
+        </div>
+        <div style="background:#eff6ff;padding:8px;border-radius:6px;text-align:center;font-size:11px;">
+          <strong style="color:var(--primary);">FSDP</strong><br>
+          <span style="color:var(--text-secondary);">原生分布式</span>
+        </div>
+        <div style="background:#eff6ff;padding:8px;border-radius:6px;text-align:center;font-size:11px;">
+          <strong style="color:var(--primary);">Raw PyTorch</strong><br>
+          <span style="color:var(--text-secondary);">DDP / custom</span>
+        </div>
+      </div>
+      <div class="code-block" style="margin-top:8px;font-size:10px;padding:6px;">
+# 任何框架，同一个入口<br>PROBING=1 python train.py  # Megatron<br>PROBING=1 deepspeed train.py  # DeepSpeed<br>PROBING=1 torchrun train.py  # FSDP
+      </div>
+    </div>
+
+    <!-- Right: AI-driven -->
+    <div class="card" style="padding:16px;">
+      <div class="card-title" style="font-size:14px;">AI 驱动 — 自动诊断与优化</div>
+      <div style="font-size:12px;color:var(--text-secondary);line-height:1.7;margin-top:8px;">
+        Infra 团队不需要人肉看图。业务方报问题 → Agent 连 MCP → 自动跑诊断 skill → 给出结论和建议。
+      </div>
+      <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px;">
+        <div style="display:flex;gap:8px;align-items:flex-start;font-size:11px;">
+          <span style="background:#dcfce7;color:var(--green);padding:2px 8px;border-radius:4px;font-weight:600;white-space:nowrap;">Step 1</span>
+          <span style="color:var(--text-secondary);">业务方："训练慢了"<br>→ Agent 连接 Probing MCP</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:flex-start;font-size:11px;">
+          <span style="background:#dbeafe;color:var(--primary);padding:2px 8px;border-radius:4px;font-weight:600;white-space:nowrap;">Step 2</span>
+          <span style="color:var(--text-secondary);">Agent 自动跑 health_overview<br>→ job_health → slow_rank --global</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:flex-start;font-size:11px;">
+          <span style="background:#ffedd5;color:var(--orange);padding:2px 8px;border-radius:4px;font-weight:600;white-space:nowrap;">Step 3</span>
+          <span style="color:var(--text-secondary);">定位到 rank 42 是 straggler<br>→ nccl_culprit_victim 自动归因</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:flex-start;font-size:11px;">
+          <span style="background:#ede9fe;color:var(--purple);padding:2px 8px;border-radius:4px;font-weight:600;white-space:nowrap;">Step 4</span>
+          <span style="color:var(--text-secondary);">结论："rank 42 NCCL recv_wait 占 73%，<br>建议检查 IB 连接"<br>→ 全程 &lt; 30 秒，无人介入</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="two-col" style="margin-top:14px;">
+    <div class="card" style="padding:14px;">
+      <div class="card-title" style="font-size:13px;">Web UI = 更可靠的实时看板</div>
+      <div class="card-body" style="font-size:11px;">
+        每个 rank 内嵌 HTTP server，Web 直连查看实时状态。<strong>比中心化 dashboard 更可靠</strong>：无单点故障、无聚合管道断裂、无中心存储瓶颈。集群视角通过联邦查询按需聚合，不持续占用网络。
+      </div>
+    </div>
+    <div class="card" style="padding:14px;">
+      <div class="card-title" style="font-size:13px;">从工具到平台 — 和 K8s 一样的路径</div>
+      <div class="card-body" style="font-size:11px;">
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+          <span style="background:#dbeafe;color:var(--primary);padding:1px 6px;border-radius:3px;font-size:10px;">K8s</span>
+          <span style="font-size:10px;color:var(--text-secondary);">编排工具 → 平台 → 行业标准 (CRD + OperatorHub)</span>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">
+          <span style="background:#ccfbf1;color:var(--accent);padding:1px 6px;border-radius:3px;font-size:10px;">Probing</span>
+          <span style="font-size:10px;color:var(--text-secondary);">诊断工具 → 诊断平台 → 训练可观测性标准 (Skill + MCP)</span>
+        </div>
+        短期：解决 straggler 急性痛点 → 中期：Infra 统一诊断入口 → 长期：Skill 社区市场 + 自动修复。<strong>每个新 Skill = 一个新 Operator，让平台更聪明。</strong>
+      </div>
+    </div>
+  </div>
+  <div class="slide-indicator">19 / 22</div>
+</div>
+
+<!-- ==================== SLIDE 16: GROWTH - ROADMAP ==================== -->
+<div class="slide slide-padding">
+  <div class="slide-header">
+    <span class="slide-section-tag">04 增长计划</span>
+  </div>
+  <div class="slide-title">产品路线图：从诊断工具到训练可观测性平台</div>
+  <div class="slide-subtitle">每阶段都有明确的价值交付，不是为技术而技术</div>
+
+  <div class="timeline">
+    <div class="timeline-item">
+      <div class="timeline-dot">β</div>
+      <h4>当前 (Beta 0.2.5)</h4>
+      <p>核心能力已就绪<br>13 Skill + 联邦 + MCP<br>NCCL v3/v4 + HCCL<br><strong style="color:var(--primary);">已可解决 straggler 诊断</strong></p>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-dot">1.0</div>
+      <h4>短期：Beta → 1.0</h4>
+      <p>稳定性 + 生产可用<br>E2E 联邦测试<br>Web UI 火焰图/时间线<br>3 个标杆集群验证<br><strong style="color:var(--primary);">目标：上生产</strong></p>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-dot">1.5</div>
+      <h4>中期：平台化</h4>
+      <p>Skill DAG 可组合<br>自适应联邦路由<br>Prometheus exporter<br>推理场景诊断<br><strong style="color:var(--primary);">目标：统一诊断入口</strong></p>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-dot">∞</div>
+      <h4>长期：生态 + 方法论</h4>
+      <p>Skills 社区市场<br>自动修复建议<br>在线异常检测<br>万卡可观测性论文<br><strong style="color:var(--primary);">目标：行业标准</strong></p>
+    </div>
+  </div>
+
+  <div class="two-col" style="margin-top:20px;">
+    <div class="card" style="padding:14px;">
+      <div class="card-title" style="font-size:13px;">关键里程碑</div>
+      <div style="display:flex;flex-direction:column;gap:5px;margin-top:8px;font-size:12px;">
+        <div><span class="badge badge-blue" style="font-size:10px;">M1</span> 3 个 100+ 卡集群标杆验证（Megatron / DeepSpeed / FSDP 各一）</div>
+        <div><span class="badge badge-teal" style="font-size:10px;">M2</span> Skill 数量 13 → 30，覆盖 Top 10 训练故障场景</div>
+        <div><span class="badge badge-purple" style="font-size:10px;">M3</span> Agent 自动诊断闭环：报障 → 诊断 → 结论 &lt; 1 分钟</div>
+        <div><span class="badge badge-orange" style="font-size:10px;">M4</span> 推理场景 P99 延迟诊断能力</div>
+      </div>
+    </div>
+    <div class="card" style="padding:14px;">
+      <div class="card-title" style="font-size:13px;">学术价值</div>
+      <div class="card-body" style="font-size:11px;">
+        五原则万卡可观测性方法论框架（查询驱动可观测性、执行模型感知归因、校准式开销预算、声明式诊断知识、Agent 原生接口），当前实现完整度约 51%。<strong>Gap 是论文贡献而非缺陷</strong> — 每个原则的未完成部分都是独立的研究方向。
+      </div>
+    </div>
+  </div>
+  <div class="slide-indicator">20 / 22</div>
+</div>
+
+<!-- ==================== SLIDE 15: GROWTH - METHODOLOGY ==================== -->
+<div class="slide slide-padding">
+  <div class="slide-header">
+    <span class="slide-section-tag">04 增长计划</span>
+  </div>
+  <div class="slide-title">学术价值：从"工具实现"到"万卡可观测性方法论"</div>
+  <div class="slide-subtitle">五原则方法论框架，当前实现完整度约 51% — gap 是论文贡献而非缺陷</div>
+
+  <div class="feature-grid" style="grid-template-columns: repeat(5, 1fr); gap:10px;">
+    <div class="feature-item" style="text-align:center;">
+      <div class="feature-icon" style="background:#dbeafe;margin:0 auto 8px;">P1</div>
+      <h4 style="font-size:12px;">查询驱动<br>可观测性</h4>
+      <p style="font-size:11px;">联邦下推<br>只传结果不传数据</p>
+      <div style="margin-top:6px;font-size:11px;font-weight:700;color:var(--orange);">40%</div>
+    </div>
+    <div class="feature-item" style="text-align:center;">
+      <div class="feature-icon" style="background:#ccfbf1;margin:0 auto 8px;">P2</div>
+      <h4 style="font-size:12px;">执行模型<br>感知归因</h4>
+      <p style="font-size:11px;">NCCL proxy 语义<br>确定性因果归因</p>
+      <div style="margin-top:6px;font-size:11px;font-weight:700;color:var(--orange);">50%</div>
+    </div>
+    <div class="feature-item" style="text-align:center;">
+      <div class="feature-icon" style="background:#ede9fe;margin:0 auto 8px;">P3</div>
+      <h4 style="font-size:12px;">校准式<br>开销预算</h4>
+      <p style="font-size:11px;">Shadow Step<br>闭环反馈控制</p>
+      <div style="margin-top:6px;font-size:11px;font-weight:700;color:var(--orange);">45%</div>
+    </div>
+    <div class="feature-item" style="text-align:center;">
+      <div class="feature-icon" style="background:#ffedd5;margin:0 auto 8px;">P4</div>
+      <h4 style="font-size:12px;">声明式<br>诊断知识</h4>
+      <p style="font-size:11px;">YAML 剧本<br>可组合可复用</p>
+      <div style="margin-top:6px;font-size:11px;font-weight:700;color:var(--orange);">50%</div>
+    </div>
+    <div class="feature-item" style="text-align:center;">
+      <div class="feature-icon" style="background:#dcfce7;margin:0 auto 8px;">P5</div>
+      <h4 style="font-size:12px;">Agent<br>原生接口</h4>
+      <p style="font-size:11px;">MCP + 结构化查询<br>写操作安全控制</p>
+      <div style="margin-top:6px;font-size:11px;font-weight:700;color:var(--green);">70%</div>
+    </div>
+  </div>
+
+  <div class="two-col" style="margin-top:20px;">
+    <div class="card">
+      <div class="card-title">论文叙事策略</div>
+      <div class="card-body" style="margin-top:8px;">
+        <strong>Gap 是贡献，不是缺陷。</strong>论文核心贡献不是"我们做了一个工具"，而是"我们识别了万卡训练可观测性的范式转换，提出了五原则方法论，并通过 Probing 在生产规模上验证了其可行性"。<br><br>
+        <strong>方法论文论结构：</strong> Introduction → Motivation → Methodology (核心 3 页) → Implementation → Evaluation (1K/10K GPU) → Discussion
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">最优先实现的两个 Gap</div>
+      <div class="card-body" style="margin-top:8px;">
+        <strong style="color:var(--primary);">优先级 1：拓扑感知归因算法 (P2)</strong><br>
+        <span style="font-size:12px;">从 peer + channel_id 构建通信拓扑图，沿拓扑边做因果传播分析。万卡级联故障的核心解法，直接与简单排序做 ablation 对比。</span><br><br>
+        <strong style="color:var(--accent);">优先级 2：自适应联邦路由 (P1)</strong><br>
+        <span style="font-size:12px;">引入节点数 N 参数，估算各路径预期延迟，动态调整 fanout。固定 fanout=128 在万卡场景可能导致超时。</span>
+      </div>
+    </div>
+  </div>
+  <div class="slide-indicator">21 / 22</div>
+</div>
+
+<!-- ==================== SLIDE 16: SUMMARY ==================== -->
+<div class="slide summary-slide">
+  <h2>总结：Probing 的核心价值</h2>
+  <div class="summary-points">
+    <div class="summary-point">
+      <h4>价值与意义</h4>
+      <p>Probing 之于 AI 训练诊断 ≈ K8s 之于容器编排。从碎片化工具（Nsight/PyTorch Profiler/Megatron）到统一 SQL + Agent 接口。但约束更硬：K8s 管无状态容器可重启，Probing 管有状态训练进程不能中断、不能有可感知开销——这是更深的护城河。</p>
+    </div>
+    <div class="summary-point">
+      <h4>技术独特性</h4>
+      <p>四层架构 + 6 契约 + 没有北向流量 + SQL 统一接口 + probe.*/global.* 二象性 + 联邦三路径 AST 路由 + 无锁 mmap 存储 + 分布式火焰图 + Python 变量跟踪 + 分布式热力图 + NCCL 等待分解 + 声明式 Skill + MCP 接口。6 项业界首创构成护城河。</p>
+    </div>
+    <div class="summary-point">
+      <h4>技术领先性</h4>
+      <p>10 款工具逐维度对比，加权总分 3.85 领先但差距不大。架构与分布式诊断是核心优势，易用性 (3.0) 和生态成熟度 (2.5) 是最大短板。差异化能力 5 项，但尚未转化为采用优势。</p>
+    </div>
+    <div class="summary-point">
+      <h4>增长前景</h4>
+      <p>目标用户：AI Infra / 平台团队（百卡以上集群）。框架无关统一接入（PROBING=1 通吃 Megatron/DeepSpeed/FSDP），AI Agent 自动诊断闭环（&lt;1 分钟出结论）。增长飞轮：Infra 部署 → 业务方零改动接入 → Agent 自动诊断 → Skill 沉淀经验 → 更多场景。路径和 K8s 一致：诊断工具 → 诊断平台 → 训练可观测性标准（Skill 生态 + MCP 接口）。</p>
+    </div>
+  </div>
+  <div style="position:absolute;bottom:30px;left:0;right:0;text-align:center;">
+    <div style="font-size:14px;color:#64748b;">谢谢 · 欢迎提问</div>
+  </div>
+  <div class="deco-line" style="position:absolute;bottom:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--accent-light),var(--primary-light),var(--purple));"></div>
+</div>
+
+</div>
+
+<!-- Navigation Bar -->
+<div class="nav-bar">
+  <button onclick="prevSlide()" title="上一页">◀</button>
+  <span class="page-num" id="pageNum">1 / 22</span>
+  <button onclick="nextSlide()" title="下一页">▶</button>
+  <button onclick="goFullscreen()" title="全屏">⛶</button>
+</div>
+
+
+
+</body>
+</html>

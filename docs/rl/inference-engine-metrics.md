@@ -97,7 +97,7 @@ export PROBING=1
 export PROBING_PORT=8080
 export PROBING_ASSETS_ROOT=web/dist
 
-python examples/sglang_inference_metrics_demo.py \
+python examples/inference/sglang_inference_metrics_demo.py \
   --engine-url http://127.0.0.1:30000 \
   --engine-id sglang-real \
   --num-requests 0 \
