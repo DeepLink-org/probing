@@ -1,3 +1,16 @@
+"""Long-running sampled PyTorch module and step telemetry.
+
+TorchProbe is independent from the on-demand ``torch_profiler`` package. This
+module installs lightweight training hooks, applies step/layer sampling and
+shadow baselines, and writes mmap tables such as ``python.torch_trace`` and
+``python.torch_step_timing``. It never starts or owns a ``torch.profiler`` /
+Kineto session.
+
+Use TorchProbe to locate a persistently slow step, rank, or module. Use
+``probing.profiling.torch_profiler`` separately when that target needs a short
+op/kernel-level capture. If both paths run together, their overheads add.
+"""
+
 import hashlib
 import logging
 import os
@@ -246,9 +259,10 @@ class Variables:
 class TorchProbeConfig:
     """Configuration container for TorchProbe runtime behaviour.
 
-    Torch profiling is designed for long-running, always-on module-level
-    telemetry (not episodic ``torch.profiler`` windows). There is no warmup
-    schedule: skip early steps in SQL (``WHERE step > N``) when needed.
+    TorchProbe is designed for long-running, always-on module-level telemetry,
+    not episodic ``torch.profiler`` windows. This configuration never controls
+    Kineto. There is no warmup schedule: skip early steps in SQL
+    (``WHERE step > N``) when needed.
 
     Sampling (``PROBING_TORCH_PROFILING`` prefix token — ``rate[:layer_rate]``):
 
@@ -478,16 +492,18 @@ class TorchProbeConfig:
             self.shadow_baseline = baseline
 
 
-# Configuration key in probing.config
+# TorchProbe-only configuration key in probing.config. The historical
+# ``profiling`` name does not configure or start ``torch.profiler`` / Kineto.
 # Rust sync_env_settings() converts PROBING_TORCH_PROFILING to probing.torch.profiling
 _CONFIG_KEY = "probing.torch.profiling"
 
 
 def configure(spec: Optional[str] = None) -> TorchProbeConfig:
-    """Set a process-wide Torch profiling configuration.
+    """Set the process-wide TorchProbe telemetry configuration.
 
     This function stores the configuration in probing.config for persistence
-    and sharing between Python and Rust.
+    and sharing between Python and Rust. It does not configure or start the
+    independent ``probing.profiling.torch_profiler`` capture path.
 
     Parameters
     ----------
@@ -1036,6 +1052,13 @@ class VariableTracer:
 
 
 class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
+    """Sample module hooks across training for long-running SQL telemetry.
+
+    This tracer owns TorchProbe hook, sampling, deferred timing, and memtable
+    state only. It does not wrap or configure ``torch.profiler``; the independent
+    on-demand controller lives in :mod:`probing.profiling.torch_profiler`.
+    """
+
     def __init__(self, config: Optional[TorchProbeConfig] = None):
         if config is None:
             config = TorchProbeConfig(enabled=True)

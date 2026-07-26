@@ -11,7 +11,34 @@ The profiling system collects performance data through:
 - Columnar table storage (memtable / Arrow-backed tables)
 - SQL query interface
 
-## Data Collection Architecture
+## Two independent PyTorch collection paths
+
+Probing provides both **TorchProbe** and **Torch Profiler**. Their names are similar, but they
+are not configurations of one collector and do not share sessions, event buffers, or lifecycle.
+
+| Dimension | TorchProbe | Torch Profiler (`torch.profiler` / Kineto) |
+|-----------|------------|---------------------------------------------|
+| Role | Low-overhead telemetry throughout training | Short-window drill-down after an anomaly is located |
+| Primary granularity | Step, `nn.Module`, optimizer, memory deltas | CPU op, CUDA kernel, runtime, memcpy |
+| Start | `PROBING_TORCH_PROFILING` / `configure()`; training hooks | Explicit HTTP or REPL capture for N optimizer steps |
+| Control | Step/layer sampling, shadow baseline, deferred GPU-event reads | Capture `steps`, then finalize Kineto output |
+| Data | mmap memtables: `python.torch_trace`, `python.torch_step_timing` | Bounded in-process session store exposed as `python.profile_capture` and `python.profile_hotspot` |
+| Typical overhead | Low and amortized for long-running observation | Higher, especially with CUDA, shapes, stacks, and FLOPs |
+| Answers | Which step/rank/module is persistently slow? What is hook overhead? | Which op/kernel is slow in the target window? Where does GPU time go? |
+
+**Independent** has three operational consequences:
+
+1. Enabling TorchProbe does **not** start Kineto; starting Torch Profiler does **not** change
+   TorchProbe sampling or shadow scheduling.
+2. They may observe the same optimizer step, but correlate only through step/capture coordinates
+   in SQL; neither collector calls the other.
+3. If both run together, their overheads add. TorchProbe shadow steps estimate only the
+   TorchProbe module-hook path, not Torch Profiler/Kineto overhead.
+
+The intended diagnostic ladder is TorchProbe first to locate the anomalous step, rank, and
+module, followed by a targeted Torch Profiler window only when op/kernel detail is needed.
+
+## TorchProbe Data Collection Architecture
 
 ```mermaid
 graph TB
@@ -43,7 +70,10 @@ graph TB
 
 ### Design
 
-TorchProbe targets **always-on, module-level training telemetry** after probe injection or `PROBING_TORCH_PROFILING=on`. It is complementary to episodic tools such as `torch.profiler` / Kineto (op/kernel Chrome traces). For on-demand Kineto capture exposed as **virtual SQL tables** (not memtable), see **[Torch Profiler SQL](torch-profiler-sql.md)**.
+TorchProbe targets **always-on, module-level training telemetry** after probe injection or
+`PROBING_TORCH_PROFILING=on`. It is the long-running path described above, not a lightweight
+configuration or frontend for `torch.profiler`. For on-demand Kineto capture exposed as
+**virtual SQL tables** (not memtable), see **[Torch Profiler SQL](torch-profiler-sql.md)**.
 
 There is **no warmup schedule API**. Skip cold-start steps in SQL when needed:
 

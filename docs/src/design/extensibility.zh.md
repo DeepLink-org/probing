@@ -85,7 +85,9 @@ ORDER BY step;
 - 默认：类名转 **snake_case**（`MyMetrics` → `my_metrics`）
 - 显式：`@table("custom_name")` 写在 dataclass 上
 
-首行写入后列类型固定。改字段需新表名，或先 `MyMetrics.drop()` 再 `init_table()`。
+首行写入后列类型固定。Python 整数/浮点数使用宽类型 `I64`/`F64`，后续值会转换到
+固定 schema；dtype 变化不会重建 mmap 或丢弃旧行。改字段仍需新表名，或先
+`MyMetrics.drop()` 再 `init_table()`。
 
 ### `@table` 提供的 API
 

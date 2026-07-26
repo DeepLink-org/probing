@@ -4,6 +4,7 @@ use super::cluster_executor::{reset_fanout_stats, ProbeClusterExecutor};
 use super::convert::{
     cluster_rank_for_endpoint, extend_projection_with_probe_tags, federated_output_schema,
 };
+use super::fanout_scope::current_fanout_stats_handle;
 use super::federated_scan_exec::FederatedScanExec;
 use super::sql_gen::build_remote_table_sql;
 use async_trait::async_trait;
@@ -134,6 +135,7 @@ impl TableProvider for GlobalFederatedTable {
             host,
             addr,
             local_rank,
+            current_fanout_stats_handle(),
         )?;
         Ok(Arc::new(exec))
     }

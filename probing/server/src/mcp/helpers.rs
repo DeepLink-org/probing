@@ -2,7 +2,9 @@
 
 use std::collections::HashMap;
 
-use probing_core::core::federation::{fanout_strict_enabled, take_fanout_stats};
+use probing_core::core::federation::{
+    fanout_strict_enabled, take_fanout_stats, with_fanout_scope_async, FanoutScope,
+};
 use probing_core::core::ProbeExtensionManager;
 use probing_proto::prelude::{Ele, Query, QueryDataFormat};
 use rmcp::ErrorData;
@@ -99,15 +101,18 @@ pub(crate) async fn extension_request(path: &str, body: &[u8]) -> Result<Vec<u8>
 
 pub async fn engine_query_json(sql: String, limit: usize) -> Result<serde_json::Value, ErrorData> {
     crate::server::sql_guard::ensure_read_only_sql(&sql).map_err(tool_error)?;
-    let reply = handle_query(Query {
-        expr: sql,
-        opts: None,
+    with_fanout_scope_async(FanoutScope::Auto, async move {
+        let reply = handle_query(Query {
+            expr: sql,
+            opts: None,
+        })
+        .await
+        .map_err(tool_error_from)?;
+        let mut payload = dataframe_reply_to_json(reply, limit)?;
+        attach_fanout_quality(&mut payload)?;
+        Ok(payload)
     })
     .await
-    .map_err(tool_error_from)?;
-    let mut payload = dataframe_reply_to_json(reply, limit)?;
-    attach_fanout_quality(&mut payload)?;
-    Ok(payload)
 }
 
 /// Surface federated / global-table fan-out completeness when peers were dropped.
