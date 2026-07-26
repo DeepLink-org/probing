@@ -21,7 +21,18 @@ def test_sibling_default_under_probing_parent():
 
     repo = probing_repo_root()
     assert (repo / "python" / "probing" / "fakes").is_dir()
+    assert (repo / "pyproject.toml").is_file()
     assert sibling_megatron_lm_root() == (repo.parent / "Megatron-LM").resolve()
+
+
+def test_is_probing_repo_marker(tmp_path):
+    from probing.fakes.megatron_lm import _is_probing_repo
+
+    assert _is_probing_repo(tmp_path) is False
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='x'\n", encoding="utf-8")
+    assert _is_probing_repo(tmp_path) is False
+    (tmp_path / "python" / "probing").mkdir(parents=True)
+    assert _is_probing_repo(tmp_path) is True
 
 
 def test_resolve_priority_explicit_over_env(tmp_path, monkeypatch):

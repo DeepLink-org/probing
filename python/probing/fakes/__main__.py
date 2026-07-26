@@ -11,10 +11,10 @@ def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     # Allow ``python -m probing.fakes pretrain_gpt --train-iters 4``
     if argv and argv[0] == "pretrain_gpt":
-        from pathlib import Path
-
         # Prefer the examples script so CLI flags stay in one place.
-        root = Path(__file__).resolve().parents[3]
+        from probing.fakes.megatron_lm import probing_repo_root
+
+        root = probing_repo_root()
         script = root / "examples" / "pretrain_gpt.py"
         if script.is_file():
             import runpy

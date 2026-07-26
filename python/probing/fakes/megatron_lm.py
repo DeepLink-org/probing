@@ -59,8 +59,28 @@ class MegatronLmCheckout:
     reason: str = ""
 
 
+def _is_probing_repo(directory: Path) -> bool:
+    """True for a probing checkout (``pyproject.toml`` + ``python/probing``)."""
+    return (directory / "pyproject.toml").is_file() and (
+        directory / "python" / "probing"
+    ).is_dir()
+
+
 def probing_repo_root() -> Path:
-    """``probing/`` repo root (``python/probing/fakes/`` → parents[3])."""
+    """Locate the probing git checkout (not site-packages).
+
+    Editable / ``PYTHONPATH=python`` layouts resolve via ``__file__``.
+    Wheel installs in CI still have the checkout on disk — walk from ``cwd``.
+    """
+    seen: set[Path] = set()
+    for start in (Path(__file__).resolve(), Path.cwd().resolve()):
+        for directory in (start, *start.parents):
+            if directory in seen:
+                continue
+            seen.add(directory)
+            if _is_probing_repo(directory):
+                return directory
+    # Source-layout fallback: repo/python/probing/fakes/this.py
     return Path(__file__).resolve().parents[3]
 
 
