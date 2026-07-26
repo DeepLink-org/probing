@@ -1269,10 +1269,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#data-collection-architecture" class="md-nav__link">
+  <a href="#two-independent-pytorch-collection-paths" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Data Collection Architecture
+        Two independent PyTorch collection paths
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#torchprobe-data-collection-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TorchProbe Data Collection Architecture
       
     </span>
   </a>
@@ -2333,10 +2344,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#data-collection-architecture" class="md-nav__link">
+  <a href="#two-independent-pytorch-collection-paths" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Data Collection Architecture
+        Two independent PyTorch collection paths
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#torchprobe-data-collection-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TorchProbe Data Collection Architecture
       
     </span>
   </a>
@@ -2539,7 +2561,67 @@
 <li>Columnar table storage (memtable / Arrow-backed tables)</li>
 <li>SQL query interface</li>
 </ul>
-<h2 id="data-collection-architecture">Data Collection Architecture<a class="headerlink" href="#data-collection-architecture" title="Permanent link">&para;</a></h2>
+<h2 id="two-independent-pytorch-collection-paths">Two independent PyTorch collection paths<a class="headerlink" href="#two-independent-pytorch-collection-paths" title="Permanent link">&para;</a></h2>
+<p>Probing provides both <strong>TorchProbe</strong> and <strong>Torch Profiler</strong>. Their names are similar, but they
+are not configurations of one collector and do not share sessions, event buffers, or lifecycle.</p>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th>TorchProbe</th>
+<th>Torch Profiler (<code>torch.profiler</code> / Kineto)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Role</td>
+<td>Low-overhead telemetry throughout training</td>
+<td>Short-window drill-down after an anomaly is located</td>
+</tr>
+<tr>
+<td>Primary granularity</td>
+<td>Step, <code>nn.Module</code>, optimizer, memory deltas</td>
+<td>CPU op, CUDA kernel, runtime, memcpy</td>
+</tr>
+<tr>
+<td>Start</td>
+<td><code>PROBING_TORCH_PROFILING</code> / <code>configure()</code>; training hooks</td>
+<td>Explicit HTTP or REPL capture for N optimizer steps</td>
+</tr>
+<tr>
+<td>Control</td>
+<td>Step/layer sampling, shadow baseline, deferred GPU-event reads</td>
+<td>Capture <code>steps</code>, then finalize Kineto output</td>
+</tr>
+<tr>
+<td>Data</td>
+<td>mmap memtables: <code>python.torch_trace</code>, <code>python.torch_step_timing</code></td>
+<td>Bounded in-process session store exposed as <code>python.profile_capture</code> and <code>python.profile_hotspot</code></td>
+</tr>
+<tr>
+<td>Typical overhead</td>
+<td>Low and amortized for long-running observation</td>
+<td>Higher, especially with CUDA, shapes, stacks, and FLOPs</td>
+</tr>
+<tr>
+<td>Answers</td>
+<td>Which step/rank/module is persistently slow? What is hook overhead?</td>
+<td>Which op/kernel is slow in the target window? Where does GPU time go?</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Independent</strong> has three operational consequences:</p>
+<ol>
+<li>Enabling TorchProbe does <strong>not</strong> start Kineto; starting Torch Profiler does <strong>not</strong> change
+   TorchProbe sampling or shadow scheduling.</li>
+<li>They may observe the same optimizer step, but correlate only through step/capture coordinates
+   in SQL; neither collector calls the other.</li>
+<li>If both run together, their overheads add. TorchProbe shadow steps estimate only the
+   TorchProbe module-hook path, not Torch Profiler/Kineto overhead.</li>
+</ol>
+<p>The intended diagnostic ladder is TorchProbe first to locate the anomalous step, rank, and
+module, followed by a targeted Torch Profiler window only when op/kernel detail is needed.</p>
+<h2 id="torchprobe-data-collection-architecture">TorchProbe Data Collection Architecture<a class="headerlink" href="#torchprobe-data-collection-architecture" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>graph TB
     subgraph "Data Sources"
         TORCH[PyTorch module hooks]
@@ -2565,7 +2647,10 @@
     TABLES --&gt; QUERY</code></pre>
 <h2 id="pytorch-profiling-torchprobe">PyTorch Profiling (TorchProbe)<a class="headerlink" href="#pytorch-profiling-torchprobe" title="Permanent link">&para;</a></h2>
 <h3 id="design">Design<a class="headerlink" href="#design" title="Permanent link">&para;</a></h3>
-<p>TorchProbe targets <strong>always-on, module-level training telemetry</strong> after probe injection or <code>PROBING_TORCH_PROFILING=on</code>. It is complementary to episodic tools such as <code>torch.profiler</code> / Kineto (op/kernel Chrome traces). For on-demand Kineto capture exposed as <strong>virtual SQL tables</strong> (not memtable), see <strong><a href="../torch-profiler-sql/">Torch Profiler SQL</a></strong>.</p>
+<p>TorchProbe targets <strong>always-on, module-level training telemetry</strong> after probe injection or
+<code>PROBING_TORCH_PROFILING=on</code>. It is the long-running path described above, not a lightweight
+configuration or frontend for <code>torch.profiler</code>. For on-demand Kineto capture exposed as
+<strong>virtual SQL tables</strong> (not memtable), see <strong><a href="../torch-profiler-sql/">Torch Profiler SQL</a></strong>.</p>
 <p>There is <strong>no warmup schedule API</strong>. Skip cold-start steps in SQL when needed:</p>
 <div class="language-sql highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">local_step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
 </span></code></pre></div>

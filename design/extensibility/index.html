@@ -2971,7 +2971,10 @@
 <li>Default: class name converted to <strong>snake_case</strong> (<code>MyMetrics</code> → <code>my_metrics</code>)</li>
 <li>Explicit: <code>@table("custom_name")</code> on the dataclass</li>
 </ul>
-<p>The first appended row fixes column types. Changing fields later requires a new table name or <code>MyMetrics.drop()</code> before re-init.</p>
+<p>The first appended row fixes column types. Python integers/floats use the wide
+<code>I64</code>/<code>F64</code> representation, and later values are coerced to the fixed schema;
+dtype variation never recreates the mmap or discards earlier rows. Changing
+fields still requires a new table name or <code>MyMetrics.drop()</code> before re-init.</p>
 <h3 id="api-added-by-table">API added by <code>@table</code><a class="headerlink" href="#api-added-by-table" title="Permanent link">&para;</a></h3>
 <table>
 <thead>

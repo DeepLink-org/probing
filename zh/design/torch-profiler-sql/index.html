@@ -2801,6 +2801,13 @@
 <p>将按需 <strong><code>torch.profiler</code></strong> 采集变成 <strong>可回答诊断问题的 SQL 能力</strong>，而不是 Kineto 事件的镜像。
 虚拟表从 <strong>「我们想得出什么结论」</strong> 反推 schema；Adaptor 负责把 timeline 填进这些结论槽位。
 完整 Chrome timeline 仍走 HTTP/UI。</p>
+<blockquote>
+<p><strong>名称边界：</strong>本文的 Torch Profiler 指 <code>torch.profiler</code> / Kineto 短窗口采集，由
+<code>python/probing/profiling/torch_profiler/</code> 控制。它与
+<code>python/probing/profiling/torch_probe.py</code> 的长期 module 遥测是两条独立路径：
+启停和存储互不依赖，只通过 step/capture 坐标在 SQL 层关联；同时运行时开销叠加。
+完整对照见 <a href="../profiling/">性能分析实现</a> 开头的两条路径对照表。</p>
+</blockquote>
 <p>阅读：<a href="../profiling/">性能分析</a>、<a href="../federation/">联邦查询引擎</a>、<a href="../nccl-profiler/">NCCL Profiler</a>。</p>
 <p>英文版：<a href="./">torch-profiler-sql.md</a></p>
 <hr />
