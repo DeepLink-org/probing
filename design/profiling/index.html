@@ -2594,8 +2594,8 @@
 <p>Hook overhead is reduced by sampling; forward hooks remain registered on all modules (except on shadow steps, where hooks return immediately).</p>
 <h3 id="nccl-profiler-overhead">NCCL profiler overhead<a class="headerlink" href="#nccl-profiler-overhead" title="Permanent link">&para;</a></h3>
 <p>TorchProbe shadow steps measure <strong>module-hook</strong> overhead only. The NCCL profiler plugin has no in-run shadow baseline today — it always records collective events when enabled. For NCCL AllReduce overhead vs probing, use the offline benchmark:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./examples/run_nccl_profiler_bench.sh
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1"># or: python examples/torch_probe_overhead_smoke.py  # Torch-only smoke (no GPU)</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./examples/overhead/run_nccl_bench.sh
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1"># or: python examples/overhead/torch_probe_overhead_smoke.py  # Torch-only smoke (no GPU)</span>
 </span></code></pre></div>
 <p>Monitor runtime health via <code>nccl.profiler_counters</code> (<code>pool_exhausted</code>, <code>write_errors</code>, <code>rows_written</code>). The Web UI overhead panel links to the offline NCCL bench when the profiler is active.</p>
 <p>Records are flushed at the end of each optimizer step (after optional GPU <code>synchronize()</code>). Pre/post hook pairs produce two rows; <strong>duration is set on the post row</strong> (<code>post forward</code>, <code>post step</code>, etc.).</p>
@@ -2685,7 +2685,9 @@
 <p>Use <code>role</code> + <code>global_step</code> to join with <code>python.comm_collective</code> on the same rank.</p>
 <h3 id="collective-rows-pythoncomm_collective">Collective rows (<code>python.comm_collective</code>)<a class="headerlink" href="#collective-rows-pythoncomm_collective" title="Permanent link">&para;</a></h3>
 <p>Lite-mode hooks on <code>torch.distributed</code> write one row per collective with <code>duration_ms</code>,
-<code>bytes</code>, <code>op</code>, and the same step/role coordinates. See <a href="../../reference/sql-tables/#python-comm_collective">SQL Tables</a> and <a href="../../guide/sql-analytics/#python-comm_collective">SQL Analytics</a>.</p>
+<code>bytes</code>, <code>op</code>, and the same step/role coordinates. <strong>Off by default</strong> (including
+multi-rank jobs); enable with <code>PROBING_TORCH_COLLECTIVE_ENABLE=1</code> or
+<code>SET probing.torch.collective.enable=1</code>. See <a href="../../reference/sql-tables/#python-comm_collective">SQL Tables</a> and <a href="../../guide/sql-analytics/#python-comm_collective">SQL Analytics</a>.</p>
 <h3 id="enable-pytorch-profiling">Enable PyTorch Profiling<a class="headerlink" href="#enable-pytorch-profiling" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Environment variable (synced to probing.torch.profiling)</span>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span>on<span class="w"> </span>python<span class="w"> </span>train.py

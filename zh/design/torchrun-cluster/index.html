@@ -2548,7 +2548,7 @@
 </tbody>
 </table>
 <h2 id="probing_cluster_preset">预设（<code>PROBING_CLUSTER_PRESET</code>）<a class="headerlink" href="#probing_cluster_preset" title="Permanent link">&para;</a></h2>
-<p><code>examples/run_cluster_multinode.sh</code> 支持预设，便于 demo / 调试 / 长跑：</p>
+<p><code>examples/cluster/run_multinode.sh</code> 支持预设，便于 demo / 调试 / 长跑：</p>
 <table>
 <thead>
 <tr>
@@ -2575,8 +2575,8 @@
 </tr>
 </tbody>
 </table>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nv">PROBING_CLUSTER_PRESET</span><span class="o">=</span>fast<span class="w"> </span>./examples/run_cluster_multinode.sh<span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">2</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nv">PROBING_CLUSTER_PRESET</span><span class="o">=</span>steady<span class="w"> </span>./examples/run_cluster_multinode.sh<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">8</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nv">PROBING_CLUSTER_PRESET</span><span class="o">=</span>fast<span class="w"> </span>./examples/cluster/run_multinode.sh<span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">2</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nv">PROBING_CLUSTER_PRESET</span><span class="o">=</span>steady<span class="w"> </span>./examples/cluster/run_multinode.sh<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">8</span>
 </span></code></pre></div>
 <p>也可手动覆盖任意变量；预设只设置未显式 export 的项。</p>
 <h2 id="role">查询与 role<a class="headerlink" href="#role" title="Permanent link">&para;</a></h2>
@@ -2585,8 +2585,8 @@
 </span></code></pre></div>
 <p>训练脚本中 <code>probing.set_role(dp=…)</code> 后调用 <code>refresh_node_role()</code>（Python facade）立即补一条心跳。</p>
 <h2 id="_6">演示<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>./examples/run_cluster_multinode.sh<span class="w">        </span><span class="c1"># 2 机 × 2 卡</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>./examples/run_cluster_multinode.sh<span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">60</span><span class="w"> </span><span class="c1"># 3 机 × 4 卡，sleep 60s</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>./examples/cluster/run_multinode.sh<span class="w">        </span><span class="c1"># 2 机 × 2 卡</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>./examples/cluster/run_multinode.sh<span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">60</span><span class="w"> </span><span class="c1"># 3 机 × 4 卡，sleep 60s</span>
 </span></code></pre></div>
 <h2 id="python-hook">与 Python hook 的关系<a class="headerlink" href="#python-hook" title="Permanent link">&para;</a></h2>
 <p>集群心跳<strong>仅由 Rust ctor 启动</strong>；不再 patch <code>torch.distributed.init_process_group</code>。Python 模块 <code>probing.torchrun_cluster</code> 保留 <code>setup_torchrun_cluster()</code> / <code>master_info()</code> 供显式调用与测试。</p>

@@ -2382,7 +2382,7 @@
 <li><strong>Rust 栈 LIFO</strong>：正常 <code>with</code> 嵌套用 O(1) pop；乱序退出仍 fallback 全栈搜索。</li>
 <li><strong>避免</strong> <code>PROBING_SPAN_LOCATION=1</code> 于训练热路径；TorchProbe 变量追踪有独立 stack walk。</li>
 </ol>
-<p>本地基准：<code>make bench-quick</code> 或 <code>python examples/bench_instrumentation.py --quick</code>。</p>
+<p>本地基准：<code>make bench-quick</code> 或 <code>python examples/overhead/bench_instrumentation.py --quick</code>。</p>
 <h2 id="_4">查询<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
 <p>物化视图 <code>SPANS_SQL</code>（<code>probing.tracing.SPANS_SQL</code>）在 <code>span_start</code> / <code>span_end</code> 上 join 出 <code>duration_us</code>。示例：</p>
 <div class="language-sql highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">phase</span><span class="p">,</span><span class="w"> </span><span class="n">local_step</span><span class="p">,</span><span class="w"> </span><span class="n">duration_us</span>

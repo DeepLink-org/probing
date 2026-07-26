@@ -3064,7 +3064,7 @@
 </thead>
 <tbody>
 <tr>
-<td><code>make bench</code> → <code>examples/bench_instrumentation.py</code></td>
+<td><code>make bench</code> → <code>examples/overhead/bench_instrumentation.py</code></td>
 <td>Python/Rust <strong>instrumentation</strong> wall time</td>
 </tr>
 <tr>
@@ -3325,7 +3325,7 @@ $$</p>
 </table>
 <hr />
 <h2 id="6-offline-benchmark-make-bench">6. Offline benchmark: <code>make bench</code><a class="headerlink" href="#6-offline-benchmark-make-bench" title="Permanent link">&para;</a></h2>
-<p>Script: <code>examples/bench_instrumentation.py</code>. Run inside a <strong>probing-injected</strong> process:</p>
+<p>Script: <code>examples/overhead/bench_instrumentation.py</code>. Run inside a <strong>probing-injected</strong> process:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>bench
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>bench-quick
 </span></code></pre></div>
@@ -3371,12 +3371,12 @@ $$</p>
 <p><strong>B — torch_probe (synthetic)</strong>: fake single module; median per-step timing; <code>hook_tax_pct</code> on <code>shadow=4:1</code> uses §3.1. Not representative of large production models.</p>
 <p><strong>C — torch_train (TinyNet)</strong>: paired back-to-back baseline vs instrumented; reports <code>paired_delta_ms</code> and <code>inst_med</code>.</p>
 <h3 id="63-json-export">6.3 JSON export<a class="headerlink" href="#63-json-export" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>python<span class="w"> </span>examples/bench_instrumentation.py<span class="w"> </span>--json-out<span class="w"> </span>/tmp/bench.json
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>python<span class="w"> </span>examples/overhead/bench_instrumentation.py<span class="w"> </span>--json-out<span class="w"> </span>/tmp/bench.json
 </span></code></pre></div>
 <hr />
 <h2 id="7-nccl-profiler-overhead-offline-only">7. NCCL profiler overhead (offline only)<a class="headerlink" href="#7-nccl-profiler-overhead-offline-only" title="Permanent link">&para;</a></h2>
 <p>No in-run shadow. Runtime health: <code>nccl.profiler_counters</code>.</p>
-<p>E2E: <code>examples/nccl_profiler_overhead.py</code>, <code>examples/run_nccl_profiler_bench.sh</code>. Baseline vs plugin + <code>PROBING=2</code>. Compare with §3.4 on latency and throughput.</p>
+<p>E2E: <code>examples/overhead/nccl_profiler_overhead.py</code>, <code>examples/overhead/run_nccl_bench.sh</code>. Baseline vs plugin + <code>PROBING=2</code>. Compare with §3.4 on latency and throughput.</p>
 <p>Micro: <code>probing/extensions/nccl-profiler/benches/callback_path.rs</code> (Criterion) — component-level only.</p>
 <hr />
 <h2 id="8-other-subsystems">8. Other subsystems<a class="headerlink" href="#8-other-subsystems" title="Permanent link">&para;</a></h2>
@@ -3528,7 +3528,7 @@ $$</p>
 <hr />
 <h2 id="12-operations">12. Operations<a class="headerlink" href="#12-operations" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span>on<span class="w"> </span>python<span class="w"> </span>train.py
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>python<span class="w"> </span>examples/torch_probe_overhead_smoke.py
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>python<span class="w"> </span>examples/overhead/torch_probe_overhead_smoke.py
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>bench-quick
 </span></code></pre></div>
 <p>Reduce overhead: lower <code>rate</code> / <code>layer_rate</code>; disable <code>trace_spans</code>, <code>sync=on</code>, <code>backward=on</code>; use <code>shadow=off</code> only when in-run estimates are not needed.</p>
@@ -3548,7 +3548,7 @@ $$</p>
 </tr>
 <tr>
 <td>Offline bench</td>
-<td><code>examples/bench_instrumentation.py</code></td>
+<td><code>examples/overhead/bench_instrumentation.py</code></td>
 </tr>
 <tr>
 <td>Web SQL</td>
@@ -3564,11 +3564,11 @@ $$</p>
 </tr>
 <tr>
 <td>soak</td>
-<td><code>examples/soak_assert.py</code></td>
+<td><code>examples/imagenet/soak_assert.py</code></td>
 </tr>
 <tr>
 <td>NCCL E2E</td>
-<td><code>examples/nccl_profiler_overhead.py</code></td>
+<td><code>examples/overhead/nccl_profiler_overhead.py</code></td>
 </tr>
 </tbody>
 </table>

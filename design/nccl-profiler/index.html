@@ -2559,7 +2559,9 @@
 </tr>
 </tbody>
 </table>
-<p>Coarse collective tracing (<code>python.comm_collective</code>) works with <code>PROBING=1</code> only. The NCCL profiler plugin requires <strong>NCCL ≥ 2.26</strong> (PyTorch <strong>2.8+</strong> recommended); it exports both <strong><code>ncclProfiler_v4</code></strong> (NCCL ≥ 2.27, preferred) and <strong><code>ncclProfiler_v3</code></strong> (NCCL 2.26) — NCCL negotiates the highest version automatically.</p>
+<p>Coarse collective tracing (<code>python.comm_collective</code>) is <strong>off by default</strong>; enable with
+<code>PROBING_TORCH_COLLECTIVE_ENABLE=1</code> or <code>SET probing.torch.collective.enable=1</code>
+(in addition to <code>PROBING=1</code>). The NCCL profiler plugin requires <strong>NCCL ≥ 2.26</strong> (PyTorch <strong>2.8+</strong> recommended); it exports both <strong><code>ncclProfiler_v4</code></strong> (NCCL ≥ 2.27, preferred) and <strong><code>ncclProfiler_v3</code></strong> (NCCL 2.26) — NCCL negotiates the highest version automatically.</p>
 <h2 id="three-collective-data-sources-keep-them-apart">Three collective data sources — keep them apart<a class="headerlink" href="#three-collective-data-sources-keep-them-apart" title="Permanent link">&para;</a></h2>
 <p>probing has three independent collective-communication collectors. They have
 <strong>different timing semantics</strong> and must not be conflated:</p>
@@ -2595,11 +2597,10 @@
 </table>
 <p>Rules of engagement:</p>
 <ul>
-<li>When the plugin is active (<code>NCCL_PROFILER_PLUGIN</code> set), the Torch-API tracer
-  is <strong>disabled by default</strong> — recording the same collectives twice with
-  conflicting timing only creates confusion. Force both with
+<li>The Torch-API tracer is <strong>disabled by default</strong> (including multi-rank jobs) to
+  avoid silent overhead. Enable with <code>PROBING_TORCH_COLLECTIVE_ENABLE=1</code> or
   <code>SET probing.torch.collective.enable=1</code> (e.g. when you need per-step
-  <code>global_step</code> alignment alongside precise timing).</li>
+  <code>global_step</code> alignment alongside precise NCCL timing).</li>
 <li>For execution time, bandwidth, and wait attribution, always query <code>nccl.*</code>.
   <code>python.comm_collective.duration_ms</code> is <strong>not</strong> NCCL execution time — for
   <code>async_op</code> calls it closes at <code>work.wait()</code>, otherwise at API return.</li>

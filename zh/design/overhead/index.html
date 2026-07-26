@@ -3278,7 +3278,7 @@
 </thead>
 <tbody>
 <tr>
-<td><code>make bench</code> → <code>examples/bench_instrumentation.py</code></td>
+<td><code>make bench</code> → <code>examples/overhead/bench_instrumentation.py</code></td>
 <td>Python/Rust <strong>instrumentation</strong> 墙钟开销</td>
 </tr>
 <tr>
@@ -3569,7 +3569,7 @@ $$</p>
 </table>
 <hr />
 <h2 id="6-make-bench">6. 离线基准：<code>make bench</code><a class="headerlink" href="#6-make-bench" title="Permanent link">&para;</a></h2>
-<p>脚本：<code>examples/bench_instrumentation.py</code>。须在 <strong>probing 注入进程</strong>内运行：</p>
+<p>脚本：<code>examples/overhead/bench_instrumentation.py</code>。须在 <strong>probing 注入进程</strong>内运行：</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>bench<span class="w">          </span><span class="c1"># 完整</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>bench-quick<span class="w">    </span><span class="c1"># --quick</span>
 </span></code></pre></div>
@@ -3670,13 +3670,13 @@ $$</p>
 <li>报告 <code>paired_delta_ms</code> 与合成 <code>inst_med = median(base) + median(Δ)</code></li>
 </ul>
 <h3 id="63-json">6.3 JSON 导出<a class="headerlink" href="#63-json" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>python<span class="w"> </span>examples/bench_instrumentation.py<span class="w"> </span>--json-out<span class="w"> </span>/tmp/bench.json
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>python<span class="w"> </span>examples/overhead/bench_instrumentation.py<span class="w"> </span>--json-out<span class="w"> </span>/tmp/bench.json
 </span></code></pre></div>
 <hr />
 <h2 id="7-nccl-profiler-overhead">7. NCCL Profiler Overhead（仅离线）<a class="headerlink" href="#7-nccl-profiler-overhead" title="Permanent link">&para;</a></h2>
 <p><strong>无 in-run shadow</strong>。运行时只看 <code>nccl.profiler_counters</code> 健康度。</p>
 <h3 id="71-e2e-allreduce-allgather">7.1 E2E AllReduce / AllGather<a class="headerlink" href="#71-e2e-allreduce-allgather" title="Permanent link">&para;</a></h3>
-<p>脚本：<code>examples/nccl_profiler_overhead.py</code>；编排：<code>examples/run_nccl_profiler_bench.sh</code>。</p>
+<p>脚本：<code>examples/overhead/nccl_profiler_overhead.py</code>；编排：<code>examples/overhead/run_nccl_bench.sh</code>。</p>
 <table>
 <thead>
 <tr>
@@ -3768,7 +3768,7 @@ $$</p>
 <tr>
 <td>soak 失败</td>
 <td><code>hook_tax_pct &gt; 75%</code>（默认 <code>--max-hook-tax-pct</code>）</td>
-<td><code>examples/soak_assert.py</code></td>
+<td><code>examples/imagenet/soak_assert.py</code></td>
 </tr>
 <tr>
 <td>CI 回归</td>
@@ -3947,7 +3947,7 @@ $$</p>
 <li>关闭 torch profiling，仅保留基础探针</li>
 </ol>
 <h3 id="_4">快速冒烟<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>python<span class="w"> </span>examples/torch_probe_overhead_smoke.py<span class="w">   </span><span class="c1"># 无 GPU</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>python<span class="w"> </span>examples/overhead/torch_probe_overhead_smoke.py<span class="w">   </span><span class="c1"># 无 GPU</span>
 </span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>bench-quick
 </span></code></pre></div>
 <hr />
@@ -3966,7 +3966,7 @@ $$</p>
 </tr>
 <tr>
 <td>离线基准</td>
-<td><code>examples/bench_instrumentation.py</code></td>
+<td><code>examples/overhead/bench_instrumentation.py</code></td>
 </tr>
 <tr>
 <td>Web SQL</td>
@@ -3982,11 +3982,11 @@ $$</p>
 </tr>
 <tr>
 <td>soak 断言</td>
-<td><code>examples/soak_assert.py</code></td>
+<td><code>examples/imagenet/soak_assert.py</code></td>
 </tr>
 <tr>
 <td>NCCL E2E</td>
-<td><code>examples/nccl_profiler_overhead.py</code></td>
+<td><code>examples/overhead/nccl_profiler_overhead.py</code></td>
 </tr>
 </tbody>
 </table>

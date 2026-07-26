@@ -2343,7 +2343,7 @@
 </table>
 <p><strong>Stale vs backoff:</strong> effective max interval = <code>min(configured_max, STALE_SEC - STALE_SEC/4 - 1)</code>. With default stale=25, max ≈ <strong>18s</strong>. For ~60s stable heartbeats, raise <code>PROBING_CLUSTER_STALE_SEC</code> (≥90 recommended).</p>
 <h2 id="presets-probing_cluster_preset">Presets (<code>PROBING_CLUSTER_PRESET</code>)<a class="headerlink" href="#presets-probing_cluster_preset" title="Permanent link">&para;</a></h2>
-<p><code>examples/run_cluster_multinode.sh</code> supports:</p>
+<p><code>examples/cluster/run_multinode.sh</code> supports:</p>
 <table>
 <thead>
 <tr>
@@ -2366,10 +2366,10 @@
 </tr>
 </tbody>
 </table>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nv">PROBING_CLUSTER_PRESET</span><span class="o">=</span>fast<span class="w"> </span>./examples/run_cluster_multinode.sh<span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">2</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nv">PROBING_CLUSTER_PRESET</span><span class="o">=</span>fast<span class="w"> </span>./examples/cluster/run_multinode.sh<span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">2</span>
 </span></code></pre></div>
 <h2 id="demo">Demo<a class="headerlink" href="#demo" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./examples/run_cluster_multinode.sh
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./examples/cluster/run_multinode.sh
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>probing<span class="w"> </span>-t<span class="w"> </span>rank0-host:18080<span class="w"> </span>cluster<span class="w"> </span>nodes
 </span></code></pre></div>
 <p>Cluster heartbeat starts from the <strong>Rust ctor only</strong>; <code>init_process_group</code> is not patched. Python <code>probing.torchrun_cluster.setup_torchrun_cluster()</code> remains for explicit calls and tests.</p>

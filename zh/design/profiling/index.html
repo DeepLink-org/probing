@@ -2562,8 +2562,8 @@
 <p>采样降低记录开销；forward 钩子仍挂在全部子模块上（shadow step 上 hook 立即返回，零开销）。</p>
 <h3 id="nccl-profiler">NCCL profiler 开销<a class="headerlink" href="#nccl-profiler" title="Permanent link">&para;</a></h3>
 <p>Shadow step 仅衡量 <strong>TorchProbe 模块 hook</strong> 开销。NCCL profiler 插件目前没有 in-run shadow 基线，启用后会持续记录 collective 事件。NCCL AllReduce 与 probing 的开销对比请用离线 benchmark：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./examples/run_nccl_profiler_bench.sh
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1"># 或：python examples/torch_probe_overhead_smoke.py  # 仅 Torch 冒烟（无需 GPU）</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./examples/overhead/run_nccl_bench.sh
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1"># 或：python examples/overhead/torch_probe_overhead_smoke.py  # 仅 Torch 冒烟（无需 GPU）</span>
 </span></code></pre></div>
 <p>运行时健康度见 <code>nccl.profiler_counters</code>（<code>pool_exhausted</code>、<code>write_errors</code>、<code>rows_written</code>）。Web UI 开销面板在 NCCL 活跃时会提示离线 bench 入口。</p>
 <p>记录在每个 optimizer step 结束时批量落盘（可选 GPU <code>synchronize()</code>）。pre/post 成对产生两行；<strong>时长在 post 行</strong>（<code>post forward</code>、<code>post step</code> 等）上有效。</p>
@@ -2653,7 +2653,9 @@
 <p>可用 <code>role</code> + <code>global_step</code> 与同 rank 的 <code>python.comm_collective</code> JOIN。</p>
 <h3 id="pythoncomm_collective">集合通信（<code>python.comm_collective</code>）<a class="headerlink" href="#pythoncomm_collective" title="Permanent link">&para;</a></h3>
 <p>对 <code>torch.distributed</code> 的 lite 模式钩子每条 collective 写一行，含 <code>duration_ms</code>、<code>bytes</code>、<code>op</code>
-及相同 step/role 坐标。见 <a href="../../reference/sql-tables/#python-comm_collective">SQL 表</a> 与
+及相同 step/role 坐标。<strong>默认关闭</strong>（含多 rank 作业）；需显式开启：
+<code>PROBING_TORCH_COLLECTIVE_ENABLE=1</code> 或 <code>SET probing.torch.collective.enable=1</code>。
+见 <a href="../../reference/sql-tables/#python-comm_collective">SQL 表</a> 与
 <a href="../../guide/sql-analytics/#python-comm_collective">SQL 分析</a>。</p>
 <h3 id="pytorch">启用 PyTorch 分析<a class="headerlink" href="#pytorch" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># 环境变量（同步为 probing.torch.profiling）</span>

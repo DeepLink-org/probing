@@ -2894,6 +2894,34 @@ them into a <code>role</code> string like <code>dp=2,pp=1,tp=0</code>.</p>
 <td>Enable mock NCCL proxy data for testing without GPUs.</td>
 </tr>
 <tr>
+<td><code>PROBING_FAKES</code></td>
+<td>Opt-in fake packages for macOS debugging (<code>1</code>/<code>all</code>, or comma list: <code>megatron,transformer_engine,apex,flash_attn,triton</code>). See <code>python/probing/fakes/README.md</code>.</td>
+</tr>
+<tr>
+<td><code>PROBING_FAKES_FORCE</code></td>
+<td>When <code>1</code>, shadow real packages for enabled specs (needed if megatron-core is installed but unusable on macOS).</td>
+</tr>
+<tr>
+<td><code>PROBING_FAKE_DEVICE</code></td>
+<td><code>meta</code> / <code>cpu</code> / <code>mps</code>. Remap CUDA device APIs when <code>probing.fakes</code> is installed. Scripted loops default to <code>meta</code> (no compute). Real Megatron-LM runner (<code>examples/megatron/run_megatron_lm_pretrain.py</code>) defaults to <code>cpu</code>.</td>
+</tr>
+<tr>
+<td><code>MEGATRON_LM</code></td>
+<td>Path to a Megatron-LM checkout for the real-code runner (default: sibling <code>../Megatron-LM</code>). One checkout at a time — switch versions by changing this path.</td>
+</tr>
+<tr>
+<td><code>MEGATRON_LM_ALLOW_ANY_VERSION</code></td>
+<td>When <code>1</code>, skip the megatron-core smoke version gate (default allows ≥0.12.1 and &lt;0.21).</td>
+</tr>
+<tr>
+<td><code>PROBING_MEGATRON_REAL_LM</code></td>
+<td>Opt-in for <code>tests/regression/ext/test_megatron_real_lm.py</code> (<code>1</code> to run).</td>
+</tr>
+<tr>
+<td>—</td>
+<td>Fake layer also writes <code>python.fake_event</code> ground-truth rows and can hook <code>torch.distributed</code> to dual-write <code>python.comm_collective</code> for correlation / verify.</td>
+</tr>
+<tr>
 <td><code>PROBING_NCCL_PROFILER</code></td>
 <td>Path to the NCCL profiler shared library.</td>
 </tr>
@@ -3165,7 +3193,7 @@ These variables are read by PyTorch, not Probing, but should be set before
 <tr>
 <td><code>PROBING_CLUSTER_PRESET</code></td>
 <td>—</td>
-<td>Used by <code>examples/run_cluster_multinode.sh</code>: <code>demo</code>, <code>fast</code>, or <code>steady</code>.</td>
+<td>Used by <code>examples/cluster/run_multinode.sh</code>: <code>demo</code>, <code>fast</code>, or <code>steady</code>.</td>
 </tr>
 <tr>
 <td><code>PROBING_CLUSTER_FANOUT_HIERARCHICAL</code></td>
