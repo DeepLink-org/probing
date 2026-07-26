@@ -29,7 +29,7 @@ pub use convert::{
 };
 pub use fanout_scope::{
     current_fanout_scope, hierarchical_fanout_enabled, is_local0_from_env, resolve_fanout_scope,
-    set_fanout_scope, take_fanout_scope, with_fanout_scope, FanoutScope,
+    set_fanout_scope, take_fanout_scope, with_fanout_scope, with_fanout_scope_async, FanoutScope,
 };
 pub use global_catalog::{install_global_catalog, GLOBAL_CATALOG};
 pub use query_guard::{

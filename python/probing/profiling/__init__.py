@@ -1,15 +1,12 @@
-"""
-Profiling Tools
+"""Profiling collectors, including two independent PyTorch paths.
 
-Spec
-----
-This package provides specialized profiling tools for AI workloads.
+``torch_probe`` is sampled, long-running module/step telemetry. It writes mmap
+tables such as ``python.torch_trace`` and ``python.torch_step_timing``.
 
-Responsibilities:
-1.  Collective communication profiling (NCCL/distributed ops).
-2.  Framework-specific profiling (e.g., PyTorch Module/Optimizer steps).
+``torch_profiler`` controls explicit short ``torch.profiler`` / Kineto captures.
+It keeps bounded capture state in process and exposes conclusion-oriented virtual
+tables, ``python.profile_capture`` and ``python.profile_hotspot``.
 
-Submodules:
-- `collective`: Distributed communication analysis.
-- `torch`: PyTorch specific profiling logic.
+The paths do not start, stop, or configure one another. They correlate only by
+training coordinates in SQL, and their overheads add when both are active.
 """

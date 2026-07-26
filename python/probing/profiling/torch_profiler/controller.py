@@ -1,4 +1,9 @@
-"""ProfilerController: short-window torch.profiler with SQL row materialization."""
+"""Short-window ``torch.profiler`` control with SQL row materialization.
+
+This is the on-demand, op/kernel-level path. It is independent from TorchProbe's
+sampled module telemetry: no TorchProbe hooks, buffers, sampling configuration,
+or shadow baseline are reused here.
+"""
 
 from __future__ import annotations
 
@@ -29,7 +34,13 @@ def _now_us() -> int:
 
 
 class ProfilerController:
-    """Drive torch.profiler for N optimizer steps and publish hotspot rows."""
+    """Drive ``torch.profiler`` for N optimizer steps and publish hotspot rows.
+
+    Captures stay in the bounded :class:`SessionStore` and are exposed through
+    ``python.profile_capture`` / ``python.profile_hotspot``. They are not written
+    to TorchProbe's mmap tables. If TorchProbe is active for the same steps, both
+    collectors run independently and their overheads add.
+    """
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
