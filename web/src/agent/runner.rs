@@ -118,7 +118,9 @@ pub async fn run_skill(
         load_skill(skill_id).ok_or_else(|| AppError::Api(format!("Unknown skill: {skill_id}")))?;
     let backend = WebBackend;
 
-    resolve_use_global(&backend, &skill, &mut overrides).await;
+    resolve_use_global(&backend, &skill, &mut overrides)
+        .await
+        .map_err(|error| AppError::Api(error.to_string()))?;
     if session.is_some_and(|s| s.is_cancelled()) {
         return Err(AppError::Cancelled);
     }

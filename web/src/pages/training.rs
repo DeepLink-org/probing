@@ -18,6 +18,7 @@ use crate::components::workspace::{ChipButton, WidthSegment};
 use crate::hooks::{use_app_resource, use_page_visible, use_poll_tick_gated};
 use crate::state::agent::{AGENT_INPUT, AGENT_PANEL_OPEN};
 use crate::state::investigation::{apply_context_from_dataframe_row, set_training_step_context};
+use crate::state::training::{TRAINING_CLUSTER_SCOPE, TRAINING_REFRESH};
 use crate::state::ui_tasks::ui_agent_busy;
 use crate::utils::error::AppError;
 
@@ -138,13 +139,11 @@ fn select_training_step(
 }
 
 #[component]
-pub fn Training() -> Element {
+pub fn Training(#[props(default = true)] show_controls: bool) -> Element {
     let visible = use_page_visible();
     let poll = use_poll_tick_gated(POLL_MS, Some(visible));
-    let mut manual_refresh = use_signal(|| 0u32);
-    let local_tick = poll().wrapping_add(manual_refresh());
+    let local_tick = poll().wrapping_add(*TRAINING_REFRESH.read());
 
-    let mut scope = use_signal(|| DataScope::Local);
     let nodes = use_app_resource(|| async move { ApiClient::new().get_nodes().await });
     let mut cluster_scan = use_action(|| async move {
         let client = ApiClient::new();
@@ -170,12 +169,24 @@ pub fn Training() -> Element {
         })
     });
 
+    use_effect(move || {
+        let refresh = *TRAINING_REFRESH.read();
+        if *TRAINING_CLUSTER_SCOPE.read() {
+            let _ = refresh;
+            cluster_scan.call();
+        }
+    });
+
     let peer_count = nodes()
         .and_then(|r| r.ok())
         .map(|nodes| nodes.len().saturating_sub(1))
         .unwrap_or(0);
 
-    let current_scope = scope();
+    let current_scope = if *TRAINING_CLUSTER_SCOPE.read() {
+        DataScope::Cluster
+    } else {
+        DataScope::Local
+    };
     let scan_pending = cluster_scan.pending();
     let selected_step = use_signal(|| None::<SelectedStep>);
 
@@ -185,34 +196,34 @@ pub fn Training() -> Element {
                 title: "Training".to_string(),
                 subtitle: Some("Step timing, per-step breakdown, module hooks, and collective latency.".to_string()),
                 icon: Some(&icondata::AiRadarChartOutlined),
-                header_right: Some(rsx! {
-                    if current_scope == DataScope::Local {
-                        PollStatusBar {
-                            interval_secs: POLL_MS / 1000,
-                            poll_tick: local_tick,
-                        }
-                    }
-                    RefreshButton {
-                        onclick: move |_| {
-                            if current_scope == DataScope::Cluster {
-                                cluster_scan.call();
-                            } else {
-                                manual_refresh.set(manual_refresh() + 1);
+                header_right: if show_controls {
+                    Some(rsx! {
+                        if current_scope == DataScope::Local {
+                            PollStatusBar {
+                                interval_secs: POLL_MS / 1000,
+                                poll_tick: local_tick,
                             }
-                        },
-                    }
-                }),
+                        }
+                        RefreshButton {
+                            onclick: move |_| *TRAINING_REFRESH.write() += 1,
+                        }
+                    })
+                } else {
+                    None
+                },
             }
 
-            TrainingScopeBar {
-                scope: current_scope,
-                peer_count,
-                scan_pending,
-                on_local: move |_| scope.set(DataScope::Local),
-                on_cluster_scan: move |_| {
-                    scope.set(DataScope::Cluster);
-                    cluster_scan.call();
-                },
+            if show_controls {
+                TrainingScopeBar {
+                    scope: current_scope,
+                    peer_count,
+                    scan_pending,
+                    on_local: move |_| *TRAINING_CLUSTER_SCOPE.write() = false,
+                    on_cluster_scan: move |_| {
+                        *TRAINING_CLUSTER_SCOPE.write() = true;
+                        *TRAINING_REFRESH.write() += 1;
+                    },
+                }
             }
 
             if current_scope == DataScope::Cluster {

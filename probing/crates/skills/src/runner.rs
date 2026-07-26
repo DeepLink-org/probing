@@ -122,9 +122,9 @@ pub async fn resolve_use_global<B: SkillBackend>(
     backend: &B,
     pb: &Skill,
     overrides: &mut HashMap<String, String>,
-) {
+) -> Result<()> {
     if overrides.contains_key("use_global") {
-        return;
+        return Ok(());
     }
     let default = pb
         .parameters
@@ -135,9 +135,19 @@ pub async fn resolve_use_global<B: SkillBackend>(
             _ => None,
         })
         .unwrap_or(false);
-    let peers = backend.peer_count().await;
-    let use_global = peers > 0 && default;
+    if !default {
+        overrides.insert("use_global".to_string(), "false".to_string());
+        return Ok(());
+    }
+    let peers = backend.peer_count().await.map_err(|error| {
+        SkillRunError(format!(
+            "failed to discover cluster peers before running `{}`: {error}",
+            pb.id
+        ))
+    })?;
+    let use_global = peers > 0;
     overrides.insert("use_global".to_string(), use_global.to_string());
+    Ok(())
 }
 
 pub async fn execute_skill<B: SkillBackend>(
@@ -157,7 +167,7 @@ pub async fn execute_skill_pb<B: SkillBackend>(
     mut overrides: HashMap<String, String>,
     options: RunOptions,
 ) -> Result<RunResult> {
-    resolve_use_global(backend, &pb, &mut overrides).await;
+    resolve_use_global(backend, &pb, &mut overrides).await?;
     let ctx = build_context(&pb, &overrides);
     let mut outcomes = Vec::new();
     let mut evidence = Vec::new();
@@ -578,6 +588,7 @@ mod tests {
 
     struct MockBackend {
         peers: usize,
+        peer_error: bool,
         local_rows: usize,
         cluster_partial: bool,
         calls: Arc<AtomicUsize>,
@@ -587,6 +598,7 @@ mod tests {
         fn new(peers: usize, local_rows: usize) -> Self {
             Self {
                 peers,
+                peer_error: false,
                 local_rows,
                 cluster_partial: false,
                 calls: Arc::new(AtomicUsize::new(0)),
@@ -595,6 +607,11 @@ mod tests {
 
         fn with_partial(mut self) -> Self {
             self.cluster_partial = true;
+            self
+        }
+
+        fn with_peer_error(mut self) -> Self {
+            self.peer_error = true;
             self
         }
 
@@ -640,8 +657,12 @@ mod tests {
             Ok(format!("body:{path}"))
         }
 
-        async fn peer_count(&self) -> usize {
-            self.peers
+        async fn peer_count(&self) -> Result<usize> {
+            if self.peer_error {
+                Err(SkillRunError("node registry unavailable".into()))
+            } else {
+                Ok(self.peers)
+            }
         }
     }
 
@@ -744,7 +765,9 @@ mod tests {
         let backend = MockBackend::new(4, 1);
         let pb = sample_skill(vec![], vec![]);
         let mut overrides = HashMap::from([("use_global".into(), "false".into())]);
-        resolve_use_global(&backend, &pb, &mut overrides).await;
+        resolve_use_global(&backend, &pb, &mut overrides)
+            .await
+            .unwrap();
         assert_eq!(
             overrides.get("use_global").map(String::as_str),
             Some("false")
@@ -756,10 +779,39 @@ mod tests {
         let backend = MockBackend::new(3, 1);
         let pb = sample_skill(vec![], vec![]);
         let mut overrides = HashMap::new();
-        resolve_use_global(&backend, &pb, &mut overrides).await;
+        resolve_use_global(&backend, &pb, &mut overrides)
+            .await
+            .unwrap();
         assert_eq!(
             overrides.get("use_global").map(String::as_str),
             Some("true")
+        );
+    }
+
+    #[tokio::test]
+    async fn resolve_use_global_surfaces_peer_discovery_failure() {
+        let backend = MockBackend::new(0, 1).with_peer_error();
+        let pb = sample_skill(vec![], vec![]);
+        let mut overrides = HashMap::new();
+        let error = resolve_use_global(&backend, &pb, &mut overrides)
+            .await
+            .unwrap_err();
+        assert!(error.0.contains("failed to discover cluster peers"));
+        assert!(!overrides.contains_key("use_global"));
+    }
+
+    #[tokio::test]
+    async fn resolve_use_global_does_not_discover_for_local_default() {
+        let backend = MockBackend::new(0, 1).with_peer_error();
+        let mut pb = sample_skill(vec![], vec![]);
+        pb.parameters[0].default = serde_yaml::Value::Bool(false);
+        let mut overrides = HashMap::new();
+        resolve_use_global(&backend, &pb, &mut overrides)
+            .await
+            .unwrap();
+        assert_eq!(
+            overrides.get("use_global").map(String::as_str),
+            Some("false")
         );
     }
 

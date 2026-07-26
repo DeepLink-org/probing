@@ -10,7 +10,7 @@ use crate::components::icon::Icon;
 use crate::components::sidebar::nav_item::sidebar_item_class;
 use crate::state::profiling::{normalize_profiling_view, profiling_view_label, PROFILING_VIEWS};
 
-mod controls;
+pub(crate) mod controls;
 use controls::{
     PprofControls, PyTorchTimelineControls, RayTimelineControls, TorchControls,
     TraceTimelineControls,

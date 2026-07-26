@@ -40,13 +40,14 @@ impl SkillBackend for CliBackend {
             .map_err(|e| SkillRunError(e.to_string()))
     }
 
-    async fn peer_count(&self) -> usize {
-        match self.0.get("/apis/nodes?limit=1024").await {
-            Ok(reply) => match serde_json::from_str::<NodeListResponse>(&reply) {
-                Ok(resp) => resp.total.saturating_sub(1),
-                Err(_) => 0,
-            },
-            Err(_) => 0,
-        }
+    async fn peer_count(&self) -> Result<usize> {
+        let reply = self
+            .0
+            .get("/apis/nodes?limit=1024")
+            .await
+            .map_err(|error| SkillRunError(error.to_string()))?;
+        let response: NodeListResponse =
+            serde_json::from_str(&reply).map_err(|error| SkillRunError(error.to_string()))?;
+        Ok(response.total.saturating_sub(1))
     }
 }
