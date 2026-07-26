@@ -29,7 +29,9 @@ def apply_env_bridge() -> None:
     After this runs, callers should only read ``PROBING_*`` / ``POD_IP`` / ``RAY_NODE_IP``.
     """
 
-    if not os.environ.get("PROBING_RAY_PROCESS_ROLE") and os.environ.get("SLIME_PROBING_ROLE"):
+    if not os.environ.get("PROBING_RAY_PROCESS_ROLE") and os.environ.get(
+        "SLIME_PROBING_ROLE"
+    ):
         os.environ["PROBING_RAY_PROCESS_ROLE"] = os.environ["SLIME_PROBING_ROLE"]
 
     if not os.environ.get("PROBING_NODE_IP") and os.environ.get("SLIME_NODE_IP"):

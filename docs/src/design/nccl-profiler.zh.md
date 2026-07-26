@@ -13,7 +13,9 @@
 | 已定位慢 rank，要区分 GPU 慢还是等网络 | `nccl.proxy_ops` + skill `nccl_culprit_victim` |
 | 怀疑 RoCE / IB 拥塞 | `nccl.net_qp` + `rdma.mlx_hca` |
 
-粗粒度 collective（`python.comm_collective`）只需 `PROBING=1`。NCCL profiler 插件需要 **NCCL ≥ 2.26**（建议 PyTorch **2.8+**）；插件同时导出 **`ncclProfiler_v4`**（NCCL ≥ 2.27，优先）与 **`ncclProfiler_v3`**（NCCL 2.26），NCCL 自动协商最高版本。
+粗粒度 collective（`python.comm_collective`）**默认关闭**；需显式开启
+`PROBING_TORCH_COLLECTIVE_ENABLE=1` 或 `SET probing.torch.collective.enable=1`
+（并配合 `PROBING=1`）。NCCL profiler 插件需要 **NCCL ≥ 2.26**（建议 PyTorch **2.8+**）；插件同时导出 **`ncclProfiler_v4`**（NCCL ≥ 2.27，优先）与 **`ncclProfiler_v3`**（NCCL 2.26），NCCL 自动协商最高版本。
 
 ## 三条 collective 采集路径 — 保持分叉，勿混淆
 
@@ -27,9 +29,9 @@ probing 有三条相互独立的集合通信采集路径，**计时语义不同*
 
 约定：
 
-- 插件启用时（设置了 `NCCL_PROFILER_PLUGIN`），Torch API 层插桩**默认关闭**——
-  同一批 collective 被两套语义各记一遍只会制造混乱。如需同开（例如要按
-  `global_step` 对齐），`SET probing.torch.collective.enable=1`。
+- Torch API 层插桩**默认关闭**（含多 rank 作业），避免隐性开销。需显式开启：
+  `PROBING_TORCH_COLLECTIVE_ENABLE=1` 或 `SET probing.torch.collective.enable=1`
+  （例如要与精准 NCCL 计时按 `global_step` 对齐）。
 - 查执行时间、带宽、等待归因，一律用 `nccl.*`。
   `python.comm_collective.duration_ms` **不是** NCCL 执行时间——`async_op`
   调用在 `work.wait()` 处收口，同步调用在 API 返回处收口。

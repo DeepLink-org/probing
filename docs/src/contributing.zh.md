@@ -167,7 +167,7 @@ make test-python-wheel
 
 ```bash
 uv pip install torch torchvision
-PROBING=1 python examples/tracing.py
+PROBING=1 python examples/getting-started/tracing.py
 ```
 
 见 [examples/README.md](https://github.com/DeepLink-org/probing/blob/main/examples/README.md)。

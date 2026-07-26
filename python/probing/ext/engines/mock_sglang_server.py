@@ -14,6 +14,8 @@ import threading
 import time
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+
 @dataclass
 class MockSGLangState:
     num_requests_running: int = 0
@@ -107,7 +109,9 @@ def _make_handler(state: MockSGLangState) -> type[BaseHTTPRequestHandler]:
             except json.JSONDecodeError:
                 payload = {}
 
-            max_new_tokens = int(payload.get("max_new_tokens") or payload.get("max_tokens") or 16)
+            max_new_tokens = int(
+                payload.get("max_new_tokens") or payload.get("max_tokens") or 16
+            )
             sleep_seconds = float(payload.get("mock_latency_seconds") or 0.05)
             state.begin_request(max_new_tokens, sleep_seconds)
             response = {
@@ -151,7 +155,9 @@ class MockSGLangServer:
             self._httpd = None
 
 
-def start_mock_sglang_server(host: str = "127.0.0.1", port: int = 0) -> MockSGLangServer:
+def start_mock_sglang_server(
+    host: str = "127.0.0.1", port: int = 0
+) -> MockSGLangServer:
     state = MockSGLangState()
     handler = _make_handler(state)
     httpd = ThreadingHTTPServer((host, port), handler)

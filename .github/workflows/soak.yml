@@ -71,8 +71,8 @@ jobs:
           SOAK_ASSERT: "1"
           BATCH_SIZE: "64"
         run: |
-          chmod +x examples/run_soak.sh
-          ./examples/run_soak.sh
+          chmod +x examples/imagenet/run_soak.sh
+          ./examples/imagenet/run_soak.sh
 
       - name: Upload soak data
         if: always()
@@ -128,8 +128,8 @@ jobs:
           SOAK_EXPECT_CLUSTER: "1"
           BATCH_SIZE: "32"
         run: |
-          chmod +x examples/run_soak.sh
-          ./examples/run_soak.sh
+          chmod +x examples/imagenet/run_soak.sh
+          ./examples/imagenet/run_soak.sh
 
       - name: Upload soak data
         if: always()
@@ -182,5 +182,5 @@ jobs:
           BATCH_SIZE: "128"
           PROBING_DATA_DIR: /tmp/probing_soak_gpu
         run: |
-          chmod +x examples/run_soak.sh
-          ./examples/run_soak.sh
+          chmod +x examples/imagenet/run_soak.sh
+          ./examples/imagenet/run_soak.sh

@@ -60,7 +60,7 @@ DEV_PTH := python/probing/dev_pth.py
 DEV_PY_DEPS := pyyaml pytest pytest-cov coverage ipython ipykernel ruff
 
 PYTEST_RUN := PROBING=1 $(VENV_PYTHON) -m pytest
-BENCH_SCRIPT := examples/bench_instrumentation.py
+BENCH_SCRIPT := examples/overhead/bench_instrumentation.py
 BENCH_RUN := PROBING=1 $(VENV_PYTHON) $(BENCH_SCRIPT)
 PYTEST_UNIT_ARGS := tests/unit
 PYTEST_REGRESSION_ARGS := tests/regression
@@ -198,12 +198,12 @@ bench-quick: check-dev
 	$(BENCH_RUN) --quick
 
 soak: check-dev
-	@test -x examples/run_soak.sh || chmod +x examples/run_soak.sh
-	DURATION_SEC=600 PYTHON=$(VENV_PYTHON) PROBING=1 ./examples/run_soak.sh
+	@test -x examples/imagenet/run_soak.sh || chmod +x examples/imagenet/run_soak.sh
+	DURATION_SEC=600 PYTHON=$(VENV_PYTHON) PROBING=1 ./examples/imagenet/run_soak.sh
 
 soak-quick: check-dev
-	@test -x examples/run_soak.sh || chmod +x examples/run_soak.sh
-	DURATION_SEC=60 MAX_STEPS=8 PYTHON=$(VENV_PYTHON) PROBING=1 ./examples/run_soak.sh
+	@test -x examples/imagenet/run_soak.sh || chmod +x examples/imagenet/run_soak.sh
+	DURATION_SEC=60 MAX_STEPS=8 PYTHON=$(VENV_PYTHON) PROBING=1 ./examples/imagenet/run_soak.sh
 
 frontend:
 	@test -n "$$SKIP_FRONTEND_CLEAN" || rm -rf python/probing/bundled_web

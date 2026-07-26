@@ -25,7 +25,9 @@ def _parse_labels(raw: str) -> dict[str, str]:
         return {}
     labels: dict[str, str] = {}
     for match in _LABEL_PAIR.finditer(raw):
-        labels[match.group(1)] = match.group(2).replace('\\"', '"').replace("\\\\", "\\")
+        labels[match.group(1)] = (
+            match.group(2).replace('\\"', '"').replace("\\\\", "\\")
+        )
     return labels
 
 
@@ -102,8 +104,12 @@ def pick_histogram_avg_seconds(
             return total / count
 
     for base in wanted_bases:
-        total_sum = sum(value for (metric_base, _), value in sums.items() if metric_base == base)
-        total_count = sum(value for (metric_base, _), value in counts.items() if metric_base == base)
+        total_sum = sum(
+            value for (metric_base, _), value in sums.items() if metric_base == base
+        )
+        total_count = sum(
+            value for (metric_base, _), value in counts.items() if metric_base == base
+        )
         if total_count > 0:
             return total_sum / total_count
 

@@ -129,7 +129,7 @@ python your_train_script.py
 Ray 相关示例可参考：
 
 ```bash
-PROBING=1 PROBING_PORT=8080 python examples/ray_job_actor_span_demo.py
+PROBING=1 PROBING_PORT=8080 python examples/ray/ray_job_actor_span_demo.py
 ```
 
 ### 2. 在代码中打 Span（最小契约）

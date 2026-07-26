@@ -458,7 +458,7 @@ fn nccl_footnote(nccl: &Result<DataFrame, AppError>) -> Element {
                     p { class: "text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2",
                         "NCCL profiler health: pool_exhausted={pool_exhausted}, write_errors={write_errors}. "
                         "NCCL has no in-run shadow baseline — offline: "
-                        code { class: "font-mono", "examples/run_nccl_profiler_bench.sh" }
+                        code { class: "font-mono", "examples/overhead/run_nccl_bench.sh" }
                     }
                 }
             } else {

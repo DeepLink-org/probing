@@ -25,7 +25,7 @@
 
 | 入口 | 测量对象 |
 |------|----------|
-| `make bench` → `examples/bench_instrumentation.py` | Python/Rust **instrumentation** 墙钟开销 |
+| `make bench` → `examples/overhead/bench_instrumentation.py` | Python/Rust **instrumentation** 墙钟开销 |
 | `probing bench write`（隐藏 CLI） | memtable **写路径吞吐/延迟**，不是训练 hook 税 |
 
 二者不可互换。
@@ -197,7 +197,7 @@ WHERE local_step >= bounds.win_start AND local_step > 1;
 
 ## 6. 离线基准：`make bench`
 
-脚本：`examples/bench_instrumentation.py`。须在 **probing 注入进程**内运行：
+脚本：`examples/overhead/bench_instrumentation.py`。须在 **probing 注入进程**内运行：
 
 ```bash
 PROBING=1 make bench          # 完整
@@ -257,7 +257,7 @@ $$
 ### 6.3 JSON 导出
 
 ```bash
-PROBING=1 python examples/bench_instrumentation.py --json-out /tmp/bench.json
+PROBING=1 python examples/overhead/bench_instrumentation.py --json-out /tmp/bench.json
 ```
 
 ---
@@ -268,7 +268,7 @@ PROBING=1 python examples/bench_instrumentation.py --json-out /tmp/bench.json
 
 ### 7.1 E2E AllReduce / AllGather
 
-脚本：`examples/nccl_profiler_overhead.py`；编排：`examples/run_nccl_profiler_bench.sh`。
+脚本：`examples/overhead/nccl_profiler_overhead.py`；编排：`examples/overhead/run_nccl_bench.sh`。
 
 | 模式 | 环境 |
 |------|------|
@@ -309,7 +309,7 @@ PROBING=1 python examples/bench_instrumentation.py --json-out /tmp/bench.json
 |------|------|------|
 | 诊断 warning | `dispatch_overhead_pct > 5%`（稳定口径） | `health_overview` |
 | 诊断 info（混合偏高） | `hook_tax_pct > 5%` 且 `dispatch_overhead_pct ≤ 5%` | 可选：采样步导致 |
-| soak 失败 | `hook_tax_pct > 75%`（默认 `--max-hook-tax-pct`） | `examples/soak_assert.py` |
+| soak 失败 | `hook_tax_pct > 75%`（默认 `--max-hook-tax-pct`） | `examples/imagenet/soak_assert.py` |
 | CI 回归 | span 倍数上界（§8） | `test_span_overhead.py` |
 
 > **注意**：5%（告警）、75%（soak）、8×（回归）服务于不同目的，**不是**统一 SLO。发布前应结合目标硬件与模型自行标定。
@@ -415,7 +415,7 @@ PROBING=1 PROBING_TORCH_PROFILING=on python train.py
 ### 快速冒烟
 
 ```bash
-PROBING=1 python examples/torch_probe_overhead_smoke.py   # 无 GPU
+PROBING=1 python examples/overhead/torch_probe_overhead_smoke.py   # 无 GPU
 PROBING=1 make bench-quick
 ```
 
@@ -426,12 +426,12 @@ PROBING=1 make bench-quick
 | 组件 | 路径 |
 |------|------|
 | Shadow 逻辑与计时 | `python/probing/profiling/torch_probe.py` |
-| 离线基准 | `examples/bench_instrumentation.py` |
+| 离线基准 | `examples/overhead/bench_instrumentation.py` |
 | Web SQL | `web/src/overhead/sql.rs` |
 | Web 格式化 | `web/src/overhead/metrics.rs` |
 | 技能 SQL | `skills/health_overview/steps.yaml` |
-| soak 断言 | `examples/soak_assert.py` |
-| NCCL E2E | `examples/nccl_profiler_overhead.py` |
+| soak 断言 | `examples/imagenet/soak_assert.py` |
+| NCCL E2E | `examples/overhead/nccl_profiler_overhead.py` |
 
 ---
 

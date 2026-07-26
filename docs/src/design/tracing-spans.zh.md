@@ -94,7 +94,7 @@ flowchart TD
 3. **Rust 栈 LIFO**：正常 `with` 嵌套用 O(1) pop；乱序退出仍 fallback 全栈搜索。
 4. **避免** `PROBING_SPAN_LOCATION=1` 于训练热路径；TorchProbe 变量追踪有独立 stack walk。
 
-本地基准：`make bench-quick` 或 `python examples/bench_instrumentation.py --quick`。
+本地基准：`make bench-quick` 或 `python examples/overhead/bench_instrumentation.py --quick`。
 
 ## 查询
 

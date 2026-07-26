@@ -17,7 +17,10 @@ pub struct TraceProcessInfo {
 /// RL-specific tracing API (multi-process fan-out, rollout filters).
 impl ApiClient {
     /// Get all trace events for spans tagged with a rollout_id.
-    pub async fn get_trace_events_for_rollout_id(&self, rollout_id: &str) -> Result<Vec<TraceEvent>> {
+    pub async fn get_trace_events_for_rollout_id(
+        &self,
+        rollout_id: &str,
+    ) -> Result<Vec<TraceEvent>> {
         let span_ids = self.get_span_ids_for_rollout_id(rollout_id).await?;
         if span_ids.is_empty() {
             return Ok(Vec::new());
@@ -232,15 +235,17 @@ fn span_ids_from_df(df: DataFrame) -> Vec<i64> {
     let span_id_idx = df.names.iter().position(|c| c == "span_id").unwrap_or(0);
     let nrows = df.cols.iter().map(|col| col.len()).max().unwrap_or(0);
     (0..nrows)
-        .filter_map(|row_idx| match df.cols.get(span_id_idx).map(|col| col.get(row_idx)) {
-            Some(Ele::I64(value)) => Some(value),
-            Some(Ele::I32(value)) => Some(value as i64),
-            Some(Ele::F32(value)) => Some(value as i64),
-            Some(Ele::F64(value)) => Some(value as i64),
-            Some(Ele::Text(value)) | Some(Ele::Url(value)) => value.parse::<i64>().ok(),
-            Some(Ele::DataTime(value)) => i64::try_from(value).ok(),
-            _ => None,
-        })
+        .filter_map(
+            |row_idx| match df.cols.get(span_id_idx).map(|col| col.get(row_idx)) {
+                Some(Ele::I64(value)) => Some(value),
+                Some(Ele::I32(value)) => Some(value as i64),
+                Some(Ele::F32(value)) => Some(value as i64),
+                Some(Ele::F64(value)) => Some(value as i64),
+                Some(Ele::Text(value)) | Some(Ele::Url(value)) => value.parse::<i64>().ok(),
+                Some(Ele::DataTime(value)) => i64::try_from(value).ok(),
+                _ => None,
+            },
+        )
         .collect()
 }
 
@@ -251,7 +256,11 @@ fn trace_events_from_df(df: DataFrame) -> Vec<TraceEvent> {
         return events;
     }
 
-    let record_type_idx = df.names.iter().position(|c| c == "record_type").unwrap_or(0);
+    let record_type_idx = df
+        .names
+        .iter()
+        .position(|c| c == "record_type")
+        .unwrap_or(0);
     let trace_id_idx = df.names.iter().position(|c| c == "trace_id").unwrap_or(1);
     let span_id_idx = df.names.iter().position(|c| c == "span_id").unwrap_or(2);
     let parent_id_idx = df.names.iter().position(|c| c == "parent_id").unwrap_or(3);
@@ -335,10 +344,26 @@ fn trace_processes_from_df(df: DataFrame) -> Vec<TraceProcessInfo> {
 
     let pid_idx = df.names.iter().position(|c| c == "pid").unwrap_or(0);
     let hostname_idx = df.names.iter().position(|c| c == "hostname").unwrap_or(1);
-    let worker_idx = df.names.iter().position(|c| c == "ray_worker_id").unwrap_or(2);
-    let actor_idx = df.names.iter().position(|c| c == "ray_actor_id").unwrap_or(3);
-    let actor_name_idx = df.names.iter().position(|c| c == "ray_actor_name").unwrap_or(4);
-    let role_idx = df.names.iter().position(|c| c == "process_role").unwrap_or(5);
+    let worker_idx = df
+        .names
+        .iter()
+        .position(|c| c == "ray_worker_id")
+        .unwrap_or(2);
+    let actor_idx = df
+        .names
+        .iter()
+        .position(|c| c == "ray_actor_id")
+        .unwrap_or(3);
+    let actor_name_idx = df
+        .names
+        .iter()
+        .position(|c| c == "ray_actor_name")
+        .unwrap_or(4);
+    let role_idx = df
+        .names
+        .iter()
+        .position(|c| c == "process_role")
+        .unwrap_or(5);
     let nrows = df.cols.iter().map(|col| col.len()).max().unwrap_or(0);
     let mut seen = std::collections::HashSet::<i32>::new();
 
@@ -424,7 +449,10 @@ fn build_span_tree_from_events(mut events: Vec<TraceEvent>) -> Vec<SpanInfo> {
     for event in &events {
         if event.record_type == "span_start" {
             let process_pid = trace_event_process_pid(event);
-            span_process_lookup.insert((event.span_id, event.thread_id, event.trace_id), process_pid);
+            span_process_lookup.insert(
+                (event.span_id, event.thread_id, event.trace_id),
+                process_pid,
+            );
             let span_key = (process_pid, event.span_id);
             let span = SpanInfo {
                 span_id: event.span_id,
@@ -498,7 +526,7 @@ fn build_span_tree_from_events(mut events: Vec<TraceEvent>) -> Vec<SpanInfo> {
         .keys()
         .map(|&key| (key, depth_map.get(&key).copied().unwrap_or(0)))
         .collect();
-    spans_to_process.sort_by(|a, b| b.1.cmp(&a.1));
+    spans_to_process.sort_by_key(|b| std::cmp::Reverse(b.1));
 
     for (span_key, _depth) in spans_to_process {
         let parent_key = span_map
@@ -604,9 +632,7 @@ pub struct EngineListResponse {
 
 impl ApiClient {
     pub async fn fetch_inference_engines(&self) -> Result<EngineListResponse> {
-        let response = self
-            .get_request("/apis/pythonext/engines/snapshot")
-            .await?;
+        let response = self.get_request("/apis/pythonext/engines/snapshot").await?;
         Self::parse_json(&response)
     }
 
@@ -619,16 +645,6 @@ impl ApiClient {
             "SELECT timestamp_ns, engine_id, engine_type, metric_name, metric_value, labels \
              FROM python.inference_engine_metric \
              WHERE metric_name LIKE 'normalized.%' \
-             ORDER BY timestamp_ns DESC LIMIT {limit}"
-        ))
-        .await
-    }
-
-    pub async fn fetch_inference_engine_raw_metrics(&self, limit: i64) -> Result<DataFrame> {
-        self.execute_query(&format!(
-            "SELECT timestamp_ns, engine_id, engine_type, metric_name, metric_value, labels \
-             FROM python.inference_engine_metric \
-             WHERE metric_name NOT LIKE 'normalized.%' \
              ORDER BY timestamp_ns DESC LIMIT {limit}"
         ))
         .await

@@ -52,13 +52,19 @@ pub fn infer_extern_column_dtype(name: &str) -> DType {
         _ if name.ends_with("_name")
             || name.ends_with("_type")
             || name.ends_with("_url")
-            || name.ends_with("_addr") => DType::Str,
+            || name.ends_with("_addr") =>
+        {
+            DType::Str
+        }
         _ if name.ends_with("_value")
             || name.ends_with("_ratio")
             || name.ends_with("_ms")
             || name.ends_with("_tps")
             || name.ends_with("_bytes")
-            || name.ends_with("_seconds") => DType::F64,
+            || name.ends_with("_seconds") =>
+        {
+            DType::F64
+        }
         _ if name.starts_with("is_") => DType::I64,
         _ if name.ends_with("_sec") || name.ends_with("_rate") => DType::F64,
         _ if name.ends_with("_id") => DType::I64,

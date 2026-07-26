@@ -25,7 +25,7 @@ Canonical design doc for **instrumentation overhead** in Probing: terminology, f
 
 | Entry | Measures |
 |-------|----------|
-| `make bench` → `examples/bench_instrumentation.py` | Python/Rust **instrumentation** wall time |
+| `make bench` → `examples/overhead/bench_instrumentation.py` | Python/Rust **instrumentation** wall time |
 | `probing bench write` (hidden CLI) | memtable **write-path** throughput/latency — not training hook tax |
 
 These are not interchangeable.
@@ -177,7 +177,7 @@ WHERE local_step >= bounds.win_start AND local_step > 1;
 
 ## 6. Offline benchmark: `make bench`
 
-Script: `examples/bench_instrumentation.py`. Run inside a **probing-injected** process:
+Script: `examples/overhead/bench_instrumentation.py`. Run inside a **probing-injected** process:
 
 ```bash
 PROBING=1 make bench
@@ -205,7 +205,7 @@ PROBING=1 make bench-quick
 ### 6.3 JSON export
 
 ```bash
-PROBING=1 python examples/bench_instrumentation.py --json-out /tmp/bench.json
+PROBING=1 python examples/overhead/bench_instrumentation.py --json-out /tmp/bench.json
 ```
 
 ---
@@ -214,7 +214,7 @@ PROBING=1 python examples/bench_instrumentation.py --json-out /tmp/bench.json
 
 No in-run shadow. Runtime health: `nccl.profiler_counters`.
 
-E2E: `examples/nccl_profiler_overhead.py`, `examples/run_nccl_profiler_bench.sh`. Baseline vs plugin + `PROBING=2`. Compare with §3.4 on latency and throughput.
+E2E: `examples/overhead/nccl_profiler_overhead.py`, `examples/overhead/run_nccl_bench.sh`. Baseline vs plugin + `PROBING=2`. Compare with §3.4 on latency and throughput.
 
 Micro: `probing/extensions/nccl-profiler/benches/callback_path.rs` (Criterion) — component-level only.
 
@@ -304,7 +304,7 @@ Trimmed mean, per-cadence aggregation, EWMA sidebar, confidence bands, NCCL in-r
 
 ```bash
 PROBING=1 PROBING_TORCH_PROFILING=on python train.py
-PROBING=1 python examples/torch_probe_overhead_smoke.py
+PROBING=1 python examples/overhead/torch_probe_overhead_smoke.py
 PROBING=1 make bench-quick
 ```
 
@@ -317,12 +317,12 @@ Reduce overhead: lower `rate` / `layer_rate`; disable `trace_spans`, `sync=on`, 
 | Component | Path |
 |-----------|------|
 | Shadow + timing | `python/probing/profiling/torch_probe.py` |
-| Offline bench | `examples/bench_instrumentation.py` |
+| Offline bench | `examples/overhead/bench_instrumentation.py` |
 | Web SQL | `web/src/overhead/sql.rs` |
 | Web formatting | `web/src/overhead/metrics.rs` |
 | Skill SQL | `skills/health_overview/steps.yaml` |
-| soak | `examples/soak_assert.py` |
-| NCCL E2E | `examples/nccl_profiler_overhead.py` |
+| soak | `examples/imagenet/soak_assert.py` |
+| NCCL E2E | `examples/overhead/nccl_profiler_overhead.py` |
 
 ---
 
