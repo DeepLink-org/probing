@@ -41,7 +41,9 @@ def _cleanup_registry():
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(not _engine_reachable(), reason=f"SGLang not reachable at {ENGINE_URL}")
+@pytest.mark.skipif(
+    not _engine_reachable(), reason=f"SGLang not reachable at {ENGINE_URL}"
+)
 def test_real_sglang_engine_metrics_scrape():
     registration = register_engine(
         router_addr=ENGINE_URL,

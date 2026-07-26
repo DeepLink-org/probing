@@ -17,12 +17,12 @@ class TestCollectiveAutostartPolicy:
         assert is_distributed_torch_job() is False
         assert collective_tracing_enabled() is False
 
-    def test_torchrun_auto_enables(self, monkeypatch):
+    def test_torchrun_disabled_by_default(self, monkeypatch):
         monkeypatch.setenv("WORLD_SIZE", "8")
         assert is_distributed_torch_job() is True
-        assert collective_tracing_enabled() is True
+        assert collective_tracing_enabled() is False
 
-    def test_explicit_off_overrides_torchrun(self, monkeypatch):
+    def test_explicit_off_keeps_disabled(self, monkeypatch):
         import probing
 
         monkeypatch.setenv("WORLD_SIZE", "8")

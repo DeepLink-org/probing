@@ -92,8 +92,8 @@ Hook overhead is reduced by sampling; forward hooks remain registered on all mod
 TorchProbe shadow steps measure **module-hook** overhead only. The NCCL profiler plugin has no in-run shadow baseline today — it always records collective events when enabled. For NCCL AllReduce overhead vs probing, use the offline benchmark:
 
 ```bash
-./examples/run_nccl_profiler_bench.sh
-# or: python examples/torch_probe_overhead_smoke.py  # Torch-only smoke (no GPU)
+./examples/overhead/run_nccl_bench.sh
+# or: python examples/overhead/torch_probe_overhead_smoke.py  # Torch-only smoke (no GPU)
 ```
 
 Monitor runtime health via `nccl.profiler_counters` (`pool_exhausted`, `write_errors`, `rows_written`). The Web UI overhead panel links to the offline NCCL bench when the profiler is active.
@@ -126,7 +126,9 @@ Use `role` + `global_step` to join with `python.comm_collective` on the same ran
 ### Collective rows (`python.comm_collective`)
 
 Lite-mode hooks on `torch.distributed` write one row per collective with `duration_ms`,
-`bytes`, `op`, and the same step/role coordinates. See [SQL Tables](../reference/sql-tables.md#python-comm_collective) and [SQL Analytics](../guide/sql-analytics.md#python-comm_collective).
+`bytes`, `op`, and the same step/role coordinates. **Off by default** (including
+multi-rank jobs); enable with `PROBING_TORCH_COLLECTIVE_ENABLE=1` or
+`SET probing.torch.collective.enable=1`. See [SQL Tables](../reference/sql-tables.md#python-comm_collective) and [SQL Analytics](../guide/sql-analytics.md#python-comm_collective).
 
 ### Enable PyTorch Profiling
 

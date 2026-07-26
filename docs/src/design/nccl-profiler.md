@@ -13,7 +13,9 @@ This is **Path 3** in [Extensibility](extensibility.md)—a Rust `cdylib` loaded
 | Straggler identified — **why** (GPU vs network wait)? | `nccl.proxy_ops` + skill `nccl_culprit_victim` |
 | Suspect RoCE / IB congestion | `nccl.net_qp` + `rdma.mlx_hca` |
 
-Coarse collective tracing (`python.comm_collective`) works with `PROBING=1` only. The NCCL profiler plugin requires **NCCL ≥ 2.26** (PyTorch **2.8+** recommended); it exports both **`ncclProfiler_v4`** (NCCL ≥ 2.27, preferred) and **`ncclProfiler_v3`** (NCCL 2.26) — NCCL negotiates the highest version automatically.
+Coarse collective tracing (`python.comm_collective`) is **off by default**; enable with
+`PROBING_TORCH_COLLECTIVE_ENABLE=1` or `SET probing.torch.collective.enable=1`
+(in addition to `PROBING=1`). The NCCL profiler plugin requires **NCCL ≥ 2.26** (PyTorch **2.8+** recommended); it exports both **`ncclProfiler_v4`** (NCCL ≥ 2.27, preferred) and **`ncclProfiler_v3`** (NCCL 2.26) — NCCL negotiates the highest version automatically.
 
 ## Three collective data sources — keep them apart
 
@@ -28,11 +30,10 @@ probing has three independent collective-communication collectors. They have
 
 Rules of engagement:
 
-- When the plugin is active (`NCCL_PROFILER_PLUGIN` set), the Torch-API tracer
-  is **disabled by default** — recording the same collectives twice with
-  conflicting timing only creates confusion. Force both with
+- The Torch-API tracer is **disabled by default** (including multi-rank jobs) to
+  avoid silent overhead. Enable with `PROBING_TORCH_COLLECTIVE_ENABLE=1` or
   `SET probing.torch.collective.enable=1` (e.g. when you need per-step
-  `global_step` alignment alongside precise timing).
+  `global_step` alignment alongside precise NCCL timing).
 - For execution time, bandwidth, and wait attribution, always query `nccl.*`.
   `python.comm_collective.duration_ms` is **not** NCCL execution time — for
   `async_op` calls it closes at `work.wait()`, otherwise at API return.

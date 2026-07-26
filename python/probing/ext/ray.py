@@ -330,7 +330,9 @@ class ProbingSpanProcessor:
             span_kind = kind_map.get(span.kind)
             if span_kind:
                 attrs["otel.span_kind"] = span_kind
-            attrs.update({k: _safe_str(v) for k, v in _process_identity_attrs().items()})
+            attrs.update(
+                {k: _safe_str(v) for k, v in _process_identity_attrs().items()}
+            )
 
             span_context = span.get_span_context()
             attrs["otel_trace_id"] = format(span_context.trace_id, "032x")
@@ -512,7 +514,9 @@ def _collect_worker_info() -> dict[str, dict[str, Any]]:
     return result
 
 
-def _process_id_for_worker(worker_id: str, node_id: str = "", worker_pid: int = 0) -> int:
+def _process_id_for_worker(
+    worker_id: str, node_id: str = "", worker_pid: int = 0
+) -> int:
     if worker_pid > 0:
         return _stable_int(f"{node_id}:{worker_pid}")
     if worker_id:

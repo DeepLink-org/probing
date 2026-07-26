@@ -92,8 +92,8 @@ WHERE local_step > 1;
 Shadow step 仅衡量 **TorchProbe 模块 hook** 开销。NCCL profiler 插件目前没有 in-run shadow 基线，启用后会持续记录 collective 事件。NCCL AllReduce 与 probing 的开销对比请用离线 benchmark：
 
 ```bash
-./examples/run_nccl_profiler_bench.sh
-# 或：python examples/torch_probe_overhead_smoke.py  # 仅 Torch 冒烟（无需 GPU）
+./examples/overhead/run_nccl_bench.sh
+# 或：python examples/overhead/torch_probe_overhead_smoke.py  # 仅 Torch 冒烟（无需 GPU）
 ```
 
 运行时健康度见 `nccl.profiler_counters`（`pool_exhausted`、`write_errors`、`rows_written`）。Web UI 开销面板在 NCCL 活跃时会提示离线 bench 入口。
@@ -126,7 +126,9 @@ Shadow step 仅衡量 **TorchProbe 模块 hook** 开销。NCCL profiler 插件�
 ### 集合通信（`python.comm_collective`）
 
 对 `torch.distributed` 的 lite 模式钩子每条 collective 写一行，含 `duration_ms`、`bytes`、`op`
-及相同 step/role 坐标。见 [SQL 表](../reference/sql-tables.zh.md#python-comm_collective) 与
+及相同 step/role 坐标。**默认关闭**（含多 rank 作业）；需显式开启：
+`PROBING_TORCH_COLLECTIVE_ENABLE=1` 或 `SET probing.torch.collective.enable=1`。
+见 [SQL 表](../reference/sql-tables.zh.md#python-comm_collective) 与
 [SQL 分析](../guide/sql-analytics.zh.md#python-comm_collective)。
 
 ### 启用 PyTorch 分析

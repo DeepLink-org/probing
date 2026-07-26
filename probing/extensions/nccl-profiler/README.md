@@ -165,7 +165,7 @@ make nccl-profiler-bench
 
 # E2E: baseline vs profiled under torchrun (Linux + CUDA)
 make nccl-profiler-lib
-./examples/run_nccl_profiler_bench.sh
+./examples/overhead/run_nccl_bench.sh
 ```
 
 Tune E2E with `NPROC`, `BENCH_ITERS`, `MSG_BYTES`. Disable watchdog noise during bench with `PROBING_NCCL_INFLIGHT_THRESHOLD_SECS=0` (the wrapper sets this).

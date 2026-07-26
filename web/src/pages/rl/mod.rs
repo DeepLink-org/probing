@@ -1,21 +1,21 @@
 use dioxus::prelude::*;
 use dioxus_router::use_navigator;
 
+use crate::api::{ApiClient, EventInfo, SpanInfo, TraceProcessInfo};
 use crate::app::Route;
 use crate::components::card::Card;
 use crate::components::colors::colors;
+use crate::components::common::{ErrorState, LoadingState};
 use crate::components::page::{PageContainer, PageTitle};
-use crate::components::common::{LoadingState, ErrorState};
 use crate::hooks::use_api_simple;
-use crate::api::{ApiClient, SpanInfo, EventInfo, TraceProcessInfo};
 use crate::rl_contract::{
-    self, is_rollout_submit_parent_span,
-    is_step_parent_span, is_train_timeline_span, is_rollout_worker_role, logical_step_key,
-    LogicalStepKey, ROLLOUT_TIMELINE_EMPTY_HINT, TRAIN_TIMELINE_EMPTY_HINT,
+    self, has_trajectory_identity, is_rollout_submit_parent_span, is_rollout_worker_role,
+    is_step_parent_span, is_train_timeline_span, logical_step_key, LogicalStepKey,
+    ROLLOUT_TIMELINE_EMPTY_HINT, TRAIN_TIMELINE_EMPTY_HINT,
 };
 use crate::state::rl::{
-    estimate_detail_panel_height, ROLLOUT_FILTER, ROLLOUT_FILTER_INPUT, RL_DETAIL_PANEL_HEIGHT,
-    RL_DETAIL_PANEL_HEIGHT_DEFAULT, RL_DETAIL_PANEL_HEIGHT_MAX, RL_DETAIL_PANEL_HEIGHT_MIN,
+    estimate_detail_panel_height, RL_DETAIL_PANEL_HEIGHT, RL_DETAIL_PANEL_HEIGHT_DEFAULT,
+    RL_DETAIL_PANEL_HEIGHT_MAX, RL_DETAIL_PANEL_HEIGHT_MIN, ROLLOUT_FILTER, ROLLOUT_FILTER_INPUT,
 };
 use crate::utils::tracing_viewer;
 use std::collections::{HashMap, HashSet};
@@ -85,7 +85,7 @@ pub fn RlObservability(view: RlViewMode) -> Element {
     let is_perfetto = view == RlViewMode::Perfetto;
     let limit = use_signal(|| if is_perfetto { 2000 } else { 400 });
     let timeline_depth = use_signal(|| 2usize);
-    let selected_batch_key = use_signal(|| String::new());
+    let selected_batch_key = use_signal(String::new);
     let process_filter = use_signal(|| {
         if is_perfetto {
             "all".to_string()
@@ -93,8 +93,8 @@ pub fn RlObservability(view: RlViewMode) -> Element {
             "driver".to_string()
         }
     });
-    let function_filter = use_signal(|| String::new());
-    let discovered_processes = use_signal(|| Vec::<TraceProcessInfo>::new());
+    let function_filter = use_signal(String::new);
+    let discovered_processes = use_signal(Vec::<TraceProcessInfo>::new);
     let state = use_api_simple::<Vec<SpanInfo>>();
     let navigator = use_navigator();
     let view_key = view.internal_key();
@@ -103,23 +103,19 @@ pub fn RlObservability(view: RlViewMode) -> Element {
     let uses_rollout_filter = view.uses_rollout_filter();
 
     // Create dependency, recalculate when limit or rollout filter changes.
-    let data_query = use_memo({
-        let limit = limit.clone();
-        move || {
-            let rollout_id = if uses_rollout_filter {
-                ROLLOUT_FILTER.read().trim().to_string()
-            } else {
-                String::new()
-            };
-            (*limit.read(), rollout_id)
-        }
+    let data_query = use_memo(move || {
+        let rollout_id = if uses_rollout_filter {
+            ROLLOUT_FILTER.read().trim().to_string()
+        } else {
+            String::new()
+        };
+        (*limit.read(), rollout_id)
     });
     // Refetch data when limit or rollout filter changes.
     use_effect({
-        let data_query = data_query.clone();
         let mut loading = state.loading;
         let mut data = state.data;
-        let mut discovered_processes = discovered_processes.clone();
+        let mut discovered_processes = discovered_processes;
         move || {
             let (limit_val, rollout_id) = data_query.read().clone();
             spawn(async move {
@@ -137,7 +133,10 @@ pub fn RlObservability(view: RlViewMode) -> Element {
                             if local_pids.contains(&process.pid) {
                                 continue;
                             }
-                            if let Ok(mut process_spans) = client.get_span_tree_for_pid(process.pid, Some(fetch_limit)).await {
+                            if let Ok(mut process_spans) = client
+                                .get_span_tree_for_pid(process.pid, Some(fetch_limit))
+                                .await
+                            {
                                 spans.append(&mut process_spans);
                             }
                         }
@@ -149,7 +148,10 @@ pub fn RlObservability(view: RlViewMode) -> Element {
                             if local_pids.contains(&process.pid) {
                                 continue;
                             }
-                            if let Ok(mut process_spans) = client.get_span_tree_for_pid_and_rollout_id(process.pid, &rollout_id).await {
+                            if let Ok(mut process_spans) = client
+                                .get_span_tree_for_pid_and_rollout_id(process.pid, &rollout_id)
+                                .await
+                            {
                                 spans.append(&mut process_spans);
                             }
                         }
@@ -248,9 +250,9 @@ pub fn RlObservability(view: RlViewMode) -> Element {
                                 button {
                                     class: format!("rounded px-3 py-1.5 text-sm bg-{} text-white", colors::PRIMARY),
                                     onclick: {
-                                        let mut selected_batch_key = selected_batch_key.clone();
-                                        let mut process_filter = process_filter.clone();
-                                        let nav = navigator.clone();
+                                        let mut selected_batch_key = selected_batch_key;
+                                        let mut process_filter = process_filter;
+                                        let nav = navigator;
                                         move |_| {
                                             *ROLLOUT_FILTER.write() =
                                                 ROLLOUT_FILTER_INPUT.read().trim().to_string();
@@ -264,7 +266,7 @@ pub fn RlObservability(view: RlViewMode) -> Element {
                                 button {
                                     class: "rounded bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100",
                                     onclick: {
-                                        let mut selected_batch_key = selected_batch_key.clone();
+                                        let mut selected_batch_key = selected_batch_key;
                                         move |_| {
                                             *ROLLOUT_FILTER_INPUT.write() = String::new();
                                             *ROLLOUT_FILTER.write() = String::new();
@@ -302,7 +304,7 @@ pub fn RlObservability(view: RlViewMode) -> Element {
                             value: "{*limit.read()}",
                             class: "w-full",
                             oninput: {
-                                let mut limit = limit.clone();
+                                let mut limit = limit;
                                 move |ev| {
                                     if let Ok(val) = ev.value().parse::<usize>() {
                                         *limit.write() = val;
@@ -380,8 +382,8 @@ pub fn RlObservability(view: RlViewMode) -> Element {
                                                     class: "max-w-[360px] rounded border border-gray-200 bg-white px-2 py-1 text-sm",
                                                     value: "{selected_process_filter}",
                                                     oninput: {
-                                                        let mut process_filter = process_filter.clone();
-                                                        let mut selected_batch_key = selected_batch_key.clone();
+                                                        let mut process_filter = process_filter;
+                                                        let mut selected_batch_key = selected_batch_key;
                                                         move |ev| {
                                                             *process_filter.write() = ev.value();
                                                             *selected_batch_key.write() = String::new();
@@ -404,8 +406,8 @@ pub fn RlObservability(view: RlViewMode) -> Element {
                                                     class: "max-w-[360px] rounded border border-gray-200 bg-white px-2 py-1 text-sm",
                                                     value: "{selected_function_filter}",
                                                     oninput: {
-                                                        let mut function_filter = function_filter.clone();
-                                                        let mut selected_batch_key = selected_batch_key.clone();
+                                                        let mut function_filter = function_filter;
+                                                        let mut selected_batch_key = selected_batch_key;
                                                         move |ev| {
                                                             *function_filter.write() = ev.value();
                                                             *selected_batch_key.write() = String::new();
@@ -446,7 +448,7 @@ pub fn RlObservability(view: RlViewMode) -> Element {
                                                     class: "rounded border border-gray-200 bg-white px-2 py-1 text-sm",
                                                     value: "{depth_value}",
                                                     oninput: {
-                                                        let mut timeline_depth = timeline_depth.clone();
+                                                        let mut timeline_depth = timeline_depth;
                                                         move |ev| {
                                                             if let Ok(val) = ev.value().parse::<usize>() {
                                                                 *timeline_depth.write() = val;
@@ -466,7 +468,7 @@ pub fn RlObservability(view: RlViewMode) -> Element {
                                                     class: "max-w-[320px] rounded border border-gray-200 bg-white px-2 py-1 text-sm",
                                                     value: "{selected_batch_key_for_view}",
                                                     oninput: {
-                                                        let mut selected_batch_key = selected_batch_key.clone();
+                                                        let mut selected_batch_key = selected_batch_key;
                                                         move |ev| *selected_batch_key.write() = ev.value()
                                                     },
                                                     option { value: "", "All batches" }
@@ -556,7 +558,8 @@ struct FilterOption {
 #[component]
 fn SpanView(span: DisplaySpan, depth: usize) -> Element {
     let indent = depth * 24;
-    let duration = span.end_timestamp
+    let duration = span
+        .end_timestamp
         .map(|end| format_duration_ns(end - span.start_timestamp))
         .unwrap_or_else(|| "running".to_string());
 
@@ -941,14 +944,25 @@ fn RlTimeline(spans: Vec<DisplaySpan>) -> Element {
         };
     }
 
-    let selected_rollout = use_signal(|| rollouts.first().map(|rollout| rollout.rollout_id.clone()).unwrap_or_default());
-    let selected_sample = use_signal(|| String::new());
+    let selected_rollout = use_signal(|| {
+        rollouts
+            .first()
+            .map(|rollout| rollout.rollout_id.clone())
+            .unwrap_or_default()
+    });
+    let selected_sample = use_signal(String::new);
     let sort_mode = use_signal(|| "time".to_string());
     let selected_rollout_read = selected_rollout.read().clone();
-    let selected_rollout_id = if rollouts.iter().any(|rollout| rollout.rollout_id == selected_rollout_read) {
+    let selected_rollout_id = if rollouts
+        .iter()
+        .any(|rollout| rollout.rollout_id == selected_rollout_read)
+    {
         selected_rollout.read().clone()
     } else {
-        rollouts.first().map(|rollout| rollout.rollout_id.clone()).unwrap_or_default()
+        rollouts
+            .first()
+            .map(|rollout| rollout.rollout_id.clone())
+            .unwrap_or_default()
     };
     let rollout = rollouts
         .iter()
@@ -956,30 +970,57 @@ fn RlTimeline(spans: Vec<DisplaySpan>) -> Element {
         .or_else(|| rollouts.first())
         .unwrap();
     let selected_sample_read = selected_sample.read().clone();
-    let selected_sample_key = if rollout.samples.iter().any(|sample| sample.sample_key == selected_sample_read) {
+    let selected_sample_key = if rollout
+        .samples
+        .iter()
+        .any(|sample| sample.sample_key == selected_sample_read)
+    {
         selected_sample.read().clone()
     } else {
-        rollout.samples.first().map(|sample| sample.sample_key.clone()).unwrap_or_default()
+        rollout
+            .samples
+            .first()
+            .map(|sample| sample.sample_key.clone())
+            .unwrap_or_default()
     };
-    let selected_sample_row = rollout.samples.iter().find(|sample| sample.sample_key == selected_sample_key);
+    let selected_sample_row = rollout
+        .samples
+        .iter()
+        .find(|sample| sample.sample_key == selected_sample_key);
     let min_start = rollout.start;
     let max_end = rollout.end.max(min_start + 1);
     let window = (max_end - min_start).max(1);
     let window_f = window as f64;
     let window_label = format_duration_ns(window);
     let sample_count = rollout.samples.len();
-    let segment_count = rollout.samples.iter().map(|sample| sample.segments.len()).sum::<usize>();
+    let segment_count = rollout
+        .samples
+        .iter()
+        .map(|sample| sample.segments.len())
+        .sum::<usize>();
     let sort_mode_value = sort_mode.read().clone();
     let mut display_samples = rollout.samples.clone();
     if sort_mode_value == "slow" {
-        display_samples.sort_by(|a, b| sample_duration_ns(b).cmp(&sample_duration_ns(a))
-            .then_with(|| a.start.cmp(&b.start)));
+        display_samples.sort_by(|a, b| {
+            sample_duration_ns(b)
+                .cmp(&sample_duration_ns(a))
+                .then_with(|| a.start.cmp(&b.start))
+        });
     } else {
         display_samples.sort_by_key(|sample| sample.start);
     }
-    let slowest_sample = rollout.samples.iter().max_by_key(|sample| sample_duration_ns(sample));
+    let slowest_sample = rollout
+        .samples
+        .iter()
+        .max_by_key(|sample| sample_duration_ns(sample));
     let slowest_label = slowest_sample
-        .map(|sample| format!("slowest {} {}", sample.label, format_duration_ns(sample_duration_ns(sample))))
+        .map(|sample| {
+            format!(
+                "slowest {} {}",
+                sample.label,
+                format_duration_ns(sample_duration_ns(sample))
+            )
+        })
         .unwrap_or_default();
     let detail_bottom_pad = if selected_sample_row.is_some() {
         *RL_DETAIL_PANEL_HEIGHT.read() + 12
@@ -1020,8 +1061,8 @@ fn RlTimeline(spans: Vec<DisplaySpan>) -> Element {
                             button {
                                 class: format!("rounded px-2 py-1 text-xs font-mono {}", if is_selected { format!("bg-{} text-white", colors::PRIMARY) } else { "bg-gray-100 text-gray-700 hover:bg-gray-200".to_string() }),
                                 onclick: {
-                                    let mut selected_rollout = selected_rollout.clone();
-                                    let mut selected_sample = selected_sample.clone();
+                                    let mut selected_rollout = selected_rollout;
+                                    let mut selected_sample = selected_sample;
                                     move |_| {
                                         *selected_rollout.write() = rollout_id.clone();
                                         *selected_sample.write() = String::new();
@@ -1049,7 +1090,7 @@ fn RlTimeline(spans: Vec<DisplaySpan>) -> Element {
                 button {
                     class: format!("rounded px-2 py-1 text-xs {}", if sort_mode_value == "time" { format!("bg-{} text-white", colors::PRIMARY) } else { "bg-white text-gray-700 hover:bg-gray-100".to_string() }),
                     onclick: {
-                        let mut sort_mode = sort_mode.clone();
+                        let mut sort_mode = sort_mode;
                         move |_| *sort_mode.write() = "time".to_string()
                     },
                     "timeline order"
@@ -1057,7 +1098,7 @@ fn RlTimeline(spans: Vec<DisplaySpan>) -> Element {
                 button {
                     class: format!("rounded px-2 py-1 text-xs {}", if sort_mode_value == "slow" { format!("bg-{} text-white", colors::PRIMARY) } else { "bg-white text-gray-700 hover:bg-gray-100".to_string() }),
                     onclick: {
-                        let mut sort_mode = sort_mode.clone();
+                        let mut sort_mode = sort_mode;
                         move |_| *sort_mode.write() = "slow".to_string()
                     },
                     "slowest first"
@@ -1082,7 +1123,7 @@ fn RlTimeline(spans: Vec<DisplaySpan>) -> Element {
                             button {
                                 class: format!("grid w-full grid-cols-[minmax(300px,34%)_1fr_auto] items-center gap-3 rounded px-2 py-1 text-left text-sm {}", if is_selected { "bg-blue-50 ring-1 ring-blue-200".to_string() } else { "hover:bg-gray-50".to_string() }),
                                 onclick: {
-                                    let mut selected_sample = selected_sample.clone();
+                                    let mut selected_sample = selected_sample;
                                     let sample_key = sample.sample_key.clone();
                                     move |_| *selected_sample.write() = sample_key.clone()
                                 },
@@ -1164,14 +1205,25 @@ fn TrainTimeline(spans: Vec<DisplaySpan>) -> Element {
         };
     }
 
-    let selected_rollout = use_signal(|| rollouts.first().map(|rollout| rollout.rollout_id.clone()).unwrap_or_default());
-    let selected_batch = use_signal(|| String::new());
+    let selected_rollout = use_signal(|| {
+        rollouts
+            .first()
+            .map(|rollout| rollout.rollout_id.clone())
+            .unwrap_or_default()
+    });
+    let selected_batch = use_signal(String::new);
     let sort_mode = use_signal(|| "time".to_string());
     let selected_rollout_read = selected_rollout.read().clone();
-    let selected_rollout_id = if rollouts.iter().any(|rollout| rollout.rollout_id == selected_rollout_read) {
+    let selected_rollout_id = if rollouts
+        .iter()
+        .any(|rollout| rollout.rollout_id == selected_rollout_read)
+    {
         selected_rollout.read().clone()
     } else {
-        rollouts.first().map(|rollout| rollout.rollout_id.clone()).unwrap_or_default()
+        rollouts
+            .first()
+            .map(|rollout| rollout.rollout_id.clone())
+            .unwrap_or_default()
     };
     let rollout = rollouts
         .iter()
@@ -1179,30 +1231,57 @@ fn TrainTimeline(spans: Vec<DisplaySpan>) -> Element {
         .or_else(|| rollouts.first())
         .unwrap();
     let selected_batch_read = selected_batch.read().clone();
-    let selected_batch_key = if rollout.samples.iter().any(|batch| batch.sample_key == selected_batch_read) {
+    let selected_batch_key = if rollout
+        .samples
+        .iter()
+        .any(|batch| batch.sample_key == selected_batch_read)
+    {
         selected_batch.read().clone()
     } else {
-        rollout.samples.first().map(|batch| batch.sample_key.clone()).unwrap_or_default()
+        rollout
+            .samples
+            .first()
+            .map(|batch| batch.sample_key.clone())
+            .unwrap_or_default()
     };
-    let selected_batch_row = rollout.samples.iter().find(|batch| batch.sample_key == selected_batch_key);
+    let selected_batch_row = rollout
+        .samples
+        .iter()
+        .find(|batch| batch.sample_key == selected_batch_key);
     let min_start = rollout.start;
     let max_end = rollout.end.max(min_start + 1);
     let window = (max_end - min_start).max(1);
     let window_f = window as f64;
     let window_label = format_duration_ns(window);
     let batch_count = rollout.samples.len();
-    let segment_count = rollout.samples.iter().map(|batch| batch.segments.len()).sum::<usize>();
+    let segment_count = rollout
+        .samples
+        .iter()
+        .map(|batch| batch.segments.len())
+        .sum::<usize>();
     let sort_mode_value = sort_mode.read().clone();
     let mut display_batches = rollout.samples.clone();
     if sort_mode_value == "slow" {
-        display_batches.sort_by(|a, b| sample_duration_ns(b).cmp(&sample_duration_ns(a))
-            .then_with(|| a.start.cmp(&b.start)));
+        display_batches.sort_by(|a, b| {
+            sample_duration_ns(b)
+                .cmp(&sample_duration_ns(a))
+                .then_with(|| a.start.cmp(&b.start))
+        });
     } else {
         display_batches.sort_by_key(|batch| batch.start);
     }
-    let slowest_batch = rollout.samples.iter().max_by_key(|batch| sample_duration_ns(batch));
+    let slowest_batch = rollout
+        .samples
+        .iter()
+        .max_by_key(|batch| sample_duration_ns(batch));
     let slowest_label = slowest_batch
-        .map(|batch| format!("slowest {} {}", batch.label, format_duration_ns(sample_duration_ns(batch))))
+        .map(|batch| {
+            format!(
+                "slowest {} {}",
+                batch.label,
+                format_duration_ns(sample_duration_ns(batch))
+            )
+        })
         .unwrap_or_default();
     let detail_bottom_pad = if selected_batch_row.is_some() {
         *RL_DETAIL_PANEL_HEIGHT.read() + 12
@@ -1243,8 +1322,8 @@ fn TrainTimeline(spans: Vec<DisplaySpan>) -> Element {
                             button {
                                 class: format!("rounded px-2 py-1 text-xs font-mono {}", if is_selected { format!("bg-{} text-white", colors::PRIMARY) } else { "bg-gray-100 text-gray-700 hover:bg-gray-200".to_string() }),
                                 onclick: {
-                                    let mut selected_rollout = selected_rollout.clone();
-                                    let mut selected_batch = selected_batch.clone();
+                                    let mut selected_rollout = selected_rollout;
+                                    let mut selected_batch = selected_batch;
                                     move |_| {
                                         *selected_rollout.write() = rollout_id.clone();
                                         *selected_batch.write() = String::new();
@@ -1272,7 +1351,7 @@ fn TrainTimeline(spans: Vec<DisplaySpan>) -> Element {
                 button {
                     class: format!("rounded px-2 py-1 text-xs {}", if sort_mode_value == "time" { format!("bg-{} text-white", colors::PRIMARY) } else { "bg-white text-gray-700 hover:bg-gray-100".to_string() }),
                     onclick: {
-                        let mut sort_mode = sort_mode.clone();
+                        let mut sort_mode = sort_mode;
                         move |_| *sort_mode.write() = "time".to_string()
                     },
                     "timeline order"
@@ -1280,7 +1359,7 @@ fn TrainTimeline(spans: Vec<DisplaySpan>) -> Element {
                 button {
                     class: format!("rounded px-2 py-1 text-xs {}", if sort_mode_value == "slow" { format!("bg-{} text-white", colors::PRIMARY) } else { "bg-white text-gray-700 hover:bg-gray-100".to_string() }),
                     onclick: {
-                        let mut sort_mode = sort_mode.clone();
+                        let mut sort_mode = sort_mode;
                         move |_| *sort_mode.write() = "slow".to_string()
                     },
                     "slowest first"
@@ -1305,7 +1384,7 @@ fn TrainTimeline(spans: Vec<DisplaySpan>) -> Element {
                             button {
                                 class: format!("grid w-full grid-cols-[minmax(300px,34%)_1fr_auto] items-center gap-3 rounded px-2 py-1 text-left text-sm {}", if is_selected { "bg-blue-50 ring-1 ring-blue-200".to_string() } else { "hover:bg-gray-50".to_string() }),
                                 onclick: {
-                                    let mut selected_batch = selected_batch.clone();
+                                    let mut selected_batch = selected_batch;
                                     let batch_key = batch.sample_key.clone();
                                     move |_| *selected_batch.write() = batch_key.clone()
                                 },
@@ -1382,10 +1461,10 @@ fn ResizableDetailPanel(
     segment_count: usize,
     children: Element,
 ) -> Element {
-    let mut panel_height = use_signal(|| *RL_DETAIL_PANEL_HEIGHT.read());
-    let mut is_resizing = use_signal(|| false);
-    let mut drag_start_y = use_signal(|| 0.0f64);
-    let mut drag_start_height = use_signal(|| 0.0f64);
+    let panel_height = use_signal(|| *RL_DETAIL_PANEL_HEIGHT.read());
+    let is_resizing = use_signal(|| false);
+    let drag_start_y = use_signal(|| 0.0f64);
+    let drag_start_height = use_signal(|| 0.0f64);
     let height_px = *panel_height.read();
     let height_label = format!("{height_px}px");
     let resizing = *is_resizing.read();
@@ -1396,7 +1475,7 @@ fn ResizableDetailPanel(
                 class: "fixed inset-0 z-[60] cursor-ns-resize select-none",
                 style: "touch-action: none;",
                 onmousemove: {
-                    let mut panel_height = panel_height.clone();
+                    let mut panel_height = panel_height;
                     move |ev| {
                         let current_y = ev.client_coordinates().y;
                         let delta = *drag_start_y.read() - current_y;
@@ -1408,7 +1487,7 @@ fn ResizableDetailPanel(
                     }
                 },
                 onmouseup: {
-                    let mut is_resizing = is_resizing.clone();
+                    let mut is_resizing = is_resizing;
                     move |_| {
                         *is_resizing.write() = false;
                     }
@@ -1422,9 +1501,9 @@ fn ResizableDetailPanel(
                 class: "group flex h-3 shrink-0 cursor-ns-resize items-center justify-center border-b border-gray-100 bg-gray-50 hover:bg-gray-100 active:bg-gray-200",
                 title: "Drag up/down to resize panel height",
                 onmousedown: {
-                    let mut is_resizing = is_resizing.clone();
-                    let mut drag_start_y = drag_start_y.clone();
-                    let mut drag_start_height = drag_start_height.clone();
+                    let mut is_resizing = is_resizing;
+                    let mut drag_start_y = drag_start_y;
+                    let mut drag_start_height = drag_start_height;
                     move |ev| {
                         *is_resizing.write() = true;
                         *drag_start_y.write() = ev.client_coordinates().y;
@@ -1453,7 +1532,7 @@ fn ResizableDetailPanel(
                             class: "rounded border border-gray-200 bg-white px-2 py-0.5 text-xs text-gray-700 hover:bg-gray-50",
                             title: "Expand to fit all phases",
                             onclick: {
-                                let mut panel_height = panel_height.clone();
+                                let mut panel_height = panel_height;
                                 move |_| {
                                     let h = estimate_detail_panel_height(segment_count);
                                     *panel_height.write() = h;
@@ -1466,7 +1545,7 @@ fn ResizableDetailPanel(
                             class: "rounded border border-gray-200 bg-white px-2 py-0.5 text-xs text-gray-700 hover:bg-gray-50",
                             title: "Reset panel height",
                             onclick: {
-                                let mut panel_height = panel_height.clone();
+                                let mut panel_height = panel_height;
                                 move |_| {
                                     *panel_height.write() = RL_DETAIL_PANEL_HEIGHT_DEFAULT;
                                     *RL_DETAIL_PANEL_HEIGHT.write() = RL_DETAIL_PANEL_HEIGHT_DEFAULT;
@@ -1606,7 +1685,11 @@ fn RlSampleDetail(sample: RlSampleRow, min_start: i64) -> Element {
     }
 }
 
-fn build_timeline_spans(spans: &[DisplaySpan], max_depth: usize, selected_batch_key: &str) -> Vec<TimelineSpan> {
+fn build_timeline_spans(
+    spans: &[DisplaySpan],
+    max_depth: usize,
+    selected_batch_key: &str,
+) -> Vec<TimelineSpan> {
     let mut rows = Vec::new();
     if !selected_batch_key.is_empty() {
         if let Some(selected) = find_display_span(spans, selected_batch_key) {
@@ -1630,7 +1713,8 @@ fn build_rl_rollout_views(spans: &[DisplaySpan]) -> Vec<RlRolloutView> {
             continue;
         };
         let Some(rollout_id) = attr_string(&span.attributes, "rollout_id")
-            .or_else(|| attr_string(&span.attributes, "step_id")) else {
+            .or_else(|| attr_string(&span.attributes, "step_id"))
+        else {
             continue;
         };
         let Some(trajectory_id) = attr_string(&span.attributes, "trajectory_id")
@@ -1639,20 +1723,23 @@ fn build_rl_rollout_views(spans: &[DisplaySpan]) -> Vec<RlRolloutView> {
                 let group_index = attr_string(&span.attributes, "group_index")?;
                 Some(format!("r{rollout_id}-g{group_id}-i{group_index}"))
             })
-            .or_else(|| attr_string(&span.attributes, "sample_id")) else {
+            .or_else(|| attr_string(&span.attributes, "sample_id"))
+        else {
             continue;
         };
         let sample_key = format!("{rollout_id}:{trajectory_id}");
-        let entry = samples.entry(sample_key.clone()).or_insert_with(|| RlSampleBuilder {
-            sample_key: sample_key.clone(),
-            label: trajectory_id.clone(),
-            rollout_id: rollout_id.clone(),
-            group_id: attr_string(&span.attributes, "group_id"),
-            attempt: attr_string(&span.attributes, "attempt"),
-            start: segment.start,
-            end: segment.end,
-            ..Default::default()
-        });
+        let entry = samples
+            .entry(sample_key.clone())
+            .or_insert_with(|| RlSampleBuilder {
+                sample_key: sample_key.clone(),
+                label: trajectory_id.clone(),
+                rollout_id: rollout_id.clone(),
+                group_id: attr_string(&span.attributes, "group_id"),
+                attempt: attr_string(&span.attributes, "attempt"),
+                start: segment.start,
+                end: segment.end,
+                ..Default::default()
+            });
 
         entry.start = entry.start.min(segment.start);
         entry.end = entry.end.max(segment.end);
@@ -1679,15 +1766,18 @@ fn build_rl_rollout_views(spans: &[DisplaySpan]) -> Vec<RlRolloutView> {
             detail_parts.push(format!("attempt:{attempt}"));
         }
         detail_parts.push(format!("{} phases", builder.segments.len()));
-        by_rollout.entry(builder.rollout_id.clone()).or_default().push(RlSampleRow {
-            sample_key: builder.sample_key,
-            label: builder.label,
-            detail: detail_parts.join(" "),
-            start: builder.start,
-            end: builder.end,
-            process_labels: labels.join(", "),
-            segments: builder.segments,
-        });
+        by_rollout
+            .entry(builder.rollout_id.clone())
+            .or_default()
+            .push(RlSampleRow {
+                sample_key: builder.sample_key,
+                label: builder.label,
+                detail: detail_parts.join(" "),
+                start: builder.start,
+                end: builder.end,
+                process_labels: labels.join(", "),
+                segments: builder.segments,
+            });
     }
 
     let mut rollouts = by_rollout
@@ -1695,7 +1785,11 @@ fn build_rl_rollout_views(spans: &[DisplaySpan]) -> Vec<RlRolloutView> {
         .map(|(rollout_id, mut samples)| {
             samples.sort_by_key(|sample| sample.start);
             let start = samples.iter().map(|sample| sample.start).min().unwrap_or(0);
-            let end = samples.iter().map(|sample| sample.end).max().unwrap_or(start);
+            let end = samples
+                .iter()
+                .map(|sample| sample.end)
+                .max()
+                .unwrap_or(start);
             RlRolloutView {
                 rollout_id,
                 start,
@@ -1723,7 +1817,8 @@ fn build_train_rollout_views(spans: &[DisplaySpan]) -> Vec<RlRolloutView> {
             continue;
         };
         let Some(rollout_id) = attr_string(&span.attributes, "rollout_id")
-            .or_else(|| attr_string(&span.attributes, "step_id")) else {
+            .or_else(|| attr_string(&span.attributes, "step_id"))
+        else {
             continue;
         };
         let train_step_id = attr_string(&span.attributes, "train_step_id");
@@ -1734,21 +1829,25 @@ fn build_train_rollout_views(spans: &[DisplaySpan]) -> Vec<RlRolloutView> {
 
         let batch_key = format!("{rollout_id}:{batch_key_id}");
         let label = match (train_step_id, batch_id) {
-            (Some(train_step_id), Some(batch_id)) => format!("train_step:{train_step_id} batch:{batch_id}"),
+            (Some(train_step_id), Some(batch_id)) => {
+                format!("train_step:{train_step_id} batch:{batch_id}")
+            }
             (Some(train_step_id), None) => format!("train_step:{train_step_id}"),
             (None, Some(batch_id)) => format!("batch:{batch_id}"),
             (None, None) => batch_key_id,
         };
-        let entry = batches.entry(batch_key.clone()).or_insert_with(|| RlSampleBuilder {
-            sample_key: batch_key.clone(),
-            label,
-            rollout_id: rollout_id.clone(),
-            group_id: attr_string(&span.attributes, "role"),
-            attempt: attr_string(&span.attributes, "rank"),
-            start: segment.start,
-            end: segment.end,
-            ..Default::default()
-        });
+        let entry = batches
+            .entry(batch_key.clone())
+            .or_insert_with(|| RlSampleBuilder {
+                sample_key: batch_key.clone(),
+                label,
+                rollout_id: rollout_id.clone(),
+                group_id: attr_string(&span.attributes, "role"),
+                attempt: attr_string(&span.attributes, "rank"),
+                start: segment.start,
+                end: segment.end,
+                ..Default::default()
+            });
 
         entry.start = entry.start.min(segment.start);
         entry.end = entry.end.max(segment.end);
@@ -1775,15 +1874,18 @@ fn build_train_rollout_views(spans: &[DisplaySpan]) -> Vec<RlRolloutView> {
             detail_parts.push(format!("rank:{rank}"));
         }
         detail_parts.push(format!("{} phases", builder.segments.len()));
-        by_rollout.entry(builder.rollout_id.clone()).or_default().push(RlSampleRow {
-            sample_key: builder.sample_key,
-            label: builder.label,
-            detail: detail_parts.join(" "),
-            start: builder.start,
-            end: builder.end,
-            process_labels: labels.join(", "),
-            segments: builder.segments,
-        });
+        by_rollout
+            .entry(builder.rollout_id.clone())
+            .or_default()
+            .push(RlSampleRow {
+                sample_key: builder.sample_key,
+                label: builder.label,
+                detail: detail_parts.join(" "),
+                start: builder.start,
+                end: builder.end,
+                process_labels: labels.join(", "),
+                segments: builder.segments,
+            });
     }
 
     let mut rollouts = by_rollout
@@ -1791,7 +1893,11 @@ fn build_train_rollout_views(spans: &[DisplaySpan]) -> Vec<RlRolloutView> {
         .map(|(rollout_id, mut samples)| {
             samples.sort_by_key(|sample| sample.start);
             let start = samples.iter().map(|sample| sample.start).min().unwrap_or(0);
-            let end = samples.iter().map(|sample| sample.end).max().unwrap_or(start);
+            let end = samples
+                .iter()
+                .map(|sample| sample.end)
+                .max()
+                .unwrap_or(start);
             RlRolloutView {
                 rollout_id,
                 start,
@@ -1826,13 +1932,11 @@ fn build_chrome_trace_json_from_display_spans(spans: &[DisplaySpan]) -> Option<S
         return None;
     }
     complete_spans.sort_by(|a, b| {
-        a.start_timestamp
-            .cmp(&b.start_timestamp)
-            .then_with(|| {
-                let a_duration = a.end_timestamp.unwrap_or(a.start_timestamp) - a.start_timestamp;
-                let b_duration = b.end_timestamp.unwrap_or(b.start_timestamp) - b.start_timestamp;
-                b_duration.cmp(&a_duration)
-            })
+        a.start_timestamp.cmp(&b.start_timestamp).then_with(|| {
+            let a_duration = a.end_timestamp.unwrap_or(a.start_timestamp) - a.start_timestamp;
+            let b_duration = b.end_timestamp.unwrap_or(b.start_timestamp) - b.start_timestamp;
+            b_duration.cmp(&a_duration)
+        })
     });
 
     let min_start = complete_spans
@@ -1883,7 +1987,9 @@ fn build_chrome_trace_json_from_display_spans(spans: &[DisplaySpan]) -> Option<S
     }
     for (process_label, track_label) in track_keys {
         let pid = *process_ids.get(&process_label).unwrap_or(&1);
-        let tid = *track_ids.get(&(process_label.clone(), track_label.clone())).unwrap_or(&1);
+        let tid = *track_ids
+            .get(&(process_label.clone(), track_label.clone()))
+            .unwrap_or(&1);
         trace_events.push(serde_json::json!({
             "name": "thread_name",
             "ph": "M",
@@ -1909,7 +2015,10 @@ fn build_chrome_trace_json_from_display_spans(spans: &[DisplaySpan]) -> Option<S
         args.insert("span_id".to_string(), serde_json::json!(span.span_id));
         args.insert("trace_id".to_string(), serde_json::json!(span.trace_id));
         args.insert("process".to_string(), serde_json::json!(span.process_label));
-        args.insert("perfetto_process".to_string(), serde_json::json!(process_label));
+        args.insert(
+            "perfetto_process".to_string(),
+            serde_json::json!(process_label),
+        );
         args.insert("track".to_string(), serde_json::json!(track_label));
         if let Some(parent_id) = span.parent_id {
             args.insert("parent_id".to_string(), serde_json::json!(parent_id));
@@ -1935,10 +2044,13 @@ fn build_chrome_trace_json_from_display_spans(spans: &[DisplaySpan]) -> Option<S
         }));
     }
 
-    Some(serde_json::json!({
-        "traceEvents": trace_events,
-        "displayTimeUnit": "ms",
-    }).to_string())
+    Some(
+        serde_json::json!({
+            "traceEvents": trace_events,
+            "displayTimeUnit": "ms",
+        })
+        .to_string(),
+    )
 }
 
 fn perfetto_process_label(span: &DisplaySpan) -> String {
@@ -1962,7 +2074,9 @@ fn perfetto_track_label(span: &DisplaySpan) -> String {
         if let Some(trajectory_id) = trajectory_id {
             return format!("rollout:{rollout_id} / {trajectory_id}");
         }
-        if span.name.starts_with("rollout.") || span.kind.as_deref().unwrap_or("").contains("rollout") {
+        if span.name.starts_with("rollout.")
+            || span.kind.as_deref().unwrap_or("").contains("rollout")
+        {
             return format!("rollout:{rollout_id} / control");
         }
         return format!("rollout:{rollout_id}");
@@ -1979,9 +2093,7 @@ fn perfetto_track_label(span: &DisplaySpan) -> String {
 
 fn rl_segment_from_span(span: &DisplaySpan) -> Option<RlPhaseSegment> {
     let end = span.end_timestamp?;
-    if attr_string(&span.attributes, "sample_id").is_none()
-        && attr_string(&span.attributes, "trajectory_id").is_none()
-    {
+    if !has_trajectory_identity(&span.attributes) {
         return None;
     }
     let phase = attr_string(&span.attributes, "phase")
@@ -2006,12 +2118,7 @@ fn train_segment_from_span(span: &DisplaySpan) -> Option<RlPhaseSegment> {
     let phase = attr_string(&span.attributes, "phase")
         .or_else(|| span.kind.clone())
         .unwrap_or_else(|| span.name.clone());
-    if !is_train_timeline_span(
-        &span.name,
-        &phase,
-        span.kind.as_deref(),
-        &span.attributes,
-    ) {
+    if !is_train_timeline_span(&span.name, &phase, span.kind.as_deref(), &span.attributes) {
         return None;
     }
 
@@ -2068,7 +2175,12 @@ fn rl_phase_dot_class(phase: &str) -> &'static str {
     }
 }
 
-fn collect_timeline_spans(spans: &[DisplaySpan], depth: usize, max_depth: usize, rows: &mut Vec<TimelineSpan>) {
+fn collect_timeline_spans(
+    spans: &[DisplaySpan],
+    depth: usize,
+    max_depth: usize,
+    rows: &mut Vec<TimelineSpan>,
+) {
     for span in spans {
         if depth < max_depth {
             if let Some(end) = span.end_timestamp {
@@ -2101,7 +2213,8 @@ fn build_display_spans(spans: &[SpanInfo]) -> Vec<DisplaySpan> {
 }
 
 fn build_display_span(span: &SpanInfo, counters: &mut HashMap<String, usize>) -> DisplaySpan {
-    let counter_key = span.phase
+    let counter_key = span
+        .phase
         .as_ref()
         .map(|phase| format!("{}:{phase}", span.name))
         .unwrap_or_else(|| span.name.clone());
@@ -2137,26 +2250,31 @@ fn build_display_span(span: &SpanInfo, counters: &mut HashMap<String, usize>) ->
     }
 }
 
-fn collect_process_options(spans: &[DisplaySpan], discovered_processes: &[TraceProcessInfo]) -> Vec<FilterOption> {
+fn collect_process_options(
+    spans: &[DisplaySpan],
+    discovered_processes: &[TraceProcessInfo],
+) -> Vec<FilterOption> {
     let mut by_pid = HashMap::<String, FilterOption>::new();
     let mut all_spans = Vec::<DisplaySpan>::new();
     collect_all_display_spans(spans, &mut all_spans);
 
     for process in discovered_processes {
-        by_pid.entry(process.pid.to_string()).or_insert(FilterOption {
-            filter_key: format!("pid:{}", process.pid),
-            label: trace_process_label(process),
-        });
+        by_pid
+            .entry(process.pid.to_string())
+            .or_insert(FilterOption {
+                filter_key: format!("pid:{}", process.pid),
+                label: trace_process_label(process),
+            });
     }
 
     for span in all_spans {
         let Some(pid) = process_pid_from_attrs(&span.attributes) else {
             continue;
         };
-        let role = attr_string(&span.attributes, "process_role").unwrap_or_else(|| "process".to_string());
+        let role =
+            attr_string(&span.attributes, "process_role").unwrap_or_else(|| "process".to_string());
         let actor_name = attr_string(&span.attributes, "ray_actor_name");
-        let worker_id = attr_string(&span.attributes, "ray_worker_id")
-            .map(|id| short_id(&id));
+        let worker_id = attr_string(&span.attributes, "ray_worker_id").map(|id| short_id(&id));
         let mut parts = vec![format!("{role}:{pid}")];
         if let Some(actor_name) = actor_name.filter(|value| !value.is_empty()) {
             parts.push(actor_name);
@@ -2171,18 +2289,29 @@ fn collect_process_options(spans: &[DisplaySpan], discovered_processes: &[TraceP
     }
 
     let mut options = by_pid.into_values().collect::<Vec<_>>();
-    options.sort_by(|a, b| process_option_rank(a).cmp(&process_option_rank(b))
-        .then_with(|| a.label.cmp(&b.label)));
+    options.sort_by(|a, b| {
+        process_option_rank(a)
+            .cmp(&process_option_rank(b))
+            .then_with(|| a.label.cmp(&b.label))
+    });
     options
 }
 
 fn trace_process_label(process: &TraceProcessInfo) -> String {
     let role = process.process_role.as_deref().unwrap_or("process");
     let mut parts = vec![format!("{role}:{}", process.pid)];
-    if let Some(actor_name) = process.ray_actor_name.as_ref().filter(|value| !value.is_empty()) {
+    if let Some(actor_name) = process
+        .ray_actor_name
+        .as_ref()
+        .filter(|value| !value.is_empty())
+    {
         parts.push(actor_name.clone());
     }
-    if let Some(worker_id) = process.ray_worker_id.as_ref().filter(|value| !value.is_empty()) {
+    if let Some(worker_id) = process
+        .ray_worker_id
+        .as_ref()
+        .filter(|value| !value.is_empty())
+    {
         parts.push(format!("worker:{}", short_id(worker_id)));
     }
     parts.join(" | ")
@@ -2230,9 +2359,16 @@ fn collect_filtered_display_spans(
 ) {
     for span in spans {
         let mut children = Vec::new();
-        collect_filtered_display_spans(&span.children, process_filter, function_filter, &mut children);
+        collect_filtered_display_spans(
+            &span.children,
+            process_filter,
+            function_filter,
+            &mut children,
+        );
 
-        if process_filter_matches(span, process_filter) && function_filter_matches(span, function_filter) {
+        if process_filter_matches(span, process_filter)
+            && function_filter_matches(span, function_filter)
+        {
             let mut cloned = span.clone();
             cloned.children = children;
             out.push(cloned);
@@ -2264,8 +2400,8 @@ fn function_filter_matches(span: &DisplaySpan, function_filter: &str) -> bool {
 fn collect_span_process_pids(spans: &[SpanInfo]) -> HashSet<i32> {
     let mut pids = HashSet::new();
     for span in spans {
-        if let Some(pid) = process_pid_from_attrs(&span.attributes)
-            .and_then(|pid| pid.parse::<i32>().ok())
+        if let Some(pid) =
+            process_pid_from_attrs(&span.attributes).and_then(|pid| pid.parse::<i32>().ok())
         {
             pids.insert(pid);
         }
@@ -2305,8 +2441,8 @@ fn collect_batch_options(spans: &[DisplaySpan]) -> Vec<TimelineSpan> {
 
 fn collect_batches(spans: &[DisplaySpan], rows: &mut Vec<TimelineSpan>) {
     for span in spans {
-        let is_batch = span.name == "batch"
-            || is_step_parent_span(&span.name, span.kind.as_deref());
+        let is_batch =
+            span.name == "batch" || is_step_parent_span(&span.name, span.kind.as_deref());
         if is_batch {
             let duration = span
                 .end_timestamp
@@ -2417,7 +2553,10 @@ fn display_logical_step_key(span: &DisplaySpan) -> Option<LogicalStepKey> {
         return None;
     }
 
-    Some(LogicalStepKey { rollout_id, step_id })
+    Some(LogicalStepKey {
+        rollout_id,
+        step_id,
+    })
 }
 
 fn expanded_trace_fetch_limit(limit: usize) -> usize {
@@ -2544,7 +2683,11 @@ fn submit_parent_matches(span: &SpanInfo, key: &LogicalStepKey) -> bool {
         && submit_step_id.as_deref() == Some(key.step_id.as_str())
 }
 
-fn attach_to_single_rollout_parent(spans: &mut [SpanInfo], rollout_id: &str, child: SpanInfo) -> bool {
+fn attach_to_single_rollout_parent(
+    spans: &mut [SpanInfo],
+    rollout_id: &str,
+    child: SpanInfo,
+) -> bool {
     let mut matches = Vec::<Vec<usize>>::new();
     let mut current_path = Vec::<usize>::new();
     find_rollout_parent_paths(spans, rollout_id, &mut current_path, &mut matches);
@@ -2584,7 +2727,13 @@ fn attach_to_time_parent(spans: &mut [SpanInfo], child: SpanInfo) -> bool {
     let mut best_path = Vec::<usize>::new();
     let mut current_path = Vec::<usize>::new();
     let mut best_duration: Option<i64> = None;
-    find_time_parent_path(spans, &child, &mut current_path, &mut best_path, &mut best_duration);
+    find_time_parent_path(
+        spans,
+        &child,
+        &mut current_path,
+        &mut best_path,
+        &mut best_duration,
+    );
 
     if best_path.is_empty() {
         return false;
@@ -2620,7 +2769,13 @@ fn find_time_parent_path(
             }
         }
 
-        find_time_parent_path(&span.children, child, current_path, best_path, best_duration);
+        find_time_parent_path(
+            &span.children,
+            child,
+            current_path,
+            best_path,
+            best_duration,
+        );
         current_path.pop();
     }
 }

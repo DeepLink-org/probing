@@ -108,6 +108,13 @@ Non-PROBING-prefixed aliases are also recognized for Megatron compatibility:
 | Variable | Description |
 |----------|-------------|
 | `PROBING_NCCL_MOCK` | Enable mock NCCL proxy data for testing without GPUs. |
+| `PROBING_FAKES` | Opt-in fake packages for macOS debugging (`1`/`all`, or comma list: `megatron,transformer_engine,apex,flash_attn,triton`). See `python/probing/fakes/README.md`. |
+| `PROBING_FAKES_FORCE` | When `1`, shadow real packages for enabled specs (needed if megatron-core is installed but unusable on macOS). |
+| `PROBING_FAKE_DEVICE` | `meta` / `cpu` / `mps`. Remap CUDA device APIs when `probing.fakes` is installed. Scripted loops default to `meta` (no compute). Real Megatron-LM runner (`examples/megatron/run_megatron_lm_pretrain.py`) defaults to `cpu`. |
+| `MEGATRON_LM` | Path to a Megatron-LM checkout for the real-code runner (default: sibling `../Megatron-LM`). One checkout at a time — switch versions by changing this path. |
+| `MEGATRON_LM_ALLOW_ANY_VERSION` | When `1`, skip the megatron-core smoke version gate (default allows ≥0.12.1 and <0.21). |
+| `PROBING_MEGATRON_REAL_LM` | Opt-in for `tests/regression/ext/test_megatron_real_lm.py` (`1` to run). |
+| — | Fake layer also writes ``python.fake_event`` ground-truth rows and can hook ``torch.distributed`` to dual-write ``python.comm_collective`` for correlation / verify. |
 | `PROBING_NCCL_PROFILER` | Path to the NCCL profiler shared library. |
 | `PROBING_NCCL_MIN_MSG_BYTES` | Skip recording NCCL ops smaller than this size in bytes (default `0` = record all). |
 | `PROBING_NCCL_INFLIGHT_THRESHOLD_SECS` | Watchdog threshold for snapshotting in-flight (possibly hung) NCCL ops into `nccl.inflight_ops` (default `10`, `0` disables). |
@@ -199,7 +206,7 @@ Hierarchical side-channel registration when `WORLD_SIZE > 1`. See [torchrun clus
 | `PROBING_CLUSTER_STALE_SEC` | `25` | Mark node `dead` after this many seconds without heartbeat. Should exceed max interval. |
 | `PROBING_CLUSTER_DISCOVER_TIMEOUT_SEC` | `2` | Timeout per master/local0 discovery attempt. |
 | `PROBING_CLUSTER_REPORT_TIMEOUT_SEC` | `5` | HTTP PUT timeout for cluster report. |
-| `PROBING_CLUSTER_PRESET` | — | Used by `examples/run_cluster_multinode.sh`: `demo`, `fast`, or `steady`. |
+| `PROBING_CLUSTER_PRESET` | — | Used by `examples/cluster/run_multinode.sh`: `demo`, `fast`, or `steady`. |
 | `PROBING_CLUSTER_FANOUT_HIERARCHICAL` | `1` | Hierarchical cluster query fan-out (coordinator → local0 → leaves). `0` = flat fan-out to every peer. See [Hierarchical fan-out](../design/hierarchical-fanout.md). |
 | `PROBING_REMOTE_QUERY_TIMEOUT_SECS` | `30` | Per-peer timeout for remote federated / cluster queries (seconds). |
 | `PROBING_FANOUT_CONCURRENCY` | `128` | Max concurrent in-flight remote fan-out HTTP requests per query. |

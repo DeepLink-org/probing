@@ -3,12 +3,12 @@ use std::collections::HashMap;
 use dioxus::prelude::*;
 use probing_proto::prelude::{DataFrame, Ele};
 
-use crate::api::EngineInfo;
 use crate::api::ApiClient;
+use crate::api::EngineInfo;
 use crate::components::card::Card;
 use crate::components::common::{EmptyState, ErrorState, LoadingState};
-use crate::components::rl::metrics_line_chart::{ChartSeries, MetricsLineChart};
 use crate::components::page::{PageContainer, PageTitle};
+use crate::components::rl::metrics_line_chart::{ChartSeries, MetricsLineChart};
 use crate::hooks::use_api;
 
 const REFRESH_MS: u32 = 5000;
@@ -32,15 +32,20 @@ const SERIES_COLORS: [&str; 6] = [
 pub fn Inference() -> Element {
     let mut refresh_tick = use_signal(|| 0u64);
     let engines = use_api({
-        let refresh_tick = refresh_tick.clone();
+        let refresh_tick = refresh_tick;
         move || {
             let _ = *refresh_tick.read();
             let client = ApiClient::new();
-            async move { client.fetch_inference_engines().await.map(|resp| resp.engines) }
+            async move {
+                client
+                    .fetch_inference_engines()
+                    .await
+                    .map(|resp| resp.engines)
+            }
         }
     });
     let metrics = use_api({
-        let refresh_tick = refresh_tick.clone();
+        let refresh_tick = refresh_tick;
         move || {
             let _ = *refresh_tick.read();
             let client = ApiClient::new();
@@ -124,6 +129,7 @@ fn engines_panel(state: &crate::hooks::ApiState<Vec<EngineInfo>>) -> Element {
                             th { class: "py-2 pr-4", "Engine" }
                             th { class: "py-2 pr-4", "Type" }
                             th { class: "py-2 pr-4", "Framework" }
+                            th { class: "py-2 pr-4", "Router" }
                             th { class: "py-2 pr-4", "Metrics URL" }
                             th { class: "py-2 pr-4", "Status" }
                         }
@@ -134,6 +140,7 @@ fn engines_panel(state: &crate::hooks::ApiState<Vec<EngineInfo>>) -> Element {
                                 td { class: "py-2 pr-4 font-medium", "{engine.engine_id}" }
                                 td { class: "py-2 pr-4", "{engine.engine_type}" }
                                 td { class: "py-2 pr-4", "{engine.framework}" }
+                                td { class: "py-2 pr-4 font-mono text-xs break-all", "{engine.router_addr}" }
                                 td { class: "py-2 pr-4 font-mono text-xs break-all", "{engine.metrics_url}" }
                                 td { class: "py-2 pr-4",
                                     span {
@@ -253,12 +260,12 @@ fn group_metric_rows(df: &DataFrame) -> HashMap<(String, String), Vec<(f64, f64)
     let name_idx = col_idx(df, "metric_name");
     let value_idx = col_idx(df, "metric_value");
 
-    let Some((ts_idx, engine_idx, name_idx, value_idx)) = (
-        match (ts_idx, engine_idx, name_idx, value_idx) {
+    let Some((ts_idx, engine_idx, name_idx, value_idx)) =
+        (match (ts_idx, engine_idx, name_idx, value_idx) {
             (Some(a), Some(b), Some(c), Some(d)) => Some((a, b, c, d)),
             _ => None,
-        }
-    ) else {
+        })
+    else {
         return HashMap::new();
     };
 
@@ -314,16 +321,15 @@ fn build_chart_series(
                 .map(|points| ChartSeries {
                     label: engine_id.clone(),
                     points: points.clone(),
-                    color: engine_colors
-                        .get(&engine_id)
-                        .copied()
-                        .unwrap_or("#64748b"),
+                    color: engine_colors.get(&engine_id).copied().unwrap_or("#64748b"),
                 })
         })
         .collect()
 }
 
-fn engine_color_map(grouped: &HashMap<(String, String), Vec<(f64, f64)>>) -> HashMap<String, &'static str> {
+fn engine_color_map(
+    grouped: &HashMap<(String, String), Vec<(f64, f64)>>,
+) -> HashMap<String, &'static str> {
     let mut engines: Vec<String> = grouped
         .keys()
         .map(|(_, engine_id)| engine_id.clone())
@@ -334,12 +340,7 @@ fn engine_color_map(grouped: &HashMap<(String, String), Vec<(f64, f64)>>) -> Has
     engines
         .into_iter()
         .enumerate()
-        .map(|(idx, engine_id)| {
-            (
-                engine_id,
-                SERIES_COLORS[idx % SERIES_COLORS.len()],
-            )
-        })
+        .map(|(idx, engine_id)| (engine_id, SERIES_COLORS[idx % SERIES_COLORS.len()]))
         .collect()
 }
 
@@ -349,7 +350,10 @@ fn dedupe_time_points(points: &mut Vec<(f64, f64)>) {
     }
     let mut deduped: Vec<(f64, f64)> = Vec::with_capacity(points.len());
     for (ts, value) in points.drain(..) {
-        if deduped.last().map(|(last_ts, _)| (*last_ts - ts).abs() < f64::EPSILON) == Some(true)
+        if deduped
+            .last()
+            .map(|(last_ts, _)| (*last_ts - ts).abs() < f64::EPSILON)
+            == Some(true)
         {
             if let Some(last) = deduped.last_mut() {
                 last.1 = value;
@@ -451,10 +455,7 @@ mod tests {
         let grouped = group_metric_rows(&df);
         assert_eq!(grouped.len(), 1);
         let points = grouped
-            .get(&(
-                "normalized.inflight_requests".to_string(),
-                "0".to_string(),
-            ))
+            .get(&("normalized.inflight_requests".to_string(), "0".to_string()))
             .expect("series");
         assert_eq!(points.len(), 2);
         assert_eq!(points[0].1, 0.0);

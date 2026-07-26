@@ -170,7 +170,11 @@ fn bounds(series: &[ChartSeries]) -> (f64, f64, f64, f64) {
     }
 
     if y_min == y_max {
-        let pad = if y_min.abs() > 1.0 { y_min.abs() * 0.1 } else { 1.0 };
+        let pad = if y_min.abs() > 1.0 {
+            y_min.abs() * 0.1
+        } else {
+            1.0
+        };
         y_min -= pad;
         y_max += pad;
     } else {
@@ -188,7 +192,12 @@ fn y_axis_ticks(y_min: f64, y_max: f64) -> Vec<f64> {
         .collect()
 }
 
-fn x_axis_labels(_series: &[ChartSeries], x_min: f64, x_max: f64, count: usize) -> Vec<(String, f64)> {
+fn x_axis_labels(
+    _series: &[ChartSeries],
+    x_min: f64,
+    x_max: f64,
+    count: usize,
+) -> Vec<(String, f64)> {
     if count <= 1 {
         return vec![(format_time_ms(x_min), x_min)];
     }

@@ -15,7 +15,11 @@ from probing.ext.engines.registry import (
     register_slime_sglang_router,
     unregister_engine,
 )
-from probing.ext.engines.scraper import ensure_scraper_running, scrape_all, scrape_engine
+from probing.ext.engines.scraper import (
+    ensure_scraper_running,
+    scrape_all,
+    scrape_engine,
+)
 
 __all__ = [
     "ensure_scraper_running",

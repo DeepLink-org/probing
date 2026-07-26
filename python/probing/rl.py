@@ -76,7 +76,9 @@ def context(**attrs: Any):
 
 
 @contextmanager
-def span(name: str, *, phase: Optional[str] = None, kind: str = "rl.phase", **attrs: Any):
+def span(
+    name: str, *, phase: Optional[str] = None, kind: str = "rl.phase", **attrs: Any
+):
     """Record an RL span with standard rollout/sample attributes."""
 
     merged = merge_context(**attrs)
@@ -124,7 +126,9 @@ def export_context(**attrs: Any) -> dict[str, Any]:
     return merge_context(**attrs)
 
 
-def import_context(carrier: Optional[dict[str, Any]] = None, **attrs: Any) -> dict[str, Any]:
+def import_context(
+    carrier: Optional[dict[str, Any]] = None, **attrs: Any
+) -> dict[str, Any]:
     """Normalize a received carrier before using it with :func:`context`."""
 
     merged = dict(carrier or {})

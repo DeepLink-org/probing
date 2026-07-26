@@ -40,7 +40,7 @@ See [Environment variables](../reference/env-vars.md) for the full list. Highlig
 
 ## Presets (`PROBING_CLUSTER_PRESET`)
 
-`examples/run_cluster_multinode.sh` supports:
+`examples/cluster/run_multinode.sh` supports:
 
 | Preset | Use case |
 |--------|----------|
@@ -49,13 +49,13 @@ See [Environment variables](../reference/env-vars.md) for the full list. Highlig
 | `steady` | Long runs, lower CPU (90s stale) |
 
 ```bash
-PROBING_CLUSTER_PRESET=fast ./examples/run_cluster_multinode.sh 2 2
+PROBING_CLUSTER_PRESET=fast ./examples/cluster/run_multinode.sh 2 2
 ```
 
 ## Demo
 
 ```bash
-./examples/run_cluster_multinode.sh
+./examples/cluster/run_multinode.sh
 probing -t rank0-host:18080 cluster nodes
 ```
 

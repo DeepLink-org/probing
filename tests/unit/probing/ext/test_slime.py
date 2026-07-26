@@ -49,7 +49,8 @@ def test_infer_role_from_slime_cmdline_markers():
         slime.infer_role_from_cmdline("ray::RolloutManager.generate") == "rollout_actor"
     )
     assert (
-        slime.infer_role_from_cmdline("ray::MegatronTrainRayActor.train") == "train_actor"
+        slime.infer_role_from_cmdline("ray::MegatronTrainRayActor.train")
+        == "train_actor"
     )
     assert slime.infer_role_from_cmdline("ray::SGLangEngine") == "inference_engine"
     assert slime.infer_role_from_cmdline("python train_async.py") == "driver"

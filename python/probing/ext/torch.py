@@ -79,7 +79,7 @@ def optimizer_step_post_hook(optimizer, *args, **kwargs):
 
 
 def collective_hook():
-    """Autostart low-overhead collective tracing for distributed torch jobs."""
+    """Maybe start collective tracing (off by default; opt-in via config/env)."""
     from probing.profiling.collective import maybe_start_collective_tracing
 
     maybe_start_collective_tracing()

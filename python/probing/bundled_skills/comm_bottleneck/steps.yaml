@@ -75,7 +75,7 @@ spec:
         GROUP BY op
         ORDER BY sum(duration_ms) DESC
       on_empty: skip
-      empty_message: "无 comm_collective 数据（NCCL 插件启用时 Torch 侧插桩默认关闭，属预期）"
+      empty_message: "无 comm_collective 数据（Torch 侧插桩默认关闭；设 PROBING_TORCH_COLLECTIVE_ENABLE=1 开启）"
 
     - id: op_by_step
       title: "每 step 通信总耗时 (Torch API 层)"

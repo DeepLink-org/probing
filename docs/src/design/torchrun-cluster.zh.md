@@ -59,7 +59,7 @@ global rank 0       ──PUT──►  本机 master 视图
 
 ## 预设（`PROBING_CLUSTER_PRESET`）
 
-`examples/run_cluster_multinode.sh` 支持预设，便于 demo / 调试 / 长跑：
+`examples/cluster/run_multinode.sh` 支持预设，便于 demo / 调试 / 长跑：
 
 | 预设 | 用途 | 主要效果 |
 |------|------|----------|
@@ -68,8 +68,8 @@ global rank 0       ──PUT──►  本机 master 视图
 | `steady` | 长跑省 CPU | stale=90s，max interval≈67s |
 
 ```bash
-PROBING_CLUSTER_PRESET=fast ./examples/run_cluster_multinode.sh 2 2
-PROBING_CLUSTER_PRESET=steady ./examples/run_cluster_multinode.sh 4 8
+PROBING_CLUSTER_PRESET=fast ./examples/cluster/run_multinode.sh 2 2
+PROBING_CLUSTER_PRESET=steady ./examples/cluster/run_multinode.sh 4 8
 ```
 
 也可手动覆盖任意变量；预设只设置未显式 export 的项。
@@ -86,8 +86,8 @@ probing -t rank0-host:18080 cluster nodes
 ## 演示
 
 ```bash
-./examples/run_cluster_multinode.sh        # 2 机 × 2 卡
-./examples/run_cluster_multinode.sh 3 4 60 # 3 机 × 4 卡，sleep 60s
+./examples/cluster/run_multinode.sh        # 2 机 × 2 卡
+./examples/cluster/run_multinode.sh 3 4 60 # 3 机 × 4 卡，sleep 60s
 ```
 
 ## 与 Python hook 的关系
