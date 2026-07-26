@@ -17,16 +17,16 @@ use crate::state::investigation::{
     clear_spans_investigation_filters, investigation_context_key, set_trace_context,
     sync_spans_filters_to_context, InvestigationContext, INVESTIGATION_CONTEXT,
 };
-use crate::state::profiling::SPANS_TREE_LIMIT;
+use crate::state::profiling::{SPANS_TREE_LIMIT, SPANS_TREE_RELOAD};
 
 const SPANS_LIMIT_MIN: usize = 100;
 const SPANS_LIMIT_MAX: usize = 5000;
 const SPANS_LIMIT_STEP: usize = 100;
 
 #[component]
-pub fn Traces() -> Element {
+pub fn Traces(#[props(default = true)] show_context_controls: bool) -> Element {
     let mut refresh = use_signal(|| 0u32);
-    let refresh_tick = refresh();
+    let refresh_tick = refresh().wrapping_add(*SPANS_TREE_RELOAD.read());
     let mut filter = use_signal(String::new);
     let expand_all = use_signal(|| 0u32);
     let collapse_all = use_signal(|| 0u32);
@@ -70,12 +70,16 @@ pub fn Traces() -> Element {
                     "Span tree with an aligned timeline lane — expand nodes to grow both views. For kernel-level chrome traces, use Profiling → Chrome trace.".to_string(),
                 ),
                 icon: Some(&icondata::AiApiOutlined),
-                header_right: Some(rsx! {
-                    ManualRefreshStatus { refresh_tick }
-                    RefreshButton {
-                        onclick: move |_| refresh.set(refresh() + 1),
-                    }
-                }),
+                header_right: if show_context_controls {
+                    Some(rsx! {
+                        ManualRefreshStatus { refresh_tick }
+                        RefreshButton {
+                            onclick: move |_| refresh.set(refresh() + 1),
+                        }
+                    })
+                } else {
+                    None
+                },
             }
 
             Card {
@@ -93,6 +97,7 @@ pub fn Traces() -> Element {
                         active_only,
                         show_advanced,
                         clear_filters_tick,
+                        show_context_controls,
                     }
                 }),
                 AsyncBoundary {
@@ -125,6 +130,7 @@ fn TraceToolbar(
     active_only: Signal<bool>,
     show_advanced: Signal<bool>,
     clear_filters_tick: Signal<u32>,
+    show_context_controls: bool,
 ) -> Element {
     let limit = *SPANS_TREE_LIMIT.read();
     let filters_active = {
@@ -214,22 +220,24 @@ fn TraceToolbar(
                     title: "Open chrome trace event timeline under Profiling (not this span tree)",
                     "Chrome trace →"
                 }
-                div { class: "flex items-center gap-2 pl-1 border-l border-gray-200",
-                    span { class: "text-xs text-gray-500 whitespace-nowrap font-mono", "{limit} rows" }
-                    input {
-                        r#type: "range",
-                        min: "{SPANS_LIMIT_MIN}",
-                        max: "{SPANS_LIMIT_MAX}",
-                        step: "{SPANS_LIMIT_STEP}",
-                        value: "{limit}",
-                        class: "w-24 accent-blue-600",
-                        title: "Max trace_event rows loaded for the span tree",
-                        oninput: move |ev| {
-                            if let Ok(val) = ev.value().parse::<usize>() {
-                                *SPANS_TREE_LIMIT.write() = val;
-                                refresh.set(refresh() + 1);
-                            }
-                        },
+                if show_context_controls {
+                    div { class: "flex items-center gap-2 pl-1 border-l border-gray-200",
+                        span { class: "text-xs text-gray-500 whitespace-nowrap font-mono", "{limit} rows" }
+                        input {
+                            r#type: "range",
+                            min: "{SPANS_LIMIT_MIN}",
+                            max: "{SPANS_LIMIT_MAX}",
+                            step: "{SPANS_LIMIT_STEP}",
+                            value: "{limit}",
+                            class: "w-24 accent-blue-600",
+                            title: "Max trace_event rows loaded for the span tree",
+                            oninput: move |ev| {
+                                if let Ok(val) = ev.value().parse::<usize>() {
+                                    *SPANS_TREE_LIMIT.write() = val;
+                                    refresh.set(refresh() + 1);
+                                }
+                            },
+                        }
                     }
                 }
             }
@@ -300,6 +308,7 @@ fn TraceTreePanel(
 ) -> Element {
     let spans = use_app_resource(move || {
         let _ = refresh();
+        let _ = *SPANS_TREE_RELOAD.read();
         let limit_val = *SPANS_TREE_LIMIT.read();
         async move { ApiClient::new().get_span_tree(Some(limit_val)).await }
     });

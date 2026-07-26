@@ -1,5 +1,6 @@
 pub mod agent;
 pub mod commands;
+pub mod inference;
 pub mod investigation;
 pub mod investigation_url;
 pub mod llm_config;
@@ -12,4 +13,5 @@ pub mod scroll_lock;
 pub mod sidebar;
 pub mod source_viewer;
 pub mod stack;
+pub mod training;
 pub mod ui_tasks;

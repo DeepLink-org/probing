@@ -235,7 +235,7 @@ fn PytorchTimelineLoader() -> Element {
         return rsx! {
             TimelinePlaceholder {
                 title: "PyTorch Profiler Timeline",
-                hint: "Use Start Profile and Load Timeline in the sidebar.".to_string(),
+                hint: "Use Start Profile and Load Timeline in the profiling controls.".to_string(),
             }
         };
     }
@@ -252,7 +252,7 @@ fn RayTimelineLoader() -> Element {
         return rsx! {
             TimelinePlaceholder {
                 title: "Ray Timeline",
-                hint: "Click Reload Ray Timeline in the sidebar.".to_string(),
+                hint: "Click Reload Ray Timeline in the profiling controls.".to_string(),
             }
         };
     }

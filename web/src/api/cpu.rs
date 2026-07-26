@@ -37,11 +37,6 @@ pub struct CpuThreadRow {
     pub delta_total_ns: i64,
 }
 
-fn is_cpu_table_missing(err: &AppError) -> bool {
-    matches!(err, AppError::Api(msg)
-        if msg.contains("cpu.") && msg.contains("not found"))
-}
-
 pub fn thread_display_name(comm: &str, tid: i32) -> String {
     let trimmed = comm.trim();
     if !trimmed.is_empty() {
@@ -53,89 +48,123 @@ pub fn thread_display_name(comm: &str, tid: i32) -> String {
 
 impl ApiClient {
     pub async fn fetch_cpu_latest(&self) -> Result<Option<CpuSnapshot>> {
-        match self
+        let df = self
             .execute_query(
                 "SELECT ts, platform, wall_ns, delta_user_ns, delta_sys_ns, delta_total_ns, \
                  cpu_user_pct, cpu_sys_pct, cpu_total_pct, rss_kb, thread_count, \
                  delta_vol_ctxt, delta_invol_ctxt \
                  FROM cpu.utilization WHERE scope = 'process' ORDER BY ts DESC LIMIT 1",
             )
-            .await
-        {
-            Ok(df) => Ok(parse_cpu_snapshot(&df)),
-            Err(e) if is_cpu_table_missing(&e) => Ok(None),
-            Err(e) => Err(e),
-        }
+            .await?;
+        parse_cpu_snapshot(&df)
     }
 
     pub async fn fetch_cpu_history(&self, limit: usize) -> Result<Vec<CpuHistorySample>> {
-        match self
+        let df = self
             .execute_query(&format!(
                 "SELECT delta_user_ns, delta_sys_ns, delta_total_ns \
                  FROM cpu.utilization WHERE scope = 'process' ORDER BY ts DESC LIMIT {limit}"
             ))
-            .await
-        {
-            Ok(df) => Ok(parse_cpu_history(&df)),
-            Err(e) if is_cpu_table_missing(&e) => Ok(vec![]),
-            Err(e) => Err(e),
-        }
+            .await?;
+        parse_cpu_history(&df)
     }
 
     pub async fn fetch_cpu_top_threads(&self, limit: usize) -> Result<Vec<CpuThreadRow>> {
         let fetch_limit = limit.saturating_mul(4).max(limit);
-        match self
+        let df = self
             .execute_query(&format!(
                 "SELECT ts, tid, comm, state, wchan, delta_user_ns, delta_sys_ns, delta_total_ns \
                  FROM cpu.tasks ORDER BY ts DESC, delta_total_ns DESC LIMIT {fetch_limit}"
             ))
-            .await
-        {
-            Ok(df) => Ok(parse_cpu_top_threads(&df, limit)),
-            Err(e) if is_cpu_table_missing(&e) => Ok(vec![]),
-            Err(e) => Err(e),
-        }
+            .await?;
+        parse_cpu_top_threads(&df, limit)
     }
 }
 
-fn col_index(df: &DataFrame, name: &str) -> Option<usize> {
-    df.names.iter().position(|n| n == name)
+fn invalid_cpu_data(message: impl Into<String>) -> AppError {
+    AppError::Api(format!("Invalid CPU metrics response: {}", message.into()))
 }
 
-fn cell(df: &DataFrame, row: usize, col: usize) -> Option<Ele> {
-    df.cols.get(col).map(|c| c.get(row))
+fn required_columns(df: &DataFrame, names: &[&str]) -> Result<(usize, Vec<usize>)> {
+    let rows = df.row_count();
+    let indexes = names
+        .iter()
+        .map(|name| {
+            let index = df
+                .names
+                .iter()
+                .position(|n| n == name)
+                .ok_or_else(|| invalid_cpu_data(format!("missing required column `{name}`")))?;
+            let column = df
+                .cols
+                .get(index)
+                .ok_or_else(|| invalid_cpu_data(format!("missing data for column `{name}`")))?;
+            if column.len() != rows {
+                return Err(invalid_cpu_data(format!(
+                    "column `{name}` has {} rows, expected {rows}",
+                    column.len()
+                )));
+            }
+            Ok(index)
+        })
+        .collect::<Result<Vec<_>>>()?;
+    Ok((rows, indexes))
 }
 
-fn ele_f32(e: Ele) -> f32 {
+fn cell(df: &DataFrame, row: usize, col: usize, name: &str) -> Result<Ele> {
+    let value = df
+        .cols
+        .get(col)
+        .ok_or_else(|| invalid_cpu_data(format!("missing data for column `{name}`")))?
+        .get(row);
+    if value == Ele::Nil {
+        return Err(invalid_cpu_data(format!(
+            "null or missing value in `{name}` at row {row}"
+        )));
+    }
+    Ok(value)
+}
+
+fn ele_f32(e: Ele, name: &str) -> Result<f32> {
     match e {
-        Ele::F32(v) => v,
-        Ele::F64(v) => v as f32,
-        Ele::I32(v) => v as f32,
-        Ele::I64(v) => v as f32,
-        _ => 0.0,
+        Ele::F32(v) => Ok(v),
+        Ele::F64(v) => Ok(v as f32),
+        Ele::I32(v) => Ok(v as f32),
+        Ele::I64(v) => Ok(v as f32),
+        other => Err(invalid_cpu_data(format!(
+            "column `{name}` expected numeric data, got {other:?}"
+        ))),
     }
 }
 
-fn ele_i64(e: Ele) -> i64 {
+fn ele_i64(e: Ele, name: &str) -> Result<i64> {
     match e {
-        Ele::I64(v) => v,
-        Ele::I32(v) => v as i64,
-        _ => 0,
+        Ele::I64(v) => Ok(v),
+        Ele::I32(v) => Ok(v as i64),
+        other => Err(invalid_cpu_data(format!(
+            "column `{name}` expected integer data, got {other:?}"
+        ))),
     }
 }
 
-fn ele_i32(e: Ele) -> i32 {
+fn ele_i32(e: Ele, name: &str) -> Result<i32> {
     match e {
-        Ele::I32(v) => v,
-        Ele::I64(v) => v as i32,
-        _ => 0,
+        Ele::I32(v) => Ok(v),
+        Ele::I64(v) => i32::try_from(v).map_err(|_| {
+            invalid_cpu_data(format!("column `{name}` value {v} is outside i32 range"))
+        }),
+        other => Err(invalid_cpu_data(format!(
+            "column `{name}` expected integer data, got {other:?}"
+        ))),
     }
 }
 
-fn ele_text(e: Ele) -> String {
+fn ele_text(e: Ele, name: &str) -> Result<String> {
     match e {
-        Ele::Text(s) => s,
-        _ => String::new(),
+        Ele::Text(s) => Ok(s),
+        other => Err(invalid_cpu_data(format!(
+            "column `{name}` expected text data, got {other:?}"
+        ))),
     }
 }
 
@@ -143,120 +172,106 @@ fn ns_to_ms(ns: i64) -> f32 {
     ns as f32 / 1_000_000.0
 }
 
-fn parse_cpu_snapshot(df: &DataFrame) -> Option<CpuSnapshot> {
-    if df.cols.first().map(|c| c.len()).unwrap_or(0) == 0 {
-        return None;
-    }
-    let idx = |name| col_index(df, name);
-    Some(CpuSnapshot {
-        platform: idx("platform")
-            .and_then(|c| cell(df, 0, c).map(ele_text))
-            .unwrap_or_default(),
-        delta_user_ns: idx("delta_user_ns")
-            .and_then(|c| cell(df, 0, c).map(ele_i64))
-            .unwrap_or(0),
-        delta_sys_ns: idx("delta_sys_ns")
-            .and_then(|c| cell(df, 0, c).map(ele_i64))
-            .unwrap_or(0),
-        delta_total_ns: idx("delta_total_ns")
-            .and_then(|c| cell(df, 0, c).map(ele_i64))
-            .unwrap_or(0),
-        cpu_user_pct: idx("cpu_user_pct")
-            .and_then(|c| cell(df, 0, c).map(ele_f32))
-            .unwrap_or(0.0),
-        cpu_sys_pct: idx("cpu_sys_pct")
-            .and_then(|c| cell(df, 0, c).map(ele_f32))
-            .unwrap_or(0.0),
-        cpu_total_pct: idx("cpu_total_pct")
-            .and_then(|c| cell(df, 0, c).map(ele_f32))
-            .unwrap_or(0.0),
-        rss_kb: idx("rss_kb")
-            .and_then(|c| cell(df, 0, c).map(ele_i64))
-            .unwrap_or(0),
-        thread_count: idx("thread_count")
-            .and_then(|c| cell(df, 0, c).map(ele_i32))
-            .unwrap_or(0),
-        delta_vol_ctxt: idx("delta_vol_ctxt")
-            .and_then(|c| cell(df, 0, c).map(ele_i64))
-            .unwrap_or(0),
-        delta_invol_ctxt: idx("delta_invol_ctxt")
-            .and_then(|c| cell(df, 0, c).map(ele_i64))
-            .unwrap_or(0),
-    })
-}
-
-fn parse_cpu_history(df: &DataFrame) -> Vec<CpuHistorySample> {
-    let rows = df.cols.first().map(|c| c.len()).unwrap_or(0);
-    let idx = |name| col_index(df, name);
-    let mut out: Vec<CpuHistorySample> = (0..rows)
-        .map(|r| CpuHistorySample {
-            user_ms: idx("delta_user_ns")
-                .and_then(|c| cell(df, r, c).map(ele_i64))
-                .map(ns_to_ms)
-                .unwrap_or(0.0),
-            sys_ms: idx("delta_sys_ns")
-                .and_then(|c| cell(df, r, c).map(ele_i64))
-                .map(ns_to_ms)
-                .unwrap_or(0.0),
-            total_ms: idx("delta_total_ns")
-                .and_then(|c| cell(df, r, c).map(ele_i64))
-                .map(ns_to_ms)
-                .unwrap_or(0.0),
-        })
-        .collect();
-    out.reverse();
-    out
-}
-
-fn parse_cpu_top_threads(df: &DataFrame, limit: usize) -> Vec<CpuThreadRow> {
-    let rows = df.cols.first().map(|c| c.len()).unwrap_or(0);
+fn parse_cpu_snapshot(df: &DataFrame) -> Result<Option<CpuSnapshot>> {
+    const COLUMNS: &[&str] = &[
+        "platform",
+        "delta_user_ns",
+        "delta_sys_ns",
+        "delta_total_ns",
+        "cpu_user_pct",
+        "cpu_sys_pct",
+        "cpu_total_pct",
+        "rss_kb",
+        "thread_count",
+        "delta_vol_ctxt",
+        "delta_invol_ctxt",
+    ];
+    let (rows, indexes) = required_columns(df, COLUMNS)?;
     if rows == 0 {
-        return vec![];
+        return Ok(None);
     }
-    let idx = |name: &str| col_index(df, name);
+    let get = |position: usize| cell(df, 0, indexes[position], COLUMNS[position]);
+    Ok(Some(CpuSnapshot {
+        platform: ele_text(get(0)?, COLUMNS[0])?,
+        delta_user_ns: ele_i64(get(1)?, COLUMNS[1])?,
+        delta_sys_ns: ele_i64(get(2)?, COLUMNS[2])?,
+        delta_total_ns: ele_i64(get(3)?, COLUMNS[3])?,
+        cpu_user_pct: ele_f32(get(4)?, COLUMNS[4])?,
+        cpu_sys_pct: ele_f32(get(5)?, COLUMNS[5])?,
+        cpu_total_pct: ele_f32(get(6)?, COLUMNS[6])?,
+        rss_kb: ele_i64(get(7)?, COLUMNS[7])?,
+        thread_count: ele_i32(get(8)?, COLUMNS[8])?,
+        delta_vol_ctxt: ele_i64(get(9)?, COLUMNS[9])?,
+        delta_invol_ctxt: ele_i64(get(10)?, COLUMNS[10])?,
+    }))
+}
 
-    let latest_ts = (0..rows)
-        .filter_map(|r| idx("ts").and_then(|c| cell(df, r, c).map(ele_i64)))
+fn parse_cpu_history(df: &DataFrame) -> Result<Vec<CpuHistorySample>> {
+    const COLUMNS: &[&str] = &["delta_user_ns", "delta_sys_ns", "delta_total_ns"];
+    let (rows, indexes) = required_columns(df, COLUMNS)?;
+    let mut out = Vec::with_capacity(rows);
+    for row in 0..rows {
+        out.push(CpuHistorySample {
+            user_ms: ns_to_ms(ele_i64(cell(df, row, indexes[0], COLUMNS[0])?, COLUMNS[0])?),
+            sys_ms: ns_to_ms(ele_i64(cell(df, row, indexes[1], COLUMNS[1])?, COLUMNS[1])?),
+            total_ms: ns_to_ms(ele_i64(cell(df, row, indexes[2], COLUMNS[2])?, COLUMNS[2])?),
+        });
+    }
+    out.reverse();
+    Ok(out)
+}
+
+fn parse_cpu_top_threads(df: &DataFrame, limit: usize) -> Result<Vec<CpuThreadRow>> {
+    const COLUMNS: &[&str] = &[
+        "ts",
+        "tid",
+        "comm",
+        "state",
+        "wchan",
+        "delta_user_ns",
+        "delta_sys_ns",
+        "delta_total_ns",
+    ];
+    let (rows, indexes) = required_columns(df, COLUMNS)?;
+    if rows == 0 {
+        return Ok(vec![]);
+    }
+
+    let mut timestamps = Vec::with_capacity(rows);
+    for row in 0..rows {
+        timestamps.push(ele_i64(cell(df, row, indexes[0], COLUMNS[0])?, COLUMNS[0])?);
+    }
+    let latest_ts = timestamps
+        .iter()
+        .copied()
         .max()
-        .unwrap_or(0);
+        .ok_or_else(|| invalid_cpu_data("missing thread timestamps"))?;
 
-    let mut out: Vec<CpuThreadRow> = (0..rows)
-        .filter_map(|r| {
-            let ts = idx("ts").and_then(|c| cell(df, r, c).map(ele_i64))?;
-            if ts != latest_ts {
-                return None;
-            }
-            let tid = idx("tid").and_then(|c| cell(df, r, c).map(ele_i32))?;
-            let comm = idx("comm")
-                .and_then(|c| cell(df, r, c).map(ele_text))
-                .unwrap_or_default();
-            let state = idx("state")
-                .and_then(|c| cell(df, r, c).map(ele_text))
-                .unwrap_or_default();
-            let wchan = idx("wchan")
-                .and_then(|c| cell(df, r, c).map(ele_text))
-                .filter(|s| !s.trim().is_empty());
-            Some(CpuThreadRow {
-                tid,
-                name: thread_display_name(&comm, tid),
-                state,
-                wchan,
-                delta_user_ns: idx("delta_user_ns")
-                    .and_then(|c| cell(df, r, c).map(ele_i64))
-                    .unwrap_or(0),
-                delta_sys_ns: idx("delta_sys_ns")
-                    .and_then(|c| cell(df, r, c).map(ele_i64))
-                    .unwrap_or(0),
-                delta_total_ns: idx("delta_total_ns")
-                    .and_then(|c| cell(df, r, c).map(ele_i64))
-                    .unwrap_or(0),
-            })
-        })
-        .collect();
+    let mut out = Vec::new();
+    for (row, ts) in timestamps.into_iter().enumerate() {
+        if ts != latest_ts {
+            continue;
+        }
+        let tid = ele_i32(cell(df, row, indexes[1], COLUMNS[1])?, COLUMNS[1])?;
+        let comm = ele_text(cell(df, row, indexes[2], COLUMNS[2])?, COLUMNS[2])?;
+        let state = ele_text(cell(df, row, indexes[3], COLUMNS[3])?, COLUMNS[3])?;
+        let wchan = ele_text(cell(df, row, indexes[4], COLUMNS[4])?, COLUMNS[4])?
+            .trim()
+            .to_string();
+        out.push(CpuThreadRow {
+            tid,
+            name: thread_display_name(&comm, tid),
+            state,
+            wchan: (!wchan.is_empty()).then_some(wchan),
+            delta_user_ns: ele_i64(cell(df, row, indexes[5], COLUMNS[5])?, COLUMNS[5])?,
+            delta_sys_ns: ele_i64(cell(df, row, indexes[6], COLUMNS[6])?, COLUMNS[6])?,
+            delta_total_ns: ele_i64(cell(df, row, indexes[7], COLUMNS[7])?, COLUMNS[7])?,
+        });
+    }
 
     out.sort_by_key(|b| std::cmp::Reverse(b.delta_total_ns));
     out.truncate(limit);
-    out
+    Ok(out)
 }
 
 pub fn format_rss(kb: i64) -> String {
@@ -280,12 +295,54 @@ pub fn format_cpu_ms(ns: i64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use probing_proto::prelude::Seq;
 
     #[test]
-    fn detects_missing_cpu_table_error() {
-        let err =
-            AppError::Api("Error during planning: table 'probe.cpu.utilization' not found".into());
-        assert!(is_cpu_table_missing(&err));
+    fn cpu_history_rejects_missing_required_column() {
+        let df = DataFrame::new(
+            vec!["delta_user_ns".into(), "delta_sys_ns".into()],
+            vec![Seq::SeqI64(vec![1]), Seq::SeqI64(vec![2])],
+        );
+        let err = parse_cpu_history(&df).unwrap_err();
+        assert!(err.to_string().contains("delta_total_ns"));
+    }
+
+    #[test]
+    fn cpu_snapshot_rejects_wrong_value_type() {
+        let names = vec![
+            "platform",
+            "delta_user_ns",
+            "delta_sys_ns",
+            "delta_total_ns",
+            "cpu_user_pct",
+            "cpu_sys_pct",
+            "cpu_total_pct",
+            "rss_kb",
+            "thread_count",
+            "delta_vol_ctxt",
+            "delta_invol_ctxt",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect();
+        let df = DataFrame::new(
+            names,
+            vec![
+                Seq::SeqText(vec!["linux".into()]),
+                Seq::SeqText(vec!["not-a-number".into()]),
+                Seq::SeqI64(vec![0]),
+                Seq::SeqI64(vec![0]),
+                Seq::SeqF32(vec![0.0]),
+                Seq::SeqF32(vec![0.0]),
+                Seq::SeqF32(vec![0.0]),
+                Seq::SeqI64(vec![0]),
+                Seq::SeqI32(vec![1]),
+                Seq::SeqI64(vec![0]),
+                Seq::SeqI64(vec![0]),
+            ],
+        );
+        let err = parse_cpu_snapshot(&df).unwrap_err();
+        assert!(err.to_string().contains("delta_user_ns"));
     }
 
     #[test]

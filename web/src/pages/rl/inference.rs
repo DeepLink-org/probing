@@ -10,6 +10,7 @@ use crate::components::common::{EmptyState, ErrorState, LoadingState};
 use crate::components::page::{PageContainer, PageTitle};
 use crate::components::rl::metrics_line_chart::{ChartSeries, MetricsLineChart};
 use crate::hooks::use_api;
+use crate::state::inference::INFERENCE_REFRESH;
 
 const REFRESH_MS: u32 = 5000;
 const METRICS_HISTORY_LIMIT: i64 = 500;
@@ -29,31 +30,24 @@ const SERIES_COLORS: [&str; 6] = [
 ];
 
 #[component]
-pub fn Inference() -> Element {
-    let mut refresh_tick = use_signal(|| 0u64);
-    let engines = use_api({
-        let refresh_tick = refresh_tick;
-        move || {
-            let _ = *refresh_tick.read();
-            let client = ApiClient::new();
-            async move {
-                client
-                    .fetch_inference_engines()
-                    .await
-                    .map(|resp| resp.engines)
-            }
+pub fn Inference(#[props(default = true)] show_controls: bool) -> Element {
+    let engines = use_api(move || {
+        let _ = *INFERENCE_REFRESH.read();
+        let client = ApiClient::new();
+        async move {
+            client
+                .fetch_inference_engines()
+                .await
+                .map(|resp| resp.engines)
         }
     });
-    let metrics = use_api({
-        let refresh_tick = refresh_tick;
-        move || {
-            let _ = *refresh_tick.read();
-            let client = ApiClient::new();
-            async move {
-                client
-                    .fetch_inference_engine_metrics(METRICS_HISTORY_LIMIT)
-                    .await
-            }
+    let metrics = use_api(move || {
+        let _ = *INFERENCE_REFRESH.read();
+        let client = ApiClient::new();
+        async move {
+            client
+                .fetch_inference_engine_metrics(METRICS_HISTORY_LIMIT)
+                .await
         }
     });
 
@@ -61,7 +55,7 @@ pub fn Inference() -> Element {
         spawn(async move {
             loop {
                 gloo_timers::future::TimeoutFuture::new(REFRESH_MS).await;
-                refresh_tick.set(refresh_tick() + 1);
+                *INFERENCE_REFRESH.write() += 1;
             }
         });
     });
@@ -76,18 +70,20 @@ pub fn Inference() -> Element {
                 icon: Some(&icondata::AiDashboardOutlined),
             }
 
-            div { class: "flex items-center gap-3 mb-4",
-                button {
-                    class: "px-3 py-1.5 rounded-md text-sm bg-blue-600 text-white hover:bg-blue-700",
-                    onclick: move |_| {
-                        spawn(async move {
-                            let _ = ApiClient::new().scrape_inference_engines().await;
-                            refresh_tick.set(refresh_tick() + 1);
-                        });
-                    },
-                    "Scrape now"
+            if show_controls {
+                div { class: "flex items-center gap-3 mb-4",
+                    button {
+                        class: "px-3 py-1.5 rounded-md text-sm bg-blue-600 text-white hover:bg-blue-700",
+                        onclick: move |_| {
+                            spawn(async move {
+                                let _ = ApiClient::new().scrape_inference_engines().await;
+                                *INFERENCE_REFRESH.write() += 1;
+                            });
+                        },
+                        "Scrape now"
+                    }
+                    span { class: "text-xs text-slate-500", "Auto refresh every {REFRESH_MS / 1000}s" }
                 }
-                span { class: "text-xs text-slate-500", "Auto refresh every {REFRESH_MS / 1000}s" }
             }
 
             Card {
