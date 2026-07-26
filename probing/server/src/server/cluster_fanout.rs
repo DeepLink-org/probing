@@ -18,10 +18,10 @@ use probing_core::core::cluster::{
     local_listen_addrs, node_aggregator_peers,
 };
 use probing_core::core::federation::{
-    can_fanout_via_global_catalog, cluster_rank_for_endpoint, current_fanout_scope,
-    enforce_fanout_strict, fanout_strict_enabled, is_local0_from_env, remote_fanout_concurrency,
-    remote_query_timeout, reset_fanout_stats, rewrite_sql_for_global_fanout, set_fanout_scope,
-    take_fanout_stats, validate_global_query, FanoutScope, FanoutStats,
+    can_fanout_via_global_catalog, cluster_rank_for_endpoint, enforce_fanout_strict,
+    fanout_strict_enabled, is_local0_from_env, remote_fanout_concurrency, remote_query_timeout,
+    reset_fanout_stats, rewrite_sql_for_global_fanout, take_fanout_stats, validate_global_query,
+    with_fanout_scope_async, FanoutScope, FanoutStats,
 };
 use probing_proto::prelude::*;
 
@@ -49,20 +49,9 @@ pub async fn query_local_df(sql: &str) -> anyhow::Result<DataFrame> {
     }
 }
 
-struct FanoutScopeGuard(FanoutScope);
-
-impl Drop for FanoutScopeGuard {
-    fn drop(&mut self) {
-        set_fanout_scope(self.0);
-    }
-}
-
-/// Run a local query with a thread-local fan-out tier, without blocking the async runtime.
+/// Run a local query with a task-local fan-out tier.
 async fn query_local_df_in_scope(scope: FanoutScope, sql: &str) -> anyhow::Result<DataFrame> {
-    let previous = current_fanout_scope();
-    set_fanout_scope(scope);
-    let _guard = FanoutScopeGuard(previous);
-    query_local_df(sql).await
+    with_fanout_scope_async(scope, query_local_df(sql)).await
 }
 
 pub async fn remote_query_df(addr: &str, sql: &str) -> anyhow::Result<DataFrame> {
@@ -306,6 +295,19 @@ fn require_hierarchical_metadata() -> anyhow::Result<()> {
 
 /// Run `sql` locally, optionally fanning out to peer nodes in the cluster view.
 pub async fn fanout_query(
+    sql: &str,
+    cluster: bool,
+    hierarchical: bool,
+    scope: ClusterFanoutScope,
+) -> anyhow::Result<FanoutQueryResponse> {
+    with_fanout_scope_async(
+        FanoutScope::Auto,
+        fanout_query_in_context(sql, cluster, hierarchical, scope),
+    )
+    .await
+}
+
+async fn fanout_query_in_context(
     sql: &str,
     cluster: bool,
     hierarchical: bool,

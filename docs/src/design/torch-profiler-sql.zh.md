@@ -4,6 +4,12 @@
 虚拟表从 **「我们想得出什么结论」** 反推 schema；Adaptor 负责把 timeline 填进这些结论槽位。
 完整 Chrome timeline 仍走 HTTP/UI。
 
+> **名称边界：**本文的 Torch Profiler 指 `torch.profiler` / Kineto 短窗口采集，由
+> `python/probing/profiling/torch_profiler/` 控制。它与
+> `python/probing/profiling/torch_probe.py` 的长期 module 遥测是两条独立路径：
+> 启停和存储互不依赖，只通过 step/capture 坐标在 SQL 层关联；同时运行时开销叠加。
+> 完整对照见 [性能分析实现](profiling.zh.md) 开头的两条路径对照表。
+
 阅读：[性能分析](profiling.zh.md)、[联邦查询引擎](federation.zh.md)、[NCCL Profiler](nccl-profiler.zh.md)。
 
 英文版：[torch-profiler-sql.md](torch-profiler-sql.md)

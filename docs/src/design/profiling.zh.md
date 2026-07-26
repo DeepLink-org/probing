@@ -11,7 +11,34 @@ Probing 为 AI 工作负载提供低开销、可 SQL 查询的性能数据采集
 - 列式表存储（memtable / Arrow 表）
 - SQL 查询接口
 
-## 数据收集架构
+## 两条独立的 PyTorch 性能采集路径
+
+Probing 同时提供 **TorchProbe** 和 **Torch Profiler**。两者名字相近，但不是同一个
+collector 的不同配置，也不共享采集 session、事件缓冲或生命周期。
+
+| 维度 | TorchProbe | Torch Profiler（`torch.profiler` / Kineto） |
+|------|------------|----------------------------------------------|
+| 定位 | 训练期间长期运行的低开销遥测 | 对已定位异常做短窗口深挖 |
+| 主要粒度 | step、`nn.Module`、optimizer、显存变化 | CPU op、CUDA kernel、runtime、memcpy |
+| 启动方式 | `PROBING_TORCH_PROFILING` / `configure()`，随训练 hook 运行 | HTTP 或 REPL 显式触发若干 optimizer step |
+| 控制方式 | step 采样、layer 采样、shadow baseline、延迟 GPU event 读取 | 一次 capture 的 `steps`，结束后 finalize Kineto 结果 |
+| 数据出口 | 持续写 mmap memtable：`python.torch_trace`、`python.torch_step_timing` | 有界进程内 session store，经虚拟表 `python.profile_capture`、`python.profile_hotspot` 查询 |
+| 典型开销 | 低且可摊销，面向长期观测 | 较高，尤其启用 CUDA、shape、stack、FLOPs 时 |
+| 典型问题 | 哪个 step/rank/module 持续变慢？开销是多少？ | 异常窗口里具体是哪个 op/kernel 慢？GPU 时间如何构成？ |
+
+“独立”有三个直接含义：
+
+1. 开启 TorchProbe **不会**启动 Kineto；触发 Torch Profiler 也**不会**修改 TorchProbe
+   的采样率或 shadow 调度。
+2. 两者可以观察到同一个 optimizer step，但只通过 step/capture 坐标在 SQL 层关联，
+   不在采集器内部互相调用。
+3. 如果同时开启，两条路径的开销会叠加；TorchProbe 的 shadow baseline 只估算
+   TorchProbe module-hook 路径，不能代表 Torch Profiler/Kineto 的开销。
+
+推荐诊断顺序是：先用 TorchProbe 长期发现异常的 step、rank 和 module，再只对目标
+窗口启动 Torch Profiler。仅在需要 op/kernel 细节时支付 Kineto 的较高成本。
+
+## TorchProbe 数据收集架构
 
 ```mermaid
 graph TB
@@ -43,7 +70,10 @@ graph TB
 
 ### 设计定位
 
-TorchProbe 面向**注入后长期开启的 module 级训练遥测**（`PROBING_TORCH_PROFILING=on`）。与 episodic 工具（`torch.profiler` / Kineto 的 op/kernel Chrome trace）互补，而非替代。按需 Kineto 采集以**虚拟 SQL 表**暴露（不写 memtable）见 **[Torch Profiler SQL](torch-profiler-sql.zh.md)**。
+TorchProbe 面向**注入后长期开启的 module 级训练遥测**（`PROBING_TORCH_PROFILING=on`）。
+它是上一节两条独立路径中的长期遥测路径，不是 `torch.profiler` 的轻量配置或前端。
+按需 Kineto 采集以**虚拟 SQL 表**暴露（不写 memtable）见
+**[Torch Profiler SQL](torch-profiler-sql.zh.md)**。
 
 **不提供 warmup schedule API**。跳过冷启动步请在 SQL 中过滤：
 

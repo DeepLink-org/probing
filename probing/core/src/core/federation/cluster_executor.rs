@@ -1,4 +1,6 @@
-use std::sync::{LazyLock, Mutex, MutexGuard};
+use std::sync::LazyLock;
+#[cfg(any(test, feature = "test-utils"))]
+use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 
 use datafusion::error::{DataFusionError, Result};
@@ -9,7 +11,7 @@ use crate::core::cluster::{
     remote_peers_excluding_local,
 };
 use crate::core::federation::fanout_scope::{
-    current_fanout_scope, resolve_fanout_scope, FanoutScope,
+    current_fanout_scope, current_fanout_stats_handle, resolve_fanout_scope, FanoutScope,
 };
 
 #[cfg(any(test, feature = "test-utils"))]
@@ -73,20 +75,7 @@ pub struct RemoteFanoutResult {
     pub result: Result<DataFrame>,
 }
 
-#[derive(Debug, Default, Clone)]
-pub struct FanoutStats {
-    pub nodes_succeeded: usize,
-    pub nodes_failed: Vec<String>,
-    /// Peer partial DataFrames dropped during coordinator merge (conversion failure).
-    pub peer_batches_dropped: usize,
-}
-
-static LAST_FANOUT_STATS: LazyLock<Mutex<FanoutStats>> =
-    LazyLock::new(|| Mutex::new(FanoutStats::default()));
-
-fn lock_fanout_stats() -> MutexGuard<'static, FanoutStats> {
-    crate::sync::lock_mutex(&LAST_FANOUT_STATS, "LAST_FANOUT_STATS")
-}
+pub use super::fanout_scope::FanoutStats;
 
 #[cfg(any(test, feature = "test-utils"))]
 fn lock_remote_query_hook() -> MutexGuard<'static, Option<RemoteQueryHook>> {
@@ -94,25 +83,13 @@ fn lock_remote_query_hook() -> MutexGuard<'static, Option<RemoteQueryHook>> {
 }
 
 pub fn reset_fanout_stats() {
-    *lock_fanout_stats() = FanoutStats::default();
+    current_fanout_stats_handle().reset();
 }
 
 /// Record the fan-out outcome so callers (e.g. cluster fan-out meta) can report
 /// how many peers were actually queried and which ones failed.
 pub fn set_fanout_stats(stats: FanoutStats) {
-    *lock_fanout_stats() = stats;
-}
-
-/// Increment the success counter for one peer (concurrency-safe).
-///
-/// Used by streaming fan-out where each peer partition reports its own outcome.
-pub fn record_fanout_success() {
-    lock_fanout_stats().nodes_succeeded += 1;
-}
-
-/// Record a failed peer (concurrency-safe).
-pub fn record_fanout_failure(addr: &str) {
-    lock_fanout_stats().nodes_failed.push(addr.to_string());
+    current_fanout_stats_handle().set(stats);
 }
 
 /// Env var: when set to `1` or `true`, federated fan-out failures fail the query.
@@ -156,12 +133,12 @@ pub fn enforce_fanout_strict(stats: &FanoutStats) -> Result<()> {
 }
 
 pub fn take_fanout_stats() -> FanoutStats {
-    std::mem::take(&mut *lock_fanout_stats())
+    current_fanout_stats_handle().take()
 }
 
-/// Check global fan-out stats without consuming them (for post-query validation).
+/// Check request-scoped fan-out stats without consuming them.
 pub fn check_fanout_strict() -> Result<()> {
-    enforce_fanout_strict(&lock_fanout_stats())
+    enforce_fanout_strict(&current_fanout_stats_handle().snapshot())
 }
 
 pub struct ProbeClusterExecutor;

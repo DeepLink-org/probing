@@ -13,7 +13,9 @@ use probing_core::config;
 
 use crate::server::error::{ApiError, ApiResult};
 
-use probing_core::core::federation::{reset_fanout_stats, take_fanout_stats};
+use probing_core::core::federation::{
+    reset_fanout_stats, take_fanout_stats, with_fanout_scope_async, FanoutScope,
+};
 use probing_core::core::UnifiedMemtableProbeDataSource;
 pub use probing_core::ENGINE;
 use probing_python::extensions::python::PythonProbeDataSource;
@@ -187,6 +189,10 @@ pub struct QueryHttpEnvelope {
 
 // 处理Web API查询请求
 pub async fn query(req: String) -> ApiResult<QueryHttpEnvelope> {
+    with_fanout_scope_async(FanoutScope::Auto, query_in_fanout_context(req)).await
+}
+
+async fn query_in_fanout_context(req: String) -> ApiResult<QueryHttpEnvelope> {
     let request = serde_json::from_str::<Message<Query>>(&req);
     let request = match request {
         Ok(request) => request.payload,

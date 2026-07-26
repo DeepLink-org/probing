@@ -9,8 +9,10 @@
 //!   query-side materialisation happens in whoever runs the SQL.
 //!
 //! The first appended row fixes the column dtypes (the Python API only
-//! declares column names). A leading `timestamp` column (microseconds since
-//! epoch, `I64`) is always present, matching the previous TimeSeries layout.
+//! declares column names). Later values are coerced to that stable schema;
+//! dtype variation never recreates the mmap or discards existing rows. A
+//! leading `timestamp` column (microseconds since epoch, `I64`) is always
+//! present, matching the previous TimeSeries layout.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -210,10 +212,10 @@ fn ring_chunk_bytes(capacity: usize) -> u32 {
 /// Column dtype inferred from the first appended value.
 fn ele_dtype(e: &Ele) -> DType {
     match e {
-        Ele::I32(_) => DType::I32,
-        Ele::I64(_) => DType::I64,
-        Ele::F32(_) => DType::F32,
-        Ele::F64(_) => DType::F64,
+        // Python has one integer and one float type. Use the wide MEMT
+        // representations so later values cannot force a schema change.
+        Ele::I32(_) | Ele::I64(_) => DType::I64,
+        Ele::F32(_) | Ele::F64(_) => DType::F64,
         Ele::BOOL(_) => DType::U8,
         Ele::DataTime(_) => DType::U64,
         Ele::Text(_) | Ele::Url(_) | Ele::Nil => DType::Str,
@@ -280,6 +282,8 @@ pub struct ExternBacking {
     columns: Vec<String>,
     capacity_bytes: usize,
     dtypes: Vec<DType>,
+    /// False only for the empty placeholder schema used for SQL discovery.
+    schema_fixed: bool,
     table: Option<ExposedTable>,
     table_doc: Option<String>,
     column_docs: HashMap<String, String>,
@@ -301,6 +305,7 @@ impl ExternBacking {
             columns,
             capacity_bytes,
             dtypes: vec![],
+            schema_fixed: false,
             table: None,
             table_doc,
             column_docs,
@@ -331,14 +336,36 @@ impl ExternBacking {
     }
 
     fn ensure_table(&mut self, first_row: &[Ele]) -> Result<(), ExternTableError> {
-        let dtypes: Vec<DType> = first_row.iter().map(ele_dtype).collect();
-        if self.table.is_some() && self.dtypes == dtypes {
+        if self.schema_fixed {
             return Ok(());
         }
+
+        // `ensure_registered` creates an empty, name-inferred placeholder so
+        // DESCRIBE works before the first sample. The first row may replace
+        // that empty mapping once; after this point the schema is immutable.
+        // A leading None keeps the useful name-inferred dtype instead of
+        // fixing the whole column to Str.
+        let dtypes: Vec<DType> = first_row
+            .iter()
+            .zip(self.dtypes.iter().copied())
+            .map(|(value, inferred)| {
+                if matches!(value, Ele::Nil) {
+                    inferred
+                } else {
+                    ele_dtype(value)
+                }
+            })
+            .collect();
+        if self.table.is_some() && self.dtypes == dtypes {
+            self.schema_fixed = true;
+            return Ok(());
+        }
+
+        // The placeholder contains no rows, so this one-time replacement is
+        // non-destructive. Never enter this branch after `schema_fixed`.
         self.table = None;
         self.dtypes.clear();
 
-        let dtypes: Vec<DType> = first_row.iter().map(ele_dtype).collect();
         let schema = build_schema_with_docs(
             &self.name,
             &self.columns,
@@ -350,6 +377,7 @@ impl ExternBacking {
         let filename = mmap_basename(&self.name);
         let table = ExposedTable::create(&filename, &schema, chunk_bytes, NUM_CHUNKS)?;
         self.dtypes = dtypes;
+        self.schema_fixed = true;
         self.table = Some(table);
         Ok(())
     }
@@ -810,6 +838,53 @@ if not hasattr(probing, "_made_{name}"):
             vec![DType::I64, DType::F64, DType::Str],
             "placeholder mmap must not default all columns to Str"
         );
+    }
+
+    #[test]
+    fn dtype_widening_does_not_recreate_table_or_drop_rows() {
+        setup();
+        let name = format!("dtype_widening_{}", std::process::id());
+        let mut backing = ExternBacking::new(
+            &name,
+            vec!["value".to_string()],
+            1_000_000,
+            None,
+            HashMap::new(),
+        );
+        backing.ensure_registered().unwrap();
+
+        backing.append(1, &[Ele::I32(7)]).unwrap();
+        backing
+            .append(2, &[Ele::I64(i64::from(i32::MAX) + 1)])
+            .unwrap();
+
+        let rows = backing.take(None);
+        assert_eq!(rows.len(), 2, "dtype changes must not truncate old rows");
+        assert_eq!(backing.dtypes, vec![DType::I64]);
+        assert_eq!(rows[0].1, vec![Ele::I64(7)]);
+        assert_eq!(rows[1].1, vec![Ele::I64(i64::from(i32::MAX) + 1)]);
+    }
+
+    #[test]
+    fn optional_value_does_not_recreate_table_or_drop_rows() {
+        setup();
+        let name = format!("optional_value_{}", std::process::id());
+        let mut backing = ExternBacking::new(
+            &name,
+            vec!["rank".to_string()],
+            1_000_000,
+            None,
+            HashMap::new(),
+        );
+        backing.ensure_registered().unwrap();
+
+        backing.append(1, &[Ele::I32(3)]).unwrap();
+        backing.append(2, &[Ele::Nil]).unwrap();
+
+        let rows = backing.take(None);
+        assert_eq!(rows.len(), 2, "optional values must not truncate old rows");
+        assert_eq!(backing.dtypes, vec![DType::I64]);
+        assert_eq!(rows[0].1, vec![Ele::I64(3)]);
     }
 
     #[test]

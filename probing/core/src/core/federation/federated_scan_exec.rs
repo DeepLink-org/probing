@@ -27,11 +27,9 @@ use datafusion::physical_plan::{
 use futures::StreamExt;
 use probing_proto::prelude::{DataFrame, Node};
 
-use super::cluster_executor::{
-    fanout_strict_enabled, record_fanout_failure, record_fanout_success, ProbeClusterExecutor,
-};
+use super::cluster_executor::{fanout_strict_enabled, ProbeClusterExecutor};
 use super::convert::{align_batch_to_schema, dataframe_to_record_batch, tag_record_batch};
-use super::fanout_scope::FanoutScope;
+use super::fanout_scope::{FanoutScope, FanoutStatsHandle};
 
 fn log_federated_peer_failure(context: &str, addr_tag: &str, detail: &str) {
     if fanout_strict_enabled() {
@@ -61,12 +59,14 @@ pub struct FederatedScanExec {
     local_host: String,
     local_addr: String,
     local_rank: Option<i32>,
+    /// Request-owned sink; explicit because DataFusion may poll partitions in child tasks.
+    fanout_stats: FanoutStatsHandle,
     properties: Arc<PlanProperties>,
 }
 
 impl FederatedScanExec {
     #[allow(clippy::too_many_arguments)]
-    pub fn try_new(
+    pub(crate) fn try_new(
         local: Arc<dyn ExecutionPlan>,
         output_schema: SchemaRef,
         projection: Vec<usize>,
@@ -76,6 +76,7 @@ impl FederatedScanExec {
         local_host: String,
         local_addr: String,
         local_rank: Option<i32>,
+        fanout_stats: FanoutStatsHandle,
     ) -> Result<Self> {
         let projected_schema = Arc::new(
             output_schema
@@ -100,6 +101,7 @@ impl FederatedScanExec {
             local_host,
             local_addr,
             local_rank,
+            fanout_stats,
             properties: Arc::new(properties),
         })
     }
@@ -142,6 +144,7 @@ impl FederatedScanExec {
         let full = self.output_schema.clone();
         let projection = self.projection.clone();
         let projected_schema = self.projected_schema.clone();
+        let fanout_stats = self.fanout_stats.clone();
 
         // Best-effort fetch: failures (network, conversion) drop the node from
         // the result set and are recorded in the fan-out stats rather than
@@ -161,7 +164,7 @@ impl FederatedScanExec {
                     &projection,
                 ) {
                     Ok(opt) => {
-                        record_fanout_success();
+                        fanout_stats.record_success();
                         opt
                     }
                     Err(err) => {
@@ -170,7 +173,7 @@ impl FederatedScanExec {
                             &addr_tag,
                             &err.to_string(),
                         );
-                        record_fanout_failure(&addr_tag);
+                        fanout_stats.record_failure(&addr_tag);
                         None
                     }
                 },
@@ -180,7 +183,7 @@ impl FederatedScanExec {
                         &addr_tag,
                         &err.to_string(),
                     );
-                    record_fanout_failure(&addr_tag);
+                    fanout_stats.record_failure(&addr_tag);
                     None
                 }
                 Err(err) => {
@@ -189,7 +192,7 @@ impl FederatedScanExec {
                         &addr_tag,
                         &err.to_string(),
                     );
-                    record_fanout_failure(&addr_tag);
+                    fanout_stats.record_failure(&addr_tag);
                     None
                 }
             }
@@ -280,6 +283,7 @@ impl ExecutionPlan for FederatedScanExec {
             local_host: self.local_host.clone(),
             local_addr: self.local_addr.clone(),
             local_rank: self.local_rank,
+            fanout_stats: self.fanout_stats.clone(),
             properties: self.properties.clone(),
         }))
     }

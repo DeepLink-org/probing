@@ -4,6 +4,13 @@ Turn on-demand **`torch.profiler`** capture into **SQL that answers diagnostic q
 mirror of Kineto events. Virtual table schemas are derived from **conclusions we need**; the
 Adaptor compiles timeline data into those conclusion slots. Full Chrome timelines stay on HTTP/UI.
 
+> **Naming boundary:** Torch Profiler here means short-window `torch.profiler` / Kineto capture,
+> controlled by `python/probing/profiling/torch_profiler/`. It is independent from the
+> long-running module telemetry in `python/probing/profiling/torch_probe.py`: lifecycle and
+> storage are separate, correlation happens only through step/capture coordinates in SQL, and
+> overheads add if both run together. See the
+> [full comparison](profiling.md#two-independent-pytorch-collection-paths).
+
 Read with [Profiling](profiling.md), [Federated query engine](federation.md), [NCCL Profiler](nccl-profiler.md).
 
 中文: [中文版](/zh/design/torch-profiler-sql/)

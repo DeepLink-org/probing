@@ -79,7 +79,10 @@ Reference implementation: `python/probing/ext/example.py`.
 - Default: class name converted to **snake_case** (`MyMetrics` → `my_metrics`)
 - Explicit: `@table("custom_name")` on the dataclass
 
-The first appended row fixes column types. Changing fields later requires a new table name or `MyMetrics.drop()` before re-init.
+The first appended row fixes column types. Python integers/floats use the wide
+`I64`/`F64` representation, and later values are coerced to the fixed schema;
+dtype variation never recreates the mmap or discards earlier rows. Changing
+fields still requires a new table name or `MyMetrics.drop()` before re-init.
 
 ### API added by `@table`
 
