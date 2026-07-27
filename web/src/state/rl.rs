@@ -4,6 +4,7 @@ use dioxus::prelude::*;
 
 pub static ROLLOUT_FILTER: GlobalSignal<String> = Signal::global(String::new);
 pub static ROLLOUT_FILTER_INPUT: GlobalSignal<String> = Signal::global(String::new);
+pub static RL_EVENT_LIMIT: GlobalSignal<usize> = Signal::global(|| 400);
 
 /// Height of the pinned rollout/train detail panel (px). Synced for main content padding.
 pub static RL_DETAIL_PANEL_HEIGHT: GlobalSignal<u32> = Signal::global(|| 256);

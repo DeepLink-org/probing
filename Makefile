@@ -215,12 +215,14 @@ frontend:
 	@cp -f web/assets/logo.svg $(BUNDLED_WEB_PUBLIC)/logo.svg 2>/dev/null || true
 	@cp -f web/assets/logo.svg $(BUNDLED_WEB_PUBLIC)/assets/logo.svg 2>/dev/null || true
 	@cp -f web/assets/tailwind.css $(BUNDLED_WEB_PUBLIC)/assets/tailwind.css
+	@$(PYTHON) scripts/verify_web_assets.py $(BUNDLED_WEB_PUBLIC)
 	@rm -rf web/dist
 	@ln -sfn ../python/probing/bundled_web/public web/dist
 	@echo "$(BUNDLED_WEB_PUBLIC) ($$(du -sh $(BUNDLED_WEB_PUBLIC) | cut -f1))"
 
 wheel-bundle:
 	@test -f $(BUNDLED_WEB_PUBLIC)/index.html || { echo "error: run 'make frontend' first"; exit 1; }
+	@$(PYTHON) scripts/verify_web_assets.py $(BUNDLED_WEB_PUBLIC)
 	@test -f python/probing/bundled_skills/catalog.yaml \
 		|| { echo "error: missing python/probing/bundled_skills/catalog.yaml"; exit 1; }
 

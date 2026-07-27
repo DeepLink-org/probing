@@ -15,7 +15,8 @@ use crate::rl_contract::{
 };
 use crate::state::rl::{
     estimate_detail_panel_height, RL_DETAIL_PANEL_HEIGHT, RL_DETAIL_PANEL_HEIGHT_DEFAULT,
-    RL_DETAIL_PANEL_HEIGHT_MAX, RL_DETAIL_PANEL_HEIGHT_MIN, ROLLOUT_FILTER, ROLLOUT_FILTER_INPUT,
+    RL_DETAIL_PANEL_HEIGHT_MAX, RL_DETAIL_PANEL_HEIGHT_MIN, RL_EVENT_LIMIT, ROLLOUT_FILTER,
+    ROLLOUT_FILTER_INPUT,
 };
 use crate::utils::tracing_viewer;
 use std::collections::{HashMap, HashSet};
@@ -81,9 +82,11 @@ impl RlViewMode {
 }
 
 #[component]
-pub fn RlObservability(view: RlViewMode) -> Element {
+pub fn RlObservability(
+    view: RlViewMode,
+    #[props(default = true)] show_context_controls: bool,
+) -> Element {
     let is_perfetto = view == RlViewMode::Perfetto;
-    let limit = use_signal(|| if is_perfetto { 2000 } else { 400 });
     let timeline_depth = use_signal(|| 2usize);
     let selected_batch_key = use_signal(String::new);
     let process_filter = use_signal(|| {
@@ -109,7 +112,12 @@ pub fn RlObservability(view: RlViewMode) -> Element {
         } else {
             String::new()
         };
-        (*limit.read(), rollout_id)
+        let limit = if is_perfetto {
+            2000
+        } else {
+            *RL_EVENT_LIMIT.read()
+        };
+        (limit, rollout_id)
     });
     // Refetch data when limit or rollout filter changes.
     use_effect({
@@ -168,7 +176,7 @@ pub fn RlObservability(view: RlViewMode) -> Element {
         }
     });
 
-    let display_fetch_limit = expanded_trace_fetch_limit(*limit.read());
+    let display_fetch_limit = expanded_trace_fetch_limit(*RL_EVENT_LIMIT.read());
     let active_rollout_filter = if shows_rollout_filter {
         ROLLOUT_FILTER.read().trim().to_string()
     } else {
@@ -228,9 +236,9 @@ pub fn RlObservability(view: RlViewMode) -> Element {
                 subtitle: Some(view.subtitle().to_string()),
                 icon: Some(view.icon()),
             }
-            // Limit control slider
-            Card {
-                title: "Context",
+            if show_context_controls {
+                Card {
+                    title: "Context",
                     div {
                         class: "space-y-2",
                         if shows_rollout_filter {
@@ -293,7 +301,7 @@ pub fn RlObservability(view: RlViewMode) -> Element {
                             }
                             span {
                                 class: "text-sm text-gray-800 font-mono",
-                                "{*limit.read()} events"
+                                "{*RL_EVENT_LIMIT.read()} events"
                             }
                         }
                         input {
@@ -301,14 +309,11 @@ pub fn RlObservability(view: RlViewMode) -> Element {
                             min: "100",
                             max: "2000",
                             step: "100",
-                            value: "{*limit.read()}",
+                            value: "{*RL_EVENT_LIMIT.read()}",
                             class: "w-full",
-                            oninput: {
-                                let mut limit = limit;
-                                move |ev| {
-                                    if let Ok(val) = ev.value().parse::<usize>() {
-                                        *limit.write() = val;
-                                    }
+                            oninput: move |ev| {
+                                if let Ok(val) = ev.value().parse::<usize>() {
+                                    *RL_EVENT_LIMIT.write() = val;
                                 }
                             }
                         }
@@ -327,6 +332,7 @@ pub fn RlObservability(view: RlViewMode) -> Element {
                                 "Fetches up to {display_fetch_limit} events per process."
                             }
                         }
+                    }
                 }
             }
 

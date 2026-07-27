@@ -7,18 +7,25 @@ INDEX="$PUBLIC/index.html"
 ASSETS="$PUBLIC/assets"
 
 if [[ ! -f "$INDEX" ]]; then
-  exit 0
+  echo "error: missing bundled web index: $INDEX" >&2
+  exit 1
 fi
 
 entry_js="$(grep -oE 'web-dxh[^"'"'"' ]+\.js' "$INDEX" | head -1 || true)"
 if [[ -z "$entry_js" ]]; then
-  exit 0
+  echo "error: index does not reference a Dioxus entry script: $INDEX" >&2
+  exit 1
 fi
 
 js_path="$ASSETS/$entry_js"
-wasm_ref=""
-if [[ -f "$js_path" ]]; then
-  wasm_ref="$(grep -oE 'web_bg-dxh[0-9a-f]+\.wasm' "$js_path" | head -1 || true)"
+if [[ ! -f "$js_path" ]]; then
+  echo "error: index references missing entry script: $js_path" >&2
+  exit 1
+fi
+wasm_ref="$(grep -oE 'web_bg-dxh[0-9a-f]+\.wasm' "$js_path" | head -1 || true)"
+if [[ -z "$wasm_ref" || ! -f "$ASSETS/$wasm_ref" ]]; then
+  echo "error: entry script references missing WASM module: $ASSETS/${wasm_ref:-<none>}" >&2
+  exit 1
 fi
 
 declare -a keep=(

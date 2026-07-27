@@ -67,10 +67,10 @@ impl SkillBackend for ServerBackend {
         String::from_utf8(bytes).map_err(|e| SkillRunError(e.to_string()))
     }
 
-    async fn peer_count(&self) -> usize {
-        match tokio::task::spawn_blocking(|| get_nodes_page(0, 1024, None)).await {
-            Ok((_, total, _)) => total.saturating_sub(1),
-            Err(_) => 0,
-        }
+    async fn peer_count(&self) -> Result<usize> {
+        let (_, total, _) = tokio::task::spawn_blocking(|| get_nodes_page(0, 1024, None))
+            .await
+            .map_err(|error| SkillRunError(error.to_string()))?;
+        Ok(total.saturating_sub(1))
     }
 }

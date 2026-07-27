@@ -4,6 +4,42 @@
 
 **技术栈**：Dioxus 0.7（WASM）、dioxus-router、Tailwind（dx 构建）、reqwest、`probing-skills`（技能执行 SSOT）、async-openai（浏览器 BYOK LLM）。
 
+## 双 UI 渐进迁移
+
+`main.rs` 通过 `ui_version.rs::RootApp` 只挂载一个应用根：
+
+- `classic`（默认）：原有 `app::App`，路由和组件保持不变。
+- `next`：`next::NextApp`，独立 Router、Shell、信息架构和诊断首页。
+
+Classic 用户可通过右下角入口进入 Next；Next 用户通过侧栏底部切回 Classic，
+也可使用 `?ui=classic|next` 手动切换。选择保存在
+`localStorage["probing.ui.version"]`。切换时整页重载，避免两个 Router、hook
+和全局监听器同时存在。
+
+Next UI 代码边界：
+
+```text
+web/src/next/
+├── routes.rs       # 独立 NextRoute
+├── shell.rs        # 诊断优先的导航与任务上下文
+├── components.rs   # Next 专用页面原语
+├── model.rs        # 首页/分布式健康派生模型
+└── pages/          # Dashboard、Investigate、Training、Distributed、Profiles、Explore
+```
+
+Next Router 保持 Classic 产品 URL 的兼容性，并在新壳层中直接承载成熟能力：
+
+| 工作区 | 路由 |
+|--------|------|
+| 诊断 | `/`、`/agent`、`/training`、`/distributed` |
+| RL / 推理 | `/rl`、`/rl/train`、`/rl/spans`、`/rl/process-timeline`、`/rl/perfetto`、`/rl/inference` |
+| 证据 | `/spans`、`/stacks/*`、`/profiles`、`/profiling/:view` |
+| 工具 | `/analytics`、`/python`、`/pulsing`、`/cluster`、`/system` |
+
+Next Shell 同时挂载 Command Bar、全局快捷键、Investigation URL 同步、页面
+snapshot、后台任务与 Torch overhead monitor，以及可浮动的 Investigate 面板。
+Classic 继续作为独立应用保留；已知产品路由不再依赖 Classic fallback。
+
 ---
 
 ## 一、产品信息架构
@@ -87,6 +123,36 @@ APP_OVERLAY: None | SourceViewer(path, line) | Monitor(Tasks | Overhead)
 - `LoadingState` / `SuspenseBoundary` / `ErrorState` / `EmptyState` / `AppErrorDisplay`。
 
 ### 2.4 侧栏结构
+
+Next 侧栏以用户角色和分析深度组织，并且只展开当前路由所在的活动路径：
+
+```text
+Logo + 紧凑模式 / 移动端关闭
+快速搜索（⌘K）
+├── Dashboard
+├── Investigate
+├── Distributed health
+├── Cluster nodes
+├── Workloads
+│   ├── Training
+│   ├── Reinforcement learning → Rollout / Policy training / RL Spans / Timeline / Perfetto
+│   └── Inference
+├── Advanced analysis
+│   ├── Profiles → pprof / Torch / Chrome trace / PyTorch / Ray
+│   ├── Stacks → Local / Distributed / Distributed Python
+│   └── Spans
+└── Deep tools → SQL / Python Trace / Pulsing / System / Catalog
+nav（flex-1 独立滚动；仅当前活动路径展开）
+Tasks · Overhead
+Switch interface: Classic
+```
+
+活动路径同时承载当前页面的控制项，例如刷新、数据范围、cluster fan-out、
+采样频率和 profiler 启停；右侧页面只保留结果和直接操作图表所需的过滤器。
+展开状态完全由路由决定，非活动分支不可同时展开。桌面侧栏支持 288px 控制
+模式和 80px 图标模式；窄屏侧栏为遮罩抽屉，支持显式关闭且不产生横向滚动。
+
+Classic 侧栏保持原结构：
 
 ```text
 Logo

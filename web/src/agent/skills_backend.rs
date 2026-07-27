@@ -74,10 +74,11 @@ impl SkillBackend for WebBackend {
             .map_err(|e| SkillRunError(e.display_message()))
     }
 
-    async fn peer_count(&self) -> usize {
-        match ApiClient::new().get_nodes().await {
-            Ok(nodes) => nodes.len().saturating_sub(1),
-            Err(_) => 0,
-        }
+    async fn peer_count(&self) -> Result<usize> {
+        ApiClient::new()
+            .get_nodes()
+            .await
+            .map(|nodes| nodes.len().saturating_sub(1))
+            .map_err(|error| SkillRunError(error.display_message()))
     }
 }

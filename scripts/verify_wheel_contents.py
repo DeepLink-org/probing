@@ -8,6 +8,11 @@ import sys
 import zipfile
 from pathlib import Path
 
+try:
+    from verify_web_assets import verify_web_files
+except ModuleNotFoundError:  # Imported as `scripts.verify_wheel_contents` in tests.
+    from scripts.verify_web_assets import verify_web_files
+
 # Paths that must exist in every release wheel (wheel archive member names).
 REQUIRED_PATHS = (
     "probing/__init__.py",
@@ -43,6 +48,19 @@ def verify_wheel(wheel: Path) -> list[str]:
                     if "probing/bundled_web/index.html" in names:
                         continue
                 missing.append(member)
+        web_root = (
+            "probing/bundled_web/public/"
+            if "probing/bundled_web/public/index.html" in names
+            else "probing/bundled_web/"
+        )
+        index_member = f"{web_root}index.html"
+        if index_member in names:
+            errors = verify_web_files(
+                zf.read(index_member).decode("utf-8"),
+                lambda path: f"{web_root}{path}" in names,
+                lambda path: zf.read(f"{web_root}{path}").decode("utf-8"),
+            )
+            missing.extend(f"invalid web bundle: {error}" for error in errors)
     return missing
 
 
