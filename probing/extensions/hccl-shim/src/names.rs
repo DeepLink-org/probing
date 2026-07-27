@@ -118,7 +118,7 @@ pub fn register_hash_string(hash_info: *const c_char, length: u32, hash: u64) {
     if hash_info.is_null() || length == 0 || hash == 0 {
         return;
     }
-    let bytes = unsafe { std::slice::from_raw_parts(hash_info as *const u8, length as usize) };
+    let bytes = unsafe { std::slice::from_raw_parts(hash_info.cast::<u8>(), length as usize) };
     let Ok(name) = std::str::from_utf8(bytes) else {
         return;
     };
