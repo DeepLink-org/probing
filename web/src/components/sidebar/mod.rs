@@ -13,7 +13,7 @@ use crate::state::sidebar::{
 
 mod monitors;
 mod nav_item;
-mod profiling;
+pub(crate) mod profiling;
 mod resize;
 mod stack;
 

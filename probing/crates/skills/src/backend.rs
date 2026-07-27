@@ -24,7 +24,11 @@ pub trait SkillBackend {
 
     async fn get(&self, path: &str) -> Result<String>;
 
-    async fn peer_count(&self) -> usize;
+    /// Discover remote peers.
+    ///
+    /// Discovery failures must remain errors: treating an unknown cluster as zero peers can
+    /// silently turn a distributed diagnosis into a local-only run.
+    async fn peer_count(&self) -> Result<usize>;
 }
 
 pub fn parse_cluster_meta(meta: &serde_json::Value) -> ClusterQueryMeta {

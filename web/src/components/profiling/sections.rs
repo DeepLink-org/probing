@@ -27,7 +27,7 @@ pub fn ProfilingCenteredPanel(children: Element) -> Element {
 #[component]
 pub fn ProfilerDisabledNotice(profiler_name: &'static str) -> Element {
     let message = format!(
-        "No profilers are currently enabled. Enable {profiler_name} using the controls in the sidebar."
+        "No profilers are currently enabled. Enable {profiler_name} using the capture controls for this profile."
     );
     rsx! {
         ProfilingCenteredPanel {

@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import os
+import zipfile
 from pathlib import Path
 
 import pytest
 
 from probing import web_assets
+from scripts.verify_web_assets import verify_web_bundle
+from scripts.verify_wheel_contents import REQUIRED_PATHS, verify_wheel
 
 from tests.conftest import is_wheel_install, repo_root
 
@@ -90,3 +93,54 @@ def test_configure_assets_root_respects_override(monkeypatch, tmp_path: Path):
     monkeypatch.setenv(web_assets._ENV, str(override))
 
     assert web_assets.configure_assets_root() == override
+
+
+def _write_valid_web_bundle(root: Path) -> None:
+    assets = root / "assets"
+    assets.mkdir(parents=True)
+    (root / "index.html").write_text(
+        '<link href="/assets/tailwind.css">'
+        '<script type="module" src="/./assets/web-dxhabc123.js"></script>',
+        encoding="utf-8",
+    )
+    (assets / "tailwind.css").write_text("", encoding="utf-8")
+    (assets / "web-dxhabc123.js").write_text(
+        'const wasm = "web_bg-dxhdef456.wasm";',
+        encoding="utf-8",
+    )
+    (assets / "web_bg-dxhdef456.wasm").write_bytes(b"\0asm")
+
+
+def test_verify_web_bundle_accepts_complete_reference_graph(tmp_path: Path):
+    _write_valid_web_bundle(tmp_path)
+    assert verify_web_bundle(tmp_path) == []
+
+
+def test_verify_web_bundle_rejects_missing_entry_script(tmp_path: Path):
+    _write_valid_web_bundle(tmp_path)
+    (tmp_path / "assets" / "web-dxhabc123.js").unlink()
+    errors = verify_web_bundle(tmp_path)
+    assert any(
+        "missing asset" in error and "web-dxhabc123.js" in error for error in errors
+    )
+
+
+def test_verify_web_bundle_rejects_missing_wasm(tmp_path: Path):
+    _write_valid_web_bundle(tmp_path)
+    (tmp_path / "assets" / "web_bg-dxhdef456.wasm").unlink()
+    errors = verify_web_bundle(tmp_path)
+    assert any("missing WASM module" in error for error in errors)
+
+
+def test_verify_wheel_rejects_broken_web_reference(tmp_path: Path):
+    wheel = tmp_path / "probing-test.whl"
+    with zipfile.ZipFile(wheel, "w") as archive:
+        for path in REQUIRED_PATHS:
+            content = (
+                '<script type="module" src="/assets/web-dxhdeadbeef.js"></script>'
+                if path.endswith("bundled_web/public/index.html")
+                else ""
+            )
+            archive.writestr(path, content)
+    errors = verify_wheel(wheel)
+    assert any("invalid web bundle" in error for error in errors)
