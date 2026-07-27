@@ -62,9 +62,16 @@ struct RealApi {
     subscribe_raw: Option<FnSubscribe>,
     unsubscribe_raw: Option<FnI32>,
     // Atlas / ACL registration entry points (needed for acl.prof.init).
-    prof_reg_reporter: Option<unsafe extern "C" fn(Option<unsafe extern "C" fn(u32, u32, *mut c_void, u32) -> i32>) -> i32>,
-    prof_reg_ctrl: Option<unsafe extern "C" fn(Option<unsafe extern "C" fn(u32, *mut c_void, u32) -> i32>) -> i32>,
-    prof_reg_device_state: Option<unsafe extern "C" fn(Option<unsafe extern "C" fn(*mut c_void, u32) -> i32>) -> i32>,
+    prof_reg_reporter: Option<
+        unsafe extern "C" fn(
+            Option<unsafe extern "C" fn(u32, u32, *mut c_void, u32) -> i32>,
+        ) -> i32,
+    >,
+    prof_reg_ctrl: Option<
+        unsafe extern "C" fn(Option<unsafe extern "C" fn(u32, *mut c_void, u32) -> i32>) -> i32,
+    >,
+    prof_reg_device_state:
+        Option<unsafe extern "C" fn(Option<unsafe extern "C" fn(*mut c_void, u32) -> i32>) -> i32>,
     prof_get_device_by_ge: Option<unsafe extern "C" fn(u32, *mut u32) -> i32>,
     prof_set_command: Option<unsafe extern "C" fn(*mut c_void, u32) -> i32>,
     prof_set_step_info: Option<unsafe extern "C" fn(u64, u16, *mut c_void) -> i32>,

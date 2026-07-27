@@ -29,6 +29,7 @@ fn injection_basic_fails_on_missing_library() {
     let result = Injector::attach(proc).and_then(|mut injector| injector.inject(dummy_lib, vec![]));
 
     let _ = target.kill();
+    let _ = target.wait();
 
     match result {
         Ok(_) => panic!("Expected injection to fail due to missing library"),

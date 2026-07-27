@@ -215,20 +215,12 @@ mod export {
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn MsprofStart(
-        data_type: u32,
-        data: *const c_void,
-        length: u32,
-    ) -> i32 {
+    pub unsafe extern "C" fn MsprofStart(data_type: u32, data: *const c_void, length: u32) -> i32 {
         forward::forward_start(data_type, data, length)
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn MsprofStop(
-        data_type: u32,
-        data: *const c_void,
-        length: u32,
-    ) -> i32 {
+    pub unsafe extern "C" fn MsprofStop(data_type: u32, data: *const c_void, length: u32) -> i32 {
         forward::forward_stop(data_type, data, length)
     }
 
@@ -326,9 +318,7 @@ mod export {
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn profRegReporterCallback(
-        reporter: forward::ReportHandle,
-    ) -> i32 {
+    pub unsafe extern "C" fn profRegReporterCallback(reporter: forward::ReportHandle) -> i32 {
         forward::forward_prof_reg_reporter(reporter)
     }
 
@@ -338,9 +328,7 @@ mod export {
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn profRegDeviceStateCallback(
-        handle: forward::DeviceStateHandle,
-    ) -> i32 {
+    pub unsafe extern "C" fn profRegDeviceStateCallback(handle: forward::DeviceStateHandle) -> i32 {
         forward::forward_prof_reg_device_state(handle)
     }
 
