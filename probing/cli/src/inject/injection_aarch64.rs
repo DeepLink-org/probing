@@ -346,7 +346,7 @@ impl InjectionTrait for InjectionAarch64<'_> {
         // lifetime as the tracer reference, and the injection will be removed before
         // the tracer goes out of scope in perform_injection.
         unsafe {
-            let tracer_ref = &mut *(tracer as *mut pete::Ptracer);
+            let tracer_ref = &mut *std::ptr::from_mut::<pete::Ptracer>(tracer);
             Self::inject(proc, tracer_ref, tracee)
         }
     }
@@ -381,19 +381,19 @@ mod tests {
     #[test]
     fn register_handling() {
         let mut regs: Registers = unsafe { std::mem::zeroed() };
-        regs.regs[0] = 0x12345678;
-        regs.regs[1] = 0x87654321;
-        regs.regs[2] = 0x11111111;
-        regs.regs[3] = 0x22222222;
-        regs.regs[8] = 0xdeadbeef;
+        regs.regs[0] = 0x1234_5678;
+        regs.regs[1] = 0x8765_4321;
+        regs.regs[2] = 0x1111_1111;
+        regs.regs[3] = 0x2222_2222;
+        regs.regs[8] = 0xdead_beef;
         regs.sp = 0x1000;
         regs.pc = 0x2000;
 
-        assert_eq!(regs.regs[0], 0x12345678);
-        assert_eq!(regs.regs[1], 0x87654321);
-        assert_eq!(regs.regs[2], 0x11111111);
-        assert_eq!(regs.regs[3], 0x22222222);
-        assert_eq!(regs.regs[8], 0xdeadbeef);
+        assert_eq!(regs.regs[0], 0x1234_5678);
+        assert_eq!(regs.regs[1], 0x8765_4321);
+        assert_eq!(regs.regs[2], 0x1111_1111);
+        assert_eq!(regs.regs[3], 0x2222_2222);
+        assert_eq!(regs.regs[8], 0xdead_beef);
         assert_eq!(regs.sp & !0xf, 0x1000);
     }
 }
