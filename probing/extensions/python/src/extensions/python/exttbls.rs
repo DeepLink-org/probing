@@ -728,6 +728,7 @@ mod tests {
     use crate::extensions::python::PythonProbeDataSource;
     use probing_core::core::{Engine, UnifiedMemtableProbeDataSource};
     use pyo3::ffi::c_str;
+    use std::sync::MutexGuard;
 
     /// Route all mmap files of this test process into one tempdir.
     static TEST_DATA_DIR: Lazy<tempfile::TempDir> = Lazy::new(|| {
@@ -735,6 +736,13 @@ mod tests {
         std::env::set_var("PROBING_DATA_DIR", dir.path());
         dir
     });
+    static PYTHON_TEST_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+
+    fn lock_python_tests() -> MutexGuard<'static, ()> {
+        PYTHON_TEST_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
 
     fn setup() {
         let _ = &*TEST_DATA_DIR;
@@ -798,6 +806,7 @@ if not hasattr(probing, "_made_{name}"):
 
     #[test]
     fn test_create_new_table() {
+        let _test_guard = lock_python_tests();
         setup();
         let table = ExternalTable::new(
             "table1",
@@ -814,6 +823,7 @@ if not hasattr(probing, "_made_{name}"):
 
     #[test]
     fn ensure_registered_infers_numeric_dtypes() {
+        let _test_guard = lock_python_tests();
         setup();
         let name = format!("comm_like_{}", std::process::id());
         let _table = ExternalTable::new(
@@ -842,6 +852,7 @@ if not hasattr(probing, "_made_{name}"):
 
     #[test]
     fn dtype_widening_does_not_recreate_table_or_drop_rows() {
+        let _test_guard = lock_python_tests();
         setup();
         let name = format!("dtype_widening_{}", std::process::id());
         let mut backing = ExternBacking::new(
@@ -867,6 +878,7 @@ if not hasattr(probing, "_made_{name}"):
 
     #[test]
     fn optional_value_does_not_recreate_table_or_drop_rows() {
+        let _test_guard = lock_python_tests();
         setup();
         let name = format!("optional_value_{}", std::process::id());
         let mut backing = ExternBacking::new(
@@ -889,6 +901,7 @@ if not hasattr(probing, "_made_{name}"):
 
     #[test]
     fn test_create_table_in_python() {
+        let _test_guard = lock_python_tests();
         setup();
         Python::attach(|py| {
             py.run(
@@ -909,6 +922,7 @@ table = probing.ExternalTable.get_or_create("table2", ["a", "b"])
 
     #[test]
     fn test_drop_table_in_python() {
+        let _test_guard = lock_python_tests();
         setup();
         Python::attach(|py| {
             py.run(
@@ -930,6 +944,7 @@ probing.ExternalTable.drop("table_to_drop")
 
     #[test]
     fn test_append_take_roundtrip_and_mmap_file() {
+        let _test_guard = lock_python_tests();
         setup();
         let mut table = ExternalTable::new(
             "roundtrip",
@@ -1002,6 +1017,7 @@ probing.ExternalTable.drop("table_to_drop")
 
     #[test]
     fn test_see_py_table_data_in_engine() {
+        let _test_guard = lock_python_tests();
         setup_table("table4");
         let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(4)
@@ -1024,6 +1040,7 @@ probing.ExternalTable.drop("table_to_drop")
 
     #[test]
     fn test_calculate_in_sql_with_filter() {
+        let _test_guard = lock_python_tests();
         setup_table("table5");
         let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(4)
@@ -1043,6 +1060,7 @@ probing.ExternalTable.drop("table_to_drop")
 
     #[test]
     fn test_aggregate_in_sql() {
+        let _test_guard = lock_python_tests();
         setup_table("table6");
         let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(4)
@@ -1062,6 +1080,7 @@ probing.ExternalTable.drop("table_to_drop")
 
     #[test]
     fn test_static_python_tables_not_shadowed() {
+        let _test_guard = lock_python_tests();
         // Extern mmap tables under schema `python` must not hide the static
         // namespace (backtrace, expression tables) — the merged catalog
         // resolves mmap first, then falls through to the inner provider.

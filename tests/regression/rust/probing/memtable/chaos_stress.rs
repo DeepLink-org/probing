@@ -9,6 +9,7 @@
 //! 注意：同一缓冲区的写端只能有一个线程持有 `MemTableWriter`（`&mut`）；多写者并发在语言层面是 UB。
 //! 本测试用**单写线程**内交替模拟两个逻辑生产者，保留相近写压力。
 
+use memmap2::MmapMut;
 use probing_memtable::{
     validate_buf, CachedReader, DType, MemTable, MemTableView, MemTableWriter, Schema, Value,
 };
@@ -47,12 +48,12 @@ fn chaos_producer_consumer_wrap_stress_for_over_a_minute() {
     let chunk_size = 256u32;
     let num_chunks = 4u32;
     let need = MemTable::required_size(&schema, chunk_size as usize, num_chunks as usize);
-    let mut buf = vec![0u8; need];
+    let file = tempfile::tempfile().unwrap();
+    file.set_len(need as u64).unwrap();
     {
-        let _mt = MemTableWriter::init(&mut buf, &schema, chunk_size, num_chunks);
+        let mut map = unsafe { MmapMut::map_mut(&file).unwrap() };
+        let _mt = MemTableWriter::init(&mut map, &schema, chunk_size, num_chunks).unwrap();
     }
-    let addr = buf.as_ptr() as usize;
-    let buf_len = buf.len();
 
     let topics = ["alpha", "beta", "gamma", "delta", "epsilon"];
     let msgs = [
@@ -77,10 +78,10 @@ fn chaos_producer_consumer_wrap_stress_for_over_a_minute() {
         let barrier = barrier.clone();
         let writes = writes.clone();
         let manual_advances = manual_advances.clone();
+        let mut map = unsafe { MmapMut::map_mut(&file).unwrap() };
         thread::spawn(move || {
             barrier.wait();
-            let buf = unsafe { std::slice::from_raw_parts_mut(addr as *mut u8, buf_len) };
-            let mut writer = MemTableWriter::new(buf).unwrap().dedup();
+            let mut writer = MemTableWriter::new(&mut map).unwrap().dedup();
             let mut seeds = [0xA5A5_5A5A_D3C3_B1B1u64, 0xA5A5_5A5A_D3C3_B1B1u64 ^ 1];
             let mut seqs = [0i64, 1_000_000i64];
             while start.elapsed() < duration {
@@ -125,11 +126,11 @@ fn chaos_producer_consumer_wrap_stress_for_over_a_minute() {
             let barrier = barrier.clone();
             let reads = reads.clone();
             let stale_panics = stale_panics.clone();
+            let map = unsafe { MmapMut::map_mut(&file).unwrap() };
             thread::spawn(move || {
                 barrier.wait();
-                let buf = unsafe { std::slice::from_raw_parts(addr as *const u8, buf_len) };
-                let view = MemTableView::new(buf).unwrap();
-                let mut cache = CachedReader::new(buf, 32);
+                let view = MemTableView::new(&map).unwrap();
+                let mut cache = CachedReader::new(&map, 32);
                 let mut seed = 0x1234_5678_9ABC_DEF0u64 ^ tid as u64;
                 // 仅按时间结束：避免生产者 panic/未置位导致死循环
                 while start.elapsed() < duration {
@@ -197,12 +198,12 @@ fn chaos_producer_consumer_wrap_stress_for_over_a_minute() {
     let validator = {
         let barrier = barrier.clone();
         let validations = validations.clone();
+        let map = unsafe { MmapMut::map_mut(&file).unwrap() };
         thread::spawn(move || {
             barrier.wait();
-            let buf = unsafe { std::slice::from_raw_parts(addr as *const u8, buf_len) };
             while start.elapsed() < duration {
                 assert!(
-                    validate_buf(buf).is_ok(),
+                    validate_buf(&map).is_ok(),
                     "buffer validation failed during chaos test"
                 );
                 validations.fetch_add(1, Ordering::Relaxed);
@@ -234,8 +235,9 @@ fn chaos_producer_consumer_wrap_stress_for_over_a_minute() {
         manual_advances.load(Ordering::Relaxed) > 0,
         "manual chunk advance path was not exercised"
     );
-    assert!(
-        stale_panics.load(Ordering::Relaxed) > 0,
-        "expected at least some stale-read detections under chaos"
+    assert_eq!(
+        stale_panics.load(Ordering::Relaxed),
+        0,
+        "pinned readers must not observe stale or torn rows"
     );
 }

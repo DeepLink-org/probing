@@ -43,23 +43,24 @@ graph LR
     HCT -->|segment + page pruning| MEMC
 ```
 
-The hot tier is mapped read-only at query time; the cold tier is read via `SegmentReader`. The
+The hot tier is logically read-only at query time, but MEMT mappings are opened writable so
+readers can update per-chunk pin metadata. The cold tier is read via `SegmentReader`. The
 `HotColdTable` provider unions them into one scan, deduplicating chunks that exist in both tiers.
 
 ## Hot Tier (MEMT)
 
 ### File Layout
 
-Every MEMT buffer (heap, shared memory, or mmap'd file) begins with a 64-byte header (one cache
-line), followed by per-column descriptors, then chunk data.
+Every MEMT buffer begins with a 128-byte header, followed by column descriptors, a
+crash-recoverable reader-lease array, then chunk data.
 
-**Header v3 (64 bytes):**
+**Header v5 (128 bytes):**
 
 | offset | size | field | notes |
 |---|---|---|---|
 | 0 | 4 | `magic` | `0x4D454D54` (`"MEMT"`) |
-| 4 | 2 | `version` | 3 |
-| 6 | 2 | `header_size` | 64 (validation) |
+| 4 | 2 | `version` | 5 |
+| 6 | 2 | `header_size` | 128 (validation) |
 | 8 | 2 | `byte_order` | BOM `[0x01,0x02]` |
 | 10 | 2 | `ts_col` | timestamp column index + 1 (0 = none) |
 | 12 | 4 | `flags` | feature bits (`FLAG_DEDUP`, …) |
@@ -73,13 +74,25 @@ line), followed by per-column descriptors, then chunk data.
 | 44 | 4 | `_pad0` | alignment (was `write_lock` in v2) |
 | 48 | 8 | `creator_start_time` | for PID-recycling detection during discovery |
 | 56 | 8 | `_reserved` | reserved |
+| 64 | 4 | `lease_offset` | absolute offset of the reader-lease array |
+| 68 | 4 | `lease_slots` | lease slots per chunk (currently 16) |
+| 72 | 56 | `_reserved_v5` | reserved |
 
 Bytes 0–31 are the **cold zone** (immutable after init); bytes 32–63 are the **hot zone**
 (atomically mutated), split to avoid false sharing. Each chunk starts with a 40-byte
 `ChunkHeader` carrying a `generation` counter and per-chunk `min_ts`/`max_ts` (`AtomicI64`).
+Each reader lease atomically stores a process PID plus local reference count and the process
+start time. Recycling blocks new leases, preserves live readers, and reclaims leases only when
+that exact process instance is dead.
 
 > **v3** vs v2: `_pad0` became `ts_col`; dropped `write_lock` (single-writer model);
 > `ChunkHeader` gained `min_ts`/`max_ts` (24 → 40 bytes).
+>
+> **v4** vs v3: the reserved chunk-header word became atomic `reader_pins`; query mappings
+> must permit these metadata writes even though row data is read-only to callers.
+>
+> **v5** vs v4: unrecoverable aggregate pins were replaced by 16 per-process lease slots per
+> chunk. A reader crash no longer permanently blocks ring recycling.
 
 ### Backends
 
@@ -155,7 +168,7 @@ monotonically increasing sequence the `ColdStore` recovers on open.
 A segment is a sequence of 64-aligned blocks. All integrity checks use **xxh3-64 truncated to 32
 bits**.
 
-**Segment header (64 bytes):** `magic` (`"MEMC"`), `version` (1), BOM, `flags` (bit 0 = sealed),
+**Segment header (64 bytes):** `magic` (`"MEMC"`), `version` (2), BOM, `flags` (bit 0 = sealed),
 `writer_pid`, `writer_start`, `created_unix_ms`, `footer_off` (0 until sealed), segment-wide
 `ts_min`/`ts_max`, `page_count`, header checksum.
 
@@ -168,9 +181,14 @@ bits**.
 | `MCFT` | footer — page directory written on seal |
 
 The page/block header carries `table_id`, `row_count`, `col_count`, `ts_min`/`ts_max`,
-`payload_len`, `payload_xxh`, and — crucially for restart dedup — `source_gen` and `source_chunk`
-(the hot-ring chunk generation and index this page was drained from; `u32::MAX` = not applicable).
-The header is itself checksummed (covering `source_chunk`).
+`payload_len`, `payload_xxh`, and — crucially for restart dedup — `source_instance`, `source_gen`,
+and `source_chunk` (the hot MEMT identity plus chunk generation/index this page was drained from;
+`u32::MAX` = not applicable). The header is itself checksummed, including the complete source
+identity.
+
+MEMC v2 readers explicitly reject v1 segments because v1 has no source instance and cannot safely
+participate in restart dedup. Sealed v1 files remain eligible for retention eviction; deployments
+that need their historical rows must archive or convert them before upgrading.
 
 A single segment holds pages from **multiple tables**, distinguished by `table_id`. This decouples
 file/directory count from table count: hundreds of tables share one set of segment files.
@@ -211,16 +229,18 @@ The `Compactor` drains newly-sealed hot chunks into cold segments.
   `target_segment_bytes` (default 64 MiB — the main fragmentation knob), or when it exceeds
   `max_segment_age` (default 300 s, so low-rate tables still become queryable), or on explicit
   flush.
-- **Eviction.** `enforce` deletes oldest segments past a byte budget (`max_total_bytes`) or TTL,
-  always protecting the newest segment.
+- **Eviction.** `enforce` deletes oldest sealed segments past a byte budget (`max_total_bytes`) or
+  TTL, always protecting the newest plus every unsealed/unreadable segment that another writer may
+  still have open.
 
 ### Exactly-Once Across Restarts
 
 `drained_gen` is in-memory, so a naive restart over a persistent cold dir would re-compact
 chunks still resident in the hot ring, producing duplicate rows. `prime_from_cold()` rebuilds the
-watermark on startup: it scans existing cold segments and, per `(table, source_chunk)`, takes the
-max `source_gen`, merging it into `drained_gen` the first time a table is seen. The result is
-**exactly-once** even across restarts.
+watermark on startup: it scans existing cold segments and, per
+`(table, source_instance, source_chunk)`, takes the max `source_gen`, merging it into `drained_gen`
+the first time a table instance is seen. The result is **exactly-once** across restarts without
+confusing a same-name replacement whose generations restart from the beginning.
 
 ## Runtime Owner
 

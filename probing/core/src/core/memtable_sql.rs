@@ -505,20 +505,23 @@ pub fn view_to_recordbatches_pruned(
 }
 
 /// Like [`view_to_recordbatches_pruned`], additionally skipping any chunk
-/// whose `(index, current generation)` is in `excluded` — used to drop hot
-/// chunks already materialised from the cold tier, so a hot∪cold union counts
-/// each row exactly once even while a compacted chunk still lives in the ring.
+/// whose `(table instance, index, current generation)` is in `excluded` —
+/// used to drop hot chunks already materialised from the cold tier, so a
+/// hot∪cold union counts each row exactly once even while a compacted chunk
+/// still lives in the ring. The instance id prevents cold pages from a
+/// same-name predecessor from hiding chunks in a newly-created hot table.
 fn view_to_recordbatches_pruned_excluding(
     view: &MemTableView<'_>,
     bounds: &TsBounds,
-    excluded: &HashSet<(usize, u64)>,
+    excluded: &HashSet<(u64, usize, u64)>,
 ) -> Vec<RecordBatch> {
     let arrow_schema = view_to_arrow_schema(view);
+    let instance = view.instance_id();
     let mut batches: Vec<RecordBatch> = view
         .chunks_logical()
         .into_iter()
         .filter(|&chunk| chunk_may_match(view, chunk, bounds))
-        .filter(|&chunk| !excluded.contains(&(chunk, view.chunk_generation(chunk))))
+        .filter(|&chunk| !excluded.contains(&(instance, chunk, view.chunk_generation(chunk))))
         .filter_map(|chunk| chunk_to_recordbatch(view, chunk, &arrow_schema))
         .collect();
     if batches.is_empty() {
@@ -574,7 +577,7 @@ impl RingMmapTable {
     fn pruned_batches_excluding(
         &self,
         bounds: &TsBounds,
-        excluded: &HashSet<(usize, u64)>,
+        excluded: &HashSet<(u64, usize, u64)>,
     ) -> Vec<RecordBatch> {
         match MemTableView::new(self.mapped.as_bytes()) {
             Ok(view) => view_to_recordbatches_pruned_excluding(&view, bounds, excluded),
@@ -654,7 +657,8 @@ fn cold_column_to_array(col: ColumnData) -> ArrayRef {
 }
 
 /// Decode the cold pages of `table` within `bounds`, returning the batches and
-/// the set of hot-ring `(chunk index, generation)` those pages came from.
+/// the set of hot-ring `(table instance, chunk index, generation)` those
+/// pages came from.
 ///
 /// Two-level pruning mirrors the hot ring: sealed segments whose header
 /// `ts_range` cannot match are skipped without reading pages, then each
@@ -666,9 +670,9 @@ fn cold_scan(
     table: &str,
     schema: &SchemaRef,
     bounds: &TsBounds,
-) -> (Vec<RecordBatch>, HashSet<(usize, u64)>) {
+) -> (Vec<RecordBatch>, HashSet<(u64, usize, u64)>) {
     let mut out = Vec::new();
-    let mut covered: HashSet<(usize, u64)> = HashSet::new();
+    let mut covered: HashSet<(u64, usize, u64)> = HashSet::new();
     for path in cold_segment_paths(dir) {
         let Ok(reader) = SegmentReader::open(&path) else {
             continue; // unreadable/foreign file: skip rather than fail the scan
@@ -686,7 +690,7 @@ fn cold_scan(
         for idx in reader.pages_in_range(tid, bounds.lower, bounds.upper) {
             if let Some(p) = pages.get(idx) {
                 if p.source_chunk != probing_memtable::memc::SOURCE_CHUNK_NONE {
-                    covered.insert((p.source_chunk as usize, p.source_gen));
+                    covered.insert((p.source_instance, p.source_chunk as usize, p.source_gen));
                 }
             }
             match reader.read_page(idx) {
@@ -1400,7 +1404,7 @@ mod tests {
             .col("id", DType::I32)
             .col("value", DType::F64)
             .col("tag", DType::Str);
-        let mut t = MemTable::new(&schema, 4096, 2);
+        let mut t = MemTable::new(&schema, 4096, 2).unwrap();
         t.push_row(&[Value::I32(1), Value::F64(3.14), Value::Str("hello")]);
         t.push_row(&[Value::I32(2), Value::F64(2.72), Value::Str("world")]);
 
@@ -1436,7 +1440,7 @@ mod tests {
     fn recordbatches_multiple_chunks_in_logical_order() {
         let schema = MtSchema::new().col("v", DType::I64);
         // Small chunk so rows spill across chunks
-        let mut t = MemTable::new(&schema, 128, 4);
+        let mut t = MemTable::new(&schema, 128, 4).unwrap();
         for i in 0..20 {
             t.push_row(&[Value::I64(i)]);
         }
@@ -1459,7 +1463,7 @@ mod tests {
     #[test]
     fn recordbatches_logical_order_after_wrap() {
         let schema = MtSchema::new().col("v", DType::I64);
-        let mut t = MemTable::new(&schema, 80, 2);
+        let mut t = MemTable::new(&schema, 80, 2).unwrap();
         t.push_row(&[Value::I64(10)]); // chunk 0, gen 1
         t.advance_chunk();
         t.push_row(&[Value::I64(20)]); // chunk 1, gen 1
@@ -1475,7 +1479,7 @@ mod tests {
     #[test]
     fn recordbatch_empty_table_keeps_schema() {
         let schema = MtSchema::new().col("x", DType::U8);
-        let t = MemTable::new(&schema, 1024, 1);
+        let t = MemTable::new(&schema, 1024, 1).unwrap();
         let view = t.view();
         let batches = view_to_recordbatches(&view);
         assert_eq!(batches.len(), 1);
@@ -1489,7 +1493,7 @@ mod tests {
             .col("ts", DType::I64)
             .col("cpu", DType::F64)
             .col("name", DType::Str);
-        let t = MemTable::new(&schema, 1024, 1);
+        let t = MemTable::new(&schema, 1024, 1).unwrap();
         let view = t.view();
         let arrow = view_to_arrow_schema(&view);
 
@@ -1505,7 +1509,7 @@ mod tests {
     #[test]
     fn recordbatch_u8_column() {
         let schema = MtSchema::new().col("flag", DType::U8);
-        let mut t = MemTable::new(&schema, 1024, 1);
+        let mut t = MemTable::new(&schema, 1024, 1).unwrap();
         t.push_row(&[Value::U8(0)]);
         t.push_row(&[Value::U8(255)]);
 
@@ -1571,7 +1575,7 @@ mod tests {
     fn pruned_batches_skip_out_of_range_chunks() {
         let schema = MtSchema::new().col("ts", DType::I64);
         // ChunkHeader=40, I64 row=12 → 64-40=24 → 2 rows per chunk
-        let mut t = MemTable::new(&schema, 64, 4);
+        let mut t = MemTable::new(&schema, 64, 4).unwrap();
         for ts in [10i64, 20, 30, 40, 50, 60] {
             t.push_row(&[Value::I64(ts)]);
         }
@@ -1618,7 +1622,7 @@ mod tests {
     #[test]
     fn tables_without_ts_col_are_never_pruned() {
         let schema = MtSchema::new().col("v", DType::I64); // not a ts name
-        let mut t = MemTable::new(&schema, 64, 4);
+        let mut t = MemTable::new(&schema, 64, 4).unwrap();
         for v in [1i64, 2, 3, 4] {
             t.push_row(&[Value::I64(v)]);
         }
@@ -1750,6 +1754,52 @@ mod tests {
         assert_eq!(collect_i32(&span), vec![2, 3, 4, 5]);
 
         drop(t);
+    }
+
+    #[tokio::test]
+    async fn hot_cold_union_does_not_dedup_across_table_instances() {
+        use datafusion::prelude::SessionContext;
+        use probing_memtable::memc::{ColdStore, Compactor, CompactorConfig};
+
+        let tmp = tempfile::tempdir().unwrap();
+        let hot_path = tmp.path().join("recreated");
+        let cold = tmp.path().join("cold");
+        let schema = MtSchema::new()
+            .col("timestamp", DType::I64)
+            .col("v", DType::I32);
+
+        let mut old = MemTable::file_at(&hot_path, &schema, 80, 2).unwrap();
+        old.push_row(&[Value::I64(100), Value::I32(1)]);
+        old.push_row(&[Value::I64(200), Value::I32(2)]);
+        old.advance_chunk();
+        {
+            let mut compactor =
+                Compactor::new(ColdStore::open(&cold).unwrap(), CompactorConfig::default());
+            assert_eq!(compactor.drain_view("recreated", &old.view()).unwrap(), 2);
+            compactor.flush().unwrap();
+        }
+        drop(old);
+        std::fs::remove_file(&hot_path).unwrap();
+
+        // The replacement starts chunk 0 at generation 1 as well. Cold
+        // coverage from the previous instance must not suppress these rows.
+        let mut replacement = MemTable::file_at(&hot_path, &schema, 80, 2).unwrap();
+        replacement.push_row(&[Value::I64(300), Value::I32(3)]);
+        replacement.push_row(&[Value::I64(400), Value::I32(4)]);
+        replacement.advance_chunk();
+
+        let ring = RingMmapTable::try_new(MappedFile::open(&hot_path).unwrap()).unwrap();
+        let provider: Arc<dyn TableProvider> = Arc::new(HotColdTable::new(ring, cold, "recreated"));
+        let ctx = SessionContext::new();
+        ctx.register_table("recreated", provider).unwrap();
+        let all = ctx
+            .sql("SELECT v FROM recreated ORDER BY v")
+            .await
+            .unwrap()
+            .collect()
+            .await
+            .unwrap();
+        assert_eq!(collect_i32(&all), vec![1, 2, 3, 4]);
     }
 
     #[tokio::test]

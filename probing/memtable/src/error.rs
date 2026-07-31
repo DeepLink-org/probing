@@ -14,6 +14,9 @@ pub enum MemtableError {
     #[error("table is not file-backed")]
     NotFileBacked,
 
+    #[error("all reader lease slots for a memtable chunk are occupied")]
+    ReaderLeaseExhausted,
+
     #[error(transparent)]
     Memh(#[from] crate::memh::MemhValidateError),
 

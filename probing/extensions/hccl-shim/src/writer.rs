@@ -305,17 +305,48 @@ mod tests {
     use crate::msprof::{MSPROF_HCCL_INFO_MIN, MSPROF_HCCL_OP_INFO_MIN};
     use probing_memtable::discover::discover_in;
     use std::fs;
+    use std::sync::{Mutex, MutexGuard};
 
-    fn test_dir() -> std::path::PathBuf {
-        std::env::temp_dir().join(format!("probing_hccl_shim_test_{}", std::process::id()))
+    static ENV_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    struct TestEnv {
+        _guard: MutexGuard<'static, ()>,
+        base: std::path::PathBuf,
+        previous_data_dir: Option<std::ffi::OsString>,
+    }
+
+    impl TestEnv {
+        fn new(name: &str) -> Self {
+            let guard = ENV_TEST_LOCK
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let base = std::env::temp_dir()
+                .join(format!("probing_hccl_shim_{name}_{}", std::process::id()));
+            let _ = fs::remove_dir_all(&base);
+            fs::create_dir_all(&base).unwrap();
+            let previous_data_dir = std::env::var_os("PROBING_DATA_DIR");
+            std::env::set_var("PROBING_DATA_DIR", &base);
+            Self {
+                _guard: guard,
+                base,
+                previous_data_dir,
+            }
+        }
+    }
+
+    impl Drop for TestEnv {
+        fn drop(&mut self) {
+            match &self.previous_data_dir {
+                Some(value) => std::env::set_var("PROBING_DATA_DIR", value),
+                None => std::env::remove_var("PROBING_DATA_DIR"),
+            }
+            let _ = fs::remove_dir_all(&self.base);
+        }
     }
 
     #[test]
     fn tasks_mmap_roundtrip() {
-        let base = test_dir();
-        let _ = fs::remove_dir_all(&base);
-        fs::create_dir_all(&base).unwrap();
-        std::env::set_var("PROBING_DATA_DIR", &base);
+        let env = TestEnv::new("tasks");
 
         let mut w = HcclWriter::new();
         let header = MsprofAdditionalInfoHeader {
@@ -334,17 +365,13 @@ mod tests {
         };
         w.record_task(&header, &info, header.data_len as i32);
 
-        let found = discover_in(&base).unwrap();
+        let found = discover_in(&env.base).unwrap();
         assert!(found.iter().any(|t| t.name() == TASKS_FILE));
-        let _ = fs::remove_dir_all(&base);
     }
 
     #[test]
     fn collectives_compact_roundtrip() {
-        let base = test_dir();
-        let _ = fs::remove_dir_all(&base);
-        fs::create_dir_all(&base).unwrap();
-        std::env::set_var("PROBING_DATA_DIR", &base);
+        let env = TestEnv::new("collectives");
 
         let mut w = HcclWriter::new();
         let header = MsprofCompactInfoHeader {
@@ -363,17 +390,13 @@ mod tests {
         };
         w.record_compact_hccl_op(&header, &op);
 
-        let found = discover_in(&base).unwrap();
+        let found = discover_in(&env.base).unwrap();
         assert!(found.iter().any(|t| t.name() == COLLECTIVES_FILE));
-        let _ = fs::remove_dir_all(&base);
     }
 
     #[test]
     fn host_ops_schema_columns() {
-        let base = test_dir();
-        let _ = fs::remove_dir_all(&base);
-        fs::create_dir_all(&base).unwrap();
-        std::env::set_var("PROBING_DATA_DIR", &base);
+        let env = TestEnv::new("host_ops");
 
         let mut w = HcclWriter::new();
         w.record_api(
@@ -389,17 +412,13 @@ mod tests {
             },
         );
 
-        let found = discover_in(&base).unwrap();
+        let found = discover_in(&env.base).unwrap();
         assert!(found.iter().any(|t| t.name() == HOST_OPS_FILE));
-        let _ = fs::remove_dir_all(&base);
     }
 
     #[test]
     fn context_ids_roundtrip() {
-        let base = test_dir();
-        let _ = fs::remove_dir_all(&base);
-        fs::create_dir_all(&base).unwrap();
-        std::env::set_var("PROBING_DATA_DIR", &base);
+        let env = TestEnv::new("context_ids");
 
         let mut w = HcclWriter::new();
         let header = MsprofAdditionalInfoHeader {
@@ -417,8 +436,7 @@ mod tests {
             },
         );
 
-        let found = discover_in(&base).unwrap();
+        let found = discover_in(&env.base).unwrap();
         assert!(found.iter().any(|t| t.name() == CONTEXT_IDS_FILE));
-        let _ = fs::remove_dir_all(&base);
     }
 }

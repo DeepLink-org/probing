@@ -325,7 +325,13 @@ impl CpuCollector {
         }
 
         let running = self.running.clone();
-        let tables = self.shared_tables()?;
+        let tables = match self.shared_tables() {
+            Ok(tables) => tables,
+            Err(error) => {
+                self.running.store(false, Ordering::SeqCst);
+                return Err(error.into());
+            }
+        };
         let handle = thread::spawn(move || {
             let panicked = catch_unwind(AssertUnwindSafe(|| {
                 let sampler = host_sampler();
@@ -462,6 +468,12 @@ impl CpuCollector {
 
         Ok(())
     }
+
+    #[cfg(test)]
+    fn reset_for_test(&self) {
+        self.stop().expect("stop CPU collector during test reset");
+        *lock_cpu_collector(&self.tables) = None;
+    }
 }
 
 #[cfg(test)]
@@ -471,27 +483,47 @@ mod tests {
 
     static ENV_TEST_LOCK: Mutex<()> = Mutex::new(());
 
+    fn lock_test_env() -> std::sync::MutexGuard<'static, ()> {
+        ENV_TEST_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    fn restore_env(key: &str, value: Option<std::ffi::OsString>) {
+        match value {
+            Some(value) => std::env::set_var(key, value),
+            None => std::env::remove_var(key),
+        }
+    }
+
     #[test]
     fn autostart_defaults_to_one_second() {
-        let _guard = ENV_TEST_LOCK.lock().unwrap();
+        let _guard = lock_test_env();
+        let old_cpu = std::env::var_os("PROBING_CPU");
+        let old_sample_ms = std::env::var_os("PROBING_CPU_SAMPLE_MS");
         std::env::remove_var("PROBING_CPU");
         std::env::remove_var("PROBING_CPU_SAMPLE_MS");
         assert_eq!(autostart_interval_ms(), Some(1000));
+        restore_env("PROBING_CPU", old_cpu);
+        restore_env("PROBING_CPU_SAMPLE_MS", old_sample_ms);
     }
 
     #[test]
     fn autostart_respects_disable_env() {
-        let _guard = ENV_TEST_LOCK.lock().unwrap();
+        let _guard = lock_test_env();
+        let old_cpu = std::env::var_os("PROBING_CPU");
         std::env::set_var("PROBING_CPU", "off");
         assert_eq!(autostart_interval_ms(), None);
-        std::env::remove_var("PROBING_CPU");
+        restore_env("PROBING_CPU", old_cpu);
     }
 
     #[test]
     fn autostart_creates_cpu_memtable_files() {
-        let _guard = ENV_TEST_LOCK.lock().unwrap();
+        let _guard = lock_test_env();
         use probing_memtable::discover::default_dir;
 
+        let old_data_dir = std::env::var_os("PROBING_DATA_DIR");
+        let old_cpu = std::env::var_os("PROBING_CPU");
         let dir = std::env::temp_dir().join(format!(
             "probing_cpu_autostart_{}_{}",
             std::process::id(),
@@ -504,7 +536,8 @@ mod tests {
         std::env::set_var("PROBING_DATA_DIR", &dir);
         std::env::remove_var("PROBING_CPU");
 
-        let _ = super::super::collector::CpuCollector::instance().stop();
+        let collector = super::super::collector::CpuCollector::instance();
+        collector.reset_for_test();
         start_cpu_sampling_from_env();
 
         let util = default_dir()
@@ -516,14 +549,17 @@ mod tests {
             util.display()
         );
 
+        collector.reset_for_test();
+        restore_env("PROBING_DATA_DIR", old_data_dir);
+        restore_env("PROBING_CPU", old_cpu);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
     fn collector_writes_bounded_utilization_rows() {
-        let _guard = ENV_TEST_LOCK.lock().unwrap();
+        let _guard = lock_test_env();
         let collector = CpuCollector::instance();
-        let _ = collector.stop();
+        collector.reset_for_test();
 
         let iterations = 100_i64;
         collector
@@ -543,5 +579,6 @@ mod tests {
             "expected at least {} utilization rows, got {rows}",
             iterations - 1
         );
+        collector.reset_for_test();
     }
 }

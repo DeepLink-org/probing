@@ -37,13 +37,16 @@ use super::semantic_catalog;
 /// # Usage Example
 ///
 /// ```
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// // Create a new engine using the builder pattern
 /// let engine = probing_core::core::Engine::builder()
 ///     .with_default_namespace("example_namespace")
-///     .build().unwrap();
+///     .build().await?;
 ///
 /// // Execute a SQL query
 /// let result = engine.async_query("SELECT * FROM information_schema.tables").await?;
+/// # Ok(())
+/// # }
 /// ```
 pub struct Engine {
     /// DataFusion session context for executing SQL queries

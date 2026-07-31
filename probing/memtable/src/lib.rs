@@ -14,9 +14,9 @@
 //!
 //! - **Writer**: a single owner appends rows; the `&mut` borrow (or the
 //!   caller's own serialization) guarantees exclusivity. No lock is taken.
-//! - **Readers** are lock-free: per-chunk `used` is updated with `Release` ordering
-//!   by the writer and loaded with `Acquire` by readers, ensuring row data visibility.
-//!   Readers re-validate the chunk `generation` to discard rows from a recycled chunk.
+//! - **Readers** pin a chunk generation before borrowing its row bytes.
+//!   Recycling first blocks new pins, then waits for existing pins to drain,
+//!   so borrowed strings and byte slices cannot race with overwrite.
 //!
 //! # Memory Layout
 //!
@@ -24,11 +24,11 @@
 //!
 //! ```text
 //! ┌──────────────────────────────────┐ 0
-//! │ Header v3 (64 bytes, repr(C))    │
+//! │ Header v5 (128 bytes, repr(C))   │
 //! │  ── cold zone (read-only) ──     │
 //! │   magic: u32     (0x4D454D54)    │
-//! │   version: u16   (3)             │
-//! │   header_size: u16 (64)          │
+//! │   version: u16   (5)             │
+//! │   header_size: u16 (128)         │
 //! │   byte_order: u16 (BOM 0x0102)   │
 //! │   ts_col: u16                    │
 //! │   flags: u32     (feature bits)  │
@@ -42,20 +42,24 @@
 //! │   creator_pid: u32                │
 //! │   _pad0: u32                     │
 //! │   creator_start_time: u64         │
-//! │   _reserved: u64                 │
-//! ├──────────────────────────────────┤ 64
+//! │   lease_offset / lease_slots     │
+//! ├──────────────────────────────────┤ 128
 //! │ ColumnDesc × N (64 bytes each)   │
 //! │   name: [u8; 56]  (LP u16)      │
 //! │   dtype: u32                     │
 //! │   elem_size: u32                 │
+//! ├──────────────────────────────────┤ lease_offset
+//! │ ReaderLease × chunks × 16 slots  │
 //! ├──────────────────────────────────┤ data_offset (64-aligned)
 //! │ Chunk 0 (chunk_size bytes)       │
-//! │   ChunkHeader (24 bytes)         │
+//! │   ChunkHeader (40 bytes)         │
 //! │     generation: AtomicU64        │
 //! │     used: AtomicU32              │
 //! │     row_count: AtomicU32         │
 //! │     state: AtomicU32             │
-//! │     _reserved: u32               │
+//! │     _reserved: AtomicU32         │
+//! │     min_ts: AtomicI64            │
+//! │     max_ts: AtomicI64            │
 //! │   [row_len: u32][col_data...]    │
 //! │   ...free space...               │
 //! │ Chunk 1 ...                      │
@@ -82,7 +86,7 @@
 //!     .col("ts", DType::I64)
 //!     .col("msg", DType::Str);
 //!
-//! let mut t = MemTable::new(&schema, 4096, 4);
+//! let mut t = MemTable::new(&schema, 4096, 4).unwrap();
 //!
 //! // Streaming write — chain put_* calls, no Value allocation
 //! t.row_writer().put_i64(1000).put_str("hello").finish();
@@ -111,6 +115,8 @@ mod refcount;
 mod row;
 mod schema;
 mod sync;
+#[cfg(test)]
+mod test_mmap;
 mod writer;
 
 pub use cache::{CachedCursor, CachedReader};
@@ -122,7 +128,7 @@ pub use memh::{
     MemhValidateError, MemhView, MemhWriter, SharedMemhWriter, TypedValue, MAGIC_MEMH,
     VERSION_MEMH,
 };
-pub use memtable::{BackingKind, MemTable, MemTableView, MemTableWriter};
+pub use memtable::{BackingKind, MemTable, MemTableView, MemTableWriter, WriteOutcome};
 pub use raw::validate_buf;
 pub use refcount::{acquire_ref, refcount, release_ref};
 pub use row::{Row, RowCursor, RowIter};
@@ -146,7 +152,7 @@ pub enum TableKind {
 /// use probing_memtable::{detect_table, TableKind, MemTable, Schema, DType};
 ///
 /// let schema = Schema::new().col("ts", DType::I64);
-/// let t = MemTable::new(&schema, 1024, 1);
+/// let t = MemTable::new(&schema, 1024, 1).unwrap();
 /// assert_eq!(detect_table(t.as_bytes()), Some(TableKind::Ring));
 /// ```
 pub fn detect_table(buf: &[u8]) -> Option<TableKind> {

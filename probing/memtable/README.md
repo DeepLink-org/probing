@@ -63,7 +63,7 @@ let schema = Schema::new()
     .col("ts", DType::I64)
     .col("msg", DType::Str);
 
-let mut table = MemTable::new(&schema, 4096, 4);
+let mut table = MemTable::new(&schema, 4096, 4)?;
 
 table.push_row(&[Value::I64(1), Value::Str("hello")]);
 table.push_row(&[Value::I64(2), Value::Str("world")]);
@@ -74,6 +74,7 @@ for row in table.rows(0) {
     let msg = c.next_str();
     println!("{ts} {msg}");
 }
+# Ok::<(), probing_memtable::MemtableError>(())
 ```
 
 ## 推荐的默认用法
@@ -135,9 +136,14 @@ for row in table.rows(0) {
 
 这个库的并发模型是刻意保持简单的：
 
-- 写入路径串行化
-- 读取路径尽量轻量
-- chunk 回绕时用 generation 检测陈旧读取
+- 每个 table 只允许一个写者
+- 可以有多个并发读者
+- chunk 回绕时先发布不可读状态，再切换 generation，避免读者接受正在重写的行
+- `RowCursor::is_stale()` / `CachedCursor::is_stale()` 会实时检查 generation；并发读取字符串或 bytes 时，应先复制为 owned 值，再检查 `is_stale()`，只有未过期时才使用副本
+
+构造接口会校验 chunk 数量、chunk 大小、buffer 对齐和总布局，并以
+`Result` 返回错误。`MemTable::new` 和 `MemTableWriter::init` 的调用方需要使用
+`?` 或显式处理失败，非法输入不会再触发断言 panic。
 
 如果你把它当成一个高性能的单写者内存表，会比把它当成通用并发数据库更符合它的设计初衷。
 

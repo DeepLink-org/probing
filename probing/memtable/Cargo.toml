@@ -12,6 +12,7 @@ log = "0.4"
 thiserror = { workspace = true }
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 memmap2 = "0.9"
+fs2 = "0.4"
 pco = "0.4"
 
 [target.'cfg(unix)'.dependencies]
