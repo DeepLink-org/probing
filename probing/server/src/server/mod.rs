@@ -5,6 +5,9 @@ mod runtime;
 mod spa;
 pub mod sql_guard;
 
+#[cfg(unix)]
+mod local_auth;
+
 pub use runtime::SERVER_RUNTIME;
 
 pub mod cluster;
@@ -119,7 +122,9 @@ pub async fn local_server() -> Result<()> {
     );
 
     let app = build_app(false);
-    axum::serve(tokio::net::UnixListener::bind(socket_path)?, app).await?;
+    let listener = tokio::net::UnixListener::bind(socket_path)?;
+    let listener = local_auth::SameUidUnixListener::new(listener);
+    axum::serve(listener, app).await?;
     Ok(())
 }
 

@@ -2,6 +2,19 @@
 
 The probe server now supports a simple token-based authentication system. When the authentication token environment variable is set, API endpoints will require authentication to access.
 
+## Local Unix Socket
+
+The in-process local control server authenticates connections with operating-system
+Unix peer credentials. A connection is accepted only when the client's effective UID
+matches the training process's effective UID. This is enabled by default and requires
+no token or CLI configuration.
+
+The check runs before HTTP request handling and therefore protects every local route,
+including query, extension, WebSocket REPL, and Python evaluation routes. If peer
+credentials cannot be read, the connection is rejected.
+
+Remote TCP authentication is configured separately as described below.
+
 ## Enabling Authentication
 
 Set the `PROBING_AUTH_TOKEN` environment variable to enable authentication:

@@ -1,5 +1,10 @@
 # Probing HTTP API
 
+The local Unix-socket server authenticates clients with operating-system peer
+credentials and accepts only connections whose effective UID matches the training
+process. Local CLI access requires no token. Remote TCP authentication is documented
+in [AUTH.md](AUTH.md).
+
 ## Routing model
 
 | Layer | URL pattern | Registration |
