@@ -22,6 +22,8 @@ pub enum StackSource {
     Sigusr2 = 3,
     /// Synchronous `backtrace` walk on the current thread.
     SyncWalk = 4,
+    /// macOS remote walk while the target thread is briefly suspended.
+    MachSuspend = 5,
 }
 
 impl fmt::Display for StackSource {
@@ -32,6 +34,7 @@ impl fmt::Display for StackSource {
             Self::Sigprof => "sigprof",
             Self::Sigusr2 => "sigusr2",
             Self::SyncWalk => "sync_walk",
+            Self::MachSuspend => "mach_suspend",
         })
     }
 }

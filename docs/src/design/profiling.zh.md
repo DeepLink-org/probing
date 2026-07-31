@@ -220,10 +220,10 @@ configure("on,rate=0.5,layer_rate=0.3")
 
 - **Python 帧**：仅来自 **vm tracer**（`PYSTACKS`）；符号在 GIL 下 intern（完整路径供源码查看，火焰图展示 basename），signal 路径只拷贝指针。
 - **C++/Rust 帧**：Linux 上 `SIGPROF` / `SIGUSR2` 共用 `SA_ONSTACK` 安全 handler（每 Python 线程 `sigaltstack`，原地 `fill_raw_snapshot`）。**macOS 默认不用 `ITIMER_PROF`**：异步 SIGPROF 打进 `_platform_strlen` 等 SIMD 例程后会固定 PC `SIGILL`；`sample_freq` 改为 eval-frame 节流协作采样（**只记 `PYSTACKS`，不做 mid-hook SyncWalk**，避免 `_PyInit__core` / vectorcall 把分布式火焰图打散；`PROBING_PPROF_SIGPROF=1` 可强制异步）。merge 丢弃 CPython call-protocol / 扩展 `PyInit_*` 噪声。symbolize / merge 在 signal 外完成。
-- **metrics JSON**：`sampler.*`（ring drop / fingerprint / **导出时** fold）与 `view.*`（parse / `(tid,seq)` cache）分栏；不要把导出批次的 `parse_calls` 读成「每样本都在 demangle」。
+- **metrics JSON**：`sampler.*`（ring/publish drop / fingerprint / **导出时** fold）与 `view.*`（parse / `(tid,seq)` cache）分栏；`dropped_publish` 表示两个发布缓冲区都繁忙时跳过的快照数；不要把导出批次的 `parse_calls` 读成「每样本都在 demangle」。
 - **获取路径**：dynamic（命令/HTTP）或 pprof（SQL/`sample_freq`）；二者取 Python 信息时都读 vm tracer 已记录的帧。
 - **复用**：采样开启时，主线程 HTTP/火焰图优先复用该线程最近一次采样快照。
-- **主线程 HTTP 路径**：优先复用最新采样混合快照；**`sample_freq` 开启时禁止对主线程 `SIGUSR2`**（含 Distributed）；仅在采样关闭时可经 `PROBING_STACK_SIGUSR2_MAIN=1` 按需信号，否则回退纯 `PYSTACKS`。跨线程按需仍可走 `SIGUSR2`。
+- **主线程 HTTP 路径**：优先复用最新采样混合快照。macOS 没有 native 样本时，通过 Mach 短暂暂停目标线程并复制 PC/帧指针链，立即恢复后再做符号化，避免向训练线程投递信号。**`sample_freq` 开启时禁止对主线程 `SIGUSR2`**（含 Distributed）。Linux 在采样关闭时默认使用带备用信号栈和有边界帧指针遍历的按需 `SIGUSR2`；可用 `PROBING_STACK_SIGUSR2_MAIN=0` 禁用。跨线程按需仍可走 `SIGUSR2`。
 - **分布式火焰图**：`sample_freq` 开启后只聚合各 rank 采样桶（为空则空图，不回退 on-demand）；跨 rank merge 后每个 frame 携带 `ranks`。
 - **canonicalize**：剥 `_Py_RunMain` / importlib / `platform.py` 等 bootstrap；SIGPROF 仅统计已注册 Python 主线程样本。
 
