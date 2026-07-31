@@ -1,14 +1,14 @@
 use crate::dedup::DedupState;
 use crate::layout::{
-    chunk_header, chunk_start_off, col_desc, compute_data_offset, header, header_mut, w32,
-    CHUNK_HEADER_SIZE, FLAG_DEDUP,
+    checked_data_offset, chunk_header, chunk_start_off, col_desc, compute_data_offset, header,
+    header_mut, w32, CHUNK_HEADER_SIZE, FLAG_DEDUP,
 };
 use crate::raw::{
-    advance_chunk_raw, init_buf, note_row_ts, row_ts, validate_buf, validate_row_schema,
-    write_row_bytes,
+    advance_chunk_raw, advance_chunk_raw_detailed, init_buf, note_row_ts, row_ts, validate_buf,
+    validate_row_schema, write_row_bytes, AdvanceOutcome,
 };
 use crate::refcount::refcount;
-use crate::row::RowIter;
+use crate::row::{pin_chunk, RowIter};
 use crate::schema::{Col, DType, Schema, Value};
 use crate::writer::RowWriter;
 use memmap2::MmapMut;
@@ -39,6 +39,22 @@ macro_rules! impl_table_reader {
         }
         pub fn refcount(&self) -> u32 {
             refcount(self.as_bytes())
+        }
+        /// Stable identity of this initialized table incarnation.
+        pub fn instance_id(&self) -> u64 {
+            header(self.as_bytes()).instance_id
+        }
+        /// Number of writes deferred because the next ring chunk was pinned.
+        pub fn writes_blocked_by_readers(&self) -> u64 {
+            header(self.as_bytes())
+                .writes_blocked
+                .load(Ordering::Relaxed)
+        }
+        /// Number of reads rejected because all process lease slots were busy.
+        pub fn reader_lease_failures(&self) -> u64 {
+            header(self.as_bytes())
+                .reader_lease_failures
+                .load(Ordering::Relaxed)
         }
         pub fn col_name(&self, i: usize) -> &str {
             col_desc(self.as_bytes(), i).name_str()
@@ -95,16 +111,68 @@ macro_rules! impl_table_reader {
                 Some((min, max))
             }
         }
-        pub fn rows(&self, chunk: usize) -> RowIter<'_> {
+        /// Try to pin and iterate one chunk.
+        ///
+        /// Unlike the compatibility [`rows`](Self::rows) wrapper, this
+        /// exposes reader-lease exhaustion as a typed error.
+        pub fn try_rows(&self, chunk: usize) -> crate::error::Result<RowIter<'_>> {
+            if chunk >= self.num_chunks() {
+                return Err(crate::error::MemtableError::InvalidBuffer(
+                    "chunk index out of range",
+                ));
+            }
             let buf = self.as_bytes();
             let cs = chunk_start_off(buf, chunk);
-            let ch = chunk_header(buf, cs);
-            RowIter {
+            let data_start = cs + CHUNK_HEADER_SIZE;
+            let (pin, generation, used) = match pin_chunk(buf, cs) {
+                Ok(Some(snapshot)) => snapshot,
+                Ok(None) => {
+                    return Ok(RowIter {
+                        buf,
+                        chunk_start: cs,
+                        pos: data_start,
+                        end: data_start,
+                        generation: 0,
+                        pin: None,
+                    });
+                }
+                Err(error) => {
+                    if matches!(error, crate::error::MemtableError::ReaderLeaseExhausted) {
+                        header(buf)
+                            .reader_lease_failures
+                            .fetch_add(1, Ordering::Relaxed);
+                    }
+                    return Err(error);
+                }
+            };
+            Ok(RowIter {
                 buf,
                 chunk_start: cs,
-                pos: cs + CHUNK_HEADER_SIZE,
-                end: cs + CHUNK_HEADER_SIZE + ch.used.load(Ordering::Acquire) as usize,
-                generation: ch.generation.load(Ordering::Acquire),
+                pos: data_start,
+                end: data_start + used,
+                generation,
+                pin: Some(pin),
+            })
+        }
+        /// Iterate one chunk.
+        ///
+        /// Callers that must distinguish an empty chunk from lease exhaustion
+        /// should use [`try_rows`](Self::try_rows). This compatibility wrapper
+        /// logs and counts the failure.
+        pub fn rows(&self, chunk: usize) -> RowIter<'_> {
+            match self.try_rows(chunk) {
+                Ok(rows) => rows,
+                Err(error) => {
+                    log::warn!("memtable rows unavailable: {error}");
+                    RowIter {
+                        buf: self.as_bytes(),
+                        chunk_start: 0,
+                        pos: 0,
+                        end: 0,
+                        generation: 0,
+                        pin: None,
+                    }
+                }
             }
         }
         pub fn num_rows(&self, chunk: usize) -> usize {
@@ -175,6 +243,10 @@ fn make_row_writer<'a>(buf: &'a mut [u8], dedup: Option<&'a mut DedupState>) -> 
     let ts_col = h.ts_col;
     let cs = doff + wc * csz;
     let used = chunk_header(buf, cs).used.load(Ordering::Relaxed) as usize;
+    let mut dedup = dedup;
+    if let Some(state) = dedup.as_mut() {
+        state.begin_row();
+    }
     RowWriter {
         buf,
         dedup,
@@ -194,17 +266,24 @@ fn row_data_size(values: &[Value]) -> usize {
     values.iter().map(|v| v.encoded_size()).sum()
 }
 
+#[cfg(test)]
 pub(crate) fn push_plain_row(buf: &mut [u8], values: &[Value]) -> bool {
+    push_plain_row_detailed(buf, values).is_written()
+}
+
+fn push_plain_row_detailed(buf: &mut [u8], values: &[Value]) -> WriteOutcome {
     let row_data = row_data_size(values);
     if write_row_bytes(buf, values, row_data) {
-        return true;
+        return WriteOutcome::Written;
     }
-    advance_chunk_raw(buf);
+    if advance_chunk_raw_detailed(buf) == AdvanceOutcome::ReadersPinned {
+        return WriteOutcome::ReadersPinned;
+    }
     if write_row_bytes(buf, values, row_data) {
-        return true;
+        return WriteOutcome::Written;
     }
     log::warn!("push_plain_row: row exceeds chunk capacity");
-    false
+    WriteOutcome::RowTooLarge
 }
 
 const MAX_DEDUP_COLS: usize = 64;
@@ -216,7 +295,10 @@ fn append_row_dedup_bytes(buf: &mut [u8], state: &mut DedupState, values: &[Valu
     );
 
     let n = values.len();
-    assert!(n <= MAX_DEDUP_COLS, "column count exceeds MAX_COLS");
+    if n > MAX_DEDUP_COLS {
+        log::warn!("append_row_dedup: column count exceeds {MAX_DEDUP_COLS}");
+        return false;
+    }
 
     let h = header(buf);
     let wc = h.write_chunk.load(Ordering::Relaxed) as usize;
@@ -228,8 +310,8 @@ fn append_row_dedup_bytes(buf: &mut [u8], state: &mut DedupState, values: &[Valu
     let mut row_data = 0usize;
     for (i, v) in values.iter().enumerate() {
         let dup = match v {
-            Value::Str(s) => state.lookup(i, s.as_bytes()),
-            Value::Bytes(b) => state.lookup(i, b),
+            Value::Str(s) => state.lookup(i, s.as_bytes(), buf, cs),
+            Value::Bytes(b) => state.lookup(i, b, buf, cs),
             _ => None,
         };
         lookups[i] = dup;
@@ -290,6 +372,22 @@ pub enum BackingKind {
     File,
 }
 
+/// Typed result of an auto-advancing row write.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WriteOutcome {
+    Written,
+    SchemaMismatch,
+    RowTooLarge,
+    /// The next ring chunk is still borrowed by one or more readers.
+    ReadersPinned,
+}
+
+impl WriteOutcome {
+    pub fn is_written(self) -> bool {
+        self == Self::Written
+    }
+}
+
 /// Storage behind a [`MemTable`].
 enum Backing {
     /// Process-private heap allocation. Invisible to other processes;
@@ -311,10 +409,13 @@ enum Backing {
     /// `<pid>/` directory to remove when it becomes empty).
     File {
         mmap: MmapMut,
+        _writer_lock: std::fs::File,
         path: PathBuf,
         dir: Option<PathBuf>,
         unlink_on_drop: bool,
     },
+    /// Read-only attachment used while another process owns the writer lock.
+    FileRead { mmap: MmapMut, path: PathBuf },
 }
 
 impl Backing {
@@ -325,6 +426,7 @@ impl Backing {
             #[cfg(unix)]
             Backing::Shm { mmap, .. } => mmap,
             Backing::File { mmap, .. } => mmap,
+            Backing::FileRead { mmap, .. } => mmap,
         }
     }
 
@@ -335,6 +437,9 @@ impl Backing {
             #[cfg(unix)]
             Backing::Shm { mmap, .. } => mmap,
             Backing::File { mmap, .. } => mmap,
+            Backing::FileRead { .. } => {
+                panic!("cannot mutably access a read-only memtable attachment")
+            }
         }
     }
 }
@@ -398,17 +503,37 @@ pub struct MemTable {
 
 impl MemTable {
     pub fn required_size(schema: &Schema, chunk_size: usize, num_chunks: usize) -> usize {
-        compute_data_offset(schema.cols.len()) + chunk_size * num_chunks
+        compute_data_offset(schema.cols.len(), num_chunks) + chunk_size * num_chunks
+    }
+
+    fn checked_required_size(
+        schema: &Schema,
+        chunk_size: u32,
+        num_chunks: u32,
+    ) -> crate::error::Result<usize> {
+        let data_offset = checked_data_offset(schema.cols.len(), num_chunks as usize).ok_or(
+            crate::error::MemtableError::InvalidBuffer("column layout overflow"),
+        )?;
+        (chunk_size as usize)
+            .checked_mul(num_chunks as usize)
+            .and_then(|chunks| data_offset.checked_add(chunks))
+            .ok_or(crate::error::MemtableError::InvalidBuffer(
+                "table size overflow",
+            ))
     }
 
     /// Create a **heap-backed** (process-private) table.
-    pub fn new(schema: &Schema, chunk_size: u32, num_chunks: u32) -> Self {
-        let size = Self::required_size(schema, chunk_size as usize, num_chunks as usize);
-        let mut buf = vec![0u8; size];
-        init_buf(&mut buf, schema, chunk_size, num_chunks);
-        Self {
+    pub fn new(schema: &Schema, chunk_size: u32, num_chunks: u32) -> crate::error::Result<Self> {
+        let size = Self::checked_required_size(schema, chunk_size, num_chunks)?;
+        let mut buf = Vec::new();
+        buf.try_reserve_exact(size).map_err(|_| {
+            crate::error::MemtableError::InvalidBuffer("table allocation exceeds address space")
+        })?;
+        buf.resize(size, 0);
+        init_buf(&mut buf, schema, chunk_size, num_chunks)?;
+        Ok(Self {
             backing: Backing::Heap(buf),
-        }
+        })
     }
 
     /// Adopt an existing heap buffer (validates the MEMT layout).
@@ -433,13 +558,14 @@ impl MemTable {
     #[cfg(unix)]
     pub fn shm(name: &str, schema: &Schema, chunk_size: u32, num_chunks: u32) -> io::Result<Self> {
         let cname = shm_name_cstring(name)?;
-        let size = Self::required_size(schema, chunk_size as usize, num_chunks as usize);
+        let size = Self::checked_required_size(schema, chunk_size, num_chunks)
+            .map_err(std::io::Error::from)?;
 
         let file = shm_open_file(&cname, libc::O_CREAT | libc::O_EXCL | libc::O_RDWR)?;
         file.set_len(size as u64)?;
 
         let mut mmap = unsafe { MmapMut::map_mut(&file)? };
-        init_buf(&mut mmap, schema, chunk_size, num_chunks);
+        init_buf(&mut mmap, schema, chunk_size, num_chunks).map_err(std::io::Error::from)?;
 
         Ok(Self {
             backing: Backing::Shm {
@@ -477,7 +603,10 @@ impl MemTable {
     ///
     /// Disk-backed and persistent: the file is **kept** on drop and can be
     /// reopened later with [`open_file`](Self::open_file) — including
-    /// after a process crash or reboot. Truncates any existing file.
+    /// after a process crash or reboot. Uses atomic create-new semantics and
+    /// returns [`io::ErrorKind::AlreadyExists`] instead of truncating an
+    /// existing (possibly live) table. The writer lock is held for this
+    /// handle's lifetime.
     pub fn file_at(
         path: impl AsRef<Path>,
         schema: &Schema,
@@ -488,22 +617,24 @@ impl MemTable {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let size = Self::required_size(schema, chunk_size as usize, num_chunks as usize);
+        let size = Self::checked_required_size(schema, chunk_size, num_chunks)
+            .map_err(std::io::Error::from)?;
 
         let file = OpenOptions::new()
             .read(true)
             .write(true)
-            .create(true)
-            .truncate(true)
+            .create_new(true)
             .open(&path)?;
+        fs2::FileExt::try_lock_exclusive(&file)?;
         file.set_len(size as u64)?;
 
         let mut mmap = unsafe { MmapMut::map_mut(&file)? };
-        init_buf(&mut mmap, schema, chunk_size, num_chunks);
+        init_buf(&mut mmap, schema, chunk_size, num_chunks).map_err(std::io::Error::from)?;
 
         Ok(Self {
             backing: Backing::File {
                 mmap,
+                _writer_lock: file,
                 path,
                 dir: None,
                 unlink_on_drop: false,
@@ -512,10 +643,11 @@ impl MemTable {
     }
 
     /// Reopen an existing mmap'd-file table read-write (validates the
-    /// MEMT layout). The file is kept on drop.
+    /// MEMT layout). Fails if another writer holds the file lock.
     pub fn open_file(path: impl AsRef<Path>) -> io::Result<Self> {
         let path = path.as_ref().to_path_buf();
         let file = OpenOptions::new().read(true).write(true).open(&path)?;
+        fs2::FileExt::try_lock_exclusive(&file)?;
 
         let mmap = unsafe { MmapMut::map_mut(&file)? };
         validate_buf(&mmap)?;
@@ -523,10 +655,28 @@ impl MemTable {
         Ok(Self {
             backing: Backing::File {
                 mmap,
+                _writer_lock: file,
                 path,
                 dir: None,
                 unlink_on_drop: false,
             },
+        })
+    }
+
+    /// Attach to an existing mmap table without acquiring writer ownership.
+    ///
+    /// The OS mapping is read-write because reader leases are shared atomic
+    /// metadata, but row mutation is not exposed through this handle.
+    pub fn open_file_readonly(path: impl AsRef<Path>) -> io::Result<Self> {
+        let path = path.as_ref().to_path_buf();
+        // Reader leases live inside the mapping and are atomically updated,
+        // so the OS mapping must be writable even though this Rust handle
+        // exposes no mutable table API.
+        let file = OpenOptions::new().read(true).write(true).open(&path)?;
+        let mmap = unsafe { MmapMut::map_mut(&file)? };
+        validate_buf(&mmap)?;
+        Ok(Self {
+            backing: Backing::FileRead { mmap, path },
         })
     }
 
@@ -556,7 +706,8 @@ impl MemTable {
     }
 
     /// Like [`shared`](Self::shared), under a custom base directory
-    /// (file at `<base_dir>/<pid>/<name>`).
+    /// (file at `<base_dir>/<pid>/<name>`). Existing files are never
+    /// truncated; an existing name returns `AlreadyExists`.
     pub fn shared_in(
         base_dir: &Path,
         name: &str,
@@ -568,22 +719,23 @@ impl MemTable {
         std::fs::create_dir_all(&dir)?;
 
         let path = dir.join(name);
-        let size = Self::required_size(schema, chunk_size as usize, num_chunks as usize);
+        let size = Self::checked_required_size(schema, chunk_size, num_chunks)?;
 
         let file = OpenOptions::new()
             .read(true)
             .write(true)
-            .create(true)
-            .truncate(true)
+            .create_new(true)
             .open(&path)?;
+        fs2::FileExt::try_lock_exclusive(&file)?;
         file.set_len(size as u64)?;
 
         let mut mmap = unsafe { MmapMut::map_mut(&file)? };
-        init_buf(&mut mmap, schema, chunk_size, num_chunks);
+        init_buf(&mut mmap, schema, chunk_size, num_chunks)?;
 
         Ok(Self {
             backing: Backing::File {
                 mmap,
+                _writer_lock: file,
                 path,
                 dir: Some(dir),
                 unlink_on_drop: true,
@@ -600,6 +752,7 @@ impl MemTable {
             #[cfg(unix)]
             Backing::Shm { .. } => BackingKind::Shm,
             Backing::File { .. } => BackingKind::File,
+            Backing::FileRead { .. } => BackingKind::File,
         }
     }
 
@@ -610,6 +763,7 @@ impl MemTable {
             #[cfg(unix)]
             Backing::Shm { .. } => true,
             Backing::File { .. } => true,
+            Backing::FileRead { .. } => true,
         }
     }
 
@@ -618,6 +772,7 @@ impl MemTable {
     pub fn path(&self) -> Option<&Path> {
         match &self.backing {
             Backing::File { path, .. } => Some(path),
+            Backing::FileRead { path, .. } => Some(path),
             _ => None,
         }
     }
@@ -657,7 +812,7 @@ impl MemTable {
         }
         write_row_bytes(self.backing.bytes_mut(), values, row_data_size(values))
     }
-    pub fn advance_chunk(&mut self) {
+    pub fn advance_chunk(&mut self) -> bool {
         advance_chunk_raw(self.backing.bytes_mut())
     }
 
@@ -666,14 +821,21 @@ impl MemTable {
     /// MEMT is single-writer: the `&mut self` borrow guarantees exclusive
     /// access, so no lock is taken.
     pub fn push_row(&mut self, values: &[Value]) -> bool {
+        self.try_push_row(values).is_written()
+    }
+    /// Append a row with a classified outcome.
+    pub fn try_push_row(&mut self, values: &[Value]) -> WriteOutcome {
         if !validate_row_schema(self.backing.bytes(), values) {
             log::warn!("push_row: value types do not match schema");
-            return false;
+            return WriteOutcome::SchemaMismatch;
         }
-        self.push_row_unchecked(values)
+        self.try_push_row_unchecked(values)
     }
     pub fn push_row_unchecked(&mut self, values: &[Value]) -> bool {
-        push_plain_row(self.backing.bytes_mut(), values)
+        self.try_push_row_unchecked(values).is_written()
+    }
+    pub fn try_push_row_unchecked(&mut self, values: &[Value]) -> WriteOutcome {
+        push_plain_row_detailed(self.backing.bytes_mut(), values)
     }
 }
 
@@ -705,6 +867,7 @@ impl Drop for MemTable {
                 }
             }
             Backing::File { .. } => {}
+            Backing::FileRead { .. } => {}
         }
     }
 }
@@ -783,9 +946,14 @@ impl<'a> MemTableWriter<'a> {
         Ok(Self { buf, dedup: None })
     }
 
-    pub fn init(buf: &'a mut [u8], schema: &Schema, chunk_size: u32, num_chunks: u32) -> Self {
-        init_buf(buf, schema, chunk_size, num_chunks);
-        Self { buf, dedup: None }
+    pub fn init(
+        buf: &'a mut [u8],
+        schema: &Schema,
+        chunk_size: u32,
+        num_chunks: u32,
+    ) -> crate::error::Result<Self> {
+        init_buf(buf, schema, chunk_size, num_chunks)?;
+        Ok(Self { buf, dedup: None })
     }
 
     /// Enable per-chunk string/bytes dedup.  Sets `FLAG_DEDUP` in header.
@@ -815,22 +983,33 @@ impl<'a> MemTableWriter<'a> {
     }
 
     pub fn push_row(&mut self, values: &[Value]) -> bool {
+        self.try_push_row(values).is_written()
+    }
+
+    pub fn try_push_row(&mut self, values: &[Value]) -> WriteOutcome {
         if !validate_row_schema(self.buf, values) {
             log::warn!("push_row: value types do not match schema");
-            return false;
+            return WriteOutcome::SchemaMismatch;
         }
-        self.push_inner(values)
+        self.try_push_inner(values)
     }
 
     pub fn push_row_unchecked(&mut self, values: &[Value]) -> bool {
-        self.push_inner(values)
+        self.try_push_row_unchecked(values).is_written()
     }
 
-    pub fn advance_chunk(&mut self) {
-        advance_chunk_raw(self.buf);
-        if let Some(ref mut s) = self.dedup {
-            s.clear();
+    pub fn try_push_row_unchecked(&mut self, values: &[Value]) -> WriteOutcome {
+        self.try_push_inner(values)
+    }
+
+    pub fn advance_chunk(&mut self) -> bool {
+        let advanced = advance_chunk_raw(self.buf);
+        if advanced {
+            if let Some(ref mut state) = self.dedup {
+                state.clear();
+            }
         }
+        advanced
     }
 
     pub fn append_row(&mut self, values: &[Value]) -> bool {
@@ -845,20 +1024,22 @@ impl<'a> MemTableWriter<'a> {
         }
     }
 
-    fn push_inner(&mut self, values: &[Value]) -> bool {
+    fn try_push_inner(&mut self, values: &[Value]) -> WriteOutcome {
         if let Some(ref mut state) = self.dedup {
             if append_row_dedup_bytes(self.buf, state, values) {
-                return true;
+                return WriteOutcome::Written;
             }
-            advance_chunk_raw(self.buf);
+            if advance_chunk_raw_detailed(self.buf) == AdvanceOutcome::ReadersPinned {
+                return WriteOutcome::ReadersPinned;
+            }
             state.clear();
             if append_row_dedup_bytes(self.buf, state, values) {
-                return true;
+                return WriteOutcome::Written;
             }
             log::warn!("push_row: row exceeds chunk capacity");
-            false
+            WriteOutcome::RowTooLarge
         } else {
-            push_plain_row(self.buf, values)
+            push_plain_row_detailed(self.buf, values)
         }
     }
 }
@@ -882,7 +1063,7 @@ impl fmt::Display for MemTableWriter<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::{BackingKind, MemTable, MemTableView, MemTableWriter};
+    use super::{BackingKind, MemTable, MemTableView, MemTableWriter, WriteOutcome};
     use crate::layout::{col_desc, header, header_mut, MAGIC, VERSION};
     use crate::raw::init_buf;
     use crate::refcount::{acquire_ref, refcount, release_ref};
@@ -895,7 +1076,7 @@ mod tests {
             .col("ts", DType::I64)
             .col("value", DType::F64)
             .col("tag", DType::I32);
-        let t = MemTable::new(&schema, 4096, 4);
+        let t = MemTable::new(&schema, 4096, 4).unwrap();
         assert_eq!(t.num_cols(), 3);
         assert_eq!(t.num_chunks(), 4);
         assert_eq!(t.chunk_size(), 4096);
@@ -904,9 +1085,96 @@ mod tests {
     }
 
     #[test]
+    fn table_incarnations_have_distinct_nonzero_ids() {
+        let schema = Schema::new().col("x", DType::I32);
+        let a = MemTable::new(&schema, 128, 1).unwrap();
+        let b = MemTable::new(&schema, 128, 1).unwrap();
+        assert_ne!(a.instance_id(), 0);
+        assert_ne!(a.instance_id(), b.instance_id());
+        assert_eq!(a.view().instance_id(), a.instance_id());
+    }
+
+    #[test]
+    fn pinned_write_has_typed_and_counted_outcome() {
+        let schema = Schema::new().col("v", DType::I64);
+        let mut t = MemTable::new(&schema, 64, 2).unwrap();
+        assert!(t.push_row(&[Value::I64(1)]));
+        assert!(t.push_row(&[Value::I64(2)]));
+        assert!(t.push_row(&[Value::I64(3)])); // now writing chunk 1
+        assert!(t.push_row(&[Value::I64(4)]));
+        let ptr = t.as_bytes().as_ptr();
+        let len = t.as_bytes().len();
+        let concurrent = unsafe { std::slice::from_raw_parts(ptr, len) };
+        let view = MemTableView::new(concurrent).unwrap();
+        let row = view.rows(0).next().unwrap();
+        assert_eq!(
+            t.try_push_row(&[Value::I64(5)]),
+            WriteOutcome::ReadersPinned
+        );
+        assert_eq!(t.writes_blocked_by_readers(), 1);
+        drop(row);
+        assert_eq!(t.try_push_row(&[Value::I64(5)]), WriteOutcome::Written);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn lease_exhaustion_is_typed_and_counted() {
+        use crate::layout::{header, reader_lease, READER_LEASE_SLOTS};
+
+        let schema = Schema::new().col("v", DType::I64);
+        let mut t = MemTable::new(&schema, 128, 1).unwrap();
+        assert!(t.push_row(&[Value::I64(1)]));
+        // PID 1 is live on supported Unix systems, so every slot is a
+        // conservatively live foreign owner.
+        for slot in 0..READER_LEASE_SLOTS {
+            let lease = reader_lease(t.as_bytes(), 0, slot);
+            lease.owner_start_time.store(0, Ordering::SeqCst);
+            lease.state.store((1u64 << 32) | 1, Ordering::SeqCst);
+        }
+        assert!(matches!(
+            t.try_rows(0),
+            Err(crate::MemtableError::ReaderLeaseExhausted)
+        ));
+        assert_eq!(
+            header(t.as_bytes())
+                .reader_lease_failures
+                .load(Ordering::Relaxed),
+            1
+        );
+    }
+
+    #[test]
+    fn constructors_reject_invalid_layout_without_panicking() {
+        let schema = Schema::new().col("x", DType::I32);
+        assert!(MemTable::new(&schema, 1024, 0).is_err());
+        assert!(MemTable::new(&schema, 47, 1).is_err());
+        assert!(MemTable::new(&schema, u32::MAX, u32::MAX).is_err());
+
+        let size = MemTable::required_size(&schema, 1024, 1);
+        let mut storage = vec![0u8; size + 1];
+        assert!(MemTableWriter::init(&mut storage[1..], &schema, 1024, 1).is_err());
+    }
+
+    #[test]
+    fn dedup_rejects_more_than_sixty_four_columns_without_panicking() {
+        let mut schema = Schema::new();
+        for i in 0..65 {
+            schema = schema.col(&format!("c{i}"), DType::U8);
+        }
+        let size = MemTable::required_size(&schema, 4096, 1);
+        let mut buf = vec![0u8; size];
+        let mut writer = MemTableWriter::init(&mut buf, &schema, 4096, 1)
+            .unwrap()
+            .dedup();
+        let values: Vec<_> = (0..65).map(|_| Value::U8(1)).collect();
+        assert!(!writer.push_row(&values));
+        assert_eq!(writer.num_rows(0), 0);
+    }
+
+    #[test]
     fn schema_reconstruct() {
         let schema = Schema::new().col("a", DType::I32).col("b", DType::F64);
-        let t = MemTable::new(&schema, 1024, 1);
+        let t = MemTable::new(&schema, 1024, 1).unwrap();
         let s = t.schema();
         assert_eq!(s.cols.len(), 2);
         assert_eq!(s.cols[0].name, "a");
@@ -916,7 +1184,7 @@ mod tests {
     #[test]
     fn write_and_read_fixed_row() {
         let schema = Schema::new().col("id", DType::I64).col("val", DType::F64);
-        let mut t = MemTable::new(&schema, 1024, 1);
+        let mut t = MemTable::new(&schema, 1024, 1).unwrap();
         t.push_row(&[Value::I64(42), Value::F64(3.14)]);
         t.push_row(&[Value::I64(100), Value::F64(2.72)]);
         let rows: Vec<_> = t.rows(0).collect();
@@ -929,7 +1197,7 @@ mod tests {
     #[test]
     fn write_and_read_str_column() {
         let schema = Schema::new().col("ts", DType::I64).col("msg", DType::Str);
-        let mut t = MemTable::new(&schema, 4096, 1);
+        let mut t = MemTable::new(&schema, 4096, 1).unwrap();
         t.push_row(&[Value::I64(1000), Value::Str("hello world")]);
         t.push_row(&[Value::I64(2000), Value::Str("")]);
         t.push_row(&[Value::I64(3000), Value::Str("foo")]);
@@ -943,7 +1211,7 @@ mod tests {
     #[test]
     fn bytes_column() {
         let schema = Schema::new().col("data", DType::Bytes);
-        let mut t = MemTable::new(&schema, 1024, 1);
+        let mut t = MemTable::new(&schema, 1024, 1).unwrap();
         t.push_row(&[Value::Bytes(&[0xDE, 0xAD, 0xBE, 0xEF])]);
         t.push_row(&[Value::Bytes(&[])]);
         let rows: Vec<_> = t.rows(0).collect();
@@ -954,7 +1222,7 @@ mod tests {
     #[test]
     fn u32_column() {
         let schema = Schema::new().col("x", DType::U32);
-        let mut t = MemTable::new(&schema, 1024, 1);
+        let mut t = MemTable::new(&schema, 1024, 1).unwrap();
         t.push_row(&[Value::U32(0xDEAD_BEEF)]);
         assert_eq!(t.rows(0).next().unwrap().col_u32(0), 0xDEAD_BEEF);
     }
@@ -966,7 +1234,7 @@ mod tests {
             .col("name", DType::Str)
             .col("value", DType::F64)
             .col("payload", DType::Bytes);
-        let mut t = MemTable::new(&schema, 4096, 1);
+        let mut t = MemTable::new(&schema, 4096, 1).unwrap();
         t.push_row(&[
             Value::U64(42),
             Value::Str("test_event"),
@@ -983,7 +1251,7 @@ mod tests {
     #[test]
     fn variable_length_rows() {
         let schema = Schema::new().col("msg", DType::Str);
-        let mut t = MemTable::new(&schema, 4096, 1);
+        let mut t = MemTable::new(&schema, 4096, 1).unwrap();
         t.push_row(&[Value::Str("short")]);
         t.push_row(&[Value::Str("a much longer string that takes more space")]);
         t.push_row(&[Value::Str("x")]);
@@ -995,7 +1263,7 @@ mod tests {
     #[test]
     fn chunk_used_tracking() {
         let schema = Schema::new().col("x", DType::I32);
-        let mut t = MemTable::new(&schema, 1024, 2);
+        let mut t = MemTable::new(&schema, 1024, 2).unwrap();
         assert_eq!(t.chunk_used(0), 0);
         t.push_row(&[Value::I32(1)]);
         assert_eq!(t.chunk_used(0), 8); // 4 (row_len) + 4 (i32)
@@ -1007,7 +1275,7 @@ mod tests {
     fn append_row_returns_false_when_full() {
         let schema = Schema::new().col("x", DType::I64);
         // ChunkHeader=40, each I64 row=12 → 64-40=24 data bytes → 2 rows fit
-        let mut t = MemTable::new(&schema, 64, 1);
+        let mut t = MemTable::new(&schema, 64, 1).unwrap();
         assert!(t.append_row(&[Value::I64(1)]));
         assert!(t.append_row(&[Value::I64(2)]));
         assert!(!t.append_row(&[Value::I64(3)]));
@@ -1018,7 +1286,7 @@ mod tests {
     fn ring_buffer_wrap() {
         let schema = Schema::new().col("v", DType::I32);
         // ChunkHeader=40, each I32 row=8 → 96-40=56 data bytes → 7 rows fit
-        let mut t = MemTable::new(&schema, 96, 3);
+        let mut t = MemTable::new(&schema, 96, 3).unwrap();
         for i in 0..7 {
             t.push_row(&[Value::I32(i)]);
         }
@@ -1036,7 +1304,7 @@ mod tests {
     #[test]
     fn heap_backing_is_private() {
         let schema = Schema::new().col("x", DType::I32);
-        let mut t = MemTable::new(&schema, 1024, 2);
+        let mut t = MemTable::new(&schema, 1024, 2).unwrap();
         assert!(!t.is_shared());
         assert_eq!(t.backing_kind(), BackingKind::Heap);
         assert!(t.path().is_none());
@@ -1056,7 +1324,14 @@ mod tests {
         }
 
         let schema = Schema::new().col("ts", DType::I64).col("msg", DType::Str);
-        let mut creator = MemTable::shm(&name, &schema, 4096, 2).unwrap();
+        let mut creator = match MemTable::shm(&name, &schema, 4096, 2) {
+            Ok(creator) => creator,
+            Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
+                eprintln!("skipping POSIX shm test: environment denied shm_open ({error})");
+                return;
+            }
+            Err(error) => panic!("create POSIX shm memtable: {error}"),
+        };
         assert_eq!(creator.backing_kind(), BackingKind::Shm);
         assert!(creator.is_shared());
         assert!(creator.path().is_none());
@@ -1168,7 +1443,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&base);
 
         let schema = Schema::new().col("v", DType::I32);
-        let mut heap = MemTable::new(&schema, 80, 3);
+        let mut heap = MemTable::new(&schema, 80, 3).unwrap();
         let mut shm = MemTable::shared_in(&base, "wrap_tbl", &schema, 80, 3).unwrap();
 
         for i in 0..20 {
@@ -1191,7 +1466,7 @@ mod tests {
     #[test]
     fn chunks_logical_pre_wrap() {
         let schema = Schema::new().col("v", DType::I32);
-        let mut t = MemTable::new(&schema, 80, 3);
+        let mut t = MemTable::new(&schema, 80, 3).unwrap();
         // No data yet: only chunk 0 is Writing (gen 1) but has no rows
         assert!(t.chunks_logical().is_empty());
 
@@ -1206,7 +1481,7 @@ mod tests {
     #[test]
     fn chunks_logical_post_wrap() {
         let schema = Schema::new().col("v", DType::I32);
-        let mut t = MemTable::new(&schema, 80, 2);
+        let mut t = MemTable::new(&schema, 80, 2).unwrap();
         t.push_row(&[Value::I32(10)]); // chunk 0, gen 1
         t.advance_chunk();
         t.push_row(&[Value::I32(20)]); // chunk 1, gen 1
@@ -1228,7 +1503,7 @@ mod tests {
     #[test]
     fn ring_buffer_with_str() {
         let schema = Schema::new().col("msg", DType::Str);
-        let mut t = MemTable::new(&schema, 256, 2);
+        let mut t = MemTable::new(&schema, 256, 2).unwrap();
         for msg in &["alpha", "beta", "gamma", "delta"] {
             t.push_row(&[Value::Str(msg)]);
         }
@@ -1238,7 +1513,7 @@ mod tests {
     #[test]
     fn view_from_bytes() {
         let schema = Schema::new().col("x", DType::I32).col("s", DType::Str);
-        let mut t = MemTable::new(&schema, 4096, 1);
+        let mut t = MemTable::new(&schema, 4096, 1).unwrap();
         t.push_row(&[Value::I32(99), Value::Str("view_test")]);
         let view = MemTableView::new(t.as_bytes()).unwrap();
         assert_eq!(view.num_cols(), 2);
@@ -1252,7 +1527,7 @@ mod tests {
         let schema = Schema::new().col("a", DType::I64).col("b", DType::Str);
         let size = MemTable::required_size(&schema, 4096, 2);
         let mut buf = vec![0u8; size];
-        let mut w = MemTableWriter::init(&mut buf, &schema, 4096, 2);
+        let mut w = MemTableWriter::init(&mut buf, &schema, 4096, 2).unwrap();
         w.push_row(&[Value::I64(42), Value::Str("ext_test")]);
         let row = w.rows(0).next().unwrap();
         assert_eq!(row.col_i64(0), 42);
@@ -1262,7 +1537,7 @@ mod tests {
     #[test]
     fn num_rows_count() {
         let schema = Schema::new().col("x", DType::I32);
-        let mut t = MemTable::new(&schema, 4096, 1);
+        let mut t = MemTable::new(&schema, 4096, 1).unwrap();
         for i in 0..10 {
             t.push_row(&[Value::I32(i)]);
         }
@@ -1273,13 +1548,13 @@ mod tests {
     fn required_size_calculation() {
         let schema = Schema::new().col("a", DType::I64).col("b", DType::F32);
         let size = MemTable::required_size(&schema, 4096, 4);
-        assert_eq!(size, 192 + 4096 * 4);
+        assert_eq!(size, 1280 + 4096 * 4);
     }
 
     #[test]
     fn display_format() {
         let schema = Schema::new().col("a", DType::I32);
-        let t = MemTable::new(&schema, 1024, 2);
+        let t = MemTable::new(&schema, 1024, 2).unwrap();
         assert_eq!(
             format!("{t}"),
             "MemTable(heap, 1 cols, 2 chunks × 1024 bytes)"
@@ -1290,7 +1565,7 @@ mod tests {
     fn header_direct_access() {
         use crate::layout::{BYTE_ORDER_MARK, FLAGS_KNOWN};
         let schema = Schema::new().col("x", DType::I32);
-        let t = MemTable::new(&schema, 1024, 4);
+        let t = MemTable::new(&schema, 1024, 4).unwrap();
         let h = header(t.as_bytes());
         assert_eq!(h.magic, MAGIC);
         assert_eq!(h.version, VERSION);
@@ -1312,7 +1587,7 @@ mod tests {
         let schema = Schema::new()
             .col("count", DType::U32)
             .col("tag", DType::Str);
-        let t = MemTable::new(&schema, 1024, 1);
+        let t = MemTable::new(&schema, 1024, 1).unwrap();
         let cd0 = col_desc(t.as_bytes(), 0);
         assert_eq!(cd0.name_str(), "count");
         assert_eq!(cd0.elem_size, 4);
@@ -1331,7 +1606,7 @@ mod tests {
     #[test]
     fn empty_chunk_iteration() {
         let schema = Schema::new().col("x", DType::I32);
-        let t = MemTable::new(&schema, 1024, 2);
+        let t = MemTable::new(&schema, 1024, 2).unwrap();
         assert_eq!(t.rows(0).count(), 0);
         assert_eq!(t.rows(1).count(), 0);
     }
@@ -1349,7 +1624,7 @@ mod tests {
         // ── Component A: expose (init + write) ──
         unsafe {
             let buf = std::slice::from_raw_parts_mut(ptr, size);
-            init_buf(buf, &schema, 4096, 4);
+            init_buf(buf, &schema, 4096, 4).unwrap();
             assert_eq!(refcount(buf), 1);
 
             let mut producer = MemTableWriter::new(buf).unwrap();
@@ -1406,7 +1681,7 @@ mod tests {
         // init
         unsafe {
             let buf = std::slice::from_raw_parts_mut(ptr, size);
-            init_buf(buf, &schema, 4096, 4);
+            init_buf(buf, &schema, 4096, 4).unwrap();
         }
         // acquire ref for the consumer before spawning
         unsafe { acquire_ref(std::slice::from_raw_parts(ptr, size)) };
@@ -1431,7 +1706,8 @@ mod tests {
             assert_eq!(total, 50);
 
             // verify data
-            let mut c = view.rows(0).next().unwrap().cursor();
+            let row = view.rows(0).next().unwrap();
+            let mut c = row.cursor();
             assert_eq!(c.next_i64(), 0);
             assert_eq!(c.next_str(), "msg");
 
@@ -1443,7 +1719,6 @@ mod tests {
 
     #[test]
     fn single_writer_concurrent_readers() {
-        use std::alloc;
         use std::sync::atomic::{AtomicBool, AtomicUsize};
         use std::sync::{Arc, Barrier};
         use std::thread;
@@ -1457,18 +1732,14 @@ mod tests {
         let chunk_size = 4096u32;
         let num_chunks = 4u32;
         let size = MemTable::required_size(&schema, chunk_size as usize, num_chunks as usize);
-        let layout = alloc::Layout::from_size_align(size, 64).unwrap();
-        let ptr = unsafe { alloc::alloc_zeroed(layout) };
-        assert!(!ptr.is_null());
-
-        unsafe {
-            let buf = std::slice::from_raw_parts_mut(ptr, size);
-            init_buf(buf, &schema, chunk_size, num_chunks);
+        let shared = crate::test_mmap::TestSharedFile::new(size);
+        {
+            let mut init_map = shared.map_mut();
+            init_buf(&mut init_map, &schema, chunk_size, num_chunks).unwrap();
         }
 
         let total_rows = 400i64;
         let num_readers = 4;
-        let addr = ptr as usize;
         let done = Arc::new(AtomicBool::new(false));
         let total_reads = Arc::new(AtomicUsize::new(0));
         let barrier = Arc::new(Barrier::new(1 + num_readers));
@@ -1479,12 +1750,12 @@ mod tests {
                 let done = done.clone();
                 let total_reads = total_reads.clone();
                 let barrier = barrier.clone();
+                let map = shared.map_mut();
                 thread::spawn(move || {
                     barrier.wait();
                     let mut local_reads = 0usize;
                     while !done.load(Ordering::Acquire) {
-                        let buf = unsafe { std::slice::from_raw_parts(addr as *const u8, size) };
-                        let view = MemTableView::new(buf).unwrap();
+                        let view = MemTableView::new(&map).unwrap();
                         for chunk in 0..view.num_chunks() {
                             for row in view.rows(chunk) {
                                 let mut c = row.cursor();
@@ -1502,10 +1773,10 @@ mod tests {
 
         let writer = {
             let barrier = barrier.clone();
+            let mut map = shared.map_mut();
             thread::spawn(move || {
                 barrier.wait();
-                let buf = unsafe { std::slice::from_raw_parts_mut(addr as *mut u8, size) };
-                let mut mt = MemTableWriter::new(buf).unwrap();
+                let mut mt = MemTableWriter::new(&mut map).unwrap();
                 for seq in 0..total_rows {
                     mt.push_row(&[Value::I64(seq)]);
                     if seq % 32 == 0 {
@@ -1530,19 +1801,16 @@ mod tests {
         );
 
         // Final consistency: every written row is present.
-        unsafe {
-            let buf = std::slice::from_raw_parts(ptr, size);
-            let view = MemTableView::new(buf).unwrap();
-            let total: usize = (0..view.num_chunks()).map(|c| view.num_rows(c)).sum();
-            assert_eq!(total, total_rows as usize);
-            alloc::dealloc(ptr, layout);
-        }
+        let final_map = shared.map_mut();
+        let view = MemTableView::new(&final_map).unwrap();
+        let total: usize = (0..view.num_chunks()).map(|c| view.num_rows(c)).sum();
+        assert_eq!(total, total_rows as usize);
     }
 
     #[test]
     fn version_field_set() {
         let schema = Schema::new().col("x", DType::I32);
-        let t = MemTable::new(&schema, 1024, 1);
+        let t = MemTable::new(&schema, 1024, 1).unwrap();
         assert_eq!(header(t.as_bytes()).version, VERSION);
     }
 
@@ -1551,7 +1819,7 @@ mod tests {
     #[test]
     fn chunk_header_init_state() {
         let schema = Schema::new().col("x", DType::I32);
-        let t = MemTable::new(&schema, 1024, 4);
+        let t = MemTable::new(&schema, 1024, 4).unwrap();
         // Chunk 0 = Writing, generation 1
         assert_eq!(t.chunk_state(0), 1);
         assert_eq!(t.chunk_generation(0), 1);
@@ -1564,7 +1832,7 @@ mod tests {
     #[test]
     fn chunk_state_transitions() {
         let schema = Schema::new().col("v", DType::I32);
-        let mut t = MemTable::new(&schema, 1024, 3);
+        let mut t = MemTable::new(&schema, 1024, 3).unwrap();
 
         // Write some rows to chunk 0
         t.push_row(&[Value::I32(1)]);
@@ -1583,7 +1851,7 @@ mod tests {
     fn chunk_generation_increments_on_wrap() {
         let schema = Schema::new().col("v", DType::I32);
         // 96 bytes per chunk → 7 I32 rows per chunk (ChunkHeader=40)
-        let mut t = MemTable::new(&schema, 96, 2);
+        let mut t = MemTable::new(&schema, 96, 2).unwrap();
 
         assert_eq!(t.chunk_generation(0), 1);
         assert_eq!(t.chunk_generation(1), 0);
@@ -1608,7 +1876,7 @@ mod tests {
     #[test]
     fn num_rows_matches_iteration() {
         let schema = Schema::new().col("id", DType::I64).col("msg", DType::Str);
-        let mut t = MemTable::new(&schema, 4096, 2);
+        let mut t = MemTable::new(&schema, 4096, 2).unwrap();
         for i in 0..20i64 {
             t.push_row(&[Value::I64(i), Value::Str("hello")]);
         }
@@ -1630,7 +1898,9 @@ mod tests {
         let size = MemTable::required_size(&schema, 65536, 1);
         let mut buf_dedup = vec![0u8; size];
         {
-            let mut dw = MemTableWriter::init(&mut buf_dedup, &schema, 65536, 1).dedup();
+            let mut dw = MemTableWriter::init(&mut buf_dedup, &schema, 65536, 1)
+                .unwrap()
+                .dedup();
             for i in 0..n {
                 dw.push_row(&[
                     Value::Str(regions[i % regions.len()]),
@@ -1647,7 +1917,7 @@ mod tests {
         // without dedup
         let mut buf_plain = vec![0u8; size];
         {
-            let mut mt = MemTableWriter::init(&mut buf_plain, &schema, 65536, 1);
+            let mut mt = MemTableWriter::init(&mut buf_plain, &schema, 65536, 1).unwrap();
             for i in 0..n {
                 mt.push_row(&[
                     Value::Str(regions[i % regions.len()]),
@@ -1687,7 +1957,7 @@ mod tests {
     #[test]
     fn from_buf_roundtrip() {
         let schema = Schema::new().col("x", DType::I32);
-        let mut t = MemTable::new(&schema, 1024, 1);
+        let mut t = MemTable::new(&schema, 1024, 1).unwrap();
         t.push_row(&[Value::I32(7)]);
         let raw = t.as_bytes().to_vec();
         let t2 = MemTable::from_buf(raw).expect("valid buffer");
@@ -1698,7 +1968,7 @@ mod tests {
     #[test]
     fn from_buf_rejects_bad_version() {
         let schema = Schema::new().col("x", DType::U32);
-        let t = MemTable::new(&schema, 256, 2);
+        let t = MemTable::new(&schema, 256, 2).unwrap();
         let mut raw = t.as_bytes().to_vec();
         header_mut(&mut raw).version = 99;
         assert!(MemTable::from_buf(raw).is_err());
@@ -1707,7 +1977,7 @@ mod tests {
     #[test]
     fn from_buf_rejects_bad_data_offset() {
         let schema = Schema::new().col("x", DType::U32);
-        let t = MemTable::new(&schema, 256, 2);
+        let t = MemTable::new(&schema, 256, 2).unwrap();
         let mut raw = t.as_bytes().to_vec();
         header_mut(&mut raw).data_offset = 7;
         assert!(MemTable::from_buf(raw).is_err());
@@ -1716,7 +1986,7 @@ mod tests {
     #[test]
     fn push_row_rejects_wrong_column_count() {
         let schema = Schema::new().col("a", DType::U32).col("b", DType::I64);
-        let mut t = MemTable::new(&schema, 256, 2);
+        let mut t = MemTable::new(&schema, 256, 2).unwrap();
         assert!(!t.push_row(&[Value::U32(1)])); // only 1 value for 2 columns
         assert_eq!(t.num_rows(0), 0);
     }
@@ -1724,7 +1994,7 @@ mod tests {
     #[test]
     fn push_row_rejects_wrong_dtype() {
         let schema = Schema::new().col("a", DType::U32);
-        let mut t = MemTable::new(&schema, 256, 2);
+        let mut t = MemTable::new(&schema, 256, 2).unwrap();
         assert!(!t.push_row(&[Value::Str("oops")])); // Str instead of U32
         assert_eq!(t.num_rows(0), 0);
     }
@@ -1736,14 +2006,15 @@ mod tests {
         let schema = Schema::new().col("ts", DType::I64).col("val", DType::F64);
         let size = MemTable::required_size(&schema, 4096, 2);
         let mut buf = vec![0u8; size];
-        let mut sw = MemTableWriter::init(&mut buf, &schema, 4096, 2);
+        let mut sw = MemTableWriter::init(&mut buf, &schema, 4096, 2).unwrap();
 
         sw.push_row(&[Value::I64(100), Value::F64(3.14)]);
         sw.push_row(&[Value::I64(200), Value::F64(2.72)]);
 
         assert_eq!(sw.num_rows(0), 2);
         let mut rows = sw.rows(0);
-        let mut c = rows.next().unwrap().cursor();
+        let row = rows.next().unwrap();
+        let mut c = row.cursor();
         assert_eq!(c.next_i64(), 100);
         assert_eq!(c.next_f64(), 3.14);
     }
@@ -1753,7 +2024,7 @@ mod tests {
         let schema = Schema::new().col("id", DType::I32).col("msg", DType::Str);
         let size = MemTable::required_size(&schema, 4096, 1);
         let mut buf = vec![0u8; size];
-        let mut sw = MemTableWriter::init(&mut buf, &schema, 4096, 1);
+        let mut sw = MemTableWriter::init(&mut buf, &schema, 4096, 1).unwrap();
 
         sw.row_writer().put_i32(1).put_str("hello").finish();
         sw.row_writer().put_i32(2).put_str("world").finish();
@@ -1770,7 +2041,9 @@ mod tests {
         let schema = Schema::new().col("tag", DType::Str).col("seq", DType::I32);
         let size = MemTable::required_size(&schema, 8192, 1);
         let mut buf = vec![0u8; size];
-        let mut sw = MemTableWriter::init(&mut buf, &schema, 8192, 1).dedup();
+        let mut sw = MemTableWriter::init(&mut buf, &schema, 8192, 1)
+            .unwrap()
+            .dedup();
 
         for i in 0..20 {
             sw.push_row(&[Value::Str("repeat"), Value::I32(i)]);
@@ -1780,7 +2053,7 @@ mod tests {
 
         // Compare with a plain writer
         let mut buf2 = vec![0u8; size];
-        let mut sw2 = MemTableWriter::init(&mut buf2, &schema, 8192, 1);
+        let mut sw2 = MemTableWriter::init(&mut buf2, &schema, 8192, 1).unwrap();
         for i in 0..20 {
             sw2.push_row(&[Value::Str("repeat"), Value::I32(i)]);
         }
@@ -1803,7 +2076,7 @@ mod tests {
         let schema = Schema::new().col("v", DType::I64);
         let size = MemTable::required_size(&schema, 64, 4);
         let mut buf = vec![0u8; size];
-        let mut sw = MemTableWriter::init(&mut buf, &schema, 64, 4);
+        let mut sw = MemTableWriter::init(&mut buf, &schema, 64, 4).unwrap();
 
         for i in 0..50i64 {
             sw.push_row_unchecked(&[Value::I64(i)]);
@@ -1826,16 +2099,17 @@ mod tests {
                 .col("timestamp", DType::I64),
             1024,
             1,
-        );
+        )
+        .unwrap();
         assert_eq!(t.ts_col(), Some(1));
 
-        let t = MemTable::new(&Schema::new().col("ts", DType::I64), 1024, 1);
+        let t = MemTable::new(&Schema::new().col("ts", DType::I64), 1024, 1).unwrap();
         assert_eq!(t.ts_col(), Some(0));
 
         // Wrong dtype or name → no designated column
-        let t = MemTable::new(&Schema::new().col("timestamp", DType::F64), 1024, 1);
+        let t = MemTable::new(&Schema::new().col("timestamp", DType::F64), 1024, 1).unwrap();
         assert_eq!(t.ts_col(), None);
-        let t = MemTable::new(&Schema::new().col("when", DType::I64), 1024, 1);
+        let t = MemTable::new(&Schema::new().col("when", DType::I64), 1024, 1).unwrap();
         assert_eq!(t.ts_col(), None);
         assert_eq!(t.chunk_ts_range(0), None);
     }
@@ -1843,7 +2117,7 @@ mod tests {
     #[test]
     fn chunk_ts_range_tracks_min_max() {
         let schema = Schema::new().col("ts", DType::I64).col("v", DType::I32);
-        let mut t = MemTable::new(&schema, 1024, 2);
+        let mut t = MemTable::new(&schema, 1024, 2).unwrap();
         assert_eq!(t.chunk_ts_range(0), None, "empty chunk has no range");
 
         t.push_row(&[Value::I64(500), Value::I32(1)]);
@@ -1867,7 +2141,7 @@ mod tests {
     fn chunk_ts_range_resets_on_wrap() {
         let schema = Schema::new().col("ts", DType::I64);
         // ChunkHeader=40, I64 row=12 → 64-40=24 → 2 rows per chunk
-        let mut t = MemTable::new(&schema, 64, 2);
+        let mut t = MemTable::new(&schema, 64, 2).unwrap();
         t.push_row(&[Value::I64(10)]);
         t.push_row(&[Value::I64(20)]);
         t.push_row(&[Value::I64(30)]); // → chunk 1
@@ -1883,7 +2157,7 @@ mod tests {
         let schema = Schema::new()
             .col("timestamp", DType::I64)
             .col("m", DType::Str);
-        let mut t = MemTable::new(&schema, 4096, 1);
+        let mut t = MemTable::new(&schema, 4096, 1).unwrap();
         t.row_writer().put_i64(300).put_str("a").finish();
         t.row_writer().put_i64(100).put_str("b").finish();
         assert_eq!(t.chunk_ts_range(0), Some((100, 300)));
@@ -1894,7 +2168,9 @@ mod tests {
         let schema = Schema::new().col("ts", DType::I64).col("tag", DType::Str);
         let size = MemTable::required_size(&schema, 4096, 1);
         let mut buf = vec![0u8; size];
-        let mut w = MemTableWriter::init(&mut buf, &schema, 4096, 1).dedup();
+        let mut w = MemTableWriter::init(&mut buf, &schema, 4096, 1)
+            .unwrap()
+            .dedup();
         w.push_row(&[Value::I64(7), Value::Str("x")]);
         w.push_row(&[Value::I64(3), Value::Str("x")]);
         assert_eq!(w.chunk_ts_range(0), Some((3, 7)));
@@ -1903,7 +2179,7 @@ mod tests {
     #[test]
     fn validate_rejects_bad_ts_col() {
         let schema = Schema::new().col("ts", DType::I64).col("v", DType::F64);
-        let mut t = MemTable::new(&schema, 1024, 1);
+        let mut t = MemTable::new(&schema, 1024, 1).unwrap();
         header_mut(t.as_bytes_mut()).ts_col = 3; // out of range (2 cols)
         assert!(MemTableView::new(t.as_bytes()).is_err());
         header_mut(t.as_bytes_mut()).ts_col = 2; // col 1 is F64, not I64

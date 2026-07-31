@@ -181,7 +181,7 @@ pub fn run(args: &WriteArgs, json: bool, seed: u64) -> Result<()> {
 
 fn open_handle(source: &Source, spec: &WorkloadSpec, ring: &RingArgs) -> Result<MemTable> {
     Ok(match source {
-        Source::Heap => MemTable::new(&spec.schema(), ring.chunk_size, ring.chunks),
+        Source::Heap => MemTable::new(&spec.schema(), ring.chunk_size, ring.chunks)?,
         Source::Shm(name) => MemTable::open_shm(name)?,
         Source::File(path) => MemTable::open_file(path)?,
     })

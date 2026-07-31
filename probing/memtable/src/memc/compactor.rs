@@ -41,8 +41,8 @@
 use std::collections::HashMap;
 use std::io;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
@@ -84,8 +84,46 @@ impl Default for CompactorConfig {
     }
 }
 
+/// Observable health snapshot for a background compactor.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CompactorRuntimeStats {
+    /// Number of drain/roll/flush failures observed by the worker.
+    pub error_count: u64,
+    /// Most recent failure, including the operation/table context.
+    pub last_error: Option<String>,
+}
+
+#[derive(Default)]
+struct SharedRuntimeStats {
+    error_count: AtomicU64,
+    last_error: Mutex<Option<String>>,
+}
+
+impl SharedRuntimeStats {
+    fn record(&self, message: String) {
+        self.error_count.fetch_add(1, Ordering::Relaxed);
+        match self.last_error.lock() {
+            Ok(mut last) => *last = Some(message),
+            Err(poisoned) => *poisoned.into_inner() = Some(message),
+        }
+    }
+
+    fn snapshot(&self) -> CompactorRuntimeStats {
+        let last_error = match self.last_error.lock() {
+            Ok(last) => last.clone(),
+            Err(poisoned) => poisoned.into_inner().clone(),
+        };
+        CompactorRuntimeStats {
+            error_count: self.error_count.load(Ordering::Relaxed),
+            last_error,
+        }
+    }
+}
+
 /// Per-table draining bookkeeping.
 struct TableProgress {
+    /// Identity of the current hot MEMT backing this logical table name.
+    source_instance: u64,
     /// Last drained generation per chunk index (parallel to the hot ring).
     /// A chunk is re-drained only when its generation advances past this.
     drained_gen: Vec<u64>,
@@ -104,11 +142,11 @@ pub struct Compactor {
     current: Option<SegmentWriter>,
     opened_at: Instant,
     tables: HashMap<String, TableProgress>,
-    /// Per-(table, chunk) drain watermark recovered from existing cold
+    /// Per-(table, MEMT instance, chunk) drain watermark recovered from existing cold
     /// segments by [`prime_from_cold`](Self::prime_from_cold); merged into a
     /// table's `drained_gen` the first time it is seen, so a restart over a
     /// persistent cold dir does not re-compact already-persisted chunks.
-    seed: HashMap<String, HashMap<usize, u64>>,
+    seed: HashMap<(String, u64), HashMap<usize, u64>>,
 }
 
 impl Compactor {
@@ -126,8 +164,9 @@ impl Compactor {
     /// Rebuild per-(table, chunk) drain watermarks from the cold segments
     /// already on disk, so draining is **exactly-once across restarts** when
     /// the cold dir persists. Call once after [`new`](Self::new), before any
-    /// `drain_view`. Each cold page records the hot-ring `(source_gen,
-    /// source_chunk)` it came from; we keep the max generation per chunk.
+    /// `drain_view`. Each cold page records the hot-ring
+    /// `(source_instance, source_gen, source_chunk)` it came from; we keep
+    /// the max generation per instance/chunk.
     pub fn prime_from_cold(&mut self) -> io::Result<()> {
         for path in self.store.segment_paths() {
             let Ok(reader) = SegmentReader::open(&path) else {
@@ -142,7 +181,7 @@ impl Compactor {
                 };
                 let slot = self
                     .seed
-                    .entry(def.name.clone())
+                    .entry((def.name.clone(), page.source_instance))
                     .or_default()
                     .entry(page.source_chunk as usize)
                     .or_insert(0);
@@ -177,10 +216,15 @@ impl Compactor {
             .map(|c| (c.name.clone(), c.dtype))
             .collect();
         let num_chunks = view.num_chunks();
+        let source_instance = view.instance_id();
 
-        if !self.tables.contains_key(name) {
+        let source_changed = self
+            .tables
+            .get(name)
+            .is_none_or(|progress| progress.source_instance != source_instance);
+        if source_changed {
             let mut drained_gen = vec![0u64; num_chunks];
-            if let Some(seeds) = self.seed.get(name) {
+            if let Some(seeds) = self.seed.get(&(name.to_string(), source_instance)) {
                 for (&chunk, &gen) in seeds {
                     if chunk < drained_gen.len() {
                         drained_gen[chunk] = drained_gen[chunk].max(gen);
@@ -190,12 +234,16 @@ impl Compactor {
             self.tables.insert(
                 name.to_string(),
                 TableProgress {
+                    source_instance,
                     drained_gen,
                     seg_table_id: None,
                 },
             );
         }
-        let prog = self.tables.get_mut(name).unwrap();
+        let prog = self
+            .tables
+            .get_mut(name)
+            .ok_or_else(|| io::Error::other("missing compactor table progress"))?;
         if prog.drained_gen.len() != num_chunks {
             prog.drained_gen.resize(num_chunks, 0);
         }
@@ -208,7 +256,12 @@ impl Compactor {
                 continue;
             }
             let gen = view.chunk_generation(chunk);
-            let already = self.tables[name].drained_gen[chunk];
+            let already = self
+                .tables
+                .get(name)
+                .and_then(|progress| progress.drained_gen.get(chunk))
+                .copied()
+                .ok_or_else(|| io::Error::other("missing compactor chunk progress"))?;
             if gen == 0 || gen <= already {
                 continue;
             }
@@ -219,19 +272,25 @@ impl Compactor {
             };
             let rows = columns.first().map(|c| c.len()).unwrap_or(0);
             if rows == 0 {
-                self.tables.get_mut(name).unwrap().drained_gen[chunk] = gen_read;
+                self.tables
+                    .get_mut(name)
+                    .and_then(|progress| progress.drained_gen.get_mut(chunk))
+                    .ok_or_else(|| io::Error::other("missing compactor chunk progress"))
+                    .map(|generation| *generation = gen_read)?;
                 continue;
             }
 
             self.ensure_segment()?;
             let table_id = self.register_if_needed(name, &cols)?;
-            self.current.as_mut().expect("segment open").append_page(
-                table_id,
-                &columns,
-                gen_read,
-                chunk as u32,
-            )?;
-            self.tables.get_mut(name).unwrap().drained_gen[chunk] = gen_read;
+            self.current
+                .as_mut()
+                .ok_or_else(|| io::Error::other("missing open compactor segment"))?
+                .append_page_from(table_id, &columns, gen_read, chunk as u32, source_instance)?;
+            self.tables
+                .get_mut(name)
+                .and_then(|progress| progress.drained_gen.get_mut(chunk))
+                .ok_or_else(|| io::Error::other("missing compactor chunk progress"))
+                .map(|generation| *generation = gen_read)?;
             total_rows += rows;
 
             self.maybe_roll_on_size()?;
@@ -294,6 +353,11 @@ impl Compactor {
             .enforce_limits(self.config.max_total_bytes, self.config.ttl)
     }
 
+    fn enforce_checked(&self) -> io::Result<Vec<PathBuf>> {
+        self.store
+            .enforce_limits_checked(self.config.max_total_bytes, self.config.ttl)
+    }
+
     fn ensure_segment(&mut self) -> io::Result<()> {
         if self.current.is_none() {
             self.current = Some(self.store.create_segment()?);
@@ -306,15 +370,22 @@ impl Compactor {
     }
 
     fn register_if_needed(&mut self, name: &str, cols: &[(String, DType)]) -> io::Result<u32> {
-        if let Some(id) = self.tables[name].seg_table_id {
+        if let Some(id) = self
+            .tables
+            .get(name)
+            .and_then(|progress| progress.seg_table_id)
+        {
             return Ok(id);
         }
         let id = self
             .current
             .as_mut()
-            .expect("segment open")
+            .ok_or_else(|| io::Error::other("missing open compactor segment"))?
             .register_table(name, cols)?;
-        self.tables.get_mut(name).unwrap().seg_table_id = Some(id);
+        self.tables
+            .get_mut(name)
+            .ok_or_else(|| io::Error::other("missing compactor table progress"))?
+            .seg_table_id = Some(id);
         Ok(id)
     }
 
@@ -327,6 +398,8 @@ impl Compactor {
     pub fn spawn(mut self, sources: Vec<(String, MemTable)>) -> CompactorHandle {
         let stop = Arc::new(AtomicBool::new(false));
         let stop_thread = stop.clone();
+        let runtime_stats = Arc::new(SharedRuntimeStats::default());
+        let thread_stats = runtime_stats.clone();
         let poll = self.config.poll_interval;
         let thread = std::thread::Builder::new()
             .name("memc-compactor".into())
@@ -334,23 +407,36 @@ impl Compactor {
                 while !stop_thread.load(Ordering::Relaxed) {
                     for (name, table) in &sources {
                         let view = table.view();
-                        let _ = self.drain_view(name, &view);
+                        if let Err(error) = self.drain_view(name, &view) {
+                            thread_stats.record(format!("drain table {name}: {error}"));
+                        }
                     }
-                    let _ = self.maybe_roll_on_age();
-                    let _ = self.enforce();
+                    if let Err(error) = self.maybe_roll_on_age() {
+                        thread_stats.record(format!("age-triggered roll: {error}"));
+                    }
+                    if let Err(error) = self.enforce_checked() {
+                        thread_stats.record(format!("retention enforcement: {error}"));
+                    }
                     std::thread::park_timeout(poll);
                 }
                 for (name, table) in &sources {
                     let view = table.view();
-                    let _ = self.drain_view(name, &view);
+                    if let Err(error) = self.drain_view(name, &view) {
+                        thread_stats.record(format!("final drain table {name}: {error}"));
+                    }
                 }
-                let _ = self.flush();
-                let _ = self.enforce();
+                if let Err(error) = self.flush() {
+                    thread_stats.record(format!("final flush: {error}"));
+                }
+                if let Err(error) = self.enforce_checked() {
+                    thread_stats.record(format!("final retention enforcement: {error}"));
+                }
             })
             .expect("spawn memc-compactor thread");
         CompactorHandle {
             stop,
             thread: Some(thread),
+            runtime_stats,
         }
     }
 }
@@ -359,19 +445,29 @@ impl Compactor {
 pub struct CompactorHandle {
     stop: Arc<AtomicBool>,
     thread: Option<JoinHandle<()>>,
+    runtime_stats: Arc<SharedRuntimeStats>,
 }
 
 impl CompactorHandle {
+    /// Current background health without stopping the worker.
+    pub fn runtime_stats(&self) -> CompactorRuntimeStats {
+        self.runtime_stats.snapshot()
+    }
+
     /// Signal the thread to do a final drain + flush, then join it.
-    pub fn stop(mut self) {
+    pub fn stop(mut self) -> CompactorRuntimeStats {
         self.shutdown();
+        self.runtime_stats.snapshot()
     }
 
     fn shutdown(&mut self) {
         self.stop.store(true, Ordering::Relaxed);
         if let Some(t) = self.thread.take() {
             t.thread().unpark();
-            let _ = t.join();
+            if t.join().is_err() {
+                self.runtime_stats
+                    .record("compactor worker thread panicked".to_string());
+            }
         }
     }
 }

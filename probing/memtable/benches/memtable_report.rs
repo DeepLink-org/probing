@@ -140,7 +140,7 @@ fn build_fixed_table(rows: &[FixedInput]) -> MemTable {
     let chunk_size = 64 * 1024;
     let total_bytes = rows.len() * bytes_per_row;
     let num_chunks = ((total_bytes / chunk_size) + 2).max(2);
-    let mut table = MemTable::new(&schema, chunk_size as u32, num_chunks as u32);
+    let mut table = MemTable::new(&schema, chunk_size as u32, num_chunks as u32).unwrap();
     for &(ts, value) in rows {
         table.push_row(&[Value::I64(ts), Value::I64(value)]);
     }
@@ -156,7 +156,9 @@ fn build_dedup_table(rows: &[StringInput]) -> MemTable {
     let mut raw = vec![0u8; MemTable::required_size(&schema, chunk_size, num_chunks)];
     {
         let mut writer =
-            MemTableWriter::init(&mut raw, &schema, chunk_size as u32, num_chunks as u32).dedup();
+            MemTableWriter::init(&mut raw, &schema, chunk_size as u32, num_chunks as u32)
+                .unwrap()
+                .dedup();
         for &(ts, level, msg) in rows {
             writer.push_row(&[Value::I64(ts), Value::Str(level), Value::Str(msg)]);
         }
@@ -170,7 +172,7 @@ fn build_string_table(rows: &[StringInput]) -> MemTable {
     let chunk_size = 64 * 1024;
     let total_bytes = rows.len() * approx_bytes_per_row;
     let num_chunks = ((total_bytes / chunk_size) + 2).max(2);
-    let mut table = MemTable::new(&schema, chunk_size as u32, num_chunks as u32);
+    let mut table = MemTable::new(&schema, chunk_size as u32, num_chunks as u32).unwrap();
     for &(ts, level, msg) in rows {
         table.push_row(&[Value::I64(ts), Value::Str(level), Value::Str(msg)]);
     }
@@ -183,7 +185,7 @@ fn bench_push_row_fixed(rows: &[FixedInput]) -> u64 {
     let chunk_size = 64 * 1024;
     let total_bytes = rows.len() * bytes_per_row;
     let num_chunks = ((total_bytes / chunk_size) + 2).max(2);
-    let mut table = MemTable::new(&schema, chunk_size as u32, num_chunks as u32);
+    let mut table = MemTable::new(&schema, chunk_size as u32, num_chunks as u32).unwrap();
     for &(ts, value) in rows {
         table.push_row(&[Value::I64(ts), Value::I64(value)]);
     }
@@ -197,7 +199,7 @@ fn bench_row_writer_fixed(rows: &[FixedInput]) -> u64 {
     let chunk_size = 64 * 1024;
     let total_bytes = rows.len() * bytes_per_row;
     let num_chunks = ((total_bytes / chunk_size) + 2).max(2);
-    let mut table = MemTable::new(&schema, chunk_size as u32, num_chunks as u32);
+    let mut table = MemTable::new(&schema, chunk_size as u32, num_chunks as u32).unwrap();
     for &(ts, value) in rows {
         table.row_writer().put_i64(ts).put_i64(value).finish();
     }
@@ -258,7 +260,7 @@ fn bench_push_row_strings(rows: &[StringInput]) -> u64 {
     let chunk_size = 64 * 1024;
     let total_bytes = rows.len() * approx_bytes_per_row;
     let num_chunks = ((total_bytes / chunk_size) + 2).max(2);
-    let mut table = MemTable::new(&schema, chunk_size as u32, num_chunks as u32);
+    let mut table = MemTable::new(&schema, chunk_size as u32, num_chunks as u32).unwrap();
     for &(ts, level, msg) in rows {
         table.push_row(&[Value::I64(ts), Value::Str(level), Value::Str(msg)]);
     }
@@ -272,7 +274,7 @@ fn bench_push_row_unchecked_fixed(rows: &[FixedInput]) -> u64 {
     let chunk_size = 64 * 1024;
     let total_bytes = rows.len() * bytes_per_row;
     let num_chunks = ((total_bytes / chunk_size) + 2).max(2);
-    let mut table = MemTable::new(&schema, chunk_size as u32, num_chunks as u32);
+    let mut table = MemTable::new(&schema, chunk_size as u32, num_chunks as u32).unwrap();
     for &(ts, value) in rows {
         table.push_row_unchecked(&[Value::I64(ts), Value::I64(value)]);
     }
@@ -287,8 +289,9 @@ fn bench_dedup_push_row_strings(rows: &[StringInput]) -> u64 {
     let total_bytes = rows.len() * approx_bytes_per_row;
     let num_chunks = ((total_bytes / chunk_size) + 2).max(2);
     let mut raw = vec![0u8; MemTable::required_size(&schema, chunk_size, num_chunks)];
-    let mut writer =
-        MemTableWriter::init(&mut raw, &schema, chunk_size as u32, num_chunks as u32).dedup();
+    let mut writer = MemTableWriter::init(&mut raw, &schema, chunk_size as u32, num_chunks as u32)
+        .unwrap()
+        .dedup();
     for &(ts, level, msg) in rows {
         writer.push_row(&[Value::I64(ts), Value::Str(level), Value::Str(msg)]);
     }
@@ -303,8 +306,9 @@ fn bench_dedup_push_row_strings_min8(rows: &[StringInput]) -> u64 {
     let total_bytes = rows.len() * approx_bytes_per_row;
     let num_chunks = ((total_bytes / chunk_size) + 2).max(2);
     let mut raw = vec![0u8; MemTable::required_size(&schema, chunk_size, num_chunks)];
-    let mut writer =
-        MemTableWriter::init(&mut raw, &schema, chunk_size as u32, num_chunks as u32).dedup();
+    let mut writer = MemTableWriter::init(&mut raw, &schema, chunk_size as u32, num_chunks as u32)
+        .unwrap()
+        .dedup();
     writer.set_min_dedup_len(8);
     for &(ts, level, msg) in rows {
         writer.push_row(&[Value::I64(ts), Value::Str(level), Value::Str(msg)]);

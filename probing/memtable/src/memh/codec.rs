@@ -1,4 +1,4 @@
-//! Codec utilities for MEMH v3: hashing, arena record encoding/decoding.
+//! Codec utilities for MEMH v5: hashing, arena record encoding/decoding.
 
 use std::mem;
 use xxhash_rust::xxh3;
@@ -36,6 +36,7 @@ pub const NO_PREV: u32 = 0xFFFF_FFFF;
 /// ```
 /// Payload begins at offset 28: `[key_bytes][val_payload]`
 /// (PUT_INLINE and TOMBSTONE have no val_payload.)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub struct ArenaRecordHeader {
     pub record_len: u32, //  0
@@ -152,33 +153,33 @@ pub fn decode_inline_value(val_dtype: u8, val_bytes: &[u8; 8]) -> Option<TypedVa
 /// For `Str`/`Bytes` the payload is `[u32 len][bytes]`.
 pub fn decode_value_payload<'a>(dtype: DType, payload: &'a [u8]) -> Option<TypedValue<'a>> {
     match dtype {
-        DType::U8 => Some(TypedValue::U8(payload[0])),
+        DType::U8 => Some(TypedValue::U8(*payload.first()?)),
         DType::I32 => Some(TypedValue::I32(i32::from_le_bytes(
-            payload[..4].try_into().ok()?,
+            payload.get(..4)?.try_into().ok()?,
         ))),
         DType::I64 => Some(TypedValue::I64(i64::from_le_bytes(
-            payload[..8].try_into().ok()?,
+            payload.get(..8)?.try_into().ok()?,
         ))),
         DType::F32 => Some(TypedValue::F32(f32::from_le_bytes(
-            payload[..4].try_into().ok()?,
+            payload.get(..4)?.try_into().ok()?,
         ))),
         DType::F64 => Some(TypedValue::F64(f64::from_le_bytes(
-            payload[..8].try_into().ok()?,
+            payload.get(..8)?.try_into().ok()?,
         ))),
         DType::U64 => Some(TypedValue::U64(u64::from_le_bytes(
-            payload[..8].try_into().ok()?,
+            payload.get(..8)?.try_into().ok()?,
         ))),
         DType::U32 => Some(TypedValue::U32(u32::from_le_bytes(
-            payload[..4].try_into().ok()?,
+            payload.get(..4)?.try_into().ok()?,
         ))),
         DType::Str => {
-            let slen = u32::from_le_bytes(payload[..4].try_into().ok()?) as usize;
-            let bytes = payload.get(4..4 + slen)?;
+            let slen = u32::from_le_bytes(payload.get(..4)?.try_into().ok()?) as usize;
+            let bytes = payload.get(4..4usize.checked_add(slen)?)?;
             Some(TypedValue::Str(std::str::from_utf8(bytes).ok()?))
         }
         DType::Bytes => {
-            let slen = u32::from_le_bytes(payload[..4].try_into().ok()?) as usize;
-            let bytes = payload.get(4..4 + slen)?;
+            let slen = u32::from_le_bytes(payload.get(..4)?.try_into().ok()?) as usize;
+            let bytes = payload.get(4..4usize.checked_add(slen)?)?;
             Some(TypedValue::Bytes(bytes))
         }
     }
@@ -310,17 +311,32 @@ pub fn encode_tombstone_record(
 
 /// Read the record header at the start of `data` (which must be at least 28 bytes).
 /// Returns `None` if `data` is too short.
-pub fn read_record_header(data: &[u8]) -> Option<&ArenaRecordHeader> {
-    if data.len() < ARENA_HDR_SIZE {
-        return None;
-    }
-    Some(unsafe { &*(data.as_ptr() as *const ArenaRecordHeader) })
+pub fn read_record_header(data: &[u8]) -> Option<ArenaRecordHeader> {
+    let data = data.get(..ARENA_HDR_SIZE)?;
+    Some(ArenaRecordHeader {
+        record_len: u32::from_le_bytes(data[0..4].try_into().ok()?),
+        slot_idx: u32::from_le_bytes(data[4..8].try_into().ok()?),
+        hash_lo: u32::from_le_bytes(data[8..12].try_into().ok()?),
+        hash_hi: u32::from_le_bytes(data[12..16].try_into().ok()?),
+        prev_off: u32::from_le_bytes(data[16..20].try_into().ok()?),
+        flags: u16::from_le_bytes(data[20..22].try_into().ok()?),
+        key_len: u16::from_le_bytes(data[22..24].try_into().ok()?),
+        val_dtype: u32::from_le_bytes(data[24..28].try_into().ok()?),
+    })
 }
 
 /// Return the key bytes of the record starting at `record_data` (from record start).
 pub fn record_key<'a>(hdr: &ArenaRecordHeader, record_data: &'a [u8]) -> Option<&'a str> {
+    let record_len = hdr.record_len as usize;
+    if record_len < ARENA_HDR_SIZE || record_len > record_data.len() {
+        return None;
+    }
     let klen = hdr.key_len as usize;
-    let key_bytes = record_data.get(ARENA_HDR_SIZE..ARENA_HDR_SIZE + klen)?;
+    let key_end = ARENA_HDR_SIZE.checked_add(klen)?;
+    if key_end > record_len {
+        return None;
+    }
+    let key_bytes = record_data.get(ARENA_HDR_SIZE..key_end)?;
     std::str::from_utf8(key_bytes).ok()
 }
 
@@ -340,4 +356,41 @@ pub fn record_value<'a>(hdr: &ArenaRecordHeader, record_data: &'a [u8]) -> Optio
 /// Decode an inline scalar from a slot's `val_dtype` and `val_bytes` fields.
 pub fn slot_inline_value(val_dtype: u8, val_bytes: &[u8; 8]) -> Option<TypedValue<'static>> {
     decode_inline_value(val_dtype, val_bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decode_value_payload_rejects_short_fixed_values() {
+        for dtype in [
+            DType::U8,
+            DType::I32,
+            DType::I64,
+            DType::F32,
+            DType::F64,
+            DType::U64,
+            DType::U32,
+        ] {
+            assert_eq!(decode_value_payload(dtype, &[]), None);
+        }
+        assert_eq!(decode_value_payload(DType::I64, &[0; 7]), None);
+    }
+
+    #[test]
+    fn decode_value_payload_rejects_short_variable_values() {
+        assert_eq!(decode_value_payload(DType::Str, &[1, 0, 0]), None);
+        assert_eq!(decode_value_payload(DType::Bytes, &[4, 0, 0, 0, 1]), None);
+    }
+
+    #[test]
+    fn record_header_can_be_read_from_unaligned_bytes() {
+        let mut encoded = vec![0xFF];
+        encode_tombstone_record("k", 7, 0x1122_3344_5566_7788, NO_PREV, &mut encoded);
+        let header = read_record_header(&encoded[1..]).expect("record header");
+        assert_eq!(header.slot_idx, 7);
+        assert_eq!(header.hash(), 0x1122_3344_5566_7788);
+        assert_eq!(header.flags, FLAG_TOMBSTONE);
+    }
 }

@@ -17,11 +17,15 @@
 //! file, and `unlink`ing a segment that a query still has mmap'd is safe
 //! under POSIX (the inode survives until the last mapping drops).
 
-use std::io;
+use std::collections::HashSet;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-use super::layout::xxh32;
+use super::layout::{
+    get_u16, get_u32, xxh32, FLAG_SEALED, MAGIC_MEMC, SEGMENT_HEADER_SIZE, VERSION_MEMC,
+};
+use super::reader::SegmentReader;
 use super::writer::SegmentWriter;
 use crate::raw::process_start_time;
 
@@ -110,8 +114,20 @@ impl ColdStore {
 
     /// Create a new [`SegmentWriter`] for the next sequence number.
     pub fn create_segment(&mut self) -> io::Result<SegmentWriter> {
-        let path = self.next_segment_path();
-        SegmentWriter::create(path)
+        loop {
+            let path = self.next_segment_path();
+            match SegmentWriter::create(&path) {
+                Ok(writer) => return Ok(writer),
+                // Multiple ColdStore handles in one process share writer_id
+                // and may initially choose the same sequence. Atomic
+                // create_new plus retry prevents either handle from
+                // truncating the other's open segment.
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists && path.exists() => {
+                    continue;
+                }
+                Err(error) => return Err(error),
+            }
+        }
     }
 
     /// All segment files in the directory (any writer), sorted oldest →
@@ -160,24 +176,57 @@ impl ColdStore {
 
     /// Evict oldest segments until under `max_bytes` and within `ttl`.
     ///
-    /// Either limit may be `None` to disable it. The newest segment is
-    /// never evicted (it may be the one currently being appended). Returns
+    /// Either limit may be `None` to disable it. Unsealed or unreadable
+    /// segments are never evicted because they may be open in any writer
+    /// sharing this directory. The newest segment is also retained. Returns
     /// the paths removed.
     pub fn enforce_limits(&self, max_bytes: Option<u64>, ttl: Option<Duration>) -> Vec<PathBuf> {
-        let mut paths = self.segment_paths();
-        if paths.len() <= 1 {
-            return Vec::new();
+        match self.enforce_limits_checked(max_bytes, ttl) {
+            Ok(removed) => removed,
+            Err(error) => {
+                log::warn!("MEMC retention enforcement failed: {error}");
+                Vec::new()
+            }
         }
-        // Protect the newest segment (oldest-first order ⇒ it is last);
-        // it may be the one currently being appended.
-        paths.pop();
+    }
 
-        let file_len = |p: &Path| std::fs::metadata(p).map(|m| m.len()).unwrap_or(0);
+    /// Fallible retention enforcement used by the background compactor so
+    /// filesystem failures are observable instead of silently discarded.
+    pub(crate) fn enforce_limits_checked(
+        &self,
+        max_bytes: Option<u64>,
+        ttl: Option<Duration>,
+    ) -> io::Result<Vec<PathBuf>> {
+        let paths = self.segment_paths();
+        if paths.len() <= 1 {
+            return Ok(Vec::new());
+        }
+        let mut protected = HashSet::new();
+        for path in &paths {
+            match SegmentReader::open(path) {
+                Ok(reader) if reader.is_sealed() => {}
+                // A concurrent writer may be between create/header write or
+                // actively appending. Conservatively retain both cases.
+                Err(_) if legacy_segment_is_sealed(path) => {}
+                Ok(_) | Err(_) => {
+                    protected.insert(path.clone());
+                }
+            }
+        }
+        // Preserve the existing newest-segment retention guarantee even
+        // when every segment happens to be sealed.
+        if let Some(newest) = paths.last() {
+            protected.insert(newest.clone());
+        }
+
         let now = SystemTime::now();
         let mut total: u64 = self.stats().total_bytes;
 
         let mut removed = Vec::new();
         for path in paths {
+            if protected.contains(&path) {
+                continue;
+            }
             let too_old = ttl
                 .and_then(|ttl| {
                     let mtime = std::fs::metadata(&path).ok()?.modified().ok()?;
@@ -188,14 +237,40 @@ impl ColdStore {
             if !(too_old || over_budget) {
                 break; // sorted oldest-first: nothing newer qualifies either
             }
-            let sz = file_len(&path);
-            if std::fs::remove_file(&path).is_ok() {
-                total = total.saturating_sub(sz);
-                removed.push(path);
+            let sz = match std::fs::metadata(&path) {
+                Ok(metadata) => metadata.len(),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+                Err(error) => return Err(error),
+            };
+            match std::fs::remove_file(&path) {
+                Ok(()) => {
+                    total = total.saturating_sub(sz);
+                    removed.push(path);
+                }
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error),
             }
         }
-        removed
+        Ok(removed)
     }
+}
+
+/// Recognise a sealed v1 header for retention cleanup while keeping v1
+/// unavailable to readers. Unsealed, partial, foreign, and corrupt files are
+/// conservatively treated as potentially open.
+fn legacy_segment_is_sealed(path: &Path) -> bool {
+    let Ok(mut file) = std::fs::File::open(path) else {
+        return false;
+    };
+    let mut header = [0u8; SEGMENT_HEADER_SIZE];
+    if file.read_exact(&mut header).is_err()
+        || get_u32(&header, 0) != MAGIC_MEMC
+        || get_u16(&header, 4) != VERSION_MEMC - 1
+        || get_u32(&header, 60) != xxh32(&header[..60])
+    {
+        return false;
+    }
+    get_u16(&header, 10) & FLAG_SEALED != 0
 }
 
 /// Parse `"<writer_id>-<seq>.memc"` → `(writer_id, seq)`.
@@ -238,6 +313,29 @@ mod tests {
         assert_ne!(p1, p2);
         assert!(p1.to_string_lossy().contains("-000001."));
         assert!(p2.to_string_lossy().contains("-000002."));
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn concurrent_store_handles_never_reuse_or_truncate_a_segment() {
+        let tmp = std::env::temp_dir().join(format!("memc-store-race-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let mut first = ColdStore::open(&tmp).unwrap();
+        let mut second = ColdStore::open(&tmp).unwrap();
+
+        let first_writer = first.create_segment().unwrap();
+        let first_path = first_writer.path().to_path_buf();
+        let first_len = std::fs::metadata(&first_path).unwrap().len();
+        let second_writer = second.create_segment().unwrap();
+
+        assert_ne!(first_writer.path(), second_writer.path());
+        assert_eq!(
+            std::fs::metadata(&first_path).unwrap().len(),
+            first_len,
+            "a racing store must not truncate the first open segment"
+        );
+
+        drop((first_writer, second_writer));
         let _ = std::fs::remove_dir_all(&tmp);
     }
 }

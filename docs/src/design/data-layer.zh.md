@@ -47,13 +47,13 @@ graph LR
 每个 MEMT 缓冲区（堆、共享内存或 mmap 文件）都以 64 字节头部（一个 cache line）开始，随后是
 逐列描述符，再是 chunk 数据。
 
-**Header v3（64 字节）：**
+**Header v5（128 字节）：**
 
 | 偏移 | 大小 | 字段 | 说明 |
 |---|---|---|---|
 | 0 | 4 | `magic` | `0x4D454D54`（`"MEMT"`） |
-| 4 | 2 | `version` | 3 |
-| 6 | 2 | `header_size` | 64（仅校验） |
+| 4 | 2 | `version` | 5 |
+| 6 | 2 | `header_size` | 128（仅校验） |
 | 8 | 2 | `byte_order` | BOM `[0x01,0x02]` |
 | 10 | 2 | `ts_col` | 时间戳列索引 + 1（0 = 无） |
 | 12 | 4 | `flags` | 特性位（`FLAG_DEDUP` 等） |
@@ -67,13 +67,23 @@ graph LR
 | 44 | 4 | `_pad0` | 对齐填充（v2 中为 `write_lock`） |
 | 48 | 8 | `creator_start_time` | 用于发现期的 PID 回收检测 |
 | 56 | 8 | `_reserved` | 预留 |
+| 64 | 4 | `lease_offset` | reader lease 数组的绝对偏移 |
+| 68 | 4 | `lease_slots` | 每个 chunk 的 lease 槽数（当前为 16） |
+| 72 | 56 | `_reserved_v5` | 预留 |
 
 字节 0–31 是**冷区**（初始化后不可变），字节 32–63 是**热区**（运行时原子修改），二者分离以避免
-伪共享。每个 chunk 以 40 字节的 `ChunkHeader` 开头，携带 `generation` 计数器及逐 chunk 的
-`min_ts`/`max_ts`（`AtomicI64`）。
+伪共享。每个 chunk 以 40 字节的 `ChunkHeader` 开头，携带 `generation` 及逐 chunk 的
+`min_ts`/`max_ts`（`AtomicI64`）。每个 reader lease 原子保存进程 PID、本进程引用数和进程
+启动时间；回收会阻止新 lease、保留活跃读者，并且只回收已经确认死亡的同一进程实例。
 
 > **v3** 相对 v2：`_pad0` 改为 `ts_col`；移除 `write_lock`（单写者模型）；`ChunkHeader` 新增
 > `min_ts`/`max_ts`（24 → 40 字节）。
+>
+> **v4** 相对 v3：chunk header 的预留字改为原子的 `reader_pins`；查询映射必须允许写入这些
+> 元数据，但调用者看到的行数据仍是只读的。
+>
+> **v5** 相对 v4：不可恢复的聚合 pin 改为每个 chunk 16 个逐进程 lease 槽；reader 崩溃不再
+> 永久阻塞环形缓冲区回收。
 
 ### 三种后端
 
@@ -138,7 +148,7 @@ chunk 的 `min_ts`/`max_ts`。这是查询时 chunk 级时间剪枝的基础，�
 
 一个段是一系列 64 对齐的 block。所有完整性校验都使用 **xxh3-64 截断为 32 位**。
 
-**段头部（64 字节）：** `magic`（`"MEMC"`）、`version`（1）、BOM、`flags`（bit 0 = 已封存）、
+**段头部（64 字节）：** `magic`（`"MEMC"`）、`version`（2）、BOM、`flags`（bit 0 = 已封存）、
 `writer_pid`、`writer_start`、`created_unix_ms`、`footer_off`（封存前为 0）、段级
 `ts_min`/`ts_max`、`page_count`、头部校验和。
 
@@ -151,9 +161,12 @@ chunk 的 `min_ts`/`max_ts`。这是查询时 chunk 级时间剪枝的基础，�
 | `MCFT` | footer——封存时写入的 page 目录 |
 
 page/block 头部携带 `table_id`、`row_count`、`col_count`、`ts_min`/`ts_max`、`payload_len`、
-`payload_xxh`，以及对重启去重至关重要的 `source_gen` 与 `source_chunk`（该 page 从哪个热层
-chunk 的 generation 和索引抽取而来；`u32::MAX` = 不适用）。头部本身也带校验和（覆盖
-`source_chunk`）。
+`payload_xxh`，以及对重启去重至关重要的 `source_instance`、`source_gen` 与 `source_chunk`
+（该 page 来自哪个热层 MEMT 实例、chunk generation 和索引；`u32::MAX` = 不适用）。头部校验和
+覆盖完整的来源身份。
+
+MEMC v2 reader 会明确拒绝 v1 段，因为 v1 缺少实例身份，无法安全参与重启去重。已封存的 v1 文件仍可
+被保留策略淘汰；升级时若需保留其历史行，应先归档或转换。
 
 单个段可容纳**多张表**的 page，以 `table_id` 区分。这让文件/目录数量与表数量解耦：成百上千张表
 共享同一组段文件。
@@ -187,13 +200,15 @@ chunk 的 generation 和索引抽取而来；`u32::MAX` = 不适用）。头部�
   逐 chunk 的 `drained_gen` 高水位跳过已压缩的 chunk generation。
 - **滚动。** 当打开的段达到 `target_segment_bytes`（默认 64 MiB——主要的碎片化调节旋钮）、超过
   `max_segment_age`（默认 300 s，让低速率表也能及时可查），或显式 flush 时，封存当前段并新开一个。
-- **淘汰。** `enforce` 在超出字节预算（`max_total_bytes`）或 TTL 时删除最旧的段，并始终保护最新段。
+- **淘汰。** `enforce` 在超出字节预算（`max_total_bytes`）或 TTL 时删除最旧的已封存段，并始终保护
+  最新段，以及任何可能仍由其他 writer 打开的未封存/暂不可读段。
 
 ### 跨重启的精确一次
 
 `drained_gen` 在内存中，因此朴素重启面对持久冷目录时会重新压缩仍驻留在热层环形中的 chunk，产生重复
-行。`prime_from_cold()` 在启动时重建高水位：扫描已有冷段，按 `(表, source_chunk)` 取 `source_gen`
-的最大值，在首次见到某表时合并进 `drained_gen`。结果即使跨重启也保证**精确一次**。
+行。`prime_from_cold()` 在启动时重建高水位：扫描已有冷段，按
+`(表, source_instance, source_chunk)` 取 `source_gen` 的最大值，在首次见到某表实例时合并进
+`drained_gen`。这样跨重启仍保证**精确一次**，也不会把 generation 从头开始的同名新表误认成旧表。
 
 ## 运行时 Owner
 

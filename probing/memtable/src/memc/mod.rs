@@ -29,8 +29,8 @@
 //! │     numeric → Pco · u8/str/bytes → raw       │
 //! ├────────────────────────────────────────────┤ footer_off
 //! │ Footer: [MAGIC][count][len][xxh]             │
-//! │   page directory: N × 48B                    │
-//! │     (table_id, ts_min/max, block_off/len, …) │
+//! │   page directory: N × 64B                    │
+//! │     (table, range, block, source instance…)  │
 //! └────────────────────────────────────────────┘
 //! ```
 //!
@@ -54,7 +54,7 @@ mod store;
 mod writer;
 
 pub use codec::{ColumnBuilder, ColumnData};
-pub use compactor::{Compactor, CompactorConfig, CompactorHandle};
+pub use compactor::{Compactor, CompactorConfig, CompactorHandle, CompactorRuntimeStats};
 pub use layout::{ColEncoding, TableDef, MAGIC_MEMC, SOURCE_CHUNK_NONE, VERSION_MEMC};
 pub use reader::{PageMeta, SegmentReader};
 pub use store::{default_cold_dir, writer_id, ColdStats, ColdStore};

@@ -8,6 +8,13 @@ use xxhash_rust::xxh3;
 /// skipping the hash + HashMap overhead.  Default is 0 (dedup all).
 pub(crate) struct DedupState {
     seen: HashMap<u64, usize>,
+    /// Entries produced by the currently open streaming row.
+    ///
+    /// `RowWriter` writes bytes speculatively and only publishes the row from
+    /// `finish()`.  Dedup metadata must follow the same transaction boundary:
+    /// an overflowing or dropped row must not leave references to unpublished
+    /// bytes in `seen`.
+    pending: Vec<(u64, usize)>,
     min_dedup_len: usize,
 }
 
@@ -15,6 +22,7 @@ impl DedupState {
     pub fn new() -> Self {
         Self {
             seen: HashMap::with_capacity(64),
+            pending: Vec::with_capacity(8),
             min_dedup_len: 0,
         }
     }
@@ -25,23 +33,59 @@ impl DedupState {
 
     pub fn clear(&mut self) {
         self.seen.clear();
+        self.pending.clear();
     }
 
     fn key(col: usize, data: &[u8]) -> u64 {
         xxh3::xxh3_64_with_seed(data, col as u64)
     }
 
-    pub(crate) fn lookup(&self, col: usize, data: &[u8]) -> Option<usize> {
+    pub(crate) fn lookup(
+        &self,
+        col: usize,
+        data: &[u8],
+        buf: &[u8],
+        chunk_start: usize,
+    ) -> Option<usize> {
         if data.len() < self.min_dedup_len {
             return None;
         }
-        self.seen.get(&Self::key(col, data)).copied()
+        let offset = self.seen.get(&Self::key(col, data)).copied()?;
+        let prefix = chunk_start.checked_add(offset)?;
+        let value_start = prefix.checked_add(4)?;
+        let len = u32::from_le_bytes(buf.get(prefix..value_start)?.try_into().ok()?) as usize;
+        let value_end = value_start.checked_add(len)?;
+        (buf.get(value_start..value_end)? == data).then_some(offset)
     }
 
     pub(crate) fn insert(&mut self, col: usize, data: &[u8], chunk_offset: usize) {
         if data.len() >= self.min_dedup_len {
             self.seen.insert(Self::key(col, data), chunk_offset);
         }
+    }
+
+    pub(crate) fn begin_row(&mut self) {
+        debug_assert!(
+            self.pending.is_empty(),
+            "dedup transaction leaked across rows"
+        );
+        self.pending.clear();
+    }
+
+    pub(crate) fn stage_insert(&mut self, col: usize, data: &[u8], chunk_offset: usize) {
+        if data.len() >= self.min_dedup_len {
+            self.pending.push((Self::key(col, data), chunk_offset));
+        }
+    }
+
+    pub(crate) fn commit_row(&mut self) {
+        for (key, offset) in self.pending.drain(..) {
+            self.seen.insert(key, offset);
+        }
+    }
+
+    pub(crate) fn rollback_row(&mut self) {
+        self.pending.clear();
     }
 }
 
@@ -61,7 +105,9 @@ mod tests {
         let schema = Schema::new().col("tag", DType::Str).col("val", DType::I32);
         let size = MemTable::required_size(&schema, 4096, 1);
         let mut buf = vec![0u8; size];
-        let mut dw = MemTableWriter::init(&mut buf, &schema, 4096, 1).dedup();
+        let mut dw = MemTableWriter::init(&mut buf, &schema, 4096, 1)
+            .unwrap()
+            .dedup();
 
         dw.push_row(&[Value::Str("hello"), Value::I32(1)]);
         let used_after_first = dw.chunk_used(0);
@@ -98,7 +144,9 @@ mod tests {
             .col("status", DType::Str);
         let size = MemTable::required_size(&schema, 4096, 1);
         let mut buf = vec![0u8; size];
-        let mut dw = MemTableWriter::init(&mut buf, &schema, 4096, 1).dedup();
+        let mut dw = MemTableWriter::init(&mut buf, &schema, 4096, 1)
+            .unwrap()
+            .dedup();
 
         dw.row_writer()
             .put_i64(1)
@@ -147,7 +195,9 @@ mod tests {
         let schema = Schema::new().col("payload", DType::Bytes);
         let size = MemTable::required_size(&schema, 4096, 1);
         let mut buf = vec![0u8; size];
-        let mut dw = MemTableWriter::init(&mut buf, &schema, 4096, 1).dedup();
+        let mut dw = MemTableWriter::init(&mut buf, &schema, 4096, 1)
+            .unwrap()
+            .dedup();
 
         let data = &[0xDE, 0xAD, 0xBE, 0xEF];
         dw.push_row(&[Value::Bytes(data)]);
@@ -168,7 +218,9 @@ mod tests {
         let schema = Schema::new().col("s", DType::Str);
         let size = MemTable::required_size(&schema, 4096, 1);
         let mut buf = vec![0u8; size];
-        let mut dw = MemTableWriter::init(&mut buf, &schema, 4096, 1).dedup();
+        let mut dw = MemTableWriter::init(&mut buf, &schema, 4096, 1)
+            .unwrap()
+            .dedup();
         dw.push_row(&[Value::Str("")]);
         dw.push_row(&[Value::Str("")]);
         assert_eq!(dw.chunk_used(0), 16); // both inline: 8+8
@@ -180,7 +232,9 @@ mod tests {
         let schema = Schema::new().col("tag", DType::Str);
         let size = MemTable::required_size(&schema, 128, 2);
         let mut buf = vec![0u8; size];
-        let mut dw = MemTableWriter::init(&mut buf, &schema, 128, 2).dedup();
+        let mut dw = MemTableWriter::init(&mut buf, &schema, 128, 2)
+            .unwrap()
+            .dedup();
 
         for _ in 0..5 {
             dw.push_row(&[Value::Str("repeat")]);
@@ -205,7 +259,9 @@ mod tests {
             .col("msg", DType::Str);
         let size = MemTable::required_size(&schema, 8192, 1);
         let mut buf = vec![0u8; size];
-        let mut dw = MemTableWriter::init(&mut buf, &schema, 8192, 1).dedup();
+        let mut dw = MemTableWriter::init(&mut buf, &schema, 8192, 1)
+            .unwrap()
+            .dedup();
 
         let levels = ["INFO", "WARN", "ERROR"];
         for i in 0..30 {
@@ -232,7 +288,9 @@ mod tests {
             .col("msg", DType::Str);
         let size = MemTable::required_size(&schema, 65536, 8);
         let mut buf = vec![0u8; size];
-        let mut dw = MemTableWriter::init(&mut buf, &schema, 65536, 8).dedup();
+        let mut dw = MemTableWriter::init(&mut buf, &schema, 65536, 8)
+            .unwrap()
+            .dedup();
 
         let levels = ["TRACE", "DEBUG", "INFO", "WARN", "ERROR"];
         let components = ["http", "db", "cache", "auth", "scheduler", "worker"];
@@ -272,7 +330,9 @@ mod tests {
         // tiny chunks → frequent wraps
         let size = MemTable::required_size(&schema, 256, 4);
         let mut buf = vec![0u8; size];
-        let mut dw = MemTableWriter::init(&mut buf, &schema, 256, 4).dedup();
+        let mut dw = MemTableWriter::init(&mut buf, &schema, 256, 4)
+            .unwrap()
+            .dedup();
 
         let tags = ["alpha", "beta", "gamma"];
         for i in 0..500i64 {
@@ -303,7 +363,9 @@ mod tests {
         let rows_per_thread = 200;
         let size = MemTable::required_size(&schema, 32768, 8);
         let mut buf = vec![0u8; size];
-        let mut mt = MemTableWriter::init(&mut buf, &schema, 32768, 8).dedup();
+        let mut mt = MemTableWriter::init(&mut buf, &schema, 32768, 8)
+            .unwrap()
+            .dedup();
 
         let tags = ["A", "B", "C", "D"];
         for tid in 0..num_threads {
@@ -340,7 +402,9 @@ mod tests {
         }
         let size = MemTable::required_size(&schema, 65536, 1);
         let mut buf = vec![0u8; size];
-        let mut dw = MemTableWriter::init(&mut buf, &schema, 65536, 1).dedup();
+        let mut dw = MemTableWriter::init(&mut buf, &schema, 65536, 1)
+            .unwrap()
+            .dedup();
 
         let tags = ["x", "y", "z"];
         for i in 0..200 {
@@ -379,7 +443,9 @@ mod tests {
         // each chunk fits ~2-3 rows only
         let size = MemTable::required_size(&schema, 64, 16);
         let mut buf = vec![0u8; size];
-        let mut dw = MemTableWriter::init(&mut buf, &schema, 64, 16).dedup();
+        let mut dw = MemTableWriter::init(&mut buf, &schema, 64, 16)
+            .unwrap()
+            .dedup();
 
         let tags = ["aaa", "bbb"];
         for i in 0..200 {
@@ -404,7 +470,9 @@ mod tests {
         let schema = Schema::new().col("payload", DType::Str);
         let size = MemTable::required_size(&schema, 65536, 2);
         let mut buf = vec![0u8; size];
-        let mut dw = MemTableWriter::init(&mut buf, &schema, 65536, 2).dedup();
+        let mut dw = MemTableWriter::init(&mut buf, &schema, 65536, 2)
+            .unwrap()
+            .dedup();
 
         // a 1KB string repeated many times
         let long_str: String = "x".repeat(1024);

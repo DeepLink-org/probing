@@ -1,13 +1,13 @@
 //! Low-level layout: header, column descriptors, chunk headers, byte helpers.
 //!
-//! ## Header v3 binary layout (64 bytes, 1 cache line)
+//! ## Header v5 binary layout (128 bytes, 2 cache lines)
 //!
 //! ```text
 //! offset  size  field               notes
 //! ──────────────────────────────────────────────────────────
 //!  0       4    magic               0x4D454D54 ("MEMT" in LE)
-//!  4       2    version             3
-//!  6       2    header_size         64 (validation only)
+//!  4       2    version             5
+//!  6       2    header_size         128 (validation only)
 //!  8       2    byte_order          BOM: written as [0x01, 0x02]
 //! 10       2    ts_col              timestamp column index + 1 (0 = none)
 //! 12       4    flags               feature bits (see FLAG_*)
@@ -23,6 +23,12 @@
 //! 48       8    creator_start_time  process start time (platform-specific)
 //! 56       4    chunks_recycled     AtomicU32 — ring chunks overwritten
 //! 60       4    rows_overwritten    AtomicU32 — rows lost to ring wrap
+//! 64       4    lease_offset        start of ReaderLease array
+//! 68       4    lease_slots         slots per chunk
+//! 72       8    instance_id         stable identity of this table incarnation
+//! 80       8    writes_blocked      AtomicU64 — writes deferred by reader pins
+//! 88       8    lease_failures      AtomicU64 — reader lease exhaustion
+//! 96      32    _reserved_v5
 //! ──────────────────────────────────────────────────────────
 //! ```
 //!
@@ -31,8 +37,8 @@
 //!
 //! MEMT is **single-writer**: exactly one writer owns each buffer (the
 //! creator process; in-process writes are serialised by the caller). There
-//! is no in-buffer write lock. Readers stay lock-free via per-chunk
-//! `generation` re-validation.
+//! is no in-buffer write lock. Readers pin a chunk before borrowing row
+//! bytes; recycling waits for those pins to drain before overwriting it.
 
 use std::mem;
 use std::sync::atomic::{AtomicI64, AtomicU32, AtomicU64};
@@ -45,9 +51,12 @@ pub(crate) const MAGIC: u32 = MAGIC_MEMT;
 
 /// Header format version for MEMT.
 ///
-/// v3: `_pad0` became `ts_col`; dropped `write_lock` (single-writer model);
-/// `ChunkHeader` grew `min_ts`/`max_ts` (24 → 40 bytes).
-pub(crate) const VERSION: u16 = 3;
+/// v5: crash-recoverable per-process reader leases replace the unrecoverable
+/// per-chunk pin counter.
+pub(crate) const VERSION: u16 = 5;
+
+/// Maximum number of processes that may concurrently pin the same chunk.
+pub(crate) const READER_LEASE_SLOTS: usize = 16;
 
 /// Byte-order mark: written as raw bytes `[0x01, 0x02]`.
 /// On a LE host, `u16::from_ne_bytes([0x01, 0x02])` == `0x0201`.
@@ -66,7 +75,7 @@ pub(crate) const FLAG_DEDUP: u32 = 1 << 0;
 /// Bits that this version of the library understands.
 pub(crate) const FLAGS_KNOWN: u32 = FLAG_DEDUP;
 
-/// Fixed header at the start of every MemTable buffer (64 bytes).
+/// Fixed header at the start of every MemTable buffer (128 bytes).
 ///
 /// **Cold zone** (bytes 0–31): immutable after init — `magic`, `version`,
 /// schema dimensions, layout offsets.
@@ -121,16 +130,48 @@ pub(crate) struct Header {
     pub chunks_recycled: AtomicU32,
     /// Rows dropped because the ring buffer wrapped (hot-path counter).
     pub rows_overwritten: AtomicU32,
+    /// Absolute offset of the per-chunk [`ReaderLease`] array.
+    pub lease_offset: u32,
+    /// Number of reader lease slots allocated for each chunk.
+    pub lease_slots: u32,
+    /// Stable, non-zero identity generated whenever a new table is initialized.
+    ///
+    /// Unlike `(name, chunk, generation)`, this distinguishes a newly-created
+    /// table at the same path from its predecessor.
+    pub instance_id: u64,
+    /// Writes that could not recycle the next chunk because readers pinned it.
+    pub writes_blocked: AtomicU64,
+    /// Read attempts rejected because every process lease slot was occupied.
+    pub reader_lease_failures: AtomicU64,
+    pub _reserved_v5: [u64; 4],
 }
 
 /// Overwrite counters from a MEMT buffer header (for diagnostics / SQL plugins).
 pub fn ring_overwrite_stats(buf: &[u8]) -> (u32, u32) {
     use std::sync::atomic::Ordering;
-    let h = header(buf);
+    let Some(h) = checked_header(buf) else {
+        return (0, 0);
+    };
     (
         h.chunks_recycled.load(Ordering::Relaxed),
         h.rows_overwritten.load(Ordering::Relaxed),
     )
+}
+
+/// Safely project a header from an arbitrary byte slice.
+///
+/// Internal callers use [`header`] only after construction/validation; public
+/// byte-slice helpers must use this checked projection to avoid creating an
+/// unaligned or out-of-bounds reference.
+pub(crate) fn checked_header(buf: &[u8]) -> Option<&Header> {
+    if buf.len() < mem::size_of::<Header>()
+        || !(buf.as_ptr() as usize).is_multiple_of(mem::align_of::<Header>())
+    {
+        return None;
+    }
+    let h = unsafe { &*(buf.as_ptr() as *const Header) };
+    (h.magic == MAGIC && h.version == VERSION && h.header_size as usize >= mem::size_of::<Header>())
+        .then_some(h)
 }
 
 /// Per-column descriptor, immediately following the Header.
@@ -179,13 +220,24 @@ pub(crate) struct ChunkHeader {
     pub row_count: AtomicU32,
     /// Chunk lifecycle state (see `ChunkState`).
     pub state: AtomicU32,
-    pub _reserved: u32,
+    pub _reserved: AtomicU32,
     /// Smallest value of the designated timestamp column in this chunk
     /// ([`TS_MIN_INIT`] when empty or no `Header::ts_col`). Maintained by
     /// the writer; readers must validate against `generation` snapshots.
     pub min_ts: AtomicI64,
     /// Largest timestamp in this chunk ([`TS_MAX_INIT`] when empty).
     pub max_ts: AtomicI64,
+}
+
+/// Crash-recoverable reader ownership for one process and one chunk.
+///
+/// `state` packs `owner_pid` in the high 32 bits and a local reference count
+/// in the low 32 bits. A non-zero PID with zero refs is a short claim state
+/// while `owner_start_time` is being published.
+#[repr(C)]
+pub(crate) struct ReaderLease {
+    pub state: AtomicU64,
+    pub owner_start_time: AtomicU64,
 }
 
 /// Chunk lifecycle state.
@@ -200,9 +252,10 @@ pub(crate) enum ChunkState {
 pub(crate) const CHUNK_HEADER_SIZE: usize = mem::size_of::<ChunkHeader>();
 
 const _: () = {
-    assert!(mem::size_of::<Header>() == 64);
+    assert!(mem::size_of::<Header>() == 128);
     assert!(mem::size_of::<ColumnDesc>() == 64);
     assert!(mem::size_of::<ChunkHeader>() == 40);
+    assert!(mem::size_of::<ReaderLease>() == 16);
 };
 // ── struct accessors ────────────────────────────────────────────────
 
@@ -235,6 +288,16 @@ pub(crate) fn chunk_header(buf: &[u8], cs: usize) -> &ChunkHeader {
     unsafe { &*(buf[cs..].as_ptr() as *const ChunkHeader) }
 }
 
+pub(crate) fn reader_lease(buf: &[u8], chunk: usize, slot: usize) -> &ReaderLease {
+    let h = header(buf);
+    debug_assert!(slot < h.lease_slots as usize);
+    let index = chunk * h.lease_slots as usize + slot;
+    let off = h.lease_offset as usize + index * mem::size_of::<ReaderLease>();
+    debug_assert!(off.is_multiple_of(mem::align_of::<ReaderLease>()));
+    debug_assert!(off + mem::size_of::<ReaderLease>() <= h.data_offset as usize);
+    unsafe { &*(buf.as_ptr().add(off) as *const ReaderLease) }
+}
+
 pub(crate) fn r32(buf: &[u8], off: usize) -> u32 {
     u32::from_le_bytes(buf[off..off + 4].try_into().unwrap())
 }
@@ -249,8 +312,26 @@ pub(crate) fn align64(n: usize) -> usize {
 
 // ── layout helpers ──────────────────────────────────────────────────
 
-pub(crate) fn compute_data_offset(num_cols: usize) -> usize {
-    align64(mem::size_of::<Header>() + num_cols * mem::size_of::<ColumnDesc>())
+pub(crate) fn checked_lease_offset(num_cols: usize) -> Option<usize> {
+    mem::size_of::<ColumnDesc>()
+        .checked_mul(num_cols)
+        .and_then(|cols| mem::size_of::<Header>().checked_add(cols))
+        .and_then(|bytes| bytes.checked_add(63))
+        .map(|bytes| bytes & !63)
+}
+
+pub(crate) fn checked_data_offset(num_cols: usize, num_chunks: usize) -> Option<usize> {
+    let lease_offset = checked_lease_offset(num_cols)?;
+    mem::size_of::<ReaderLease>()
+        .checked_mul(READER_LEASE_SLOTS)?
+        .checked_mul(num_chunks)?
+        .checked_add(lease_offset)?
+        .checked_add(63)
+        .map(|bytes| bytes & !63)
+}
+
+pub(crate) fn compute_data_offset(num_cols: usize, num_chunks: usize) -> usize {
+    checked_data_offset(num_cols, num_chunks).expect("MEMT layout overflow")
 }
 
 pub(crate) fn chunk_start_off(buf: &[u8], chunk: usize) -> usize {
@@ -265,9 +346,10 @@ mod tests {
 
     #[test]
     fn struct_sizes() {
-        assert_eq!(mem::size_of::<Header>(), 64);
+        assert_eq!(mem::size_of::<Header>(), 128);
         assert_eq!(mem::size_of::<ColumnDesc>(), 64);
         assert_eq!(mem::size_of::<ChunkHeader>(), 40);
+        assert_eq!(mem::size_of::<ReaderLease>(), 16);
     }
 
     #[test]
@@ -275,5 +357,12 @@ mod tests {
         let bom = u16::from_ne_bytes(BYTE_ORDER_MARK);
         let expected_le = u16::from_le_bytes(BYTE_ORDER_MARK);
         assert_eq!(bom, expected_le);
+    }
+
+    #[test]
+    fn public_stats_degrade_on_arbitrary_slices() {
+        assert_eq!(ring_overwrite_stats(&[]), (0, 0));
+        let bytes = [0u8; mem::size_of::<Header>() + 1];
+        assert_eq!(ring_overwrite_stats(&bytes[1..]), (0, 0));
     }
 }
