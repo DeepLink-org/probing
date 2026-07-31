@@ -21,6 +21,22 @@ struct AppState {
 
 static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
+fn local_http_available() -> bool {
+    match SERVER_RUNTIME.block_on(TcpListener::bind("127.0.0.1:0")) {
+        Ok(listener) => {
+            drop(listener);
+            true
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
+            eprintln!(
+                "skipping hierarchical cluster report test: environment denied TCP bind ({error})"
+            );
+            false
+        }
+        Err(error) => panic!("probe local HTTP bind capability: {error}"),
+    }
+}
+
 fn now_micros() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -138,6 +154,9 @@ fn local_group_ranks(store: &[Node], group_rank: i32) -> Vec<i32> {
 #[test]
 fn hierarchical_two_nodes_times_two_gpus_converges_on_master() {
     let _guard = lock_mutex(&ENV_LOCK, "hierarchical_cluster_report ENV_LOCK");
+    if !local_http_available() {
+        return;
+    }
     for key in ["RANK", "GROUP_RANK", "LOCAL_RANK"] {
         std::env::remove_var(key);
     }

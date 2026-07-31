@@ -1,4 +1,4 @@
-use crate::layout::Header;
+use crate::layout::{checked_header, Header};
 use std::sync::atomic::Ordering;
 
 /// Access `Header.refcount` as `&AtomicU32` via raw pointer projection.
@@ -11,26 +11,49 @@ use std::sync::atomic::Ordering;
 /// `#[inline(never)]` on the mutating callers provides an additional LLVM
 /// optimisation barrier for provenance inherited from the `&[u8]` parameter.
 #[inline(always)]
-fn refcount_atomic(buf: &[u8]) -> &std::sync::atomic::AtomicU32 {
-    let ptr = buf.as_ptr() as *const Header;
-    unsafe { &*std::ptr::addr_of!((*ptr).refcount) }
+fn refcount_atomic(buf: &[u8]) -> Option<&std::sync::atomic::AtomicU32> {
+    let h = checked_header(buf)?;
+    let ptr = h as *const Header;
+    Some(unsafe { &*std::ptr::addr_of!((*ptr).refcount) })
 }
 
+/// Return the shared reference count, or zero for a non-MEMT/short/unaligned
+/// byte slice.
 pub fn refcount(buf: &[u8]) -> u32 {
-    refcount_atomic(buf).load(Ordering::Acquire)
+    refcount_atomic(buf)
+        .map(|value| value.load(Ordering::Acquire))
+        .unwrap_or(0)
 }
 
+/// Acquire a reference and return the new count.
+///
+/// Returns zero for an invalid byte slice or when the counter is already
+/// saturated. It never dereferences an unchecked caller-provided slice.
 #[inline(never)]
 pub fn acquire_ref(buf: &[u8]) -> u32 {
-    refcount_atomic(buf).fetch_add(1, Ordering::Relaxed) + 1
+    let Some(value) = refcount_atomic(buf) else {
+        return 0;
+    };
+    value
+        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+            current.checked_add(1)
+        })
+        .map(|previous| previous + 1)
+        .unwrap_or(0)
 }
 
 /// When the count drops to zero, an `Acquire` fence ensures all prior
 /// accesses from other holders are visible before the caller deallocates.
 #[inline(never)]
 pub fn release_ref(buf: &[u8]) -> u32 {
-    let prev = refcount_atomic(buf).fetch_sub(1, Ordering::Release);
-    debug_assert!(prev > 0, "release_ref on zero refcount");
+    let Some(value) = refcount_atomic(buf) else {
+        return 0;
+    };
+    let Ok(prev) = value.fetch_update(Ordering::Release, Ordering::Relaxed, |current| {
+        current.checked_sub(1)
+    }) else {
+        return 0;
+    };
     if prev == 1 {
         std::sync::atomic::fence(Ordering::Acquire);
     }
@@ -48,7 +71,7 @@ mod tests {
     #[test]
     fn refcount_lifecycle() {
         let schema = Schema::new().col("x", DType::I32);
-        let t = MemTable::new(&schema, 1024, 1);
+        let t = MemTable::new(&schema, 1024, 1).unwrap();
         assert_eq!(t.refcount(), 1);
 
         assert_eq!(acquire_ref(t.as_bytes()), 2);
@@ -58,6 +81,20 @@ mod tests {
         assert_eq!(t.refcount(), 1);
 
         assert_eq!(release_ref(t.as_bytes()), 0);
+    }
+
+    #[test]
+    fn arbitrary_slices_degrade_safely() {
+        let empty = [];
+        assert_eq!(refcount(&empty), 0);
+        assert_eq!(acquire_ref(&empty), 0);
+        assert_eq!(release_ref(&empty), 0);
+
+        let storage = [0u8; std::mem::size_of::<Header>() + 1];
+        let unaligned = &storage[1..];
+        assert_eq!(refcount(unaligned), 0);
+        assert_eq!(acquire_ref(unaligned), 0);
+        assert_eq!(release_ref(unaligned), 0);
     }
     #[test]
     fn concurrent_refcount_stress() {
@@ -73,7 +110,7 @@ mod tests {
 
         unsafe {
             let buf = std::slice::from_raw_parts_mut(ptr, size);
-            init_buf(buf, &schema, 1024, 1);
+            init_buf(buf, &schema, 1024, 1).unwrap();
         }
 
         let num_threads = 16;
@@ -125,7 +162,7 @@ mod tests {
 
         unsafe {
             let buf = std::slice::from_raw_parts_mut(ptr, size);
-            init_buf(buf, &schema, 16384, 4);
+            init_buf(buf, &schema, 16384, 4).unwrap();
         }
 
         let num_producers = 4;

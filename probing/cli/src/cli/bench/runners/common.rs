@@ -23,7 +23,7 @@ impl Attach {
     pub fn open(&self) -> io::Result<MemTable> {
         match self {
             Attach::Shm(name) => MemTable::open_shm(name),
-            Attach::File(path) => MemTable::open_file(path),
+            Attach::File(path) => MemTable::open_file_readonly(path),
         }
     }
 
@@ -128,7 +128,7 @@ pub fn build_cold(
     seed: u64,
 ) -> Result<u64> {
     let row_bytes = spec.approx_row_bytes() as u64;
-    let mut table = MemTable::new(&spec.schema(), ring.chunk_size, ring.chunks);
+    let mut table = MemTable::new(&spec.schema(), ring.chunk_size, ring.chunks)?;
     let store = ColdStore::open(dir)?;
     let config = CompactorConfig {
         target_segment_bytes: target_mb * 1024 * 1024,

@@ -1,4 +1,4 @@
-//! MEMH v3 performance benchmark.
+//! MEMH v5 performance benchmark.
 //!
 //! ## What is measured
 //!
@@ -207,7 +207,7 @@ fn print_report(results: &[BenchResult]) {
     println!();
     println!("═══════════════════════════════════════════════════════════════");
     println!(
-        " MEMH v3  N={N}  buckets={NUM_BUCKETS}  arena={}KB",
+        " MEMH v5  N={N}  buckets={NUM_BUCKETS}  arena={}KB",
         ARENA_CAP / 1024
     );
     println!("═══════════════════════════════════════════════════════════════");

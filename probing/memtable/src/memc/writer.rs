@@ -31,6 +31,7 @@ pub(crate) struct PageDirEntry {
     pub block_len: u32,
     pub source_gen: u64,
     pub source_chunk: u32,
+    pub source_instance: u64,
 }
 
 struct TableInfo {
@@ -68,8 +69,7 @@ impl SegmentWriter {
         let mut file = OpenOptions::new()
             .read(true)
             .write(true)
-            .create(true)
-            .truncate(true)
+            .create_new(true)
             .open(&path)?;
 
         let pid = std::process::id();
@@ -141,6 +141,7 @@ impl SegmentWriter {
             payload_len: payload.len() as u32,
             payload_xxh: xxh32(&payload),
             source_chunk: SOURCE_CHUNK_NONE,
+            source_instance: 0,
         };
         self.write_block(&header, &payload)?;
 
@@ -170,6 +171,22 @@ impl SegmentWriter {
         columns: &[ColumnData],
         source_gen: u64,
         source_chunk: u32,
+    ) -> io::Result<()> {
+        self.append_page_from(table_id, columns, source_gen, source_chunk, 0)
+    }
+
+    /// Append a page that originated from a specific hot MEMT instance.
+    ///
+    /// `source_instance` must be the source table's stable instance id. It
+    /// is persisted with the chunk generation/index so restart watermarks
+    /// never cross between same-name table replacements.
+    pub fn append_page_from(
+        &mut self,
+        table_id: u32,
+        columns: &[ColumnData],
+        source_gen: u64,
+        source_chunk: u32,
+        source_instance: u64,
     ) -> io::Result<()> {
         let info = self
             .tables
@@ -229,6 +246,7 @@ impl SegmentWriter {
             payload_len: payload.len() as u32,
             payload_xxh: xxh32(&payload),
             source_chunk,
+            source_instance,
         };
         let block_off = self.offset;
         let block_len = self.write_block(&header, &payload)?;
@@ -247,6 +265,7 @@ impl SegmentWriter {
             block_len: block_len as u32,
             source_gen,
             source_chunk,
+            source_instance,
         });
         Ok(())
     }
@@ -274,7 +293,8 @@ impl SegmentWriter {
             footer.extend_from_slice(&p.col_count.to_le_bytes());
             footer.extend_from_slice(&p.source_gen.to_le_bytes());
             footer.extend_from_slice(&p.source_chunk.to_le_bytes());
-            footer.extend_from_slice(&[0u8; 4]); // pad to 56
+            footer.extend_from_slice(&[0u8; 4]); // reserved
+            footer.extend_from_slice(&p.source_instance.to_le_bytes());
         }
         let checksum = xxh32(&footer[entries_start..]);
         footer[12..16].copy_from_slice(&checksum.to_le_bytes());

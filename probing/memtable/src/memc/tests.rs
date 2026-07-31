@@ -3,6 +3,7 @@
 use super::*;
 use crate::schema::{DType, Schema, Value};
 use crate::MemTable;
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::time::Duration;
 
 fn tmp_dir(tag: &str) -> std::path::PathBuf {
@@ -248,6 +249,100 @@ fn torn_tail_block_is_dropped() {
 }
 
 #[test]
+fn decoded_column_count_must_match_page_row_count() {
+    let dir = tmp_dir("row-count-mismatch");
+    let path = dir.join("seg.memc");
+    {
+        let mut w = SegmentWriter::create(&path).unwrap();
+        let tid = w
+            .register_table("m", &[("value".to_string(), DType::U8)])
+            .unwrap();
+        w.append_page(tid, &[ColumnData::U8(vec![1, 2, 3])], 1, 0)
+            .unwrap();
+    }
+
+    let block_off = SegmentReader::open(&path).unwrap().pages()[0].block_off;
+    let mut file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&path)
+        .unwrap();
+    file.seek(SeekFrom::Start(block_off)).unwrap();
+    let mut header = [0u8; super::layout::BLOCK_HEADER_SIZE];
+    file.read_exact(&mut header).unwrap();
+    super::layout::put_u32(&mut header, 8, 4);
+    let checksum = super::layout::xxh32(&header[..60]);
+    super::layout::put_u32(&mut header, 60, checksum);
+    file.seek(SeekFrom::Start(block_off)).unwrap();
+    file.write_all(&header).unwrap();
+    drop(file);
+
+    let reader = SegmentReader::open(&path).unwrap();
+    let error = reader.read_page(0).unwrap_err();
+    assert!(
+        error.contains("row count mismatch"),
+        "unexpected error: {error}"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn malformed_footer_block_range_falls_back_to_checked_scan() {
+    let dir = tmp_dir("footer-range");
+    let path = dir.join("seg.memc");
+    let mut w = SegmentWriter::create(&path).unwrap();
+    let tid = w
+        .register_table("m", &[("timestamp".to_string(), DType::I64)])
+        .unwrap();
+    w.append_page(tid, &[ColumnData::I64(vec![1, 2, 3])], 1, 0)
+        .unwrap();
+    w.seal().unwrap();
+
+    let mut bytes = std::fs::read(&path).unwrap();
+    let footer_off = super::layout::get_u64(&bytes, 32) as usize;
+    let entries_start = footer_off + 16;
+    super::layout::put_u64(&mut bytes, entries_start + 24, u64::MAX);
+    let entries_len = super::layout::get_u32(&bytes, footer_off + 8) as usize;
+    let checksum = super::layout::xxh32(&bytes[entries_start..entries_start + entries_len]);
+    super::layout::put_u32(&mut bytes, footer_off + 12, checksum);
+    std::fs::write(&path, bytes).unwrap();
+
+    let reader = SegmentReader::open(&path).unwrap();
+    assert_eq!(reader.pages().len(), 1);
+    assert_eq!(
+        reader.read_page(0).unwrap()[0],
+        ColumnData::I64(vec![1, 2, 3])
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn legacy_memc_version_is_rejected_explicitly() {
+    let dir = tmp_dir("legacy-version");
+    let path = dir.join("seg.memc");
+    let w = SegmentWriter::create(&path).unwrap();
+    drop(w);
+
+    let mut bytes = std::fs::read(&path).unwrap();
+    super::layout::put_u16(&mut bytes, 4, 1);
+    let checksum = super::layout::xxh32(&bytes[..60]);
+    super::layout::put_u32(&mut bytes, 60, checksum);
+    std::fs::write(&path, bytes).unwrap();
+
+    let error = SegmentReader::open(&path)
+        .err()
+        .expect("v1 must be rejected");
+    assert!(
+        error.to_string().contains("expected v2"),
+        "unexpected error: {error}"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn cold_store_segment_creation_and_listing() {
     let dir = tmp_dir("store-create");
     let mut store = ColdStore::open(&dir).unwrap();
@@ -342,6 +437,56 @@ fn eviction_by_ttl() {
 }
 
 #[test]
+fn eviction_never_removes_another_writers_open_segment() {
+    let dir = tmp_dir("evict-multi-writer");
+    let open_path = dir.join("aaaaaa-000001.memc");
+    let mut open_writer = SegmentWriter::create(&open_path).unwrap();
+    let open_table = open_writer
+        .register_table("m", &[("timestamp".to_string(), DType::I64)])
+        .unwrap();
+    open_writer
+        .append_page(open_table, &[ColumnData::I64(vec![1, 2])], 1, 0)
+        .unwrap();
+    std::thread::sleep(Duration::from_millis(10));
+
+    let sealed_path = dir.join("bbbbbb-000001.memc");
+    let mut sealed_writer = SegmentWriter::create(&sealed_path).unwrap();
+    let sealed_table = sealed_writer
+        .register_table("m", &[("timestamp".to_string(), DType::I64)])
+        .unwrap();
+    sealed_writer
+        .append_page(sealed_table, &[ColumnData::I64(vec![3, 4])], 1, 0)
+        .unwrap();
+    sealed_writer.seal().unwrap();
+    std::thread::sleep(Duration::from_millis(10));
+
+    let newest_path = dir.join("cccccc-000001.memc");
+    let mut newest_writer = SegmentWriter::create(&newest_path).unwrap();
+    let newest_table = newest_writer
+        .register_table("m", &[("timestamp".to_string(), DType::I64)])
+        .unwrap();
+    newest_writer
+        .append_page(newest_table, &[ColumnData::I64(vec![5, 6])], 1, 0)
+        .unwrap();
+    newest_writer.seal().unwrap();
+
+    let store = ColdStore::open(&dir).unwrap();
+    let removed = store.enforce_limits(None, Some(Duration::ZERO));
+    assert!(
+        open_path.exists(),
+        "an unsealed segment owned by another writer must be protected"
+    );
+    assert!(newest_path.exists(), "newest segment remains protected");
+    assert!(
+        removed.contains(&sealed_path),
+        "eligible sealed segment should still be evicted"
+    );
+
+    drop(open_writer);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn pco_compresses_large_numeric_segment() {
     let dir = tmp_dir("compress");
     let path = dir.join("seg.memc");
@@ -391,7 +536,7 @@ fn hot_metrics(chunk_size: u32, num_chunks: u32) -> MemTable {
         .col("timestamp", DType::I64)
         .col("value", DType::F64)
         .col("tag", DType::Str);
-    MemTable::new(&schema, chunk_size, num_chunks)
+    MemTable::new(&schema, chunk_size, num_chunks).unwrap()
 }
 
 /// Total rows across all pages of every sealed segment in `dir`.
@@ -546,7 +691,7 @@ fn compactor_background_thread_drains_on_stop() {
     // Writer handle (application side) and an independent read handle the
     // compactor thread owns — same mmap'd file, lock-free reads.
     let mut writer = MemTable::file_at(&file, &schema, 512, 4).unwrap();
-    let reader = MemTable::open_file(&file).unwrap();
+    let reader = MemTable::open_file_readonly(&file).unwrap();
 
     let store = ColdStore::open(&dir).unwrap();
     let handle = Compactor::new(
@@ -574,6 +719,40 @@ fn compactor_background_thread_drains_on_stop() {
 
     assert_eq!(cold_row_count(&dir), 7);
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn compactor_background_errors_are_observable() {
+    let dir = tmp_dir("compact-background-error");
+    let store = ColdStore::open(&dir).unwrap();
+    std::fs::remove_dir_all(&dir).unwrap();
+    std::fs::File::create(&dir).unwrap();
+
+    let mut source = hot_metrics(512, 2);
+    source.push_row(&[Value::I64(1), Value::F64(1.0), Value::Str("x")]);
+    source.advance_chunk();
+
+    let handle = Compactor::new(
+        store,
+        CompactorConfig {
+            poll_interval: Duration::from_millis(5),
+            ..Default::default()
+        },
+    )
+    .spawn(vec![("metrics".to_string(), source)]);
+    std::thread::sleep(Duration::from_millis(30));
+    let stats = handle.stop();
+
+    assert!(stats.error_count > 0);
+    assert!(
+        stats
+            .last_error
+            .as_deref()
+            .is_some_and(|message| message.contains("drain table metrics")),
+        "last error should retain operation context: {stats:?}"
+    );
+
+    std::fs::remove_file(&dir).unwrap();
 }
 
 #[test]
@@ -642,6 +821,42 @@ fn compactor_restart_dedup_via_prime() {
         assert!(c.flush().unwrap().is_none(), "nothing new to seal");
     }
     assert_eq!(cold_row_count(&dir), 4, "exactly-once: no duplication");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn compactor_prime_does_not_cross_same_name_memtable_instances() {
+    let dir = tmp_dir("compact-recreated-source");
+    let cfg = || CompactorConfig {
+        target_segment_bytes: 1 << 30,
+        ..Default::default()
+    };
+
+    let mut first = hot_metrics(512, 4);
+    first.push_row(&[Value::I64(1), Value::F64(1.0), Value::Str("old")]);
+    first.advance_chunk();
+    let first_instance = first.instance_id();
+    {
+        let mut c = Compactor::new(ColdStore::open(&dir).unwrap(), cfg());
+        assert_eq!(c.drain_view("metrics", &first.view()).unwrap(), 1);
+        c.flush().unwrap();
+    }
+
+    let mut replacement = hot_metrics(512, 4);
+    replacement.push_row(&[Value::I64(2), Value::F64(2.0), Value::Str("replacement")]);
+    replacement.advance_chunk();
+    assert_ne!(replacement.instance_id(), first_instance);
+
+    let mut c = Compactor::new(ColdStore::open(&dir).unwrap(), cfg());
+    c.prime_from_cold().unwrap();
+    assert_eq!(
+        c.drain_view("metrics", &replacement.view()).unwrap(),
+        1,
+        "same-name replacement has an independent persisted watermark"
+    );
+    c.flush().unwrap();
+    assert_eq!(cold_row_count(&dir), 2);
 
     let _ = std::fs::remove_dir_all(&dir);
 }

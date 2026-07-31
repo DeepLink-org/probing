@@ -4,6 +4,8 @@
 use axum::extract::Query;
 use std::collections::HashMap;
 use std::fs;
+use std::path::Path;
+use std::sync::{Mutex, MutexGuard};
 use tempfile::{NamedTempFile, TempDir};
 
 // Access server modules directly since tests can access private modules
@@ -11,6 +13,33 @@ use tempfile::{NamedTempFile, TempDir};
 use probing_server::server::config::get_max_file_size;
 use probing_server::server::error::ApiResult;
 use probing_server::server::file_api::{read_file, validate_path};
+
+static CURRENT_DIR_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+struct CurrentDirGuard {
+    _lock: MutexGuard<'static, ()>,
+    original: std::path::PathBuf,
+}
+
+impl CurrentDirGuard {
+    fn enter(path: &Path) -> Self {
+        let lock = CURRENT_DIR_TEST_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let original = std::env::current_dir().unwrap();
+        std::env::set_current_dir(path).unwrap();
+        Self {
+            _lock: lock,
+            original,
+        }
+    }
+}
+
+impl Drop for CurrentDirGuard {
+    fn drop(&mut self) {
+        std::env::set_current_dir(&self.original).expect("restore test working directory");
+    }
+}
 
 // ========== 路径验证复杂测试 ==========
 
@@ -42,15 +71,11 @@ async fn test_validate_path_within_allowed_dir() {
     fs::write(&test_file, "test content").unwrap();
 
     // Change to temp_dir to test relative paths
-    let original_dir = std::env::current_dir().unwrap();
-    std::env::set_current_dir(&temp_dir).unwrap();
+    let _cwd = CurrentDirGuard::enter(temp_dir.path());
 
     // Test with relative path
     let result = validate_path("./logs/test.log");
     assert!(result.is_ok());
-
-    // Restore original directory
-    std::env::set_current_dir(&original_dir).unwrap();
 }
 
 #[tokio::test]
@@ -79,17 +104,13 @@ async fn test_validate_path_normalization() {
     fs::write(&test_file, "test content").unwrap();
 
     // Change to temp_dir to test relative paths
-    let original_dir = std::env::current_dir().unwrap();
-    std::env::set_current_dir(&temp_dir).unwrap();
+    let _cwd = CurrentDirGuard::enter(temp_dir.path());
 
     // Test with normalized path (using ..)
     let _result = validate_path("./logs/../logs/test.log");
     // This should work because canonicalize normalizes the path
     // But it might fail if the normalized path is outside allowed dirs
     // The actual behavior depends on how canonicalize resolves the path
-
-    // Restore original directory
-    std::env::set_current_dir(&original_dir).unwrap();
 }
 
 #[tokio::test]
@@ -100,16 +121,12 @@ async fn test_validate_path_double_encoding() {
     fs::create_dir_all(&logs_dir).unwrap();
 
     // Change to temp_dir
-    let original_dir = std::env::current_dir().unwrap();
-    std::env::set_current_dir(&temp_dir).unwrap();
+    let _cwd = CurrentDirGuard::enter(temp_dir.path());
 
     // Try double-encoded path traversal
     let result = validate_path("./logs/....//....//etc/passwd");
     // This should fail because canonicalize should normalize it
     assert!(result.is_err());
-
-    // Restore original directory
-    std::env::set_current_dir(&original_dir).unwrap();
 }
 
 #[tokio::test]
@@ -125,15 +142,11 @@ async fn test_validate_path_symlink() {
     fs::write(&test_file, "test").unwrap();
 
     // Change to temp_dir
-    let original_dir = std::env::current_dir().unwrap();
-    std::env::set_current_dir(&temp_dir).unwrap();
+    let _cwd = CurrentDirGuard::enter(temp_dir.path());
 
     // Test that canonicalize resolves symlinks
     let result = validate_path("./logs/test.txt");
     assert!(result.is_ok());
-
-    // Restore original directory
-    std::env::set_current_dir(&original_dir).unwrap();
 }
 
 // ========== 文件读取复杂测试 ==========
@@ -156,8 +169,7 @@ async fn test_read_file_success() {
     fs::copy(file_path, &allowed_file).unwrap();
 
     // Change to temp_dir to test relative paths
-    let original_dir = std::env::current_dir().unwrap();
-    std::env::set_current_dir(&temp_dir).unwrap();
+    let _cwd = CurrentDirGuard::enter(temp_dir.path());
 
     // Test reading the file
     let mut params = HashMap::new();
@@ -166,9 +178,6 @@ async fn test_read_file_success() {
     let result: ApiResult<String> = read_file(Query(params)).await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), content);
-
-    // Restore original directory
-    std::env::set_current_dir(&original_dir).unwrap();
 }
 
 #[tokio::test]
@@ -184,8 +193,7 @@ async fn test_read_file_size_limit() {
     fs::write(&large_file, &large_content).unwrap();
 
     // Change to temp_dir to test relative paths
-    let original_dir = std::env::current_dir().unwrap();
-    std::env::set_current_dir(&temp_dir).unwrap();
+    let _cwd = CurrentDirGuard::enter(temp_dir.path());
 
     let mut params = HashMap::new();
     params.insert("path".to_string(), "./logs/large.txt".to_string());
@@ -194,9 +202,6 @@ async fn test_read_file_size_limit() {
     assert!(result.is_err());
     let error_msg = result.unwrap_err().to_string();
     assert!(error_msg.contains("too large"));
-
-    // Restore original directory
-    std::env::set_current_dir(&original_dir).unwrap();
 }
 
 #[tokio::test]
@@ -212,8 +217,7 @@ async fn test_read_file_within_size_limit() {
     fs::write(&test_file, content).unwrap();
 
     // Change to temp_dir to test relative paths
-    let original_dir = std::env::current_dir().unwrap();
-    std::env::set_current_dir(&temp_dir).unwrap();
+    let _cwd = CurrentDirGuard::enter(temp_dir.path());
 
     let mut params = HashMap::new();
     params.insert("path".to_string(), "./logs/small.txt".to_string());
@@ -221,7 +225,4 @@ async fn test_read_file_within_size_limit() {
     let result: ApiResult<String> = read_file(Query(params)).await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), content);
-
-    // Restore original directory
-    std::env::set_current_dir(&original_dir).unwrap();
 }

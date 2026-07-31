@@ -458,9 +458,11 @@ mod tests {
     use crate::config;
 
     // Helper to ensure clean state before each test
-    async fn setup_test() {
+    async fn setup_test() -> tokio::sync::MutexGuard<'static, ()> {
+        let guard = config::TEST_STATE_LOCK.lock().await;
         config::clear().await;
         PROBE_EXTENSIONS.write().await.clear();
+        guard
     }
 
     // Helper to ensure clean state after each test
@@ -522,7 +524,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_set_option_syncs_to_config_store() {
-        setup_test().await;
+        let _state_guard = setup_test().await;
 
         let mut manager = ProbeExtensionManager;
         let extension = Arc::new(Mutex::new(TestExtension::default()));
@@ -551,7 +553,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_set_option_updates_existing_value() {
-        setup_test().await;
+        let _state_guard = setup_test().await;
 
         // Pre-populate ConfigStore
         config::set("test.option", "old_value").await;
@@ -575,7 +577,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_set_option_unsupported_key() {
-        setup_test().await;
+        let _state_guard = setup_test().await;
 
         let mut manager = ProbeExtensionManager;
         let extension = Arc::new(Mutex::new(TestExtension::default()));
@@ -597,7 +599,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_get_option_from_config_store() {
-        setup_test().await;
+        let _state_guard = setup_test().await;
 
         // Pre-populate ConfigStore
         config::set("test.option", "stored_value").await;

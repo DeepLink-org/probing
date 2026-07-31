@@ -1,16 +1,32 @@
 use crate::error::{MemtableError, Result};
+#[cfg(test)]
+use crate::layout::compute_data_offset;
 use crate::layout::{
-    chunk_header, col_desc, col_desc_mut, compute_data_offset, header, header_mut, r32, w32,
-    ChunkHeader, ChunkState, Header, BYTE_ORDER_MARK, CHUNK_HEADER_SIZE, FLAGS_KNOWN, FLAG_DEDUP,
-    MAGIC, TS_MAX_INIT, TS_MIN_INIT, VERSION,
+    checked_data_offset, checked_lease_offset, chunk_header, col_desc, col_desc_mut, header,
+    header_mut, r32, reader_lease, w32, ChunkHeader, ChunkState, Header, BYTE_ORDER_MARK,
+    CHUNK_HEADER_SIZE, FLAGS_KNOWN, FLAG_DEDUP, MAGIC, READER_LEASE_SLOTS, TS_MAX_INIT,
+    TS_MIN_INIT, VERSION,
 };
+use crate::row::{chunk_has_live_leases, pin_chunk};
 use crate::schema::{DType, Schema, Value};
 use std::mem;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Column names recognised as the designated timestamp column (must be
 /// `I64`). Matched at [`init_buf`] time and recorded in `Header::ts_col`.
 pub(crate) const TS_COL_NAMES: [&str; 2] = ["timestamp", "ts"];
+
+/// Kernel PID, deliberately bypassing any process-library cache so lease
+/// ownership changes immediately after `fork`.
+#[cfg(unix)]
+pub(crate) fn current_process_id() -> u32 {
+    unsafe { libc::getpid() as u32 }
+}
+
+#[cfg(not(unix))]
+pub(crate) fn current_process_id() -> u32 {
+    std::process::id()
+}
 
 /// Fold a committed row's timestamp into the chunk's `min_ts`/`max_ts`.
 ///
@@ -45,6 +61,7 @@ pub(crate) fn row_ts(h: &Header, values: &[Value]) -> Option<i64> {
 ///
 /// - **Linux**: clock ticks since boot from `/proc/<pid>/stat` field 22.
 /// - **macOS**: microseconds since epoch via `sysctl(KERN_PROC_PID)`.
+/// - **Windows**: process creation time from `GetProcessTimes`.
 /// - **Other**: returns 0 (graceful degradation to PID-only check).
 #[cfg(target_os = "linux")]
 pub(crate) fn process_start_time(pid: u32) -> u64 {
@@ -66,11 +83,160 @@ pub(crate) fn process_start_time(pid: u32) -> u64 {
     0
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(target_os = "macos")]
+pub(crate) fn process_start_time(pid: u32) -> u64 {
+    let mut info = unsafe { std::mem::zeroed::<libc::proc_bsdinfo>() };
+    let expected = std::mem::size_of::<libc::proc_bsdinfo>() as libc::c_int;
+    let written = unsafe {
+        libc::proc_pidinfo(
+            pid as libc::c_int,
+            libc::PROC_PIDTBSDINFO,
+            0,
+            (&mut info as *mut libc::proc_bsdinfo).cast(),
+            expected,
+        )
+    };
+    if written != expected {
+        return 0;
+    }
+    info.pbi_start_tvsec
+        .checked_mul(1_000_000)
+        .and_then(|seconds| seconds.checked_add(info.pbi_start_tvusec))
+        .unwrap_or(0)
+}
+
+#[cfg(windows)]
+mod windows_process {
+    use std::ffi::c_void;
+
+    pub type Handle = *mut c_void;
+    pub const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
+    pub const ERROR_INVALID_PARAMETER: u32 = 87;
+
+    #[repr(C)]
+    #[derive(Clone, Copy, Default)]
+    pub struct FileTime {
+        pub low: u32,
+        pub high: u32,
+    }
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        pub fn OpenProcess(access: u32, inherit: i32, pid: u32) -> Handle;
+        pub fn GetProcessTimes(
+            process: Handle,
+            creation: *mut FileTime,
+            exit: *mut FileTime,
+            kernel: *mut FileTime,
+            user: *mut FileTime,
+        ) -> i32;
+        pub fn CloseHandle(handle: Handle) -> i32;
+        pub fn GetLastError() -> u32;
+    }
+}
+
+#[cfg(windows)]
+pub(crate) fn process_start_time(pid: u32) -> u64 {
+    use windows_process::*;
+    if pid == 0 {
+        return 0;
+    }
+    let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
+    if handle.is_null() {
+        return 0;
+    }
+    let mut creation = FileTime::default();
+    let mut exit = FileTime::default();
+    let mut kernel = FileTime::default();
+    let mut user = FileTime::default();
+    let ok =
+        unsafe { GetProcessTimes(handle, &mut creation, &mut exit, &mut kernel, &mut user) } != 0;
+    unsafe {
+        CloseHandle(handle);
+    }
+    if ok {
+        ((creation.high as u64) << 32) | creation.low as u64
+    } else {
+        0
+    }
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
 pub(crate) fn process_start_time(_pid: u32) -> u64 {
-    // macOS / other: graceful degradation to PID-only liveness check.
-    // is_creator_alive() skips start-time comparison when this returns 0.
     0
+}
+
+fn new_instance_id() -> u64 {
+    static SEQUENCE: AtomicU64 = AtomicU64::new(1);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|v| v.as_nanos() as u64)
+        .unwrap_or(0);
+    let seq = SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let pid = std::process::id() as u64;
+    // Mix time, PID, process start and a process-local sequence. This is an
+    // identity token (not a secret); ensure zero remains reserved for legacy
+    // or invalid buffers.
+    let mut id = now ^ pid.rotate_left(17) ^ process_start_time(pid as u32).rotate_left(31) ^ seq;
+    id ^= id >> 30;
+    id = id.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    id ^= id >> 27;
+    id = id.wrapping_mul(0x94d0_49bb_1331_11eb);
+    id ^= id >> 31;
+    if id == 0 {
+        1
+    } else {
+        id
+    }
+}
+
+#[cfg(unix)]
+pub(crate) fn process_exists(pid: u32) -> bool {
+    if pid == 0 {
+        return false;
+    }
+    let ret = unsafe { libc::kill(pid as libc::c_int, 0) };
+    ret == 0 || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
+}
+
+#[cfg(not(unix))]
+#[cfg(not(windows))]
+pub(crate) fn process_exists(pid: u32) -> bool {
+    pid == std::process::id()
+}
+
+#[cfg(windows)]
+pub(crate) fn process_exists(pid: u32) -> bool {
+    use windows_process::*;
+    if pid == 0 {
+        return false;
+    }
+    let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
+    if handle.is_null() {
+        // Access-denied and protected-process failures must be treated as live:
+        // a false negative here permits a writer to overwrite borrowed bytes.
+        return unsafe { GetLastError() } != ERROR_INVALID_PARAMETER;
+    }
+    unsafe {
+        CloseHandle(handle);
+    }
+    true
+}
+
+/// Conservatively test whether `(pid, start_time)` still names a live process.
+///
+/// If the platform cannot obtain a start time, a live PID is treated as the
+/// same process. This may delay recovery after PID reuse, but never allows
+/// recovery to overwrite memory still borrowed by a live reader.
+pub(crate) fn process_instance_alive(pid: u32, expected_start_time: u64) -> bool {
+    if !process_exists(pid) {
+        return false;
+    }
+    if expected_start_time == 0 {
+        return true;
+    }
+    let actual = process_start_time(pid);
+    actual == 0 || actual == expected_start_time
 }
 
 /// Try to append a row whose total payload size (`row_data`) is already known.
@@ -119,7 +285,13 @@ pub(crate) fn write_row_bytes(buf: &mut [u8], values: &[Value], row_data: usize)
 /// MEMT is single-writer, so no lock is taken. Takes `&mut [u8]` so that
 /// LLVM does not mark the pointer `readonly` (which would let it elide the
 /// atomic stores below in optimised builds).
-pub(crate) fn advance_chunk_raw(buf: &mut [u8]) {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AdvanceOutcome {
+    Advanced,
+    ReadersPinned,
+}
+
+pub(crate) fn advance_chunk_raw_detailed(buf: &mut [u8]) -> AdvanceOutcome {
     let ptr = buf.as_mut_ptr();
     unsafe {
         let h = &*(ptr as *const Header);
@@ -130,13 +302,43 @@ pub(crate) fn advance_chunk_raw(buf: &mut [u8]) {
 
         let cur_cs = doff + wc as usize * csz;
         let cur_ch = &*(ptr.add(cur_cs) as *const ChunkHeader);
-        cur_ch
-            .state
-            .store(ChunkState::Sealed as u32, Ordering::Release);
 
         let new_wc = (wc + 1) % num_chunks;
         let cs = doff + new_wc as usize * csz;
         let new_ch = &*(ptr.add(cs) as *const ChunkHeader);
+        let previous_state = new_ch.state.load(Ordering::SeqCst);
+        // Block new pins before touching any byte in the old generation.
+        new_ch
+            .state
+            .store(ChunkState::Empty as u32, Ordering::SeqCst);
+
+        // A reader may have claimed a lease immediately before observing
+        // Empty and will release it after validation fails. Dead owners are
+        // reclaimed by `chunk_has_live_leases`.
+        const PIN_DRAIN_SPINS: usize = 1024;
+        for attempt in 0..PIN_DRAIN_SPINS {
+            if !chunk_has_live_leases(buf, new_wc as usize) {
+                break;
+            }
+            if attempt < 64 {
+                std::hint::spin_loop();
+            } else {
+                std::thread::yield_now();
+            }
+        }
+        if chunk_has_live_leases(buf, new_wc as usize) {
+            new_ch.state.store(previous_state, Ordering::SeqCst);
+            h.writes_blocked.fetch_add(1, Ordering::Relaxed);
+            log::warn!("memtable chunk recycle deferred: active readers still pin the chunk");
+            return AdvanceOutcome::ReadersPinned;
+        }
+
+        if cur_cs != cs {
+            cur_ch
+                .state
+                .store(ChunkState::Sealed as u32, Ordering::Release);
+        }
+
         let rows_lost = new_ch.row_count.load(Ordering::Relaxed);
         if rows_lost > 0 {
             h.chunks_recycled.fetch_add(1, Ordering::Relaxed);
@@ -146,21 +348,24 @@ pub(crate) fn advance_chunk_raw(buf: &mut [u8]) {
                 h.rows_overwritten.load(Ordering::Relaxed)
             );
         }
+        new_ch.generation.fetch_add(1, Ordering::AcqRel);
         new_ch.used.store(0, Ordering::Relaxed);
         new_ch.row_count.store(0, Ordering::Relaxed);
         new_ch.min_ts.store(TS_MIN_INIT, Ordering::Relaxed);
         new_ch.max_ts.store(TS_MAX_INIT, Ordering::Relaxed);
         new_ch
             .state
-            .store(ChunkState::Writing as u32, Ordering::Relaxed);
-        // Generation bump LAST with Release: readers that Acquire this
-        // new generation are guaranteed to see the zeroed used/state above.
-        new_ch.generation.fetch_add(1, Ordering::Release);
+            .store(ChunkState::Writing as u32, Ordering::Release);
 
         (&*(ptr as *const Header))
             .write_chunk
             .store(new_wc, Ordering::Release);
+        AdvanceOutcome::Advanced
     }
+}
+
+pub(crate) fn advance_chunk_raw(buf: &mut [u8]) -> bool {
+    advance_chunk_raw_detailed(buf) == AdvanceOutcome::Advanced
 }
 /// Walk rows in a sealed chunk: verify row lengths stay within `used` and
 /// dedup refs (negative var-length prefix) point inside the chunk data region.
@@ -232,6 +437,12 @@ pub fn validate_buf(buf: &[u8]) -> Result<()> {
     if buf.len() < mem::size_of::<Header>() {
         return Err(MemtableError::InvalidBuffer("buffer too small for header"));
     }
+    let required_alignment = mem::align_of::<Header>();
+    if !(buf.as_ptr() as usize).is_multiple_of(required_alignment) {
+        return Err(MemtableError::InvalidBuffer(
+            "buffer address does not satisfy header alignment",
+        ));
+    }
     let h = header(buf);
     if h.magic != MAGIC {
         return Err(MemtableError::InvalidBuffer("invalid magic"));
@@ -260,16 +471,41 @@ pub fn validate_buf(buf: &[u8]) -> Result<()> {
     if csz < CHUNK_HEADER_SIZE + 8 {
         return Err(MemtableError::InvalidBuffer("chunk_size too small"));
     }
-    let expected_off = compute_data_offset(nc);
+    if !csz.is_multiple_of(mem::align_of::<ChunkHeader>()) {
+        return Err(MemtableError::InvalidBuffer(
+            "chunk_size does not satisfy chunk header alignment",
+        ));
+    }
+    let expected_lease_off =
+        checked_lease_offset(nc).ok_or(MemtableError::InvalidBuffer("column layout overflow"))?;
+    if h.lease_offset as usize != expected_lease_off || h.lease_slots as usize != READER_LEASE_SLOTS
+    {
+        return Err(MemtableError::InvalidBuffer("invalid reader lease layout"));
+    }
+    let expected_off = checked_data_offset(nc, h.num_chunks as usize)
+        .ok_or(MemtableError::InvalidBuffer("column layout overflow"))?;
+    if expected_off > u32::MAX as usize {
+        return Err(MemtableError::InvalidBuffer("column layout exceeds format"));
+    }
     if h.data_offset as usize != expected_off {
         return Err(MemtableError::InvalidBuffer("invalid data_offset"));
     }
-    let required = expected_off + csz * h.num_chunks as usize;
+    let required = csz
+        .checked_mul(h.num_chunks as usize)
+        .and_then(|chunks| expected_off.checked_add(chunks))
+        .ok_or(MemtableError::InvalidBuffer("table size overflow"))?;
     if buf.len() < required {
         return Err(MemtableError::InvalidBuffer("buffer too small for data"));
     }
     for i in 0..nc {
-        let dt = col_desc(buf, i).dtype;
+        let desc = col_desc(buf, i);
+        let name_len = u16::from_le_bytes([desc.name[0], desc.name[1]]) as usize;
+        if name_len > 54 {
+            return Err(MemtableError::InvalidBuffer(
+                "column name length out of range",
+            ));
+        }
+        let dt = desc.dtype;
         if !(1..=9).contains(&dt) {
             return Err(MemtableError::InvalidBuffer("invalid column dtype"));
         }
@@ -299,14 +535,12 @@ pub fn validate_buf(buf: &[u8]) -> Result<()> {
                 "chunk used exceeds payload capacity",
             ));
         }
-        if state == ChunkState::Sealed as u32 && used > 0 {
-            let gen_before = ch.generation.load(Ordering::Acquire);
-            let snap_used = ch.used.load(Ordering::Acquire) as usize;
-            if snap_used > 0 && snap_used <= payload_cap {
-                let result = validate_chunk_rows(buf, cs, snap_used, nc, has_dedup);
-                if ch.generation.load(Ordering::Acquire) == gen_before {
-                    result?;
-                }
+        // Deep validation reads ordinary row bytes, so it must participate in
+        // the same pin protocol as Row/RowIter. Generation re-check alone is
+        // too late: a recycle could otherwise race the byte reads themselves.
+        if let Some((_pin, _generation, snap_used)) = pin_chunk(buf, cs)? {
+            if snap_used > 0 {
+                validate_chunk_rows(buf, cs, snap_used, nc, has_dedup)?;
             }
         }
     }
@@ -344,20 +578,47 @@ pub(crate) fn validate_row_schema(buf: &[u8], values: &[Value]) -> bool {
 
 // ── init ────────────────────────────────────────────────────────────
 
-pub(crate) fn init_buf(buf: &mut [u8], schema: &Schema, chunk_size: u32, num_chunks: u32) {
+pub(crate) fn init_buf(
+    buf: &mut [u8],
+    schema: &Schema,
+    chunk_size: u32,
+    num_chunks: u32,
+) -> Result<()> {
+    let required_alignment = mem::align_of::<Header>();
+    if !(buf.as_ptr() as usize).is_multiple_of(required_alignment) {
+        return Err(MemtableError::InvalidBuffer(
+            "buffer address does not satisfy header alignment",
+        ));
+    }
+    if num_chunks == 0 {
+        return Err(MemtableError::InvalidBuffer("num_chunks must be > 0"));
+    }
+    if !(chunk_size as usize).is_multiple_of(mem::align_of::<ChunkHeader>()) {
+        return Err(MemtableError::InvalidBuffer(
+            "chunk_size does not satisfy chunk header alignment",
+        ));
+    }
     let nc = schema.cols.len();
-    let data_off = compute_data_offset(nc);
-    let required = data_off + chunk_size as usize * num_chunks as usize;
-    assert!(
-        buf.len() >= required,
-        "buffer too small: need {required} bytes, got {}",
-        buf.len()
-    );
-    assert!(
-        chunk_size as usize >= CHUNK_HEADER_SIZE + 8,
-        "chunk_size must be at least {} bytes",
-        CHUNK_HEADER_SIZE + 8
-    );
+    if nc > u32::MAX as usize {
+        return Err(MemtableError::InvalidBuffer("too many columns"));
+    }
+    let lease_off =
+        checked_lease_offset(nc).ok_or(MemtableError::InvalidBuffer("column layout overflow"))?;
+    let data_off = checked_data_offset(nc, num_chunks as usize)
+        .ok_or(MemtableError::InvalidBuffer("column layout overflow"))?;
+    if data_off > u32::MAX as usize {
+        return Err(MemtableError::InvalidBuffer("column layout exceeds format"));
+    }
+    let required = (chunk_size as usize)
+        .checked_mul(num_chunks as usize)
+        .and_then(|chunks| data_off.checked_add(chunks))
+        .ok_or(MemtableError::InvalidBuffer("table size overflow"))?;
+    if buf.len() < required {
+        return Err(MemtableError::InvalidBuffer("buffer too small"));
+    }
+    if (chunk_size as usize) < CHUNK_HEADER_SIZE + 8 {
+        return Err(MemtableError::InvalidBuffer("chunk_size too small"));
+    }
 
     // First I64 column with a recognised timestamp name becomes the
     // designated time column (index + 1; 0 = none).
@@ -386,12 +647,26 @@ pub(crate) fn init_buf(buf: &mut [u8], schema: &Schema, chunk_size: u32, num_chu
     h.creator_start_time = process_start_time(std::process::id());
     h.chunks_recycled.store(0, Ordering::Relaxed);
     h.rows_overwritten.store(0, Ordering::Relaxed);
+    h.lease_offset = lease_off as u32;
+    h.lease_slots = READER_LEASE_SLOTS as u32;
+    h.instance_id = new_instance_id();
+    h.writes_blocked.store(0, Ordering::Relaxed);
+    h.reader_lease_failures.store(0, Ordering::Relaxed);
+    h._reserved_v5 = [0; 4];
 
     for (i, col) in schema.cols.iter().enumerate() {
         let cd = col_desc_mut(buf, i);
         cd.set_name(&col.name);
         cd.dtype = col.dtype as u32;
         cd.elem_size = col.elem_size as u32;
+    }
+
+    for chunk in 0..num_chunks as usize {
+        for slot in 0..READER_LEASE_SLOTS {
+            let lease = reader_lease(buf, chunk, slot);
+            lease.state.store(0, Ordering::Relaxed);
+            lease.owner_start_time.store(0, Ordering::Relaxed);
+        }
     }
 
     // Initialize all chunk headers
@@ -401,6 +676,7 @@ pub(crate) fn init_buf(buf: &mut [u8], schema: &Schema, chunk_size: u32, num_chu
         ch.generation.store(0, Ordering::Relaxed);
         ch.used.store(0, Ordering::Relaxed);
         ch.row_count.store(0, Ordering::Relaxed);
+        ch._reserved.store(0, Ordering::Relaxed);
         ch.min_ts.store(TS_MIN_INIT, Ordering::Relaxed);
         ch.max_ts.store(TS_MAX_INIT, Ordering::Relaxed);
         ch.state.store(ChunkState::Empty as u32, Ordering::Relaxed);
@@ -410,6 +686,7 @@ pub(crate) fn init_buf(buf: &mut [u8], schema: &Schema, chunk_size: u32, num_chu
     ch0.generation.store(1, Ordering::Relaxed);
     ch0.state
         .store(ChunkState::Writing as u32, Ordering::Relaxed);
+    Ok(())
 }
 
 #[cfg(test)]
@@ -419,11 +696,21 @@ mod tests {
     use crate::schema::{DType, Schema, Value};
 
     #[test]
-    #[should_panic(expected = "buffer too small")]
     fn init_buf_rejects_small_buffer() {
         let schema = Schema::new().col("x", DType::I32);
         let mut buf = vec![0u8; 32]; // way too small
-        init_buf(&mut buf, &schema, 1024, 1);
+        assert!(init_buf(&mut buf, &schema, 1024, 1).is_err());
+    }
+
+    #[test]
+    fn init_buf_rejects_zero_chunks_and_misalignment() {
+        let schema = Schema::new().col("x", DType::I32);
+        let size = compute_data_offset(1, 1) + 1024;
+        let mut aligned = vec![0u8; size];
+        assert!(init_buf(&mut aligned, &schema, 1024, 0).is_err());
+
+        let mut storage = vec![0u8; size + 1];
+        assert!(init_buf(&mut storage[1..], &schema, 1024, 1).is_err());
     }
 
     #[test]
@@ -431,10 +718,10 @@ mod tests {
         let schema = Schema::new().col("x", DType::I32);
         let chunk_size = 128u32;
         let num_chunks = 2u32;
-        let total = crate::layout::compute_data_offset(schema.cols.len())
+        let total = crate::layout::compute_data_offset(schema.cols.len(), num_chunks as usize)
             + chunk_size as usize * num_chunks as usize;
         let mut buf = vec![0u8; total];
-        init_buf(&mut buf, &schema, chunk_size, num_chunks);
+        init_buf(&mut buf, &schema, chunk_size, num_chunks).unwrap();
 
         for i in 0..10_000i32 {
             assert!(push_plain_row(&mut buf, &[Value::I32(i)]));
@@ -445,5 +732,106 @@ mod tests {
             }
         }
         panic!("expected ring overwrite within 10_000 pushes");
+    }
+
+    #[test]
+    fn advance_chunk_refuses_to_recycle_a_pinned_target() {
+        let schema = Schema::new().col("x", DType::I32);
+        let chunk_size = 128u32;
+        let num_chunks = 2u32;
+        let data_off = crate::layout::compute_data_offset(schema.cols.len(), num_chunks as usize);
+        let mut buf = vec![0u8; data_off + chunk_size as usize * num_chunks as usize];
+        init_buf(&mut buf, &schema, chunk_size, num_chunks).unwrap();
+
+        assert!(advance_chunk_raw(&mut buf)); // target chunk 1
+        let target = data_off;
+        let lease = reader_lease(&buf, 0, 0);
+        lease
+            .owner_start_time
+            .store(process_start_time(std::process::id()), Ordering::SeqCst);
+        lease
+            .state
+            .store(((std::process::id() as u64) << 32) | 1, Ordering::SeqCst);
+
+        assert!(!advance_chunk_raw(&mut buf));
+        assert_eq!(header(&buf).write_chunk.load(Ordering::Acquire), 1);
+        assert_eq!(
+            chunk_header(&buf, target).state.load(Ordering::Acquire),
+            ChunkState::Sealed as u32
+        );
+
+        reader_lease(&buf, 0, 0).state.store(0, Ordering::SeqCst);
+        assert!(advance_chunk_raw(&mut buf));
+        assert_eq!(header(&buf).write_chunk.load(Ordering::Acquire), 0);
+    }
+
+    #[test]
+    fn advance_chunk_reclaims_dead_process_lease() {
+        let schema = Schema::new().col("x", DType::I32);
+        let chunk_size = 128u32;
+        let num_chunks = 2u32;
+        let data_off = crate::layout::compute_data_offset(schema.cols.len(), num_chunks as usize);
+        let mut buf = vec![0u8; data_off + chunk_size as usize * num_chunks as usize];
+        init_buf(&mut buf, &schema, chunk_size, num_chunks).unwrap();
+        assert!(advance_chunk_raw(&mut buf));
+
+        let dead_pid = 2_000_000_000u32;
+        assert!(!process_exists(dead_pid));
+        let lease = reader_lease(&buf, 0, 0);
+        lease.owner_start_time.store(123, Ordering::SeqCst);
+        lease
+            .state
+            .store(((dead_pid as u64) << 32) | 7, Ordering::SeqCst);
+
+        assert!(advance_chunk_raw(&mut buf));
+        assert_eq!(reader_lease(&buf, 0, 0).state.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn crashed_reader_process_lease_is_reclaimed() {
+        let schema = Schema::new().col("x", DType::I32);
+        let chunk_size = 128u32;
+        let size = crate::memtable::MemTable::required_size(&schema, chunk_size as usize, 2);
+        let shared = crate::test_mmap::TestSharedFile::new(size);
+        let mut writer_map = shared.map_mut();
+        let mut writer =
+            crate::memtable::MemTableWriter::init(&mut writer_map, &schema, chunk_size, 2).unwrap();
+        assert!(writer.push_row(&[Value::I32(7)]));
+        assert!(writer.advance_chunk());
+        drop(writer);
+
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .arg("--exact")
+            .arg("raw::tests::crash_reader_child")
+            .arg("--ignored")
+            .env("PROBING_CRASH_READER_PATH", shared.path())
+            .status()
+            .unwrap();
+        assert!(status.success());
+        assert!(!chunk_has_live_leases(&writer_map, 0));
+
+        let mut writer = crate::memtable::MemTableWriter::new(&mut writer_map).unwrap();
+        assert!(writer.advance_chunk());
+        assert_eq!(writer.write_chunk(), 0);
+    }
+
+    #[test]
+    #[ignore = "helper process for crashed_reader_process_lease_is_reclaimed"]
+    #[cfg(unix)]
+    fn crash_reader_child() {
+        let Some(path) = std::env::var_os("PROBING_CRASH_READER_PATH") else {
+            return;
+        };
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(path)
+            .unwrap();
+        let map = unsafe { memmap2::MmapMut::map_mut(&file).unwrap() };
+        let view = crate::memtable::MemTableView::new(&map).unwrap();
+        let row = view.rows(0).next().unwrap();
+        assert_eq!(row.col_i32(0), 7);
+        std::process::exit(0);
     }
 }
