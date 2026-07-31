@@ -100,8 +100,9 @@ impl SignalTracer {
 
     /// Read the Python main thread stack from an HTTP / SQL worker.
     ///
-    /// Prefer latest SIGPROF mixed samples. **By default we never `SIGUSR2` the
-    /// Python main thread** — interrupting libc SIMD routines (e.g. macOS
+    /// Prefer latest SIGPROF mixed samples. **On macOS we never `SIGUSR2` the
+    /// Python main thread by default** — interrupting libc SIMD routines (e.g.
+    /// macOS
     /// `_platform_strlen`) has repeatedly resumed as `SIGILL` at a fixed PC when
     /// refreshing Distributed stacks. Opt in with `PROBING_STACK_SIGUSR2_MAIN=1`.
     fn trace_main_thread_off_signal() -> Result<Vec<CallFrame>> {
@@ -111,6 +112,19 @@ impl SignalTracer {
         if let Some((snapshot, seq)) = capture::latest_snapshot_with_seq(main_tid) {
             if snapshot.native_len > 0 {
                 return Ok(Self::merged_from_snapshot(&snapshot, seq));
+            }
+        }
+
+        // Darwin's signal-based main-thread capture has caused fixed-PC SIGILL
+        // after returning from libc SIMD routines. Read the stopped thread from
+        // a control thread instead; symbolization happens only after resume.
+        if let Some(snapshot) = capture::capture_thread_snapshot_suspended(main_tid) {
+            let frames = Self::merged_from_snapshot(&snapshot, 0);
+            if frames
+                .iter()
+                .any(|frame| matches!(frame, CallFrame::CFrame { .. }))
+            {
+                return Ok(frames);
             }
         }
 
@@ -249,13 +263,14 @@ static BACKTRACE_MUTEX: Lazy<tokio::sync::Mutex<()>> = Lazy::new(|| tokio::sync:
 
 /// Opt-in: deliver SIGUSR2 to the Python main OS tid for on-demand mixed stacks.
 ///
-/// Default off — required for Distributed stack refresh stability on Darwin.
+/// Default off on Darwin, where the main-thread path uses Mach suspension.
+/// Linux defaults on after installing an alt stack and bounded FP walk.
 fn allow_main_thread_sigusr2() -> bool {
     match std::env::var("PROBING_STACK_SIGUSR2_MAIN") {
         Ok(v) => matches!(
             v.trim().to_ascii_lowercase().as_str(),
             "1" | "true" | "yes" | "on"
         ),
-        Err(_) => false,
+        Err(_) => !cfg!(target_os = "macos"),
     }
 }

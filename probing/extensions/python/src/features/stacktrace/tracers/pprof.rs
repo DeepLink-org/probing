@@ -316,9 +316,9 @@ unsafe extern "C" fn sigprof_handler(_sig: c_int, _info: *mut libc::siginfo_t, u
 }
 
 #[cfg(unix)]
-fn install_handler() {
-    if HANDLER_INSTALLED.swap(true, Ordering::AcqRel) {
-        return;
+fn install_handler() -> Result<()> {
+    if HANDLER_INSTALLED.load(Ordering::Acquire) {
+        return Ok(());
     }
     capture::ensure_signal_altstack();
     unsafe {
@@ -327,12 +327,24 @@ fn install_handler() {
         sa.sa_flags = libc::SA_SIGINFO | libc::SA_RESTART | libc::SA_ONSTACK;
         libc::sigemptyset(&mut sa.sa_mask);
         libc::sigaddset(&mut sa.sa_mask, libc::SIGUSR2);
-        libc::sigaction(libc::SIGPROF, &sa, std::ptr::null_mut());
+        if libc::sigaction(libc::SIGPROF, &sa, std::ptr::null_mut()) == 0 {
+            HANDLER_INSTALLED.store(true, Ordering::Release);
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!(
+                "failed to install SIGPROF sampling handler: {}",
+                std::io::Error::last_os_error()
+            ))
+        }
     }
 }
 
 #[cfg(not(unix))]
-fn install_handler() {}
+fn install_handler() -> Result<()> {
+    Err(anyhow::anyhow!(
+        "SIGPROF sampling handler is not supported on this platform"
+    ))
+}
 
 #[cfg(unix)]
 fn arm_timer(freq: i32) {
@@ -468,6 +480,10 @@ fn setup_unix(freq: u64) -> Result<()> {
     } else {
         (freq as i32).clamp(MIN_SAMPLE_FREQ, MAX_SAMPLE_FREQ)
     };
+    let async_sigprof = use_async_sigprof();
+    if async_sigprof {
+        install_handler()?;
+    }
 
     if RING_PTR.load(Ordering::Acquire).is_null() {
         let ptr = Box::into_raw(Box::new(Ring::new()));
@@ -505,11 +521,9 @@ fn setup_unix(freq: u64) -> Result<()> {
         }
     });
 
-    let async_sigprof = use_async_sigprof();
     COOP_MODE.store(!async_sigprof, Ordering::Release);
     if async_sigprof {
         COOP_PERIOD_NS.store(0, Ordering::Release);
-        install_handler();
     } else {
         let period_ns = (1_000_000_000u64 / freq as u64).max(1);
         COOP_PERIOD_NS.store(period_ns, Ordering::Release);
@@ -1078,7 +1092,7 @@ mod tests {
     fn sigprof_signal_publishes_latest_native_pc() {
         capture::with_signal_test_lock(|| {
             ensure_ring();
-            install_handler();
+            install_handler().expect("install SIGPROF handler");
             capture::register_python_thread();
             capture::register_main_os_tid();
             let tid = capture::current_tid();
@@ -1148,7 +1162,7 @@ mod tests {
     fn sigprof_ring_enqueue_from_handler_is_dequeued() {
         capture::with_signal_test_lock(|| {
             ensure_ring();
-            install_handler();
+            install_handler().expect("install SIGPROF handler");
             capture::register_python_thread();
             capture::register_main_os_tid();
 
