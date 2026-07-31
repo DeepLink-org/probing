@@ -2856,10 +2856,10 @@ collector 的不同配置，也不共享采集 session、事件缓冲或生命�
 <ul>
 <li><strong>Python 帧</strong>：仅来自 <strong>vm tracer</strong>（<code>PYSTACKS</code>）；符号在 GIL 下 intern（完整路径供源码查看，火焰图展示 basename），signal 路径只拷贝指针。</li>
 <li><strong>C++/Rust 帧</strong>：Linux 上 <code>SIGPROF</code> / <code>SIGUSR2</code> 共用 <code>SA_ONSTACK</code> 安全 handler（每 Python 线程 <code>sigaltstack</code>，原地 <code>fill_raw_snapshot</code>）。<strong>macOS 默认不用 <code>ITIMER_PROF</code></strong>：异步 SIGPROF 打进 <code>_platform_strlen</code> 等 SIMD 例程后会固定 PC <code>SIGILL</code>；<code>sample_freq</code> 改为 eval-frame 节流协作采样（<strong>只记 <code>PYSTACKS</code>，不做 mid-hook SyncWalk</strong>，避免 <code>_PyInit__core</code> / vectorcall 把分布式火焰图打散；<code>PROBING_PPROF_SIGPROF=1</code> 可强制异步）。merge 丢弃 CPython call-protocol / 扩展 <code>PyInit_*</code> 噪声。symbolize / merge 在 signal 外完成。</li>
-<li><strong>metrics JSON</strong>：<code>sampler.*</code>（ring drop / fingerprint / <strong>导出时</strong> fold）与 <code>view.*</code>（parse / <code>(tid,seq)</code> cache）分栏；不要把导出批次的 <code>parse_calls</code> 读成「每样本都在 demangle」。</li>
+<li><strong>metrics JSON</strong>：<code>sampler.*</code>（ring/publish drop / fingerprint / <strong>导出时</strong> fold）与 <code>view.*</code>（parse / <code>(tid,seq)</code> cache）分栏；<code>dropped_publish</code> 表示两个发布缓冲区都繁忙时跳过的快照数；不要把导出批次的 <code>parse_calls</code> 读成「每样本都在 demangle」。</li>
 <li><strong>获取路径</strong>：dynamic（命令/HTTP）或 pprof（SQL/<code>sample_freq</code>）；二者取 Python 信息时都读 vm tracer 已记录的帧。</li>
 <li><strong>复用</strong>：采样开启时，主线程 HTTP/火焰图优先复用该线程最近一次采样快照。</li>
-<li><strong>主线程 HTTP 路径</strong>：优先复用最新采样混合快照；<strong><code>sample_freq</code> 开启时禁止对主线程 <code>SIGUSR2</code></strong>（含 Distributed）；仅在采样关闭时可经 <code>PROBING_STACK_SIGUSR2_MAIN=1</code> 按需信号，否则回退纯 <code>PYSTACKS</code>。跨线程按需仍可走 <code>SIGUSR2</code>。</li>
+<li><strong>主线程 HTTP 路径</strong>：优先复用最新采样混合快照。macOS 没有 native 样本时，通过 Mach 短暂暂停目标线程并复制 PC/帧指针链，立即恢复后再做符号化，避免向训练线程投递信号。<strong><code>sample_freq</code> 开启时禁止对主线程 <code>SIGUSR2</code></strong>（含 Distributed）。Linux 在采样关闭时默认使用带备用信号栈和有边界帧指针遍历的按需 <code>SIGUSR2</code>；可用 <code>PROBING_STACK_SIGUSR2_MAIN=0</code> 禁用。跨线程按需仍可走 <code>SIGUSR2</code>。</li>
 <li><strong>分布式火焰图</strong>：<code>sample_freq</code> 开启后只聚合各 rank 采样桶（为空则空图，不回退 on-demand）；跨 rank merge 后每个 frame 携带 <code>ranks</code>。</li>
 <li><strong>canonicalize</strong>：剥 <code>_Py_RunMain</code> / importlib / <code>platform.py</code> 等 bootstrap；SIGPROF 仅统计已注册 Python 主线程样本。</li>
 </ul>
