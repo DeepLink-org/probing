@@ -2790,13 +2790,14 @@ consumer queries it through SQL (DataFusion). It is built as <strong>two tiers</
     SQL[SQL query] --&gt; HCT[HotColdTable]
     HCT --&gt;|chunk pruning| MEMT
     HCT --&gt;|segment + page pruning| MEMC</code></pre>
-<p>The hot tier is mapped read-only at query time; the cold tier is read via <code>SegmentReader</code>. The
+<p>The hot tier is logically read-only at query time, but MEMT mappings are opened writable so
+readers can update per-chunk pin metadata. The cold tier is read via <code>SegmentReader</code>. The
 <code>HotColdTable</code> provider unions them into one scan, deduplicating chunks that exist in both tiers.</p>
 <h2 id="hot-tier-memt">Hot Tier (MEMT)<a class="headerlink" href="#hot-tier-memt" title="Permanent link">&para;</a></h2>
 <h3 id="file-layout">File Layout<a class="headerlink" href="#file-layout" title="Permanent link">&para;</a></h3>
-<p>Every MEMT buffer (heap, shared memory, or mmap'd file) begins with a 64-byte header (one cache
-line), followed by per-column descriptors, then chunk data.</p>
-<p><strong>Header v3 (64 bytes):</strong></p>
+<p>Every MEMT buffer begins with a 128-byte header, followed by column descriptors, a
+crash-recoverable reader-lease array, then chunk data.</p>
+<p><strong>Header v5 (128 bytes):</strong></p>
 <table>
 <thead>
 <tr>
@@ -2817,13 +2818,13 @@ line), followed by per-column descriptors, then chunk data.</p>
 <td>4</td>
 <td>2</td>
 <td><code>version</code></td>
-<td>3</td>
+<td>5</td>
 </tr>
 <tr>
 <td>6</td>
 <td>2</td>
 <td><code>header_size</code></td>
-<td>64 (validation)</td>
+<td>128 (validation)</td>
 </tr>
 <tr>
 <td>8</td>
@@ -2903,14 +2904,39 @@ line), followed by per-column descriptors, then chunk data.</p>
 <td><code>_reserved</code></td>
 <td>reserved</td>
 </tr>
+<tr>
+<td>64</td>
+<td>4</td>
+<td><code>lease_offset</code></td>
+<td>absolute offset of the reader-lease array</td>
+</tr>
+<tr>
+<td>68</td>
+<td>4</td>
+<td><code>lease_slots</code></td>
+<td>lease slots per chunk (currently 16)</td>
+</tr>
+<tr>
+<td>72</td>
+<td>56</td>
+<td><code>_reserved_v5</code></td>
+<td>reserved</td>
+</tr>
 </tbody>
 </table>
 <p>Bytes 0–31 are the <strong>cold zone</strong> (immutable after init); bytes 32–63 are the <strong>hot zone</strong>
 (atomically mutated), split to avoid false sharing. Each chunk starts with a 40-byte
-<code>ChunkHeader</code> carrying a <code>generation</code> counter and per-chunk <code>min_ts</code>/<code>max_ts</code> (<code>AtomicI64</code>).</p>
+<code>ChunkHeader</code> carrying a <code>generation</code> counter and per-chunk <code>min_ts</code>/<code>max_ts</code> (<code>AtomicI64</code>).
+Each reader lease atomically stores a process PID plus local reference count and the process
+start time. Recycling blocks new leases, preserves live readers, and reclaims leases only when
+that exact process instance is dead.</p>
 <blockquote>
 <p><strong>v3</strong> vs v2: <code>_pad0</code> became <code>ts_col</code>; dropped <code>write_lock</code> (single-writer model);
 <code>ChunkHeader</code> gained <code>min_ts</code>/<code>max_ts</code> (24 → 40 bytes).</p>
+<p><strong>v4</strong> vs v3: the reserved chunk-header word became atomic <code>reader_pins</code>; query mappings
+must permit these metadata writes even though row data is read-only to callers.</p>
+<p><strong>v5</strong> vs v4: unrecoverable aggregate pins were replaced by 16 per-process lease slots per
+chunk. A reader crash no longer permanently blocks ring recycling.</p>
 </blockquote>
 <h3 id="backends">Backends<a class="headerlink" href="#backends" title="Permanent link">&para;</a></h3>
 <p>The same API backs three storage kinds:</p>
@@ -2973,7 +2999,7 @@ monotonically increasing sequence the <code>ColdStore</code> recovers on open.</
 <h3 id="segment-format">Segment Format<a class="headerlink" href="#segment-format" title="Permanent link">&para;</a></h3>
 <p>A segment is a sequence of 64-aligned blocks. All integrity checks use <strong>xxh3-64 truncated to 32
 bits</strong>.</p>
-<p><strong>Segment header (64 bytes):</strong> <code>magic</code> (<code>"MEMC"</code>), <code>version</code> (1), BOM, <code>flags</code> (bit 0 = sealed),
+<p><strong>Segment header (64 bytes):</strong> <code>magic</code> (<code>"MEMC"</code>), <code>version</code> (2), BOM, <code>flags</code> (bit 0 = sealed),
 <code>writer_pid</code>, <code>writer_start</code>, <code>created_unix_ms</code>, <code>footer_off</code> (0 until sealed), segment-wide
 <code>ts_min</code>/<code>ts_max</code>, <code>page_count</code>, header checksum.</p>
 <p><strong>Blocks</strong> share a 64-byte header:</p>
@@ -3000,9 +3026,13 @@ bits</strong>.</p>
 </tbody>
 </table>
 <p>The page/block header carries <code>table_id</code>, <code>row_count</code>, <code>col_count</code>, <code>ts_min</code>/<code>ts_max</code>,
-<code>payload_len</code>, <code>payload_xxh</code>, and — crucially for restart dedup — <code>source_gen</code> and <code>source_chunk</code>
-(the hot-ring chunk generation and index this page was drained from; <code>u32::MAX</code> = not applicable).
-The header is itself checksummed (covering <code>source_chunk</code>).</p>
+<code>payload_len</code>, <code>payload_xxh</code>, and — crucially for restart dedup — <code>source_instance</code>, <code>source_gen</code>,
+and <code>source_chunk</code> (the hot MEMT identity plus chunk generation/index this page was drained from;
+<code>u32::MAX</code> = not applicable). The header is itself checksummed, including the complete source
+identity.</p>
+<p>MEMC v2 readers explicitly reject v1 segments because v1 has no source instance and cannot safely
+participate in restart dedup. Sealed v1 files remain eligible for retention eviction; deployments
+that need their historical rows must archive or convert them before upgrading.</p>
 <p>A single segment holds pages from <strong>multiple tables</strong>, distinguished by <code>table_id</code>. This decouples
 file/directory count from table count: hundreds of tables share one set of segment files.</p>
 <h3 id="column-encodings">Column Encodings<a class="headerlink" href="#column-encodings" title="Permanent link">&para;</a></h3>
@@ -3039,15 +3069,17 @@ is an explicit trade-off.</p>
   <code>target_segment_bytes</code> (default 64 MiB — the main fragmentation knob), or when it exceeds
   <code>max_segment_age</code> (default 300 s, so low-rate tables still become queryable), or on explicit
   flush.</li>
-<li><strong>Eviction.</strong> <code>enforce</code> deletes oldest segments past a byte budget (<code>max_total_bytes</code>) or TTL,
-  always protecting the newest segment.</li>
+<li><strong>Eviction.</strong> <code>enforce</code> deletes oldest sealed segments past a byte budget (<code>max_total_bytes</code>) or
+  TTL, always protecting the newest plus every unsealed/unreadable segment that another writer may
+  still have open.</li>
 </ul>
 <h3 id="exactly-once-across-restarts">Exactly-Once Across Restarts<a class="headerlink" href="#exactly-once-across-restarts" title="Permanent link">&para;</a></h3>
 <p><code>drained_gen</code> is in-memory, so a naive restart over a persistent cold dir would re-compact
 chunks still resident in the hot ring, producing duplicate rows. <code>prime_from_cold()</code> rebuilds the
-watermark on startup: it scans existing cold segments and, per <code>(table, source_chunk)</code>, takes the
-max <code>source_gen</code>, merging it into <code>drained_gen</code> the first time a table is seen. The result is
-<strong>exactly-once</strong> even across restarts.</p>
+watermark on startup: it scans existing cold segments and, per
+<code>(table, source_instance, source_chunk)</code>, takes the max <code>source_gen</code>, merging it into <code>drained_gen</code>
+the first time a table instance is seen. The result is <strong>exactly-once</strong> across restarts without
+confusing a same-name replacement whose generations restart from the beginning.</p>
 <h2 id="runtime-owner">Runtime Owner<a class="headerlink" href="#runtime-owner" title="Permanent link">&para;</a></h2>
 <p><code>ColdCompactor</code> is a process-global singleton (modeled on the task-stats worker) that gives the
 compactor a single lifecycle home:</p>

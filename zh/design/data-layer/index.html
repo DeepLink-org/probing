@@ -2792,7 +2792,7 @@
 <h3 id="_4">文件布局<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
 <p>每个 MEMT 缓冲区（堆、共享内存或 mmap 文件）都以 64 字节头部（一个 cache line）开始，随后是
 逐列描述符，再是 chunk 数据。</p>
-<p><strong>Header v3（64 字节）：</strong></p>
+<p><strong>Header v5（128 字节）：</strong></p>
 <table>
 <thead>
 <tr>
@@ -2813,13 +2813,13 @@
 <td>4</td>
 <td>2</td>
 <td><code>version</code></td>
-<td>3</td>
+<td>5</td>
 </tr>
 <tr>
 <td>6</td>
 <td>2</td>
 <td><code>header_size</code></td>
-<td>64（仅校验）</td>
+<td>128（仅校验）</td>
 </tr>
 <tr>
 <td>8</td>
@@ -2899,14 +2899,37 @@
 <td><code>_reserved</code></td>
 <td>预留</td>
 </tr>
+<tr>
+<td>64</td>
+<td>4</td>
+<td><code>lease_offset</code></td>
+<td>reader lease 数组的绝对偏移</td>
+</tr>
+<tr>
+<td>68</td>
+<td>4</td>
+<td><code>lease_slots</code></td>
+<td>每个 chunk 的 lease 槽数（当前为 16）</td>
+</tr>
+<tr>
+<td>72</td>
+<td>56</td>
+<td><code>_reserved_v5</code></td>
+<td>预留</td>
+</tr>
 </tbody>
 </table>
 <p>字节 0–31 是<strong>冷区</strong>（初始化后不可变），字节 32–63 是<strong>热区</strong>（运行时原子修改），二者分离以避免
-伪共享。每个 chunk 以 40 字节的 <code>ChunkHeader</code> 开头，携带 <code>generation</code> 计数器及逐 chunk 的
-<code>min_ts</code>/<code>max_ts</code>（<code>AtomicI64</code>）。</p>
+伪共享。每个 chunk 以 40 字节的 <code>ChunkHeader</code> 开头，携带 <code>generation</code> 及逐 chunk 的
+<code>min_ts</code>/<code>max_ts</code>（<code>AtomicI64</code>）。每个 reader lease 原子保存进程 PID、本进程引用数和进程
+启动时间；回收会阻止新 lease、保留活跃读者，并且只回收已经确认死亡的同一进程实例。</p>
 <blockquote>
 <p><strong>v3</strong> 相对 v2：<code>_pad0</code> 改为 <code>ts_col</code>；移除 <code>write_lock</code>（单写者模型）；<code>ChunkHeader</code> 新增
 <code>min_ts</code>/<code>max_ts</code>（24 → 40 字节）。</p>
+<p><strong>v4</strong> 相对 v3：chunk header 的预留字改为原子的 <code>reader_pins</code>；查询映射必须允许写入这些
+元数据，但调用者看到的行数据仍是只读的。</p>
+<p><strong>v5</strong> 相对 v4：不可恢复的聚合 pin 改为每个 chunk 16 个逐进程 lease 槽；reader 崩溃不再
+永久阻塞环形缓冲区回收。</p>
 </blockquote>
 <h3 id="_5">三种后端<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
 <p>同一套 API 支撑三种存储形态：</p>
@@ -2958,7 +2981,7 @@ chunk 的 <code>min_ts</code>/<code>max_ts</code>。这是查询时 chunk 级时
 <code>seq</code> 是 <code>ColdStore</code> 打开时恢复的单调递增序号。</p>
 <h3 id="_10">段格式<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h3>
 <p>一个段是一系列 64 对齐的 block。所有完整性校验都使用 <strong>xxh3-64 截断为 32 位</strong>。</p>
-<p><strong>段头部（64 字节）：</strong> <code>magic</code>（<code>"MEMC"</code>）、<code>version</code>（1）、BOM、<code>flags</code>（bit 0 = 已封存）、
+<p><strong>段头部（64 字节）：</strong> <code>magic</code>（<code>"MEMC"</code>）、<code>version</code>（2）、BOM、<code>flags</code>（bit 0 = 已封存）、
 <code>writer_pid</code>、<code>writer_start</code>、<code>created_unix_ms</code>、<code>footer_off</code>（封存前为 0）、段级
 <code>ts_min</code>/<code>ts_max</code>、<code>page_count</code>、头部校验和。</p>
 <p><strong>Block</strong> 共享 64 字节头部：</p>
@@ -2985,9 +3008,11 @@ chunk 的 <code>min_ts</code>/<code>max_ts</code>。这是查询时 chunk 级时
 </tbody>
 </table>
 <p>page/block 头部携带 <code>table_id</code>、<code>row_count</code>、<code>col_count</code>、<code>ts_min</code>/<code>ts_max</code>、<code>payload_len</code>、
-<code>payload_xxh</code>，以及对重启去重至关重要的 <code>source_gen</code> 与 <code>source_chunk</code>（该 page 从哪个热层
-chunk 的 generation 和索引抽取而来；<code>u32::MAX</code> = 不适用）。头部本身也带校验和（覆盖
-<code>source_chunk</code>）。</p>
+<code>payload_xxh</code>，以及对重启去重至关重要的 <code>source_instance</code>、<code>source_gen</code> 与 <code>source_chunk</code>
+（该 page 来自哪个热层 MEMT 实例、chunk generation 和索引；<code>u32::MAX</code> = 不适用）。头部校验和
+覆盖完整的来源身份。</p>
+<p>MEMC v2 reader 会明确拒绝 v1 段，因为 v1 缺少实例身份，无法安全参与重启去重。已封存的 v1 文件仍可
+被保留策略淘汰；升级时若需保留其历史行，应先归档或转换。</p>
 <p>单个段可容纳<strong>多张表</strong>的 page，以 <code>table_id</code> 区分。这让文件/目录数量与表数量解耦：成百上千张表
 共享同一组段文件。</p>
 <h3 id="_11">列编码<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h3>
@@ -3017,12 +3042,14 @@ page。对观测数据可接受，但这是一个明确的取舍。</p>
   逐 chunk 的 <code>drained_gen</code> 高水位跳过已压缩的 chunk generation。</li>
 <li><strong>滚动。</strong> 当打开的段达到 <code>target_segment_bytes</code>（默认 64 MiB——主要的碎片化调节旋钮）、超过
   <code>max_segment_age</code>（默认 300 s，让低速率表也能及时可查），或显式 flush 时，封存当前段并新开一个。</li>
-<li><strong>淘汰。</strong> <code>enforce</code> 在超出字节预算（<code>max_total_bytes</code>）或 TTL 时删除最旧的段，并始终保护最新段。</li>
+<li><strong>淘汰。</strong> <code>enforce</code> 在超出字节预算（<code>max_total_bytes</code>）或 TTL 时删除最旧的已封存段，并始终保护
+  最新段，以及任何可能仍由其他 writer 打开的未封存/暂不可读段。</li>
 </ul>
 <h3 id="_13">跨重启的精确一次<a class="headerlink" href="#_13" title="Permanent link">&para;</a></h3>
 <p><code>drained_gen</code> 在内存中，因此朴素重启面对持久冷目录时会重新压缩仍驻留在热层环形中的 chunk，产生重复
-行。<code>prime_from_cold()</code> 在启动时重建高水位：扫描已有冷段，按 <code>(表, source_chunk)</code> 取 <code>source_gen</code>
-的最大值，在首次见到某表时合并进 <code>drained_gen</code>。结果即使跨重启也保证<strong>精确一次</strong>。</p>
+行。<code>prime_from_cold()</code> 在启动时重建高水位：扫描已有冷段，按
+<code>(表, source_instance, source_chunk)</code> 取 <code>source_gen</code> 的最大值，在首次见到某表实例时合并进
+<code>drained_gen</code>。这样跨重启仍保证<strong>精确一次</strong>，也不会把 generation 从头开始的同名新表误认成旧表。</p>
 <h2 id="owner">运行时 Owner<a class="headerlink" href="#owner" title="Permanent link">&para;</a></h2>
 <p><code>ColdCompactor</code> 是进程级全局单例（仿照 task-stats worker），为 compactor 提供唯一的生命周期归宿：</p>
 <ul>
