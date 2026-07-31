@@ -28,6 +28,16 @@ tests/
 | **Unit** | `#[cfg(test)]` in `probing/**/src/` | `make test-rust-unit` |
 | **Regression** | `tests/regression/rust/probing/**` | `make test-rust-regression` |
 
+Long-running signal stability is kept out of pull-request CI. The
+`Signal Stability Soak` workflow runs the `python-signal-soak` regression
+binary for 30 minutes on native Linux x86_64 and aarch64 runners, exercising
+SIGPROF/pprof and SIGUSR2 concurrently. A short Linux run:
+
+```bash
+PROBING_SIGNAL_SOAK_SECS=30 cargo run --release \
+  -p probing-rust-regression --bin python-signal-soak
+```
+
 ## Python
 
 | Kind | Location | Run |

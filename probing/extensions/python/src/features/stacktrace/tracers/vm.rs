@@ -45,12 +45,15 @@ unsafe extern "C" fn rust_eval_frame(
     frame: *mut pyo3::ffi::PyFrameObject,
     extra: c_int,
 ) -> *mut pyo3::ffi::PyObject {
-    use std::sync::atomic::{compiler_fence, Ordering};
-
     with_spy_state(|state| {
-        // Mark this thread as a Python thread once; lets the SIGPROF sampler know its
-        // thread-local `PYSTACKS` is allocated and safe to read from a signal handler.
-        crate::features::stacktrace::capture::register_python_thread();
+        let pid = std::process::id();
+        if (*state).published.is_null() || (*state).published_pid != pid {
+            (*state).published =
+                crate::features::stacktrace::capture::register_python_thread_slot()
+                    .map_or(std::ptr::null(), std::ptr::from_ref);
+            (*state).published_pid = pid;
+        }
+        let published = (*state).published.as_ref();
 
         // Resolve this frame's callee symbol *now*, while the code object is alive
         // under the GIL, and cache it by pointer. The SIGPROF consumer later looks
@@ -59,13 +62,10 @@ unsafe extern "C" fn rust_eval_frame(
         let loc = RawCallLocation::from(frame as usize, Some(ts as usize));
         crate::features::stacktrace::capture::intern_py_frame(&loc);
 
-        // Bracket the `PYSTACKS` mutation so a SIGPROF sample taken mid-realloc is
-        // discarded instead of reading a torn `Vec`.
-        (*state).writing = true;
-        compiler_fence(Ordering::SeqCst);
         (*state).stacks.push(loc);
-        compiler_fence(Ordering::SeqCst);
-        (*state).writing = false;
+        if let Some(published) = published {
+            published.enter((*state).stacks.len(), loc.callee());
+        }
 
         // macOS default: sample here (no ITIMER_PROF). After PYSTACKS push so
         // the current frame is visible. No-op when async SIGPROF is armed.
@@ -73,11 +73,10 @@ unsafe extern "C" fn rust_eval_frame(
 
         let ret = ((*state).frame_eval)(ts, frame, extra);
 
-        (*state).writing = true;
-        compiler_fence(Ordering::SeqCst);
+        if let Some(published) = published {
+            published.leave((*state).stacks.len().saturating_sub(1));
+        }
         (*state).stacks.pop();
-        compiler_fence(Ordering::SeqCst);
-        (*state).writing = false;
 
         ret
     })
@@ -178,25 +177,15 @@ pub fn _get_python_frames(py: Python) -> PyResult<Py<PyAny>> {
 
 /// Copy TLS `PYSTACKS` callee keys (outer → inner), same order as signal fill.
 ///
-/// Returns `None` when the TLS buffer is unavailable, empty, or mid-mutation
-/// (`writing`). Interns each key while the GIL holds code objects.
+/// Returns `None` when the TLS buffer is unavailable or empty. Interns each
+/// key while the GIL holds code objects.
 #[allow(static_mut_refs)]
 pub fn copy_pystacks_callee_keys() -> Option<Vec<usize>> {
-    use std::sync::atomic::{compiler_fence, Ordering};
-
     with_spy_state(|state| unsafe {
         if (*state).stacks.capacity() == 0 {
             return None;
         }
-        if (*state).writing {
-            return None;
-        }
-        compiler_fence(Ordering::SeqCst);
         let keys: Vec<usize> = (*state).stacks.iter().map(|loc| loc.callee()).collect();
-        compiler_fence(Ordering::SeqCst);
-        if (*state).writing {
-            return None;
-        }
         if keys.is_empty() {
             return None;
         }

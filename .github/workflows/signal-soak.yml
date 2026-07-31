@@ -1,0 +1,61 @@
+# Long-running signal stability test on native Linux architectures.
+#
+# Exercises asynchronous ITIMER_PROF/SIGPROF sampling and synchronous SIGUSR2
+# capture together for 30 minutes. Kept separate from PR CI because of runtime.
+
+name: Signal Stability Soak
+
+on:
+  schedule:
+    # Sunday 05:00 UTC, after the general soak workflow.
+    - cron: "0 5 * * 0"
+  workflow_dispatch:
+    inputs:
+      duration_sec:
+        description: "Signal soak duration per architecture (seconds)"
+        required: false
+        default: "1800"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: signal-soak-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  signal-soak:
+    if: github.repository == 'DeepLink-org/probing'
+    name: Signal soak (${{ matrix.arch }}, ${{ github.event.inputs.duration_sec || '1800' }}s)
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust and Python
+        uses: ./.github/actions/setup-build-env
+        with:
+          python-version: "3.12"
+          install-cargo-tools: "false"
+          enable-zig: "false"
+          enable-uv: "false"
+          cache-venv: "false"
+
+      - name: Build signal soak test
+        run: cargo build --release -p probing-rust-regression --bin python-signal-soak
+
+      - name: Run SIGPROF + SIGUSR2 stability soak
+        env:
+          PROBING_SIGNAL_SOAK_SECS: ${{ github.event.inputs.duration_sec || '1800' }}
+          PROBING_SIGNAL_SOAK_EXPECT_ARCH: ${{ matrix.arch }}
+          RUST_BACKTRACE: "1"
+        run: ./target/release/python-signal-soak
