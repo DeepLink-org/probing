@@ -162,8 +162,10 @@ pub fn decode_column(buf: &[u8], row_count: usize) -> Result<(ColumnData, usize)
     let encoding = ColEncoding::from_u8(buf[0]).ok_or("invalid column encoding")?;
     let dtype = DType::from_u32(buf[1] as u32).ok_or("invalid column dtype")?;
     let payload_len = get_u32(buf, 4) as usize;
-    let start = 8;
-    let end = start + payload_len;
+    let start = 8usize;
+    let end = start
+        .checked_add(payload_len)
+        .ok_or("column payload length overflow")?;
     if buf.len() < end {
         return Err("column payload out of bounds".into());
     }
@@ -191,14 +193,30 @@ pub fn decode_column(buf: &[u8], row_count: usize) -> Result<(ColumnData, usize)
 fn decode_varlen_entries(payload: &[u8], row_count: usize) -> Result<Vec<Vec<u8>>, String> {
     let mut out = Vec::with_capacity(row_count);
     let mut off = 0usize;
-    while off + 4 <= payload.len() {
+    while off < payload.len() {
+        let len_end = off
+            .checked_add(4)
+            .ok_or("varlen entry length offset overflow")?;
+        if len_end > payload.len() {
+            return Err("trailing bytes in varlen column".into());
+        }
         let len = get_u32(payload, off) as usize;
-        off += 4;
-        if off + len > payload.len() {
+        off = len_end;
+        let entry_end = off.checked_add(len).ok_or("varlen entry length overflow")?;
+        if entry_end > payload.len() {
             return Err("varlen entry out of bounds".into());
         }
-        out.push(payload[off..off + len].to_vec());
-        off += len;
+        out.push(payload[off..entry_end].to_vec());
+        off = entry_end;
+        if out.len() > row_count {
+            return Err("varlen column has more rows than declared".into());
+        }
+    }
+    if out.len() != row_count {
+        return Err(format!(
+            "varlen column row count mismatch: expected {row_count}, got {}",
+            out.len()
+        ));
     }
     Ok(out)
 }

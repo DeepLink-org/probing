@@ -3502,6 +3502,7 @@ dependencies = [
 name = "probing-memtable"
 version = "0.2.5"
 dependencies = [
+ "fs2",
  "libc",
  "log",
  "memmap2",
@@ -3598,6 +3599,7 @@ dependencies = [
  "base64 0.21.7",
  "datafusion",
  "futures",
+ "memmap2",
  "probing-cli",
  "probing-core",
  "probing-hccl-shim",

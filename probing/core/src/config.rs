@@ -11,6 +11,13 @@ use crate::ENGINE;
 pub static CONFIG_STORE: Lazy<RwLock<BTreeMap<String, Ele>>> =
     Lazy::new(|| RwLock::new(BTreeMap::new()));
 
+/// Serializes tests that mutate the process-global config/engine extension
+/// state. Tests live in multiple modules, so module-local locks do not prevent
+/// one test's cleanup from clearing another test's values.
+#[cfg(test)]
+pub(crate) static TEST_STATE_LOCK: Lazy<tokio::sync::Mutex<()>> =
+    Lazy::new(|| tokio::sync::Mutex::new(()));
+
 /// Get a configuration value.
 pub async fn get(key: &str) -> Option<Ele> {
     CONFIG_STORE.read().await.get(key).cloned()
@@ -66,10 +73,12 @@ pub async fn is_empty() -> bool {
 ///
 /// # Examples
 /// ```rust
-/// probing_core::config::write("server.address", "0.0.0.0:8080")?;
-/// probing_core::config::write("cpu.sample_interval", "1000")?;
-/// probing_core::config::write("server.debug", "true")?;
-/// # Ok::<(), probing_core::core::EngineError>(())
+/// # async fn example() -> Result<(), probing_core::core::EngineError> {
+/// probing_core::config::write("server.address", "0.0.0.0:8080").await?;
+/// probing_core::config::write("cpu.sample_interval", "1000").await?;
+/// probing_core::config::write("server.debug", "true").await?;
+/// # Ok(())
+/// # }
 /// ```
 pub async fn write(key: &str, value: &str) -> Result<(), EngineError> {
     if key.starts_with("probing") {
@@ -118,8 +127,10 @@ mod tests {
     use crate::core::{ProbeExtension, ProbeExtensionCall, ProbeExtensionOption};
     use crate::{create_engine, initialize_engine};
 
-    async fn setup_test() {
+    async fn setup_test() -> tokio::sync::MutexGuard<'static, ()> {
+        let guard = TEST_STATE_LOCK.lock().await;
         clear().await;
+        guard
     }
 
     async fn teardown_test() {
@@ -175,7 +186,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_config_set_syncs_to_config_store() {
-        setup_test().await;
+        let _state_guard = setup_test().await;
 
         let builder = create_engine().with_extension(TestExtension::default());
         initialize_engine(builder)
@@ -192,7 +203,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_config_set_with_probing_prefix_updates_engine() {
-        setup_test().await;
+        let _state_guard = setup_test().await;
 
         let builder = create_engine();
         initialize_engine(builder)
@@ -207,7 +218,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_config_get_from_config_store() {
-        setup_test().await;
+        let _state_guard = setup_test().await;
 
         let builder = create_engine().with_extension(TestExtension::default());
         initialize_engine(builder)
@@ -227,7 +238,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_config_set_updates_extension_and_store() {
-        setup_test().await;
+        let _state_guard = setup_test().await;
 
         let builder = create_engine().with_extension(TestExtension::default());
         initialize_engine(builder)
@@ -247,7 +258,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_config_set_engine_not_initialized() {
-        setup_test().await;
+        let _state_guard = setup_test().await;
 
         let _result = write("test.nonexistent", "value").await;
 

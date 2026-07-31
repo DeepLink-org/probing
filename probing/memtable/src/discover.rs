@@ -48,7 +48,9 @@ use crate::memh::layout::required_total_size as memh_required_size;
 use crate::memh::table::init_buf as memh_init_buf;
 use crate::memh::{MemhView, MemhWriter};
 use crate::memtable::{MemTable, MemTableView, MemTableWriter};
-use crate::raw::{process_start_time, validate_buf};
+#[cfg(test)]
+use crate::raw::process_start_time;
+use crate::raw::{process_instance_alive, validate_buf};
 use crate::schema::{Schema, Value};
 
 use memmap2::{Mmap, MmapMut};
@@ -76,59 +78,13 @@ pub fn default_dir() -> PathBuf {
     std::env::temp_dir().join("probing")
 }
 
-/// Check whether a process with the given PID currently exists.
-#[cfg(unix)]
-fn process_exists(pid: u32) -> bool {
-    let ret = unsafe { libc::kill(pid as libc::c_int, 0) };
-    if ret == 0 {
-        return true;
-    }
-    // EPERM means the process exists but we lack permission to signal it.
-    io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
-}
-
-#[cfg(windows)]
-fn process_exists(pid: u32) -> bool {
-    use std::ffi::c_void;
-
-    #[link(name = "kernel32")]
-    extern "system" {
-        fn OpenProcess(dwDesiredAccess: u32, bInheritHandle: i32, dwProcessId: u32) -> *mut c_void;
-        fn CloseHandle(hObject: *mut c_void) -> i32;
-    }
-
-    // PROCESS_QUERY_LIMITED_INFORMATION — enough to test liveness without admin rights.
-    const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
-
-    unsafe {
-        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
-        if handle.is_null() {
-            return false;
-        }
-        CloseHandle(handle);
-        true
-    }
-}
-
 /// Check whether the process identified by `(pid, start_time)` is still alive.
 ///
 /// - Returns `false` if the PID does not exist.
 /// - If `expected_start_time != 0`, also verifies that the current occupant
 ///   of that PID started at the expected time (detecting PID recycling).
 pub fn is_creator_alive(pid: u32, expected_start_time: u64) -> bool {
-    if pid == 0 {
-        return false;
-    }
-    if !process_exists(pid) {
-        return false;
-    }
-    if expected_start_time != 0 {
-        let actual = process_start_time(pid);
-        if actual != 0 && actual != expected_start_time {
-            return false;
-        }
-    }
-    true
+    process_instance_alive(pid, expected_start_time)
 }
 
 // ── ExposedTable ──────────────────────────────────────────────────────
@@ -315,8 +271,8 @@ impl Drop for ExposedHashTable {
 
 // ── MappedFile ────────────────────────────────────────────────────────
 
-/// Read-only mmap of a memtable file (MEMT ring or MEMH hash), without
-/// format validation.
+/// Logically read-only mmap of a memtable file (MEMT ring or MEMH hash),
+/// without format validation.
 ///
 /// This is the zero-copy read path for SQL/catalog integration: pages are
 /// faulted in on demand instead of copying the whole file to the heap
@@ -328,15 +284,17 @@ impl Drop for ExposedHashTable {
 /// (e.g. [`ExposedTable`] drop) while this handle is alive.
 #[derive(Debug)]
 pub struct MappedFile {
-    mmap: Mmap,
+    // MEMT readers update per-chunk pin metadata, so the OS mapping must be
+    // writable even though callers only receive `&[u8]`.
+    mmap: MmapMut,
     path: PathBuf,
 }
 
 impl MappedFile {
     pub fn open(path: impl AsRef<Path>) -> io::Result<Self> {
         let path = path.as_ref().to_path_buf();
-        let file = File::open(&path)?;
-        let mmap = unsafe { Mmap::map(&file)? };
+        let file = OpenOptions::new().read(true).write(true).open(&path)?;
+        let mmap = unsafe { MmapMut::map_mut(&file)? };
         Ok(Self { mmap, path })
     }
 
@@ -351,9 +309,9 @@ impl MappedFile {
 
 // ── DiscoveredTable ───────────────────────────────────────────────────
 
-/// A memtable discovered on the filesystem (read-only mmap).
+/// A memtable discovered on the filesystem (logically read-only mmap).
 pub struct DiscoveredTable {
-    mmap: Mmap,
+    mmap: MmapMut,
     path: PathBuf,
     pid: u32,
     name: String,
@@ -431,12 +389,12 @@ pub fn discover_in(base_dir: &Path) -> io::Result<Vec<DiscoveredTable>> {
                 continue;
             }
 
-            let file = match File::open(&table_path) {
+            let file = match OpenOptions::new().read(true).write(true).open(&table_path) {
                 Ok(f) => f,
                 Err(_) => continue,
             };
 
-            let mmap = match unsafe { Mmap::map(&file) } {
+            let mmap = match unsafe { MmapMut::map_mut(&file) } {
                 Ok(m) => m,
                 Err(_) => continue,
             };
@@ -593,7 +551,7 @@ mod tests {
             let v = table.view();
             assert_eq!(v.num_rows(0), 2);
             assert_eq!(v.creator_pid(), std::process::id());
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", target_os = "macos"))]
             assert_ne!(v.creator_start_time(), 0);
         }
 
@@ -617,10 +575,13 @@ mod tests {
         assert_eq!(found[0].pid(), std::process::id());
         assert!(found[0].is_alive());
 
-        let view = found[0].view().unwrap();
-        let mut c = view.rows(0).next().unwrap().cursor();
-        assert_eq!(c.next_i32(), 42);
-
+        {
+            let view = found[0].view().unwrap();
+            let row = view.rows(0).next().unwrap();
+            let mut c = row.cursor();
+            assert_eq!(c.next_i32(), 42);
+        }
+        drop(found);
         drop(table);
         let _ = fs::remove_dir_all(&dir);
     }
@@ -636,7 +597,7 @@ mod tests {
         let schema = Schema::new().col("x", DType::I32);
         let size = MemTable::required_size(&schema, 256, 1);
         let mut buf = vec![0u8; size];
-        init_buf(&mut buf, &schema, 256, 1);
+        init_buf(&mut buf, &schema, 256, 1).unwrap();
         crate::layout::header_mut(&mut buf).creator_pid = fake_pid;
 
         fs::write(fake_dir.join("data"), &buf).unwrap();

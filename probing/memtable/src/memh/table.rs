@@ -1,4 +1,4 @@
-//! `MemhView` (reader) and `MemhWriter` (single-writer) for MEMH v3.
+//! `MemhView` (reader) and `MemhWriter` (single-writer) for MEMH v5.
 //!
 //! See `layout.rs` for the full buffer and slot layouts, and `codec.rs` for
 //! arena record encoding / decoding details.
@@ -14,10 +14,10 @@ use super::codec::{
     TypedValue, ARENA_HDR_SIZE, NO_PREV,
 };
 use super::layout::{
-    arena_start_abs, commit_slot, commit_slot_head, compute_data_offset, header, header_mut,
-    init_header, init_meta_fields, meta, read_slot, read_slot_tag_acquire, required_total_size,
-    update_slot_inline_value, MAGIC_MEMH, SLOT_EMPTY, SLOT_INLINE, SLOT_OCCUPIED, SLOT_TOMBSTONE,
-    VERSION_MEMH,
+    acquire_writer, commit_slot, commit_slot_head, compute_data_offset, header, header_mut,
+    init_header, init_meta_fields, meta, read_slot, read_slot_tag_acquire,
+    update_slot_inline_value, MemhHeader, MAGIC_MEMH, SLOT_EMPTY, SLOT_INLINE, SLOT_OCCUPIED,
+    SLOT_TOMBSTONE, VERSION_MEMH,
 };
 
 // ── Errors ───────────────────────────────────────────────
@@ -25,9 +25,11 @@ use super::layout::{
 #[derive(Debug)]
 pub enum MemhInitError {
     BufferTooSmall { need: usize, got: usize },
+    MisalignedBuffer { required: usize },
     BucketsNotPowerOfTwo(u32),
     BucketsZero,
     ArenaTooSmall,
+    ArenaTooLarge,
 }
 
 impl std::error::Error for MemhInitError {}
@@ -38,11 +40,15 @@ impl std::fmt::Display for MemhInitError {
             MemhInitError::BufferTooSmall { need, got } => {
                 write!(f, "buffer too small: need {need}, got {got}")
             }
+            MemhInitError::MisalignedBuffer { required } => {
+                write!(f, "buffer address must be aligned to {required} bytes")
+            }
             MemhInitError::BucketsNotPowerOfTwo(n) => {
                 write!(f, "num_buckets {n} is not a power of two")
             }
             MemhInitError::BucketsZero => write!(f, "num_buckets must be > 0"),
             MemhInitError::ArenaTooSmall => write!(f, "arena_cap must be > 0"),
+            MemhInitError::ArenaTooLarge => write!(f, "arena_cap exceeds the u32 MEMH format"),
         }
     }
 }
@@ -50,8 +56,10 @@ impl std::fmt::Display for MemhInitError {
 #[derive(Debug)]
 pub enum MemhValidateError {
     TooShort,
+    MisalignedBuffer { required: usize },
     WrongMagic(u32),
     UnsupportedVersion(u16),
+    InvalidLayout(&'static str),
     CorruptEntry { bucket: usize },
 }
 
@@ -59,8 +67,14 @@ impl std::fmt::Display for MemhValidateError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             MemhValidateError::TooShort => write!(f, "buffer too short for a MEMH table"),
+            MemhValidateError::MisalignedBuffer { required } => {
+                write!(f, "buffer address must be aligned to {required} bytes")
+            }
             MemhValidateError::WrongMagic(m) => write!(f, "wrong magic 0x{m:08X}"),
             MemhValidateError::UnsupportedVersion(v) => write!(f, "unsupported MEMH version {v}"),
+            MemhValidateError::InvalidLayout(message) => {
+                write!(f, "invalid MEMH layout: {message}")
+            }
             MemhValidateError::CorruptEntry { bucket } => {
                 write!(f, "corrupt arena entry at bucket {bucket}")
             }
@@ -81,6 +95,7 @@ pub enum InsertError {
     TableFull,
     ArenaFull,
     InvalidValue,
+    WriterBusy,
 }
 
 impl std::fmt::Display for InsertError {
@@ -89,13 +104,14 @@ impl std::fmt::Display for InsertError {
             InsertError::TableFull => write!(f, "hash table is full"),
             InsertError::ArenaFull => write!(f, "arena is full"),
             InsertError::InvalidValue => write!(f, "value cannot be stored inline"),
+            InsertError::WriterBusy => write!(f, "another process owns the MEMH writer"),
         }
     }
 }
 
 // ── Buffer initialisation ─────────────────────────────────
 
-/// Initialise `buf` as a fresh MEMH v3 table.
+/// Initialise `buf` as a fresh MEMH v5 table.
 ///
 /// - `num_buckets`: must be a power of two
 /// - `arena_cap`: arena capacity in bytes (> 0)
@@ -106,6 +122,12 @@ pub fn init_buf(
     arena_cap: usize,
     hash_seed: u64,
 ) -> Result<(), MemhInitError> {
+    let required_alignment = std::mem::align_of::<MemhHeader>();
+    if !(buf.as_ptr() as usize).is_multiple_of(required_alignment) {
+        return Err(MemhInitError::MisalignedBuffer {
+            required: required_alignment,
+        });
+    }
     if num_buckets == 0 {
         return Err(MemhInitError::BucketsZero);
     }
@@ -115,7 +137,17 @@ pub fn init_buf(
     if arena_cap == 0 {
         return Err(MemhInitError::ArenaTooSmall);
     }
-    let need = required_total_size(num_buckets, arena_cap);
+    if arena_cap > u32::MAX as usize {
+        return Err(MemhInitError::ArenaTooLarge);
+    }
+    let data_off = compute_data_offset();
+    let arena_start = (num_buckets as usize)
+        .checked_mul(super::layout::SLOT_STRIDE)
+        .and_then(|slots| data_off.checked_add(slots))
+        .ok_or(MemhInitError::ArenaTooLarge)?;
+    let need = arena_start
+        .checked_add(arena_cap)
+        .ok_or(MemhInitError::ArenaTooLarge)?;
     if buf.len() < need {
         return Err(MemhInitError::BufferTooSmall {
             need,
@@ -123,20 +155,24 @@ pub fn init_buf(
         });
     }
     buf[..need].fill(0);
-    let data_off = compute_data_offset() as u32;
-    let arena_start = arena_start_abs(num_buckets, data_off as usize) as u32;
-    init_header(header_mut(buf), num_buckets, data_off);
-    init_meta_fields(buf, arena_start, arena_cap as u32, hash_seed);
+    init_header(header_mut(buf), num_buckets, data_off as u32);
+    init_meta_fields(buf, arena_start as u32, arena_cap as u32, hash_seed);
     Ok(())
 }
 
-/// Validate that `buf` contains a well-formed MEMH v3 table header.
+/// Validate that `buf` contains a well-formed MEMH v5 table header.
 pub fn validate_memh(buf: &[u8]) -> Result<(), MemhValidateError> {
     use super::layout::{MemhHeader, MemhMeta};
     use std::mem::size_of;
 
     if buf.len() < size_of::<MemhHeader>() + size_of::<MemhMeta>() {
         return Err(MemhValidateError::TooShort);
+    }
+    let required_alignment = std::mem::align_of::<MemhHeader>();
+    if !(buf.as_ptr() as usize).is_multiple_of(required_alignment) {
+        return Err(MemhValidateError::MisalignedBuffer {
+            required: required_alignment,
+        });
     }
     let h = header(buf);
     if h.magic != MAGIC_MEMH {
@@ -145,16 +181,54 @@ pub fn validate_memh(buf: &[u8]) -> Result<(), MemhValidateError> {
     if h.version != VERSION_MEMH {
         return Err(MemhValidateError::UnsupportedVersion(h.version));
     }
+    if h.header_size as usize != size_of::<MemhHeader>() {
+        return Err(MemhValidateError::InvalidLayout("invalid header_size"));
+    }
+    if h.byte_order != u16::from_ne_bytes(crate::layout::BYTE_ORDER_MARK) {
+        return Err(MemhValidateError::InvalidLayout("byte order mismatch"));
+    }
+    if h.num_buckets == 0 || !h.num_buckets.is_power_of_two() {
+        return Err(MemhValidateError::InvalidLayout(
+            "num_buckets must be a non-zero power of two",
+        ));
+    }
 
     let m = meta(buf);
     let data_off = h.data_offset as usize;
     let num_buckets = h.num_buckets as usize;
     let arena_start = m.arena_start as usize;
+    let arena_cap = m.arena_cap as usize;
     let arena_bump = h.arena_bump.load(Ordering::Acquire) as usize;
-
+    if data_off != compute_data_offset() {
+        return Err(MemhValidateError::InvalidLayout("invalid data_offset"));
+    }
+    if m.slot_stride as usize != super::layout::SLOT_STRIDE {
+        return Err(MemhValidateError::InvalidLayout("invalid slot_stride"));
+    }
+    let expected_arena_start = num_buckets
+        .checked_mul(super::layout::SLOT_STRIDE)
+        .and_then(|slots| data_off.checked_add(slots))
+        .ok_or(MemhValidateError::InvalidLayout("bucket layout overflow"))?;
+    if arena_start != expected_arena_start {
+        return Err(MemhValidateError::InvalidLayout("invalid arena_start"));
+    }
+    let arena_end = arena_start
+        .checked_add(arena_cap)
+        .ok_or(MemhValidateError::InvalidLayout("arena layout overflow"))?;
+    if arena_end > buf.len() {
+        return Err(MemhValidateError::InvalidLayout("arena exceeds buffer"));
+    }
+    if arena_bump > arena_cap {
+        return Err(MemhValidateError::InvalidLayout(
+            "arena bump exceeds capacity",
+        ));
+    }
     for idx in 0..num_buckets {
         // Single slot read covers both tag and head_off.
         let (tag, _, _, _, head_off, _) = read_slot(buf, data_off, idx);
+        if tag > SLOT_INLINE {
+            return Err(MemhValidateError::CorruptEntry { bucket: idx });
+        }
         if tag == SLOT_EMPTY {
             continue;
         }
@@ -166,10 +240,26 @@ pub fn validate_memh(buf: &[u8]) -> Result<(), MemhValidateError> {
         }
 
         let ho = head_off as usize;
-        if ho < arena_start || ho + ARENA_HDR_SIZE > arena_start + arena_bump {
+        let Some(header_end) = ho.checked_add(ARENA_HDR_SIZE) else {
+            return Err(MemhValidateError::CorruptEntry { bucket: idx });
+        };
+        // Acquire a fresh publication bound after the slot snapshot. A writer
+        // may append and publish this slot after the initial geometry check.
+        let live_arena_end = arena_start + h.arena_bump.load(Ordering::Acquire) as usize;
+        if ho < arena_start || header_end > live_arena_end {
             return Err(MemhValidateError::CorruptEntry { bucket: idx });
         }
-        if read_record_header(&buf[ho..]).is_none() {
+        let Some(record) = read_record_header(&buf[ho..live_arena_end]) else {
+            return Err(MemhValidateError::CorruptEntry { bucket: idx });
+        };
+        let Some(record_end) = ho.checked_add(record.record_len as usize) else {
+            return Err(MemhValidateError::CorruptEntry { bucket: idx });
+        };
+        if record.record_len < ARENA_HDR_SIZE as u32
+            || record_end > live_arena_end
+            || record.slot_idx as usize != idx
+            || record_key(&record, &buf[ho..record_end]).is_none()
+        {
             return Err(MemhValidateError::CorruptEntry { bucket: idx });
         }
     }
@@ -210,7 +300,7 @@ impl<'a> MemhView<'a> {
 
         for probe in 0..self.num_buckets {
             let idx = (probe_start + probe) & self.mask;
-            // Single volatile+Acquire read covers tag + all slot fields in one cache-line load.
+            // One seqlock snapshot covers tag and all slot fields.
             let (tag, val_dtype, key_len, slot_hash, head_off, val_bytes) =
                 read_slot(self.buf, self.data_off, idx);
             match tag {
@@ -224,16 +314,26 @@ impl<'a> MemhView<'a> {
                         continue;
                     }
                     let ho = head_off as usize;
-                    let record_data = self.buf.get(ho..)?;
+                    let bump = header(self.buf).arena_bump.load(Ordering::Acquire) as usize;
+                    let live_end = self.arena_start.checked_add(bump)?;
+                    if ho < self.arena_start || ho.checked_add(ARENA_HDR_SIZE)? > live_end {
+                        return None;
+                    }
+                    let record_data = self.buf.get(ho..live_end)?;
                     let hdr = read_record_header(record_data)?;
-                    let rkey = record_key(hdr, record_data)?;
+                    let record_end = ho.checked_add(hdr.record_len as usize)?;
+                    if hdr.record_len < ARENA_HDR_SIZE as u32 || record_end > live_end {
+                        return None;
+                    }
+                    let record_data = self.buf.get(ho..record_end)?;
+                    let rkey = record_key(&hdr, record_data)?;
                     if rkey != key {
                         continue;
                     }
                     if tag == SLOT_INLINE {
                         return slot_inline_value(val_dtype, &val_bytes);
                     }
-                    return record_value(hdr, record_data);
+                    return record_value(&hdr, record_data);
                 }
                 _ => continue,
             }
@@ -241,67 +341,54 @@ impl<'a> MemhView<'a> {
         None
     }
 
-    /// Iterate over all live `(key, value)` pairs by scanning the arena linearly.
+    /// Iterate over one stable snapshot of each live slot.
     ///
-    /// A record is live when `slot[record.slot_idx].head_off == absolute_record_pos`.
+    /// This is weakly consistent across slots, not a whole-table point-in-time
+    /// snapshot, but every yielded key/value pair is internally consistent.
     pub fn iter(&self) -> impl Iterator<Item = (&str, TypedValue<'_>)> + '_ {
-        let arena_bump = header(self.buf).arena_bump.load(Ordering::Acquire) as usize;
         let arena_start = self.arena_start;
         let buf = self.buf;
         let data_off = self.data_off;
         let num_buckets = self.num_buckets;
 
-        let mut pos: usize = 0;
+        let mut idx = 0usize;
         std::iter::from_fn(move || {
-            while pos < arena_bump {
-                let abs_pos = arena_start + pos;
-                let record_data = buf.get(abs_pos..)?;
+            while idx < num_buckets {
+                let slot_idx = idx;
+                idx += 1;
+                let (tag, val_dtype, _, _, head_off, val_bytes) =
+                    read_slot(buf, data_off, slot_idx);
+                if tag != SLOT_OCCUPIED && tag != SLOT_INLINE {
+                    continue;
+                }
+                let abs_pos = head_off as usize;
+                let bump = header(buf).arena_bump.load(Ordering::Acquire) as usize;
+                let live_end = arena_start.checked_add(bump)?;
+                if abs_pos < arena_start || abs_pos.checked_add(ARENA_HDR_SIZE)? > live_end {
+                    continue;
+                }
+                let record_data = buf.get(abs_pos..live_end)?;
                 let hdr = read_record_header(record_data)?;
                 let record_len = hdr.record_len as usize;
-                if record_len == 0 {
-                    break;
-                } // safeguard against infinite loop
-
-                let slot_idx = hdr.slot_idx as usize;
-                let advance = record_len;
-
-                let result = 'blk: {
-                    if slot_idx >= num_buckets {
-                        break 'blk None;
+                let record_end = abs_pos.checked_add(record_len)?;
+                if record_len < ARENA_HDR_SIZE
+                    || record_end > live_end
+                    || hdr.slot_idx as usize != slot_idx
+                {
+                    continue;
+                }
+                let record_data = buf.get(abs_pos..record_end)?;
+                let key = record_key(&hdr, record_data)?;
+                match (tag, hdr.flags) {
+                    (SLOT_OCCUPIED, super::codec::FLAG_PUT) => {
+                        let value = record_value(&hdr, record_data)?;
+                        return Some((key, value));
                     }
-                    // Fast path: TOMBSTONE records are never yielded — skip before
-                    // touching the slot array (avoids a volatile+Acquire read).
-                    if hdr.flags == super::codec::FLAG_TOMBSTONE {
-                        break 'blk None;
+                    (SLOT_INLINE, super::codec::FLAG_PUT_INLINE) => {
+                        let value = slot_inline_value(val_dtype, &val_bytes)?;
+                        return Some((key, value));
                     }
-                    // Liveness check: slot must point back to this record.
-                    let (tag, val_dtype, _, _, head_off, val_bytes) =
-                        read_slot(buf, data_off, slot_idx);
-                    if head_off as usize != abs_pos {
-                        break 'blk None;
-                    }
-                    match hdr.flags {
-                        super::codec::FLAG_PUT => {
-                            let k = record_key(hdr, record_data)?;
-                            let v = record_value(hdr, record_data)?;
-                            Some((k, v))
-                        }
-                        super::codec::FLAG_PUT_INLINE => {
-                            let k = record_key(hdr, record_data)?;
-                            // Value lives in the slot; re-read tag-consistent fields.
-                            if tag != SLOT_INLINE {
-                                break 'blk None;
-                            }
-                            let v = slot_inline_value(val_dtype, &val_bytes)?;
-                            Some((k, v))
-                        }
-                        _ => None,
-                    }
-                };
-
-                pos += advance;
-                if result.is_some() {
-                    return result;
+                    _ => continue,
                 }
             }
             None
@@ -346,7 +433,7 @@ impl<'a> MemhWriter<'a> {
     /// Create a writer without running `validate_memh`.
     ///
     /// # Safety
-    /// `buf` must contain a valid, fully-initialised MEMH v3 table.
+    /// `buf` must contain a valid, fully-initialised MEMH v5 table.
     /// Callers that have already validated the buffer (e.g. [`SharedMemhWriter`])
     /// may use this to avoid the O(num_buckets) validation cost on every lock
     /// acquisition.
@@ -384,9 +471,15 @@ impl<'a> MemhWriter<'a> {
     ///
     /// # Concurrency
     ///
-    /// `MemhWriter` holds `&mut [u8]`, which guarantees single-writer access at
-    /// compile time.  No runtime spinlock is needed.
+    /// `&mut [u8]` serialises one mapping; the header owner additionally
+    /// serialises writers from independent shared mappings and recovers a
+    /// transaction left by a dead writer process.
     pub fn insert(&mut self, key: &str, val: &Value<'_>) -> Result<InsertResult, InsertError> {
+        let _writer = acquire_writer(self.buf).ok_or(InsertError::WriterBusy)?;
+        self.insert_locked(key, val)
+    }
+
+    fn insert_locked(&mut self, key: &str, val: &Value<'_>) -> Result<InsertResult, InsertError> {
         let kh = hash_key(self.hash_seed, key);
         let is_scalar = is_scalar_dtype(val.dtype());
         let probe_start = kh as usize & self.mask;
@@ -396,7 +489,7 @@ impl<'a> MemhWriter<'a> {
 
         for probe in 0..self.num_buckets {
             let idx = (probe_start + probe) & self.mask;
-            // One volatile+Acquire read covers tag + all fields (same cache line).
+            // One seqlock snapshot covers tag and all fields.
             let (tag, _, key_len, slot_hash, head_off, _) = read_slot(self.buf, self.data_off, idx);
 
             match tag {
@@ -422,8 +515,8 @@ impl<'a> MemhWriter<'a> {
                     let matches = self
                         .buf
                         .get(ho..)
-                        .and_then(|d| read_record_header(d))
-                        .and_then(|hdr| record_key(hdr, &self.buf[ho..]))
+                        .and_then(read_record_header)
+                        .and_then(|hdr| record_key(&hdr, &self.buf[ho..]))
                         .map(|k| k == key)
                         .unwrap_or(false);
                     if !matches {
@@ -448,6 +541,13 @@ impl<'a> MemhWriter<'a> {
 
     /// Remove an entry by key.  Returns `true` if found and removed.
     pub fn remove(&mut self, key: &str) -> bool {
+        let Some(_writer) = acquire_writer(self.buf) else {
+            return false;
+        };
+        self.remove_locked(key)
+    }
+
+    fn remove_locked(&mut self, key: &str) -> bool {
         let kh = hash_key(self.hash_seed, key);
         let probe_start = kh as usize & self.mask;
 
@@ -468,8 +568,8 @@ impl<'a> MemhWriter<'a> {
                     let matches = self
                         .buf
                         .get(ho..)
-                        .and_then(|d| read_record_header(d))
-                        .and_then(|hdr| record_key(hdr, &self.buf[ho..]))
+                        .and_then(read_record_header)
+                        .and_then(|hdr| record_key(&hdr, &self.buf[ho..]))
                         .map(|k| k == key)
                         .unwrap_or(false);
                     if !matches {
@@ -772,6 +872,38 @@ mod tests {
     // ── Basic correctness ─────────────────────────────────
 
     #[test]
+    fn init_and_validate_reject_misaligned_buffers() {
+        let size = required_total_size(16, 1024);
+        let mut storage = vec![0u8; size + 1];
+        let misaligned = &mut storage[1..];
+        assert!(matches!(
+            init_buf(misaligned, 16, 1024, 0),
+            Err(MemhInitError::MisalignedBuffer { .. })
+        ));
+        assert!(matches!(
+            validate_memh(misaligned),
+            Err(MemhValidateError::MisalignedBuffer { .. })
+        ));
+    }
+
+    #[test]
+    fn validate_rejects_corrupt_geometry_before_slot_access() {
+        let mut buf = make_buf(16, 1024);
+        header_mut(&mut buf).data_offset = u32::MAX;
+        assert!(matches!(
+            validate_memh(&buf),
+            Err(MemhValidateError::InvalidLayout("invalid data_offset"))
+        ));
+
+        let mut buf = make_buf(16, 1024);
+        super::super::layout::meta_mut(&mut buf).arena_start = u32::MAX;
+        assert!(matches!(
+            validate_memh(&buf),
+            Err(MemhValidateError::InvalidLayout("invalid arena_start"))
+        ));
+    }
+
+    #[test]
     fn insert_and_get_scalar() {
         let mut buf = make_buf(16, 1024);
         writer_from_buf(&mut buf)
@@ -868,7 +1000,7 @@ mod tests {
         ));
     }
 
-    // ── MEMH v3 specific tests ────────────────────────────
+    // ── MEMH v5 specific tests ────────────────────────────
 
     #[test]
     fn scalar_update_zero_arena_growth() {

@@ -15,7 +15,7 @@ use crate::cli::bench::metrics::Report;
 
 pub fn run(args: &ScanArgs, json: bool, seed: u64) -> Result<()> {
     let spec = args.schema.spec();
-    let mut table = MemTable::new(&spec.schema(), args.ring.chunk_size, args.ring.chunks);
+    let mut table = MemTable::new(&spec.schema(), args.ring.chunk_size, args.ring.chunks)?;
     populate(&mut table, &spec, args.rows, seed);
 
     let dtypes: Vec<DType> = (0..table.num_cols())

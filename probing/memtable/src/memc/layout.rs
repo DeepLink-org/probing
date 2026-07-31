@@ -1,4 +1,4 @@
-//! MEMC v1 binary layout: segment header, block headers, footer.
+//! MEMC v2 binary layout: segment header, block headers, footer.
 //!
 //! All multi-byte fields are little-endian. See [`super`] (module docs)
 //! for the full format walkthrough.
@@ -16,14 +16,14 @@ pub const MAGIC_PAGE_BLOCK: u32 = u32::from_le_bytes(*b"MCPG");
 pub const MAGIC_FOOTER: u32 = u32::from_le_bytes(*b"MCFT");
 
 /// MEMC format version.
-pub const VERSION_MEMC: u16 = 1;
+pub const VERSION_MEMC: u16 = 2;
 
 /// Segment header size (one cache line, mirrors MEMT/MEMH).
 pub const SEGMENT_HEADER_SIZE: usize = 64;
 /// Block header size; blocks start 64-aligned.
 pub const BLOCK_HEADER_SIZE: usize = 64;
 /// Fixed size of one page-directory entry in the footer.
-pub const PAGE_DIR_ENTRY_SIZE: usize = 56;
+pub const PAGE_DIR_ENTRY_SIZE: usize = 64;
 
 /// `flags` bit: segment is sealed (footer present, file immutable).
 pub const FLAG_SEALED: u16 = 1 << 0;
@@ -168,7 +168,7 @@ impl SegmentHeader {
             return Err("invalid MEMC magic");
         }
         if get_u16(buf, 4) != VERSION_MEMC {
-            return Err("unsupported MEMC version");
+            return Err("unsupported MEMC version (expected v2)");
         }
         if get_u16(buf, 6) as usize != SEGMENT_HEADER_SIZE {
             return Err("invalid MEMC header size");
@@ -208,13 +208,14 @@ impl SegmentHeader {
 /// 40      4   payload_len
 /// 44      4   payload_xxh      xxh32 of payload bytes
 /// 48      4   source_chunk     hot-ring chunk index this page drained (u32::MAX = n/a)
-/// 52      4   header_xxh       xxh32 of bytes 0..52
-/// 56      8   reserved (zero)
+/// 52      8   source_instance  hot MEMT instance id (0 = n/a)
+/// 60      4   header_xxh       xxh32 of bytes 0..60
 /// ```
 ///
-/// `source_gen` + `source_chunk` together identify the hot-ring chunk a page
-/// was compacted from, letting a restarting compactor rebuild its per-chunk
-/// drain watermark from existing cold pages (exactly-once across restarts).
+/// `source_instance` + `source_gen` + `source_chunk` identify the hot-ring
+/// chunk a page was compacted from. Including the MEMT instance prevents a
+/// same-name replacement whose generations restart from being mistaken for
+/// an already-drained table.
 ///
 /// The payload follows the header and is padded to the next 64-byte
 /// boundary; the padding is excluded from `payload_xxh`.
@@ -230,6 +231,7 @@ pub struct BlockHeader {
     pub payload_len: u32,
     pub payload_xxh: u32,
     pub source_chunk: u32,
+    pub source_instance: u64,
 }
 
 /// Sentinel for "this page did not originate from a specific hot-ring chunk".
@@ -248,8 +250,9 @@ impl BlockHeader {
         put_u32(&mut b, 40, self.payload_len);
         put_u32(&mut b, 44, self.payload_xxh);
         put_u32(&mut b, 48, self.source_chunk);
-        let h = xxh32(&b[..52]);
-        put_u32(&mut b, 52, h);
+        put_u64(&mut b, 52, self.source_instance);
+        let h = xxh32(&b[..60]);
+        put_u32(&mut b, 60, h);
         b
     }
 
@@ -263,7 +266,7 @@ impl BlockHeader {
         if magic != MAGIC_TABLE_BLOCK && magic != MAGIC_PAGE_BLOCK {
             return None;
         }
-        if get_u32(buf, 52) != xxh32(&buf[..52]) {
+        if get_u32(buf, 60) != xxh32(&buf[..60]) {
             return None;
         }
         Some(Self {
@@ -277,6 +280,7 @@ impl BlockHeader {
             payload_len: get_u32(buf, 40),
             payload_xxh: get_u32(buf, 44),
             source_chunk: get_u32(buf, 48),
+            source_instance: get_u64(buf, 52),
         })
     }
 }
@@ -405,12 +409,14 @@ mod tests {
             payload_len: 512,
             payload_xxh: 0xDEAD,
             source_chunk: 6,
+            source_instance: 0x1234,
         };
         let bytes = h.encode();
         let d = BlockHeader::decode(&bytes).unwrap();
         assert_eq!(d.table_id, 3);
         assert_eq!(d.source_gen, 42);
         assert_eq!(d.source_chunk, 6);
+        assert_eq!(d.source_instance, 0x1234);
 
         let mut bad = bytes;
         bad[8] ^= 1;

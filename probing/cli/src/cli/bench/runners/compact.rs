@@ -26,7 +26,7 @@ pub fn run(args: &CompactArgs, json: bool, seed: u64) -> Result<()> {
         None => super::common::temp_dir("compact")?,
     };
 
-    let mut table = MemTable::new(&spec.schema(), args.ring.chunk_size, args.ring.chunks);
+    let mut table = MemTable::new(&spec.schema(), args.ring.chunk_size, args.ring.chunks)?;
     let store = ColdStore::open(&dir)?;
     let config = CompactorConfig {
         target_segment_bytes: args.target_mb * 1024 * 1024,

@@ -58,7 +58,7 @@ impl<'a> RowWriter<'a> {
     fn write_str_dedup(&mut self, data: &[u8]) {
         if !self.overflow {
             if let Some(dedup) = self.dedup.as_ref() {
-                if let Some(off) = dedup.lookup(self.col_idx, data) {
+                if let Some(off) = dedup.lookup(self.col_idx, data, self.buf, self.chunk_start) {
                     self.write_raw(&(-(off as i32)).to_le_bytes());
                     return;
                 }
@@ -68,7 +68,7 @@ impl<'a> RowWriter<'a> {
         self.write_lp(data);
         if !self.overflow {
             if let Some(dedup) = self.dedup.as_mut() {
-                dedup.insert(self.col_idx, data, chunk_off);
+                dedup.stage_insert(self.col_idx, data, chunk_off);
             }
         }
     }
@@ -139,6 +139,9 @@ impl<'a> RowWriter<'a> {
         }
         self.done = true;
         let ok = if self.overflow {
+            if let Some(dedup) = self.dedup.as_mut() {
+                dedup.rollback_row();
+            }
             false
         } else {
             let row_data = self.pos - self.row_start - 4;
@@ -153,21 +156,34 @@ impl<'a> RowWriter<'a> {
             chunk_header(self.buf, self.chunk_start)
                 .row_count
                 .fetch_add(1, Ordering::Release);
+            if let Some(dedup) = self.dedup.as_mut() {
+                dedup.commit_row();
+            }
             true
         };
         ok
     }
 }
 
+impl Drop for RowWriter<'_> {
+    fn drop(&mut self) {
+        if !self.done {
+            if let Some(dedup) = self.dedup.as_mut() {
+                dedup.rollback_row();
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::memtable::MemTable;
+    use crate::memtable::{MemTable, MemTableWriter};
     use crate::schema::{DType, Schema, Value};
 
     #[test]
     fn row_writer_basic() {
         let schema = Schema::new().col("id", DType::I64).col("val", DType::F64);
-        let mut t = MemTable::new(&schema, 1024, 1);
+        let mut t = MemTable::new(&schema, 1024, 1).unwrap();
         assert!(t.row_writer().put_i64(42).put_f64(3.14).finish());
         assert!(t.row_writer().put_i64(100).put_f64(2.72).finish());
         let rows: Vec<_> = t.rows(0).collect();
@@ -181,7 +197,7 @@ mod tests {
             .col("ts", DType::I64)
             .col("msg", DType::Str)
             .col("tag", DType::U32);
-        let mut t = MemTable::new(&schema, 4096, 1);
+        let mut t = MemTable::new(&schema, 4096, 1).unwrap();
         t.row_writer()
             .put_i64(1000)
             .put_str("hello")
@@ -197,7 +213,7 @@ mod tests {
     fn row_writer_overflow() {
         let schema = Schema::new().col("x", DType::I64);
         // ChunkHeader=40, each I64 row=12 → 56-40=16 → 1 row fits, 2nd overflows
-        let mut t = MemTable::new(&schema, 56, 1);
+        let mut t = MemTable::new(&schema, 56, 1).unwrap();
         assert!(t.row_writer().put_i64(1).finish());
         assert!(!t.row_writer().put_i64(2).finish());
         assert_eq!(t.num_rows(0), 1);
@@ -206,7 +222,7 @@ mod tests {
     #[test]
     fn row_writer_drop_without_finish_commits_nothing() {
         let schema = Schema::new().col("x", DType::I32);
-        let mut t = MemTable::new(&schema, 1024, 1);
+        let mut t = MemTable::new(&schema, 1024, 1).unwrap();
         {
             let mut w = t.row_writer();
             w.put_i32(99); // dropped without finish() → row not committed
@@ -221,7 +237,7 @@ mod tests {
     #[test]
     fn writer_and_value_interop() {
         let schema = Schema::new().col("x", DType::I64).col("s", DType::Str);
-        let mut t = MemTable::new(&schema, 4096, 1);
+        let mut t = MemTable::new(&schema, 4096, 1).unwrap();
         t.row_writer().put_i64(1).put_str("writer").finish();
         t.push_row(&[Value::I64(2), Value::Str("value")]);
         let rows: Vec<_> = t.rows(0).collect();
@@ -236,12 +252,53 @@ mod tests {
     #[test]
     fn mixed_push_and_row_writer() {
         let schema = Schema::new().col("x", DType::I32);
-        let mut t = MemTable::new(&schema, 1024, 1);
+        let mut t = MemTable::new(&schema, 1024, 1).unwrap();
         t.push_row(&[Value::I32(1)]);
         t.row_writer().put_i32(2).finish();
         assert_eq!(t.num_rows(0), 2);
         let rows: Vec<_> = t.rows(0).collect();
         assert_eq!(rows[0].col_i32(0), 1);
         assert_eq!(rows[1].col_i32(0), 2);
+    }
+
+    #[test]
+    fn dedup_overflow_rolls_back_staged_entries() {
+        let schema = Schema::new().col("value", DType::Str);
+        let size = MemTable::required_size(&schema, 80, 1);
+        let mut buf = vec![0u8; size];
+        let mut writer = MemTableWriter::init(&mut buf, &schema, 80, 1)
+            .unwrap()
+            .dedup();
+
+        assert!(!writer
+            .row_writer()
+            .put_str("same")
+            .put_bytes(&[7; 128])
+            .finish());
+        assert!(writer.row_writer().put_str("same").finish());
+
+        let row = writer.rows(0).next().expect("committed row");
+        assert_eq!(row.col_str(0), "same");
+        assert!(crate::validate_buf(writer.as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn dropped_dedup_row_rolls_back_staged_entries() {
+        let schema = Schema::new().col("value", DType::Str);
+        let size = MemTable::required_size(&schema, 128, 1);
+        let mut buf = vec![0u8; size];
+        let mut writer = MemTableWriter::init(&mut buf, &schema, 128, 1)
+            .unwrap()
+            .dedup();
+
+        {
+            let mut row = writer.row_writer();
+            row.put_str("same");
+        }
+        assert!(writer.row_writer().put_str("same").finish());
+
+        let row = writer.rows(0).next().expect("committed row");
+        assert_eq!(row.col_str(0), "same");
+        assert!(crate::validate_buf(writer.as_bytes()).is_ok());
     }
 }

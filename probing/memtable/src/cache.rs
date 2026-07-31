@@ -1,10 +1,15 @@
-use crate::layout::{chunk_header, r32};
+use crate::layout::{header, r32, CHUNK_HEADER_SIZE};
 use crate::row::Row;
 use std::collections::HashMap;
-use std::sync::atomic::Ordering;
 
 /// Cache key: (byte offset, chunk generation).
 type CacheKey = (usize, u64);
+
+#[derive(Clone, Copy)]
+struct CachedRange {
+    start: usize,
+    end: usize,
+}
 
 /// Dedup-ref cache: HashMap for general lookups + 1-entry fast path.
 ///
@@ -15,8 +20,8 @@ type CacheKey = (usize, u64);
 pub struct CachedReader<'a> {
     buf: &'a [u8],
     last_key: CacheKey,
-    last_val: &'a [u8],
-    cache: HashMap<CacheKey, &'a [u8]>,
+    last_range: Option<CachedRange>,
+    cache: HashMap<CacheKey, CachedRange>,
     order: Vec<CacheKey>,
     write_pos: usize,
     max_entries: usize,
@@ -28,7 +33,7 @@ impl<'a> CachedReader<'a> {
         Self {
             buf,
             last_key: (0, 0),
-            last_val: &[],
+            last_range: None,
             cache: HashMap::with_capacity(cap),
             order: Vec::with_capacity(cap),
             write_pos: 0,
@@ -38,35 +43,53 @@ impl<'a> CachedReader<'a> {
 
     /// Resolve a dedup reference.
     #[inline]
-    pub fn resolve_ref(&mut self, data_off: usize, generation: u64) -> &'a [u8] {
+    pub fn resolve_ref<'b>(
+        &mut self,
+        pinned_buf: &'b [u8],
+        data_off: usize,
+        generation: u64,
+    ) -> &'b [u8] {
+        let Some(range) = self.resolve_range(pinned_buf, data_off, generation) else {
+            return &[];
+        };
+        &pinned_buf[range.start..range.end]
+    }
+
+    fn resolve_range(
+        &mut self,
+        buf: &[u8],
+        data_off: usize,
+        generation: u64,
+    ) -> Option<CachedRange> {
         let key = (data_off, generation);
 
         // Fast path: exact repeat of previous call.
         if key == self.last_key {
-            return self.last_val;
+            return self.last_range;
         }
 
         // HashMap lookup.
-        if let Some(&b) = self.cache.get(&key) {
+        if let Some(&range) = self.cache.get(&key) {
             self.last_key = key;
-            self.last_val = b;
-            return b;
+            self.last_range = Some(range);
+            return Some(range);
         }
 
-        self.resolve_slow(key, data_off)
+        self.resolve_slow(buf, key, data_off)
     }
 
     #[cold]
     #[inline(never)]
-    fn resolve_slow(&mut self, key: CacheKey, data_off: usize) -> &'a [u8] {
-        let len = r32(self.buf, data_off) as usize;
-        let end = data_off.saturating_add(4).saturating_add(len);
-        if end > self.buf.len() {
-            return &[];
+    fn resolve_slow(&mut self, buf: &[u8], key: CacheKey, data_off: usize) -> Option<CachedRange> {
+        let len = r32(buf, data_off) as usize;
+        let start = data_off.checked_add(4)?;
+        let end = start.checked_add(len)?;
+        if end > buf.len() {
+            return None;
         }
-        let b = &self.buf[data_off + 4..end];
+        let range = CachedRange { start, end };
         self.last_key = key;
-        self.last_val = b;
+        self.last_range = Some(range);
         if self.order.len() < self.max_entries {
             self.order.push(key);
         } else {
@@ -75,8 +98,8 @@ impl<'a> CachedReader<'a> {
             self.order[self.write_pos] = key;
             self.write_pos = (self.write_pos + 1) % self.max_entries;
         }
-        self.cache.insert(key, b);
-        b
+        self.cache.insert(key, range);
+        Some(range)
     }
 
     /// Returns `(cached_entries, max_entries)`.
@@ -84,18 +107,15 @@ impl<'a> CachedReader<'a> {
         (self.cache.len(), self.max_entries)
     }
 
-    pub fn cursor(&mut self, row: &Row<'a>) -> CachedCursor<'a, '_> {
-        let stale = chunk_header(self.buf, row.chunk_start)
-            .generation
-            .load(Ordering::Acquire)
-            != row.generation;
+    pub fn cursor<'r>(&mut self, row: &'r Row<'a>) -> CachedCursor<'r, '_, 'a> {
         CachedCursor {
             data: row.data,
+            buf: row.buf,
             pos: 0,
             chunk_start: row.chunk_start,
             generation: row.generation,
             cache: self,
-            stale,
+            stale: false,
         }
     }
 }
@@ -106,8 +126,9 @@ impl<'a> CachedReader<'a> {
 /// panic.  Instead the cursor is silently marked stale and all subsequent
 /// reads return zero / empty values.  Call [`is_stale()`](Self::is_stale)
 /// after reading to check.
-pub struct CachedCursor<'a, 'c> {
-    data: &'a [u8],
+pub struct CachedCursor<'r, 'c, 'a> {
+    data: &'r [u8],
+    buf: &'r [u8],
     pos: usize,
     chunk_start: usize,
     generation: u64,
@@ -115,18 +136,27 @@ pub struct CachedCursor<'a, 'c> {
     stale: bool,
 }
 
-impl<'a> CachedCursor<'a, '_> {
+impl<'r> CachedCursor<'r, '_, '_> {
     /// Returns `true` if the underlying chunk was recycled since this
     /// cursor was created.  Once stale, all reads return zero / empty.
     pub fn is_stale(&self) -> bool {
-        self.stale
+        self.stale || !self.generation_matches()
+    }
+
+    fn generation_matches(&self) -> bool {
+        // CachedCursor borrows a Row, which owns the chunk pin.
+        true
     }
 
     fn read_fixed<const N: usize>(&mut self) -> [u8; N] {
-        if self.stale {
+        if self.stale || !self.generation_matches() {
+            self.stale = true;
             return [0u8; N];
         }
-        let end = self.pos + N;
+        let Some(end) = self.pos.checked_add(N) else {
+            self.stale = true;
+            return [0u8; N];
+        };
         if end > self.data.len() {
             self.stale = true;
             return [0u8; N];
@@ -134,10 +164,15 @@ impl<'a> CachedCursor<'a, '_> {
         let mut v = [0u8; N];
         v.copy_from_slice(&self.data[self.pos..end]);
         self.pos += N;
-        v
+        if self.generation_matches() {
+            v
+        } else {
+            self.stale = true;
+            [0u8; N]
+        }
     }
 
-    fn read_lp_cached(&mut self) -> &'a [u8] {
+    fn read_lp_cached(&mut self) -> &'r [u8] {
         if self.stale {
             return &[];
         }
@@ -146,27 +181,56 @@ impl<'a> CachedCursor<'a, '_> {
             return &[];
         }
         if raw < 0 {
-            let data_off = self.chunk_start + (-raw) as usize;
-            if data_off + 4 > self.cache.buf.len() {
+            let Some(ref_delta) = raw.checked_neg().map(|v| v as usize) else {
+                self.stale = true;
+                return &[];
+            };
+            let Some(data_off) = self.chunk_start.checked_add(ref_delta) else {
+                self.stale = true;
+                return &[];
+            };
+            let chunk_end = self.chunk_start + header(self.cache.buf).chunk_size as usize;
+            if data_off < self.chunk_start + CHUNK_HEADER_SIZE || data_off + 4 > chunk_end {
                 self.stale = true;
                 return &[];
             }
             let len = r32(self.cache.buf, data_off) as usize;
-            let end = data_off + 4 + len;
-            if end > self.cache.buf.len() {
+            let Some(end) = data_off
+                .checked_add(4)
+                .and_then(|value_start| value_start.checked_add(len))
+            else {
+                self.stale = true;
+                return &[];
+            };
+            if end > chunk_end || end > self.cache.buf.len() {
                 self.stale = true;
                 return &[];
             }
-            self.cache.resolve_ref(data_off, self.generation)
+            let value = self.cache.resolve_ref(self.buf, data_off, self.generation);
+            if self.generation_matches() {
+                value
+            } else {
+                self.stale = true;
+                &[]
+            }
         } else {
             let len = raw as usize;
-            if self.pos + len > self.data.len() {
+            let Some(end) = self.pos.checked_add(len) else {
+                self.stale = true;
+                return &[];
+            };
+            if end > self.data.len() {
                 self.stale = true;
                 return &[];
             }
-            let b = &self.data[self.pos..self.pos + len];
-            self.pos += len;
-            b
+            let value = &self.data[self.pos..end];
+            self.pos = end;
+            if self.generation_matches() {
+                value
+            } else {
+                self.stale = true;
+                &[]
+            }
         }
     }
 
@@ -191,7 +255,7 @@ impl<'a> CachedCursor<'a, '_> {
     pub fn next_u64(&mut self) -> u64 {
         u64::from_le_bytes(self.read_fixed())
     }
-    pub fn next_str(&mut self) -> &'a str {
+    pub fn next_str(&mut self) -> &'r str {
         let b = self.read_lp_cached();
         if b.is_empty() {
             ""
@@ -199,7 +263,7 @@ impl<'a> CachedCursor<'a, '_> {
             std::str::from_utf8(b).unwrap_or("")
         }
     }
-    pub fn next_bytes(&mut self) -> &'a [u8] {
+    pub fn next_bytes(&mut self) -> &'r [u8] {
         self.read_lp_cached()
     }
 }
@@ -218,7 +282,9 @@ mod tests {
         let size = MemTable::required_size(&schema, 4096, 1);
         let mut buf = vec![0u8; size];
         {
-            let mut dw = MemTableWriter::init(&mut buf, &schema, 4096, 1).dedup();
+            let mut dw = MemTableWriter::init(&mut buf, &schema, 4096, 1)
+                .unwrap()
+                .dedup();
             for i in 0..10i64 {
                 dw.row_writer().put_i64(i).put_str("same_tag").finish();
             }
@@ -243,7 +309,9 @@ mod tests {
         let size = MemTable::required_size(&schema, 16384, 1);
         let mut buf = vec![0u8; size];
         {
-            let mut dw = MemTableWriter::init(&mut buf, &schema, 16384, 1).dedup();
+            let mut dw = MemTableWriter::init(&mut buf, &schema, 16384, 1)
+                .unwrap()
+                .dedup();
             for i in 0..100 {
                 dw.push_row(&[Value::Str(&format!("unique_{i}"))]);
             }
@@ -269,7 +337,9 @@ mod tests {
         let size = MemTable::required_size(&schema, 8192, 1);
         let mut buf = vec![0u8; size];
         {
-            let mut dw = MemTableWriter::init(&mut buf, &schema, 8192, 1).dedup();
+            let mut dw = MemTableWriter::init(&mut buf, &schema, 8192, 1)
+                .unwrap()
+                .dedup();
             for i in 0..20 {
                 dw.push_row(&[Value::Str("INFO"), Value::I32(i)]);
             }
@@ -294,7 +364,9 @@ mod tests {
         let size = MemTable::required_size(&schema, 65536, 1);
         let mut buf = vec![0u8; size];
         {
-            let mut dw = MemTableWriter::init(&mut buf, &schema, 65536, 1).dedup();
+            let mut dw = MemTableWriter::init(&mut buf, &schema, 65536, 1)
+                .unwrap()
+                .dedup();
             for i in 0..100 {
                 let tag = format!("tag_{i}");
                 dw.push_row(&[Value::Str(&tag), Value::I32(i)]);
@@ -321,23 +393,18 @@ mod tests {
 
     #[test]
     fn stress_concurrent_dedup_write_cached_read() {
-        use std::alloc;
         use std::sync::atomic::AtomicBool;
         use std::sync::{Arc, Barrier};
         use std::thread;
 
         let schema = Schema::new().col("key", DType::Str).col("val", DType::I64);
         let size = MemTable::required_size(&schema, 16384, 4);
-        let layout = alloc::Layout::from_size_align(size, 64).unwrap();
-        let ptr = unsafe { alloc::alloc_zeroed(layout) };
-        assert!(!ptr.is_null());
-
-        unsafe {
-            let buf = std::slice::from_raw_parts_mut(ptr, size);
-            init_buf(buf, &schema, 16384, 4);
+        let shared = crate::test_mmap::TestSharedFile::new(size);
+        {
+            let mut init_map = shared.map_mut();
+            init_buf(&mut init_map, &schema, 16384, 4).unwrap();
         }
 
-        let addr = ptr as usize;
         let num_writers = 4;
         let rows_per_writer = 300;
         let num_readers = 4;
@@ -348,14 +415,14 @@ mod tests {
             .map(|_| {
                 let done = done.clone();
                 let barrier = barrier.clone();
+                let map = shared.map_mut();
                 thread::spawn(move || {
                     barrier.wait();
                     let mut reads = 0usize;
                     let keys = ["k_a", "k_b", "k_c", "k_d", "k_e"];
-                    while !done.load(Ordering::Acquire) {
-                        let buf = unsafe { std::slice::from_raw_parts(addr as *const u8, size) };
-                        let view = MemTableView::new(buf).unwrap();
-                        let mut cache = CachedReader::new(buf, 32);
+                    loop {
+                        let view = MemTableView::new(&map).unwrap();
+                        let mut cache = CachedReader::new(&map, 32);
                         for chunk in 0..view.num_chunks() {
                             for row in view.rows(chunk) {
                                 let mut c = cache.cursor(&row);
@@ -369,6 +436,9 @@ mod tests {
                                 reads += 1;
                             }
                         }
+                        if done.load(Ordering::Acquire) {
+                            break;
+                        }
                         thread::yield_now();
                     }
                     reads
@@ -378,10 +448,10 @@ mod tests {
 
         let writer = {
             let barrier = barrier.clone();
+            let mut map = shared.map_mut();
             thread::spawn(move || {
                 barrier.wait();
-                let buf = unsafe { std::slice::from_raw_parts_mut(addr as *mut u8, size) };
-                let mut mt = MemTableWriter::new(buf).unwrap();
+                let mut mt = MemTableWriter::new(&mut map).unwrap();
                 let keys = ["k_a", "k_b", "k_c", "k_d", "k_e"];
                 for tid in 0..num_writers {
                     for seq in 0..rows_per_writer as i64 {
@@ -403,13 +473,10 @@ mod tests {
         }
         assert!(total_reads > 0, "readers should have read some rows");
 
-        unsafe {
-            let buf = std::slice::from_raw_parts(ptr, size);
-            let view = MemTableView::new(buf).unwrap();
-            let total: usize = (0..view.num_chunks()).map(|c| view.num_rows(c)).sum();
-            assert_eq!(total, num_writers * rows_per_writer);
-            alloc::dealloc(ptr as *mut u8, layout);
-        }
+        let final_map = shared.map_mut();
+        let view = MemTableView::new(&final_map).unwrap();
+        let total: usize = (0..view.num_chunks()).map(|c| view.num_rows(c)).sum();
+        assert_eq!(total, num_writers * rows_per_writer);
     }
 
     #[test]
@@ -424,7 +491,9 @@ mod tests {
         let paths: Vec<String> = (0..50).map(|i| format!("/api/v1/resource/{i}")).collect();
 
         {
-            let mut dw = MemTableWriter::init(&mut buf, &schema, 65536, 2).dedup();
+            let mut dw = MemTableWriter::init(&mut buf, &schema, 65536, 2)
+                .unwrap()
+                .dedup();
             for i in 0..1000 {
                 dw.push_row(&[
                     Value::Str(&hosts[i % hosts.len()]),
@@ -463,16 +532,16 @@ mod tests {
     #[test]
     fn cached_reader_does_not_reuse_old_entry_after_generation_change() {
         let schema = Schema::new().col("s", DType::Str);
-        let mut buf = vec![0u8; 4096];
-        init_buf(&mut buf, &schema, 512, 2); // 2 chunks: wrap happens fast
-
-        // Shared-memory style: reader holds &[u8] via raw pointer,
-        // writer holds &mut [u8] — mirrors real cross-thread usage.
-        let reader_buf: &[u8] = unsafe { std::slice::from_raw_parts(buf.as_ptr(), buf.len()) };
+        let size = MemTable::required_size(&schema, 512, 2);
+        let shared = crate::test_mmap::TestSharedFile::new(size);
+        let mut writer_map = shared.map_mut();
+        let reader_map = shared.map_mut();
+        init_buf(&mut writer_map, &schema, 512, 2).unwrap();
+        let reader_buf: &[u8] = &reader_map;
 
         // Phase 1: write "hello" into chunk 0
         {
-            let mut m = MemTableWriter::new(&mut buf).unwrap();
+            let mut m = MemTableWriter::new(&mut writer_map).unwrap();
             m.push_row(&[Value::Str("hello")]);
         }
         let gen0 = MemTableView::new(reader_buf).unwrap().chunk_generation(0);
@@ -489,7 +558,7 @@ mod tests {
 
         // Phase 3: advance twice to recycle chunk 0 (0→1→0), write "world"
         {
-            let mut m = MemTableWriter::new(&mut buf).unwrap();
+            let mut m = MemTableWriter::new(&mut writer_map).unwrap();
             m.advance_chunk(); // 0→1
             m.advance_chunk(); // 1→0 (chunk 0 recycled, generation bumped)
             m.push_row(&[Value::Str("world")]);
