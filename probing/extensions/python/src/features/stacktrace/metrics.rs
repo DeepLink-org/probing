@@ -15,6 +15,7 @@ static DROPPED_RING: AtomicU64 = AtomicU64::new(0);
 static DROPPED_NOT_MAIN: AtomicU64 = AtomicU64::new(0);
 static DROPPED_TORN: AtomicU64 = AtomicU64::new(0);
 static DROPPED_CAPACITY: AtomicU64 = AtomicU64::new(0);
+static DROPPED_PUBLISH: AtomicU64 = AtomicU64::new(0);
 static FINGERPRINT_HITS: AtomicU64 = AtomicU64::new(0);
 static FINGERPRINT_MISSES: AtomicU64 = AtomicU64::new(0);
 static PARSE_CALLS: AtomicU64 = AtomicU64::new(0);
@@ -39,6 +40,11 @@ pub fn inc_dropped_torn() {
 #[inline]
 pub fn inc_dropped_capacity() {
     DROPPED_CAPACITY.fetch_add(1, Ordering::Relaxed);
+}
+
+#[inline]
+pub fn inc_dropped_publish() {
+    DROPPED_PUBLISH.fetch_add(1, Ordering::Relaxed);
 }
 
 #[inline]
@@ -102,6 +108,7 @@ pub fn reset_sampler_counters() {
     DROPPED_NOT_MAIN.store(0, Ordering::Relaxed);
     DROPPED_TORN.store(0, Ordering::Relaxed);
     DROPPED_CAPACITY.store(0, Ordering::Relaxed);
+    DROPPED_PUBLISH.store(0, Ordering::Relaxed);
     FINGERPRINT_HITS.store(0, Ordering::Relaxed);
     FINGERPRINT_MISSES.store(0, Ordering::Relaxed);
     FOLD_CALLS.store(0, Ordering::Relaxed);
@@ -115,6 +122,7 @@ pub fn snapshot_json() -> serde_json::Value {
             "dropped_not_main": DROPPED_NOT_MAIN.load(Ordering::Relaxed),
             "dropped_torn": DROPPED_TORN.load(Ordering::Relaxed),
             "dropped_capacity": DROPPED_CAPACITY.load(Ordering::Relaxed),
+            "dropped_publish": DROPPED_PUBLISH.load(Ordering::Relaxed),
             "fingerprint_hits": FINGERPRINT_HITS.load(Ordering::Relaxed),
             "fingerprint_misses": FINGERPRINT_MISSES.load(Ordering::Relaxed),
             "fold_calls": FOLD_CALLS.load(Ordering::Relaxed),
@@ -142,6 +150,7 @@ mod tests {
         let v = snapshot_json();
         assert!(v["sampler"]["fingerprint_hits"].as_u64().is_some());
         assert!(v["sampler"]["fold_calls"].as_u64().is_some());
+        assert!(v["sampler"]["dropped_publish"].as_u64().is_some());
         assert!(v["view"]["parse_calls"].as_u64().is_some());
         assert!(v["view"]["parse_cache_hits"].as_u64().is_some());
         // Flat keys removed — do not misread export parse as per-sample work.

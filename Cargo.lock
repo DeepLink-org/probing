@@ -3599,6 +3599,7 @@ dependencies = [
  "base64 0.21.7",
  "datafusion",
  "futures",
+ "libc",
  "memmap2",
  "probing-cli",
  "probing-core",

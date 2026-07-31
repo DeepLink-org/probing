@@ -10,7 +10,9 @@ use once_cell::sync::Lazy;
 use probing_proto::prelude::CallFrame;
 
 use crate::features::stacktrace::capture::{resolve_py_call_frame, symbolize_native_addr};
-use crate::features::stacktrace::merge::merge_python_native_stacks;
+use crate::features::stacktrace::merge::{
+    merge_python_native_stacks, merge_python_native_stacks_best_effort,
+};
 use crate::features::stacktrace::metrics;
 use crate::features::stacktrace::snapshot::{StackFlags, StackSnapshot, StackSource};
 
@@ -112,7 +114,11 @@ fn parse_snapshot_uncached(
         .map(|&key| resolve_py_call_frame(key))
         .collect();
 
-    let frames = merge_python_native_stacks(&python_outer_to_inner, &native_leaf_to_root);
+    let frames = if snapshot.source == StackSource::MachSuspend {
+        merge_python_native_stacks_best_effort(&python_outer_to_inner, &native_leaf_to_root)
+    } else {
+        merge_python_native_stacks(&python_outer_to_inner, &native_leaf_to_root)
+    };
     ParsedStacks {
         tid: snapshot.tid,
         source: snapshot.source,

@@ -50,9 +50,9 @@ use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 
 use crate::msprof::{
-    classify_additional, is_hccl_op_compact, read_additional_header, read_api, read_compact_header,
-    read_context_id_info, read_hccl_info, read_hccl_op_info, read_mc2_comm_info, AdditionalKind,
-    MSPROF_ADDITIONAL_HEADER, MSPROF_BLOB_HEADER,
+    checked_blob_payload_len, classify_additional, is_hccl_op_compact, read_additional_header,
+    read_api, read_compact_header, read_context_id_info, read_hccl_info, read_hccl_op_info,
+    read_mc2_comm_info, AdditionalKind, MSPROF_ADDITIONAL_HEADER, MSPROF_BLOB_HEADER,
 };
 use crate::names::{lookup_type_id, preseed_hashes};
 use crate::writer::HcclWriter;
@@ -87,10 +87,13 @@ fn capture_compact(_aging: u32, ptr: *const c_void, len: u32) {
     let Some(header) = read_compact_header(ptr as *const u8, len) else {
         return;
     };
+    let Some(payload_len) = checked_blob_payload_len(len, header.data_len) else {
+        return;
+    };
     let data_ptr = unsafe { (ptr as *const u8).add(MSPROF_BLOB_HEADER) };
     let type_name = lookup_type_id(header.type_id);
-    if is_hccl_op_compact(&type_name, header.data_len) {
-        if let Some(op) = read_hccl_op_info(data_ptr, header.data_len) {
+    if is_hccl_op_compact(&type_name, payload_len) {
+        if let Some(op) = read_hccl_op_info(data_ptr, payload_len) {
             WRITER.lock().record_compact_hccl_op(&header, &op);
         }
     }
@@ -104,23 +107,26 @@ fn capture_additional(_aging: u32, ptr: *const c_void, len: u32) {
     let Some(header) = read_additional_header(ptr as *const u8, len) else {
         return;
     };
+    let Some(payload_len) = checked_blob_payload_len(len, header.data_len) else {
+        return;
+    };
     let data_ptr = unsafe { (ptr as *const u8).add(MSPROF_ADDITIONAL_HEADER) };
     let type_name = lookup_type_id(header.type_id);
-    match classify_additional(header.type_id, &type_name, header.data_len) {
+    match classify_additional(header.type_id, &type_name, payload_len) {
         AdditionalKind::HcclTask => {
-            if let Some(hccl) = read_hccl_info(data_ptr, header.data_len) {
+            if let Some(hccl) = read_hccl_info(data_ptr, payload_len) {
                 WRITER
                     .lock()
-                    .record_task(&header, &hccl, header.data_len as i32);
+                    .record_task(&header, &hccl, payload_len as i32);
             }
         }
         AdditionalKind::Mc2Comm => {
-            if let Some(mc2) = read_mc2_comm_info(data_ptr, header.data_len) {
+            if let Some(mc2) = read_mc2_comm_info(data_ptr, payload_len) {
                 WRITER.lock().record_mc2(&header, &mc2);
             }
         }
         AdditionalKind::ContextId => {
-            if let Some(ctx) = read_context_id_info(data_ptr, header.data_len) {
+            if let Some(ctx) = read_context_id_info(data_ptr, payload_len) {
                 WRITER.lock().record_context(&header, &ctx);
             }
         }

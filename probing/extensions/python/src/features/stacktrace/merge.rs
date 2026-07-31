@@ -196,6 +196,31 @@ pub fn merge_python_native_stacks(
     merged_leaf_to_root
 }
 
+/// Merge a remote native walk when symbolization did not expose a CPython eval
+/// anchor. The exact Python/native splice point is unknowable in that case, but
+/// dropping every native frame makes an on-demand C/C++ stack falsely appear
+/// Python-only. Interpreter trampolines are removed and the remaining native
+/// leaf is placed below the innermost Python frame.
+pub fn merge_python_native_stacks_best_effort(
+    python_outer_to_inner: &[CallFrame],
+    native_leaf_to_root: &[CallFrame],
+) -> Vec<CallFrame> {
+    if native_leaf_to_root.iter().any(is_eval_frame) {
+        return merge_python_native_stacks(python_outer_to_inner, native_leaf_to_root);
+    }
+
+    let mut native: Vec<CallFrame> = native_leaf_to_root
+        .iter()
+        .filter(|frame| matches!(merge_action(frame), MergeAction::KeepNative))
+        .cloned()
+        .collect();
+    native.reverse();
+
+    let mut out = python_outer_to_inner.to_vec();
+    out.extend(native);
+    out
+}
+
 /// Stdlib bootstrap frames that should not anchor a flamegraph root.
 fn is_stdlib_bootstrap_py_segment(seg: &str) -> bool {
     if !seg.starts_with("[py]") {
@@ -365,6 +390,21 @@ mod tests {
         ];
         let merged = merge_python_native_stacks(&python, &native);
         assert_eq!(merged, python);
+    }
+
+    #[test]
+    fn remote_no_anchor_keeps_user_native_but_drops_interpreter_noise() {
+        let native = vec![
+            c("at::native::conv2d"),
+            c("_PyObject_Vectorcall"),
+            c("rust_eval_frame"),
+        ];
+        let python = vec![py("train.py", "train", 42)];
+        let merged = merge_python_native_stacks_best_effort(&python, &native);
+        assert_eq!(
+            merged,
+            vec![py("train.py", "train", 42), c("at::native::conv2d")]
+        );
     }
 
     #[test]

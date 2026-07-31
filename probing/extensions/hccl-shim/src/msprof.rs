@@ -140,6 +140,12 @@ pub fn read_compact_header(ptr: *const u8, len: u32) -> Option<MsprofCompactInfo
     read_blob_header(ptr, len)
 }
 
+/// Validate a blob header's declared payload against the outer FFI buffer.
+pub fn checked_blob_payload_len(total_len: u32, declared_len: u32) -> Option<u32> {
+    let available = total_len.checked_sub(MSPROF_BLOB_HEADER as u32)?;
+    (declared_len <= available).then_some(declared_len)
+}
+
 pub fn read_hccl_info(data: *const u8, data_len: u32) -> Option<MsprofHcclInfo> {
     if data.is_null() || (data_len as usize) < MSPROF_HCCL_INFO_MIN {
         return None;
@@ -274,5 +280,14 @@ mod tests {
             classify_additional(99, "", MSPROF_HCCL_INFO_MIN as u32),
             AdditionalKind::HcclTask
         );
+    }
+
+    #[test]
+    fn blob_payload_len_rejects_truncated_or_oversized_buffers() {
+        let header = MSPROF_BLOB_HEADER as u32;
+        assert_eq!(checked_blob_payload_len(header + 16, 16), Some(16));
+        assert_eq!(checked_blob_payload_len(header + 15, 16), None);
+        assert_eq!(checked_blob_payload_len(header - 1, 0), None);
+        assert_eq!(checked_blob_payload_len(u32::MAX, u32::MAX), None);
     }
 }

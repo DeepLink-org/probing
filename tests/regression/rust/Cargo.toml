@@ -38,6 +38,7 @@ pyo3 = { version = "0.29.0", default-features = false, features = [
     "auto-initialize",
     "macros",
 ] }
+libc = "0.2"
 serde = { workspace = true }
 serde_json = { workspace = true }
 tempfile = "3.8"
@@ -102,3 +103,7 @@ path = "probing/python/distributed_flamegraph_tests.rs"
 [[test]]
 name = "python_stacktrace_signal"
 path = "probing/python/stacktrace_signal_tests.rs"
+
+[[bin]]
+name = "python-signal-soak"
+path = "probing/python/signal_soak.rs"
