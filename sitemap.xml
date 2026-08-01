@@ -211,13 +211,6 @@
         <xhtml:link rel="alternate" hreflang="zh" href="https://github.com/DeepLink-org/probing/zh/examples/training-debugging/"/>
     </url>
     <url>
-        <loc>https://github.com/DeepLink-org/probing/getting-started/</loc>
-        <lastmod>2026-08-01</lastmod>
-        <changefreq>daily</changefreq>
-        <xhtml:link rel="alternate" hreflang="en" href="https://github.com/DeepLink-org/probing/getting-started/"/>
-        <xhtml:link rel="alternate" hreflang="zh" href="https://github.com/DeepLink-org/probing/zh/getting-started/"/>
-    </url>
-    <url>
         <loc>https://github.com/DeepLink-org/probing/guide/</loc>
         <lastmod>2026-08-01</lastmod>
         <changefreq>daily</changefreq>
@@ -267,27 +260,6 @@
         <xhtml:link rel="alternate" hreflang="zh" href="https://github.com/DeepLink-org/probing/zh/guide/troubleshooting/"/>
     </url>
     <url>
-        <loc>https://github.com/DeepLink-org/probing/operations/</loc>
-        <lastmod>2026-08-01</lastmod>
-        <changefreq>daily</changefreq>
-        <xhtml:link rel="alternate" hreflang="en" href="https://github.com/DeepLink-org/probing/operations/"/>
-        <xhtml:link rel="alternate" hreflang="zh" href="https://github.com/DeepLink-org/probing/zh/operations/"/>
-    </url>
-    <url>
-        <loc>https://github.com/DeepLink-org/probing/operations/deployment/</loc>
-        <lastmod>2026-08-01</lastmod>
-        <changefreq>daily</changefreq>
-        <xhtml:link rel="alternate" hreflang="en" href="https://github.com/DeepLink-org/probing/operations/deployment/"/>
-        <xhtml:link rel="alternate" hreflang="zh" href="https://github.com/DeepLink-org/probing/zh/operations/deployment/"/>
-    </url>
-    <url>
-        <loc>https://github.com/DeepLink-org/probing/operations/security/</loc>
-        <lastmod>2026-08-01</lastmod>
-        <changefreq>daily</changefreq>
-        <xhtml:link rel="alternate" hreflang="en" href="https://github.com/DeepLink-org/probing/operations/security/"/>
-        <xhtml:link rel="alternate" hreflang="zh" href="https://github.com/DeepLink-org/probing/zh/operations/security/"/>
-    </url>
-    <url>
         <loc>https://github.com/DeepLink-org/probing/reference/</loc>
         <lastmod>2026-08-01</lastmod>
         <changefreq>daily</changefreq>
@@ -300,13 +272,6 @@
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://github.com/DeepLink-org/probing/reference/env-vars/"/>
         <xhtml:link rel="alternate" hreflang="zh" href="https://github.com/DeepLink-org/probing/zh/reference/env-vars/"/>
-    </url>
-    <url>
-        <loc>https://github.com/DeepLink-org/probing/reference/http-api/</loc>
-        <lastmod>2026-08-01</lastmod>
-        <changefreq>daily</changefreq>
-        <xhtml:link rel="alternate" hreflang="en" href="https://github.com/DeepLink-org/probing/reference/http-api/"/>
-        <xhtml:link rel="alternate" hreflang="zh" href="https://github.com/DeepLink-org/probing/zh/reference/http-api/"/>
     </url>
     <url>
         <loc>https://github.com/DeepLink-org/probing/reference/skill-format/</loc>
@@ -533,13 +498,6 @@
         <xhtml:link rel="alternate" hreflang="en" href="https://github.com/DeepLink-org/probing/examples/training-debugging/"/>
     </url>
     <url>
-        <loc>https://github.com/DeepLink-org/probing/zh/getting-started/</loc>
-        <lastmod>2026-08-01</lastmod>
-        <changefreq>daily</changefreq>
-        <xhtml:link rel="alternate" hreflang="zh" href="https://github.com/DeepLink-org/probing/zh/getting-started/"/>
-        <xhtml:link rel="alternate" hreflang="en" href="https://github.com/DeepLink-org/probing/getting-started/"/>
-    </url>
-    <url>
         <loc>https://github.com/DeepLink-org/probing/zh/guide/</loc>
         <lastmod>2026-08-01</lastmod>
         <changefreq>daily</changefreq>
@@ -589,27 +547,6 @@
         <xhtml:link rel="alternate" hreflang="en" href="https://github.com/DeepLink-org/probing/guide/troubleshooting/"/>
     </url>
     <url>
-        <loc>https://github.com/DeepLink-org/probing/zh/operations/</loc>
-        <lastmod>2026-08-01</lastmod>
-        <changefreq>daily</changefreq>
-        <xhtml:link rel="alternate" hreflang="zh" href="https://github.com/DeepLink-org/probing/zh/operations/"/>
-        <xhtml:link rel="alternate" hreflang="en" href="https://github.com/DeepLink-org/probing/operations/"/>
-    </url>
-    <url>
-        <loc>https://github.com/DeepLink-org/probing/zh/operations/deployment/</loc>
-        <lastmod>2026-08-01</lastmod>
-        <changefreq>daily</changefreq>
-        <xhtml:link rel="alternate" hreflang="zh" href="https://github.com/DeepLink-org/probing/zh/operations/deployment/"/>
-        <xhtml:link rel="alternate" hreflang="en" href="https://github.com/DeepLink-org/probing/operations/deployment/"/>
-    </url>
-    <url>
-        <loc>https://github.com/DeepLink-org/probing/zh/operations/security/</loc>
-        <lastmod>2026-08-01</lastmod>
-        <changefreq>daily</changefreq>
-        <xhtml:link rel="alternate" hreflang="zh" href="https://github.com/DeepLink-org/probing/zh/operations/security/"/>
-        <xhtml:link rel="alternate" hreflang="en" href="https://github.com/DeepLink-org/probing/operations/security/"/>
-    </url>
-    <url>
         <loc>https://github.com/DeepLink-org/probing/zh/reference/</loc>
         <lastmod>2026-08-01</lastmod>
         <changefreq>daily</changefreq>
@@ -622,13 +559,6 @@
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="zh" href="https://github.com/DeepLink-org/probing/zh/reference/env-vars/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://github.com/DeepLink-org/probing/reference/env-vars/"/>
-    </url>
-    <url>
-        <loc>https://github.com/DeepLink-org/probing/zh/reference/http-api/</loc>
-        <lastmod>2026-08-01</lastmod>
-        <changefreq>daily</changefreq>
-        <xhtml:link rel="alternate" hreflang="zh" href="https://github.com/DeepLink-org/probing/zh/reference/http-api/"/>
-        <xhtml:link rel="alternate" hreflang="en" href="https://github.com/DeepLink-org/probing/reference/http-api/"/>
     </url>
     <url>
         <loc>https://github.com/DeepLink-org/probing/zh/reference/skill-format/</loc>
