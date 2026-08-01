@@ -27,6 +27,11 @@ Probing 读取的全部 `PROBING_*` 环境变量参考（按子系统分组）�
 | `PROBING_CLUSTER_FANOUT_HIERARCHICAL` | `1` | 分层集群查询 fan-out；`0` = 扁平 fan-out 到所有 peer。 |
 | `PROBING_REMOTE_QUERY_TIMEOUT_SECS` | `30` | 远程联邦 / 集群查询的单 peer 超时（秒）。 |
 | `PROBING_FANOUT_CONCURRENCY` | `128` | 单次 cluster fan-out 的最大并发远程 HTTP 请求数。 |
+| `PROBING_FANOUT_STRICT` | 未设置 | 设为 `1`/`true` 后，任一 peer 失败或 batch 丢弃都会使整个查询失败。 |
+| `PROBING_GLOBAL_SCAN_MAX_ROWS` | `10000` | coordinator 物化联邦查询的行数上限；更大的显式顶层 LIMIT 在执行前被收紧。 |
+| `PROBING_GLOBAL_RESPONSE_MAX_BYTES` | `16777216` | 单个 peer 响应及 federation coordinator 最终响应的最大序列化字节数（16 MiB）；有效值不会超过查询内存预算。 |
+| `PROBING_GLOBAL_MEMORY_MAX_BYTES` | `134217728` | 单次联邦查询累计物化的 Arrow/protocol 字节上限（128 MiB）；有效 fan-out 并发还会被收紧到 `memory / response`。 |
+| `PROBING_REQUIRE_BROADCAST_LIMIT` | `true` | broadcast federation（JOIN、CTE、UNION）必须包含静态有界的顶层 LIMIT/FETCH；可用 `0`/`false`/`off` 关闭。 |
 | `PROBING_NCCL_CHUNK_BYTES` | `65536` | NCCL profiler mmap 环缓冲 chunk 大小（字节）。 |
 | `PROBING_NCCL_NUM_CHUNKS` | `64` | NCCL profiler mmap 环缓冲 chunk 数量（默认每表约 4 MiB）。 |
 | `PROBING_NCCL_MAX_COLL_SLOTS` | `512` | 每 rank 最大 in-flight collective/P2P slot 数。 |

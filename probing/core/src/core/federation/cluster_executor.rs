@@ -13,6 +13,11 @@ use crate::core::cluster::{
 use crate::core::federation::fanout_scope::{
     current_fanout_scope, current_fanout_stats_handle, resolve_fanout_scope, FanoutScope,
 };
+use crate::core::federation::query_guard::{
+    budgeted_fanout_concurrency, cap_federated_response_bytes, global_memory_max_bytes,
+    global_response_max_bytes, proto_dataframe_memory_bytes, FederationMemoryBudget,
+    FEDERATION_MEMORY_BUDGET_HEADER, FEDERATION_RESPONSE_BUDGET_HEADER,
+};
 
 #[cfg(any(test, feature = "test-utils"))]
 type RemoteQueryHook = Box<dyn Fn(&str, &str) -> Result<DataFrame> + Send + Sync>;
@@ -211,7 +216,8 @@ impl ProbeClusterExecutor {
             return Vec::new();
         }
         let scope = resolve_fanout_scope(scope);
-        let concurrency = remote_fanout_concurrency();
+        let concurrency = budgeted_fanout_concurrency(remote_fanout_concurrency());
+        let memory_budget = FederationMemoryBudget::default();
         let mut results = Vec::with_capacity(nodes.len());
         for chunk in nodes.chunks(concurrency) {
             std::thread::scope(|s| {
@@ -219,13 +225,21 @@ impl ProbeClusterExecutor {
                     .iter()
                     .map(|node| {
                         let node = node.clone();
+                        let memory_budget = memory_budget.clone();
                         s.spawn(move || {
                             let host = if node.host.is_empty() {
                                 node.addr.clone()
                             } else {
                                 node.host.clone()
                             };
-                            let result = Self::execute_remote_scoped(&node.addr, sql, scope);
+                            let result = Self::execute_remote_scoped(&node.addr, sql, scope)
+                                .and_then(|df| {
+                                    memory_budget.try_consume(
+                                        proto_dataframe_memory_bytes(&df),
+                                        &format!("retaining peer {} result", node.addr),
+                                    )?;
+                                    Ok(df)
+                                });
                             RemoteFanoutResult {
                                 addr: node.addr,
                                 host,
@@ -322,6 +336,14 @@ impl ProbeClusterExecutor {
         let body = serde_json::to_string(&body).map_err(external)?;
         let addr_owned = addr.to_string();
         let response = ureq::post(&url)
+            .header(
+                FEDERATION_RESPONSE_BUDGET_HEADER,
+                global_response_max_bytes().to_string(),
+            )
+            .header(
+                FEDERATION_MEMORY_BUDGET_HEADER,
+                global_memory_max_bytes().to_string(),
+            )
             .config()
             .timeout_global(Some(remote_query_timeout()))
             .build()
@@ -329,7 +351,18 @@ impl ProbeClusterExecutor {
             .map_err(external)?;
 
         let status = response.status().as_u16();
-        let text = response.into_body().read_to_string().map_err(external)?;
+        let max_body = global_response_max_bytes();
+        let text = response
+            .into_body()
+            .into_with_config()
+            .limit(max_body.saturating_add(1) as u64)
+            .read_to_string()
+            .map_err(|err| {
+                DataFusionError::ResourcesExhausted(format!(
+                    "remote node aggregate {addr_owned} response could not be read within {max_body} bytes: {err}"
+                ))
+            })?;
+        cap_federated_response_bytes(text.len(), &format!("reading peer {addr_owned}"))?;
         if status >= 400 {
             return Err(DataFusionError::Execution(format!(
                 "remote node aggregate {addr_owned} failed: HTTP {status}: {text}"
@@ -364,6 +397,14 @@ impl ProbeClusterExecutor {
         let body = serde_json::to_string(&request).map_err(external)?;
         let addr_owned = addr.to_string();
         let response = ureq::post(&url)
+            .header(
+                FEDERATION_RESPONSE_BUDGET_HEADER,
+                global_response_max_bytes().to_string(),
+            )
+            .header(
+                FEDERATION_MEMORY_BUDGET_HEADER,
+                global_memory_max_bytes().to_string(),
+            )
             .config()
             .timeout_global(Some(remote_query_timeout()))
             .build()
@@ -371,7 +412,18 @@ impl ProbeClusterExecutor {
             .map_err(external)?;
 
         let status = response.status().as_u16();
-        let text = response.into_body().read_to_string().map_err(external)?;
+        let max_body = global_response_max_bytes();
+        let text = response
+            .into_body()
+            .into_with_config()
+            .limit(max_body.saturating_add(1) as u64)
+            .read_to_string()
+            .map_err(|err| {
+                DataFusionError::ResourcesExhausted(format!(
+                    "remote query {addr_owned} response could not be read within {max_body} bytes: {err}"
+                ))
+            })?;
+        cap_federated_response_bytes(text.len(), &format!("reading peer {addr_owned}"))?;
         if status >= 400 {
             return Err(DataFusionError::Execution(format!(
                 "remote query {addr_owned} failed: HTTP {status}: {text}"

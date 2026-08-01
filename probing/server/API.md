@@ -129,6 +129,14 @@ When built with the `rmcp` feature (default in the PyPI wheel), the server expos
 | `list_cluster_nodes` | `GET /apis/nodes` — registered cluster members |
 | `cluster_query` | Read-only SQL with optional cluster fan-out (`cluster` default `true`; AST-validated, same rules as `query`) |
 
+Federated query responses are additionally bounded by
+`PROBING_GLOBAL_RESPONSE_MAX_BYTES` (16 MiB per peer/final response) and
+`PROBING_GLOBAL_MEMORY_MAX_BYTES` (128 MiB cumulative materialization per query).
+Budget exhaustion returns `503`; a remote exhaustion may retain a partial body and fan-out metadata.
+Hierarchical requests propagate these limits in `X-Probing-Response-Max-Bytes` and
+`X-Probing-Memory-Max-Bytes`; an incoming value may narrow, but never raise, the receiving node's
+configured maximum.
+
 #### Write tools (disabled unless `PROBING_MCP_ALLOW_WRITE=1`)
 
 | Tool | Purpose |

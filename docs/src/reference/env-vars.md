@@ -211,6 +211,10 @@ Hierarchical side-channel registration when `WORLD_SIZE > 1`. See [torchrun clus
 | `PROBING_REMOTE_QUERY_TIMEOUT_SECS` | `30` | Per-peer timeout for remote federated / cluster queries (seconds). |
 | `PROBING_FANOUT_CONCURRENCY` | `128` | Max concurrent in-flight remote fan-out HTTP requests per query. |
 | `PROBING_FANOUT_STRICT` | unset | When `1` or `true`, any federated peer failure or dropped batch fails the whole query instead of returning partial results. |
+| `PROBING_GLOBAL_SCAN_MAX_ROWS` | `10000` | Coordinator-side row cap for federated materialization. Positive integers only; invalid or zero values use the default. Explicit larger top-level limits are clamped before execution. |
+| `PROBING_GLOBAL_RESPONSE_MAX_BYTES` | `16777216` | Maximum serialized body accepted from one peer and emitted by a federation coordinator (16 MiB); the effective value cannot exceed the query memory budget. |
+| `PROBING_GLOBAL_MEMORY_MAX_BYTES` | `134217728` | Maximum cumulative Arrow/protocol bytes materialized by one federated query (128 MiB). Also clamps effective fan-out concurrency to `memory / response`. |
+| `PROBING_REQUIRE_BROADCAST_LIMIT` | `true` | Require a statically bounded top-level `LIMIT`/`FETCH` for broadcast federation paths (`JOIN`, CTE, `UNION`). Set to `0`, `false`, or `off` to disable. |
 | `PROBING_NCCL_CHUNK_BYTES` | `65536` | NCCL profiler mmap ring chunk size (bytes). |
 | `PROBING_NCCL_NUM_CHUNKS` | `64` | NCCL profiler mmap ring chunk count (~4 MiB total per table at defaults). |
 | `PROBING_NCCL_MAX_COLL_SLOTS` | `512` | Max in-flight collective/P2P event slots per rank. |

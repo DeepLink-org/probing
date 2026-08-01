@@ -21,6 +21,13 @@ pub enum FanoutScope {
     Local,
 }
 
+/// Request-scoped federation limits propagated across hierarchical fan-out.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FederationLimits {
+    pub response_max_bytes: usize,
+    pub memory_max_bytes: usize,
+}
+
 impl FanoutScope {
     pub fn as_str(self) -> &'static str {
         match self {
@@ -83,6 +90,7 @@ impl FanoutStatsHandle {
 struct FanoutContext {
     scope: Cell<FanoutScope>,
     stats: FanoutStatsHandle,
+    limits: Cell<Option<FederationLimits>>,
 }
 
 impl FanoutContext {
@@ -90,6 +98,7 @@ impl FanoutContext {
         Self {
             scope: Cell::new(scope),
             stats: FanoutStatsHandle::default(),
+            limits: Cell::new(None),
         }
     }
 
@@ -97,6 +106,7 @@ impl FanoutContext {
         Self {
             scope: Cell::new(scope),
             stats: self.stats.clone(),
+            limits: Cell::new(self.limits.get()),
         }
     }
 }
@@ -193,6 +203,32 @@ where
         .try_with(|parent| parent.child(scope))
         .unwrap_or_else(|_| FanoutContext::new(scope));
     FANOUT_CONTEXT.scope(context, future).await
+}
+
+/// Run a future with limits that may only have been narrowed by its caller.
+pub async fn with_federation_limits_async<F>(limits: FederationLimits, future: F) -> F::Output
+where
+    F: Future,
+{
+    let context = FANOUT_CONTEXT
+        .try_with(|parent| {
+            let child = parent.child(parent.scope.get());
+            child.limits.set(Some(limits));
+            child
+        })
+        .unwrap_or_else(|_| {
+            let context = FanoutContext::new(FanoutScope::Auto);
+            context.limits.set(Some(limits));
+            context
+        });
+    FANOUT_CONTEXT.scope(context, future).await
+}
+
+pub(crate) fn current_federation_limits() -> Option<FederationLimits> {
+    FANOUT_CONTEXT
+        .try_with(|context| context.limits.get())
+        .ok()
+        .flatten()
 }
 
 pub(crate) fn current_fanout_stats_handle() -> FanoutStatsHandle {

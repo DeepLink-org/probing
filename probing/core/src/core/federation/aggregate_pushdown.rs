@@ -29,6 +29,7 @@ use super::convert::{
 use super::fanout_scope::{
     current_fanout_scope, is_local0_from_env, resolve_fanout_scope, FanoutScope,
 };
+use super::query_guard::{proto_dataframe_memory_bytes, FederationMemoryBudget};
 use super::rewrite::can_fanout_via_global_catalog;
 
 static PARTIAL_TABLE_ID: AtomicU64 = AtomicU64::new(0);
@@ -80,6 +81,7 @@ pub async fn try_execute_aggregate_pushdown(
 
     reset_fanout_stats();
     let mut proto_parts = Vec::new();
+    let memory_budget = FederationMemoryBudget::default();
     let scope = resolve_fanout_scope(current_fanout_scope());
 
     let host = ProbeClusterExecutor::local_host_label();
@@ -91,6 +93,10 @@ pub async fn try_execute_aggregate_pushdown(
         tag_proto_dataframe(&mut local_proto, &host, &addr, rank);
     }
     if !local_proto.is_empty() || plan.coordinator_sql.is_some() {
+        memory_budget.try_consume(
+            proto_dataframe_memory_bytes(&local_proto),
+            "retaining local aggregate partial",
+        )?;
         proto_parts.push(local_proto);
     }
 
@@ -104,7 +110,13 @@ pub async fn try_execute_aggregate_pushdown(
         })
         .await
         .map_err(|e| DataFusionError::Execution(format!("local leaf fan-out failed: {e}")))?;
-        append_fanout_outcomes(&mut proto_parts, &mut stats, &plan, leaf_outcomes);
+        append_fanout_outcomes(
+            &mut proto_parts,
+            &mut stats,
+            &plan,
+            &memory_budget,
+            leaf_outcomes,
+        );
     }
 
     let remote_scope = scope;
@@ -114,7 +126,13 @@ pub async fn try_execute_aggregate_pushdown(
     })
     .await
     .map_err(|e| DataFusionError::Execution(format!("aggregate fan-out join failed: {e}")))?;
-    append_fanout_outcomes(&mut proto_parts, &mut stats, &plan, outcomes);
+    append_fanout_outcomes(
+        &mut proto_parts,
+        &mut stats,
+        &plan,
+        &memory_budget,
+        outcomes,
+    );
 
     if proto_parts.is_empty() {
         enforce_fanout_strict(&stats)?;
@@ -157,6 +175,7 @@ fn append_fanout_outcomes(
     proto_parts: &mut Vec<probing_proto::prelude::DataFrame>,
     stats: &mut FanoutStats,
     plan: &FederatedAggregatePlan,
+    memory_budget: &FederationMemoryBudget,
     outcomes: Vec<super::cluster_executor::RemoteFanoutResult>,
 ) {
     for outcome in outcomes {
@@ -166,7 +185,17 @@ fn append_fanout_outcomes(
                 if plan.inject_tags {
                     tag_proto_dataframe(&mut df, &outcome.host, &outcome.addr, outcome.rank);
                 }
-                proto_parts.push(df);
+                match memory_budget.try_consume(
+                    proto_dataframe_memory_bytes(&df),
+                    &format!("retaining aggregate partial from {}", outcome.addr),
+                ) {
+                    Ok(()) => proto_parts.push(df),
+                    Err(err) => {
+                        log::warn!("aggregate pushdown skipped {}: {err}", outcome.addr);
+                        stats.nodes_succeeded = stats.nodes_succeeded.saturating_sub(1);
+                        stats.nodes_failed.push(outcome.addr);
+                    }
+                }
             }
             Err(err) => {
                 log::warn!("aggregate pushdown skipped {}: {err}", outcome.addr);

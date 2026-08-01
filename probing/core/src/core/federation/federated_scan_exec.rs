@@ -30,6 +30,7 @@ use probing_proto::prelude::{DataFrame, Node};
 use super::cluster_executor::{fanout_strict_enabled, ProbeClusterExecutor};
 use super::convert::{align_batch_to_schema, dataframe_to_record_batch, tag_record_batch};
 use super::fanout_scope::{FanoutScope, FanoutStatsHandle};
+use super::query_guard::FederationMemoryBudget;
 
 fn log_federated_peer_failure(context: &str, addr_tag: &str, detail: &str) {
     if fanout_strict_enabled() {
@@ -61,6 +62,7 @@ pub struct FederatedScanExec {
     local_rank: Option<i32>,
     /// Request-owned sink; explicit because DataFusion may poll partitions in child tasks.
     fanout_stats: FanoutStatsHandle,
+    memory_budget: FederationMemoryBudget,
     properties: Arc<PlanProperties>,
 }
 
@@ -77,6 +79,7 @@ impl FederatedScanExec {
         local_addr: String,
         local_rank: Option<i32>,
         fanout_stats: FanoutStatsHandle,
+        memory_budget: FederationMemoryBudget,
     ) -> Result<Self> {
         let projected_schema = Arc::new(
             output_schema
@@ -102,6 +105,7 @@ impl FederatedScanExec {
             local_addr,
             local_rank,
             fanout_stats,
+            memory_budget,
             properties: Arc::new(properties),
         })
     }
@@ -114,10 +118,16 @@ impl FederatedScanExec {
         let full = self.output_schema.clone();
         let projection = self.projection.clone();
         let projected_schema = self.projected_schema.clone();
+        let memory_budget = self.memory_budget.clone();
         let mapped = input.map(move |batch| {
             let batch = batch?;
             let tagged = tag_record_batch(batch, &host, &addr, rank)?;
-            finalize_aligned_batch(tagged, full.as_ref(), &projection)
+            let output = finalize_aligned_batch(tagged, full.as_ref(), &projection)?;
+            memory_budget.try_consume(
+                output.get_array_memory_size(),
+                "streaming local federated batch",
+            )?;
+            Ok(output)
         });
         Ok(Box::pin(RecordBatchStreamAdapter::new(
             projected_schema,
@@ -145,6 +155,7 @@ impl FederatedScanExec {
         let projection = self.projection.clone();
         let projected_schema = self.projected_schema.clone();
         let fanout_stats = self.fanout_stats.clone();
+        let memory_budget = self.memory_budget.clone();
 
         // Best-effort fetch: failures (network, conversion) drop the node from
         // the result set and are recorded in the fan-out stats rather than
@@ -164,6 +175,20 @@ impl FederatedScanExec {
                     &projection,
                 ) {
                     Ok(opt) => {
+                        if let Some(batch) = &opt {
+                            if let Err(err) = memory_budget.try_consume(
+                                batch.get_array_memory_size(),
+                                &format!("streaming peer {addr_tag} batch"),
+                            ) {
+                                log_federated_peer_failure(
+                                    "federated scan dropped",
+                                    &addr_tag,
+                                    &err.to_string(),
+                                );
+                                fanout_stats.record_failure(&addr_tag);
+                                return None;
+                            }
+                        }
                         fanout_stats.record_success();
                         opt
                     }
@@ -284,6 +309,7 @@ impl ExecutionPlan for FederatedScanExec {
             local_addr: self.local_addr.clone(),
             local_rank: self.local_rank,
             fanout_stats: self.fanout_stats.clone(),
+            memory_budget: self.memory_budget.clone(),
             properties: self.properties.clone(),
         }))
     }

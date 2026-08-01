@@ -283,6 +283,23 @@ flowchart TD
 
 解析失败时 **保守走 C**（正确性优先于性能）。
 
+**物化保护：** 联邦 SQL 必须且只能包含一条 `SELECT`。路径 C 只认可可静态确定上界的顶层
+`LIMIT`/`FETCH`；UNION 分支或嵌套查询里的 LIMIT 不算。生成执行计划前，最终输出会被限制到
+`PROBING_GLOBAL_SCAN_MAX_ROWS`（默认 10,000），即使用户显式给出更大的 LIMIT 也会被收紧。
+`PROBING_REQUIRE_BROADCAST_LIMIT=0` 可以关闭路径 C 的显式 LIMIT 要求，但不会关闭 coordinator 行数上限。
+
+行数不是资源边界：单行文本也可能达到数 MiB。三条路径都会在 HTTP body 反序列化或返回前执行
+`PROBING_GLOBAL_RESPONSE_MAX_BYTES`（默认单 peer/最终响应 16 MiB），并通过
+`PROBING_GLOBAL_MEMORY_MAX_BYTES`（默认 128 MiB）限制单次查询累计物化的 protocol/Arrow 字节。
+aggregate 与 broadcast merge 会同时计入保留的输入和新分配的输出。有效 HTTP fan-out 并发为
+`min(PROBING_FANOUT_CONCURRENCY, memory_budget / response_budget)`，且至少为 1。远端预算拒绝通过现有
+partial fan-out 元数据返回（HTTP 503）；本地或最终结果耗尽则以 `ResourcesExhausted` 失败。
+有效预算通过 `X-Probing-Response-Max-Bytes` 与 `X-Probing-Memory-Max-Bytes` 向子 peer 传播；接收端
+会与本地配置上限取较小值，因此请求只能收紧、不能提高节点资源额度。
+
+内存计数刻意采用累计值，而不是进程 RSS 配额：大量小 batch 无法绕过限制，但它不覆盖 DataFusion
+算子内部以及其他子系统的每一次分配。
+
 ### 4.3 Catalog 改写
 
 | 阶段 | 输入 | 输出 |
