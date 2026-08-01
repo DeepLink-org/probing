@@ -276,6 +276,28 @@ flowchart TD
 
 Parse failure → **conservative path C** (correctness over speed).
 
+**Materialization guard:** federated SQL must be exactly one `SELECT`. Path C accepts only a
+statically bounded top-level `LIMIT`/`FETCH`; limits inside UNION arms or nested queries do not
+qualify. Before planning, final output is clamped to `PROBING_GLOBAL_SCAN_MAX_ROWS` (default
+10,000), including an explicitly larger user limit. `PROBING_REQUIRE_BROADCAST_LIMIT=0` may disable
+the Path C explicit-limit requirement, but not the coordinator row cap.
+
+Row count is not the resource boundary: one row may contain megabytes of text. All three paths also
+enforce `PROBING_GLOBAL_RESPONSE_MAX_BYTES` (default 16 MiB per peer/final response) before an HTTP
+body is deserialized or returned, and `PROBING_GLOBAL_MEMORY_MAX_BYTES` (default 128 MiB) across
+cumulative protocol/Arrow materialization. Aggregate and broadcast merges account for both retained
+inputs and the newly allocated output. Effective HTTP fan-out concurrency is
+`min(PROBING_FANOUT_CONCURRENCY, memory_budget / response_budget)`, with a minimum of one. A remote
+budget rejection is reported through the existing partial fan-out metadata (HTTP 503); local or
+final-result exhaustion fails the query with `ResourcesExhausted`.
+The effective limits propagate to child peers through `X-Probing-Response-Max-Bytes` and
+`X-Probing-Memory-Max-Bytes`. Receivers clamp them to local configured maxima, so a request can
+narrow but cannot raise a node's resource allowance.
+
+The memory counter is deliberately cumulative rather than a process RSS quota. It prevents a query
+from evading the cap via many small streaming batches, but does not account for every allocation
+inside DataFusion operators or other subsystems.
+
 ### 4.3 Catalog rewrite
 
 | Stage | Input | Output |

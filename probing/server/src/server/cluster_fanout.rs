@@ -18,10 +18,13 @@ use probing_core::core::cluster::{
     local_listen_addrs, node_aggregator_peers,
 };
 use probing_core::core::federation::{
-    can_fanout_via_global_catalog, cluster_rank_for_endpoint, enforce_fanout_strict,
-    fanout_strict_enabled, is_local0_from_env, remote_fanout_concurrency, remote_query_timeout,
+    budgeted_fanout_concurrency, can_fanout_via_global_catalog, cap_federated_response_bytes,
+    cluster_rank_for_endpoint, enforce_fanout_strict, fanout_strict_enabled,
+    global_memory_max_bytes, global_response_max_bytes, is_local0_from_env,
+    proto_dataframe_memory_bytes, remote_fanout_concurrency, remote_query_timeout,
     reset_fanout_stats, rewrite_sql_for_global_fanout, take_fanout_stats, validate_global_query,
-    with_fanout_scope_async, FanoutScope, FanoutStats,
+    with_fanout_scope_async, FanoutScope, FanoutStats, FederationMemoryBudget,
+    FEDERATION_MEMORY_BUDGET_HEADER, FEDERATION_RESPONSE_BUDGET_HEADER,
 };
 use probing_proto::prelude::*;
 
@@ -64,6 +67,14 @@ pub async fn remote_query_df(addr: &str, sql: &str) -> anyhow::Result<DataFrame>
     let timeout = remote_query_timeout();
     let response = tokio::task::spawn_blocking(move || {
         ureq::post(&url)
+            .header(
+                FEDERATION_RESPONSE_BUDGET_HEADER,
+                global_response_max_bytes().to_string(),
+            )
+            .header(
+                FEDERATION_MEMORY_BUDGET_HEADER,
+                global_memory_max_bytes().to_string(),
+            )
             .config()
             .timeout_global(Some(timeout))
             .build()
@@ -73,7 +84,18 @@ pub async fn remote_query_df(addr: &str, sql: &str) -> anyhow::Result<DataFrame>
     .await??;
 
     let status = response.status().as_u16();
-    let text = response.into_body().read_to_string()?;
+    let max_body = global_response_max_bytes();
+    let text = response
+        .into_body()
+        .into_with_config()
+        .limit(max_body.saturating_add(1) as u64)
+        .read_to_string()
+        .map_err(|err| {
+            anyhow::anyhow!(
+                "remote query {addr} response could not be read within {max_body} bytes: {err}"
+            )
+        })?;
+    cap_federated_response_bytes(text.len(), &format!("reading peer {addr}"))?;
     parse_remote_query_body(status, &text, addr)
 }
 
@@ -132,6 +154,14 @@ async fn remote_node_aggregate_df(addr: &str, sql: &str) -> anyhow::Result<DataF
     let response = tokio::task::spawn_blocking(move || {
         ureq::post(&url)
             .header("Content-Type", "application/json")
+            .header(
+                FEDERATION_RESPONSE_BUDGET_HEADER,
+                global_response_max_bytes().to_string(),
+            )
+            .header(
+                FEDERATION_MEMORY_BUDGET_HEADER,
+                global_memory_max_bytes().to_string(),
+            )
             .config()
             .timeout_global(Some(timeout))
             .build()
@@ -141,7 +171,18 @@ async fn remote_node_aggregate_df(addr: &str, sql: &str) -> anyhow::Result<DataF
     .await??;
 
     let status = response.status().as_u16();
-    let text = response.into_body().read_to_string()?;
+    let max_body = global_response_max_bytes();
+    let text = response
+        .into_body()
+        .into_with_config()
+        .limit(max_body.saturating_add(1) as u64)
+        .read_to_string()
+        .map_err(|err| {
+            anyhow::anyhow!(
+                "remote node aggregate {addr} response could not be read within {max_body} bytes: {err}"
+            )
+        })?;
+    cap_federated_response_bytes(text.len(), &format!("reading node aggregator {addr}"))?;
     if status >= 400 {
         if status == 503 && !fanout_strict_enabled() {
             if let Ok(df) = decode_cluster_query_dataframe(&text) {
@@ -232,7 +273,27 @@ fn finish_fanout(
         };
         enforce_fanout_strict(&stats).map_err(|e| anyhow::anyhow!("{e}"))?;
     }
-    Ok(FanoutQueryResponse { dataframe, meta })
+    let response = FanoutQueryResponse { dataframe, meta };
+    let mut counter = JsonByteCounter::default();
+    serde_json::to_writer(&mut counter, &response)?;
+    cap_federated_response_bytes(counter.bytes, "serializing cluster fan-out response")?;
+    Ok(response)
+}
+
+#[derive(Default)]
+struct JsonByteCounter {
+    bytes: usize,
+}
+
+impl std::io::Write for JsonByteCounter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.bytes = self.bytes.saturating_add(buf.len());
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 
 async fn fanout_remote_plain(
@@ -241,12 +302,22 @@ async fn fanout_remote_plain(
 ) -> Vec<(Node, anyhow::Result<DataFrame>)> {
     use futures_util::stream::{self, StreamExt};
     let sql = sql.to_string();
-    let concurrency = remote_fanout_concurrency();
+    let concurrency = budgeted_fanout_concurrency(remote_fanout_concurrency());
+    let memory_budget = FederationMemoryBudget::default();
     stream::iter(peers)
         .map(|node| {
             let sql = sql.clone();
+            let memory_budget = memory_budget.clone();
             async move {
-                let result = remote_query_df(&node.addr, &sql).await;
+                let result = remote_query_df(&node.addr, &sql).await.and_then(|df| {
+                    memory_budget
+                        .try_consume(
+                            proto_dataframe_memory_bytes(&df),
+                            &format!("retaining peer {} result", node.addr),
+                        )
+                        .map_err(|err| anyhow::anyhow!("{err}"))?;
+                    Ok(df)
+                });
                 (node, result)
             }
         })
@@ -261,12 +332,24 @@ async fn fanout_remote_aggregate(
 ) -> Vec<(Node, anyhow::Result<DataFrame>)> {
     use futures_util::stream::{self, StreamExt};
     let sql = sql.to_string();
-    let concurrency = remote_fanout_concurrency();
+    let concurrency = budgeted_fanout_concurrency(remote_fanout_concurrency());
+    let memory_budget = FederationMemoryBudget::default();
     stream::iter(peers)
         .map(|node| {
             let sql = sql.clone();
+            let memory_budget = memory_budget.clone();
             async move {
-                let result = remote_node_aggregate_df(&node.addr, &sql).await;
+                let result = remote_node_aggregate_df(&node.addr, &sql)
+                    .await
+                    .and_then(|df| {
+                        memory_budget
+                            .try_consume(
+                                proto_dataframe_memory_bytes(&df),
+                                &format!("retaining node aggregator {} result", node.addr),
+                            )
+                            .map_err(|err| anyhow::anyhow!("{err}"))?;
+                        Ok(df)
+                    });
                 (node, result)
             }
         })
@@ -429,7 +512,7 @@ async fn fanout_node_tier(sql: &str, hierarchical: bool) -> anyhow::Result<Fanou
     }
 
     finish_fanout(
-        merge_tagged_dataframes(&parts),
+        merge_tagged_dataframes(&parts)?,
         FanoutMeta {
             cluster: true,
             hierarchical,
@@ -553,7 +636,7 @@ async fn broadcast_fanout_query(
         }
 
         return finish_fanout(
-            merge_tagged_dataframes(&parts),
+            merge_tagged_dataframes(&parts)?,
             meta,
             "coordinator-broadcast",
         );
@@ -615,7 +698,7 @@ async fn broadcast_fanout_query(
     }
 
     finish_fanout(
-        merge_tagged_dataframes(&parts),
+        merge_tagged_dataframes(&parts)?,
         FanoutMeta {
             cluster: true,
             hierarchical: scope != FanoutScope::Flat,
@@ -647,8 +730,23 @@ fn tag_dataframe(mut df: DataFrame, host: &str, addr: &str, rank: Option<i32>) -
     df
 }
 
-fn merge_tagged_dataframes(parts: &[DataFrame]) -> DataFrame {
-    probing_proto::types::merge_dataframes(parts)
+fn merge_tagged_dataframes(parts: &[DataFrame]) -> anyhow::Result<DataFrame> {
+    let budget = FederationMemoryBudget::default();
+    merge_tagged_dataframes_with_budget(parts, &budget)
+}
+
+fn merge_tagged_dataframes_with_budget(
+    parts: &[DataFrame],
+    budget: &FederationMemoryBudget,
+) -> anyhow::Result<DataFrame> {
+    let retained = parts.iter().try_fold(0usize, |total, part| {
+        let bytes = proto_dataframe_memory_bytes(part);
+        budget.try_consume(bytes, "retaining broadcast fan-out partials")?;
+        Ok::<_, datafusion::error::DataFusionError>(total.saturating_add(bytes))
+    })?;
+    // Merging allocates output columns while all input parts are still live.
+    budget.try_consume(retained, "merging broadcast fan-out partials")?;
+    Ok(probing_proto::types::merge_dataframes(parts))
 }
 
 #[cfg(test)]
@@ -677,7 +775,7 @@ mod tests {
             "10.0.0.2:8080",
             Some(1),
         );
-        let merged = merge_tagged_dataframes(&[local, remote]);
+        let merged = merge_tagged_dataframes(&[local, remote]).unwrap();
         assert_eq!(merged.len(), 2);
         assert_eq!(merged.names.len(), 7);
         let host_col = merged.names.iter().position(|n| n == "_host").unwrap();
@@ -697,9 +795,19 @@ mod tests {
             cols: vec![Seq::SeqI32(vec![2])],
             size: 1,
         };
-        let merged = merge_tagged_dataframes(&[a, b]);
+        let merged = merge_tagged_dataframes(&[a, b]).unwrap();
         assert_eq!(merged.len(), 2);
         assert!(merged.names.contains(&"extra".to_string()));
+    }
+
+    #[test]
+    fn merge_rejects_one_wide_row_over_memory_budget() {
+        let wide = DataFrame::new(
+            vec!["payload".into()],
+            vec![Seq::SeqText(vec!["x".repeat(4096)])],
+        );
+        let budget = FederationMemoryBudget::new(1024);
+        assert!(merge_tagged_dataframes_with_budget(&[wide], &budget).is_err());
     }
 
     #[test]

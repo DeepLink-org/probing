@@ -1,6 +1,6 @@
 //! HTTP handler for on-demand cluster SQL fan-out.
 
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::Json;
 use serde::{Deserialize, Serialize};
@@ -9,7 +9,7 @@ use super::cluster_fanout::{self, ClusterFanoutScope, FanoutQueryResponse};
 use super::error::ApiError;
 use super::sql_guard::ensure_read_only_sql;
 use probing_core::core::cluster::is_hierarchical_metadata_unavailable;
-use probing_core::core::federation::validate_global_query;
+use probing_core::core::federation::{validate_global_query, with_federation_limits_async};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ClusterQueryRequest {
@@ -43,7 +43,10 @@ impl From<FanoutQueryResponse> for ClusterQueryResponse {
     }
 }
 
-pub async fn post_cluster_query(Json(body): Json<ClusterQueryRequest>) -> impl IntoResponse {
+pub async fn post_cluster_query(
+    headers: HeaderMap,
+    Json(body): Json<ClusterQueryRequest>,
+) -> impl IntoResponse {
     if let Some(msg) = crate::engine_lifecycle::engine_not_ready_message() {
         return ApiError::service_unavailable(msg).into_response();
     }
@@ -59,7 +62,12 @@ pub async fn post_cluster_query(Json(body): Json<ClusterQueryRequest>) -> impl I
             return ApiError::bad_request(format!("{e:#}")).into_response();
         }
     }
-    match cluster_fanout::fanout_query(expr, body.cluster, body.hierarchical, body.scope).await {
+    let query = cluster_fanout::fanout_query(expr, body.cluster, body.hierarchical, body.scope);
+    let result = match super::federation_limits_from_headers(&headers) {
+        Some(limits) => with_federation_limits_async(limits, query).await,
+        None => query.await,
+    };
+    match result {
         Ok(result) => {
             let partial = result.meta.partial;
             let response = ClusterQueryResponse::from(result);

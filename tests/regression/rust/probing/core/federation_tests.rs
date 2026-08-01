@@ -611,6 +611,23 @@ async fn federated_scan_global_limit_with_peer() {
 }
 
 #[tokio::test]
+async fn federated_scan_rejects_result_over_byte_budget_even_with_few_rows() {
+    let _lock = federation_test_lock().await;
+    let cluster = FederatedTestCluster::setup(vec![1], vec![2]).await;
+    std::env::set_var("PROBING_GLOBAL_MEMORY_MAX_BYTES", "32");
+
+    let result = cluster
+        .local_engine
+        .async_query("SELECT v, _host, _addr FROM global.demo.metrics LIMIT 2")
+        .await;
+
+    std::env::remove_var("PROBING_GLOBAL_MEMORY_MAX_BYTES");
+    cluster.teardown();
+    let err = result.expect_err("federated materialization must honor the byte budget");
+    assert!(err.to_string().contains("memory budget exceeded"));
+}
+
+#[tokio::test]
 async fn aggregate_pushdown_order_by_limit_post_merge() {
     let _lock = federation_test_lock().await;
     use arrow::array::StringArray;

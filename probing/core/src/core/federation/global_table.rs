@@ -6,6 +6,7 @@ use super::convert::{
 };
 use super::fanout_scope::current_fanout_stats_handle;
 use super::federated_scan_exec::FederatedScanExec;
+use super::query_guard::FederationMemoryBudget;
 use super::sql_gen::build_remote_table_sql;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::SchemaRef;
@@ -136,6 +137,7 @@ impl TableProvider for GlobalFederatedTable {
             addr,
             local_rank,
             current_fanout_stats_handle(),
+            FederationMemoryBudget::default(),
         )?;
         Ok(Arc::new(exec))
     }

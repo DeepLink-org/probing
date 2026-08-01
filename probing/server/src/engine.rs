@@ -14,7 +14,8 @@ use probing_core::config;
 use crate::server::error::{ApiError, ApiResult};
 
 use probing_core::core::federation::{
-    reset_fanout_stats, take_fanout_stats, with_fanout_scope_async, FanoutScope,
+    reset_fanout_stats, take_fanout_stats, with_fanout_scope_async, with_federation_limits_async,
+    FanoutScope, FederationLimits,
 };
 use probing_core::core::UnifiedMemtableProbeDataSource;
 pub use probing_core::ENGINE;
@@ -187,9 +188,36 @@ pub struct QueryHttpEnvelope {
     pub partial: bool,
 }
 
+#[derive(Default)]
+struct JsonByteCounter {
+    bytes: usize,
+}
+
+impl std::io::Write for JsonByteCounter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.bytes = self.bytes.saturating_add(buf.len());
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 // 处理Web API查询请求
 pub async fn query(req: String) -> ApiResult<QueryHttpEnvelope> {
-    with_fanout_scope_async(FanoutScope::Auto, query_in_fanout_context(req)).await
+    query_with_limits(req, None).await
+}
+
+pub async fn query_with_limits(
+    req: String,
+    limits: Option<FederationLimits>,
+) -> ApiResult<QueryHttpEnvelope> {
+    let future = with_fanout_scope_async(FanoutScope::Auto, query_in_fanout_context(req));
+    match limits {
+        Some(limits) => with_federation_limits_async(limits, future).await,
+        None => future.await,
+    }
 }
 
 async fn query_in_fanout_context(req: String) -> ApiResult<QueryHttpEnvelope> {
@@ -203,6 +231,7 @@ async fn query_in_fanout_context(req: String) -> ApiResult<QueryHttpEnvelope> {
             )));
         }
     };
+    let federated_response = request.expr.to_ascii_lowercase().contains("global.");
 
     // Await the async handle_query function
     let reply_payload = match handle_query(request).await {
@@ -230,6 +259,17 @@ async fn query_in_fanout_context(req: String) -> ApiResult<QueryHttpEnvelope> {
     }
     let mut reply_message = Message::new(reply_payload);
     reply_message.meta = fanout_meta_from_stats(stats);
+
+    if federated_response {
+        let mut counter = JsonByteCounter::default();
+        serde_json::to_writer(&mut counter, &reply_message)
+            .map_err(|e| ApiError::internal(format!("Failed to size response: {e}")))?;
+        probing_core::core::federation::cap_federated_response_bytes(
+            counter.bytes,
+            "serializing coordinator response",
+        )
+        .map_err(|e| ApiError::service_unavailable(e.to_string()))?;
+    }
 
     // Serialize the response message
     let body = serde_json::to_string(&reply_message)

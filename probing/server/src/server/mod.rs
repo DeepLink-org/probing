@@ -24,9 +24,14 @@ pub mod training;
 
 use crate::server::error::ApiError;
 use anyhow::Result;
+use axum::http::HeaderMap;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use log::error;
+use probing_core::core::federation::{
+    federation_limits_from_request, FederationLimits, FEDERATION_MEMORY_BUDGET_HEADER,
+    FEDERATION_RESPONSE_BUDGET_HEADER,
+};
 
 use crate::engine::{handle_query, initialize_engine};
 use crate::server::middleware::{
@@ -85,11 +90,24 @@ fn build_app(auth: bool) -> axum::Router {
         .layer(axum::middleware::from_fn(connection_limit_middleware))
 }
 
-async fn query(body: String) -> impl IntoResponse {
+fn federation_limits_from_headers(headers: &HeaderMap) -> Option<FederationLimits> {
+    let parse = |name: &'static str| {
+        headers
+            .get(name)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.trim().parse::<usize>().ok())
+    };
+    let response = parse(FEDERATION_RESPONSE_BUDGET_HEADER);
+    let memory = parse(FEDERATION_MEMORY_BUDGET_HEADER);
+    (response.is_some() || memory.is_some())
+        .then(|| federation_limits_from_request(response, memory))
+}
+
+async fn query(headers: HeaderMap, body: String) -> impl IntoResponse {
     if let Some(msg) = crate::engine_lifecycle::engine_not_ready_message() {
         return ApiError::service_unavailable(msg).into_response();
     }
-    match crate::engine::query(body).await {
+    match crate::engine::query_with_limits(body, federation_limits_from_headers(&headers)).await {
         Ok(envelope) => {
             let status = if envelope.partial {
                 StatusCode::SERVICE_UNAVAILABLE
@@ -249,7 +267,10 @@ pub fn sync_env_settings() {
 
 #[cfg(test)]
 mod spec_tests {
-    use super::TOP_LEVEL_ROUTES;
+    use super::{federation_limits_from_headers, TOP_LEVEL_ROUTES};
+    use probing_core::core::federation::{
+        FEDERATION_MEMORY_BUDGET_HEADER, FEDERATION_RESPONSE_BUDGET_HEADER,
+    };
 
     fn load_spec() -> serde_json::Value {
         let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -279,5 +300,15 @@ mod spec_tests {
             .collect();
 
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn federation_budget_headers_are_parsed_and_narrowed() {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(FEDERATION_RESPONSE_BUDGET_HEADER, "8".parse().unwrap());
+        headers.insert(FEDERATION_MEMORY_BUDGET_HEADER, "16".parse().unwrap());
+        let limits = federation_limits_from_headers(&headers).unwrap();
+        assert_eq!(limits.response_max_bytes, 8);
+        assert_eq!(limits.memory_max_bytes, 16);
     }
 }

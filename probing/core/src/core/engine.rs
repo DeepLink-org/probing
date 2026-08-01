@@ -122,6 +122,11 @@ impl Engine {
         let capped = federation::ensure_global_scan_limit(&original);
         if let Some(df) = federation::try_execute_aggregate_pushdown(self, &capped).await? {
             federation::check_fanout_strict()?;
+            federation::cap_materialized_rows(&original, df.len())?;
+            federation::cap_materialized_memory(
+                &original,
+                federation::proto_dataframe_memory_bytes(&df),
+            )?;
             return Ok(Some(df));
         }
         let default_schema = self.default_namespace();
@@ -145,7 +150,13 @@ impl Engine {
                 .collect::<Vec<_>>();
             return Ok(Some(probing_proto::prelude::DataFrame::new(names, columns)));
         }
+        let retained_bytes = batches.iter().fold(0usize, |total, batch| {
+            total.saturating_add(batch.get_array_memory_size())
+        });
+        // `concat_batches` temporarily retains both input and output arrays.
+        federation::cap_materialized_memory(&original, retained_bytes.saturating_mul(2))?;
         let batch = concat_batches(&batches[0].schema(), batches.iter())?;
+        drop(batches);
         federation::cap_materialized_rows(&original, batch.num_rows())?;
 
         let names = batch

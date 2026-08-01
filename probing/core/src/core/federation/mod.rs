@@ -29,12 +29,16 @@ pub use convert::{
 };
 pub use fanout_scope::{
     current_fanout_scope, hierarchical_fanout_enabled, is_local0_from_env, resolve_fanout_scope,
-    set_fanout_scope, take_fanout_scope, with_fanout_scope, with_fanout_scope_async, FanoutScope,
+    set_fanout_scope, take_fanout_scope, with_fanout_scope, with_fanout_scope_async,
+    with_federation_limits_async, FanoutScope, FederationLimits,
 };
 pub use global_catalog::{install_global_catalog, GLOBAL_CATALOG};
 pub use query_guard::{
-    cap_materialized_rows, ensure_global_scan_limit, global_scan_max_rows, require_broadcast_limit,
-    sql_has_limit, validate_global_query,
+    budgeted_fanout_concurrency, cap_federated_response_bytes, cap_materialized_memory,
+    cap_materialized_rows, ensure_global_scan_limit, federation_limits_from_request,
+    global_memory_max_bytes, global_response_max_bytes, global_scan_max_rows,
+    proto_dataframe_memory_bytes, require_broadcast_limit, sql_has_limit, validate_global_query,
+    FederationMemoryBudget, FEDERATION_MEMORY_BUDGET_HEADER, FEDERATION_RESPONSE_BUDGET_HEADER,
 };
 pub use rewrite::{
     can_fanout_via_global_catalog, ensure_global_node_columns, prepare_global_query,
