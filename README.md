@@ -244,14 +244,13 @@ print(f'GPU alloc: {alloc:.0f}MB, reserved: {reserved:.0f}MB')
 ```bash
 # Environment variable configuration
 export PROBING_TORCH_PROFILING=0.05   # TorchProbe step sampling (see docs)
-export PROBING_RETENTION_DAYS=7       # Data retention period (when configured)
+export PROBING_COLD=on                # Optional hot-to-cold compaction
 
 # View current configuration
 probing -t <pid> config
 
 # Dynamic configuration updates
 probing -t <pid> config probing.torch.profiling=0.05
-probing -t <pid> config probing.max_memory=1GB
 probing -t <pid> config "probing.rdma.hca.name='mlx5_cx6_0'"
 probing -t <pid> config "probing.rdma.sample.rate='5'"
 ```
@@ -274,6 +273,8 @@ make test
 |-----|---------|
 | [Contributing — Welcome](docs/src/contributing.md#getting-started) | Pick a track (skills / Python / docs / Rust / web), first PR |
 | [Installation](docs/src/installation.md) | PyPI, wheel, `PROBING=1`, platform support |
+| [Documentation map](docs/src/index.md) | Getting started, guides, operations, architecture, reference |
+| [Security](docs/src/operations/security.md) | Unix peer credentials, TCP token, TLS, MCP capabilities |
 | [Contributing — Dev setup](docs/src/contributing.md#development-setup) | `make develop`, `.pth` hook, Makefile targets |
 | [examples/README.md](examples/README.md) | Optional torch/torchvision for demos |
 

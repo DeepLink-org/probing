@@ -363,7 +363,7 @@ lint-rust:
 	$(CLIPPY_WORKSPACE)
 	$(CLIPPY_WEB)
 lint-docs: docs-install
-	@$(PYTHON_ABS) -m mkdocs build --strict -f docs/mkdocs.yml
+	@PROBING=0 PROBING_CLI_MODE=1 $(PYTHON_ABS) -m mkdocs build --strict -f docs/mkdocs.yml
 clippy: lint-rust
 clippy-fix:
 	cargo clippy --workspace --all-targets --no-default-features --fix --allow-dirty --allow-staged $(CLIPPY_DENY)

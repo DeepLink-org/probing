@@ -37,7 +37,7 @@ until then.
 | `PROBING_SPAN_BACKENDS` | `memtable` | `memtable`, `logger`, `otel`, `none` |
 | `PROBING_SPAN_LOCATION` | off | `inspect.stack()` per span — expensive |
 
-See [Environment Variables](../reference/env-vars.md#tracing--spans).
+See [Environment Variables](../reference/env-vars.md).
 
 ## Related
 

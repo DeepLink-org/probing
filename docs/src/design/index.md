@@ -29,7 +29,7 @@ Vocabulary: **[Core model](../guide/concepts.md)**.
 | [Overhead](overhead.md) | Formulas, shadow-step measurement, offline benchmarks |
 | [NCCL Profiler](nccl-profiler.md) | Plugin ABI, proxy-op wait decomposition |
 | [Debugging Engine](debugging.md) | eval / backtrace / REPL implementation |
-| [Training Phases](/zh/design/training-phase/) | Phase transitions and span model *(中文)* |
+| [Training Phases](training-phase.md) | Phase transitions and span model; links to the complete Chinese design |
 | [Span API](tracing-spans.md) | `span` / `record_span` / backends / performance |
 
 ## Distributed

@@ -41,13 +41,12 @@ probing -t $(pgrep -f train.py) query "
 
 ## 文档
 
-| 章节 | 内容 |
-|------|------|
-| [安装指南](installation.zh.md) | PyPI、wheel、平台、`PROBING` 模式 |
-| [快速开始](quickstart.zh.md) | attach、inject、首条查询 |
-| [核心模型](guide/concepts.zh.md) | 进程内 vs inject、catalog、step 坐标 |
-| [用户指南](guide/index.zh.md) | SQL、skill、调试命令 |
-| [架构](design/index.zh.md) | 分层、存储、联邦、采集器 |
-| [参考手册](reference/index.zh.md) | SQL 表、CLI/API、环境变量 |
+| 需要 | 从这里开始 | 接着阅读 |
+|------|------------|----------|
+| 建立第一条连接 | [从这里开始](getting-started/index.zh.md) | [快速开始](quickstart.zh.md) |
+| 查询和诊断工作负载 | [用户指南](guide/index.zh.md) | [示例](examples/index.zh.md) |
+| 暴露和维护 endpoint | [运行与运维](operations/index.zh.md) | [安全](operations/security.zh.md) |
+| 查阅精确契约 | [参考手册](reference/index.zh.md) | [HTTP 与 MCP API](reference/http-api.zh.md) |
+| 修改实现 | [架构](design/index.zh.md) | [贡献指南](contributing.zh.md) |
 
 贡献者：[贡献指南](contributing.zh.md) · 文档风格：[writing.md](writing.md)

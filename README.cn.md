@@ -156,24 +156,18 @@ probing -t <pid> config
 
 ### SQL分析接口
 ```bash
-# 内存使用分析
-probing -t <pid> query "SELECT * FROM memory_usage WHERE timestamp > now() - interval '5 min'"
-
-# 性能热点分析
+# GPU 内存趋势
 probing -t <pid> query "
-  SELECT operation_name, avg(duration_ms), count(*)
-  FROM profiling_data
-  WHERE timestamp > now() - interval '5 minutes'
-  GROUP BY operation_name
-  ORDER BY avg(duration_ms) DESC
+  SELECT local_step, AVG(allocated_delta) AS delta_mb
+  FROM python.torch_trace
+  GROUP BY local_step ORDER BY local_step
 "
 
-# 训练进度跟踪
+# 最慢的 collective
 probing -t <pid> query "
-  SELECT epoch, avg(loss), min(loss), count(*) as steps
-  FROM training_logs
-  GROUP BY epoch
-  ORDER BY epoch
+  SELECT op, AVG(duration_ms) AS avg_ms, COUNT(*) AS calls
+  FROM python.comm_collective
+  GROUP BY op ORDER BY avg_ms DESC LIMIT 5
 "
 ```
 
@@ -204,15 +198,14 @@ REPL提供：
 ### 配置选项
 ```bash
 # 环境变量配置
-export PROBING_SAMPLE_RATE=0.1      # 设置采样率
-export PROBING_RETENTION_DAYS=7     # 数据保留期
+export PROBING_TORCH_PROFILING=0.1  # TorchProbe step 采样
+export PROBING_COLD=on              # 可选 hot-to-cold compaction
 
 # 查看当前配置
 probing -t <pid> config
 
 # 动态配置更新
-probing -t <pid> config probing.sample_rate=0.05
-probing -t <pid> config probing.max_memory=1GB
+probing -t <pid> config probing.torch.profiling=0.05
 ```
 
 ## 开发
@@ -233,6 +226,8 @@ make test
 |------|------|
 | [贡献指南 — 欢迎](docs/src/contributing.zh.md#getting-started) | 选方向（skill / Python / 文档 / Rust / web）、第一个 PR |
 | [安装指南](docs/src/installation.zh.md) | PyPI、wheel、`PROBING=1`、平台支持 |
+| [文档地图](docs/src/index.zh.md) | 入门、指南、运维、架构与参考手册 |
+| [安全](docs/src/operations/security.zh.md) | Unix peer credential、TCP token、TLS 与 MCP 能力 |
 | [贡献指南 — 开发环境](docs/src/contributing.zh.md#development-setup) | `make develop`、`.pth` hook、Makefile |
 | [examples/README.md](examples/README.md) | 示例所需的 torch/torchvision 等 |
 

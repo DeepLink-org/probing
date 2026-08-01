@@ -1,7 +1,8 @@
 # Environment Variables
 
-Complete reference of every environment variable Probing reads. Variables are grouped
-by subsystem.
+Reference for supported, user-configurable environment variables, grouped by subsystem.
+Test helpers, benchmark coordination variables, and process-internal hand-off variables are
+intentionally excluded.
 
 ## Activation
 
@@ -33,12 +34,13 @@ Prefix syntax: `init:SCRIPT+<mode>` runs `exec(open(SCRIPT).read())` after activ
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PROBING_PORT` | unset | TCP port for the embedded HTTP server. Set to `RANDOM` for automatic port selection. Required for remote access. |
-| `PROBING_SERVER_ADDR` | Inferred from port | Explicit bind address (e.g. `0.0.0.0:8080`). |
+| `PROBING_SERVER_ADDR` | Inferred from port | Explicit bind address passed through runtime config; include inner SQL string quotes, for example `"'127.0.0.1:8080'"`. |
 | `PROBING_SERVER_ADDRPATTERN` | unset | IP pattern filter for multi-homed hosts. Selects the first matching interface. |
 | `PROBING_SERVER_WORKER_THREADS` | auto | Number of Tokio worker threads. |
 | `PROBING_CTRL_ROOT` | `/tmp/probing/` | Directory for Unix domain sockets (local PID-based connections). |
-| `PROBING_MAX_REQUEST_SIZE` | server default | Maximum HTTP request body size in bytes. |
-| `PROBING_MAX_FILE_SIZE` | server default | Maximum file upload size in bytes. |
+| `PROBING_MAX_REQUEST_SIZE` | `5242880` | Maximum HTTP request body size in bytes (5 MiB). |
+| `PROBING_MAX_CONNECTIONS` | max(`PROBING_FANOUT_CONCURRENCY`, 128) | Maximum concurrent connections accepted by the HTTP server. Values must be positive. |
+| `PROBING_MAX_FILE_SIZE` | `10485760` | Maximum file API response size in bytes (10 MiB). |
 | `PROBING_ALLOWED_FILE_DIRS` | server default | Colon-separated list of directories allowed for file reads. |
 | `PROBING_BASE_PATH` | unset | URL path prefix for reverse proxy deployments (e.g. `/probing`). |
 | `PROBING_ASSETS_ROOT` | built-in default | Path to the web UI static assets directory. |
@@ -47,9 +49,9 @@ Prefix syntax: `init:SCRIPT+<mode>` runs `exec(open(SCRIPT).read())` after activ
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PROBING_AUTH_TOKEN` | unset | Bearer token for HTTP authentication. Required for remote access when set. |
-| `PROBING_AUTH_USERNAME` | unset | Username for Basic authentication. |
-| `PROBING_AUTH_REALM` | unset | Authentication realm string for Basic auth. |
+| `PROBING_AUTH_TOKEN` | unset | Non-empty token enables TCP authentication. An unset or empty value leaves TCP routes unauthenticated. Local Unix access uses peer credentials instead. |
+| `PROBING_AUTH_USERNAME` | `admin` | Username accepted for Basic authentication; the token is the password. |
+| `PROBING_AUTH_REALM` | `Probe Server` | Realm returned in the Basic-auth challenge. |
 
 ## Tracing & spans
 
@@ -81,6 +83,10 @@ them into a `role` string like `dp=2,pp=1,tp=0`.
 | `PROBING_EP_RANK` | Expert parallelism rank. |
 | `PROBING_CP_RANK` | Context parallelism rank. |
 | `PROBING_ROLE_<NAME>` | Arbitrary named parallelism dimension (e.g. `PROBING_ROLE_SP=8`). |
+| `PROBING_NODE_ROLE` | Explicit serialized role advertised by the Rust cluster reporter; normally maintained by `probing.set_role()`. |
+| `PROBING_PROCESS_ROLE` | Generic process role used by inference/Ray integrations when framework-specific metadata is unavailable. |
+| `PROBING_RAY_PROCESS_ROLE` | Ray worker role; takes precedence over `PROBING_PROCESS_ROLE`. |
+| `PROBING_NODE_IP` | Node address override used by Ray/inference integrations. |
 
 Non-PROBING-prefixed aliases are also recognized for Megatron compatibility:
 `TP_RANK`, `TP_SIZE`, `PP_RANK`, `PP_SIZE`, `DP_RANK`, `DP_SIZE`,
@@ -116,6 +122,7 @@ Non-PROBING-prefixed aliases are also recognized for Megatron compatibility:
 | `PROBING_MEGATRON_REAL_LM` | Opt-in for `tests/regression/ext/test_megatron_real_lm.py` (`1` to run). |
 | — | Fake layer also writes ``python.fake_event`` ground-truth rows and can hook ``torch.distributed`` to dual-write ``python.comm_collective`` for correlation / verify. |
 | `PROBING_NCCL_PROFILER` | Path to the NCCL profiler shared library. |
+| `PROBING_NCCL_VERBOSE` | Set to `1` for NCCL profiler plugin diagnostics. |
 | `PROBING_NCCL_MIN_MSG_BYTES` | Skip recording NCCL ops smaller than this size in bytes (default `0` = record all). |
 | `PROBING_NCCL_INFLIGHT_THRESHOLD_SECS` | Watchdog threshold for snapshotting in-flight (possibly hung) NCCL ops into `nccl.inflight_ops` (default `10`, `0` disables). |
 | `PROBING_HCCL_PROFAPI_REAL` | Path to the real HCCL profapi library (Ascend NPU). |
@@ -134,8 +141,20 @@ Non-PROBING-prefixed aliases are also recognized for Megatron compatibility:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PROBING_TORCH_PROFILING` | — | Set to `on` to activate PyTorch module hooks and write `python.torch_trace`. Default when enabled: **5% step sampling** (`rate=0.05`), full-snapshot (`layer_rate=1.0`), **shadow cadence 4:1** (`shadow=4:1` — one baseline step per four probed steps for in-run overhead in `python.torch_step_timing`). Spec is `rate[:layer_rate]` (`layer_rate` = per-layer hit probability on a sampled step); a leading `random:`/`ordered:` token is accepted for back-compat (always `random`). Override with e.g. `1.0`, `0.05:0.1`, `shadow=8:2`, or `shadow=off`. **Backward** timing (`backward=on`) times each module's backward via output/input grad hooks; off by default. |
+| `PROBING_TORCH_ADAPTIVE_RATE` | off | Enable closed-loop adjustment of the TorchProbe step sampling rate from shadow-step overhead. |
+| `PROBING_TORCH_OVERHEAD_TARGET_PCT` | `5` | Adaptive controller target dispatch overhead percentage. Positive values only. |
+| `PROBING_TORCH_OVERHEAD_HIGH_PCT` | `10` | Adaptive controller threshold that halves the sampling rate. Positive values only. |
+| `PROBING_TORCH_RATE_FLOOR` | `0.01` | Minimum adaptive sampling rate. Positive values only. |
+| `PROBING_TORCH_PROFILER_MAX_EVENTS` | `200000` | Maximum Kineto events compiled by the on-demand Torch Profiler adaptor; minimum effective value is 1,000. |
 | `PROBING_TORCHRUN_CLUSTER` | `1` | Enable automatic torchrun cluster registration. Set to `0` to disable. |
-| `PROBING_TORCHRUN_STORE_TIMEOUT` | — | Timeout for torchrun distributed store operations. |
+
+### Inference engine metrics
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PROBING_ENGINE_SCRAPE` | `1` | Set to `0`, `false`, or `off` to disable registered inference-engine metric scrapers. |
+| `PROBING_ENGINE_SCRAPE_INTERVAL` | `5` | Scrape interval in seconds; values below 1 are clamped to 1. |
+| `PROBING_ENGINE_METRICS_PATH` | `/engine_metrics` | Prometheus path for SGLang/router metrics; an explicit registration argument takes precedence. |
 
 ### Megatron autostart
 
@@ -206,6 +225,8 @@ Hierarchical side-channel registration when `WORLD_SIZE > 1`. See [torchrun clus
 | `PROBING_CLUSTER_STALE_SEC` | `25` | Mark node `dead` after this many seconds without heartbeat. Should exceed max interval. |
 | `PROBING_CLUSTER_DISCOVER_TIMEOUT_SEC` | `2` | Timeout per master/local0 discovery attempt. |
 | `PROBING_CLUSTER_REPORT_TIMEOUT_SEC` | `5` | HTTP PUT timeout for cluster report. |
+| `PROBING_CLUSTER_NODES_PAGE_SIZE` | `1024` | Page size used by cluster node list/report clients; the server caps an individual request at 10,000. |
+| `PROBING_CLUSTER_QUERY_TIMEOUT_SEC` | `10` | Timeout for distributed pprof/flamegraph peer HTTP requests. |
 | `PROBING_CLUSTER_PRESET` | — | Used by `examples/cluster/run_multinode.sh`: `demo`, `fast`, or `steady`. |
 | `PROBING_CLUSTER_FANOUT_HIERARCHICAL` | `1` | Hierarchical cluster query fan-out (coordinator → local0 → leaves). `0` = flat fan-out to every peer. See [Hierarchical fan-out](../design/hierarchical-fanout.md). |
 | `PROBING_REMOTE_QUERY_TIMEOUT_SECS` | `30` | Per-peer timeout for remote federated / cluster queries (seconds). |
@@ -231,10 +252,18 @@ Hierarchical side-channel registration when `WORLD_SIZE > 1`. See [torchrun clus
 |----------|---------|-------------|
 | `PROBING_LOGLEVEL` | `info` | Rust-side log level: `trace`, `debug`, `info`, `warn`, `error`. |
 | `PROBING_ENGINE_FAIL_FAST` | — | When set to `1`/`true`, exit the process if engine initialization fails (default: server stays up but `/ready` returns 503 and queries fail). |
+| `PROBING_VM_TRACER` | enabled | Set to `0` before importing `probing._core` to skip automatic VM tracer enablement. |
+| `PROBING_CRASH` | enabled | Set to `0`, `false`, `no`, or `off` to disable crash capture. |
 | `PROBING_CRASH_BACKTRACE` | enabled | Print a backtrace on fatal signals (SIGSEGV, SIGABRT, etc.). Set to `0` to disable. |
+| `PROBING_CRASH_SPILL` | enabled | Persist the crash report under the Probing data directory; false-like values disable it. |
+| `PROBING_CRASH_GRACE_SEC` | `20` | Fatal-signal grace period for debugger attachment on eligible ranks. |
+| `PROBING_CRASH_NO_GRACE` | off | Truthy value disables the crash grace period. |
+| `PROBING_CRASH_HOLD` | off | Truthy value holds the crashed process until explicitly released. |
+| `PROBING_CRASH_GRACE_ALL_RANKS` | off | Apply signal grace to every rank instead of rank 0/local rank 0 only. |
+| `PROBING_CRASH_NO_RESOLVE` | off | Skip crash-address symbol resolution in the signal report. |
 | `PROBING_RUST_BACKTRACE` | — | Rust error backtrace detail (similar to `RUST_BACKTRACE`). |
 | `PROBING_SAFE_DEMO` | — | Safe demonstration mode that restricts dangerous operations. |
-| `PROBING_MCP_ALLOW_WRITE` | unset | When `1`/`true`/`on`/`yes`, enables MCP write tools (`set_config`, `eval_python`). Default: read-only. See `probing/server/API.md`. |
+| `PROBING_MCP_ALLOW_WRITE` | unset | When `1`/`true`/`on`/`yes`, enables MCP write tools (`set_config`, `eval_python`). Default: read-only. See [HTTP & MCP API](http-api.md). |
 
 ## Skill & tool paths
 

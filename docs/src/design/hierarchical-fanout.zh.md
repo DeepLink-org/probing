@@ -150,7 +150,7 @@ probing -t rank0:8080 cluster query --flat "SELECT ..."
 | **C broadcast**（JOIN / CTE） | coordinator 对本机做 node 聚合，远程 node 通过 `scope=node` 递归 |
 | **B 联邦 scan** | 远程 lazy 分区在 `FanoutScope::Coordinator` 下仅拉 node aggregator |
 
-复杂 CTE + 窗口仍建议拆诊断链（见 [联邦查询引擎 §4.7](federation.zh.md#47-路径-c-broadcast)）。
+复杂 CTE + 窗口仍建议拆诊断链（见 [联邦查询引擎](federation.zh.md)）。
 
 ---
 
