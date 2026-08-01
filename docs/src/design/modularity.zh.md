@@ -113,6 +113,10 @@ Python 侧采集（同层，不同语言）：
 
 HTTP 契约：`probing/server/API.md` + `tests/regression/spec/api_spec.json`。
 
+**宿主进程不变量：** `probing-server` 寄生在被观测应用内。engine、listener 或上报组件故障时，
+不得调用 `process::exit`、中止进程或以其他方式终止宿主；故障必须限制在 probing 内部，并通过
+组件状态、日志和 readiness 暴露。
+
 ### L4 — 体验层
 
 | 单元 | 路径 | 职责 |

@@ -165,18 +165,30 @@ pub(crate) fn tag_proto_dataframe_with_tags(df: &mut DataFrame, tags: &Federatio
 
 fn append_proto_tags(df: &mut DataFrame, tags: &FederationEndpointTags) {
     let rows = df.len();
-    df.names.push(PROBE_HOST_COL.to_string());
-    df.names.push(PROBE_ADDR_COL.to_string());
-    df.names.push(PROBE_RANK_COL.to_string());
-    df.names.push(PROBE_NODE_RANK_COL.to_string());
-    df.names.push(PROBE_LOCAL_RANK_COL.to_string());
-    df.names.push(PROBE_ROLE_COL.to_string());
-    df.cols.push(Seq::SeqText(vec![tags.host.clone(); rows]));
-    df.cols.push(Seq::SeqText(vec![tags.addr.clone(); rows]));
-    df.cols.push(Seq::SeqI32(vec![tags.rank; rows]));
-    df.cols.push(Seq::SeqI32(vec![tags.node_rank; rows]));
-    df.cols.push(Seq::SeqI32(vec![tags.local_rank; rows]));
-    df.cols.push(Seq::SeqText(vec![tags.role.clone(); rows]));
+    if !df.names.iter().any(|name| name == PROBE_HOST_COL) {
+        df.names.push(PROBE_HOST_COL.to_string());
+        df.cols.push(Seq::SeqText(vec![tags.host.clone(); rows]));
+    }
+    if !df.names.iter().any(|name| name == PROBE_ADDR_COL) {
+        df.names.push(PROBE_ADDR_COL.to_string());
+        df.cols.push(Seq::SeqText(vec![tags.addr.clone(); rows]));
+    }
+    if !df.names.iter().any(|name| name == PROBE_RANK_COL) {
+        df.names.push(PROBE_RANK_COL.to_string());
+        df.cols.push(Seq::SeqI32(vec![tags.rank; rows]));
+    }
+    if !df.names.iter().any(|name| name == PROBE_NODE_RANK_COL) {
+        df.names.push(PROBE_NODE_RANK_COL.to_string());
+        df.cols.push(Seq::SeqI32(vec![tags.node_rank; rows]));
+    }
+    if !df.names.iter().any(|name| name == PROBE_LOCAL_RANK_COL) {
+        df.names.push(PROBE_LOCAL_RANK_COL.to_string());
+        df.cols.push(Seq::SeqI32(vec![tags.local_rank; rows]));
+    }
+    if !df.names.iter().any(|name| name == PROBE_ROLE_COL) {
+        df.names.push(PROBE_ROLE_COL.to_string());
+        df.cols.push(Seq::SeqText(vec![tags.role.clone(); rows]));
+    }
     df.size = df.len() as u64;
 }
 

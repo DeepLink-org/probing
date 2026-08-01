@@ -43,7 +43,7 @@ global rank 0       ──PUT──►  本机 master 视图
 | `PROBING_CLUSTER_REPORT_INTERVAL_SEC` | `10` | 基础心跳间隔（秒） |
 | `PROBING_CLUSTER_REPORT_MAX_INTERVAL_SEC` | `120` | 退避上限（会被 stale 安全钳制） |
 | `PROBING_CLUSTER_REPORT_BACKOFF_FACTOR` | `2` | 每次稳定 tick 的乘数 |
-| `PROBING_CLUSTER_STALE_SEC` | `25` | 超时未心跳则标 `dead` |
+| `PROBING_CLUSTER_STALE_SEC` | `25` | 一个 TTL 未心跳则标 `dead`，第二个 TTL 后删除 |
 | `PROBING_CLUSTER_DISCOVER_TIMEOUT_SEC` | `2` | 发现 master/local0 单次超时 |
 | `PROBING_CLUSTER_REPORT_TIMEOUT_SEC` | `5` | PUT 超时 |
 
@@ -54,6 +54,7 @@ global rank 0       ──PUT──►  本机 master 视图
 | 变量 | 说明 |
 |------|------|
 | `PROBING_PORT` | 仅 **global rank 0** 绑定；其他 rank 用 `0.0.0.0:0` |
+| `PROBING_ADVERTISE_ADDR` | 当前 rank 向 peer 发布的可达地址；多网卡或 hostname 不可解析时必须显式设置 |
 | `MASTER_ADDR` / `MASTER_PORT` | TCPStore endpoint（torchrun 已设置） |
 | `RDZV_ID` | 多 `torchrun` 并行时必须共享（见 demo 脚本） |
 

@@ -10,7 +10,7 @@
 //! - ``PROBING_CLUSTER_REPORT_BACKOFF``: set ``0`` to disable backoff
 //! - ``PROBING_CLUSTER_STALE_SEC``: node dead threshold (default 25; should exceed max interval)
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{LazyLock, Mutex};
 use std::time::Duration;
 
@@ -30,7 +30,6 @@ use crate::start_remote;
 use crate::vars::read_probing_address;
 use probing_core::runtime::block_on;
 
-static STARTED: AtomicBool = AtomicBool::new(false);
 static CLUSTER_VERSION: AtomicU64 = AtomicU64::new(0);
 
 static MASTER_INFO: LazyLock<Mutex<Option<StoreHttpInfo>>> = LazyLock::new(|| Mutex::new(None));
@@ -157,15 +156,32 @@ fn reachable_addr(bound: &str) -> String {
         return bound.to_string();
     };
     let host = host.trim().trim_matches(['[', ']']);
+    if let Ok(advertise) = std::env::var("PROBING_ADVERTISE_ADDR") {
+        let advertise = advertise.trim();
+        if !advertise.is_empty() {
+            if advertise.contains("{port}") {
+                return advertise.replace("{port}", port);
+            }
+            if advertise.parse::<std::net::SocketAddr>().is_ok() {
+                return advertise.to_string();
+            }
+            if advertise.matches(':').count() == 1 {
+                if let Some((_, advertised_port)) = advertise.rsplit_once(':') {
+                    if advertised_port.parse::<u16>().is_ok() {
+                        return advertise.to_string();
+                    }
+                }
+            }
+            if advertise.starts_with('[') && advertise.ends_with(']') {
+                return format!("{advertise}:{port}");
+            }
+            if advertise.contains(':') {
+                return format!("[{advertise}]:{port}");
+            }
+            return format!("{advertise}:{port}");
+        }
+    }
     if matches!(host, "0.0.0.0" | "::" | "" | "*") {
-        let master = std::env::var("MASTER_ADDR").unwrap_or_default();
-        let master = master.trim();
-        if master == "127.0.0.1" || master == "localhost" {
-            return format!("{master}:{port}");
-        }
-        if !master.is_empty() {
-            return format!("{master}:{port}");
-        }
         return format!(
             "{}:{port}",
             get_hostname().unwrap_or_else(|_| "localhost".into())
@@ -470,8 +486,7 @@ async fn hierarchical_report_worker() {
 
 async fn torchrun_setup() -> Result<()> {
     if !wait_for_local_address(Duration::from_secs(10)).await {
-        log::warn!("probing torchrun: HTTP server did not bind in time");
-        return Ok(());
+        anyhow::bail!("HTTP server did not bind within 10s");
     }
 
     if let Err(err) = publish_master().await {
@@ -483,7 +498,7 @@ async fn torchrun_setup() -> Result<()> {
 
     if !cluster_report_enabled() {
         log::info!("probing torchrun: periodic cluster report disabled (PROBING_CLUSTER_REPORT=0)");
-        return Ok(());
+        std::future::pending::<()>().await;
     }
 
     log::info!(
@@ -495,9 +510,12 @@ async fn torchrun_setup() -> Result<()> {
     Ok(())
 }
 
-/// Whether hierarchical torchrun cluster heartbeat is running.
+/// Whether hierarchical torchrun cluster mode is active.
+///
+/// This remains true when periodic reports are disabled so a flat report worker cannot be
+/// started alongside the torchrun hierarchy.
 pub fn is_torchrun_cluster_active() -> bool {
-    STARTED.load(Ordering::SeqCst)
+    crate::runtime_state::supervisor().torchrun_cluster_active()
 }
 
 /// Start HTTP bind + hierarchical cluster heartbeat when ``WORLD_SIZE > 1`` (idempotent).
@@ -505,24 +523,30 @@ pub fn maybe_start_torchrun_cluster() {
     if !torchrun_cluster_enabled() || is_elastic_supervisor() || world_size() <= 1 {
         return;
     }
-    if STARTED.swap(true, Ordering::SeqCst) {
+    if is_torchrun_cluster_active() {
         return;
     }
 
     let bind = bind_spec();
     log::debug!("probing torchrun: binding HTTP at {bind}");
+    crate::runtime_state::supervisor().stop_report_worker();
     start_remote(Some(bind));
 
-    SERVER_RUNTIME.spawn(async {
-        if let Err(err) = torchrun_setup().await {
-            log::warn!("probing torchrun cluster setup failed: {err}");
-        }
-    });
+    crate::runtime_state::supervisor().start_torchrun_cluster(
+        "torchrun-cluster".to_string(),
+        |_| async {
+            torchrun_setup().await.map_err(|err| {
+                let message = format!("{err:#}");
+                log::warn!("probing torchrun cluster setup failed: {message}");
+                message
+            })
+        },
+    );
 }
 
 /// Trigger one heartbeat (e.g. after ``set_role``).
 pub fn refresh_torchrun_role() -> bool {
-    if !STARTED.load(Ordering::SeqCst) {
+    if !is_torchrun_cluster_active() {
         return false;
     }
     lock_mutex(&REPORT_BACKOFF, "torchrun REPORT_BACKOFF").reset();

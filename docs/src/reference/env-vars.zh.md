@@ -20,13 +20,14 @@ Probing 读取的全部 `PROBING_*` 环境变量参考（按子系统分组）�
 | `PROBING_CLUSTER_REPORT_MAX_INTERVAL_SEC` | `120` | 退避上限（低于 stale TTL）。 |
 | `PROBING_CLUSTER_REPORT_BACKOFF_FACTOR` | `2` | 稳定 tick 的倍增因子。 |
 | `PROBING_CLUSTER_REPORT_BACKOFF` | `1` | 设为 `0` 禁用稳定时的指数退避。 |
-| `PROBING_CLUSTER_STALE_SEC` | `25` | 无心跳超过此秒数标记为 `dead`；应大于最大间隔。 |
+| `PROBING_CLUSTER_STALE_SEC` | `25` | 无心跳超过一个 TTL 标记为 `dead`，再经过一个 TTL 后删除；应大于最大间隔。 |
 | `PROBING_CLUSTER_DISCOVER_TIMEOUT_SEC` | `2` | 每次 master/local0 发现超时。 |
 | `PROBING_CLUSTER_REPORT_TIMEOUT_SEC` | `5` | 集群 report HTTP PUT 超时。 |
 | `PROBING_CLUSTER_PRESET` | — | `examples/cluster/run_multinode.sh` 使用：`demo`、`fast`、`steady`。 |
 | `PROBING_CLUSTER_FANOUT_HIERARCHICAL` | `1` | 分层集群查询 fan-out；`0` = 扁平 fan-out 到所有 peer。 |
 | `PROBING_REMOTE_QUERY_TIMEOUT_SECS` | `30` | 远程联邦 / 集群查询的单 peer 超时（秒）。 |
 | `PROBING_FANOUT_CONCURRENCY` | `128` | 单次 cluster fan-out 的最大并发远程 HTTP 请求数。 |
+| `PROBING_ADVERTISE_ADDR` | hostname | wildcard bind 时向 peer 发布的地址；支持 `host`、`host:port`、IPv6 或 `{port}` 占位符。hostname 无法被其他节点解析时必须显式设置。 |
 | `PROBING_NCCL_CHUNK_BYTES` | `65536` | NCCL profiler mmap 环缓冲 chunk 大小（字节）。 |
 | `PROBING_NCCL_NUM_CHUNKS` | `64` | NCCL profiler mmap 环缓冲 chunk 数量（默认每表约 4 MiB）。 |
 | `PROBING_NCCL_MAX_COLL_SLOTS` | `512` | 每 rank 最大 in-flight collective/P2P slot 数。 |

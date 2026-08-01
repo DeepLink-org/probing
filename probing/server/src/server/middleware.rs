@@ -7,35 +7,71 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use bytes::Bytes;
-use http_body_util::BodyExt;
-use std::sync::{Arc, LazyLock};
-use tokio::sync::Semaphore;
+use http_body_util::{BodyExt, Limited};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
-static CONNECTION_SEMAPHORE: LazyLock<Arc<Semaphore>> = LazyLock::new(|| {
-    Arc::new(Semaphore::new(
-        crate::server::config::effective_max_connections(),
-    ))
-});
+static IN_FLIGHT_REQUESTS: AtomicUsize = AtomicUsize::new(0);
 
-/// Reject new HTTP requests when the in-flight connection limit is reached.
+struct RequestPermit;
+
+impl RequestPermit {
+    fn try_acquire() -> Option<Self> {
+        loop {
+            let current = IN_FLIGHT_REQUESTS.load(Ordering::Acquire);
+            let limit = crate::runtime_state::config().max_connections();
+            if current >= limit {
+                return None;
+            }
+            if IN_FLIGHT_REQUESTS
+                .compare_exchange_weak(current, current + 1, Ordering::AcqRel, Ordering::Acquire)
+                .is_ok()
+            {
+                return Some(Self);
+            }
+        }
+    }
+}
+
+impl Drop for RequestPermit {
+    fn drop(&mut self) {
+        IN_FLIGHT_REQUESTS.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
+/// Reject new HTTP requests when the in-flight request limit is reached.
 pub async fn connection_limit_middleware(request: Request, next: Next) -> Response {
-    let permit = match CONNECTION_SEMAPHORE.clone().try_acquire_owned() {
-        Ok(permit) => permit,
-        Err(_) => {
+    let _permit = match RequestPermit::try_acquire() {
+        Some(permit) => permit,
+        None => {
             log::warn!(
-                "connection limit reached (max {})",
-                crate::server::config::effective_max_connections()
+                "in-flight request limit reached (max {})",
+                crate::runtime_state::config().max_connections()
             );
             return (
                 StatusCode::SERVICE_UNAVAILABLE,
-                "server connection limit reached",
+                "server request concurrency limit reached",
             )
                 .into_response();
         }
     };
-    let response = next.run(request).await;
-    drop(permit);
-    response
+    next.run(request).await
+}
+
+pub async fn request_timeout_middleware(request: Request, next: Next) -> Response {
+    let timeout_secs = crate::runtime_state::config().request_timeout_secs();
+    match tokio::time::timeout(
+        std::time::Duration::from_secs(timeout_secs),
+        next.run(request),
+    )
+    .await
+    {
+        Ok(response) => response,
+        Err(_) => (
+            StatusCode::GATEWAY_TIMEOUT,
+            format!("request exceeded {timeout_secs}s deadline"),
+        )
+            .into_response(),
+    }
 }
 
 /// Middleware to limit request body size
@@ -82,21 +118,14 @@ pub async fn request_size_limit_middleware(request: Request, next: Next) -> Resp
     next.run(new_request).await
 }
 
-/// Collect body bytes with a size limit using BodyExt::collect()
+/// Collect body bytes while enforcing the limit during streaming.
 async fn collect_body_with_limit(body: Body, limit: usize) -> Result<Bytes, String> {
-    let collected = body
+    let collected = Limited::new(body, limit)
         .collect()
         .await
         .map_err(|e| format!("failed to collect request body: {e}"))?;
 
     let bytes = collected.to_bytes();
-
-    if bytes.len() > limit {
-        return Err(format!(
-            "request body size limit exceeded (max {limit} bytes)"
-        ));
-    }
-
     Ok(bytes)
 }
 

@@ -103,7 +103,7 @@ Filled automatically by torchrun heartbeat / `PUT /apis/nodes`. If the cluster v
   "cluster": true,
   "hierarchical": true,
   "scope": "coordinator",
-  "nodes_queried": 3,
+  "nodes_queried": 4,
   "nodes_failed": [],
   "peer_batches_dropped": 0,
   "partial": false,
@@ -116,13 +116,13 @@ Filled automatically by torchrun heartbeat / `PUT /apis/nodes`. If the cluster v
 |-------|---------|
 | `partial` | `true` when any peer failed or merge dropped batches — HTTP **503** with partial `dataframe` (unless `PROBING_FANOUT_STRICT=1`, then the query fails entirely) |
 | `peer_batches_dropped` | Partial peer DataFrames dropped during coordinator merge |
-| `nodes_queried` | Successful **HTTP endpoints** in this query (local local0, local leaves, remote node aggs) |
+| `nodes_queried` | Rank/endpoints attempted across the complete fan-out tree, including the local rank; failed attempts are included |
 | `node_aggregators_queried` | Remote **local0** endpoints contacted at coordinator tier |
 | `local_ranks_queried` | **Leaf ranks** contacted on the coordinator machine |
 | `nodes_failed` | Peers that timed out or returned HTTP errors |
 
-!!! note "Not world_size"
-    `nodes_queried` counts **HTTP endpoints**, not torch ranks. A 2-node × 2-GPU hierarchical query is typically `3` (2 local endpoints + 1 remote node agg), not `4`.
+!!! note "Recursive coverage"
+    A successful 2-node × 2-GPU hierarchical query reports `nodes_queried=4`. The remote local0 propagates its leaf coverage to the coordinator instead of being counted as one opaque success.
 
 ### CLI
 

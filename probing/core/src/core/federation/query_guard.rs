@@ -32,13 +32,13 @@ pub fn require_broadcast_limit() -> bool {
     )
 }
 
-/// Whether the SQL contains a top-level LIMIT (or OFFSET) on any SELECT.
+/// Whether every query statement has a LIMIT/FETCH that bounds its complete result.
 pub fn sql_has_limit(sql: &str) -> bool {
     let dialect = GenericDialect {};
     let Ok(stmts) = Parser::parse_sql(&dialect, sql) else {
         return false;
     };
-    stmts.iter().any(stmt_has_limit)
+    !stmts.is_empty() && stmts.iter().all(stmt_has_limit)
 }
 
 fn stmt_has_limit(stmt: &Statement) -> bool {
@@ -55,10 +55,9 @@ fn query_has_limit(q: &Query) -> bool {
     match q.body.as_ref() {
         SetExpr::Select(_) => false,
         SetExpr::Query(inner) => query_has_limit(inner),
-        SetExpr::SetOperation { left, right, .. } => {
-            matches!(left.as_ref(), SetExpr::Query(q) if query_has_limit(q))
-                || matches!(right.as_ref(), SetExpr::Query(q) if query_has_limit(q))
-        }
+        // A LIMIT inside one UNION/INTERSECT/EXCEPT branch does not bound the
+        // complete set-operation result. Only Query::limit_clause above does.
+        SetExpr::SetOperation { .. } => false,
         _ => false,
     }
 }
@@ -128,6 +127,11 @@ mod tests {
     fn detects_limit_clause() {
         assert!(sql_has_limit("SELECT 1 LIMIT 5"));
         assert!(!sql_has_limit("SELECT 1"));
+        assert!(!sql_has_limit("(SELECT 1 LIMIT 1) UNION ALL SELECT 2"));
+        assert!(sql_has_limit(
+            "(SELECT 1 LIMIT 1) UNION ALL SELECT 2 LIMIT 2"
+        ));
+        assert!(!sql_has_limit("SELECT 1 LIMIT 1; SELECT 2"));
     }
 
     #[test]

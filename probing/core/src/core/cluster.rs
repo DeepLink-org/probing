@@ -145,14 +145,31 @@ fn delta_nodes(incoming: &[Node], removed: &[String]) -> Vec<Node> {
     delta
 }
 
-/// Merge reported nodes, sweep stale entries to ``dead``, bump version, return snapshot.
+fn replaced_node_keys(incoming: &[Node]) -> Vec<String> {
+    let cluster = read_cluster();
+    incoming
+        .iter()
+        .filter_map(|node| {
+            let rank = node.rank?;
+            let previous = cluster.get(rank)?;
+            let previous_key = node_key(previous);
+            (previous_key != node_key(node)).then_some(previous_key)
+        })
+        .collect()
+}
+
+/// Merge reported nodes, sweep stale entries, bump version, return snapshot.
 pub fn apply_node_report(incoming: Vec<Node>, seen_version: u64) -> NodeReportResponse {
     let version_before = cluster_version();
+    let mut removed = replaced_node_keys(&incoming);
     for node in incoming.iter().cloned() {
         update_node(node);
     }
-    let removed = mark_stale_nodes_as_dead();
-    let changed = !incoming.is_empty() || !removed.is_empty();
+    let (newly_dead, expired) = sweep_stale_nodes();
+    removed.extend(expired);
+    removed.sort();
+    removed.dedup();
+    let changed = !incoming.is_empty() || !newly_dead.is_empty() || !removed.is_empty();
     let version = if changed {
         CLUSTER_VERSION.fetch_add(1, Ordering::Relaxed) + 1
     } else {
@@ -160,10 +177,10 @@ pub fn apply_node_report(incoming: Vec<Node>, seen_version: u64) -> NodeReportRe
     };
 
     let nodes = if seen_version >= version_before && seen_version > 0 {
-        delta_nodes(&incoming, &removed)
+        delta_nodes(&incoming, &newly_dead)
     } else if seen_version >= version_before {
         if changed {
-            delta_nodes(&incoming, &removed)
+            delta_nodes(&incoming, &newly_dead)
         } else {
             Vec::new()
         }
@@ -213,8 +230,8 @@ pub fn cluster_version() -> u64 {
     CLUSTER_VERSION.load(Ordering::Relaxed)
 }
 
-/// Mark nodes whose heartbeat timestamp is older than the stale threshold as ``dead``.
-fn mark_stale_nodes_as_dead() -> Vec<String> {
+/// Mark stale nodes dead, then physically remove nodes that remain dead for another TTL.
+fn sweep_stale_nodes() -> (Vec<String>, Vec<String>) {
     let threshold = stale_threshold_micros();
     let now = now_micros();
     let mut newly_dead = Vec::new();
@@ -223,7 +240,8 @@ fn mark_stale_nodes_as_dead() -> Vec<String> {
         if node.timestamp == 0 {
             continue;
         }
-        if now.saturating_sub(node.timestamp) <= threshold {
+        let age = now.saturating_sub(node.timestamp);
+        if age <= threshold {
             continue;
         }
         if node.status.as_deref() == Some("dead") {
@@ -232,7 +250,27 @@ fn mark_stale_nodes_as_dead() -> Vec<String> {
         node.status = Some("dead".to_string());
         newly_dead.push(key.clone());
     }
-    newly_dead
+
+    let expired: Vec<String> = cluster
+        .nodes
+        .iter()
+        .filter(|(_, node)| {
+            node.status.as_deref() == Some("dead")
+                && now.saturating_sub(node.timestamp) > threshold.saturating_mul(2)
+        })
+        .filter(|(key, _)| !newly_dead.contains(key))
+        .map(|(key, _)| key.clone())
+        .collect();
+    for key in &expired {
+        if let Some(node) = cluster.nodes.remove(key) {
+            if let Some(rank) = node.rank {
+                if cluster.rank_index.get(&rank) == Some(key) {
+                    cluster.rank_index.remove(&rank);
+                }
+            }
+        }
+    }
+    (newly_dead, expired)
 }
 
 pub fn is_node_alive(node: &Node) -> bool {

@@ -3,7 +3,6 @@ use anyhow::{Context, Result};
 use super::vars::read_probing_address;
 use crate::cluster_http::{get_i32_env, put_nodes_blocking};
 use crate::cluster_report_backoff::{classify_report_outcome, ReportBackoff, ReportOutcome};
-use crate::server::SERVER_RUNTIME;
 use probing_proto::prelude::{Node, NodeReportResponse};
 
 pub fn get_hostname() -> Result<String> {
@@ -25,14 +24,20 @@ fn cluster_report_enabled() -> bool {
 pub fn start_report_worker(report_addr: String, local_addr: String) {
     if !cluster_report_enabled() {
         log::info!("cluster report worker disabled (PROBING_CLUSTER_REPORT=0)");
+        crate::runtime_state::supervisor().stop_report_worker();
         return;
     }
     if crate::torchrun_cluster::is_torchrun_cluster_active() {
         log::debug!("skip flat report worker: torchrun hierarchical cluster active");
+        crate::runtime_state::supervisor().stop_report_worker();
         return;
     }
     log::debug!("start report worker: {local_addr} => {report_addr}");
-    SERVER_RUNTIME.spawn(report_worker(report_addr, local_addr));
+    let key = format!("{local_addr}=>{report_addr}");
+    crate::runtime_state::supervisor().replace_report_worker(key, move |_| async move {
+        report_worker(report_addr, local_addr).await;
+        Ok(())
+    });
 }
 
 async fn report_worker(report_addr: String, local_addr: String) {

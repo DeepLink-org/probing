@@ -186,9 +186,9 @@ Do not register the same capability in both places. Do not add path aliases.
 | Invalid query string on extension URL | 400 |
 | Missing config key | 404 |
 | Invalid `/query` JSON body | 400 |
+| SQL/config execution failure on `/query` | 500 (`QueryDataFormat::Error` payload preserved) |
 | `/query/dto` engine errors | Same HTTP status as underlying `ApiError` (e.g. 404, 503); DTO `code` mirrors status (`BAD_REQUEST`, `NOT_FOUND`, `SERVICE_UNAVAILABLE`, …) |
 | Partial cluster fan-out (`meta.partial` / `nodes_failed` non-empty) on `/query`, `/query/dto`, `POST /apis/cluster/query`, `GET /apis/training/step_matrix` | 503 (body still returned so clients can inspect partial data) |
-| SET statement failure on `/query` | 500 (payload `QueryDataFormat::Error`) |
 | Invalid file path / missing param | 400 |
 | File too large | 413 |
 

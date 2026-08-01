@@ -103,7 +103,7 @@ POST /apis/cluster/query
   "cluster": true,
   "hierarchical": true,
   "scope": "coordinator",
-  "nodes_queried": 3,
+  "nodes_queried": 4,
   "nodes_failed": [],
   "node_aggregators_queried": 1,
   "local_ranks_queried": 1
@@ -112,13 +112,13 @@ POST /apis/cluster/query
 
 | 字段 | 含义 |
 |------|------|
-| `nodes_queried` | 成功参与本次查询的 **endpoint 数**（含本机 local0、本机 leaf、远程 node agg） |
+| `nodes_queried` | 整棵 fan-out 树实际尝试的 rank/endpoint 数（包含本 rank 和失败尝试） |
 | `node_aggregators_queried` | coordinator 层联系的远程 **local0** 数量 |
 | `local_ranks_queried` | 本机 node 层联系的 **leaf rank** 数量 |
 | `nodes_failed` | 超时或 HTTP 失败的 peer 地址 |
 
-!!! note "不是 world_size"
-    `nodes_queried` 统计的是 **HTTP endpoint**，不是 torch rank 总数。2 机 × 2 卡分层查询通常为 `3`（本机 2 endpoint + 1 远程 node agg），而非 `4`。
+!!! note "递归覆盖率"
+    成功的 2 机 × 2 卡分层查询通常为 `nodes_queried=4`。远程 local0 会把其 leaf 覆盖率递归传回 coordinator，而不是被当成一个不透明的成功 endpoint。
 
 ### CLI
 
