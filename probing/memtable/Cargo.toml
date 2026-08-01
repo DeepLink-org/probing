@@ -19,6 +19,7 @@ pco = "0.4"
 libc = "0.2"
 
 [dev-dependencies]
+loom = "0.7.2"
 
 [[bench]]
 name = "memtable_report"

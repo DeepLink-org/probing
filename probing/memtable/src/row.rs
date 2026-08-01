@@ -239,6 +239,96 @@ fn lease_parts(state: u64) -> (u32, u32) {
     ((state >> 32) as u32, state as u32)
 }
 
+const RECYCLE_LEASE_REFS: u32 = u32::MAX;
+
+/// Exclusive ownership of every lease slot in one recycle target.
+///
+/// The writer acquires this only after publishing `ChunkState::Empty`.
+/// Readers that raced past the state check either own a slot first (so
+/// acquisition fails) or find all slots occupied by this marker. The marker
+/// carries the writer process identity, so a recovery writer can reclaim it
+/// after a crash using the same PID/start-time test as reader leases.
+pub(crate) struct ChunkRecycleGuard<'a> {
+    buf: &'a [u8],
+    chunk: usize,
+    marker: u64,
+}
+
+impl Drop for ChunkRecycleGuard<'_> {
+    fn drop(&mut self) {
+        let slots = header(self.buf).lease_slots as usize;
+        for slot_idx in 0..slots {
+            let lease = reader_lease(self.buf, self.chunk, slot_idx);
+            let _ =
+                lease
+                    .state
+                    .compare_exchange(self.marker, 0, Ordering::SeqCst, Ordering::SeqCst);
+        }
+    }
+}
+
+/// Atomically reserve all lease slots for a recycle operation.
+///
+/// Returns `None` if any live reader owns or concurrently claims a slot.
+pub(crate) fn try_lock_chunk_for_recycle(
+    buf: &[u8],
+    chunk: usize,
+) -> Option<ChunkRecycleGuard<'_>> {
+    let pid = current_process_id();
+    let start_time = process_start_time(pid);
+    let claiming = pack_lease(pid, 0);
+    let marker = pack_lease(pid, RECYCLE_LEASE_REFS);
+    let guard = ChunkRecycleGuard { buf, chunk, marker };
+    let slots = header(buf).lease_slots as usize;
+
+    for slot_idx in 0..slots {
+        let lease = reader_lease(buf, chunk, slot_idx);
+        loop {
+            let state = lease.state.load(Ordering::SeqCst);
+            if state == 0 {
+                if lease
+                    .state
+                    .compare_exchange(0, claiming, Ordering::SeqCst, Ordering::SeqCst)
+                    .is_err()
+                {
+                    continue;
+                }
+                // Publish the owner identity while refs==0, the same live
+                // claim protocol used by readers. Publishing the final marker
+                // first would let another process inspect a stale start time
+                // and incorrectly reclaim this slot.
+                lease.owner_start_time.store(start_time, Ordering::SeqCst);
+                if lease
+                    .state
+                    .compare_exchange(claiming, marker, Ordering::SeqCst, Ordering::SeqCst)
+                    .is_ok()
+                {
+                    break;
+                }
+                let _ =
+                    lease
+                        .state
+                        .compare_exchange(claiming, 0, Ordering::SeqCst, Ordering::SeqCst);
+                return None;
+            }
+
+            let (owner, refs) = lease_parts(state);
+            let owner_live = if refs == 0 {
+                process_exists(owner)
+            } else {
+                process_instance_alive(owner, lease.owner_start_time.load(Ordering::SeqCst))
+            };
+            if owner_live {
+                return None;
+            }
+            let _ = lease
+                .state
+                .compare_exchange(state, 0, Ordering::SeqCst, Ordering::SeqCst);
+        }
+    }
+    Some(guard)
+}
+
 fn acquire_process_lease(buf: &[u8], chunk: usize) -> Option<&ReaderLease> {
     let pid = current_process_id();
     let start_time = process_start_time(pid);
@@ -830,8 +920,55 @@ impl<'a> Iterator for RowIter<'a> {
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        acquire_process_lease, pack_lease, release_process_lease, try_lock_chunk_for_recycle,
+    };
+    use crate::layout::{header, reader_lease};
     use crate::memtable::{MemTable, MemTableWriter};
+    use crate::raw::{current_process_id, process_start_time};
     use crate::schema::{DType, Schema, Value};
+    use std::sync::atomic::Ordering;
+
+    #[test]
+    fn recycle_guard_reserves_and_releases_every_lease_slot() {
+        let schema = Schema::new().col("v", DType::I32);
+        let mut table = MemTable::new(&schema, 1024, 1).unwrap();
+        let buf = table.as_bytes_mut();
+
+        let guard = try_lock_chunk_for_recycle(buf, 0).expect("recycler owns empty slots");
+        for slot in 0..header(buf).lease_slots as usize {
+            assert_ne!(reader_lease(buf, 0, slot).state.load(Ordering::SeqCst), 0);
+        }
+        assert!(acquire_process_lease(buf, 0).is_none());
+
+        drop(guard);
+        for slot in 0..header(buf).lease_slots as usize {
+            assert_eq!(reader_lease(buf, 0, slot).state.load(Ordering::SeqCst), 0);
+        }
+        let reader = acquire_process_lease(buf, 0).expect("released slots accept readers");
+        release_process_lease(reader, current_process_id());
+    }
+
+    #[test]
+    fn partial_recycle_reservation_rolls_back_when_reader_owns_later_slot() {
+        let schema = Schema::new().col("v", DType::I32);
+        let mut table = MemTable::new(&schema, 1024, 1).unwrap();
+        let buf = table.as_bytes_mut();
+        assert!(header(buf).lease_slots >= 2);
+
+        let pid = current_process_id();
+        let reader_marker = pack_lease(pid, 1);
+        let occupied = reader_lease(buf, 0, 1);
+        occupied
+            .owner_start_time
+            .store(process_start_time(pid), Ordering::SeqCst);
+        occupied.state.store(reader_marker, Ordering::SeqCst);
+
+        assert!(try_lock_chunk_for_recycle(buf, 0).is_none());
+        assert_eq!(reader_lease(buf, 0, 0).state.load(Ordering::SeqCst), 0);
+        assert_eq!(occupied.state.load(Ordering::SeqCst), reader_marker);
+        occupied.state.store(0, Ordering::SeqCst);
+    }
 
     #[test]
     fn row_raw_bytes() {

@@ -111,12 +111,16 @@ slot (wrapping), sealing the previous chunk. Each slot carries a monotonically i
 **logical (oldest → newest) order** and re-check the generation after reading — a chunk recycled
 mid-read is discarded rather than surfacing torn rows.
 
-### Single-Writer Model (no lock)
+### Single-Writer Model
 
 MEMT is **single-writer**: exactly one writer owns each buffer (the creator process; any in-process
-write is serialized by the caller). There is **no in-buffer write lock** — the writer appends rows
-without any CAS or fence on a lock word. Readers are lock-free and never coordinated with the writer
-except through the per-chunk `used` / `row_count` `Release` stores and `generation` re-validation.
+write is serialized by the caller). There is **no per-row in-buffer write lock** — the writer
+appends rows without any CAS or fence on a lock word. Shared-memory and file-backed constructors
+hold an OS-level ownership lock for the writer handle's lifetime, so a second process cannot open
+another writer. `open_shm` and `open_file_readonly` return `MemTableReader`, which exposes reads and
+reader leases but no row-mutation API; crash recovery may explicitly request `open_shm_writer`.
+Readers are lock-free and never coordinated with the writer except through the per-chunk `used` /
+`row_count` `Release` stores and `generation` re-validation.
 
 Why this is safe and sufficient:
 
@@ -127,6 +131,10 @@ Why this is safe and sufficient:
 - Removing the lock also removes the fork-safety hazard the PID-stealing spinlock had to guard
   against (a forked child inheriting a cached start time and being mistaken for a recycled PID).
 
+If the next ring slot remains pinned after the bounded drain wait, the row is **not committed**:
+`try_push_row` returns `WriteOutcome::DroppedReadersPinned` and `rows_dropped_by_readers()`
+increments. Callers may retry, but the memtable never describes this loss as deferred work.
+
 > The **cold tier (MEMC)** has a separate concurrency story — multiple compactor writers are
 > distinguished by `writer_id` and segment isolation — and is unaffected by the MEMT single-writer
 > model.
@@ -136,9 +144,10 @@ Why this is safe and sufficient:
 Since data is generated **one row at a time**, the single-row commit path is tuned to be as cheap as
 possible:
 
-- **Zero per-row allocation.** The `RowWriter` streaming API encodes fields directly into the ring
-  chunk; no `Vec<Value>` is built per row. (The `push_row(&[Value])` convenience API still works but
-  asks the caller to materialize a value slice.)
+- **Zero per-row allocation.** The `RowWriter` streaming API validates each typed `put_*` against
+  the schema and encodes fields directly into the ring chunk; no `Vec<Value>` is built per row.
+  A type/count mismatch makes `finish()` return `false` without committing. (The
+  `push_row(&[Value])` convenience API still works but asks the caller to materialize a value slice.)
 - **No lock, no per-row `catch_unwind`.** With a single writer there is nothing to lock and nothing
   to release on panic, so neither a per-row CAS + `Release` fence nor a `catch_unwind`/`Drop` guard
   is needed.
@@ -333,3 +342,28 @@ The data layer ships with unit and end-to-end tests: hot-ring lock/recycle/fork 
 (`probing-memtable`), MEMC format/recovery/compactor tests (including restart-dedup with a negative
 control), and SQL end-to-end tests that drain through the runtime owner and query the union through
 the real catalog path (`probing-core::memtable_sql`).
+
+### Executable concurrency argument
+
+`probing-memtable` also contains exhaustive [Loom](https://github.com/tokio-rs/loom) models for the
+two atomic protocols on which lock-free reads depend:
+
+| Protocol | Happens-before edge | Checked invariant |
+|---|---|---|
+| Row publication | payload writes → `used.store(Release)` → `used.load(Acquire)` | A visible row extent contains the complete row |
+| Pin/recycle | `Empty` publication → exclusive reservation of every lease slot → metadata reset → generation publication → next append | A reader with a stable generation never combines payload words from different generations |
+
+The recycle model found a late-claim race in the former load-only lease check: a reader could claim
+after the writer's last observation and survive the state/generation ABA validation. The writer now
+reserves every lease slot with compare-and-exchange before modifying the target; failure rolls back
+all partial reservations and restores the previous chunk state.
+
+Run the models independently with:
+
+```bash
+make test-memtable-model
+```
+
+This is an executable proof of the reduced atomic state machines, not a proof of the whole storage
+engine. It does not model OS writer locks, `fork`, PID-liveness syscalls, mmap/filesystem behavior,
+MEMC, or generation counter overflow; implementation tests cover the first four where practical.

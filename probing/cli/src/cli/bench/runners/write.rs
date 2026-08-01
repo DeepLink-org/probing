@@ -4,7 +4,7 @@
 //! one writer. `--threads > 1` is only valid on the `heap` backend, where each
 //! thread gets its own independent table (parallel throughput, one writer each).
 
-use std::sync::Barrier;
+use std::sync::{Barrier, Mutex};
 use std::time::Instant;
 
 use anyhow::{bail, Context, Result};
@@ -18,8 +18,7 @@ use crate::cli::bench::workload::{RowGen, WorkloadSpec};
 /// How a worker thread obtains its table handle.
 enum Source {
     Heap,
-    Shm(String),
-    File(std::path::PathBuf),
+    Owned(Mutex<Option<MemTable>>),
 }
 
 struct WorkerOut {
@@ -53,11 +52,11 @@ pub fn run(args: &WriteArgs, json: bool, seed: u64) -> Result<()> {
         );
     }
 
-    // Set up the backing for shared backends; keep the creator handle alive
-    // for the whole run so attached worker handles stay valid.
+    // Shared backends have exactly one writer, so transfer the creator handle
+    // to the sole worker instead of opening a second writable attachment.
     let mut cleanup_file: Option<std::path::PathBuf> = None;
-    let (source, _creator) = match args.backend {
-        Backend::Heap => (Source::Heap, None),
+    let source = match args.backend {
+        Backend::Heap => Source::Heap,
         Backend::Shm => {
             let name = common::shm_name();
             let creator = MemTable::shm(
@@ -66,7 +65,7 @@ pub fn run(args: &WriteArgs, json: bool, seed: u64) -> Result<()> {
                 args.ring.chunk_size,
                 args.ring.chunks,
             )?;
-            (Source::Shm(name), Some(creator))
+            Source::Owned(Mutex::new(Some(creator)))
         }
         Backend::File => {
             let path = args
@@ -82,7 +81,7 @@ pub fn run(args: &WriteArgs, json: bool, seed: u64) -> Result<()> {
                 args.ring.chunk_size,
                 args.ring.chunks,
             )?;
-            (Source::File(path), Some(creator))
+            Source::Owned(Mutex::new(Some(creator)))
         }
         Backend::Shared => {
             let name = format!("bench-{}", common::unique_token());
@@ -92,11 +91,7 @@ pub fn run(args: &WriteArgs, json: bool, seed: u64) -> Result<()> {
                 args.ring.chunk_size,
                 args.ring.chunks,
             )?;
-            let path = creator
-                .path()
-                .context("shared memtable has no file path")?
-                .to_path_buf();
-            (Source::File(path), Some(creator))
+            Source::Owned(Mutex::new(Some(creator)))
         }
     };
 
@@ -182,8 +177,11 @@ pub fn run(args: &WriteArgs, json: bool, seed: u64) -> Result<()> {
 fn open_handle(source: &Source, spec: &WorkloadSpec, ring: &RingArgs) -> Result<MemTable> {
     Ok(match source {
         Source::Heap => MemTable::new(&spec.schema(), ring.chunk_size, ring.chunks)?,
-        Source::Shm(name) => MemTable::open_shm(name)?,
-        Source::File(path) => MemTable::open_file(path)?,
+        Source::Owned(table) => table
+            .lock()
+            .map_err(|_| anyhow::anyhow!("writer handle mutex poisoned"))?
+            .take()
+            .context("shared backend writer handle already taken")?,
     })
 }
 

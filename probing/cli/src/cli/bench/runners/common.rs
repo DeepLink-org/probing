@@ -6,7 +6,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
 use probing_memtable::memc::{ColdStore, Compactor, CompactorConfig};
-use probing_memtable::{DType, MemTable};
+use probing_memtable::{DType, MemTable, MemTableReader, RowIter};
 
 use crate::cli::bench::args::RingArgs;
 use crate::cli::bench::workload::{RowGen, WorkloadSpec};
@@ -20,7 +20,7 @@ pub enum Attach {
 }
 
 impl Attach {
-    pub fn open(&self) -> io::Result<MemTable> {
+    pub fn open(&self) -> io::Result<MemTableReader> {
         match self {
             Attach::Shm(name) => MemTable::open_shm(name),
             Attach::File(path) => MemTable::open_file_readonly(path),
@@ -48,7 +48,32 @@ impl Attach {
 
 /// Scan all resident rows of `table` once through the cursor, folding values
 /// into a sink. Returns `(value_sink, row_count)`.
-pub fn scan_all(table: &MemTable, dtypes: &[DType]) -> (u64, u64) {
+pub trait BenchTableReader {
+    fn chunks_logical(&self) -> Vec<usize>;
+    fn rows(&self, chunk: usize) -> RowIter<'_>;
+}
+
+impl BenchTableReader for MemTable {
+    fn chunks_logical(&self) -> Vec<usize> {
+        self.chunks_logical()
+    }
+
+    fn rows(&self, chunk: usize) -> RowIter<'_> {
+        self.rows(chunk)
+    }
+}
+
+impl BenchTableReader for MemTableReader {
+    fn chunks_logical(&self) -> Vec<usize> {
+        self.chunks_logical()
+    }
+
+    fn rows(&self, chunk: usize) -> RowIter<'_> {
+        self.rows(chunk)
+    }
+}
+
+pub fn scan_all<T: BenchTableReader>(table: &T, dtypes: &[DType]) -> (u64, u64) {
     let mut sink = 0u64;
     let mut rows = 0u64;
     for chunk in table.chunks_logical() {

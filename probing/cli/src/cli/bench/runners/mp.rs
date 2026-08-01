@@ -18,7 +18,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context, Result};
 use clap::ValueEnum;
-use probing_memtable::{DType, MemTable};
+use probing_memtable::{DType, MemTable, MemTableReader};
 
 use super::common::{scan_all, shm_name, temp_path, unique_token, Attach};
 use crate::cli::bench::args::{Backend, MpArgs};
@@ -48,7 +48,7 @@ fn orchestrate(args: &MpArgs, json: bool, seed: u64) -> Result<()> {
     let readers = args.readers;
 
     // Create the shared backing and keep it alive for the whole run.
-    let (attach, _creator) = match args.backend {
+    let (attach, creator) = match args.backend {
         Backend::Heap => bail!("mp requires a shared backend (shm/file/shared), not heap"),
         Backend::Shm => {
             let name = shm_name();
@@ -85,6 +85,9 @@ fn orchestrate(args: &MpArgs, json: bool, seed: u64) -> Result<()> {
             (Attach::File(path), creator)
         }
     };
+    // Keep cleanup ownership in the orchestrator while releasing the writer
+    // lock for the dedicated writer child.
+    let _owner = creator.into_reader();
 
     let exe = std::env::current_exe().context("resolve current executable")?;
     let passthrough = passthrough_args(args);
@@ -261,13 +264,11 @@ fn run_worker(args: &MpArgs, role: &str, seed: u64) -> Result<()> {
     let duration = Duration::from_secs(args.duration.max(1));
     let spec = args.schema.spec();
 
-    // Attach to the shared table (retry briefly in case of a startup race).
-    let mut table = open_with_retry(&attach)?;
-
-    spin_until(start_ms);
-    let t0 = Instant::now();
-    let (rows, passes) = match role {
+    let (rows, passes, elapsed) = match role {
         "writer" => {
+            let mut table = open_writer_with_retry(&attach)?;
+            spin_until(start_ms);
+            let t0 = Instant::now();
             let mut gen = RowGen::new(spec.clone(), seed, (std::process::id() as i64) << 20);
             let mut scratch: Vec<f64> = Vec::new();
             let mut rows = 0u64;
@@ -278,9 +279,12 @@ fn run_worker(args: &MpArgs, role: &str, seed: u64) -> Result<()> {
                 }
                 rows += 256;
             }
-            (rows, 0u64)
+            (rows, 0u64, t0.elapsed().as_secs_f64())
         }
         "reader" => {
+            let table = open_reader_with_retry(&attach)?;
+            spin_until(start_ms);
+            let t0 = Instant::now();
             let dtypes: Vec<DType> = (0..spec.schema().cols.len())
                 .map(|i| spec.schema().cols[i].dtype)
                 .collect();
@@ -294,11 +298,10 @@ fn run_worker(args: &MpArgs, role: &str, seed: u64) -> Result<()> {
                 passes += 1;
             }
             std::hint::black_box(sink);
-            (rows, passes)
+            (rows, passes, t0.elapsed().as_secs_f64())
         }
         other => bail!("unknown worker role: {other}"),
     };
-    let elapsed = t0.elapsed().as_secs_f64();
 
     let out = serde_json::json!({
         "role": role,
@@ -311,7 +314,7 @@ fn run_worker(args: &MpArgs, role: &str, seed: u64) -> Result<()> {
     Ok(())
 }
 
-fn open_with_retry(attach: &Attach) -> Result<MemTable> {
+fn open_reader_with_retry(attach: &Attach) -> Result<MemTableReader> {
     let deadline = Instant::now() + Duration::from_secs(5);
     loop {
         match attach.open() {
@@ -321,6 +324,24 @@ fn open_with_retry(attach: &Attach) -> Result<MemTable> {
                 std::thread::sleep(Duration::from_millis(10));
             }
             Err(e) => return Err(e).context("attach to shared table"),
+        }
+    }
+}
+
+fn open_writer_with_retry(attach: &Attach) -> Result<MemTable> {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        let result = match attach {
+            Attach::Shm(name) => MemTable::open_shm_writer(name),
+            Attach::File(path) => MemTable::open_file(path),
+        };
+        match result {
+            Ok(table) => return Ok(table),
+            Err(error) if Instant::now() < deadline => {
+                let _ = error;
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Err(error) => return Err(error).context("attach writer to shared table"),
         }
     }
 }

@@ -44,11 +44,16 @@ macro_rules! impl_table_reader {
         pub fn instance_id(&self) -> u64 {
             header(self.as_bytes()).instance_id
         }
-        /// Number of writes deferred because the next ring chunk was pinned.
-        pub fn writes_blocked_by_readers(&self) -> u64 {
+        /// Number of rows dropped because the next ring chunk remained pinned.
+        pub fn rows_dropped_by_readers(&self) -> u64 {
             header(self.as_bytes())
                 .writes_blocked
                 .load(Ordering::Relaxed)
+        }
+        /// Backward-compatible alias for [`rows_dropped_by_readers`](Self::rows_dropped_by_readers).
+        #[deprecated(note = "use rows_dropped_by_readers; pinned writes are dropped, not deferred")]
+        pub fn writes_blocked_by_readers(&self) -> u64 {
+            self.rows_dropped_by_readers()
         }
         /// Number of reads rejected because all process lease slots were busy.
         pub fn reader_lease_failures(&self) -> u64 {
@@ -241,6 +246,7 @@ fn make_row_writer<'a>(buf: &'a mut [u8], dedup: Option<&'a mut DedupState>) -> 
     let csz = h.chunk_size as usize;
     let doff = h.data_offset as usize;
     let ts_col = h.ts_col;
+    let expected_cols = h.num_cols as usize;
     let cs = doff + wc * csz;
     let used = chunk_header(buf, cs).used.load(Ordering::Relaxed) as usize;
     let mut dedup = dedup;
@@ -257,6 +263,8 @@ fn make_row_writer<'a>(buf: &'a mut [u8], dedup: Option<&'a mut DedupState>) -> 
         overflow: false,
         done: false,
         col_idx: 0,
+        expected_cols,
+        schema_mismatch: false,
         ts_col,
         pending_ts: None,
     }
@@ -277,7 +285,7 @@ fn push_plain_row_detailed(buf: &mut [u8], values: &[Value]) -> WriteOutcome {
         return WriteOutcome::Written;
     }
     if advance_chunk_raw_detailed(buf) == AdvanceOutcome::ReadersPinned {
-        return WriteOutcome::ReadersPinned;
+        return WriteOutcome::DroppedReadersPinned;
     }
     if write_row_bytes(buf, values, row_data) {
         return WriteOutcome::Written;
@@ -378,8 +386,8 @@ pub enum WriteOutcome {
     Written,
     SchemaMismatch,
     RowTooLarge,
-    /// The next ring chunk is still borrowed by one or more readers.
-    ReadersPinned,
+    /// The row was not written because the next ring chunk remained pinned.
+    DroppedReadersPinned,
 }
 
 impl WriteOutcome {
@@ -400,6 +408,8 @@ enum Backing {
     #[cfg(unix)]
     Shm {
         mmap: MmapMut,
+        _writer_lock: std::fs::File,
+        writer_lock_path: PathBuf,
         name: String,
         unlink_on_drop: bool,
     },
@@ -414,8 +424,6 @@ enum Backing {
         dir: Option<PathBuf>,
         unlink_on_drop: bool,
     },
-    /// Read-only attachment used while another process owns the writer lock.
-    FileRead { mmap: MmapMut, path: PathBuf },
 }
 
 impl Backing {
@@ -426,7 +434,6 @@ impl Backing {
             #[cfg(unix)]
             Backing::Shm { mmap, .. } => mmap,
             Backing::File { mmap, .. } => mmap,
-            Backing::FileRead { mmap, .. } => mmap,
         }
     }
 
@@ -437,9 +444,34 @@ impl Backing {
             #[cfg(unix)]
             Backing::Shm { mmap, .. } => mmap,
             Backing::File { mmap, .. } => mmap,
-            Backing::FileRead { .. } => {
-                panic!("cannot mutably access a read-only memtable attachment")
-            }
+        }
+    }
+}
+
+enum ReaderBacking {
+    Heap(Vec<u8>),
+    #[cfg(unix)]
+    Shm {
+        mmap: MmapMut,
+        name: String,
+        writer_lock_path: Option<PathBuf>,
+        unlink_on_drop: bool,
+    },
+    File {
+        mmap: MmapMut,
+        path: PathBuf,
+        dir: Option<PathBuf>,
+        unlink_on_drop: bool,
+    },
+}
+
+impl ReaderBacking {
+    fn bytes(&self) -> &[u8] {
+        match self {
+            Self::Heap(buf) => buf,
+            #[cfg(unix)]
+            Self::Shm { mmap, .. } => mmap,
+            Self::File { mmap, .. } => mmap,
         }
     }
 }
@@ -482,12 +514,32 @@ fn shm_open_file(name: &std::ffi::CString, oflag: libc::c_int) -> io::Result<std
     Ok(unsafe { std::fs::File::from_raw_fd(fd) })
 }
 
+#[cfg(unix)]
+fn shm_writer_lock(name: &std::ffi::CString) -> io::Result<(std::fs::File, PathBuf)> {
+    let dir = std::env::temp_dir().join("probing-shm-writer-locks");
+    std::fs::create_dir_all(&dir)?;
+    let encoded = name
+        .as_bytes()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    let path = dir.join(encoded);
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&path)?;
+    fs2::FileExt::try_lock_exclusive(&file)?;
+    Ok((file, path))
+}
+
 /// Ring-buffer table that owns its storage. Three backings, one API:
 ///
 /// | Constructor | Backing | Cross-process | Survives crash | Survives reboot |
 /// |-------------|---------|--------------|----------------|-----------------|
 /// | [`new`](Self::new) / [`from_buf`](Self::from_buf) | heap | no | no | no |
-/// | [`shm`](Self::shm) / [`open_shm`](Self::open_shm) | POSIX shared memory | by name | yes¹ | no |
+/// | [`shm`](Self::shm) / [`open_shm`](Self::open_shm) (reader) | POSIX shared memory | by name | yes¹ | no |
 /// | [`file_at`](Self::file_at) / [`open_file`](Self::open_file) | mmap'd file | by path | yes | yes |
 /// | [`shared`](Self::shared) / [`shared_in`](Self::shared_in) | mmap'd file under `<data_dir>/<pid>/` | discovery + SQL catalog | yes¹ | — |
 ///
@@ -562,6 +614,7 @@ impl MemTable {
             .map_err(std::io::Error::from)?;
 
         let file = shm_open_file(&cname, libc::O_CREAT | libc::O_EXCL | libc::O_RDWR)?;
+        let (writer_lock, writer_lock_path) = shm_writer_lock(&cname)?;
         file.set_len(size as u64)?;
 
         let mut mmap = unsafe { MmapMut::map_mut(&file)? };
@@ -570,27 +623,54 @@ impl MemTable {
         Ok(Self {
             backing: Backing::Shm {
                 mmap,
+                _writer_lock: writer_lock,
+                writer_lock_path,
                 name: cstring_to_shm_name(cname)?,
                 unlink_on_drop: true,
             },
         })
     }
 
-    /// Attach to an existing POSIX shared-memory table created by
+    /// Attach a reader to an existing POSIX shared-memory table created by
     /// [`shm`](Self::shm) (validates the MEMT layout).
     ///
-    /// The returned handle does **not** unlink the name on drop.
+    /// Reader leases mutate shared atomic metadata, so the OS mapping remains
+    /// writable, but [`MemTableReader`] exposes no row-writing API.
     #[cfg(unix)]
-    pub fn open_shm(name: &str) -> io::Result<Self> {
+    pub fn open_shm(name: &str) -> io::Result<MemTableReader> {
         let cname = shm_name_cstring(name)?;
         let file = shm_open_file(&cname, libc::O_RDWR)?;
 
         let mmap = unsafe { MmapMut::map_mut(&file)? };
         validate_buf(&mmap)?;
 
+        Ok(MemTableReader {
+            backing: ReaderBacking::Shm {
+                mmap,
+                name: cstring_to_shm_name(cname)?,
+                writer_lock_path: None,
+                unlink_on_drop: false,
+            },
+        })
+    }
+
+    /// Take writer ownership of an existing POSIX shared-memory table.
+    ///
+    /// Fails while another [`MemTable`] holds the table's exclusive writer
+    /// lock. Normal readers should use [`open_shm`](Self::open_shm).
+    #[cfg(unix)]
+    pub fn open_shm_writer(name: &str) -> io::Result<Self> {
+        let cname = shm_name_cstring(name)?;
+        let file = shm_open_file(&cname, libc::O_RDWR)?;
+        let (writer_lock, writer_lock_path) = shm_writer_lock(&cname)?;
+        let mmap = unsafe { MmapMut::map_mut(&file)? };
+        validate_buf(&mmap)?;
+
         Ok(Self {
             backing: Backing::Shm {
                 mmap,
+                _writer_lock: writer_lock,
+                writer_lock_path,
                 name: cstring_to_shm_name(cname)?,
                 unlink_on_drop: false,
             },
@@ -667,7 +747,7 @@ impl MemTable {
     ///
     /// The OS mapping is read-write because reader leases are shared atomic
     /// metadata, but row mutation is not exposed through this handle.
-    pub fn open_file_readonly(path: impl AsRef<Path>) -> io::Result<Self> {
+    pub fn open_file_readonly(path: impl AsRef<Path>) -> io::Result<MemTableReader> {
         let path = path.as_ref().to_path_buf();
         // Reader leases live inside the mapping and are atomically updated,
         // so the OS mapping must be writable even though this Rust handle
@@ -675,8 +755,13 @@ impl MemTable {
         let file = OpenOptions::new().read(true).write(true).open(&path)?;
         let mmap = unsafe { MmapMut::map_mut(&file)? };
         validate_buf(&mmap)?;
-        Ok(Self {
-            backing: Backing::FileRead { mmap, path },
+        Ok(MemTableReader {
+            backing: ReaderBacking::File {
+                mmap,
+                path,
+                dir: None,
+                unlink_on_drop: false,
+            },
         })
     }
 
@@ -752,7 +837,6 @@ impl MemTable {
             #[cfg(unix)]
             Backing::Shm { .. } => BackingKind::Shm,
             Backing::File { .. } => BackingKind::File,
-            Backing::FileRead { .. } => BackingKind::File,
         }
     }
 
@@ -763,7 +847,6 @@ impl MemTable {
             #[cfg(unix)]
             Backing::Shm { .. } => true,
             Backing::File { .. } => true,
-            Backing::FileRead { .. } => true,
         }
     }
 
@@ -772,7 +855,6 @@ impl MemTable {
     pub fn path(&self) -> Option<&Path> {
         match &self.backing {
             Backing::File { path, .. } => Some(path),
-            Backing::FileRead { path, .. } => Some(path),
             _ => None,
         }
     }
@@ -837,6 +919,140 @@ impl MemTable {
     pub fn try_push_row_unchecked(&mut self, values: &[Value]) -> WriteOutcome {
         push_plain_row_detailed(self.backing.bytes_mut(), values)
     }
+
+    /// Relinquish writer ownership while keeping the mapping alive for reads.
+    ///
+    /// Shared/file cleanup ownership is transferred to the returned reader.
+    /// A different process may acquire the writer lock after this returns.
+    pub fn into_reader(self) -> MemTableReader {
+        let this = std::mem::ManuallyDrop::new(self);
+        // SAFETY: `this` will not run `MemTable::drop`; ownership of the one
+        // backing value is moved into the returned reader exactly once.
+        let backing = unsafe { std::ptr::read(&this.backing) };
+        let backing = match backing {
+            Backing::Heap(buf) => ReaderBacking::Heap(buf),
+            #[cfg(unix)]
+            Backing::Shm {
+                mmap,
+                _writer_lock: writer_lock,
+                writer_lock_path,
+                name,
+                unlink_on_drop,
+            } => {
+                drop(writer_lock);
+                ReaderBacking::Shm {
+                    mmap,
+                    name,
+                    writer_lock_path: Some(writer_lock_path),
+                    unlink_on_drop,
+                }
+            }
+            Backing::File {
+                mmap,
+                _writer_lock: writer_lock,
+                path,
+                dir,
+                unlink_on_drop,
+            } => {
+                drop(writer_lock);
+                ReaderBacking::File {
+                    mmap,
+                    path,
+                    dir,
+                    unlink_on_drop,
+                }
+            }
+        };
+        MemTableReader { backing }
+    }
+}
+
+/// Owning read attachment to a shared MEMT table.
+///
+/// The mapping is writable at the OS level because readers update lease
+/// atomics, but this type intentionally exposes no row mutation methods.
+pub struct MemTableReader {
+    backing: ReaderBacking,
+}
+
+impl MemTableReader {
+    pub fn backing_kind(&self) -> BackingKind {
+        match &self.backing {
+            ReaderBacking::Heap(_) => BackingKind::Heap,
+            #[cfg(unix)]
+            ReaderBacking::Shm { .. } => BackingKind::Shm,
+            ReaderBacking::File { .. } => BackingKind::File,
+        }
+    }
+
+    pub fn is_shared(&self) -> bool {
+        !matches!(self.backing, ReaderBacking::Heap(_))
+    }
+
+    pub fn path(&self) -> Option<&Path> {
+        match &self.backing {
+            ReaderBacking::File { path, .. } => Some(path),
+            ReaderBacking::Heap(_) => None,
+            #[cfg(unix)]
+            ReaderBacking::Shm { .. } => None,
+        }
+    }
+
+    pub fn shm_name(&self) -> Option<&str> {
+        match &self.backing {
+            #[cfg(unix)]
+            ReaderBacking::Shm { name, .. } => Some(name),
+            ReaderBacking::Heap(_) | ReaderBacking::File { .. } => None,
+        }
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        self.backing.bytes()
+    }
+
+    pub fn view(&self) -> MemTableView<'_> {
+        MemTableView {
+            buf: self.backing.bytes(),
+        }
+    }
+
+    impl_table_reader!();
+}
+
+impl Drop for MemTableReader {
+    fn drop(&mut self) {
+        match &self.backing {
+            ReaderBacking::Heap(_) => {}
+            #[cfg(unix)]
+            ReaderBacking::Shm {
+                name,
+                writer_lock_path,
+                unlink_on_drop: true,
+                ..
+            } => {
+                if let Ok(cname) = std::ffi::CString::new(name.as_str()) {
+                    unsafe { libc::shm_unlink(cname.as_ptr()) };
+                }
+                if let Some(path) = writer_lock_path {
+                    let _ = std::fs::remove_file(path);
+                }
+            }
+            #[cfg(unix)]
+            ReaderBacking::Shm { .. } => {}
+            ReaderBacking::File {
+                path,
+                dir,
+                unlink_on_drop: true,
+                ..
+            } => {
+                let _ = std::fs::remove_file(path);
+                if let Some(dir) = dir {
+                    let _ = std::fs::remove_dir(dir);
+                }
+            }
+            ReaderBacking::File { .. } => {}
+        }
+    }
 }
 
 impl Drop for MemTable {
@@ -846,12 +1062,14 @@ impl Drop for MemTable {
             #[cfg(unix)]
             Backing::Shm {
                 name,
+                writer_lock_path,
                 unlink_on_drop: true,
                 ..
             } => {
                 if let Ok(cname) = std::ffi::CString::new(name.as_str()) {
                     unsafe { libc::shm_unlink(cname.as_ptr()) };
                 }
+                let _ = std::fs::remove_file(writer_lock_path);
             }
             #[cfg(unix)]
             Backing::Shm { .. } => {}
@@ -867,7 +1085,6 @@ impl Drop for MemTable {
                 }
             }
             Backing::File { .. } => {}
-            Backing::FileRead { .. } => {}
         }
     }
 }
@@ -1030,7 +1247,7 @@ impl<'a> MemTableWriter<'a> {
                 return WriteOutcome::Written;
             }
             if advance_chunk_raw_detailed(self.buf) == AdvanceOutcome::ReadersPinned {
-                return WriteOutcome::ReadersPinned;
+                return WriteOutcome::DroppedReadersPinned;
             }
             state.clear();
             if append_row_dedup_bytes(self.buf, state, values) {
@@ -1063,7 +1280,9 @@ impl fmt::Display for MemTableWriter<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::{BackingKind, MemTable, MemTableView, MemTableWriter, WriteOutcome};
+    use super::{
+        BackingKind, MemTable, MemTableReader, MemTableView, MemTableWriter, WriteOutcome,
+    };
     use crate::layout::{col_desc, header, header_mut, MAGIC, VERSION};
     use crate::raw::init_buf;
     use crate::refcount::{acquire_ref, refcount, release_ref};
@@ -1109,9 +1328,14 @@ mod tests {
         let row = view.rows(0).next().unwrap();
         assert_eq!(
             t.try_push_row(&[Value::I64(5)]),
-            WriteOutcome::ReadersPinned
+            WriteOutcome::DroppedReadersPinned
         );
-        assert_eq!(t.writes_blocked_by_readers(), 1);
+        assert_eq!(t.rows_dropped_by_readers(), 1);
+        assert_eq!(
+            t.num_rows(1),
+            2,
+            "failed write must not be counted as committed"
+        );
         drop(row);
         assert_eq!(t.try_push_row(&[Value::I64(5)]), WriteOutcome::Written);
     }
@@ -1339,22 +1563,63 @@ mod tests {
 
         creator.push_row(&[Value::I64(1), Value::Str("alpha")]);
 
-        // Second attachment (what another process would do) sees the data…
-        let mut attached = MemTable::open_shm(&name).unwrap();
+        // Second attachment (what another process would do) sees the data,
+        // but its type exposes only reader operations.
+        let attached = MemTable::open_shm(&name).unwrap();
+        fn assert_reader(_: &MemTableReader) {}
+        assert_reader(&attached);
         assert_eq!(attached.num_rows(0), 1);
         assert_eq!(attached.rows(0).next().unwrap().col_str(1), "alpha");
 
-        // …and writes through it are visible to the creator (same memory).
-        attached.push_row(&[Value::I64(2), Value::Str("beta")]);
+        // A second writer cannot attach while the creator owns the table.
+        assert!(MemTable::open_shm_writer(&name).is_err());
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .arg("--exact")
+            .arg("memtable::tests::shm_second_writer_child")
+            .arg("--ignored")
+            .env("PROBING_TEST_SHM_NAME", &name)
+            .status()
+            .unwrap();
+        assert!(status.success());
+        creator.push_row(&[Value::I64(2), Value::Str("beta")]);
         assert_eq!(creator.num_rows(0), 2);
 
         // Name collision is rejected.
         assert!(MemTable::shm(&name, &schema, 4096, 2).is_err());
 
-        // Creator drop unlinks the name; the attached mapping stays valid.
-        drop(creator);
+        // Explicit handoff releases ownership without unlinking the table.
+        let owner = creator.into_reader();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        let mut successor = loop {
+            match MemTable::open_shm_writer(&name) {
+                Ok(writer) => break writer,
+                Err(error)
+                    if error.kind() == std::io::ErrorKind::WouldBlock
+                        && std::time::Instant::now() < deadline =>
+                {
+                    std::thread::yield_now();
+                }
+                Err(error) => panic!("take over POSIX shm writer: {error}"),
+            }
+        };
+        assert!(successor.push_row(&[Value::I64(3), Value::Str("gamma")]));
+        assert_eq!(attached.num_rows(0), 3);
+        drop(successor);
+
+        // The original cleanup owner still controls the shm name lifetime.
+        drop(owner);
         assert!(MemTable::open_shm(&name).is_err());
-        assert_eq!(attached.num_rows(0), 2);
+        assert_eq!(attached.num_rows(0), 3);
+    }
+
+    #[test]
+    #[ignore = "helper process for shm_backing_roundtrip_and_unlink"]
+    #[cfg(unix)]
+    fn shm_second_writer_child() {
+        let Ok(name) = std::env::var("PROBING_TEST_SHM_NAME") else {
+            return;
+        };
+        assert!(MemTable::open_shm_writer(&name).is_err());
     }
 
     #[test]
