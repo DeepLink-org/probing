@@ -1,16 +1,17 @@
 use crate::dedup::DedupState;
-use crate::layout::{chunk_header, w32, CHUNK_HEADER_SIZE};
+use crate::layout::{chunk_header, col_desc, w32, CHUNK_HEADER_SIZE};
 use crate::raw::note_row_ts;
+use crate::schema::DType;
 use std::sync::atomic::Ordering;
 
-/// Streaming row writer — **low-overhead, weak-contract** hot-path API.
+/// Streaming row writer — low-overhead, schema-checked hot-path API.
 ///
 /// MEMT is single-writer, so no lock is taken; the `&mut` borrow guarantees
 /// exclusive access for the writer's lifetime.
 ///
-/// Callers must supply columns in schema order via the typed `put_*`
-/// methods; **no per-call schema validation is performed**.
-/// Mismatched column count or types produce silently corrupt rows.
+/// Callers supply columns in schema order via the typed `put_*` methods.
+/// A type/count mismatch makes [`finish`](Self::finish) return `false` and
+/// commits nothing.
 ///
 /// When created from a writer with dedup enabled, string/bytes columns
 /// participate in hash-based dedup automatically.
@@ -24,6 +25,8 @@ pub struct RowWriter<'a> {
     pub(crate) overflow: bool,
     pub(crate) done: bool,
     pub(crate) col_idx: usize,
+    pub(crate) expected_cols: usize,
+    pub(crate) schema_mismatch: bool,
     /// `Header::ts_col` (timestamp column index + 1; 0 = none).
     pub(crate) ts_col: u16,
     /// Timestamp captured by `put_i64` on the designated column,
@@ -32,6 +35,14 @@ pub struct RowWriter<'a> {
 }
 
 impl<'a> RowWriter<'a> {
+    fn take_column(&mut self, dtype: DType) -> bool {
+        let matches = self.col_idx < self.expected_cols
+            && col_desc(self.buf, self.col_idx).dtype == dtype as u32;
+        self.col_idx += 1;
+        self.schema_mismatch |= !matches;
+        matches
+    }
+
     fn can_write(&self, n: usize) -> bool {
         !self.overflow && self.pos + n <= self.chunk_start + self.chunk_size
     }
@@ -74,60 +85,70 @@ impl<'a> RowWriter<'a> {
     }
 
     pub fn put_u8(&mut self, v: u8) -> &mut Self {
-        self.write_raw(&[v]);
-        self.col_idx += 1;
+        if self.take_column(DType::U8) {
+            self.write_raw(&[v]);
+        }
         self
     }
     pub fn put_u32(&mut self, v: u32) -> &mut Self {
-        self.write_raw(&v.to_le_bytes());
-        self.col_idx += 1;
+        if self.take_column(DType::U32) {
+            self.write_raw(&v.to_le_bytes());
+        }
         self
     }
     pub fn put_i32(&mut self, v: i32) -> &mut Self {
-        self.write_raw(&v.to_le_bytes());
-        self.col_idx += 1;
+        if self.take_column(DType::I32) {
+            self.write_raw(&v.to_le_bytes());
+        }
         self
     }
     pub fn put_i64(&mut self, v: i64) -> &mut Self {
-        if self.ts_col as usize == self.col_idx + 1 {
-            self.pending_ts = Some(v);
+        let col_idx = self.col_idx;
+        if self.take_column(DType::I64) {
+            if self.ts_col as usize == col_idx + 1 {
+                self.pending_ts = Some(v);
+            }
+            self.write_raw(&v.to_le_bytes());
         }
-        self.write_raw(&v.to_le_bytes());
-        self.col_idx += 1;
         self
     }
     pub fn put_f32(&mut self, v: f32) -> &mut Self {
-        self.write_raw(&v.to_le_bytes());
-        self.col_idx += 1;
+        if self.take_column(DType::F32) {
+            self.write_raw(&v.to_le_bytes());
+        }
         self
     }
     pub fn put_f64(&mut self, v: f64) -> &mut Self {
-        self.write_raw(&v.to_le_bytes());
-        self.col_idx += 1;
+        if self.take_column(DType::F64) {
+            self.write_raw(&v.to_le_bytes());
+        }
         self
     }
     pub fn put_u64(&mut self, v: u64) -> &mut Self {
-        self.write_raw(&v.to_le_bytes());
-        self.col_idx += 1;
+        if self.take_column(DType::U64) {
+            self.write_raw(&v.to_le_bytes());
+        }
         self
     }
 
     pub fn put_str(&mut self, s: &str) -> &mut Self {
-        if self.dedup.is_some() {
-            self.write_str_dedup(s.as_bytes());
-        } else {
-            self.write_lp(s.as_bytes());
+        if self.take_column(DType::Str) {
+            if self.dedup.is_some() {
+                self.write_str_dedup(s.as_bytes());
+            } else {
+                self.write_lp(s.as_bytes());
+            }
         }
-        self.col_idx += 1;
         self
     }
     pub fn put_bytes(&mut self, b: &[u8]) -> &mut Self {
-        if self.dedup.is_some() {
-            self.write_str_dedup(b);
-        } else {
-            self.write_lp(b);
+        if self.take_column(DType::Bytes) {
+            if self.dedup.is_some() {
+                self.write_str_dedup(b);
+            } else {
+                self.write_lp(b);
+            }
         }
-        self.col_idx += 1;
         self
     }
 
@@ -138,7 +159,7 @@ impl<'a> RowWriter<'a> {
             return false;
         }
         self.done = true;
-        let ok = if self.overflow {
+        let ok = if self.overflow || self.schema_mismatch || self.col_idx != self.expected_cols {
             if let Some(dedup) = self.dedup.as_mut() {
                 dedup.rollback_row();
             }
@@ -232,6 +253,30 @@ mod tests {
         t.push_row(&[Value::I32(42)]);
         assert_eq!(t.num_rows(0), 1);
         assert_eq!(t.rows(0).next().unwrap().col_i32(0), 42);
+    }
+
+    #[test]
+    fn row_writer_rejects_wrong_column_count_and_types() {
+        let schema = Schema::new().col("x", DType::I32).col("label", DType::Str);
+        let mut t = MemTable::new(&schema, 1024, 1).unwrap();
+
+        assert!(!t.row_writer().put_i32(1).finish(), "missing column");
+        assert!(
+            !t.row_writer().put_i64(1).put_str("wrong").finish(),
+            "wrong dtype"
+        );
+        assert!(
+            !t.row_writer()
+                .put_i32(1)
+                .put_str("extra")
+                .put_u8(1)
+                .finish(),
+            "extra column"
+        );
+        assert_eq!(t.num_rows(0), 0);
+        assert!(t.row_writer().put_i32(7).put_str("ok").finish());
+        assert_eq!(t.num_rows(0), 1);
+        assert!(crate::validate_buf(t.as_bytes()).is_ok());
     }
 
     #[test]

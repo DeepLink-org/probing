@@ -93,6 +93,7 @@ help:
 	@echo "  test              Rust + editable Python (daily dev)"
 	@echo "  test-wheel        Installed-wheel Python tests (needs dist/*.whl)"
 	@echo "  test-ci           test + test-wheel (matches CI Python gate)"
+	@echo "  test-memtable-model  Exhaustive Loom models for MEMT publication/recycle"
 	@echo "  validate-skills   Validate bundled skills catalog (needs probing._core)"
 	@echo "  supply-chain      cargo-deny + uv lock check (matches CI)"
 	@echo "  lint              ruff + clippy + mkdocs --strict"
@@ -296,7 +297,7 @@ PYTEST_WHEEL_ARGS := tests/unit tests/regression
 PYTEST_WHEEL_FLAGS := --import-mode=importlib -o pythonpath= -o "addopts=--verbose --color=yes --durations=10 --strict-markers"
 PYTEST_WHEEL_EXTRA ?=
 
-.PHONY: test test-wheel test-ci validate-skills test-rust test-rust-unit test-rust-regression test-python test-python-unit test-python-regression test-doctest test-python-wheel coverage-python-wheel bench bench-quick
+.PHONY: test test-wheel test-ci validate-skills test-rust test-rust-unit test-rust-regression test-memtable-model test-python test-python-unit test-python-regression test-doctest test-python-wheel coverage-python-wheel bench bench-quick
 .PHONY: fmt fmt-check fmt-all-cfgs fmt-all-cfgs-check lint lint-python lint-rust lint-docs lint-core clippy clippy-fix coverage coverage-rust coverage-python bootstrap clean docs-install docs docs-serve docs-clean supply-chain
 
 test: test-rust test-python
@@ -315,6 +316,9 @@ test-rust-unit:
 test-rust-regression:
 	@export PYTHON_SYS_EXECUTABLE=$(PYTHON_ABS) PYO3_PYTHON=$(PYTHON_ABS); \
 	cargo nextest run --tests -p probing-rust-regression -p probing-macros --no-default-features --nff
+
+test-memtable-model:
+	cargo test -p probing-memtable concurrency_model --no-default-features
 
 test-python: check-dev test-python-unit test-python-regression
 test-python-unit: check-dev

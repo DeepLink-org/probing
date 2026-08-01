@@ -26,7 +26,7 @@
 //! 64       4    lease_offset        start of ReaderLease array
 //! 68       4    lease_slots         slots per chunk
 //! 72       8    instance_id         stable identity of this table incarnation
-//! 80       8    writes_blocked      AtomicU64 — writes deferred by reader pins
+//! 80       8    writes_blocked      AtomicU64 — rows dropped by reader pins
 //! 88       8    lease_failures      AtomicU64 — reader lease exhaustion
 //! 96      32    _reserved_v5
 //! ──────────────────────────────────────────────────────────

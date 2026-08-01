@@ -702,7 +702,7 @@ fn compactor_background_thread_drains_on_stop() {
             ..Default::default()
         },
     )
-    .spawn(vec![("metrics".to_string(), reader)]);
+    .spawn_readers(vec![("metrics".to_string(), reader)]);
 
     for i in 0..4 {
         writer.push_row(&[Value::I64(i), Value::F64(i as f64)]);

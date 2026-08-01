@@ -688,17 +688,24 @@ fn cold_scan(
         };
         let pages = reader.pages();
         for idx in reader.pages_in_range(tid, bounds.lower, bounds.upper) {
-            if let Some(p) = pages.get(idx) {
-                if p.source_chunk != probing_memtable::memc::SOURCE_CHUNK_NONE {
-                    covered.insert((p.source_instance, p.source_chunk as usize, p.source_gen));
-                }
-            }
+            let source = pages.get(idx).and_then(|p| {
+                (p.source_chunk != probing_memtable::memc::SOURCE_CHUNK_NONE).then_some((
+                    p.source_instance,
+                    p.source_chunk as usize,
+                    p.source_gen,
+                ))
+            });
             match reader.read_page(idx) {
                 Ok(cols) => {
                     let arrays: Vec<ArrayRef> =
                         cols.into_iter().map(cold_column_to_array).collect();
                     match RecordBatch::try_new(Arc::clone(schema), arrays) {
-                        Ok(b) if b.num_rows() > 0 => out.push(b),
+                        Ok(b) if b.num_rows() > 0 => {
+                            out.push(b);
+                            if let Some(source) = source {
+                                covered.insert(source);
+                            }
+                        }
                         Ok(_) => {}
                         Err(e) => log::error!("cold page {idx} → RecordBatch failed: {e}"),
                     }
@@ -1359,7 +1366,9 @@ impl ProbeExtensionCall for MemTableProbeExtension {}
 mod tests {
     use super::*;
     use datafusion::arrow::array::{AsArray, Float64Array, Int32Array, Int64Array, UInt8Array};
+    use probing_memtable::memc::SegmentReader;
     use probing_memtable::{MemTable, Schema as MtSchema, Value};
+    use std::io::{Read, Seek, SeekFrom, Write};
     use std::sync::Mutex;
 
     /// `PROBING_DATA_DIR` is process-global; serialize tests that mutate it.
@@ -1754,6 +1763,68 @@ mod tests {
         assert_eq!(collect_i32(&span), vec![2, 3, 4, 5]);
 
         drop(t);
+    }
+
+    #[tokio::test]
+    async fn corrupt_cold_page_keeps_covered_hot_chunk_visible() {
+        use datafusion::prelude::SessionContext;
+        use probing_memtable::memc::{ColdStore, Compactor, CompactorConfig};
+
+        let tmp = tempfile::tempdir().unwrap();
+        let hot_path = tmp.path().join("corrupt_cold");
+        let cold = tmp.path().join("cold");
+        let schema = MtSchema::new()
+            .col("timestamp", DType::I64)
+            .col("v", DType::I32);
+        let mut hot = MemTable::file_at(&hot_path, &schema, 80, 4).unwrap();
+        for i in 1i64..=6 {
+            assert!(hot.push_row(&[Value::I64(i * 100), Value::I32(i as i32)]));
+        }
+
+        {
+            let mut compactor = Compactor::new(
+                ColdStore::open(&cold).unwrap(),
+                CompactorConfig {
+                    target_segment_bytes: 1 << 30,
+                    ..Default::default()
+                },
+            );
+            assert_eq!(
+                compactor.drain_view("corrupt_cold", &hot.view()).unwrap(),
+                4
+            );
+            compactor.flush().unwrap();
+        }
+
+        let segment = cold_segment_paths(&cold).into_iter().next().unwrap();
+        let page_offset = SegmentReader::open(&segment).unwrap().pages()[0].block_off;
+        let mut file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&segment)
+            .unwrap();
+        file.seek(SeekFrom::Start(page_offset + 64)).unwrap();
+        let mut byte = [0u8; 1];
+        file.read_exact(&mut byte).unwrap();
+        byte[0] ^= 0xff;
+        file.seek(SeekFrom::Start(page_offset + 64)).unwrap();
+        file.write_all(&byte).unwrap();
+        file.flush().unwrap();
+
+        let ring = RingMmapTable::try_new(MappedFile::open(&hot_path).unwrap()).unwrap();
+        let provider: Arc<dyn TableProvider> =
+            Arc::new(HotColdTable::new(ring, cold, "corrupt_cold"));
+        let ctx = SessionContext::new();
+        ctx.register_table("corrupt_cold", provider).unwrap();
+        let all = ctx
+            .sql("SELECT v FROM corrupt_cold ORDER BY v")
+            .await
+            .unwrap()
+            .collect()
+            .await
+            .unwrap();
+
+        assert_eq!(collect_i32(&all), vec![1, 2, 3, 4, 5, 6]);
     }
 
     #[tokio::test]

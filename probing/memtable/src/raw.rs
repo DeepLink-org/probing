@@ -7,7 +7,7 @@ use crate::layout::{
     CHUNK_HEADER_SIZE, FLAGS_KNOWN, FLAG_DEDUP, MAGIC, READER_LEASE_SLOTS, TS_MAX_INIT,
     TS_MIN_INIT, VERSION,
 };
-use crate::row::{chunk_has_live_leases, pin_chunk};
+use crate::row::{chunk_has_live_leases, pin_chunk, try_lock_chunk_for_recycle};
 use crate::schema::{DType, Schema, Value};
 use std::mem;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -329,9 +329,19 @@ pub(crate) fn advance_chunk_raw_detailed(buf: &mut [u8]) -> AdvanceOutcome {
         if chunk_has_live_leases(buf, new_wc as usize) {
             new_ch.state.store(previous_state, Ordering::SeqCst);
             h.writes_blocked.fetch_add(1, Ordering::Relaxed);
-            log::warn!("memtable chunk recycle deferred: active readers still pin the chunk");
+            log::warn!("memtable row dropped: active readers still pin the recycle target");
             return AdvanceOutcome::ReadersPinned;
         }
+        // A load-only "no live leases" observation is insufficient: a
+        // reader that saw the old non-Empty state may claim immediately after
+        // the check. Reserve every slot before resetting metadata; a racing
+        // claimant makes this operation fail without touching the old bytes.
+        let Some(_recycle_guard) = try_lock_chunk_for_recycle(buf, new_wc as usize) else {
+            new_ch.state.store(previous_state, Ordering::SeqCst);
+            h.writes_blocked.fetch_add(1, Ordering::Relaxed);
+            log::warn!("memtable row dropped: reader raced with recycle ownership");
+            return AdvanceOutcome::ReadersPinned;
+        };
 
         if cur_cs != cs {
             cur_ch
@@ -348,11 +358,16 @@ pub(crate) fn advance_chunk_raw_detailed(buf: &mut [u8]) -> AdvanceOutcome {
                 h.rows_overwritten.load(Ordering::Relaxed)
             );
         }
-        new_ch.generation.fetch_add(1, Ordering::AcqRel);
         new_ch.used.store(0, Ordering::Relaxed);
         new_ch.row_count.store(0, Ordering::Relaxed);
         new_ch.min_ts.store(TS_MIN_INIT, Ordering::Relaxed);
         new_ch.max_ts.store(TS_MAX_INIT, Ordering::Relaxed);
+        // Publish the new generation only after resetting every extent/range
+        // field. A late reader can observe the same Writing state on both
+        // sides of the Empty transition (state ABA); if it observes this new
+        // generation, the Acquire generation load in `pin_chunk` must also
+        // make `used == 0` and the other reset metadata visible.
+        new_ch.generation.fetch_add(1, Ordering::AcqRel);
         new_ch
             .state
             .store(ChunkState::Writing as u32, Ordering::Release);

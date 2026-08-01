@@ -102,6 +102,8 @@
 //! ```
 
 mod cache;
+#[cfg(test)]
+mod concurrency_model;
 mod dedup;
 pub mod discover;
 pub mod docs;
@@ -128,7 +130,9 @@ pub use memh::{
     MemhValidateError, MemhView, MemhWriter, SharedMemhWriter, TypedValue, MAGIC_MEMH,
     VERSION_MEMH,
 };
-pub use memtable::{BackingKind, MemTable, MemTableView, MemTableWriter, WriteOutcome};
+pub use memtable::{
+    BackingKind, MemTable, MemTableReader, MemTableView, MemTableWriter, WriteOutcome,
+};
 pub use raw::validate_buf;
 pub use refcount::{acquire_ref, refcount, release_ref};
 pub use row::{Row, RowCursor, RowIter};

@@ -52,7 +52,7 @@ use super::reader::SegmentReader;
 use super::store::ColdStore;
 use super::writer::SegmentWriter;
 use crate::layout::ChunkState;
-use crate::memtable::{MemTable, MemTableView};
+use crate::memtable::{MemTable, MemTableReader, MemTableView};
 use crate::schema::{DType, Value};
 
 /// Roll/retention policy for a [`Compactor`].
@@ -147,6 +147,20 @@ pub struct Compactor {
     /// table's `drained_gen` the first time it is seen, so a restart over a
     /// persistent cold dir does not re-compact already-persisted chunks.
     seed: HashMap<(String, u64), HashMap<usize, u64>>,
+}
+
+enum CompactorSource {
+    Writer(MemTable),
+    Reader(MemTableReader),
+}
+
+impl CompactorSource {
+    fn view(&self) -> MemTableView<'_> {
+        match self {
+            Self::Writer(table) => table.view(),
+            Self::Reader(table) => table.view(),
+        }
+    }
 }
 
 impl Compactor {
@@ -391,11 +405,29 @@ impl Compactor {
 
     /// Move this compactor onto a background thread that drains `sources`
     /// every `poll_interval`, rolls by size/age, and enforces the budget.
-    /// Each source is `(table_name, read_handle)`; the handle must be a
-    /// shared/file-backed [`MemTable`] the application is writing elsewhere.
+    /// Each source is `(table_name, handle)`.
     /// Dropping (or [`stop`](CompactorHandle::stop)ping) the returned handle
     /// does a final drain + flush so no sealed chunk is left behind.
-    pub fn spawn(mut self, sources: Vec<(String, MemTable)>) -> CompactorHandle {
+    pub fn spawn(self, sources: Vec<(String, MemTable)>) -> CompactorHandle {
+        self.spawn_sources(
+            sources
+                .into_iter()
+                .map(|(name, table)| (name, CompactorSource::Writer(table)))
+                .collect(),
+        )
+    }
+
+    /// Spawn with independent read attachments while another owner writes.
+    pub fn spawn_readers(self, sources: Vec<(String, MemTableReader)>) -> CompactorHandle {
+        self.spawn_sources(
+            sources
+                .into_iter()
+                .map(|(name, table)| (name, CompactorSource::Reader(table)))
+                .collect(),
+        )
+    }
+
+    fn spawn_sources(mut self, sources: Vec<(String, CompactorSource)>) -> CompactorHandle {
         let stop = Arc::new(AtomicBool::new(false));
         let stop_thread = stop.clone();
         let runtime_stats = Arc::new(SharedRuntimeStats::default());

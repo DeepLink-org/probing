@@ -25,9 +25,9 @@ pub fn run(args: &MixedArgs, json: bool, seed: u64) -> Result<()> {
     let writers = 1usize;
     let readers = args.readers;
 
-    // Create the shared backing; keep the creator alive for the whole run.
+    // Create the shared backing; the creator handle is the sole writer.
     let mut cleanup_file: Option<std::path::PathBuf> = None;
-    let (attach, _creator) = match args.backend {
+    let (attach, creator) = match args.backend {
         Backend::Heap => bail!("mixed requires a shared backend (shm/file/shared), not heap"),
         Backend::Shm => {
             let name = shm_name();
@@ -89,33 +89,30 @@ pub fn run(args: &MixedArgs, json: bool, seed: u64) -> Result<()> {
             ttl: args.ttl_secs.map(Duration::from_secs),
         };
         let handle = attach.open()?;
-        Some(Compactor::new(store, config).spawn(vec![("bench".to_string(), handle)]))
+        Some(Compactor::new(store, config).spawn_readers(vec![("bench".to_string(), handle)]))
     };
 
     let mut threads = Vec::new();
 
-    for tid in 0..writers {
-        let attach = attach.clone();
-        let spec = spec.clone();
-        let stop = stop.clone();
-        let write_rows = write_rows.clone();
-        let seed = seed ^ (0x9E37_79B9_u64.wrapping_mul(tid as u64 + 1));
-        threads.push(std::thread::spawn(move || -> Result<()> {
-            let mut table = attach.open()?;
-            let mut gen = RowGen::new(spec.clone(), seed, (tid as i64) * 1_000_000_000);
-            let mut scratch: Vec<f64> = Vec::new();
-            let mut local = 0u64;
-            while !stop.load(Ordering::Relaxed) {
-                for _ in 0..256 {
-                    let values = gen.values(&mut scratch);
-                    table.push_row_unchecked(&values);
-                }
-                local += 256;
+    let spec_for_writer = spec.clone();
+    let stop_writer = stop.clone();
+    let write_rows_writer = write_rows.clone();
+    let writer_seed = seed ^ 0x9E37_79B9_u64;
+    threads.push(std::thread::spawn(move || -> Result<()> {
+        let mut table = creator;
+        let mut gen = RowGen::new(spec_for_writer, writer_seed, 0);
+        let mut scratch: Vec<f64> = Vec::new();
+        let mut local = 0u64;
+        while !stop_writer.load(Ordering::Relaxed) {
+            for _ in 0..256 {
+                let values = gen.values(&mut scratch);
+                table.push_row_unchecked(&values);
             }
-            write_rows.fetch_add(local, Ordering::Relaxed);
-            Ok(())
-        }));
-    }
+            local += 256;
+        }
+        write_rows_writer.fetch_add(local, Ordering::Relaxed);
+        Ok(())
+    }));
 
     for _ in 0..readers {
         let attach = attach.clone();

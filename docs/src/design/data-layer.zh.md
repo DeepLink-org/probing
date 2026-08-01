@@ -99,11 +99,14 @@ graph LR
 每个槽位携带单调递增的 `generation`（每次环形绕回到该槽位即自增）。读取者按**逻辑顺序（旧 → 新）**
 物化 chunk，并在读取后复核 generation——若某 chunk 在读取过程中被回收，则丢弃而非暴露半行数据。
 
-### 单写者模型（无锁）
+### 单写者模型
 
 MEMT 是**单写者**：每个缓冲区恰好一个写者拥有（创建者进程；进程内的写由调用方自行串行化）。缓冲区
-内**没有写锁**——写者直接追加行，不在任何锁字上做 CAS 或屏障。读者免锁，与写者之间仅通过逐 chunk
-的 `used` / `row_count` 的 `Release` 存储以及 `generation` 复核来协调。
+内**没有逐行写锁**——写者直接追加行，不在任何锁字上做 CAS 或屏障。共享内存和文件后端在 writer
+handle 的生命周期内持有 OS 级 ownership lock，第二个进程无法再打开 writer。`open_shm` 与
+`open_file_readonly` 返回只暴露读取和 reader lease 的 `MemTableReader`；崩溃恢复可显式调用
+`open_shm_writer`。读者免锁，与写者之间仅通过逐 chunk 的 `used` / `row_count` 的 `Release` 存储以及
+`generation` 复核来协调。
 
 为何安全且足够：
 
@@ -114,6 +117,10 @@ MEMT 是**单写者**：每个缓冲区恰好一个写者拥有（创建者进�
 - 去掉锁还顺带消除了 PID 抢占自旋锁必须防范的 fork 隐患（fork 出的子进程继承了缓存的启动时间，被误
   判为 PID 回收）。
 
+如果下一个环形槽位在有界等待后仍被 reader pin，本行会**明确丢弃且不提交**：`try_push_row` 返回
+`WriteOutcome::DroppedReadersPinned`，同时 `rows_dropped_by_readers()` 递增。调用方可以重试，但
+memtable 不再把这种数据损失描述成“deferred”。
+
 > **冷层（MEMC）** 是另一套并发模型——多个压实写者由 `writer_id` 与段隔离区分——不受 MEMT 单写者
 > 模型影响。
 
@@ -121,8 +128,9 @@ MEMT 是**单写者**：每个缓冲区恰好一个写者拥有（创建者进�
 
 由于数据是**单条生成**的，单行提交路径被尽量做轻：
 
-- **每行零分配。** `RowWriter` 流式 API 直接把各字段编码进 ring chunk，不再为每行构造
-  `Vec<Value>`。（`push_row(&[Value])` 便捷接口仍可用，但要求调用方先物化一个 value 切片。）
+- **每行零分配。** `RowWriter` 流式 API 会按 schema 校验每个 typed `put_*`，并直接把字段编码进 ring
+  chunk，不再为每行构造 `Vec<Value>`。类型或列数不匹配时 `finish()` 返回 `false` 且不提交。
+  （`push_row(&[Value])` 便捷接口仍可用，但要求调用方先物化一个 value 切片。）
 - **无锁，也无每行 `catch_unwind`。** 单写者下既无需加锁，也无需在 panic 时释放锁，因此既不需要逐行
   的 CAS + `Release` 屏障，也不需要 `catch_unwind`/`Drop` 守卫。
 
@@ -293,3 +301,26 @@ chunk。每行恰好计数一次，且去重对环形回收免疫（generation �
 数据层附带单元与端到端测试：热层环形的锁/回收/fork 测试（`probing-memtable`）、MEMC 的
 格式/恢复/compactor 测试（含带反例的重启去重），以及经运行时 owner 排空、再通过真实 catalog 路径
 查询合并结果的 SQL 端到端测试（`probing-core::memtable_sql`）。
+
+### 可执行并发论证
+
+`probing-memtable` 还通过 [Loom](https://github.com/tokio-rs/loom) 穷举无锁读取所依赖的两组原子协议：
+
+| 协议 | happens-before 边 | 验证的不变量 |
+|---|---|---|
+| 行发布 | payload 写入 → `used.store(Release)` → `used.load(Acquire)` | 可见行范围内一定包含完整行 |
+| pin/回收 | 发布 `Empty` → 独占保留全部 lease 槽位 → 重置元数据 → 发布 generation → 下一次追加 | generation 稳定的读者不会混读不同代的 payload 字段 |
+
+回收模型发现了原“只 load 检查 lease”协议中的迟到 claim 竞态：读者可能在写者最后一次观察后取得
+lease，并通过 state/generation 的 ABA 校验。现在写者会在修改目标前以 compare-and-exchange 独占保留
+全部 lease 槽位；任一槽位失败时释放已保留的槽位并恢复原 chunk 状态。
+
+可以单独运行模型：
+
+```bash
+make test-memtable-model
+```
+
+这是对精简原子状态机的可执行证明，不是整个存储引擎的形式化证明。模型不覆盖 OS 写锁、`fork`、PID
+存活性系统调用、mmap/文件系统行为、MEMC 或 generation 计数器溢出；其中前四项在可行范围内由实现级
+测试覆盖。
