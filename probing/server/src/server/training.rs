@@ -23,7 +23,7 @@ FROM python.trace_event s
 JOIN python.trace_event e
   ON s.span_id = e.span_id AND e.record_type = 'span_end'
 WHERE s.record_type = 'span_start' AND s.name = 'train.step'
-ORDER BY s.time ASC
+ORDER BY s.time DESC
 LIMIT 10000
 "#;
 

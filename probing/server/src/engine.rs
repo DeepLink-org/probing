@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use datafusion::sql::sqlparser::ast::{Expr, Set, Statement, Value};
+use datafusion::sql::sqlparser::dialect::GenericDialect;
+use datafusion::sql::sqlparser::parser::Parser;
 use probing_proto::prelude::*;
 
 use crate::extensions as se;
@@ -54,9 +57,9 @@ pub async fn initialize_engine() -> Result<()> {
     let builder = builder.with_data_source(cc::KMsgProbeDataSource::create("process", "kmsg"));
 
     let result = probing_core::initialize_engine(builder).await;
-    // Opt-in background hot→cold compaction (PROBING_COLD=on / SET memtable.cold_compaction).
-    crate::memtable_ext::start_cold_compaction_from_env();
     if result.is_ok() {
+        // Opt-in background hot→cold compaction (PROBING_COLD=on / SET memtable.cold_compaction).
+        crate::memtable_ext::start_cold_compaction_from_env();
         cc::start_cpu_sampling_from_env();
         #[cfg(feature = "gpu")]
         gpu::start_gpu_sampling_from_env();
@@ -65,36 +68,51 @@ pub async fn initialize_engine() -> Result<()> {
     result.map_err(anyhow::Error::new)
 }
 
-/// Parse `SET key = value` (value may be quoted).
-fn parse_set_assignment(stmt: &str) -> Option<(&str, &str)> {
-    let mut s = stmt.trim();
-    if s.len() >= 3 && s.as_bytes()[..3].eq_ignore_ascii_case(b"set") {
-        s = s[3..].trim_start();
-    } else {
-        return None;
+fn config_value_from_expr(expr: &Expr) -> String {
+    match expr {
+        Expr::Value(value) => match &value.value {
+            Value::SingleQuotedString(value)
+            | Value::TripleSingleQuotedString(value)
+            | Value::TripleDoubleQuotedString(value)
+            | Value::EscapedStringLiteral(value)
+            | Value::UnicodeStringLiteral(value) => value.clone(),
+            _ => expr.to_string(),
+        },
+        _ => expr.to_string(),
     }
-    let eq = s.find('=')?;
-    let key = s[..eq].trim();
-    if key.is_empty() {
-        return None;
-    }
-    let mut value = s[eq + 1..].trim();
-    if value.len() >= 2 {
-        let bytes = value.as_bytes();
-        if (bytes[0] == b'\'' && bytes[bytes.len() - 1] == b'\'')
-            || (bytes[0] == b'"' && bytes[bytes.len() - 1] == b'"')
-        {
-            value = &value[1..value.len() - 1];
-        }
-    }
-    Some((key, value))
 }
 
-fn is_set_expr(expr: &str) -> bool {
-    expr.split(';').any(|part| {
-        let p = part.trim();
-        p.len() >= 3 && p.as_bytes()[..3].eq_ignore_ascii_case(b"set")
-    })
+/// Parse an all-SET request into config assignments. Non-SET SQL returns `None`.
+fn parse_config_assignments(expr: &str) -> Result<Option<Vec<(String, String)>>> {
+    let statements = match Parser::parse_sql(&GenericDialect {}, expr) {
+        Ok(statements) => statements,
+        Err(_) => return Ok(None),
+    };
+    if !statements
+        .iter()
+        .any(|statement| matches!(statement, Statement::Set(_)))
+    {
+        return Ok(None);
+    }
+    if statements
+        .iter()
+        .any(|statement| !matches!(statement, Statement::Set(_)))
+    {
+        anyhow::bail!("SET statements cannot be mixed with query statements");
+    }
+
+    statements
+        .into_iter()
+        .map(|statement| match statement {
+            Statement::Set(Set::SingleAssignment {
+                variable, values, ..
+            }) if values.len() == 1 => {
+                Ok((variable.to_string(), config_value_from_expr(&values[0])))
+            }
+            _ => anyhow::bail!("only single-variable SET assignments are supported"),
+        })
+        .collect::<Result<Vec<_>>>()
+        .map(Some)
 }
 
 /// Route extension SET knobs through `config::write` (`probing.<namespace>.*`).
@@ -116,24 +134,13 @@ pub async fn handle_query(request: Query) -> Result<QueryDataFormat> {
 
     // We are already running within the Axum/Tokio runtime.
 
-    if is_set_expr(&expr) {
-        for q in expr.split(';').map(str::trim).filter(|s| !s.is_empty()) {
-            log::debug!("Executing SET statement: {q}");
-            // NOTE: `config::write` acquires the engine write lock, so the
-            // `engine.sql` branch must scope its read lock to that iteration only.
-            let outcome = if let Some((key, value)) = parse_set_assignment(q) {
-                execute_set_via_config(key, value).await
-            } else {
-                ENGINE
-                    .read()
-                    .await
-                    .sql(q)
-                    .await
-                    .map(|_| ())
-                    .map_err(Into::into)
-            };
-            outcome.with_context(|| format!("Failed SET query '{q}'"))?;
-            log::debug!("Successfully executed SET statement: {q}");
+    if let Some(assignments) = parse_config_assignments(&expr)? {
+        for (key, value) in assignments {
+            log::debug!("Executing SET for config key: {key}");
+            execute_set_via_config(&key, &value)
+                .await
+                .with_context(|| format!("Failed SET for config key '{key}'"))?;
+            log::debug!("Successfully executed SET for config key: {key}");
         }
         return Ok(QueryDataFormat::Nil);
     }
@@ -185,6 +192,7 @@ fn query_response_partial(stats: &probing_core::core::federation::FanoutStats) -
 pub struct QueryHttpEnvelope {
     pub body: String,
     pub partial: bool,
+    pub error: bool,
 }
 
 // 处理Web API查询请求
@@ -217,6 +225,8 @@ async fn query_in_fanout_context(req: String) -> ApiResult<QueryHttpEnvelope> {
         }
     };
 
+    let error = matches!(&reply_payload, QueryDataFormat::Error(_));
+
     // Wrap the payload in a Message
     let stats = take_fanout_stats();
     let partial = query_response_partial(&stats);
@@ -235,5 +245,9 @@ async fn query_in_fanout_context(req: String) -> ApiResult<QueryHttpEnvelope> {
     let body = serde_json::to_string(&reply_message)
         .inspect_err(|e| log::error!("Failed to serialize query response: {e}"))
         .map_err(|e| ApiError::internal(format!("Failed to create response: {e}")))?;
-    Ok(QueryHttpEnvelope { body, partial })
+    Ok(QueryHttpEnvelope {
+        body,
+        partial,
+        error,
+    })
 }

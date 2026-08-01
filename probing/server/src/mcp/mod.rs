@@ -317,7 +317,7 @@ impl ProbingMcp {
             format!("probing.{key}")
         };
         let stmt = format!("set {}='{}'", probe_key, escape_sql_string(&value));
-        audit_mcp_write("set_config", &stmt);
+        audit_mcp_write("set_config", &format!("key={probe_key}"));
         handle_query(Query {
             expr: stmt,
             opts: None,

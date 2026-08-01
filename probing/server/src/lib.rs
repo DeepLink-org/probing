@@ -2,6 +2,7 @@
 pub mod mcp;
 
 mod asset;
+mod bootstrap;
 // Make auth module public for integration tests
 pub mod auth;
 pub mod cluster_http;
@@ -9,8 +10,12 @@ mod cluster_report_backoff;
 mod engine;
 mod engine_lifecycle;
 mod extensions;
+mod failure;
 pub mod memtable_ext;
 mod report;
+mod runtime_config;
+mod runtime_state;
+mod supervisor;
 // Make server module public for integration tests in tests/ directory
 pub mod server;
 mod torchrun_cluster;
@@ -28,6 +33,8 @@ pub use self::torchrun_cluster::{
 };
 
 pub fn cleanup() -> anyhow::Result<()> {
+    runtime_state::shutdown();
+
     let prefix = std::env::var("PROBING_CTRL_ROOT").unwrap_or("/tmp/probing/".to_string());
 
     let pid = std::process::id();

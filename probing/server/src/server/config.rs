@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 /// Maximum request body size allowed (5MB)
 pub const MAX_REQUEST_BODY_SIZE: usize = 5 * 1024 * 1024;
 
@@ -7,32 +9,38 @@ pub const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024;
 /// Static allowed base directories (relative paths resolved at runtime).
 pub const ALLOWED_FILE_DIRS: &[&str] = &["./logs", "./data", "./config", "/tmp"];
 
-/// Get maximum request body size from environment or use default
-pub fn get_max_request_body_size() -> usize {
-    std::env::var("PROBING_MAX_REQUEST_SIZE")
-        .unwrap_or(MAX_REQUEST_BODY_SIZE.to_string())
-        .parse::<usize>()
-        .unwrap_or(MAX_REQUEST_BODY_SIZE)
+fn parse_env<T>(key: &str) -> Option<T>
+where
+    T: FromStr,
+{
+    std::env::var(key).ok().and_then(|raw| raw.parse().ok())
 }
 
-/// HTTP connection limit — defaults to max(fan-out concurrency, 128).
+/// Get maximum request body size from environment or use default
+pub fn get_max_request_body_size() -> usize {
+    parse_env("PROBING_MAX_REQUEST_SIZE").unwrap_or(MAX_REQUEST_BODY_SIZE)
+}
+
+/// HTTP in-flight request limit — defaults to max(fan-out concurrency, 128).
 pub fn effective_max_connections() -> usize {
-    if let Ok(raw) = std::env::var("PROBING_MAX_CONNECTIONS") {
-        if let Ok(n) = raw.trim().parse::<usize>() {
-            if n > 0 {
-                return n;
-            }
-        }
-    }
-    probing_core::core::federation::remote_fanout_concurrency().max(128)
+    crate::runtime_state::config().max_connections()
+}
+
+pub fn set_max_in_flight_requests(value: usize) {
+    crate::runtime_state::config().set_max_connections(value);
+}
+
+pub fn effective_request_timeout_secs() -> u64 {
+    crate::runtime_state::config().request_timeout_secs()
+}
+
+pub fn set_request_timeout_secs(value: u64) {
+    crate::runtime_state::config().set_request_timeout_secs(value);
 }
 
 /// Get maximum file size from environment or use default
 pub fn get_max_file_size() -> u64 {
-    std::env::var("PROBING_MAX_FILE_SIZE")
-        .unwrap_or(MAX_FILE_SIZE.to_string())
-        .parse::<u64>()
-        .unwrap_or(MAX_FILE_SIZE)
+    parse_env("PROBING_MAX_FILE_SIZE").unwrap_or(MAX_FILE_SIZE)
 }
 
 /// Runtime base directories for the file read API (stack traces, workspace sources).

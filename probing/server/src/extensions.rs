@@ -23,11 +23,11 @@ pub struct ServerProbeExtension {
     #[option(aliases=["auth.token"])]
     auth_token: Maybe<String>,
 
-    /// Maximum number of connections allowed
+    /// Maximum number of in-flight HTTP requests
     #[option(aliases=["max_conns"])]
     max_connections: Maybe<u32>,
 
-    /// Connection timeout in seconds
+    /// End-to-end HTTP request timeout in seconds
     #[option(aliases=["conn_timeout"])]
     timeout: Maybe<u64>,
 
@@ -53,8 +53,12 @@ impl Default for ServerProbeExtension {
             unix_socket: Maybe::Nothing,
             report_addr: Maybe::Nothing,
             auth_token: Maybe::Nothing,
-            max_connections: Maybe::Just(128),
-            timeout: Maybe::Just(30),  // Default timeout of 30 seconds
+            max_connections: Maybe::Just(
+                crate::runtime_state::config()
+                    .max_connections()
+                    .min(u32::MAX as usize) as u32,
+            ),
+            timeout: Maybe::Just(crate::runtime_state::config().request_timeout_secs()),
             debug: Maybe::Just(false), // Debug mode off by default
             log_level: Maybe::Just("info".to_string()), // Default log level
             assets_root: Maybe::Nothing,
@@ -112,11 +116,23 @@ impl ServerProbeExtension {
                 ));
             }
         }
+        if let Maybe::Just(count) = max_connections {
+            crate::runtime_state::config().set_max_connections(count as usize);
+        }
         self.max_connections = max_connections;
         Ok(())
     }
 
     fn set_timeout(&mut self, timeout: Maybe<u64>) -> Result<(), EngineError> {
+        if let Maybe::Just(seconds) = timeout {
+            if seconds == 0 {
+                return Err(EngineError::InvalidOptionValue(
+                    "timeout".to_string(),
+                    seconds.to_string(),
+                ));
+            }
+            crate::runtime_state::config().set_request_timeout_secs(seconds);
+        }
         self.timeout = timeout;
         Ok(())
     }

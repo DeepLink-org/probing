@@ -9,6 +9,7 @@ use once_cell::sync::Lazy;
 const UNINITIALIZED: u8 = 0;
 const READY: u8 = 1;
 const FAILED: u8 = 2;
+const INITIALIZING: u8 = 3;
 
 static STATE: AtomicU8 = AtomicU8::new(UNINITIALIZED);
 static FAIL_REASON: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
@@ -24,6 +25,12 @@ pub enum EngineInitState {
     Failed(String),
 }
 
+pub(crate) enum EngineInitClaim {
+    Claimed,
+    InProgress,
+    Ready,
+}
+
 pub fn mark_engine_ready() {
     *lock_fail_reason() = None;
     STATE.store(READY, Ordering::Release);
@@ -33,6 +40,32 @@ pub fn mark_engine_failed(reason: impl Into<String>) {
     let reason = reason.into();
     *lock_fail_reason() = Some(reason.clone());
     STATE.store(FAILED, Ordering::Release);
+}
+
+/// Claim engine initialization for the current caller.
+///
+/// A failed initialization may be retried, while an in-flight or completed initialization is
+/// left alone. `INITIALIZING` intentionally maps to the existing public `Uninitialized` state.
+pub(crate) fn begin_engine_initialization() -> EngineInitClaim {
+    let mut state = STATE.load(Ordering::Acquire);
+    loop {
+        match state {
+            READY => return EngineInitClaim::Ready,
+            INITIALIZING => return EngineInitClaim::InProgress,
+            UNINITIALIZED | FAILED => {
+                match STATE.compare_exchange_weak(
+                    state,
+                    INITIALIZING,
+                    Ordering::AcqRel,
+                    Ordering::Acquire,
+                ) {
+                    Ok(_) => return EngineInitClaim::Claimed,
+                    Err(observed) => state = observed,
+                }
+            }
+            _ => return EngineInitClaim::InProgress,
+        }
+    }
 }
 
 pub fn engine_init_state() -> EngineInitState {
@@ -57,16 +90,6 @@ pub fn engine_not_ready_message() -> Option<String> {
         EngineInitState::Uninitialized => Some("engine not initialized yet".into()),
         EngineInitState::Failed(reason) => Some(format!("engine initialization failed: {reason}")),
     }
-}
-
-pub fn engine_fail_fast_enabled() -> bool {
-    matches!(
-        std::env::var("PROBING_ENGINE_FAIL_FAST")
-            .ok()
-            .as_deref()
-            .map(str::trim),
-        Some("1") | Some("true") | Some("TRUE") | Some("on") | Some("ON")
-    )
 }
 
 #[cfg(test)]

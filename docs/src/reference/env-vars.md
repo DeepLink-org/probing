@@ -34,8 +34,11 @@ Prefix syntax: `init:SCRIPT+<mode>` runs `exec(open(SCRIPT).read())` after activ
 |----------|---------|-------------|
 | `PROBING_PORT` | unset | TCP port for the embedded HTTP server. Set to `RANDOM` for automatic port selection. Required for remote access. |
 | `PROBING_SERVER_ADDR` | Inferred from port | Explicit bind address (e.g. `0.0.0.0:8080`). |
+| `PROBING_ADVERTISE_ADDR` | Hostname | Address published to cluster peers when the server binds a wildcard address. Accepts `host`, `host:port`, IPv6, or a `{port}` placeholder. Required when the process hostname is not peer-resolvable. |
 | `PROBING_SERVER_ADDRPATTERN` | unset | IP pattern filter for multi-homed hosts. Selects the first matching interface. |
 | `PROBING_SERVER_WORKER_THREADS` | auto | Number of Tokio worker threads. |
+| `PROBING_MAX_CONNECTIONS` | `max(128, fan-out concurrency)` | Maximum number of in-flight HTTP requests. Runtime `SET server.max_connections=...` updates the same limit. |
+| `PROBING_SERVER_TIMEOUT_SECS` | `30` | End-to-end HTTP request deadline. Runtime `SET server.timeout=...` updates the same deadline. |
 | `PROBING_CTRL_ROOT` | `/tmp/probing/` | Directory for Unix domain sockets (local PID-based connections). |
 | `PROBING_MAX_REQUEST_SIZE` | server default | Maximum HTTP request body size in bytes. |
 | `PROBING_MAX_FILE_SIZE` | server default | Maximum file upload size in bytes. |
@@ -203,7 +206,7 @@ Hierarchical side-channel registration when `WORLD_SIZE > 1`. See [torchrun clus
 | `PROBING_CLUSTER_REPORT_MAX_INTERVAL_SEC` | `120` | Backoff cap (clamped below stale TTL). |
 | `PROBING_CLUSTER_REPORT_BACKOFF_FACTOR` | `2` | Multiplier per stable tick. |
 | `PROBING_CLUSTER_REPORT_BACKOFF` | `1` | Set to `0` to disable exponential backoff when stable. |
-| `PROBING_CLUSTER_STALE_SEC` | `25` | Mark node `dead` after this many seconds without heartbeat. Should exceed max interval. |
+| `PROBING_CLUSTER_STALE_SEC` | `25` | Mark a node `dead` after one TTL without heartbeat and remove it after a second TTL. Should exceed max interval. |
 | `PROBING_CLUSTER_DISCOVER_TIMEOUT_SEC` | `2` | Timeout per master/local0 discovery attempt. |
 | `PROBING_CLUSTER_REPORT_TIMEOUT_SEC` | `5` | HTTP PUT timeout for cluster report. |
 | `PROBING_CLUSTER_PRESET` | — | Used by `examples/cluster/run_multinode.sh`: `demo`, `fast`, or `steady`. |
@@ -226,7 +229,6 @@ Hierarchical side-channel registration when `WORLD_SIZE > 1`. See [torchrun clus
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PROBING_LOGLEVEL` | `info` | Rust-side log level: `trace`, `debug`, `info`, `warn`, `error`. |
-| `PROBING_ENGINE_FAIL_FAST` | — | When set to `1`/`true`, exit the process if engine initialization fails (default: server stays up but `/ready` returns 503 and queries fail). |
 | `PROBING_CRASH_BACKTRACE` | enabled | Print a backtrace on fatal signals (SIGSEGV, SIGABRT, etc.). Set to `0` to disable. |
 | `PROBING_RUST_BACKTRACE` | — | Rust error backtrace detail (similar to `RUST_BACKTRACE`). |
 | `PROBING_SAFE_DEMO` | — | Safe demonstration mode that restricts dangerous operations. |

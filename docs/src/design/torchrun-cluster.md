@@ -31,9 +31,10 @@ See [Environment variables](../reference/env-vars.md) for the full list. Highlig
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `PROBING_TORCHRUN_CLUSTER` | `1` | Enable torchrun cluster |
+| `PROBING_ADVERTISE_ADDR` | hostname | Peer-reachable address published for the current rank; set explicitly on multi-homed or non-resolvable hosts |
 | `PROBING_CLUSTER_REPORT` | `1` | Periodic heartbeat |
 | `PROBING_CLUSTER_REPORT_INTERVAL_SEC` | `10` | Base interval (seconds) |
-| `PROBING_CLUSTER_STALE_SEC` | `25` | Mark node `dead` after silence |
+| `PROBING_CLUSTER_STALE_SEC` | `25` | Mark node `dead` after one TTL; remove after a second TTL |
 | `PROBING_CLUSTER_REPORT_MAX_INTERVAL_SEC` | `120` | Backoff cap (clamped below stale) |
 
 **Stale vs backoff:** effective max interval = `min(configured_max, STALE_SEC - STALE_SEC/4 - 1)`. With default stale=25, max ≈ **18s**. For ~60s stable heartbeats, raise `PROBING_CLUSTER_STALE_SEC` (≥90 recommended).

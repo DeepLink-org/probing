@@ -118,6 +118,11 @@ Python-side collectors (same layer, different language):
 
 Stable HTTP surface: `probing/server/API.md`, enforced by `tests/regression/spec/api_spec.json`.
 
+**Host-process invariant:** `probing-server` is embedded in the instrumented application. It must
+never call `process::exit`, abort the process, or otherwise terminate the host because a probing
+engine, listener, or reporting component failed. Failures stay inside probing and surface through
+component state, logs, and readiness responses.
+
 ### L4 — Experience
 
 | Unit | Path | Responsibility |

@@ -90,9 +90,25 @@ impl Cluster {
     pub fn put(&mut self, node: Node) {
         let key = format!("{}:{}", node.host, node.addr);
 
-        // 如果有rank，维护rank索引
+        if let Some(previous) = self.nodes.get(&key) {
+            if previous.rank != node.rank {
+                if let Some(previous_rank) = previous.rank {
+                    if self.rank_index.get(&previous_rank) == Some(&key) {
+                        self.rank_index.remove(&previous_rank);
+                    }
+                }
+            }
+        }
+
+        // A rank identifies one live process generation inside a torchrun job. If its
+        // advertised endpoint changes, replace the previous endpoint instead of retaining
+        // two records for the same rank.
         if let Some(rank) = node.rank {
-            self.rank_index.insert(rank, key.clone());
+            if let Some(previous_key) = self.rank_index.insert(rank, key.clone()) {
+                if previous_key != key {
+                    self.nodes.remove(&previous_key);
+                }
+            }
         }
 
         self.nodes.insert(key, node);
