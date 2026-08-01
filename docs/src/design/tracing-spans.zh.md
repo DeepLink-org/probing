@@ -85,7 +85,7 @@ flowchart TD
 | `PROBING_SPAN_LOG_LEVEL` | `INFO` | `logger` backend 级别 |
 | `PROBING_SPAN_LOCATION` | 关 | `1` 时对每个 span 做 `inspect.stack()`（高开销） |
 
-完整列表见 [环境变量](../reference/env-vars.md#tracing--spans)。
+完整列表见 [环境变量](../reference/env-vars.zh.md)。
 
 ## 性能要点
 

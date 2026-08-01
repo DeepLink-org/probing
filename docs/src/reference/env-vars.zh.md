@@ -9,6 +9,21 @@ Probing 读取的全部 `PROBING_*` 环境变量参考（按子系统分组）�
 | `PROBING` | `0`, `1`/`followed`, `2`/`nested`, `regex:PATTERN`, `SCRIPT.py` | 未设置（禁用） | 是否启用 probing。`1` 仅当前进程；`2` 当前及子进程；`regex:` 脚本名匹配时启用。 |
 | `PROBING_ORIGINAL` | （自动设置） | — | 备份原始 `PROBING` 值；由 site_hook 设置，勿手动设置。 |
 
+## Server 与认证
+
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `PROBING_PORT` | 未设置 | 启用远程 TCP server；端口数字绑定所有 interface，`RANDOM` 自动选择端口。 |
+| `PROBING_SERVER_ADDR` | 由 port 推导 | 经运行时配置解析的显式 bind address；需要内层 SQL 字符串引号，例如 `"'127.0.0.1:8080'"`。 |
+| `PROBING_MAX_REQUEST_SIZE` | `5242880` | HTTP 请求 body 上限（字节，默认 5 MiB）。 |
+| `PROBING_MAX_CONNECTIONS` | fan-out 并发与 128 的较大值 | HTTP server 最大并发连接数；必须为正整数。 |
+| `PROBING_MAX_FILE_SIZE` | `10485760` | File API 响应上限（字节，默认 10 MiB）。 |
+| `PROBING_ALLOWED_FILE_DIRS` | server 默认目录 | 额外允许读取的目录，以冒号分隔。 |
+| `PROBING_AUTH_TOKEN` | 未设置 | 非空值启用 TCP 认证；未设置或为空时 TCP route 无认证。本地 Unix 访问使用 peer credential。 |
+| `PROBING_AUTH_USERNAME` | `admin` | Basic auth 用户名；token 作为密码。 |
+| `PROBING_AUTH_REALM` | `Probe Server` | Basic auth challenge 中的 realm。 |
+| `PROBING_MCP_ALLOW_WRITE` | 未设置 | 设为 `1`/`true`/`on`/`yes` 后启用 MCP `set_config` 与 `eval_python`。 |
+
 ## 集群 {#集群}
 
 `WORLD_SIZE > 1` 时的分层 side-channel 注册。详见 [torchrun 集群心跳](../design/torchrun-cluster.zh.md) 与 [分层 fan-out](../design/hierarchical-fanout.zh.md)。
@@ -44,4 +59,5 @@ Probing 读取的全部 `PROBING_*` 环境变量参考（按子系统分组）�
 
 ## 其余变量
 
-激活、存储、Server、认证、Tracing、采样、NCCL、RDMA、PyTorch、调试等章节与 [英文 env-vars](env-vars.md) 同步；尚未单独翻译。
+存储、Tracing、采样、RDMA、PyTorch、调试等完整条目见 [英文 env-vars](env-vars.md)；
+中文版优先完整维护影响部署与安全边界的配置。

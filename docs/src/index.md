@@ -42,13 +42,12 @@ catalog; `global.*` fans out when cluster membership is configured (see [Distrib
 
 ## Documentation
 
-| Section | Content |
-|---------|---------|
-| [Installation](installation.md) | PyPI, wheel, platforms, `PROBING` modes |
-| [Quick Start](quickstart.md) | Attach, inject, first queries |
-| [Core model](guide/concepts.md) | In-process vs attach, catalogs, step coordinates |
-| [User Guide](guide/index.md) | SQL, skills, debugging commands |
-| [Architecture](design/index.md) | Layers, storage, federation, collectors |
-| [Reference](reference/index.md) | SQL tables, CLI/API, env vars |
+| Need | Start with | Continue with |
+|------|------------|---------------|
+| Establish a first connection | [Start here](getting-started/index.md) | [Quick Start](quickstart.md) |
+| Query and diagnose a workload | [User Guide](guide/index.md) | [Examples](examples/index.md) |
+| Expose and operate an endpoint | [Operations](operations/index.md) | [Security](operations/security.md) |
+| Look up a contract | [Reference](reference/index.md) | [HTTP & MCP API](reference/http-api.md) |
+| Change the implementation | [Architecture](design/index.md) | [Contributing](contributing.md) |
 
 Contributors: [Contributing](contributing.md) · Doc style: [writing.md](writing.md)

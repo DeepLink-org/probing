@@ -48,7 +48,9 @@ docs/
     ├── installation.md  # User install (PyPI / wheel)
     ├── contributing.md  # Dev setup (make develop, .pth hook)
     ├── quickstart.md    # Quick start guide
+    ├── getting-started/ # Connection-mode entry path
     ├── guide/           # User guide
+    ├── operations/      # Deployment, health, and security runbooks
     ├── design/          # Design documents
     ├── examples/        # Example workflows
     ├── api-reference.md # API reference
@@ -58,12 +60,15 @@ docs/
 
 ## Writing Documentation
 
-See **[src/writing.md](src/writing.md)** for tone and structure (logical / technical narrative;
-avoid product and persona routing).
+See **[src/writing.md](src/writing.md)** for information architecture, canonical sources,
+bilingual policy, tone, and the page quality checklist.
 
 All documentation is written in Markdown
 - Use [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/reference/) extensions
 - Admonitions, code blocks with copy button, and Mermaid diagrams are supported
+
+Run `make build` before submitting. The build uses strict mode, so unresolved internal links,
+invalid navigation entries, and MkDocs warnings fail the check.
 
 ### Example Admonition
 

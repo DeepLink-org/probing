@@ -25,17 +25,17 @@ install:
 serve:
 	@echo "Starting live preview server..."
 	@echo "Open http://127.0.0.1:8000 in your browser"
-	mkdocs serve --dev-addr 0.0.0.0:8000
+	PROBING=0 PROBING_CLI_MODE=1 $(PYTHON) -m mkdocs serve --dev-addr 0.0.0.0:8000
 
 # Build static site
 build:
 	@echo "Building documentation..."
-	mkdocs build
+	PROBING=0 PROBING_CLI_MODE=1 $(PYTHON) -m mkdocs build
 
 # Strict build (broken links fail) — used by root `make lint`
 lint:
 	@echo "Linting documentation (mkdocs --strict)..."
-	$(PYTHON) -m mkdocs build --strict
+	PROBING=0 PROBING_CLI_MODE=1 $(PYTHON) -m mkdocs build --strict
 
 # Clean build artifacts
 clean:
@@ -45,4 +45,4 @@ clean:
 # Deploy to GitHub Pages
 deploy:
 	@echo "Deploying to GitHub Pages..."
-	mkdocs gh-deploy --force
+	PROBING=0 PROBING_CLI_MODE=1 $(PYTHON) -m mkdocs gh-deploy --force

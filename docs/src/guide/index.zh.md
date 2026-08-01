@@ -1,7 +1,7 @@
 # 用户指南
 
-面向操作员的命令与 SQL 用法。列定义、HTTP、环境变量见 **[参考手册](../reference/index.zh.md)**；
-实现见 **[架构](../design/index.zh.md)**。
+命令与 SQL 用法。列定义、HTTP、环境变量见 **[参考手册](../reference/index.zh.md)**；
+实现见 **[架构](../design/index.zh.md)**；部署与安全见 **[运行与运维](../operations/index.zh.md)**。
 
 术语：**[核心模型](concepts.zh.md)**。
 
@@ -26,7 +26,7 @@
 4. [现场调试](debugging.zh.md) — backtrace、eval、REPL
 5. [常见问题](troubleshooting.zh.md) — HTTP、inject、空表
 
-入门路径：安装指南 → 快速开始 → 核心模型（导航 **入门**）。
+入门路径：[从这里开始](../getting-started/index.zh.md) → 安装指南 → 快速开始 → 核心模型。
 
 ## 架构索引
 

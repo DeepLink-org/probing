@@ -1,7 +1,8 @@
 # User Guide
 
-Command and SQL usage for operators. Contracts (columns, HTTP, env vars) live in
+Command and SQL usage. Contracts (columns, HTTP, env vars) live in
 **[Reference](../reference/index.md)**; internals in **[Architecture](../design/index.md)**.
+Endpoint deployment and security live in **[Operations](../operations/index.md)**.
 
 Terminology: **[Core model](concepts.md)**.
 
@@ -26,7 +27,7 @@ Built-in tables: `python.torch_trace`, `python.comm_collective`, `gpu.utilizatio
 4. [Live Debugging](debugging.md) — backtrace, eval, REPL
 5. [Troubleshooting](troubleshooting.md) — HTTP, inject, empty tables
 
-Getting started path: Installation → Quick Start → Core model (nav **Getting Started**).
+Getting started path: [Start here](../getting-started/index.md) → Installation → Quick Start → Core model.
 
 ## Architecture pointers
 
