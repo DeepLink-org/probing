@@ -108,9 +108,10 @@ mod tests {
 
         let (accepted, connected) =
             tokio::join!(listener.accept_authorized(), UnixStream::connect(&path));
-        connected.expect("connect unix socket");
+        let client = connected.expect("connect unix socket");
 
         let credentials = accepted.0.peer_cred().expect("peer credentials");
         assert_eq!(credentials.uid(), nix::unistd::geteuid().as_raw());
+        drop(client);
     }
 }
