@@ -107,7 +107,10 @@ pub fn cached() -> RoleRanks {
     if ROLE_RESOLVED.load(Ordering::Relaxed) {
         return load_cached();
     }
-    if SNAPSHOT_ATTEMPTS.fetch_add(1, Ordering::Relaxed) % RESNAPSHOT_EVERY != 0 {
+    if !SNAPSHOT_ATTEMPTS
+        .fetch_add(1, Ordering::Relaxed)
+        .is_multiple_of(RESNAPSHOT_EVERY)
+    {
         return load_cached();
     }
     let ranks = snapshot();
