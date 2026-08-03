@@ -248,11 +248,14 @@ fn PlacementCell(
         .and_then(|active| placement_group_membership(active, &process));
     let cell_class = cell_classes(group, process.status.as_deref());
     let group_name = placement_group_name(group);
+    let coordinate_detail = if coordinates.is_empty() {
+        String::new()
+    } else {
+        format!(" · {coordinates}")
+    };
     let title = format!(
         "{rank_label} · {host} · GPU{local_rank} · {status} · {role}{}{}",
-        (!coordinates.is_empty())
-            .then(|| format!(" · {coordinates}"))
-            .unwrap_or_default(),
+        coordinate_detail,
         group_name
             .map(|name| format!(" · {name}"))
             .unwrap_or_default(),

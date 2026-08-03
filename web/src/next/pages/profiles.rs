@@ -152,7 +152,7 @@ fn FlamegraphData(profiler: String) -> Element {
                 ProfileSnapshotBar {
                     key: "{profiler}-{metric()}",
                     profiler: profiler.clone(),
-                    metric: is_torch.then(|| metric()),
+                    metric: if is_torch { Some(metric()) } else { None },
                     payload: data.clone(),
                 }
                 FlamegraphView {

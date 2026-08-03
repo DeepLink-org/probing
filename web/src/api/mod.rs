@@ -139,10 +139,8 @@ impl ApiClient {
         let status = response.status();
         let body = response.text().await?;
 
-        if !status.is_success() {
-            if !is_accepted_partial_response(status, &body, accepted) {
-                return Err(http_response_error(status, &body));
-            }
+        if !status.is_success() && !is_accepted_partial_response(status, &body, accepted) {
+            return Err(http_response_error(status, &body));
         }
 
         Ok(body)
@@ -171,10 +169,8 @@ impl ApiClient {
 
         let status = response.status();
         let body = response.text().await?;
-        if !status.is_success() {
-            if !is_accepted_partial_response(status, &body, accepted) {
-                return Err(http_response_error(status, &body));
-            }
+        if !status.is_success() && !is_accepted_partial_response(status, &body, accepted) {
+            return Err(http_response_error(status, &body));
         }
 
         Ok(body)
