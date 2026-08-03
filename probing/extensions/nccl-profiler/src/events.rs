@@ -1,6 +1,6 @@
 //! Event slot layouts and wait aggregation.
 
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicU64, AtomicU8};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use once_cell::sync::Lazy;
@@ -22,6 +22,20 @@ pub const EVT_PROXY_OP: u8 = 2;
 pub const EVT_PROXY_STEP: u8 = 3;
 pub const EVT_NET_PLUGIN: u8 = 4;
 pub const EVT_KERNEL_CH: u8 = 5;
+pub const EVT_GROUP: u8 = 6;
+
+/// Handle returned for group events.
+///
+/// `ncclProfilerStartTaskEvents` only creates Coll / P2P events when the group
+/// event handle is non-null, so returning null there silently disables every
+/// collective event. The plugin records nothing per group, hence a single
+/// process-wide sentinel: it is only ever tag-checked, never dereferenced as a
+/// slot. `AtomicU8` shares `u8`'s layout, so `event_type` reads `EVT_GROUP`.
+static GROUP_SENTINEL: AtomicU8 = AtomicU8::new(EVT_GROUP);
+
+pub fn group_sentinel() -> *mut std::ffi::c_void {
+    &GROUP_SENTINEL as *const AtomicU8 as *mut std::ffi::c_void
+}
 
 /// How `exec_time_ns` in `nccl.coll_perf` was measured.
 ///

@@ -42,6 +42,11 @@ try:
     from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
     from megatron.core.tensor_parallel.random import model_parallel_cuda_manual_seed
     from megatron.core.tokenizers import MegatronTokenizer
+    from megatron.core.transformer.torch_norm import WrappedTorchNorm
+    from megatron.core.transformer.transformer_block import (
+        TransformerBlockSubmodules,
+        get_num_layers_to_build,
+    )
     from megatron.core.transformer.transformer_config import TransformerConfig
 except ImportError as exc:  # pragma: no cover - optional heavy dep
     raise SystemExit(
@@ -51,6 +56,10 @@ except ImportError as exc:  # pragma: no cover - optional heavy dep
     ) from exc
 
 _SEQUENCE_LENGTH = 64
+_MICRO_BATCH_SIZE = 8
+_MODEL_PRESET = "tiny"
+_TP_SIZE = 1
+_PP_SIZE = 1
 
 
 def _wait_for_server_address(*, timeout_sec: float = 5.0) -> str | None:
@@ -98,18 +107,69 @@ def initialize_distributed(
 
 
 def model_provider() -> GPTModel:
-    transformer_config = TransformerConfig(
-        num_layers=2,
-        hidden_size=12,
-        num_attention_heads=4,
-        use_cpu_initialization=True,
-        pipeline_dtype=torch.float32,
+    if _MODEL_PRESET == "qwen3-8b":
+        transformer_config = TransformerConfig(
+            num_layers=36,
+            hidden_size=4096,
+            num_attention_heads=32,
+            num_query_groups=8,
+            ffn_hidden_size=12288,
+            tensor_model_parallel_size=_TP_SIZE,
+            pipeline_model_parallel_size=_PP_SIZE,
+            use_cpu_initialization=True,
+            params_dtype=torch.bfloat16,
+            bf16=True,
+            pipeline_dtype=torch.bfloat16,
+            normalization="RMSNorm",
+            layernorm_epsilon=1e-6,
+            gated_linear_unit=True,
+            activation_func=torch.nn.functional.silu,
+            add_bias_linear=False,
+            add_qkv_bias=False,
+            hidden_dropout=0.0,
+            attention_dropout=0.0,
+            qk_layernorm=True,
+            transformer_impl="local",
+        )
+        vocab_size = 151936
+        position_embedding_type = "rope"
+        rotary_base = 1_000_000
+    else:
+        transformer_config = TransformerConfig(
+            num_layers=2,
+            hidden_size=12,
+            num_attention_heads=4,
+            tensor_model_parallel_size=_TP_SIZE,
+            pipeline_model_parallel_size=_PP_SIZE,
+            use_cpu_initialization=True,
+            pipeline_dtype=torch.float32,
+        )
+        vocab_size = 100
+        position_embedding_type = "learned_absolute"
+        rotary_base = 10_000
+
+    layer_spec = get_gpt_layer_local_spec(
+        qk_layernorm=_MODEL_PRESET == "qwen3-8b",
+        normalization="RMSNorm" if _MODEL_PRESET == "qwen3-8b" else "LayerNorm",
     )
+    if _MODEL_PRESET == "qwen3-8b":
+        # Apex can be importable without an RMSNorm-capable fused norm. A plain
+        # layer ModuleSpec makes TransformerBlock choose Apex FusedLayerNorm for
+        # the decoder's final norm, so make that choice explicit as well.
+        layer_spec = TransformerBlockSubmodules(
+            layer_specs=[layer_spec] * get_num_layers_to_build(transformer_config),
+            layer_norm=WrappedTorchNorm,
+        )
+
     return GPTModel(
         config=transformer_config,
-        transformer_layer_spec=get_gpt_layer_local_spec(),
-        vocab_size=100,
+        transformer_layer_spec=layer_spec,
+        vocab_size=vocab_size,
         max_sequence_length=_SEQUENCE_LENGTH,
+        pre_process=parallel_state.is_pipeline_first_stage(),
+        post_process=parallel_state.is_pipeline_last_stage(),
+        position_embedding_type=position_embedding_type,
+        rotary_base=rotary_base,
     )
 
 
@@ -136,7 +196,7 @@ def get_train_data_iterator() -> Iterator:
     datasets = BlendedMegatronDatasetBuilder(
         MockGPTDataset, [1000, None, None], lambda: True, config
     ).build()
-    return iter(DataLoader(datasets[0], batch_size=8, shuffle=True))
+    return iter(DataLoader(datasets[0], batch_size=_MICRO_BATCH_SIZE, shuffle=True))
 
 
 def forward_step_func(
@@ -182,16 +242,38 @@ def load_distributed_checkpoint(
 
 
 def main() -> None:
+    global _MICRO_BATCH_SIZE, _MODEL_PRESET, _PP_SIZE, _SEQUENCE_LENGTH, _TP_SIZE
+
     parser = argparse.ArgumentParser(description="Megatron-Core + probing training loop")
     parser.add_argument("--tensor-model-parallel-size", type=int, default=2)
     parser.add_argument("--pipeline-model-parallel-size", type=int, default=1)
+    parser.add_argument(
+        "--model-preset",
+        choices=("tiny", "qwen3-8b"),
+        default="tiny",
+        help="model architecture; qwen3-8b uses the upstream 8B config with random weights",
+    )
+    parser.add_argument("--sequence-length", type=int, default=64)
+    parser.add_argument("--micro-batch-size", type=int, default=8)
     parser.add_argument("--train-iters", type=int, default=0, help="0 = unlimited")
     parser.add_argument("--max-duration-sec", type=int, default=0)
     parser.add_argument("--num-microbatches", type=int, default=1)
     parser.add_argument("--step-sleep-ms", type=int, default=0)
     parser.add_argument("--print-freq", type=int, default=10)
+    parser.add_argument(
+        "--hold-sec",
+        type=int,
+        default=0,
+        help="keep ranks alive after training so probing tables can be queried",
+    )
     parser.add_argument("--skip-checkpoint", action="store_true")
     args = parser.parse_args()
+
+    _MODEL_PRESET = args.model_preset
+    _SEQUENCE_LENGTH = args.sequence_length
+    _MICRO_BATCH_SIZE = args.micro_batch_size
+    _TP_SIZE = args.tensor_model_parallel_size
+    _PP_SIZE = args.pipeline_model_parallel_size
 
     if not torch.cuda.is_available():
         raise SystemExit("CUDA is required for the Megatron-Core training example.")
@@ -245,7 +327,7 @@ def main() -> None:
                 model=gpt_model,
                 num_microbatches=args.num_microbatches,
                 seq_length=_SEQUENCE_LENGTH,
-                micro_batch_size=8,
+                micro_batch_size=_MICRO_BATCH_SIZE,
                 decoder_seq_length=_SEQUENCE_LENGTH,
                 forward_only=False,
             )
@@ -282,6 +364,11 @@ def main() -> None:
     if rank == 0:
         print(f"finished after {iteration} iteration(s)", flush=True)
         _print_observability_hints()
+
+    if args.hold_sec > 0:
+        if rank == 0:
+            print(f"holding for {args.hold_sec}s", flush=True)
+        time.sleep(args.hold_sec)
 
 
 if __name__ == "__main__":

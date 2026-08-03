@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use arrow::array::{
-    ArrayRef, BooleanArray, Float32Array, Float64Array, Int32Array, Int64Array, RecordBatch,
-    StringArray, TimestampMicrosecondArray, TimestampMillisecondArray, TimestampNanosecondArray,
-    TimestampSecondArray,
+    ArrayRef, BooleanArray, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array,
+    Int8Array, RecordBatch, StringArray, TimestampMicrosecondArray, TimestampMillisecondArray,
+    TimestampNanosecondArray, TimestampSecondArray, UInt16Array, UInt32Array, UInt64Array,
+    UInt8Array,
 };
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit};
 use datafusion::error::{DataFusionError, Result};
@@ -369,8 +370,16 @@ fn array_data_type(seq: &Seq) -> DataType {
 
 fn empty_array_for_field(field: &Field, rows: usize) -> Result<ArrayRef> {
     Ok(match field.data_type() {
+        DataType::Int8 => Arc::new(Int8Array::from(vec![None::<i8>; rows])),
+        DataType::Int16 => Arc::new(Int16Array::from(vec![None::<i16>; rows])),
         DataType::Int32 => Arc::new(Int32Array::from(vec![None::<i32>; rows])),
         DataType::Int64 => Arc::new(Int64Array::from(vec![None::<i64>; rows])),
+        // The NCCL wait/byte counters are unsigned, so any query that casts or
+        // aggregates them lands here.
+        DataType::UInt8 => Arc::new(UInt8Array::from(vec![None::<u8>; rows])),
+        DataType::UInt16 => Arc::new(UInt16Array::from(vec![None::<u16>; rows])),
+        DataType::UInt32 => Arc::new(UInt32Array::from(vec![None::<u32>; rows])),
+        DataType::UInt64 => Arc::new(UInt64Array::from(vec![None::<u64>; rows])),
         DataType::Float32 => Arc::new(Float32Array::from(vec![None::<f32>; rows])),
         DataType::Float64 => Arc::new(Float64Array::from(vec![None::<f64>; rows])),
         DataType::Utf8 | DataType::LargeUtf8 => {
@@ -416,6 +425,27 @@ mod tests {
     #[test]
     fn node_label_falls_back_to_addr() {
         assert_eq!(node_label("", "10.0.0.2:8080"), "10.0.0.2:8080");
+    }
+
+    #[test]
+    fn peer_batches_align_to_unsigned_columns() {
+        // A peer that has not produced any rows for `wait_ns` yet still has to
+        // line up with a schema where the column is unsigned, which is what
+        // `sum(send_gpu_wait_ns)` and casts of it produce.
+        let schema = Schema::new(vec![
+            Field::new("rank", DataType::Int32, true),
+            Field::new("wait_ns", DataType::UInt64, true),
+        ]);
+        let batch = RecordBatch::try_new(
+            Arc::new(Schema::new(vec![Field::new("rank", DataType::Int32, true)])),
+            vec![Arc::new(Int32Array::from(vec![Some(1)]))],
+        )
+        .unwrap();
+
+        let aligned = align_batch_to_schema(batch, &schema).unwrap();
+        assert_eq!(aligned.num_columns(), 2);
+        assert_eq!(aligned.column(1).data_type(), &DataType::UInt64);
+        assert_eq!(aligned.column(1).null_count(), 1);
     }
 
     #[test]

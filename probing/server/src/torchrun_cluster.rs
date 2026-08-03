@@ -207,6 +207,9 @@ fn build_torchrun_node() -> Node {
     let bound = read_probing_address().clone();
     let mut node = build_local_node(&bound);
     node.addr = reachable_addr(&node.addr);
+    // The registry advertises this form, so it is also how the coordinator has
+    // to recognise itself when deciding which peers to fan out to.
+    probing_core::core::cluster::add_local_listen_addrs(vec![node.addr.clone()]);
     node.role = parallel_role_from_env();
     node
 }

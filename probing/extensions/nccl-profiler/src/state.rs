@@ -31,14 +31,14 @@ use once_cell::sync::Lazy;
 use crate::abi::net_ib_v1::{net_plugin_type, read_ib_qp, NCCL_PROFILER_NET_TYPE_IB};
 use crate::abi::{
     NcclProfilerEventDescrV3, NcclProfilerEventDescrV4, NcclProfilerEventState, NCCL_PROFILE_COLL,
-    NCCL_PROFILE_KERNEL_CH, NCCL_PROFILE_NET_PLUGIN, NCCL_PROFILE_P2P, NCCL_PROFILE_PROXY_OP,
-    NCCL_PROFILE_PROXY_STEP,
+    NCCL_PROFILE_GROUP, NCCL_PROFILE_KERNEL_CH, NCCL_PROFILE_NET_PLUGIN, NCCL_PROFILE_P2P,
+    NCCL_PROFILE_PROXY_OP, NCCL_PROFILE_PROXY_STEP,
 };
 use crate::events::{
-    copy_func_name, dtype_bytes, event_type, now_ns, proxy_step_state_index, CollContext,
-    CollPerfMeta, CollSlot, CompletedCollPerf, CompletedProxyOp, EventCounters, InflightOp,
-    KernelChSlot, NetPluginSlot, ProfilerCounterSnapshot, ProxyOpData, ProxyOpSlot, ProxyStepData,
-    ProxyStepSlot, ShortName, EVT_COLL, EVT_KERNEL_CH, EVT_NET_PLUGIN, EVT_PROXY_OP,
+    copy_func_name, dtype_bytes, event_type, group_sentinel, now_ns, proxy_step_state_index,
+    CollContext, CollPerfMeta, CollSlot, CompletedCollPerf, CompletedProxyOp, EventCounters,
+    InflightOp, KernelChSlot, NetPluginSlot, ProfilerCounterSnapshot, ProxyOpData, ProxyOpSlot,
+    ProxyStepData, ProxyStepSlot, ShortName, EVT_COLL, EVT_KERNEL_CH, EVT_NET_PLUGIN, EVT_PROXY_OP,
     EVT_PROXY_STEP,
 };
 use crate::pool::{Indexed, SlotPool, INVALID_IDX};
@@ -95,6 +95,8 @@ pub enum ParsedEvent {
         id: i64,
         data: *mut c_void,
     },
+    /// Parent of every Coll / P2P event; tracked only so NCCL keeps emitting them.
+    Group,
     Ignored,
 }
 
@@ -245,7 +247,7 @@ fn shard_for_start(event: &ParsedEvent) -> usize {
             shard_for_handle(*parent_obj).unwrap_or(0)
         }
         ParsedEvent::NetPlugin { rank, .. } => shard_for_comm(*rank as u64),
-        ParsedEvent::Ignored => 0,
+        ParsedEvent::Group | ParsedEvent::Ignored => 0,
     }
 }
 
@@ -448,6 +450,7 @@ pub fn parse_descr_v3(descr: &NcclProfilerEventDescrV3) -> ParsedEvent {
             id: unsafe { descr.body.net_plugin.id },
             data: unsafe { descr.body.net_plugin.data },
         },
+        x if x == NCCL_PROFILE_GROUP => ParsedEvent::Group,
         _ => ParsedEvent::Ignored,
     }
 }
@@ -530,6 +533,7 @@ pub fn parse_descr_v4(descr: &NcclProfilerEventDescrV4, comm: CommInfo) -> Parse
             id: unsafe { descr.body.net_plugin.id },
             data: unsafe { descr.body.net_plugin.data },
         },
+        x if x == NCCL_PROFILE_GROUP => ParsedEvent::Group,
         _ => ParsedEvent::Ignored,
     }
 }
@@ -810,6 +814,7 @@ impl Pools {
                     unsafe { *handle = std::ptr::null_mut() };
                 }
             }
+            ParsedEvent::Group => unsafe { *handle = group_sentinel() },
             ParsedEvent::Ignored => unsafe { *handle = std::ptr::null_mut() },
         }
     }

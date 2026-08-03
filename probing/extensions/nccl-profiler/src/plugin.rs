@@ -335,6 +335,35 @@ mod tests {
         }
     }
 
+    /// NCCL skips every Coll / P2P event when the group event handle comes back
+    /// null (`ncclProfilerStartTaskEvents`), so a group start must yield a handle.
+    #[test]
+    fn group_event_returns_non_null_handle() {
+        let _guard = serial();
+        let mut ctx: *mut c_void = std::ptr::null_mut();
+        let mut mask = 0i32;
+        unsafe {
+            probing_profiler_init(&mut ctx, &mut mask).unwrap();
+        }
+
+        let mut group_descr = NcclProfilerEventDescrV3 {
+            type_: crate::abi::NCCL_PROFILE_GROUP as u8,
+            parent_obj: std::ptr::null_mut(),
+            rank: 0,
+            body: NcclProfilerEventBodyV3 {
+                coll: unsafe { std::mem::zeroed() },
+            },
+        };
+        let mut group_h: *mut c_void = std::ptr::null_mut();
+        unsafe {
+            probing_profiler_start_event(ctx, &mut group_h, &mut group_descr);
+            assert!(!group_h.is_null(), "group handle gates coll events");
+            // Stopping a group must be a harmless no-op (it owns no slot).
+            probing_profiler_stop_event(group_h);
+            probing_profiler_finalize(ctx);
+        }
+    }
+
     #[test]
     fn proxy_op_with_parent_coll_batches_at_coll_stop() {
         let _guard = serial();
