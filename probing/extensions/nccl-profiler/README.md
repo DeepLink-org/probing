@@ -184,9 +184,6 @@ make nccl-profiler-lib
 
 Tune E2E with `NPROC`, `BENCH_ITERS`, `MSG_BYTES`. Disable watchdog noise during bench with `PROBING_NCCL_INFLIGHT_THRESHOLD_SECS=0` (the wrapper sets this).
 
-Measured single-node H200 results and the Megatron A/B methodology are documented
-in [`docs/src/design/nccl-profiler-overhead-experiment.zh.md`](../../../docs/src/design/nccl-profiler-overhead-experiment.zh.md).
-
 ## Compatibility
 
 - Exports **`ncclProfiler_v4`** (NCCL 2.27+) and **`ncclProfiler_v3`** (NCCL 2.26);
