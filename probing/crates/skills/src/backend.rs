@@ -100,8 +100,14 @@ pub fn decode_cluster_query_reply(
             }
             const MAX: usize = 500;
             let shown: String = body.chars().take(MAX).collect();
-            let ellipsis = if body.chars().count() > MAX { "…" } else { "" };
-            Err(SkillRunError(format!("cluster query failed: {shown}{ellipsis}")))
+            let ellipsis = if body.chars().count() > MAX {
+                "…"
+            } else {
+                ""
+            };
+            Err(SkillRunError(format!(
+                "cluster query failed: {shown}{ellipsis}"
+            )))
         }
     }
 }
