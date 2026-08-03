@@ -27,7 +27,10 @@ Probing 读取的全部 `PROBING_*` 环境变量参考（按子系统分组）�
 | `PROBING_CLUSTER_FANOUT_HIERARCHICAL` | `1` | 分层集群查询 fan-out；`0` = 扁平 fan-out 到所有 peer。 |
 | `PROBING_REMOTE_QUERY_TIMEOUT_SECS` | `30` | 远程联邦 / 集群查询的单 peer 超时（秒）。 |
 | `PROBING_FANOUT_CONCURRENCY` | `128` | 单次 cluster fan-out 的最大并发远程 HTTP 请求数。 |
-| `PROBING_ADVERTISE_ADDR` | hostname | wildcard bind 时向 peer 发布的地址；支持 `host`、`host:port`、IPv6 或 `{port}` 占位符。hostname 无法被其他节点解析时必须显式设置。 |
+| `PROBING_STACK_FANOUT_CONCURRENCY` | `32` | Distributed stacks 同时采集的最大 peer 数。 |
+| `PROBING_STACK_FANOUT_DEADLINE_SEC` | `15` | Distributed stacks 的整体 fan-out 截止时间；超时后返回已完成 peer 的部分火焰图并列出失败 peer。 |
+| `PROBING_ADVERTISE_ADDR` | `MASTER_ADDR`，否则 hostname | wildcard bind 时向 peer 发布的地址；支持 `host`、`host:port`、IPv6 或 `{port}` 占位符。多网卡环境或 `MASTER_ADDR` 不是当前节点的 peer 可达地址时必须显式设置。 |
+| `PROBING_NODE_HOST` | 操作系统 hostname | cluster heartbeat 中上报的显式 host 标签。用于容器身份和本地逻辑节点 fixture；不会改变向 peer 发布的网络地址。 |
 | `PROBING_NCCL_CHUNK_BYTES` | `65536` | NCCL profiler mmap 环缓冲 chunk 大小（字节）。 |
 | `PROBING_NCCL_NUM_CHUNKS` | `64` | NCCL profiler mmap 环缓冲 chunk 数量（默认每表约 4 MiB）。 |
 | `PROBING_NCCL_MAX_COLL_SLOTS` | `512` | 每 rank 最大 in-flight collective/P2P slot 数。 |
@@ -41,3 +44,7 @@ Probing 读取的全部 `PROBING_*` 环境变量参考（按子系统分组）�
 ## 其余变量
 
 激活、存储、Server、认证、Tracing、采样、NCCL、RDMA、PyTorch、调试等章节与 [英文 env-vars](env-vars.md) 同步；尚未单独翻译。
+
+`PROBING_TCPSTORE_INSPECT` 默认为 `0`。设为 `1` 后，
+`pytorch/runtime-debug?include_values=true` 才能预览默认打码的 TCPStore value；
+接口仍为只读，仅应在可信环境启用。

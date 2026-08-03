@@ -10,7 +10,9 @@ use crate::components::icon::Icon;
 use crate::components::page::{PageContainer, PageTitle};
 use crate::components::poll_status::{ManualRefreshStatus, RefreshButton};
 use crate::components::span_timeline::{
-    SpanTimelineBar, SpanTimelineHeader, SpanTimelineLegend, SpanTimelineSpacer, TraceTimeWindow,
+    span_cover_pct, span_self_ns, span_total_ns, SpanSummaryBar, SpanSummaryHeader,
+    SpanSummarySpacer, SpanTimelineBar, SpanTimelineHeader, SpanTimelineLegend, SpanTimelineSpacer,
+    TraceTimeWindow,
 };
 use crate::hooks::use_app_resource;
 use crate::state::investigation::{
@@ -37,6 +39,7 @@ pub fn Traces(#[props(default = true)] show_context_controls: bool) -> Element {
     let mut show_advanced = use_signal(|| false);
     let mut last_applied_ctx = use_signal(String::new);
     let clear_filters_tick = use_signal(|| 0u32);
+    let summary_layout = use_signal(|| true);
 
     use_effect(move || {
         let ctx = INVESTIGATION_CONTEXT.read().clone();
@@ -67,7 +70,7 @@ pub fn Traces(#[props(default = true)] show_context_controls: bool) -> Element {
             PageTitle {
                 title: "Spans".to_string(),
                 subtitle: Some(
-                    "Span tree with an aligned timeline lane — expand nodes to grow both views. For kernel-level chrome traces, use Profiling → Chrome trace.".to_string(),
+                    "Hierarchical spans aligned to the trace window — expand only to the diagnostic depth you need. Use Lanes for exact timing.".to_string(),
                 ),
                 icon: Some(&icondata::AiApiOutlined),
                 header_right: if show_context_controls {
@@ -97,6 +100,7 @@ pub fn Traces(#[props(default = true)] show_context_controls: bool) -> Element {
                         active_only,
                         show_advanced,
                         clear_filters_tick,
+                        summary_layout,
                         show_context_controls,
                     }
                 }),
@@ -111,6 +115,7 @@ pub fn Traces(#[props(default = true)] show_context_controls: bool) -> Element {
                         active_only,
                         expand_all,
                         collapse_all,
+                        summary_layout,
                     }
                 }
             }
@@ -130,6 +135,7 @@ fn TraceToolbar(
     active_only: Signal<bool>,
     show_advanced: Signal<bool>,
     clear_filters_tick: Signal<u32>,
+    summary_layout: Signal<bool>,
     show_context_controls: bool,
 ) -> Element {
     let limit = *SPANS_TREE_LIMIT.read();
@@ -182,6 +188,18 @@ fn TraceToolbar(
                     title: "Collapse all spans",
                     onclick: move |_| collapse_all.set(collapse_all() + 1),
                     "Collapse"
+                }
+                div { class: "flex items-center rounded-md border border-gray-300 bg-white p-0.5 text-[10px]",
+                    button {
+                        class: if summary_layout() { "rounded bg-blue-600 px-2 py-1 font-medium text-white" } else { "rounded px-2 py-1 text-gray-500 hover:bg-gray-50" },
+                        onclick: move |_| summary_layout.set(true),
+                        "Tree"
+                    }
+                    button {
+                        class: if summary_layout() { "rounded px-2 py-1 text-gray-500 hover:bg-gray-50" } else { "rounded bg-blue-600 px-2 py-1 font-medium text-white" },
+                        onclick: move |_| summary_layout.set(false),
+                        "Lanes"
+                    }
                 }
                 button {
                     class: if show_advanced() {
@@ -305,6 +323,7 @@ fn TraceTreePanel(
     active_only: Signal<bool>,
     expand_all: Signal<u32>,
     collapse_all: Signal<u32>,
+    summary_layout: Signal<bool>,
 ) -> Element {
     let spans = use_app_resource(move || {
         let _ = refresh();
@@ -328,7 +347,8 @@ fn TraceTreePanel(
                 active_only: active_only(),
                 local_step: ctx.local_step,
             };
-            let filtered = filter_span_tree(&spans, &filter(), &advanced);
+            let mut filtered = filter_span_tree(&spans, &filter(), &advanced);
+            sort_span_tree(&mut filtered);
             let total = count_spans(&spans);
             let roots = spans.len();
             let shown = count_spans(&filtered);
@@ -369,8 +389,12 @@ fn TraceTreePanel(
                         let time_window = TraceTimeWindow::from_spans(&filtered);
                         rsx! {
                             div { class: "max-h-[calc(100vh-14rem)] overflow-y-auto font-mono text-xs leading-5",
-                                SpanTimelineHeader { window: time_window }
-                                SpanTimelineLegend {}
+                                if summary_layout() {
+                                    SpanSummaryHeader { window: time_window }
+                                } else {
+                                    SpanTimelineHeader { window: time_window }
+                                    SpanTimelineLegend {}
+                                }
                                 div { class: "px-0 py-1",
                                     for span in filtered {
                                         SpanView {
@@ -381,6 +405,7 @@ fn TraceTreePanel(
                                             expand_all,
                                             collapse_all,
                                             time_window,
+                                            summary_layout: summary_layout(),
                                         }
                                     }
                                 }
@@ -395,6 +420,14 @@ fn TraceTreePanel(
 
 fn count_spans(spans: &[SpanInfo]) -> usize {
     spans.iter().map(|s| 1 + count_spans(&s.children)).sum()
+}
+
+fn sort_span_tree(spans: &mut [SpanInfo]) {
+    spans.sort_by_key(|span| span.start_timestamp);
+    for span in spans {
+        sort_span_tree(&mut span.children);
+        span.events.sort_by_key(|event| event.timestamp);
+    }
 }
 
 fn filter_span_tree(
@@ -547,8 +580,7 @@ fn span_matches_thread_only(span: &SpanInfo, highlight: &SpanHighlight) -> bool 
 }
 
 fn span_row_class(span: &SpanInfo, highlight: &SpanHighlight) -> String {
-    let base =
-        "group flex flex-wrap items-center gap-x-2 gap-y-0.5 py-0.5 px-1 rounded cursor-pointer";
+    let base = "group cursor-pointer";
     if span_is_primary_selection(span, highlight) {
         format!("{base} bg-blue-100 ring-1 ring-inset ring-blue-300 hover:bg-blue-100")
     } else if span_matches_thread_only(span, highlight) {
@@ -583,6 +615,7 @@ fn SpanView(
     expand_all: Signal<u32>,
     collapse_all: Signal<u32>,
     time_window: TraceTimeWindow,
+    summary_layout: bool,
 ) -> Element {
     let mut expanded = use_signal(|| depth < 2);
     let has_children = !span.children.is_empty();
@@ -591,13 +624,18 @@ fn SpanView(
         .attributes
         .as_ref()
         .is_some_and(|a| !a.trim().is_empty());
-    let has_details = has_children || has_events || has_attrs;
+    let has_details = has_children || has_events;
     let duration = span_duration_secs(&span);
     let indent = depth * 20;
     let trace_id = span.trace_id;
     let thread_id = span.thread_id as i32;
     let span_name = span.name.clone();
     let row_class = span_row_class(&span, &highlight);
+    let mut show_attributes = use_signal(|| false);
+    let total_ns = span_total_ns(&span, time_window);
+    let self_ns = span_self_ns(&span);
+    let cover = span_cover_pct(&span, time_window);
+    let subtree_count = count_spans(&span.children);
 
     use_effect(move || {
         if expand_all() > 0 {
@@ -612,18 +650,12 @@ fn SpanView(
 
     rsx! {
         div { class: "min-w-0",
-            div {
-                class: "flex items-stretch min-w-0 hover:bg-gray-50/50",
+            if summary_layout {
                 div {
-                    class: "flex flex-1 min-w-0 items-stretch",
-                    SpanTimelineBar {
-                        span: span.clone(),
-                        window: time_window,
-                        depth,
-                    }
+                    class: "{row_class} flex min-w-[960px] items-center border-b border-gray-100 hover:bg-gray-50/80",
                     div {
-                        class: "{row_class} flex-1 min-w-0 border-b border-gray-50",
-                        style: if indent > 0 { format!("padding-left: {indent}px") } else { String::new() },
+                        class: "flex w-[38%] min-w-[320px] shrink-0 items-center gap-2 py-1.5 pr-3",
+                        style: format!("padding-left: {}px", indent + 12),
                         onclick: move |_| {
                             set_trace_context(trace_id, Some(&span_name), Some(thread_id));
                         },
@@ -643,59 +675,117 @@ fn SpanView(
                         } else {
                             span { class: "w-4 shrink-0" }
                         }
-                        span { class: "font-semibold text-gray-900 shrink-0", "{span.name}" }
-                        if let Some(ref phase) = span.phase {
-                            span {
-                                class: format!(
-                                    "shrink-0 px-1.5 py-px rounded text-[10px] font-sans font-medium bg-{} text-{}",
-                                    colors::CONTENT_ACCENT_BG,
-                                    colors::CONTENT_ACCENT_TEXT,
-                                ),
-                                "{phase}"
+                        div { class: "min-w-0 flex-1",
+                            div { class: "flex min-w-0 items-center gap-2",
+                                span { class: "truncate font-sans text-xs font-semibold text-gray-900", "{span.name}" }
+                                if let Some(ref phase) = span.phase {
+                                    span {
+                                        class: format!(
+                                            "shrink-0 rounded px-1.5 py-px font-sans text-[10px] font-medium bg-{} text-{}",
+                                            colors::CONTENT_ACCENT_BG,
+                                            colors::CONTENT_ACCENT_TEXT,
+                                        ),
+                                        "{phase}"
+                                    }
+                                }
+                                if span.end_timestamp.is_none() {
+                                    span { class: "shrink-0 font-sans text-[10px] font-medium text-amber-600", "active" }
+                                }
+                            }
+                            div { class: "flex min-w-0 items-center gap-2 font-mono text-[9px] text-gray-400",
+                                span { class: "shrink-0", "id {span.span_id}" }
+                                span { class: "shrink-0", "thread {span.thread_id}" }
+                                if subtree_count > 0 {
+                                    span { class: "shrink-0", "{subtree_count} nested" }
+                                }
+                                if has_events {
+                                    span { class: "shrink-0", "{span.events.len()} events" }
+                                }
+                                if let Some(ref location) = span.location {
+                                    if !location.is_empty() {
+                                        span { class: "truncate", "{location}" }
+                                    }
+                                }
                             }
                         }
-                        if let Some(ref location) = span.location {
-                            if !location.is_empty() {
-                                span { class: "text-gray-500 truncate max-w-[14rem]", "{location}" }
+                        if has_attrs {
+                            button {
+                                class: if show_attributes() {
+                                    "shrink-0 rounded border border-blue-200 bg-blue-50 px-1.5 font-sans text-[9px] text-blue-700"
+                                } else {
+                                    "shrink-0 rounded border border-gray-200 px-1.5 font-sans text-[9px] text-gray-400 opacity-0 transition-opacity group-hover:opacity-100"
+                                },
+                                title: "Show span attributes",
+                                onclick: move |event| {
+                                    event.stop_propagation();
+                                    show_attributes.set(!show_attributes());
+                                },
+                                "meta"
                             }
                         }
-                        span { class: "text-gray-400 shrink-0", "id:{span.span_id}" }
-                        if let Some(parent) = span.parent_id {
-                            span { class: "text-gray-400 shrink-0", "↑{parent}" }
-                        }
-                        span { class: "text-gray-400 shrink-0", "t:{span.thread_id}" }
-                        if let Some(dur) = duration {
-                            span { class: "text-emerald-700 font-medium shrink-0", "{duration_label(dur)}" }
-                        } else {
-                            span { class: "text-amber-600 shrink-0", "active" }
-                        }
-                        if has_events {
-                            span { class: "text-gray-400 shrink-0", "{span.events.len()}evt" }
-                        }
-                        if has_children {
-                            span { class: "text-gray-400 shrink-0", "{span.children.len()}↓" }
+                    }
+                    SpanSummaryBar { span: span.clone(), window: time_window }
+                    div { class: "w-24 shrink-0 px-3 text-right font-mono text-[10px] font-medium tabular-nums text-gray-700",
+                        if span.end_timestamp.is_some() { "{format_axis_duration(total_ns)}" } else { "active" }
+                    }
+                    div { class: "w-24 shrink-0 px-3 text-right font-mono text-[10px] font-medium tabular-nums text-blue-700",
+                        if let Some(value) = self_ns { "{format_axis_duration(value)}" } else { "—" }
+                    }
+                    div { class: "w-16 shrink-0 px-3 text-right font-mono text-[10px] tabular-nums text-gray-500", "{cover:.1}%" }
+                }
+            } else {
+                div { class: "flex min-w-0 items-stretch hover:bg-gray-50/50",
+                    div { class: "flex min-w-0 flex-1 items-stretch",
+                        SpanTimelineBar { span: span.clone(), window: time_window, depth }
+                        div {
+                            class: "{row_class} flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 border-b border-gray-50 px-1 py-0.5",
+                            style: if indent > 0 { format!("padding-left: {indent}px") } else { String::new() },
+                            onclick: move |_| set_trace_context(trace_id, Some(&span_name), Some(thread_id)),
+                            if has_details {
+                                button {
+                                    class: "flex h-4 w-4 shrink-0 items-center justify-center text-gray-400 hover:text-gray-700",
+                                    onclick: move |event| {
+                                        event.stop_propagation();
+                                        expanded.set(!expanded());
+                                    },
+                                    if expanded() {
+                                        Icon { icon: &icondata::AiCaretDownOutlined, class: "h-3 w-3" }
+                                    } else {
+                                        Icon { icon: &icondata::AiCaretRightOutlined, class: "h-3 w-3" }
+                                    }
+                                }
+                            } else {
+                                span { class: "w-4 shrink-0" }
+                            }
+                            span { class: "shrink-0 font-semibold text-gray-900", "{span.name}" }
+                            if let Some(ref phase) = span.phase {
+                                span { class: format!("shrink-0 rounded px-1.5 py-px font-sans text-[10px] font-medium bg-{} text-{}", colors::CONTENT_ACCENT_BG, colors::CONTENT_ACCENT_TEXT), "{phase}" }
+                            }
+                            span { class: "shrink-0 text-gray-400", "thread {span.thread_id}" }
+                            if let Some(dur) = duration {
+                                span { class: "shrink-0 font-medium text-emerald-700", "{duration_label(dur)}" }
+                            } else {
+                                span { class: "shrink-0 text-amber-600", "active" }
+                            }
                         }
                     }
                 }
             }
 
-            if expanded() && has_details {
-                if has_attrs {
-                    div { class: "flex items-stretch min-w-0",
-                        SpanTimelineSpacer {}
-                        div {
-                            class: "flex-1 min-w-0 pb-0.5",
-                            style: format!("padding-left: {}px", indent + 20),
-                            AttributesInline { raw: span.attributes.clone().unwrap_or_default() }
-                        }
-                    }
+            if show_attributes() && has_attrs {
+                div { class: "flex min-w-[960px] border-b border-gray-100 bg-blue-50/30",
+                    if summary_layout { SpanSummarySpacer {} } else { SpanTimelineSpacer {} }
+                    div { class: "min-w-0 flex-1 px-3 py-1.5", AttributesInline { raw: span.attributes.clone().unwrap_or_default() } }
                 }
+            }
+
+            if expanded() && has_details {
                 if has_events {
                     for event in span.events.iter() {
-                        div { class: "flex items-stretch min-w-0",
-                            SpanTimelineSpacer {}
+                        div { class: "flex min-w-[960px] items-stretch border-b border-gray-50",
+                            if summary_layout { SpanSummarySpacer {} } else { SpanTimelineSpacer {} }
                             div {
-                                class: "flex-1 min-w-0",
+                                class: "min-w-0 flex-1",
                                 style: format!("padding-left: {}px", indent + 20),
                                 EventView { event: event.clone(), time_window, span_start: span.start_timestamp }
                             }
@@ -712,12 +802,17 @@ fn SpanView(
                             expand_all,
                             collapse_all,
                             time_window,
+                            summary_layout,
                         }
                     }
                 }
             }
         }
     }
+}
+
+fn format_axis_duration(duration_ns: i64) -> String {
+    crate::components::span_timeline::format_axis_label(duration_ns.max(0) as f64)
 }
 
 #[component]
@@ -779,5 +874,50 @@ fn EventView(event: EventInfo, time_window: TraceTimeWindow, span_start: i64) ->
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn span(id: i64, start: i64, children: Vec<SpanInfo>) -> SpanInfo {
+        SpanInfo {
+            span_id: id,
+            trace_id: 1,
+            parent_id: None,
+            name: format!("span-{id}"),
+            start_timestamp: start,
+            end_timestamp: Some(start + 10),
+            thread_id: 1,
+            phase: None,
+            location: None,
+            attributes: None,
+            children,
+            events: vec![],
+        }
+    }
+
+    #[test]
+    fn summary_tree_sorts_every_hierarchy_level_by_time() {
+        let mut spans = vec![
+            span(2, 20, vec![]),
+            span(1, 10, vec![span(4, 18, vec![]), span(3, 12, vec![])]),
+        ];
+
+        sort_span_tree(&mut spans);
+
+        assert_eq!(
+            spans.iter().map(|span| span.span_id).collect::<Vec<_>>(),
+            vec![1, 2]
+        );
+        assert_eq!(
+            spans[0]
+                .children
+                .iter()
+                .map(|span| span.span_id)
+                .collect::<Vec<_>>(),
+            vec![3, 4]
+        );
     }
 }

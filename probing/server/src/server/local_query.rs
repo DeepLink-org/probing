@@ -8,6 +8,8 @@ use hyper::Request;
 use hyper_util::rt::TokioIo;
 use serde::Deserialize;
 
+use super::error::ApiError;
+
 #[derive(Debug, Deserialize)]
 pub struct LocalPidQuery {
     pid: i32,
@@ -19,11 +21,10 @@ pub async fn query_local_pid(
 ) -> impl IntoResponse {
     match forward_query_to_pid(params.pid, body).await {
         Ok(response) => (StatusCode::OK, response).into_response(),
-        Err(err) => (
-            StatusCode::BAD_GATEWAY,
-            format!("Failed to query local pid {}: {}", params.pid, err),
-        )
-            .into_response(),
+        Err(err) => {
+            ApiError::bad_gateway(format!("Failed to query local pid {}: {}", params.pid, err))
+                .into_response()
+        }
     }
 }
 

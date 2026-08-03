@@ -217,7 +217,8 @@ fn hierarchical_fanout_contacts_node_aggregators_not_every_rank() {
         assert_eq!(result.meta.scope, "coordinator");
         assert_eq!(result.meta.node_aggregators_queried, 1);
         assert_eq!(result.meta.local_ranks_queried, 1);
-        assert_eq!(result.meta.nodes_queried, 3);
+        // Complete tree: coordinator local0 + local leaf + remote local0 + remote leaf.
+        assert_eq!(result.meta.nodes_queried, 4);
         assert!(
             result.meta.nodes_failed.is_empty(),
             "unexpected failures: {:?}",
@@ -331,7 +332,11 @@ fn hierarchical_fanout_reports_failed_remote_node_aggregator() {
         assert_eq!(result.meta.scope, "coordinator");
         assert_eq!(result.meta.node_aggregators_queried, 1);
         assert_eq!(result.meta.local_ranks_queried, 1);
-        assert_eq!(result.meta.nodes_queried, 2, "local0 + local leaf only");
+        // Attempts include the failed remote node aggregator.
+        assert_eq!(
+            result.meta.nodes_queried, 3,
+            "local0 + local leaf + failed node agg"
+        );
         assert_eq!(result.meta.nodes_failed.len(), 1);
         assert!(
             result.meta.nodes_failed[0].starts_with(dead_node_agg),
@@ -386,7 +391,12 @@ fn hierarchical_fanout_reports_failed_local_leaf() {
         assert_eq!(result.meta.scope, "coordinator");
         assert_eq!(result.meta.node_aggregators_queried, 1);
         assert_eq!(result.meta.local_ranks_queried, 1);
-        assert_eq!(result.meta.nodes_queried, 2, "local0 + remote node agg");
+        // Complete tree includes the failed local leaf and both ranks reported by the
+        // successful remote node aggregator.
+        assert_eq!(
+            result.meta.nodes_queried, 4,
+            "local0 + failed local leaf + remote local0 + remote leaf"
+        );
         assert_eq!(result.meta.nodes_failed.len(), 1);
         assert!(
             result.meta.nodes_failed[0].starts_with(dead_leaf),

@@ -121,48 +121,65 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn engine_column_docs_serves_code_first_hccl() {
+    async fn engine_column_docs_serves_code_first_registry_entry() {
         use probing_proto::prelude::Seq;
 
+        probing_memtable::docs::register_from_name(
+            "unittest.core_column_docs",
+            &probing_memtable::Schema::new()
+                .table_doc("core registry table")
+                .col_doc(
+                    "value",
+                    probing_memtable::DType::I64,
+                    "registry value column",
+                ),
+        );
         let engine = Engine::builder().build().await.unwrap();
         let df = engine
             .async_query(
                 "SELECT description FROM probe.probing.column_docs \
-                 WHERE table_schema = 'hccl' AND table_name = 'tasks' AND column_name = 'task_name'",
+                 WHERE table_schema = 'unittest' AND table_name = 'core_column_docs' AND column_name = 'value'",
             )
             .await
             .unwrap()
             .expect("column_docs query should return rows");
         assert_eq!(df.names, vec!["description"]);
         let desc = match &df.cols[0] {
-            Seq::SeqText(values) => values.first().cloned().expect("task_name description row"),
+            Seq::SeqText(values) => values.first().cloned().expect("value description row"),
             other => panic!("expected SeqText, got {other:?}"),
         };
         assert!(
-            desc.contains("Memcpy"),
+            desc.contains("registry value"),
             "expected code-first column doc, got {desc}"
         );
     }
 
     #[tokio::test]
-    async fn engine_table_docs_serves_code_first_hccl() {
+    async fn engine_table_docs_serves_code_first_registry_entry() {
         use probing_proto::prelude::Seq;
 
+        probing_memtable::docs::register_from_name(
+            "unittest.core_table_docs",
+            &probing_memtable::Schema::new().table_doc("core registry table"),
+        );
         let engine = Engine::builder().build().await.unwrap();
         let df = engine
             .async_query(
                 "SELECT description FROM probe.probing.table_docs \
-                 WHERE table_schema = 'hccl' AND table_name = 'tasks'",
+                 WHERE table_schema = 'unittest' AND table_name = 'core_table_docs'",
             )
             .await
             .unwrap()
             .expect("table_docs query should return rows");
         let desc = match &df.cols[0] {
-            Seq::SeqText(values) => values.first().cloned().expect("hccl.tasks description row"),
+            Seq::SeqText(values) => values
+                .first()
+                .cloned()
+                .expect("core_table_docs description row"),
             other => panic!("expected SeqText, got {other:?}"),
         };
         assert!(
-            desc.contains("MsprofHcclInfo"),
+            desc.contains("core registry table"),
             "expected code-first table doc, got {desc}"
         );
     }

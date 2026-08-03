@@ -3,7 +3,7 @@ use crate::utils::error::{AppError, Result};
 use probing_proto::prelude::{DataFrame, Ele};
 
 /// Latest process-level CPU snapshot from `cpu.utilization`.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct CpuSnapshot {
     pub platform: String,
     pub delta_user_ns: i64,

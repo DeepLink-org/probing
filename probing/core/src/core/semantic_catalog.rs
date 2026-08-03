@@ -84,15 +84,6 @@ fn column_key(table_schema: &str, table_name: &str, column_name: &str) -> (Strin
     )
 }
 
-/// Register compile-time known collector schemas (HCCL, NCCL, …).
-pub fn register_builtin_schema_docs() {
-    #[cfg(feature = "builtin-schema-docs")]
-    {
-        probing_hccl_shim::register_docs();
-        probing_nccl_profiler::register_docs();
-    }
-}
-
 pub fn parse_semantic_catalog_yaml(yaml: &str) -> Result<ParsedSemanticCatalog> {
     let file: SemanticCatalogFile = serde_yaml::from_str(yaml).map_err(|e| {
         DataFusionError::External(format!("failed to parse semantic tables.yaml: {e}").into())
@@ -144,8 +135,6 @@ fn sort_catalog_rows(table_rows: &mut [TableDocRow], column_rows: &mut [ColumnDo
 
 /// Merge in-code doc registry with YAML overlay (registry wins for descriptions/columns).
 pub fn build_semantic_catalog() -> Result<ParsedSemanticCatalog> {
-    register_builtin_schema_docs();
-
     let yaml = parse_semantic_catalog_yaml(TABLES_YAML)?;
 
     let mut table_map: HashMap<(String, String), TableDocRow> = HashMap::new();
@@ -494,20 +483,29 @@ mod tests {
     }
 
     #[test]
-    fn build_catalog_prefers_code_docs_for_hccl() {
-        probing_hccl_shim::register_docs();
+    fn build_catalog_prefers_code_docs_over_yaml() {
+        docs::register_from_name(
+            "python.torch_trace",
+            &probing_memtable::Schema::new()
+                .table_doc("code-first torch trace")
+                .col_doc(
+                    "duration",
+                    probing_memtable::DType::F64,
+                    "code-first duration",
+                ),
+        );
         let parsed = build_semantic_catalog().unwrap();
-        let host_ops = parsed
+        let torch_trace = parsed
             .table_rows
             .iter()
-            .find(|r| r.table_schema == "hccl" && r.table_name == "host_ops")
-            .expect("hccl.host_ops");
-        assert!(host_ops.description.contains("MSProf Host API"));
+            .find(|r| r.table_schema == "python" && r.table_name == "torch_trace")
+            .expect("python.torch_trace");
+        assert_eq!(torch_trace.description, "code-first torch trace");
         assert!(parsed.column_rows.iter().any(|r| {
-            r.table_schema == "hccl"
-                && r.table_name == "host_ops"
-                && r.column_name == "event_class"
-                && r.description.contains("host_hccl_op")
+            r.table_schema == "python"
+                && r.table_name == "torch_trace"
+                && r.column_name == "duration"
+                && r.description == "code-first duration"
         }));
     }
 
@@ -544,22 +542,6 @@ mod tests {
         assert!(parsed.column_rows.iter().any(|r| {
             r.table_schema == "unittest" && r.table_name == table && r.column_name == "id"
         }));
-    }
-
-    #[test]
-    fn build_catalog_nccl_culprit_column_from_code() {
-        probing_nccl_profiler::register_docs();
-        let parsed = build_semantic_catalog().unwrap();
-        let row = parsed
-            .column_rows
-            .iter()
-            .find(|r| {
-                r.table_schema == "nccl"
-                    && r.table_name == "proxy_ops"
-                    && r.column_name == "send_gpu_wait_ns"
-            })
-            .expect("nccl.proxy_ops.send_gpu_wait_ns");
-        assert!(row.description.contains("Culprit"));
     }
 
     #[test]

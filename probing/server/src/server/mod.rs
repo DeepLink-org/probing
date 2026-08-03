@@ -17,7 +17,7 @@ pub use app::TOP_LEVEL_ROUTES;
 pub(crate) use listener::start_local_listener;
 pub use listener::{local_server, remote_server, start_local, start_remote};
 pub use runtime::SERVER_RUNTIME;
-pub use settings::sync_env_settings;
+pub use settings::{bind_address_from_port, sync_env_settings};
 
 pub mod cluster;
 pub mod cluster_fanout;

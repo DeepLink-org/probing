@@ -1,6 +1,6 @@
 use axum::{
     extract::Request,
-    http::{header, HeaderMap, HeaderValue, StatusCode},
+    http::{header, HeaderMap, HeaderValue},
     middleware::Next,
     response::{IntoResponse, Response},
 };
@@ -8,6 +8,8 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use once_cell::sync::Lazy;
 use probing_core::config;
 use std::env;
+
+use crate::server::error::ApiError;
 
 // Auth token environment variable name
 pub const AUTH_TOKEN_ENV: &str = "PROBING_AUTH_TOKEN";
@@ -92,15 +94,13 @@ fn unauthorized_response() -> Response {
         HeaderValue::from_static("Basic realm=\"Probe Server\"")
     });
 
-    (
-        StatusCode::UNAUTHORIZED,
-        [
-            (header::WWW_AUTHENTICATE, www_auth),
-            (header::CONTENT_TYPE, HeaderValue::from_static("text/plain")),
-        ],
-        "Unauthorized: Please login to access this resource",
-    )
-        .into_response()
+    let mut response = ApiError::unauthorized("Authentication is required for this resource")
+        .with_action("provide a Bearer token, Basic credentials, or X-Probing-Token")
+        .into_response();
+    response
+        .headers_mut()
+        .insert(header::WWW_AUTHENTICATE, www_auth);
+    response
 }
 
 /// Authentication middleware

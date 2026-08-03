@@ -24,9 +24,7 @@ mod vars;
 pub use self::engine::initialize_engine;
 pub use self::engine_lifecycle::{engine_init_state, engine_is_ready};
 pub use self::report::start_report_worker;
-pub use self::server::start_local;
-pub use self::server::start_remote;
-pub use self::server::sync_env_settings;
+pub use self::server::{bind_address_from_port, start_local, start_remote, sync_env_settings};
 pub use self::torchrun_cluster::{
     is_torchrun_cluster_active, master_http_base, maybe_start_torchrun_cluster,
     refresh_torchrun_role,

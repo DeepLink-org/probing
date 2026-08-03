@@ -126,6 +126,52 @@ def test_scripted_loop_syncs_role_and_step(monkeypatch):
     assert int(probing.step.snapshot().micro_batches) == 2
 
 
+@pytest.mark.parametrize(
+    ("tp", "pp", "dp", "expected_role"),
+    [
+        (0, 0, 0, "dp=0,pp=0,tp=0"),
+        (1, 0, 0, "dp=0,pp=0,tp=1"),
+        (0, 1, 0, "dp=0,pp=1,tp=0"),
+        (1, 1, 0, "dp=0,pp=1,tp=1"),
+    ],
+)
+def test_cpu_mock_emits_training_placement_coordinates(
+    monkeypatch, tp, pp, dp, expected_role
+):
+    from probing.fakes import run_scripted_loop
+
+    monkeypatch.setenv("PROBING_MEGATRON", "on")
+    monkeypatch.setenv("PROBING_MEGATRON_STEP_SYNC", "on")
+
+    result = run_scripted_loop(steps=1, tp=tp, pp=pp, dp=dp, device="cpu")
+
+    assert result.device == "cpu"
+    assert result.role == expected_role
+
+
+def test_cpu_mock_emits_64_rank_tp2_pp4_dp8_topology(monkeypatch):
+    from probing.ext import megatron as megatron_ext
+    from probing.fakes import run_scripted_loop
+
+    monkeypatch.setenv("PROBING_MEGATRON", "on")
+    monkeypatch.setenv("PROBING_MEGATRON_STEP_SYNC", "on")
+    roles = []
+
+    for rank in range(64):
+        megatron_ext._PARALLEL_STATE_INIT = False
+        megatron_ext._TRAINING_INIT = False
+        megatron_ext._LAST_ROLE = None
+        tp = rank % 2
+        pp = (rank // 2) % 4
+        dp = rank // 8
+        result = run_scripted_loop(steps=1, tp=tp, pp=pp, dp=dp, device="cpu")
+        roles.append(result.role)
+
+    assert len(set(roles)) == 64
+    assert roles[0] == "dp=0,pp=0,tp=0"
+    assert roles[63] == "dp=7,pp=3,tp=1"
+
+
 def test_pretrain_gpt_entry(monkeypatch):
     import probing
     from pathlib import Path

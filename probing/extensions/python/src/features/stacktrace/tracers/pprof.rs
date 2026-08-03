@@ -838,6 +838,24 @@ fn remote_pprof_folded_lines_fallback(addr: &str) -> anyhow::Result<Vec<String>>
     })
 }
 
+fn stack_fanout_concurrency(peer_count: usize) -> usize {
+    std::env::var("PROBING_STACK_FANOUT_CONCURRENCY")
+        .ok()
+        .and_then(|value| value.trim().parse::<usize>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(32)
+        .min(peer_count.max(1))
+}
+
+fn stack_fanout_deadline() -> std::time::Duration {
+    let seconds = std::env::var("PROBING_STACK_FANOUT_DEADLINE_SEC")
+        .ok()
+        .and_then(|value| value.trim().parse::<u64>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(15);
+    std::time::Duration::from_secs(seconds)
+}
+
 /// Cluster fan-out + merge for distributed CPU stack flamegraph JSON.
 ///
 /// `mode`: `mixed` (Python + native) or `py` (Python frames only).
@@ -868,38 +886,85 @@ pub async fn collect_distributed_stack_flamegraph_json(
             .filter(is_node_alive)
             .filter(|node| !local_addrs.iter().any(|local| local == &node.addr))
             .collect();
-
-        for node in peers {
-            let addr = node.addr.clone();
-            let peer_rank = node.rank;
-            if let Some(r) = peer_rank {
-                if seen_ranks.contains(&r) {
+        let mut scheduled_ranks = seen_ranks.clone();
+        let peers: Vec<_> = peers
+            .into_iter()
+            .filter(|node| {
+                let Some(rank) = node.rank else {
+                    return true;
+                };
+                if !scheduled_ranks.insert(rank) {
                     log::debug!(
-                        "distributed stack flamegraph: skip duplicate rank {r} from {addr}"
-                    );
-                    continue;
-                }
-            }
-            match tokio::task::spawn_blocking(move || remote_pprof_folded_lines_fallback(&addr))
-                .await
-            {
-                Ok(Ok(lines)) => {
-                    if let Some(r) = peer_rank {
-                        seen_ranks.insert(r);
-                    }
-                    line_sets.push((peer_rank, lines));
-                }
-                Ok(Err(err)) => {
-                    log::warn!(
-                        "distributed stack flamegraph fan-out {} failed: {err:#}",
+                        "distributed stack flamegraph: skip duplicate rank {rank} from {}",
                         node.addr
                     );
-                    nodes_failed.push(format!("{}: {err:#}", node.addr));
+                    return false;
                 }
-                Err(err) => {
-                    nodes_failed.push(format!("{}: task join failed: {err}", node.addr));
+                true
+            })
+            .collect();
+        let concurrency = stack_fanout_concurrency(peers.len());
+        let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(concurrency));
+        let mut tasks = tokio::task::JoinSet::new();
+        let mut pending: BTreeSet<String> = peers.iter().map(|node| node.addr.clone()).collect();
+
+        for node in peers {
+            let semaphore = semaphore.clone();
+            tasks.spawn(async move {
+                let addr = node.addr.clone();
+                let result = match semaphore.acquire_owned().await {
+                    Ok(_permit) => {
+                        match tokio::task::spawn_blocking(move || {
+                            remote_pprof_folded_lines_fallback(&addr)
+                        })
+                        .await
+                        {
+                            Ok(result) => result,
+                            Err(error) => Err(anyhow::anyhow!("task join failed: {error}")),
+                        }
+                    }
+                    Err(error) => Err(anyhow::anyhow!("fan-out semaphore closed: {error}")),
+                };
+                (node, result)
+            });
+        }
+
+        let timed_out = {
+            let collect = async {
+                while let Some(joined) = tasks.join_next().await {
+                    match joined {
+                        Ok((node, Ok(lines))) => {
+                            pending.remove(&node.addr);
+                            if let Some(rank) = node.rank {
+                                seen_ranks.insert(rank);
+                            }
+                            line_sets.push((node.rank, lines));
+                        }
+                        Ok((node, Err(error))) => {
+                            pending.remove(&node.addr);
+                            log::warn!(
+                                "distributed stack flamegraph fan-out {} failed: {error:#}",
+                                node.addr
+                            );
+                            nodes_failed.push(format!("{}: {error:#}", node.addr));
+                        }
+                        Err(error) => {
+                            log::warn!("distributed stack flamegraph fan-out task failed: {error}");
+                        }
+                    }
                 }
-            }
+            };
+            tokio::time::timeout(stack_fanout_deadline(), collect)
+                .await
+                .is_err()
+        };
+        if timed_out {
+            tasks.abort_all();
+            nodes_failed.extend(
+                pending
+                    .into_iter()
+                    .map(|addr| format!("{addr}: stack fan-out deadline exceeded")),
+            );
         }
     }
 
@@ -989,6 +1054,7 @@ mod tests {
 
     /// Serialize sampler-map mutation tests (non-signal).
     static SAMPLER_TEST_LOCK: Mutex<()> = Mutex::new(());
+    static FANOUT_ENV_TEST_LOCK: Mutex<()> = Mutex::new(());
 
     fn with_sampler_lock<R>(f: impl FnOnce() -> R) -> R {
         let _g = SAMPLER_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
@@ -1140,6 +1206,32 @@ mod tests {
             (None, vec!["[py] b 1".to_string()]),
         ];
         assert_eq!(unique_contributor_rank_count(&sets), 2);
+    }
+
+    #[test]
+    fn stack_fanout_limits_are_bounded_and_configurable() {
+        let _guard = FANOUT_ENV_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let previous_concurrency = std::env::var("PROBING_STACK_FANOUT_CONCURRENCY").ok();
+        let previous_deadline = std::env::var("PROBING_STACK_FANOUT_DEADLINE_SEC").ok();
+
+        std::env::set_var("PROBING_STACK_FANOUT_CONCURRENCY", "8");
+        std::env::set_var("PROBING_STACK_FANOUT_DEADLINE_SEC", "7");
+        assert_eq!(stack_fanout_concurrency(64), 8);
+        assert_eq!(stack_fanout_concurrency(3), 3);
+        assert_eq!(stack_fanout_deadline(), Duration::from_secs(7));
+
+        if let Some(value) = previous_concurrency {
+            std::env::set_var("PROBING_STACK_FANOUT_CONCURRENCY", value);
+        } else {
+            std::env::remove_var("PROBING_STACK_FANOUT_CONCURRENCY");
+        }
+        if let Some(value) = previous_deadline {
+            std::env::set_var("PROBING_STACK_FANOUT_DEADLINE_SEC", value);
+        } else {
+            std::env::remove_var("PROBING_STACK_FANOUT_DEADLINE_SEC");
+        }
     }
 
     #[test]

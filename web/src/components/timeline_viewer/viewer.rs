@@ -15,6 +15,7 @@ use super::overview::{
     TimelineViewState,
 };
 use super::parse::parse_chrome_trace;
+use super::vertical::VerticalTimelineView;
 
 const MIN_VIEW_SPAN: f64 = 0.02;
 const BUTTON_ZOOM: f64 = 1.35;
@@ -112,6 +113,7 @@ pub fn TimelineViewer(
     #[props(optional)] empty_message: Option<String>,
 ) -> Element {
     let filter = use_signal(String::new);
+    let vertical = use_signal(|| true);
     let mut viewport = use_signal(Viewport::full);
     let mut selected = use_signal(|| None::<Selection>);
     let mut view_state = use_signal(TimelineViewState::default);
@@ -129,6 +131,9 @@ pub fn TimelineViewer(
             let _ = window.remove_event_listener_with_callback("keydown", listener);
         }
 
+        if vertical() {
+            return;
+        }
         let Ok(parsed) = parse_chrome_trace(&trace_for_shortcuts) else {
             return;
         };
@@ -192,102 +197,110 @@ pub fn TimelineViewer(
             let force_detail = !filter().trim().is_empty();
             rsx! {
                 div { class: "flex flex-col h-full min-h-[600px]",
-                    TimelineToolbar {
-                        model: parsed.clone(),
-                        filter,
-                        viewport,
-                        view_state,
-                        selected,
-                        track_count: filtered_tracks.len(),
-                        zoom_pct,
-                        in_overview,
-                        on_export: move |_| {
-                            if let Err(err) = tracing_viewer::open_perfetto_window(&export_json) {
-                                log::warn!("Perfetto export failed: {err}");
-                            }
-                        },
-                    }
-                    if filtered_tracks.is_empty() {
-                        div { class: "flex-1 flex items-center justify-center p-8",
-                            EmptyState {
-                                message: format!("No slices match \"{}\"", filter()),
-                            }
+                    if vertical() {
+                        VerticalTimelineView {
+                            model: parsed.clone(),
+                            filter,
+                            vertical,
+                            on_export: move |_| {
+                                if let Err(err) = tracing_viewer::open_perfetto_window(&export_json) {
+                                    log::warn!("Perfetto export failed: {err}");
+                                }
+                            },
                         }
                     } else {
-                        div { class: "relative flex-1 min-h-0 border-t border-gray-200",
-                            div {
-                                class: "absolute inset-0 overflow-auto outline-none",
-                                tabindex: "-1",
-                                onwheel: move |e| {
-                                    e.prevent_default();
-                                    let delta = e.delta().strip_units().y;
-                                    if delta < 0.0 {
-                                        viewport.set(viewport().zoom_in_by(0.5, WHEEL_ZOOM));
-                                    } else if delta > 0.0 {
-                                        viewport.set(viewport().zoom_out_by(WHEEL_ZOOM));
-                                    }
-                                },
-                                div { class: "min-w-full min-h-full",
-                                    div { class: "min-w-[640px]",
-                                        TimelineRuler {
-                                            view_min,
-                                            view_range,
+                        TimelineToolbar {
+                            model: parsed.clone(),
+                            filter,
+                            viewport,
+                            view_state,
+                            selected,
+                            vertical,
+                            track_count: filtered_tracks.len(),
+                            zoom_pct,
+                            in_overview,
+                            on_export: move |_| {
+                                if let Err(err) = tracing_viewer::open_perfetto_window(&export_json) {
+                                    log::warn!("Perfetto export failed: {err}");
+                                }
+                            },
+                        }
+                        if filtered_tracks.is_empty() {
+                            div { class: "flex-1 flex items-center justify-center p-8",
+                                EmptyState {
+                                    message: format!("No slices match \"{}\"", filter()),
+                                }
+                            }
+                        } else {
+                            div { class: "relative flex-1 min-h-0 border-t border-gray-200",
+                                div {
+                                    class: "absolute inset-0 overflow-auto outline-none",
+                                    tabindex: "-1",
+                                    onwheel: move |e| {
+                                        e.prevent_default();
+                                        let delta = e.delta().strip_units().y;
+                                        if delta < 0.0 {
+                                            viewport.set(viewport().zoom_in_by(0.5, WHEEL_ZOOM));
+                                        } else if delta > 0.0 {
+                                            viewport.set(viewport().zoom_out_by(WHEEL_ZOOM));
                                         }
-                                        for track in filtered_tracks {
-                                            TimelineTrackRow {
-                                                key: "{track.pid}-{track.tid}",
-                                                track: track.clone(),
-                                                model: parsed.clone(),
-                                                view_state,
-                                                force_detail,
-                                                view_min,
-                                                view_range,
-                                                viewport,
-                                                selected,
+                                    },
+                                    div { class: "min-w-full min-h-full",
+                                        div { class: "min-w-[640px]",
+                                            TimelineRuler { view_min, view_range }
+                                            for track in filtered_tracks {
+                                                TimelineTrackRow {
+                                                    key: "{track.pid}-{track.tid}",
+                                                    track: track.clone(),
+                                                    model: parsed.clone(),
+                                                    view_state,
+                                                    force_detail,
+                                                    view_min,
+                                                    view_range,
+                                                    viewport,
+                                                    selected,
+                                                }
                                             }
                                         }
                                     }
-                                }
-                                div {
-                                    class: "pointer-events-none absolute bottom-3 left-3 z-10 px-2 py-1 rounded-md bg-white/90 border border-gray-200/80 text-[10px] text-gray-500 shadow-sm backdrop-blur-sm",
-                                    if in_overview {
-                                        "Overview · click a region to drill · WASD · F fit · Esc back"
-                                    } else {
-                                        "Detail · click slice to expand · WASD · F fit · Esc back"
+                                    div {
+                                        class: "pointer-events-none absolute bottom-3 left-3 z-10 px-2 py-1 rounded-md bg-white/90 border border-gray-200/80 text-[10px] text-gray-500 shadow-sm backdrop-blur-sm",
+                                        if in_overview { "Overview · click a region to drill · WASD · F fit · Esc back" }
+                                        else { "Detail · click slice to expand · WASD · F fit · Esc back" }
                                     }
                                 }
-                            }
-                            if let Some(sel) = selected() {
-                                if let Some(slice) = find_slice_owned(&parsed, sel.key) {
-                                    {
-                                        let child_count = slice.children.len();
-                                        let zoom_lo =
-                                            (slice.start_us - parsed.min_ts_us) / full_range;
-                                        let zoom_hi =
-                                            (slice.end_us() - parsed.min_ts_us) / full_range;
-                                        let drill_key = sel.key;
-                                        rsx! {
-                                            SliceInspector {
-                                                slice: slice.clone(),
-                                                track_label: sel.track_label.clone(),
-                                                full_range,
-                                                min_ts: parsed.min_ts_us,
-                                                child_count,
-                                                on_close: move |_| selected.set(None),
-                                                on_zoom: move |_| {
-                                                    viewport.set(
-                                                        viewport().zoom_to_interval(zoom_lo, zoom_hi),
-                                                    );
-                                                },
-                                                on_drill: move |_| {
-                                                    if child_count > 0 {
-                                                        view_state.write().drill_path.push(drill_key);
+                                if let Some(sel) = selected() {
+                                    if let Some(slice) = find_slice_owned(&parsed, sel.key) {
+                                        {
+                                            let child_count = slice.children.len();
+                                            let zoom_lo =
+                                                (slice.start_us - parsed.min_ts_us) / full_range;
+                                            let zoom_hi =
+                                                (slice.end_us() - parsed.min_ts_us) / full_range;
+                                            let drill_key = sel.key;
+                                            rsx! {
+                                                SliceInspector {
+                                                    slice: slice.clone(),
+                                                    track_label: sel.track_label.clone(),
+                                                    full_range,
+                                                    min_ts: parsed.min_ts_us,
+                                                    child_count,
+                                                    on_close: move |_| selected.set(None),
+                                                    on_zoom: move |_| {
                                                         viewport.set(
                                                             viewport().zoom_to_interval(zoom_lo, zoom_hi),
                                                         );
-                                                        selected.set(None);
-                                                    }
-                                                },
+                                                    },
+                                                    on_drill: move |_| {
+                                                        if child_count > 0 {
+                                                            view_state.write().drill_path.push(drill_key);
+                                                            viewport.set(
+                                                                viewport().zoom_to_interval(zoom_lo, zoom_hi),
+                                                            );
+                                                            selected.set(None);
+                                                        }
+                                                    },
+                                                }
                                             }
                                         }
                                     }
@@ -305,7 +318,7 @@ fn find_slice_owned(model: &TimelineModel, key: SliceKey) -> Option<TimelineSlic
     find_slice_in_model(model, key).cloned()
 }
 
-fn filter_tracks(model: &TimelineModel, query: &str) -> Vec<TimelineTrack> {
+pub(super) fn filter_tracks(model: &TimelineModel, query: &str) -> Vec<TimelineTrack> {
     let q = query.trim().to_lowercase();
     if q.is_empty() {
         return model.tracks.clone();
@@ -362,6 +375,7 @@ fn TimelineToolbar(
     viewport: Signal<Viewport>,
     view_state: Signal<TimelineViewState>,
     selected: Signal<Option<Selection>>,
+    vertical: Signal<bool>,
     track_count: usize,
     zoom_pct: i32,
     in_overview: bool,
@@ -387,6 +401,10 @@ fn TimelineToolbar(
                     value: "{filter}",
                     oninput: move |ev| filter.set(ev.value()),
                 }
+            }
+            div { class: "ml-auto flex items-center rounded-md border border-gray-300 bg-white p-0.5 text-[10px]",
+                button { class: "rounded px-2 py-1 text-gray-500 hover:bg-gray-50", onclick: move |_| vertical.set(true), "Vertical" }
+                button { class: "rounded bg-blue-600 px-2 py-1 font-medium text-white", "Horizontal" }
             }
             div { class: "flex items-center gap-0.5 rounded-md border border-gray-300 bg-white p-0.5",
                 button {
@@ -937,7 +955,7 @@ fn arg_display(val: &serde_json::Value) -> String {
     }
 }
 
-fn slice_color(cat: &str) -> &'static str {
+pub(super) fn slice_color(cat: &str) -> &'static str {
     match cat {
         "span" | "default" => "bg-blue-500",
         "event" => "bg-violet-500",
@@ -948,7 +966,7 @@ fn slice_color(cat: &str) -> &'static str {
     }
 }
 
-fn format_duration_us(us: f64) -> String {
+pub(super) fn format_duration_us(us: f64) -> String {
     if us >= 1_000_000.0 {
         format!("{:.2}s", us / 1_000_000.0)
     } else if us >= 1_000.0 {

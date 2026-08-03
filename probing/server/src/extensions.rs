@@ -183,6 +183,11 @@ mod test {
         assert!(ext.set("addr", "127.0.0.1:8080").is_ok());
         assert_eq!(ext.get("addr").unwrap(), "127.0.0.1:8080");
 
+        // Wildcard addresses are valid bind addresses. Reachability is handled
+        // separately when the bound endpoint is advertised to cluster peers.
+        assert!(ext.set("addr", "0.0.0.0:0").is_ok());
+        assert_eq!(ext.get("addr").unwrap(), "0.0.0.0:0");
+
         // Test invalid addr format
         assert!(ext.set("addr", "invalid").is_err());
 

@@ -62,7 +62,7 @@ Not sure where your change belongs? Open a [Discussion](https://github.com/DeepL
 
 ## Prerequisites {#prerequisites}
 
-- **Python** 3.9+
+- **Python** 3.8+
 - **Rust (stable channel)** + **Cargo** — the repo and CI build on stable only; nightly is not required
 - **maturin** — builds `probing._core` (`pip install maturin` or `uv pip install maturin`)
 - **uv** (optional but recommended) — many devs use `uv venv`; the Makefile falls back to `uv pip` when the venv has no `pip`

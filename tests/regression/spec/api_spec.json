@@ -7,6 +7,24 @@
     "python_sql_namespace": "python",
     "python_http_extension_name": "pythonext"
   },
+  "error_response": {
+    "content_type": "application/json",
+    "schema": {
+      "error": {
+        "code": "string",
+        "message": "string",
+        "retryable": "boolean",
+        "action": "string|null"
+      }
+    },
+    "exceptions": [
+      "/query",
+      "/query/dto",
+      "/health",
+      "/ready",
+      "/apis/{extension_name}/*"
+    ]
+  },
   "extension_response_defaults": {
     "content_type": "text/plain",
     "cors": false
@@ -194,6 +212,15 @@
     },
     {
       "local_path": "pytorch/profile/status",
+      "method": "GET",
+      "uses_body": false,
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
+    },
+    {
+      "local_path": "pytorch/runtime-debug",
       "method": "GET",
       "uses_body": false,
       "response": {

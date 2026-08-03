@@ -1,19 +1,19 @@
 use dioxus::prelude::*;
-use dioxus_router::{use_navigator, use_route, Outlet};
+use dioxus_router::{use_route, Outlet};
 
 use crate::agent::refresh_page_snapshot_for_route;
 use crate::api::ApiClient;
 use crate::app::Route;
 use crate::components::agent::LlmSettingsOverlay;
-use crate::components::global_command_panel::{
-    CommandBar, FloatingResultToast, GlobalCommandPanel,
-};
+use crate::components::global_command_panel::GlobalCommandPanel;
 use crate::components::icon::Icon;
 use crate::components::keyboard_shortcuts::{GlobalShortcutInstaller, ShortcutsHelpOverlay};
 use crate::components::ui_task_runtime::UiTaskRuntime;
-use crate::overhead::OverheadSnapshot;
-use crate::state::agent::{AGENT_PANEL_OPEN, AGENT_PANEL_WIDTH};
-use crate::state::commands::{FloatingResult, COMMAND_PANEL_OPEN};
+use crate::state::agent::{
+    load_agent_panel_width, save_agent_panel_width, AgentPanelWidth, AGENT_PANEL_OPEN,
+    AGENT_PANEL_WIDTH,
+};
+use crate::state::commands::COMMAND_PANEL_OPEN;
 use crate::state::investigation::{load_investigation_context, INVESTIGATION_CONTEXT};
 use crate::state::investigation_url::InvestigationUrlSync;
 use crate::state::llm_config::load_llm_config;
@@ -22,23 +22,51 @@ use crate::state::page_context::{apply_page_descriptor, PAGE_CONTEXT};
 
 use super::pages::InvestigateSession;
 use super::routes::NextRoute;
+use super::settings::{load_next_shell_settings, save_next_sidebar_compact, NEXT_SIDEBAR_COMPACT};
 use super::sidebar::NextSidebar as FocusedSidebar;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum WorkspaceKind {
+    Standard,
+    FullHeight,
+}
+
+impl WorkspaceKind {
+    fn main_class(self) -> &'static str {
+        match self {
+            Self::Standard => "absolute inset-0 overflow-y-auto",
+            Self::FullHeight => "absolute inset-0 overflow-hidden",
+        }
+    }
+
+    fn content_class(self) -> &'static str {
+        match self {
+            Self::Standard => "mx-auto w-full max-w-[1600px] p-4 lg:p-5",
+            Self::FullHeight => "h-full min-h-0 w-full p-4 lg:p-5",
+        }
+    }
+}
+
+fn workspace_kind(route: &NextRoute) -> WorkspaceKind {
+    match route {
+        NextRoute::Profiles {}
+        | NextRoute::ProfilingLegacy {}
+        | NextRoute::ProfileView { .. }
+        | NextRoute::ChromeTrace {}
+        | NextRoute::Perfetto {} => WorkspaceKind::FullHeight,
+        _ => WorkspaceKind::Standard,
+    }
+}
 
 #[component]
 pub fn NextShell() -> Element {
     let route = use_route::<NextRoute>();
-    let navigator = use_navigator();
-    let mut mobile_menu_open = use_signal(|| false);
-    let mut sidebar_compact = use_signal(|| false);
-    let mut floating_result = use_signal(|| Option::<FloatingResult>::None);
-
-    let overview = use_resource(|| async move { ApiClient::new().get_overview().await });
-    let nodes = use_resource(|| async move { ApiClient::new().get_nodes().await });
-    let overhead = use_resource(|| async move { ApiClient::new().fetch_overhead_summary().await });
 
     use_effect(move || {
         load_investigation_context();
         load_llm_config();
+        load_agent_panel_width();
+        load_next_shell_settings();
         spawn(async move {
             let _ = ApiClient::new().load_skill_store().await;
         });
@@ -62,122 +90,41 @@ pub fn NextShell() -> Element {
         }
     }));
 
-    let overview_state = overview.read().clone();
-    let nodes_state = nodes.read().clone();
-    let overhead_state = overhead.read().clone();
-    let target = overview_state
-        .as_ref()
-        .and_then(|result| result.as_ref().ok())
-        .map(|process| {
-            process
-                .exe
-                .rsplit('/')
-                .next()
-                .filter(|name| !name.is_empty())
-                .unwrap_or("training process")
-                .to_string()
-        })
-        .unwrap_or_else(|| "training process".to_string());
-    let node_count = nodes_state
-        .as_ref()
-        .and_then(|result| result.as_ref().ok())
-        .map(Vec::len);
-    let expected_ranks = nodes_state
-        .as_ref()
-        .and_then(|result| result.as_ref().ok())
-        .and_then(|nodes| nodes.iter().filter_map(|node| node.world_size).max())
-        .map(|size| size.max(0) as usize);
-    let overhead_pct = overhead_state
-        .as_ref()
-        .and_then(|result| result.as_ref().ok())
-        .and_then(|frame| OverheadSnapshot::from_summary(frame).dispatch_overhead_pct);
+    let sidebar_compact = *NEXT_SIDEBAR_COMPACT.read();
+    let sidebar_width = if sidebar_compact { "w-14" } else { "w-72" };
+    let workspace = workspace_kind(&route);
+    let investigation_route_key = format!("{route:?}");
 
     rsx! {
         GlobalShortcutInstaller {}
         UiTaskRuntime {}
-        InvestigationUrlSync {}
+        InvestigationUrlSync { route_key: investigation_route_key }
         if *COMMAND_PANEL_OPEN.read() {
             GlobalCommandPanel {}
         }
         ShortcutsHelpOverlay {}
         LlmSettingsOverlay {}
-        FloatingResultToast { result: floating_result }
         div { class: "flex h-screen overflow-hidden bg-gray-50 text-gray-950",
+            a {
+                href: "#main-content",
+                class: "sr-only fixed left-3 top-3 z-[100] rounded-md bg-white px-3 py-2 text-sm font-semibold text-blue-800 shadow-lg ring-2 ring-blue-600 focus:not-sr-only",
+                "Skip to main content"
+            }
             aside {
-                class: if sidebar_compact() {
-                    "hidden w-20 shrink-0 border-r border-slate-800 bg-slate-950 text-slate-100 lg:flex lg:flex-col"
-                } else {
-                    "hidden w-72 shrink-0 border-r border-slate-800 bg-slate-950 text-slate-100 lg:flex lg:flex-col"
-                },
+                class: "flex {sidebar_width} shrink-0 flex-col border-r border-slate-800 bg-slate-950 text-slate-100 transition-[width] duration-150",
                 FocusedSidebar {
                     route: route.clone(),
-                    compact: sidebar_compact(),
-                    on_toggle_compact: move |_| sidebar_compact.set(!sidebar_compact()),
-                }
-            }
-
-            if mobile_menu_open() {
-                div {
-                    class: "fixed inset-0 z-50 bg-slate-950/45 lg:hidden",
-                    onclick: move |_| mobile_menu_open.set(false),
-                }
-                aside { class: "fixed inset-y-0 left-0 z-[51] flex w-72 flex-col border-r border-slate-800 bg-slate-950 text-slate-100 shadow-2xl lg:hidden",
-                    FocusedSidebar {
-                        route: route.clone(),
-                        on_navigate: move |_| mobile_menu_open.set(false),
-                    }
+                    compact: sidebar_compact,
+                    on_toggle_compact: move |_| {
+                        save_next_sidebar_compact(!*NEXT_SIDEBAR_COMPACT.read());
+                    },
                 }
             }
 
             div { class: "flex min-w-0 flex-1 flex-col",
-                header { class: "shrink-0 border-b border-gray-200 bg-white",
-                    div { class: "flex min-h-16 items-center gap-3 px-3 sm:px-5",
-                        button {
-                            r#type: "button",
-                            class: "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 lg:hidden",
-                            aria_label: "Open navigation",
-                            onclick: move |_| mobile_menu_open.set(true),
-                            Icon { icon: &icondata::AiMenuOutlined, class: "h-5 w-5" }
-                        }
-                        div { class: "grid min-w-0 flex-1 grid-cols-2 gap-x-4 gap-y-1 md:grid-cols-4",
-                            ContextItem { label: "Target", value: target }
-                            ContextItem {
-                                label: "Scope",
-                                value: match (node_count, expected_ranks) {
-                                    (Some(nodes), Some(ranks)) => format!("{nodes} nodes · {ranks} ranks"),
-                                    (Some(nodes), None) => format!("{nodes} nodes"),
-                                    _ => "This process".to_string(),
-                                }
-                            }
-                            ContextItem { label: "Window", value: "Live · auto refresh".to_string() }
-                            ContextItem {
-                                label: "Data quality",
-                                value: match (node_count, overhead_pct) {
-                                    (Some(nodes), Some(pct)) => format!("{nodes} nodes · overhead {pct:+.1}%"),
-                                    (Some(nodes), None) => format!("{nodes} nodes · overhead —"),
-                                    _ => "Connecting…".to_string(),
-                                }
-                            }
-                        }
-                        button {
-                            r#type: "button",
-                            class: "hidden shrink-0 items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 sm:inline-flex",
-                            onclick: move |_| {
-                                navigator.push(NextRoute::Investigate {});
-                            },
-                            Icon { icon: &icondata::AiRobotOutlined, class: "h-4 w-4" }
-                            "Start diagnosis"
-                        }
-                    }
-                }
-                div { class: "shrink-0 overflow-x-auto border-b border-gray-200",
-                    CommandBar {
-                        on_execute_done: move |result| *floating_result.write() = Some(result),
-                    }
-                }
                 div { class: "relative min-h-0 flex-1 overflow-hidden",
-                    main { class: "absolute inset-0 overflow-y-auto",
-                        div { class: "mx-auto w-full max-w-[1600px] p-4 sm:p-6",
+                    main { id: "main-content", tabindex: "-1", class: "{workspace.main_class()}",
+                        div { class: "{workspace.content_class()}",
                             Outlet::<NextRoute> {}
                         }
                     }
@@ -197,7 +144,8 @@ fn NextAgentPanel(hidden: bool, route: NextRoute) -> Element {
         return rsx! {};
     }
 
-    let width_class = AGENT_PANEL_WIDTH.read().floating_class();
+    let panel_width = *AGENT_PANEL_WIDTH.read();
+    let width_class = panel_width.floating_class();
     rsx! {
         div { class: "absolute inset-0 z-40 flex pointer-events-none",
             div {
@@ -211,6 +159,30 @@ fn NextAgentPanel(hidden: bool, route: NextRoute) -> Element {
                         div { class: "text-xs text-gray-500", "Skill-driven diagnostic workspace" }
                     }
                     div { class: "flex items-center gap-1",
+                        div { class: "mr-1 inline-flex items-center rounded-md border border-gray-200 bg-gray-100 p-0.5",
+                            button {
+                                r#type: "button",
+                                class: if panel_width == AgentPanelWidth::Third {
+                                    "rounded bg-white px-2 py-1 text-xs font-medium text-gray-900 shadow-sm"
+                                } else {
+                                    "rounded px-2 py-1 text-xs text-gray-500 hover:text-gray-800"
+                                },
+                                aria_label: "Use one-third Investigate width",
+                                onclick: move |_| save_agent_panel_width(AgentPanelWidth::Third),
+                                "⅓"
+                            }
+                            button {
+                                r#type: "button",
+                                class: if panel_width == AgentPanelWidth::TwoThirds {
+                                    "rounded bg-white px-2 py-1 text-xs font-medium text-gray-900 shadow-sm"
+                                } else {
+                                    "rounded px-2 py-1 text-xs text-gray-500 hover:text-gray-800"
+                                },
+                                aria_label: "Use two-thirds Investigate width",
+                                onclick: move |_| save_agent_panel_width(AgentPanelWidth::TwoThirds),
+                                "⅔"
+                            }
+                        }
                         button {
                             r#type: "button",
                             class: "rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-800",
@@ -246,11 +218,11 @@ fn NextPageEvidence(route: NextRoute) -> Element {
             div { class: "flex items-start justify-between gap-2",
                 div { class: "min-w-0",
                     div { class: "font-semibold", "Viewing · {page.title}" }
-                    div { class: "truncate font-mono text-[10px] text-blue-700", "{page.path}" }
+                    div { class: "truncate font-mono text-xs text-blue-700", "{page.path}" }
                 }
                 button {
                     r#type: "button",
-                    class: "shrink-0 rounded-md border border-blue-200 bg-white px-2 py-1 text-[10px] font-medium text-blue-700 hover:bg-blue-100",
+                    class: "shrink-0 rounded-md border border-blue-200 bg-white px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100",
                     disabled: page.snapshot_loading,
                     onclick: move |_| {
                         if let Some(classic_route) = classic_route_for_snapshot(&route) {
@@ -263,20 +235,10 @@ fn NextPageEvidence(route: NextRoute) -> Element {
                 }
             }
             if !page.snapshot.is_empty() {
-                pre { class: "mt-2 max-h-24 overflow-auto whitespace-pre-wrap rounded-md bg-white/70 p-2 font-mono text-[10px] text-blue-900",
+                pre { class: "mt-2 max-h-24 overflow-auto whitespace-pre-wrap rounded-md bg-white/70 p-2 font-mono text-xs text-blue-900",
                     "{page.snapshot}"
                 }
             }
-        }
-    }
-}
-
-#[component]
-fn ContextItem(label: &'static str, value: String) -> Element {
-    rsx! {
-        div { class: "min-w-0",
-            div { class: "text-[10px] font-medium uppercase tracking-wide text-gray-400", "{label}" }
-            div { class: "truncate text-xs font-medium text-gray-800 sm:text-sm", "{value}" }
         }
     }
 }
@@ -372,6 +334,13 @@ fn describe_route(
             "Registered distributed nodes, roles, ranks, status, and heartbeat age.",
             vec!["job_health".into(), "slow_rank".into()],
         ),
+        NextRoute::DistributedStatus {} => (
+            "next_distributed_status",
+            "Distributed Status",
+            "/cluster/status".to_string(),
+            "PyTorch wait counters and read-only rendezvous store state.",
+            vec!["training_hang".into(), "comm_bottleneck".into()],
+        ),
         NextRoute::Stack {}
         | NextRoute::StackThread { .. }
         | NextRoute::DistributedStack {}
@@ -448,7 +417,9 @@ fn classic_route_for_snapshot(route: &NextRoute) -> Option<Route> {
         NextRoute::ProcessTimeline {} => Some(Route::ProcessTimelinePage {}),
         NextRoute::Perfetto {} => Some(Route::PerfettoPage {}),
         NextRoute::Inference {} => Some(Route::InferencePage {}),
-        NextRoute::Distributed {} | NextRoute::Cluster {} => Some(Route::ClusterPage {}),
+        NextRoute::Distributed {} | NextRoute::Cluster {} | NextRoute::DistributedStatus {} => {
+            Some(Route::ClusterPage {})
+        }
         NextRoute::Stack {} => Some(Route::StackPage {}),
         NextRoute::StackThread { tid } => Some(Route::StackWithTidPage { tid: tid.clone() }),
         NextRoute::DistributedStack {} => Some(Route::StackDistributedFullPage {}),
@@ -465,5 +436,28 @@ fn classic_route_for_snapshot(route: &NextRoute) -> Option<Route> {
         NextRoute::Python {} => Some(Route::PythonPage {}),
         NextRoute::Pulsing {} => Some(Route::PulsingPage {}),
         NextRoute::Explore {} | NextRoute::ClassicFallback { .. } => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn visualization_routes_receive_full_height_workspace() {
+        assert_eq!(
+            workspace_kind(&NextRoute::ProfileView {
+                view: "trace".to_string(),
+            }),
+            WorkspaceKind::FullHeight
+        );
+        assert_eq!(
+            workspace_kind(&NextRoute::Perfetto {}),
+            WorkspaceKind::FullHeight
+        );
+        assert_eq!(
+            workspace_kind(&NextRoute::Training {}),
+            WorkspaceKind::Standard
+        );
     }
 }

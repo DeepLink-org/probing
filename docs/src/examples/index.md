@@ -9,6 +9,7 @@ These examples show common debugging and profiling scenarios in AI/ML workflows.
 | Example | Description |
 |---------|-------------|
 | [Training Debugging](training-debugging.md) | Debug training issues |
+| [64-rank Placement Validation](training-placement-validation.md) | Verify TP/PP/DP placement mapping and interaction with a CPU mock |
 | [Memory Leak](memory-leak.md) | Find and fix memory leaks |
 | [Performance Analysis](performance-analysis.md) | Identify bottlenecks |
 

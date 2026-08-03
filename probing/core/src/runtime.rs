@@ -1,11 +1,11 @@
 use std::cell::Cell;
 use std::future::Future;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Arc, Mutex, OnceLock};
+use std::ptr;
+use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, Ordering};
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread::{self, ThreadId};
 
 use log;
-use once_cell::sync::Lazy;
 use thiserror::Error;
 
 /// Async bridge failure — probing continues but callers should treat results as unavailable.
@@ -92,11 +92,23 @@ fn try_build_core_runtime() -> Option<tokio::runtime::Runtime> {
 
 /// Shared Tokio runtime for sync→async bridges (Python bindings, local server, etc.).
 pub struct CoreRuntime {
-    inner: Option<tokio::runtime::Runtime>,
+    slot: AtomicPtr<RuntimeSlot>,
+    origin_pid: AtomicU32,
+}
+
+struct RuntimeSlot {
+    pid: u32,
+    runtime: Option<tokio::runtime::Runtime>,
     degraded: AtomicBool,
 }
 
-static FALLBACK_RUNTIME: OnceLock<Option<&'static tokio::runtime::Runtime>> = OnceLock::new();
+struct ProcessRuntimeSlot {
+    pid: u32,
+    runtime: Option<tokio::runtime::Runtime>,
+}
+
+static FALLBACK_RUNTIME: AtomicPtr<ProcessRuntimeSlot> = AtomicPtr::new(ptr::null_mut());
+static EPHEMERAL_RUNTIME: AtomicPtr<ProcessRuntimeSlot> = AtomicPtr::new(ptr::null_mut());
 
 /// Last-resort runtime for the server-side `block_on`/`spawn` methods, which —
 /// unlike the free [`block_on`] function — cannot return a `Result`. Tries a
@@ -105,8 +117,9 @@ static FALLBACK_RUNTIME: OnceLock<Option<&'static tokio::runtime::Runtime>> = On
 fn build_emergency_runtime() -> Option<tokio::runtime::Runtime> {
     const MAX_ATTEMPTS: u32 = 8;
     for attempt in 1..=MAX_ATTEMPTS {
-        match tokio::runtime::Builder::new_current_thread()
+        match tokio::runtime::Builder::new_multi_thread()
             .enable_all()
+            .worker_threads(1)
             .thread_name("probing-runtime-fallback")
             .build()
         {
@@ -126,56 +139,135 @@ fn build_emergency_runtime() -> Option<tokio::runtime::Runtime> {
     None
 }
 
-fn try_ephemeral_runtime() -> Option<&'static tokio::runtime::Runtime> {
-    static EPHEMERAL: OnceLock<Option<tokio::runtime::Runtime>> = OnceLock::new();
-    EPHEMERAL
-        .get_or_init(|| {
-            match tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .thread_name("probing-runtime-ephemeral")
+fn build_ephemeral_runtime() -> Option<tokio::runtime::Runtime> {
+    match tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .worker_threads(1)
+        .thread_name("probing-runtime-ephemeral")
+        .build()
+    {
+        Ok(rt) => Some(rt),
+        Err(e) => {
+            log::error!("probing: ephemeral runtime build failed: {e}; retrying minimal");
+            tokio::runtime::Builder::new_current_thread()
                 .build()
-            {
-                Ok(rt) => Some(rt),
-                Err(e) => {
-                    log::error!("probing: ephemeral runtime build failed: {e}; retrying minimal");
-                    tokio::runtime::Builder::new_current_thread()
-                        .build()
-                        .map(Some)
-                        .unwrap_or_else(|e2| {
-                            log::error!("probing: minimal ephemeral runtime build failed: {e2}");
-                            None
-                        })
-                }
+                .map(Some)
+                .unwrap_or_else(|e2| {
+                    log::error!("probing: minimal ephemeral runtime build failed: {e2}");
+                    None
+                })
+        }
+    }
+}
+
+fn process_runtime(
+    storage: &AtomicPtr<ProcessRuntimeSlot>,
+    build: fn() -> Option<tokio::runtime::Runtime>,
+) -> Option<&'static tokio::runtime::Runtime> {
+    let pid = std::process::id();
+    loop {
+        let observed = storage.load(Ordering::Acquire);
+        if !observed.is_null() {
+            // SAFETY: installed slots are intentionally leaked and therefore remain valid.
+            let slot = unsafe { &*observed };
+            if slot.pid == pid {
+                return slot.runtime.as_ref();
             }
-        })
-        .as_ref()
+        }
+
+        let candidate = Box::into_raw(Box::new(ProcessRuntimeSlot {
+            pid,
+            runtime: build(),
+        }));
+        match storage.compare_exchange(observed, candidate, Ordering::AcqRel, Ordering::Acquire) {
+            Ok(_) => {
+                // SAFETY: the successful candidate is now process-global and never freed.
+                return unsafe { &*candidate }.runtime.as_ref();
+            }
+            Err(_) => {
+                // SAFETY: this candidate was never published.
+                drop(unsafe { Box::from_raw(candidate) });
+            }
+        }
+    }
+}
+
+fn try_ephemeral_runtime() -> Option<&'static tokio::runtime::Runtime> {
+    process_runtime(&EPHEMERAL_RUNTIME, build_ephemeral_runtime)
 }
 
 fn fallback_runtime() -> Option<&'static tokio::runtime::Runtime> {
-    FALLBACK_RUNTIME
-        .get_or_init(|| build_emergency_runtime().map(|rt| Box::leak(Box::new(rt)) as &'static _))
-        .as_ref()
-        .copied()
+    process_runtime(&FALLBACK_RUNTIME, build_emergency_runtime)
 }
 
 impl CoreRuntime {
-    fn new() -> Self {
-        let inner = try_build_core_runtime();
-        let degraded = inner.is_none();
+    const fn new() -> Self {
+        Self {
+            slot: AtomicPtr::new(ptr::null_mut()),
+            origin_pid: AtomicU32::new(0),
+        }
+    }
+
+    fn build_slot() -> Box<RuntimeSlot> {
+        let runtime = try_build_core_runtime();
+        let degraded = runtime.is_none();
         if degraded {
             log::error!(
                 "probing: no tokio runtime available; marking async bridge degraded \
                  (queries and config may return empty/error results)"
             );
         }
-        Self {
-            inner,
+        Box::new(RuntimeSlot {
+            pid: std::process::id(),
+            runtime,
             degraded: AtomicBool::new(degraded),
+        })
+    }
+
+    fn current_slot(&self) -> &'static RuntimeSlot {
+        let pid = std::process::id();
+        let _ = self
+            .origin_pid
+            .compare_exchange(0, pid, Ordering::AcqRel, Ordering::Acquire);
+        loop {
+            let observed = self.slot.load(Ordering::Acquire);
+            if !observed.is_null() {
+                // SAFETY: installed slots are intentionally leaked and therefore remain valid.
+                let slot = unsafe { &*observed };
+                if slot.pid == pid {
+                    return slot;
+                }
+            }
+
+            let candidate = Box::into_raw(Self::build_slot());
+            match self.slot.compare_exchange(
+                observed,
+                candidate,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => {
+                    if !observed.is_null() {
+                        log::info!("probing: rebuilt async runtime after fork for pid {pid}");
+                    }
+                    // SAFETY: the successful candidate is now process-global and never freed.
+                    return unsafe { &*candidate };
+                }
+                Err(_) => {
+                    // SAFETY: this candidate was never published.
+                    drop(unsafe { Box::from_raw(candidate) });
+                }
+            }
         }
     }
 
+    fn is_fork_child(&self) -> bool {
+        let origin_pid = self.origin_pid.load(Ordering::Acquire);
+        origin_pid != 0 && origin_pid != std::process::id()
+    }
+
     fn resolve_runtime(&self) -> Option<&tokio::runtime::Runtime> {
-        if let Some(rt) = &self.inner {
+        if let Some(rt) = &self.current_slot().runtime {
             return Some(rt);
         }
         self.mark_degraded();
@@ -188,11 +280,11 @@ impl CoreRuntime {
 
     /// Whether the shared runtime is healthy enough for probing async work.
     pub fn is_operational(&self) -> bool {
-        !self.degraded.load(Ordering::Relaxed)
+        !self.current_slot().degraded.load(Ordering::Relaxed)
     }
 
     pub fn mark_degraded(&self) {
-        if !self.degraded.swap(true, Ordering::Relaxed) {
+        if !self.current_slot().degraded.swap(true, Ordering::Relaxed) {
             log::error!(
                 "probing: runtime marked degraded; async/query features may return \
                  empty or error results until process restart"
@@ -235,7 +327,7 @@ impl CoreRuntime {
     where
         F: Future<Output = T>,
     {
-        if let Some(rt) = &self.inner {
+        if let Some(rt) = &self.current_slot().runtime {
             return Ok(rt.block_on(future));
         }
         if let Some(rt) = fallback_runtime() {
@@ -261,7 +353,7 @@ impl CoreRuntime {
     where
         F: Future<Output = T>,
     {
-        if let Some(rt) = &self.inner {
+        if let Some(rt) = &self.current_slot().runtime {
             return rt.block_on(future);
         }
         if let Some(rt) = fallback_runtime() {
@@ -285,23 +377,38 @@ impl CoreRuntime {
 ///
 /// ENGINE and CONFIG_STORE must only be accessed from this runtime. Creating ad-hoc
 /// runtimes (especially when Python already has an asyncio loop) can cause SIGSEGV.
-pub static CORE_RUNTIME: Lazy<CoreRuntime> = Lazy::new(CoreRuntime::new);
+pub static CORE_RUNTIME: CoreRuntime = CoreRuntime::new();
 
 /// Whether probing's async bridge is still operational.
 pub fn runtime_operational() -> bool {
     CORE_RUNTIME.is_operational()
 }
 
-static PYTHON_MAIN_THREAD: OnceLock<ThreadId> = OnceLock::new();
+struct PythonMainThread {
+    pid: u32,
+    id: ThreadId,
+}
+
+static PYTHON_MAIN_THREAD: AtomicPtr<PythonMainThread> = AtomicPtr::new(ptr::null_mut());
 
 pub fn register_python_main_thread() {
-    let _ = PYTHON_MAIN_THREAD.set(thread::current().id());
+    let registration = Box::into_raw(Box::new(PythonMainThread {
+        pid: std::process::id(),
+        id: thread::current().id(),
+    }));
+    // Registrations are tiny and intentionally leaked so concurrent readers never observe freed
+    // memory. A process normally registers once; a forked child replaces the inherited record.
+    let _ = PYTHON_MAIN_THREAD.swap(registration, Ordering::AcqRel);
 }
 
 pub fn is_python_main_thread() -> bool {
-    PYTHON_MAIN_THREAD
-        .get()
-        .is_some_and(|id| thread::current().id() == *id)
+    let registration = PYTHON_MAIN_THREAD.load(Ordering::Acquire);
+    if registration.is_null() {
+        return false;
+    }
+    // SAFETY: registrations are intentionally leaked.
+    let registration = unsafe { &*registration };
+    registration.pid == std::process::id() && registration.id == thread::current().id()
 }
 
 fn is_inside_core_runtime() -> bool {
@@ -394,6 +501,11 @@ where
 }
 
 struct NativeBridge {
+    slot: AtomicPtr<NativeBridgeSlot>,
+}
+
+struct NativeBridgeSlot {
+    pid: u32,
     tx: Option<mpsc::Sender<BridgeJob>>,
 }
 
@@ -403,9 +515,15 @@ struct BridgeJob {
 }
 
 impl NativeBridge {
-    fn new() -> Self {
+    const fn new() -> Self {
+        Self {
+            slot: AtomicPtr::new(ptr::null_mut()),
+        }
+    }
+
+    fn build_slot() -> Box<NativeBridgeSlot> {
         let (tx, rx) = mpsc::channel::<BridgeJob>();
-        match thread::Builder::new()
+        let tx = match thread::Builder::new()
             .name("probing-native".into())
             .spawn(move || {
                 while let Ok(job) = rx.recv() {
@@ -419,10 +537,48 @@ impl NativeBridge {
                     let _ = job.done.send(());
                 }
             }) {
-            Ok(_) => Self { tx: Some(tx) },
+            Ok(_) => Some(tx),
             Err(e) => {
                 log::error!("failed to spawn probing-native bridge: {e}; using direct calls");
-                Self { tx: None }
+                None
+            }
+        };
+        Box::new(NativeBridgeSlot {
+            pid: std::process::id(),
+            tx,
+        })
+    }
+
+    fn current_slot(&self) -> &'static NativeBridgeSlot {
+        let pid = std::process::id();
+        loop {
+            let observed = self.slot.load(Ordering::Acquire);
+            if !observed.is_null() {
+                // SAFETY: installed slots are intentionally leaked and therefore remain valid.
+                let slot = unsafe { &*observed };
+                if slot.pid == pid {
+                    return slot;
+                }
+            }
+
+            let candidate = Box::into_raw(Self::build_slot());
+            match self.slot.compare_exchange(
+                observed,
+                candidate,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => {
+                    if !observed.is_null() {
+                        log::info!("probing: rebuilt native bridge after fork for pid {pid}");
+                    }
+                    // SAFETY: the successful candidate is now process-global and never freed.
+                    return unsafe { &*candidate };
+                }
+                Err(_) => {
+                    // SAFETY: this candidate was never published.
+                    drop(unsafe { Box::from_raw(candidate) });
+                }
             }
         }
     }
@@ -431,7 +587,7 @@ impl NativeBridge {
         &self,
         f: impl FnOnce() -> R + Send + 'static,
     ) -> R {
-        let Some(tx) = &self.tx else {
+        let Some(tx) = &self.current_slot().tx else {
             return f();
         };
         let (result_tx, result_rx) = mpsc::channel();
@@ -477,7 +633,7 @@ impl NativeBridge {
     }
 }
 
-static NATIVE_BRIDGE: Lazy<NativeBridge> = Lazy::new(NativeBridge::new);
+static NATIVE_BRIDGE: NativeBridge = NativeBridge::new();
 
 thread_local! {
     static ON_NATIVE_BRIDGE: Cell<bool> = const { Cell::new(false) };
@@ -509,6 +665,12 @@ fn run_on_native_bridge<R: Send + BlockOnFallback + 'static>(
 }
 
 fn needs_native_bridge() -> bool {
+    // A bridge worker inherited across fork no longer exists. Recreating the std mpsc/thread
+    // bridge in a macOS post-fork child is not reliable, so child calls use their rebuilt
+    // process-local Tokio runtime directly.
+    if CORE_RUNTIME.is_fork_child() {
+        return false;
+    }
     (is_python_main_thread() && !on_native_bridge()) || is_inside_core_runtime()
 }
 
@@ -554,6 +716,9 @@ where
 mod tests {
     use super::*;
 
+    #[cfg(unix)]
+    const RUNTIME_FORK_HELPER_ENV: &str = "PROBING_RUNTIME_FORK_HELPER";
+
     #[test]
     fn try_block_on_completes_on_current_runtime() {
         let value = CORE_RUNTIME
@@ -598,5 +763,91 @@ mod tests {
         let err = RuntimeError::Internal("bridge broken".into());
         let wrapped: Result<(), RuntimeError> = Result::on_block_on_failure(err);
         assert!(wrapped.unwrap_err().to_string().contains("bridge broken"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn runtime_recovers_and_bypasses_inherited_native_bridge_after_fork() {
+        let output = std::process::Command::new(std::env::current_exe().expect("current test exe"))
+            .args([
+                "--ignored",
+                "--exact",
+                "runtime::tests::fork_runtime_helper",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env(RUNTIME_FORK_HELPER_ENV, "1")
+            .output()
+            .expect("run fork helper");
+        assert!(
+            output.status.success(),
+            "fork helper failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    #[ignore = "subprocess helper for runtime_recovers_and_bypasses_inherited_native_bridge_after_fork"]
+    fn fork_runtime_helper() {
+        if std::env::var(RUNTIME_FORK_HELPER_ENV).as_deref() != Ok("1") {
+            return;
+        }
+
+        register_python_main_thread();
+        assert_eq!(block_on(async { 21 + 21 }).expect("parent runtime"), 42);
+
+        // SAFETY: this dedicated helper process intentionally verifies the supported
+        // post-fork recovery path. The parent waits for and reaps the child below.
+        let child = unsafe { libc::fork() };
+        assert!(child >= 0, "fork failed");
+        if child == 0 {
+            let block_on_ok = block_on(async { 40 + 2 }).is_ok_and(|value| value == 42);
+            register_python_main_thread();
+            let native_bridge_ok = block_on(async { 6 * 7 }).is_ok_and(|value| value == 42);
+            let completed = Arc::new(AtomicBool::new(false));
+            let task_completed = Arc::clone(&completed);
+            std::mem::drop(CORE_RUNTIME.spawn(async move {
+                task_completed.store(true, Ordering::Release);
+            }));
+            let spawn_deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+            while !completed.load(Ordering::Acquire) && std::time::Instant::now() < spawn_deadline {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            let spawn_ok = completed.load(Ordering::Acquire);
+            // SAFETY: `_exit` avoids running inherited parent-only destructors in the child.
+            unsafe {
+                libc::_exit(if block_on_ok && native_bridge_ok && spawn_ok {
+                    0
+                } else {
+                    1
+                })
+            };
+        }
+
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            let mut status = 0;
+            // SAFETY: `child` is a live direct child and `status` is writable.
+            let waited = unsafe { libc::waitpid(child, &mut status, libc::WNOHANG) };
+            if waited == child {
+                assert!(
+                    libc::WIFEXITED(status) && libc::WEXITSTATUS(status) == 0,
+                    "fork child failed with status {status}"
+                );
+                break;
+            }
+            assert!(waited >= 0, "waitpid failed");
+            if std::time::Instant::now() >= deadline {
+                // SAFETY: the child exceeded the bounded test deadline and is reaped below.
+                unsafe {
+                    libc::kill(child, libc::SIGKILL);
+                    libc::waitpid(child, &mut status, 0);
+                }
+                panic!("fork child timed out while using inherited runtime state");
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
     }
 }

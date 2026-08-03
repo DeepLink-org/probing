@@ -37,6 +37,20 @@ impl ApiClient {
         let path = format!(
             "/apis/training/distributed_stack_flamegraph/json?cluster={cluster}&mode={mode}"
         );
-        self.get_request(&path).await
+        let body = self
+            .get_request_accepting_with_timeout(
+                &path,
+                &[503],
+                Some(std::time::Duration::from_secs(20)),
+            )
+            .await?;
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(&body) {
+            if value.get("profile").is_none() {
+                if let Some(error) = value.get("error").and_then(|error| error.as_str()) {
+                    return Err(crate::utils::error::AppError::Api(error.to_string()));
+                }
+            }
+        }
+        Ok(body)
     }
 }

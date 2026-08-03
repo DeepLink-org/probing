@@ -54,7 +54,8 @@ global rank 0       ──PUT──►  本机 master 视图
 | 变量 | 说明 |
 |------|------|
 | `PROBING_PORT` | 仅 **global rank 0** 绑定；其他 rank 用 `0.0.0.0:0` |
-| `PROBING_ADVERTISE_ADDR` | 当前 rank 向 peer 发布的可达地址；多网卡或 hostname 不可解析时必须显式设置 |
+| `PROBING_ADVERTISE_ADDR` | 当前 rank 向 peer 发布的可达地址；默认使用 `MASTER_ADDR`，再回退 hostname；rendezvous 地址不是当前节点可达地址时必须显式设置 |
+| `PROBING_NODE_HOST` | heartbeat 中显式上报的 host 标签；仅影响节点身份与 UI 分组，不改变 peer 网络地址 |
 | `MASTER_ADDR` / `MASTER_PORT` | TCPStore endpoint（torchrun 已设置） |
 | `RDZV_ID` | 多 `torchrun` 并行时必须共享（见 demo 脚本） |
 

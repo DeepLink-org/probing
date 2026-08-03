@@ -1,27 +1,7 @@
 use super::ApiClient;
 use crate::utils::error::Result;
-use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct StepDurationSample {
-    pub rank: i32,
-    pub local_step: i64,
-    #[serde(default)]
-    pub coord_step: i64,
-    pub duration_ms: f64,
-    pub host: String,
-    pub addr: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct StepMatrixResponse {
-    pub samples: Vec<StepDurationSample>,
-    pub rank_count: usize,
-    pub step_count: usize,
-    pub cluster: bool,
-    pub nodes_queried: usize,
-    pub nodes_failed: Vec<String>,
-}
+pub use probing_proto::protocol::training::{StepDurationSample, StepMatrixResponse};
 
 impl ApiClient {
     /// Cross-rank ``train.step`` durations for straggler heatmaps.
@@ -31,10 +11,27 @@ impl ApiClient {
         cluster: bool,
     ) -> Result<StepMatrixResponse> {
         let response = self
-            .get_request(&format!(
-                "/apis/training/step_matrix?limit={limit}&cluster={cluster}"
-            ))
+            .get_request_accepting(
+                &format!("/apis/training/step_matrix?limit={limit}&cluster={cluster}"),
+                &[503],
+            )
             .await?;
         Self::parse_json(&response)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn partial_step_matrix_is_preserved_as_data() {
+        let response: StepMatrixResponse = ApiClient::parse_json(
+            r#"{"samples":[],"rank_count":0,"step_count":0,"cluster":true,"partial":true,"nodes_queried":8,"nodes_failed":["node-7"]}"#,
+        )
+        .unwrap();
+        assert!(response.partial);
+        assert_eq!(response.nodes_queried, 8);
+        assert_eq!(response.nodes_failed, vec!["node-7"]);
     }
 }

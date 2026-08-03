@@ -8,7 +8,7 @@ authors = [
 ]
 license = { text = "Apache-2.0" }
 license-files = ["LICENSE"]
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 dependencies = []
 
 classifiers = [
@@ -18,12 +18,12 @@ classifiers = [
     "Intended Audience :: Information Technology",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Debuggers",
@@ -58,8 +58,7 @@ otel = [
     "opentelemetry-sdk>=1.20",
 ]
 test = [
-    "pytest>=8.0; python_version >= '3.8'",
-    "pytest<8.0; python_version < '3.8'",
+    "pytest>=8.0",
     "pytest-cov>=4.0",
     "coverage>=7.0",
     "pyyaml>=6",
@@ -67,8 +66,7 @@ test = [
     "ipykernel>=6.0",
 ]
 dev = [
-    "pytest>=8.0; python_version >= '3.8'",
-    "pytest<8.0; python_version < '3.8'",
+    "pytest>=8.0",
     "pytest-cov>=4.0",
     "coverage>=7.0",
     "pyyaml>=6",
@@ -89,9 +87,8 @@ build = [
 dev = [
     "coverage>=7.0",
     "ipykernel>=6.0",
-    "ipython>=8.0; python_version >= '3.8'",
-    "pytest>=8.0; python_version >= '3.8'",
-    "pytest<8.0; python_version < '3.8'",
+    "ipython>=8.0",
+    "pytest>=8.0",
     "pytest-cov>=4.0",
     "pyyaml>=6",
     "ruff>=0.1.0",
@@ -100,7 +97,7 @@ wheel-test = [
     "coverage>=7.0",
     "ipykernel>=6.0",
     "pandas",
-    "pytest>=8.0; python_version >= '3.8'",
+    "pytest>=8.0",
     "pytest-cov>=4.0",
     "pyyaml>=6",
     "torch",
@@ -108,8 +105,6 @@ wheel-test = [
 ]
 
 [tool.uv]
-# Lock resolution scope for CI/dev (does not change [project] requires-python).
-environments = ["python_version >= '3.10'"]
 default-groups = ["dev", "build"]
 
 [tool.maturin]

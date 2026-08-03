@@ -8,10 +8,12 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
 use probing_proto::prelude::*;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use super::cluster_fanout;
 use super::error::ApiError;
+
+pub use probing_proto::protocol::training::{StepDurationSample, StepMatrixResponse};
 
 const STEP_MATRIX_SQL: &str = r#"
 SELECT
@@ -33,31 +35,6 @@ const STEP_WINDOW: usize = 120;
 pub struct StepMatrixParams {
     pub limit: Option<usize>,
     pub cluster: Option<bool>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct StepDurationSample {
-    pub rank: i32,
-    /// Display index (chronological, 0-based window into recent steps).
-    pub local_step: i64,
-    /// Original ``local_step`` from span attributes (may be wrong on legacy data).
-    #[serde(default)]
-    pub coord_step: i64,
-    pub duration_ms: f64,
-    pub host: String,
-    pub addr: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct StepMatrixResponse {
-    pub samples: Vec<StepDurationSample>,
-    pub rank_count: usize,
-    pub step_count: usize,
-    pub cluster: bool,
-    /// True when cluster fan-out returned partial data (some peers failed); HTTP 503 when set.
-    pub partial: bool,
-    pub nodes_queried: usize,
-    pub nodes_failed: Vec<String>,
 }
 
 pub async fn get_step_matrix(

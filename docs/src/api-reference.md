@@ -54,6 +54,28 @@ probing -t rank0:8080 cluster query "SELECT _rank, _role, AVG(duration) FROM glo
 
 In-process equivalent: `probing.query("SELECT … FROM global.python.torch_trace …")` when peers are registered.
 
+### PyTorch runtime internals
+
+`GET /apis/pythonext/pytorch/runtime-debug` returns two independent capability
+snapshots used by **Cluster → Distributed Status**:
+
+- PyTorch C++ wait counters for the connected rank (`active_count`, calls,
+  cumulative/maximum time).
+- The job-wide torchrun TCPStore key catalog, classified into debug workers,
+  rank assignments, roles, process groups, and Probing keys.
+
+The endpoint is read-only. Known operational namespaces receive a short value
+preview; unknown values are redacted. Full previews require both
+`?include_values=true` and `PROBING_TCPSTORE_INSPECT=1`. Wait counters require a
+PyTorch build that exposes the experimental distributed debug worker handler;
+unsupported builds return `available: false` without affecting TCPStore data.
+Older TCPStore bindings that do not expose key enumeration still report the
+store's total key count and set `catalog_available: false`. In that mode the
+response probes known torchrun and Probing key names with non-blocking
+`Store.check()` calls, reports their count as `identified_keys`, and returns
+store/rank/node/role/restart context in `facts`. These entries are explicitly a
+partial catalog; the endpoint never presents them as all keys in the store.
+
 ### Diagnostic skills
 
 Structured multi-step SQL playbooks (CLI, Web Agent, MCP). Skills from the bundled

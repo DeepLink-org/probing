@@ -9,6 +9,7 @@
 | 示例 | 描述 |
 |------|------|
 | [训练调试](training-debugging.zh.md) | 调试训练问题 |
+| [64-rank Placement 验证](training-placement-validation.zh.md) | 使用 CPU mock 验证 TP/PP/DP 映射与交互 |
 | [内存泄漏](memory-leak.zh.md) | 查找和修复内存泄漏 |
 | [性能分析](performance-analysis.zh.md) | 识别瓶颈 |
 
