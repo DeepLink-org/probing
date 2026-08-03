@@ -251,9 +251,12 @@ pub async fn request(ctrl: ProbeEndpoint, url: &str, body: Option<String>) -> Re
         }
     };
     let request = if let Some(body) = body {
+        // Every POST this CLI makes carries a JSON body, and handlers using the
+        // `Json` extractor reject the request outright without this header.
         apply_auth_headers(Request::builder())
             .method("POST")
             .uri(url)
+            .header("content-type", "application/json")
             .body(Full::<Bytes>::from(body))
             .context("Failed to build POST request")?
     } else {

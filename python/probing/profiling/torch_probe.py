@@ -372,29 +372,28 @@ class TorchProbeConfig:
             if lowered in TRUE_VALUES:
                 tokens = tokens[1:]
             else:
-                if ":" in first:
-                    # [mode ":"] step_rate [":" layer_rate] — a leading mode name
-                    # is a back-compat alias (only ``random`` sampling exists);
-                    # the third field is the per-layer hit probability.
-                    parts = first.split(":")
-                    # Skip an optional leading mode alias (non-numeric first field).
-                    rate_idx = 0 if _is_float(parts[0]) else 1
-                    if len(parts) > rate_idx:
-                        try:
-                            parsed = float(parts[rate_idx])
-                        except ValueError:
-                            pass
-                        else:
-                            if parsed > 0:
-                                cfg.rate = parsed
-                    if len(parts) > rate_idx + 1:
-                        try:
-                            layer_parsed = float(parts[rate_idx + 1])
-                        except ValueError:
-                            pass
-                        else:
-                            if layer_parsed > 0:
-                                cfg.layer_rate = layer_parsed
+                # [mode ":"] step_rate [":" layer_rate] — a leading mode name
+                # is a back-compat alias (only ``random`` sampling exists);
+                # the third field is the per-layer hit probability.
+                parts = first.split(":")
+                # Skip an optional leading mode alias (non-numeric first field).
+                rate_idx = 0 if _is_float(parts[0]) else 1
+                if len(parts) > rate_idx:
+                    try:
+                        parsed = float(parts[rate_idx])
+                    except ValueError:
+                        pass
+                    else:
+                        if parsed > 0:
+                            cfg.rate = parsed
+                if len(parts) > rate_idx + 1:
+                    try:
+                        layer_parsed = float(parts[rate_idx + 1])
+                    except ValueError:
+                        pass
+                    else:
+                        if layer_parsed > 0:
+                            cfg.layer_rate = layer_parsed
                 tokens = tokens[1:]
 
         for token in tokens:

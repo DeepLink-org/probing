@@ -76,6 +76,24 @@ pub fn set_local_listen_addrs(addrs: Vec<String>) {
     *crate::sync::write_rwlock(&LOCAL_LISTEN_ADDRS, "LOCAL_LISTEN_ADDRS") = Some(addrs);
 }
 
+/// Record another address this process answers on, keeping the ones already known.
+///
+/// A wildcard bind is registered as `0.0.0.0:<port>`, but the cluster registry
+/// advertises a routable form such as `127.0.0.1:<port>`. Without both spellings
+/// the coordinator does not recognise its own registry entry: it fans out to
+/// itself, records the attempt as a failed peer, and every federated query comes
+/// back marked partial.
+pub fn add_local_listen_addrs(addrs: Vec<String>) {
+    let mut guard = crate::sync::write_rwlock(&LOCAL_LISTEN_ADDRS, "LOCAL_LISTEN_ADDRS");
+    let known = guard.get_or_insert_with(Vec::new);
+    for addr in addrs {
+        let addr = addr.trim().to_string();
+        if !addr.is_empty() && !known.contains(&addr) {
+            known.push(addr);
+        }
+    }
+}
+
 /// Local listen address(es): runtime override, then `PROBING_ADDRESS` env, then default.
 pub fn local_listen_addrs() -> Vec<String> {
     if let Some(addrs) =
@@ -93,10 +111,26 @@ pub fn local_listen_addrs() -> Vec<String> {
     vec!["127.0.0.1:8080".into()]
 }
 
+/// Whether `addr` binds every interface rather than naming a routable host.
+pub fn is_wildcard_addr(addr: &str) -> bool {
+    let host = match addr.rsplit_once(':') {
+        Some((host, _)) => host.trim().trim_matches(['[', ']']),
+        None => return false,
+    };
+    matches!(host, "0.0.0.0" | "::" | "" | "*")
+}
+
+/// The address to label this process with in federated results.
+///
+/// Wildcard forms are skipped: they never match a registry entry, which would
+/// leave the local rows tagged `_rank = -1`.
 pub fn local_addr_label() -> String {
-    local_listen_addrs()
-        .into_iter()
-        .next()
+    let addrs = local_listen_addrs();
+    addrs
+        .iter()
+        .find(|addr| !is_wildcard_addr(addr))
+        .or_else(|| addrs.first())
+        .cloned()
         .unwrap_or_else(|| "127.0.0.1:8080".into())
 }
 
@@ -413,6 +447,61 @@ mod tests {
     use super::*;
 
     static TEST_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+    #[test]
+    fn wildcard_addrs_are_recognised() {
+        assert!(is_wildcard_addr("0.0.0.0:18080"));
+        assert!(is_wildcard_addr("[::]:18080"));
+        assert!(is_wildcard_addr(":18080"));
+        assert!(!is_wildcard_addr("127.0.0.1:18080"));
+        assert!(!is_wildcard_addr("10.0.0.5:18080"));
+    }
+
+    #[test]
+    fn advertised_addr_is_kept_alongside_the_bound_one() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        set_local_listen_addrs(vec!["0.0.0.0:40473".into()]);
+        add_local_listen_addrs(vec!["127.0.0.1:40473".into()]);
+        add_local_listen_addrs(vec!["127.0.0.1:40473".into()]);
+
+        let addrs = local_listen_addrs();
+        assert_eq!(addrs, vec!["0.0.0.0:40473", "127.0.0.1:40473"]);
+        // A wildcard label never matches a registry entry, so `_rank` would be -1.
+        assert_eq!(local_addr_label(), "127.0.0.1:40473");
+
+        set_local_listen_addrs(vec![]);
+    }
+
+    #[test]
+    fn coordinator_is_not_its_own_peer() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        reset_cluster_for_tests();
+        set_local_listen_addrs(vec!["0.0.0.0:40473".into()]);
+        add_local_listen_addrs(vec!["127.0.0.1:40473".into()]);
+
+        // How the registry sees this process: the advertised, routable form.
+        update_node(Node {
+            host: "h1".into(),
+            addr: "127.0.0.1:40473".into(),
+            rank: Some(0),
+            status: Some("running".into()),
+            ..Default::default()
+        });
+        update_node(Node {
+            host: "h1".into(),
+            addr: "127.0.0.1:33241".into(),
+            rank: Some(1),
+            status: Some("running".into()),
+            ..Default::default()
+        });
+
+        let peers = remote_peers_excluding_local();
+        assert_eq!(peers.len(), 1);
+        assert_eq!(peers[0].addr, "127.0.0.1:33241");
+
+        set_local_listen_addrs(vec![]);
+        reset_cluster_for_tests();
+    }
 
     #[test]
     fn apply_report_marks_stale_nodes_dead() {

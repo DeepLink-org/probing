@@ -56,6 +56,7 @@ spec:
         )
         GROUP BY rank
         ORDER BY total_recv_wait_ns DESC
+        LIMIT 32
       on_empty: abort
       empty_message: |
         无 nccl.proxy_ops 数据。确认:
@@ -335,6 +336,7 @@ spec:
           AND tp_rank >= 0
         GROUP BY tp_rank, pp_rank, dp_rank
         ORDER BY recv_wait_ns DESC
+        LIMIT 32
       on_empty: skip
       empty_message: "无 tp/pp/dp 列或未设置并行 env — 仅按 torch rank 分析"
 
@@ -357,6 +359,7 @@ spec:
         )
         GROUP BY _host, _rank, rank
         ORDER BY recv_wait_ns DESC
+        LIMIT 32
       on_empty: skip
 
     - id: net_qp_hint
