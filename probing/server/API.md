@@ -28,7 +28,7 @@ Registered in `server/api/mod.rs`:
 | GET/PUT | `/apis/nodes` | Cluster node list / register |
 | GET | `/apis/training/step_matrix` | Cross-rank train.step samples (`cluster=false` default; set `cluster=true` for on-demand fan-out) |
 | GET | `/apis/training/distributed_flamegraph/json` | SPMD torch module flamegraph at one `local_step` (legacy; prefer distributed stack flamegraph) |
-| GET | `/apis/training/distributed_stack_flamegraph/json` | Distributed CPU stack flamegraph (`?cluster=true` default, `?mode=mixed\|py`). Frames may include `ranks: [i32]` (contributing training ranks under that partition) and payload `rankCount`. |
+| GET | `/apis/training/distributed_stack_flamegraph/json` | Distributed CPU stack flamegraph (`?cluster=true` default, `?mode=mixed\|py`). Peer capture is bounded-concurrent with an overall deadline; completed peers are returned on timeout with `nodesFailed`. Frames may include `ranks: [i32]` (contributing training ranks under that partition) and payload `rankCount`. |
 | POST | `/apis/cluster/query` | On-demand SQL fan-out (`{"expr":"…","cluster":true}`; read-only SQL only) |
 
 Flamegraphs are served by profiler extensions (extension fallback, not public routes):
@@ -76,6 +76,7 @@ All handlers live in `python/probing/handlers/pythonext.py`, one canonical local
 | GET | `/apis/pythonext/pytorch/profile/start` | `pytorch/profile/start` — `steps`, `trigger` |
 | GET | `/apis/pythonext/pytorch/profile/stop` | `pytorch/profile/stop` — finalize capture |
 | GET | `/apis/pythonext/pytorch/profile/status` | `pytorch/profile/status` |
+| GET | `/apis/pythonext/pytorch/runtime-debug?include_values=` | `pytorch/runtime-debug` — local wait counters + read-only job TCPStore snapshot |
 | GET | `/apis/pythonext/ray/timeline` | `ray/timeline` |
 | GET | `/apis/pythonext/ray/timeline/chrome` | `ray/timeline/chrome` |
 | GET | `/apis/pythonext/magics` | `magics` |
@@ -86,6 +87,15 @@ All handlers live in `python/probing/handlers/pythonext.py`, one canonical local
 | GET | `/apis/pythonext/skills/roots` | `skills/roots` — discovered skill directories |
 | GET | `/apis/pythonext/extensions/list` | `extensions/list` — installed `probing-<vendor>` packages |
 | GET | `/apis/pythonext/flight-recorder/snapshot?include_stack_traces=&only_active=&persist=` | `flight-recorder/snapshot` |
+
+`pytorch/runtime-debug` reports wait counters for the connected rank only; the
+TCPStore catalog represents rendezvous state shared by the job. Unknown value
+payloads stay redacted unless the server has `PROBING_TCPSTORE_INSPECT=1` and the
+request explicitly sets `include_values=true`. Runtimes without TCPStore key
+enumeration report `total_keys` with `catalog_available: false`. The wait-counter
+snapshot includes a `source`: `pytorch` identifies the native experimental
+PyTorch handler; an explicitly registered compatibility provider reports its own
+source label instead.
 
 Skill HTTP endpoints above are **discovery only** (catalog, routing, load JSON). Execution
 uses the Rust `probing-skills` runner: CLI `probing skill run`, MCP `run_skill` /
@@ -176,6 +186,25 @@ New HTTP endpoint?
 Do not register the same capability in both places. Do not add path aliases.
 
 ## HTTP status codes
+
+Control-plane API failures use one JSON envelope so Web and CLI clients can preserve
+the real cause instead of replacing it with the HTTP reason phrase:
+
+```json
+{
+  "error": {
+    "code": "SERVICE_UNAVAILABLE",
+    "message": "probing engine is still starting",
+    "retryable": true,
+    "action": "retry after /ready reports ready"
+  }
+}
+```
+
+`action` is optional. Query endpoints retain their versioned query DTO/message payloads,
+extension handlers retain their documented native response body, and `/health` plus
+`/ready` retain their orchestrator-specific responses. Clients accept both the canonical
+envelope and these documented endpoint-specific formats.
 
 | Case | Status |
 |------|--------|

@@ -129,23 +129,17 @@ fn setup_env_settings() {
     }
 
     match std::env::var(ENV_PROBING_PORT) {
-        Ok(port_env_val) => {
-            if port_env_val.eq_ignore_ascii_case("RANDOM") {
-                log::debug!(
-                    "ENV_PROBING_PORT is RANDOM. PROBING_SERVER_ADDR set to 0.0.0.0:0 for random port binding."
-                );
-                std::env::set_var("PROBING_SERVER_ADDR", "'0.0.0.0:0'");
-            } else if let Ok(port_number) = port_env_val.parse::<u16>() {
-                log::debug!(
-                    "ENV_PROBING_PORT specifies port: {port_number}. PROBING_SERVER_ADDR will be set."
-                );
-                std::env::set_var("PROBING_SERVER_ADDR", format!("'0.0.0.0:{port_number}'"));
-            } else {
+        Ok(port_env_val) => match probing_server::bind_address_from_port(&port_env_val) {
+            Ok(address) => {
+                log::debug!("PROBING_SERVER_ADDR set to {address}");
+                std::env::set_var("PROBING_SERVER_ADDR", address);
+            }
+            Err(_) => {
                 log::warn!(
                     "ENV_PROBING_PORT value '{port_env_val}' is not 'RANDOM' and not a valid port number."
                 );
             }
-        }
+        },
         Err(_) => {
             log::debug!("ENV_PROBING_PORT not set. PROBING_SERVER_ADDR will not be set.");
         }

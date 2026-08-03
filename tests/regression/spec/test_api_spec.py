@@ -232,6 +232,21 @@ class TestServerPublicRoutes:
         )
 
 
+class TestErrorResponseContract:
+    """Spec: control-plane failures share one machine-readable envelope."""
+
+    def test_error_response_schema_is_explicit(self, spec):
+        contract = spec["error_response"]
+        assert contract["content_type"] == "application/json"
+        fields = contract["schema"]["error"]
+        assert fields == {
+            "code": "string",
+            "message": "string",
+            "retryable": "boolean",
+            "action": "string|null",
+        }
+
+
 class TestSpecReloadConsistency:
     """Re-importing pythonext must not duplicate or drop handlers."""
 

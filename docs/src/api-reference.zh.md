@@ -54,6 +54,24 @@ probing -t rank0:8080 cluster query "SELECT _rank, _role, AVG(duration) FROM glo
 
 进程内等价：`probing.query("SELECT … FROM global.python.torch_trace …")`（需已注册 peer）。
 
+### PyTorch 运行时内部状态
+
+`GET /apis/pythonext/pytorch/runtime-debug` 返回两个相互独立的能力快照，供
+**Cluster → Distributed Status** 使用：
+
+- 当前连接 rank 的 PyTorch C++ Wait Counter（active 数、调用次数、累计/最大耗时）；
+- 作业级 torchrun TCPStore key 目录，并分类为 debug worker、rank assignment、
+  role、process group 与 Probing key。
+
+接口只读。已知运维命名空间只展示短预览，未知 value 默认打码；完整预览必须同时
+传入 `?include_values=true` 并设置 `PROBING_TCPSTORE_INSPECT=1`。Wait Counter
+依赖 PyTorch 实验性的 distributed debug worker handler；不支持的版本返回
+`available: false`，不会影响 TCPStore 快照。旧版 TCPStore binding 如果不能枚举
+key，仍会返回 key 总数，并将 `catalog_available` 设为 `false`。此时接口会通过非阻塞
+的 `Store.check()` 探测已知 torchrun 与 Probing key，以 `identified_keys` 返回已识别
+数量，并在 `facts` 中给出 store、rank、node、role 与 restart 上下文。这些条目明确是
+部分目录，不会被包装成 TCPStore 的全部内容。
+
 ### 诊断 skill
 
 多步 SQL 剧本（CLI、Web Agent、MCP 共用）。来源包括内置 `skills/` 与已安装包注册的

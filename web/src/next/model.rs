@@ -1,6 +1,6 @@
 //! Pure view models for the next diagnostics UI.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::api::{GpuSnapshot, StepDurationSample, StepMatrixResponse};
 
@@ -15,6 +15,14 @@ pub struct StepHealth {
     pub expected_ranks: usize,
     pub nodes_failed: Vec<String>,
     pub rank_durations: Vec<(i32, f64)>,
+    pub trend: Vec<StepTrendPoint>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct StepTrendPoint {
+    pub step: i64,
+    pub median_ms: f64,
+    pub p95_ms: f64,
 }
 
 impl StepHealth {
@@ -53,6 +61,30 @@ impl StepHealth {
             .collect::<Vec<_>>();
         rank_durations.sort_by(|a, b| b.1.total_cmp(&a.1));
 
+        let mut durations_by_step: BTreeMap<i64, Vec<f64>> = BTreeMap::new();
+        for sample in &matrix.samples {
+            if sample.duration_ms.is_finite() && sample.duration_ms >= 0.0 {
+                durations_by_step
+                    .entry(sample_coordinate(sample))
+                    .or_default()
+                    .push(sample.duration_ms);
+            }
+        }
+        let mut trend = durations_by_step
+            .into_iter()
+            .filter_map(|(step, mut durations)| {
+                durations.sort_by(f64::total_cmp);
+                Some(StepTrendPoint {
+                    step,
+                    median_ms: percentile(&durations, 0.5)?,
+                    p95_ms: percentile(&durations, 0.95)?,
+                })
+            })
+            .collect::<Vec<_>>();
+        if trend.len() > 40 {
+            trend = trend.split_off(trend.len() - 40);
+        }
+
         Self {
             latest_step: latest_by_rank
                 .values()
@@ -66,6 +98,7 @@ impl StepHealth {
             expected_ranks: matrix.rank_count.max(latest_by_rank.len()),
             nodes_failed: matrix.nodes_failed.clone(),
             rank_durations,
+            trend,
         }
     }
 
@@ -73,11 +106,6 @@ impl StepHealth {
         let median = self.median_ms?;
         let slowest = self.slowest_ms?;
         (median > 0.0).then_some(slowest / median)
-    }
-
-    pub fn completeness_pct(&self) -> Option<f64> {
-        (self.expected_ranks > 0)
-            .then_some(self.observed_ranks as f64 / self.expected_ranks as f64 * 100.0)
     }
 }
 
@@ -169,6 +197,7 @@ mod tests {
             rank_count: 4,
             step_count: 2,
             cluster: true,
+            partial: true,
             nodes_queried: 3,
             nodes_failed: vec!["node-4".into()],
         };
@@ -179,8 +208,22 @@ mod tests {
         assert_eq!(health.slowest_rank, Some(1));
         assert_eq!(health.observed_ranks, 3);
         assert_eq!(health.expected_ranks, 4);
-        assert_eq!(health.completeness_pct(), Some(75.0));
         assert_eq!(health.rank_durations[0], (1, 180.0));
+        assert_eq!(
+            health.trend,
+            vec![
+                StepTrendPoint {
+                    step: 10,
+                    median_ms: 100.0,
+                    p95_ms: 100.0,
+                },
+                StepTrendPoint {
+                    step: 11,
+                    median_ms: 140.0,
+                    p95_ms: 180.0,
+                },
+            ]
+        );
     }
 
     #[test]

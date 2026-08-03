@@ -7,11 +7,13 @@ pub mod prelude {
     pub use crate::protocol::cluster::{
         Cluster, Node, NodeListResponse, NodeReportRequest, NodeReportResponse,
     };
+    pub use crate::protocol::http::{ApiErrorResponse, ApiProblem};
     pub use crate::protocol::message::Message;
     pub use crate::protocol::process::{CallFrame, Process};
 
     pub use crate::protocol::query::{Data as QueryDataFormat, Options as QueryOptions, Query};
     pub use crate::protocol::query::{ErrorCode, QueryError};
+    pub use crate::protocol::training::{StepDurationSample, StepMatrixResponse};
     pub use crate::protocol::version::ProtocolVersion;
 
     // --- Core Data Types ---

@@ -36,9 +36,32 @@ Next Router 保持 Classic 产品 URL 的兼容性，并在新壳层中直接承
 | 证据 | `/spans`、`/stacks/*`、`/profiles`、`/profiling/:view` |
 | 工具 | `/analytics`、`/python`、`/pulsing`、`/cluster`、`/system` |
 
-Next Shell 同时挂载 Command Bar、全局快捷键、Investigation URL 同步、页面
-snapshot、后台任务与 Torch overhead monitor，以及可浮动的 Investigate 面板。
+Next Shell 同时挂载通过 `⌘K` 唤起的 Command Panel、全局快捷键、Investigation
+URL 同步、页面 snapshot、后台任务与 Torch overhead monitor，以及可浮动的
+Investigate 面板。主内容区不设置固定顶栏，运行上下文和操作由当前页面按需承载。
+低频命令输入不常驻占用页面纵向空间。
 Classic 继续作为独立应用保留；已知产品路由不再依赖 Classic fallback。
+
+### 迁移边界与顺序
+
+Next 页面采用平行迁移，不在 Classic 页面中增加 Next 分支：
+
+- `src/pages/` 是 Classic 冻结基线；迁移期间只接受 Classic 自身的阻断性修复。
+- `src/next/pages/` 拥有 Next 页面、状态组合和交互。
+- `src/api/`、协议 DTO 与纯派生模型可以共享；已完成迁移的 Next 页面不得再挂载 Classic 页面组件。
+- 所有已知产品路由已解除 Classic 页面挂载；`ClassicFallback` 只承接未知或历史 URL，并引导用户回到 Next 能力目录。
+
+迁移台账：
+
+| 顺序 | 工作区 | 当前状态 |
+|------|--------|----------|
+| 1 | Dashboard | Next 原生 |
+| 2 | Cluster Overview / Nodes / Distributed Status | Next 原生 |
+| 3 | Training / Inference / RL | Next 原生 |
+| 4 | Profiling / Stacks / Tracing | 已在 Next 原生实现 |
+| 5 | Analytics / Python Trace / Pulsing / System | 已在 Next 原生实现 |
+| 6 | Investigate | Next 原生；保留与 Skill/Agent 合同的持续能力对照 |
+| 7 | Shell / Classic retirement | 产品路由覆盖完成；Classic 继续冻结，待独立退休阶段删除 |
 
 ---
 
@@ -48,7 +71,7 @@ Probing Web 是 **训练/推理现场的 live 诊断工作台**，不是 experim
 
 ```text
 现象（Dashboard / Training / Spans）
-  → Investigation 上下文（step / trace / pid，URL 同步 + 页内 hint）
+  → Investigation 上下文（step / rank / host / trace / pid / tid，URL 同步 + 固定调查条）
   → Profiling / SQL 证据
   → Investigate Agent + Skill 结构化诊断
 ```
@@ -57,8 +80,8 @@ Probing Web 是 **训练/推理现场的 live 诊断工作台**，不是 experim
 
 | UI 名称 | 路由 | 含义 |
 |---------|------|------|
-| **Spans** | `/spans`（`/traces` 遗留别名） | `python.trace_event` 层级 span，分布式追踪 |
-| **Profiling · Chrome trace** 等 | `/profiling/:view` | pprof / torch 火焰图、Kineto 类 timeline（非 Spans） |
+| **Tracing** | `/spans`（`/traces` 遗留别名） | `python.trace_event` 层级 span，分布式追踪 |
+| **Profiling · Chrome trace** 等 | `/profiles`、`/profiling/:view` | pprof / torch 火焰图、Kineto 类 timeline（非 Tracing） |
 | **Python** | `/python` | 函数级 live 变量 trace（非 Spans） |
 | **Investigate** | `/agent` | Skill + 可选 LLM 的诊断 Agent |
 
@@ -69,7 +92,7 @@ Probing Web 是 **训练/推理现场的 live 诊断工作台**，不是 experim
 | 组件 | 快捷键 / 触发 | 职责 |
 |------|----------------|------|
 | `AppOverlays` | 侧栏 Monitors 点击 / `file:line` | 根级 viewport overlay（任务队列、Torch overhead、源码预览） |
-| `CommandBar` + `GlobalCommandPanel` | ⌘K | SQL / eval REPL |
+| `GlobalCommandPanel` | 侧栏搜索 / ⌘K | SQL / eval REPL；不常驻输入条 |
 | `AgentPanel` | ⌘J（`/agent` 全页时禁用浮层） | 右侧浮层 Agent |
 | `InvestigationContextHint` | 页内（有上下文时） | 轻量提示条 + 跳转 Spans |
 | `SidebarMonitors` | — | 侧栏底部紧凑摘要（Tasks + Torch overhead）；点击打开对应 overlay |
@@ -95,10 +118,29 @@ APP_OVERLAY: None | SourceViewer(path, line) | Monitor(Tasks | Overhead)
 
 ### 2.1 布局
 
-- **整体**：左侧固定侧栏 + 右侧主列（CommandBar → 主内容）；侧栏可收起（localStorage）、可拖拽宽度（200–600px）。
-- **标准主内容**：`max-w-7xl mx-auto`，`p-4 sm:p-6`，背景 `bg-gray-50`（与根容器一致）。
-- **Fullscreen 主内容**：`AppLayout { fullscreen: true }` 时去掉 `max-w-7xl`，内层 `w-full h-full min-h-0`，用于 Profiling、Spans 等可视化页。padding 仍保留（后续可改为真正 edge-to-edge）。
-- **响应式**：主列随侧栏显隐自适应；表格/火焰图/时间线支持横向滚动；窄屏侧栏为 fixed 宽度（暂无 drawer 模式）。
+- **整体**：左侧固定功能工作区 + 右侧主内容；不设置全局固定顶栏。
+- **侧栏功能聚焦**：Next 侧栏由 56px 固定功能轨道和当前功能详情区组成，但整体仍是一个侧栏。Dashboard、Investigate、Cluster、Training、Inference、RL、Profiling、Stacks、Tracing、Deep tools 图标始终保持固定顺序和坐标；切换页面只替换详情区，不移动轨道。详情区承载当前功能名称、子视图和控制项，不再把控制面板插入导航树，也不依赖 hover 承载可编辑参数。
+- **Dashboard 证据平面**：Dashboard 不生成“健康”“异常”或“下一步建议”等自动结论，只在一个主证据平面内提供三组可直接比较的事实：Step time 展示 latest step、median、P95、maximum 与近期 median/P95 曲线；GPU load 展示设备平均值和逐设备 utilization/memory；Latest rank step time 展示 rank 覆盖、失败节点、median 参考线及最慢 rank 的原始时长。区域之间使用分隔线而不是等权卡片。点击 rank 行会固定 rank/step 调查上下文。Dashboard 自动刷新只查询本地节点，不隐式发起 cluster fan-out；跨节点证据由 Cluster 或 Training 的显式 Cluster 控件触发。缺失采集数据只陈述缺失范围，不从缺失推断工作负载状态。
+- **Training 证据平面**：页面不使用流程提问或结论式引导；Step time、Placement、Module Hotspots、Collective Communications 是同一主证据平面中的四个分区。Step time 只保留 Latest / Average / P95 / Maximum 与趋势折线。Placement 只显示 heartbeat 实际上报的 host/rank，且仅保留微型 Overview：一格代表一张 GPU，单机按 local rank 组成 `8×1` 纵列，桌面端每行最多 8 台主机，超过后换行。悬停只预览该 rank 的 TP / DP / PP 通信组；点击会固定 rank、host 和当前 step，并通过全局调查条继续进入 Tracing、Stacks、Profiling 或 Investigate。仅在 `_role` 含 `dp/pp/tp/cp/ep` 坐标时展示并行坐标，不从 world size 猜测并行策略。当 heartbeat 未上报或 registry 请求失败时，主内容不渲染空 Placement 分区；左侧 Training 控制区显示缺失原因和重试语义，数据恢复后提示自动消失。
+- **Stacks 证据平面**：Local stacks 明确标注一次 on-demand capture 的 thread 和 root→current 顺序；Captured evidence 与 Call hierarchy 使用同一主证据平面和内部区隔。Call path 支持按函数/源码搜索，语言过滤保留在侧栏，帧默认紧凑并优先展开 current frame。Distributed stacks 在同一平面中展示覆盖摘要与 flamegraph；部分 fan-out 结果继续渲染，并明确缺失 peer，不把部分结果伪装成完整集群结论。
+- **Spans / Timeline 树状交互**：Spans 与 Chrome trace 默认都使用稳定的聚合时间树。Tracing 先按 `trace_id` 分组；Trace 折叠行保留 roots、spans、threads、events、active、root occupancy union、窗口跨度与 self time 汇总，再按真实父子关系逐级展开 Span。Span 行固定为 `Structure / Position & occupancy / Total / Self / Cover`；折叠时保留 nested/event 数、thread、total、self、窗口覆盖率，并在父 span 的真实时间条上叠加直接子节点 occupancy，用户无需展开也能看到子树结构。展开仅分解真实父子关系和 events；高频 attributes 不自动占行，只在点击明确的 `meta` 控件后展示。Chrome trace 使用 `track → 同名同类事件组 → 单次 slice → children`，同样保留 occurrence 数、nested 数和时间 summary。`Expand all / Collapse all` 同步控制所有层级。Chrome Timeline 保留原横向轨道、缩放与 Perfetto 导出作为 `Timeline` 模式。各模式使用同一份采集数据且不生成自动瓶颈结论。
+- **标准主内容**：Next Shell 统一使用 `max-w-[1600px] mx-auto` 与 `p-4 lg:p-5`，背景 `bg-gray-50`。
+- **Full-height 主内容**：Profiling、Chrome trace、Perfetto 由 Shell 统一提供 `h-full min-h-0` 工作区；页面不得自行计算 `100vh` 或重复套卡片边框。
+- **桌面布局**：展开时侧栏总宽 288px（56px 轨道 + 232px 详情），收起时只保留 56px 轨道；状态写入 `localStorage["probing_next_sidebar_compact"]`。本阶段不设计移动端 drawer。
+
+### 2.1.1 Next 页面语言
+
+所有 Next 产品页使用同一组页面原语，避免页面迁移后重新长出不同的视觉和交互方言：
+
+- `WorkspacePage` 统一页面标题、范围说明、直接操作和 16px 内容节奏；页面不得自行复制 header。
+- `EvidenceSurface` 表达页面的主证据平面；相关证据优先放在同一平面内，避免每个区块都成为等权卡片。
+- `EvidenceSection` 使用标题、说明和细分隔线组织主证据平面。`SectionCard` 只保留给边界独立、可单独加载或需要独立滚动的证据范围。
+- `EvidenceMetric` 只用于卡片内部的紧凑事实摘要，统一 label、数值、detail 和 tabular number 样式；跨页面不再定义私有 metric 组件。
+- `FilterInput` 只过滤当前已加载证据；路由选择和采集配置继续归侧栏，避免页面工具条同时承担导航与配置。
+- `ActionButton` 只用于执行、展开、导出等页面内动作，并统一 primary / neutral / danger 权重；路由跳转继续使用 `Link`。
+- 请求失败、成功空结果和部分结果必须分别展示。`InlineNotice` 只能陈述覆盖率、缺失范围或请求状态，不使用“健康”“异常”“建议下一步”等替用户作结论的措辞。
+
+信息层级固定为：页面范围 → 固定调查上下文 → 主证据平面 → 分区 summary → 图表/树/表格原始证据。没有信息增量的介绍条、流程提问、重复 overview 和纯装饰卡片不进入主内容区。
 
 ### 2.2 色彩（`components/colors.rs`）
 
@@ -106,6 +148,16 @@ APP_OVERLAY: None | SourceViewer(path, line) | Monitor(Tasks | Overhead)
 - **主内容**：浅灰底、白/灰卡片、gray 文字层级；调查上下文用 blue-50 条。
 - **强调**：蓝色主操作；成功/错误/警告用 green/red/amber 常量。
 - **约定**：新 UI 优先从 `colors.rs` 取 Tailwind 类名字面量；Agent 新面板可用 `workspace/surface.rs` 的 `SurfaceCard`。
+
+### 2.2.1 可访问性基线
+
+- Next 主信息、表格、标签和控制项不低于 `text-xs`（12px）；只有图表刻度等辅助图形文字可以使用 11px，不使用 7–10px 承载诊断信息。
+- 白色或 gray-50 主内容上的辅助文字至少使用 gray-500；深色侧栏的辅助文字至少使用 slate-400。
+- 颜色不能成为唯一编码：状态需要文字，Placement 通信组同时使用颜色、虚线和 `T / D / P / ●` 字符，选中项显示 `Selected` 或 `Pinned`。
+- Hover 只用于预览。相同信息必须可通过键盘 Focus 获得，通过 Click 固定，并在可见详情区或调查上下文条中保持。
+- 路由、按钮、树节点和可展开帧必须有可见的 `focus-visible` 状态；当前导航使用 `aria-current`，Toggle 使用 checked/pressed 语义。
+- 图表和时间条提供文本摘要或 `aria-label`；纯装饰色块对屏幕阅读器隐藏。动画遵守 `prefers-reduced-motion`。
+- Shell 提供 Skip Link；主内容可直接获得焦点，不要求键盘用户遍历整个侧栏。
 
 ### 2.3 页面与状态组件
 
@@ -124,33 +176,28 @@ APP_OVERLAY: None | SourceViewer(path, line) | Monitor(Tasks | Overhead)
 
 ### 2.4 侧栏结构
 
-Next 侧栏以用户角色和分析深度组织，并且只展开当前路由所在的活动路径：
+Next 侧栏以用户角色和分析深度组织，固定轨道负责选择功能，详情区负责当前功能内部导航与参数：
 
 ```text
-Logo + 紧凑模式 / 移动端关闭
-快速搜索（⌘K）
-├── Dashboard
-├── Investigate
-├── Distributed health
-├── Cluster nodes
-├── Workloads
-│   ├── Training
-│   ├── Reinforcement learning → Rollout / Policy training / RL Spans / Timeline / Perfetto
-│   └── Inference
-├── Advanced analysis
-│   ├── Profiles → pprof / Torch / Chrome trace / PyTorch / Ray
-│   ├── Stacks → Local / Distributed / Distributed Python
-│   └── Spans
-└── Deep tools → SQL / Python Trace / Pulsing / System / Catalog
-nav（flex-1 独立滚动；仅当前活动路径展开）
-Tasks · Overhead
-Switch interface: Classic
+56px 固定轨道                    当前功能详情（展开时 232px）
+Logo                            分类 + 当前功能标题 + 收起按钮
+Search（⌘K）                   ├── 子视图（若存在）
+Dashboard                       ├── 当前页面控制项
+Investigate                     └── 可滚动的功能上下文
+Cluster                          ├── Overview
+                                 ├── Nodes
+                                 └── Distributed Status
+── Workloads: Training / Inference / RL
+── Advanced: Profiling / Stacks / Tracing
+── Deep tools
+Tasks / Overhead / Classic      紧凑状态行
 ```
 
 活动路径同时承载当前页面的控制项，例如刷新、数据范围、cluster fan-out、
-采样频率和 profiler 启停；右侧页面只保留结果和直接操作图表所需的过滤器。
-展开状态完全由路由决定，非活动分支不可同时展开。桌面侧栏支持 288px 控制
-模式和 80px 图标模式；窄屏侧栏为遮罩抽屉，支持显式关闭且不产生横向滚动。
+采样频率和 profiler 启停；右侧页面只保留当前判断、关键指标、证据和直接下一步。
+功能切换不会改变轨道中其他图标的位置。子视图导航与参数控制只出现在详情区，
+因此不存在“点击标题究竟是导航还是展开”的混合语义，也不使用 `More` hover
+面板。桌面侧栏支持 288px 控制模式和 56px 图标模式。
 
 Classic 侧栏保持原结构：
 
@@ -183,11 +230,13 @@ GitHub footer
 
 | 模块 | 路径 | 职责 |
 |------|------|------|
-| 状态 | `state/investigation.rs` | `INVESTIGATION_CONTEXT`（step、trace_id、span、pid 等） |
+| 状态 | `state/investigation.rs` | `INVESTIGATION_CONTEXT`（step、rank、host、trace_id、span、pid/tid） |
 | URL | `state/investigation_url.rs` | query 参数读写、与 localStorage 同步 |
 | 提示 | `components/investigation_context_hint.rs` | 页内空状态 / 上下文引导 |
 
-**写入入口示例**：Training 热力格、Spans 过滤、Dashboard 线程行、Agent step 导航。
+固定上下文以紧凑的 blue-50 调查条显示，字段写入 URL 和 localStorage；跨页导航后不得丢失。Hover 只做预览，Click/键盘选择才固定上下文。
+
+**写入入口示例**：Dashboard 慢 rank 行、Training placement GPU、Tracing trace/span 行、Dashboard 线程行、Agent/SQL 结果行。
 
 **Agent 页面上下文**（与 investigation 独立）：`state/page_context.rs` + `PageContextSync` + `agent/page_tools.rs`（route snapshot 供 LLM）。
 
@@ -332,7 +381,7 @@ web/src/
 
 | 模块 | 职责 |
 |------|------|
-| `layout` | 侧栏、CommandBar、主内容区、Agent 浮层容器；启动 `load_skill_store` |
+| `layout` | 侧栏、运行上下文、主内容区、Agent 浮层容器；启动 `load_skill_store` |
 | `sidebar` | 导航、Monitors 摘要、Profiling/Stack 控件、resize |
 | `app_overlays` | 根级 Tasks / Overhead / SourceViewer |
 | `flamegraph` | pprof / torch 火焰图、diff |
@@ -352,7 +401,9 @@ web/src/
 |------|------|-----------|
 | `/` | Dashboard | 标准 |
 | `/agent` | Investigate（全页 Agent） | 标准 |
-| `/cluster` | Cluster | 标准 |
+| `/distributed` | Cluster Overview | 标准 |
+| `/cluster` | Cluster Nodes | 标准 |
+| `/cluster/status` | Distributed Status（Wait Counters / Rendezvous） | 标准 |
 | `/stacks`, `/stacks/:tid` | Stacks | 标准 |
 | `/profiling`, `/profiling/:view` | Profiling | **fullscreen** |
 | `/analytics` | Analytics SQL | 标准 |

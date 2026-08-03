@@ -31,7 +31,8 @@ See [Environment variables](../reference/env-vars.md) for the full list. Highlig
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `PROBING_TORCHRUN_CLUSTER` | `1` | Enable torchrun cluster |
-| `PROBING_ADVERTISE_ADDR` | hostname | Peer-reachable address published for the current rank; set explicitly on multi-homed or non-resolvable hosts |
+| `PROBING_ADVERTISE_ADDR` | `MASTER_ADDR`, then hostname | Peer-reachable address published for the current rank; set explicitly when the rendezvous host is not this node's reachable address |
+| `PROBING_NODE_HOST` | OS hostname | Explicit host label reported by heartbeat; affects node identity and UI grouping, not the peer network address |
 | `PROBING_CLUSTER_REPORT` | `1` | Periodic heartbeat |
 | `PROBING_CLUSTER_REPORT_INTERVAL_SEC` | `10` | Base interval (seconds) |
 | `PROBING_CLUSTER_STALE_SEC` | `25` | Mark node `dead` after one TTL; remove after a second TTL |

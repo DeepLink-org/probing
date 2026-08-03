@@ -466,6 +466,14 @@ def snapshot_flight_recorder(
     )
 
 
+@ext_handler("pythonext", "pytorch/runtime-debug")
+def pytorch_runtime_debug(include_values: bool = False) -> str:
+    """Return structured PyTorch wait counters and TCPStore state."""
+    from probing.profiling.runtime_debug import snapshot_runtime_debug
+
+    return json.dumps(snapshot_runtime_debug(include_values=include_values))
+
+
 def get_pytorch_profile() -> str:
     """Get PyTorch profiler profile data.
 

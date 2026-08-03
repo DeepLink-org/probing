@@ -2,13 +2,14 @@ use super::config::get_max_request_body_size;
 use axum::{
     body::Body,
     extract::Request,
-    http::StatusCode,
     middleware::Next,
     response::{IntoResponse, Response},
 };
 use bytes::Bytes;
 use http_body_util::{BodyExt, Limited};
 use std::sync::atomic::{AtomicUsize, Ordering};
+
+use super::error::ApiError;
 
 static IN_FLIGHT_REQUESTS: AtomicUsize = AtomicUsize::new(0);
 
@@ -47,10 +48,8 @@ pub async fn connection_limit_middleware(request: Request, next: Next) -> Respon
                 "in-flight request limit reached (max {})",
                 crate::runtime_state::config().max_connections()
             );
-            return (
-                StatusCode::SERVICE_UNAVAILABLE,
-                "server request concurrency limit reached",
-            )
+            return ApiError::service_unavailable("server request concurrency limit reached")
+                .with_action("retry after an in-flight request completes")
                 .into_response();
         }
     };
@@ -66,10 +65,8 @@ pub async fn request_timeout_middleware(request: Request, next: Next) -> Respons
     .await
     {
         Ok(response) => response,
-        Err(_) => (
-            StatusCode::GATEWAY_TIMEOUT,
-            format!("request exceeded {timeout_secs}s deadline"),
-        )
+        Err(_) => ApiError::gateway_timeout(format!("request exceeded {timeout_secs}s deadline"))
+            .with_action("retry with a smaller query or narrower time window")
             .into_response(),
     }
 }
@@ -89,11 +86,10 @@ pub async fn request_size_limit_middleware(request: Request, next: Next) -> Resp
     if let Some(length) = content_length {
         if length > max_size {
             log::warn!("Request rejected: Content-Length {length} exceeds limit {max_size}");
-            return (
-                StatusCode::PAYLOAD_TOO_LARGE,
-                format!("Request body too large (max {max_size} bytes allowed)"),
-            )
-                .into_response();
+            return ApiError::payload_too_large(format!(
+                "Request body too large (max {max_size} bytes allowed)"
+            ))
+            .into_response();
         }
     }
 
@@ -106,7 +102,7 @@ pub async fn request_size_limit_middleware(request: Request, next: Next) -> Resp
         Ok(bytes) => bytes,
         Err(e) => {
             log::warn!("Request body collection failed: {e}");
-            return (StatusCode::PAYLOAD_TOO_LARGE, e).into_response();
+            return ApiError::payload_too_large(e).into_response();
         }
     };
 

@@ -25,7 +25,6 @@ similar_names = "allow"
 [features]
 test-utils = []
 default = []
-builtin-schema-docs = ["dep:probing-hccl-shim", "dep:probing-nccl-profiler"]
 python-bridge = ["dep:pyo3"]
 
 [lib]
@@ -35,8 +34,6 @@ crate-type = ["rlib"]
 probing-proto = { path = "../proto" }
 probing-macros = { path = "../macros" }
 probing-memtable = { path = "../memtable" }
-probing-hccl-shim = { path = "../extensions/hccl-shim", optional = true }
-probing-nccl-profiler = { path = "../extensions/nccl-profiler", optional = true }
 
 anyhow = { workspace = true }
 arrow = { workspace = true }
@@ -64,5 +61,3 @@ pyo3 = { version = "0.29.0", optional = true, default-features = false, features
 
 [dev-dependencies]
 tempfile = "3.8"
-probing-hccl-shim = { path = "../extensions/hccl-shim" }
-probing-nccl-profiler = { path = "../extensions/nccl-profiler" }

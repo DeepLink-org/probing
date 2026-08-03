@@ -62,7 +62,7 @@ make test-python-regression    # Python 冒烟；完整套件：make test
 
 ## 前提条件 {#prerequisites}
 
-- **Python** 3.9+
+- **Python** 3.8+
 - **Rust（stable 通道）** + **Cargo** — 仓库与 CI 均使用 stable 构建；不需要 nightly
 - **maturin** — 构建 `probing._core`（`pip install maturin` 或 `uv pip install maturin`）
 - **uv**（可选，推荐）— 常用 `uv venv`；若 venv 无 `pip`，Makefile 会改用 `uv pip`

@@ -5,14 +5,14 @@ use super::pages::{
     AnalyticsPage as Analytics, ChromeTracePage as ChromeTrace,
     ClassicFallbackPage as ClassicFallback, ClusterPage as Cluster, DashboardPage as Dashboard,
     DistributedPage as Distributed, DistributedPythonStackPage as DistributedPythonStack,
-    DistributedStackPage as DistributedStack, ExplorePage as Explore, InferencePage as Inference,
-    InvestigatePage as Investigate, PerfettoPage as Perfetto,
-    ProcessTimelinePage as ProcessTimeline, ProfileViewPage as ProfileView,
-    ProfilesPage as Profiles, ProfilesPage as ProfilingLegacy, PulsingPage as Pulsing,
-    PythonPage as Python, RlSpansPage as RlSpans, RlTrainPage as RlTrain, RolloutPage as Rollout,
-    RolloutPage as RolloutLegacy, SpansPage as Spans, SpansPage as TracesLegacy,
-    StackPage as Stack, StackThreadPage as StackThread, SystemPage as System,
-    TrainingPage as Training,
+    DistributedStackPage as DistributedStack, DistributedStatusPage as DistributedStatus,
+    ExplorePage as Explore, InferencePage as Inference, InvestigatePage as Investigate,
+    PerfettoPage as Perfetto, ProcessTimelinePage as ProcessTimeline,
+    ProfileViewPage as ProfileView, ProfilesPage as Profiles, ProfilesPage as ProfilingLegacy,
+    PulsingPage as Pulsing, PythonPage as Python, RlSpansPage as RlSpans, RlTrainPage as RlTrain,
+    RolloutPage as Rollout, RolloutPage as RolloutLegacy, SpansPage as Spans,
+    SpansPage as TracesLegacy, StackPage as Stack, StackThreadPage as StackThread,
+    SystemPage as System, TrainingPage as Training,
 };
 use super::shell::NextShell;
 
@@ -55,6 +55,9 @@ pub enum NextRoute {
 
         #[route("/cluster")]
         Cluster {},
+
+        #[route("/cluster/status")]
+        DistributedStatus {},
 
         #[route("/stacks")]
         Stack {},
@@ -112,9 +115,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn every_classic_product_path_resolves_in_next() {
+    fn every_documented_product_path_resolves_in_next() {
         let paths = [
             "/",
+            "/distributed",
             "/rl",
             "/rl/rollout",
             "/rl/train",
@@ -124,11 +128,13 @@ mod tests {
             "/rl/inference",
             "/agent",
             "/cluster",
+            "/cluster/status",
             "/stacks",
             "/stacks/distributed",
             "/stacks/distributed/py",
             "/stacks/123",
             "/profiling",
+            "/profiles",
             "/profiling/pprof",
             "/analytics",
             "/python",
@@ -137,6 +143,8 @@ mod tests {
             "/chrome-tracing",
             "/pulsing",
             "/training",
+            "/system",
+            "/explore",
         ];
 
         for path in paths {

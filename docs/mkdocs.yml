@@ -173,6 +173,7 @@ nav:
   - Examples:
     - examples/index.md
     - Training Debugging: examples/training-debugging.md
+    - 64-rank Placement Validation: examples/training-placement-validation.md
     - Memory Leak: examples/memory-leak.md
     - Performance Analysis: examples/performance-analysis.md
   - Reference:

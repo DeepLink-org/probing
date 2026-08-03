@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 use dioxus_router::Link;
 
-use super::super::components::{ClassicLink, NextPageHeader, SectionCard};
+use super::super::components::{ClassicLink, SectionCard, WorkspacePage};
 use super::super::routes::NextRoute;
 
 #[component]
@@ -49,11 +49,9 @@ pub fn ExplorePage() -> Element {
         ),
     ];
     rsx! {
-        div { class: "space-y-5",
-            NextPageHeader {
-                title: "Explore all capabilities".to_string(),
-                subtitle: "The mature performance and runtime tools now run inside the Next shell with shared context and diagnostics.".to_string(),
-            }
+        WorkspacePage {
+            title: "Explore all capabilities".to_string(),
+            subtitle: "The mature performance and runtime tools now run inside the Next shell with shared context and diagnostics.".to_string(),
             div { class: "grid gap-4 md:grid-cols-2 xl:grid-cols-3",
                 for (title, route, detail) in tools {
                     SectionCard {
@@ -75,18 +73,18 @@ pub fn ExplorePage() -> Element {
 pub fn ClassicFallbackPage(segments: Vec<String>) -> Element {
     let path = format!("/{}", segments.join("/"));
     rsx! {
-        div { class: "mx-auto max-w-2xl space-y-5 py-12",
-            NextPageHeader {
-                title: "This tool still lives in the classic UI".to_string(),
-                subtitle: format!("`{path}` is not a recognized product route. The Classic fallback remains available for compatibility."),
-            }
-            SectionCard {
-                title: "Progressive migration boundary".to_string(),
-                p { class: "text-sm leading-relaxed text-gray-600",
-                    "The next interface only owns migrated diagnostic workflows. Advanced or low-level tools continue to run in the unchanged classic application."
-                }
-                div { class: "mt-4",
-                    ClassicLink { path, label: "Open requested classic tool".to_string() }
+        div { class: "mx-auto max-w-2xl py-12",
+            WorkspacePage {
+                title: "Unknown Next route".to_string(),
+                subtitle: format!("`{path}` is not a documented product route. The Classic fallback remains available for historical or private paths."),
+                SectionCard {
+                    title: "Compatibility boundary".to_string(),
+                    p { class: "text-sm leading-relaxed text-gray-600",
+                        "All documented product routes have native Next pages. This unrecognized path can still be opened in the frozen Classic application while compatibility is retained."
+                    }
+                    div { class: "mt-4",
+                        ClassicLink { path, label: "Open requested classic tool".to_string() }
+                    }
                 }
             }
         }
