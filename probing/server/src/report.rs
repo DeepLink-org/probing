@@ -122,6 +122,18 @@ pub(crate) fn build_local_node(local_addr: &str) -> Node {
     }
 }
 
+async fn request_remote(url: &str, nodes: Vec<Node>) -> Result<NodeReportResponse> {
+    let url = url.to_string();
+    tokio::task::spawn_blocking(move || request_remote_blocking(&url, nodes))
+        .await
+        .context("cluster report spawn_blocking failed")?
+}
+
+fn request_remote_blocking(url: &str, nodes: Vec<Node>) -> Result<NodeReportResponse> {
+    let base = url.strip_suffix("/apis/nodes").unwrap_or(url);
+    put_nodes_blocking(base, nodes, probing_core::core::cluster::cluster_version())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -144,16 +156,4 @@ mod tests {
             std::env::remove_var("PROBING_NODE_HOST");
         }
     }
-}
-
-async fn request_remote(url: &str, nodes: Vec<Node>) -> Result<NodeReportResponse> {
-    let url = url.to_string();
-    tokio::task::spawn_blocking(move || request_remote_blocking(&url, nodes))
-        .await
-        .context("cluster report spawn_blocking failed")?
-}
-
-fn request_remote_blocking(url: &str, nodes: Vec<Node>) -> Result<NodeReportResponse> {
-    let base = url.strip_suffix("/apis/nodes").unwrap_or(url);
-    put_nodes_blocking(base, nodes, probing_core::core::cluster::cluster_version())
 }
