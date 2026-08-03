@@ -79,6 +79,33 @@ pub fn parse_cluster_query_response(
     Ok((dataframe, cluster_meta))
 }
 
+/// Decode a raw `POST /apis/cluster/query` reply body.
+///
+/// The endpoint answers with JSON both when the fan-out succeeds and when it
+/// comes back partial, but every error path returns a bare text body. Feeding
+/// that to a JSON parser reports `expected value at line 1 column 1` and throws
+/// away what the server actually said, so a decode failure is reported as the
+/// body itself.
+pub fn decode_cluster_query_reply(
+    reply: &str,
+) -> std::result::Result<(DataFrame, Option<ClusterQueryMeta>), SkillRunError> {
+    match serde_json::from_str::<serde_json::Value>(reply) {
+        Ok(value) => parse_cluster_query_response(&value),
+        Err(err) => {
+            let body = reply.trim();
+            if body.is_empty() {
+                return Err(SkillRunError(format!(
+                    "cluster query returned an empty response ({err})"
+                )));
+            }
+            const MAX: usize = 500;
+            let shown: String = body.chars().take(MAX).collect();
+            let ellipsis = if body.chars().count() > MAX { "…" } else { "" };
+            Err(SkillRunError(format!("cluster query failed: {shown}{ellipsis}")))
+        }
+    }
+}
+
 pub fn cluster_meta_note(meta: &ClusterQueryMeta) -> String {
     format!(
         "cluster fan-out · {} nodes queried · {} failed · {} peer batches dropped{}",
@@ -92,6 +119,23 @@ pub fn cluster_meta_note(meta: &ClusterQueryMeta) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn text_error_bodies_are_surfaced_verbatim() {
+        let err = decode_cluster_query_reply("cluster hierarchical fan-out unavailable")
+            .expect_err("plain text is not a valid response");
+        assert!(
+            err.0.contains("cluster hierarchical fan-out unavailable"),
+            "server message was swallowed: {}",
+            err.0
+        );
+    }
+
+    #[test]
+    fn empty_bodies_say_so() {
+        let err = decode_cluster_query_reply("").expect_err("empty is not a valid response");
+        assert!(err.0.contains("empty response"), "got: {}", err.0);
+    }
 
     #[test]
     fn parse_cluster_query_response_surfaces_api_error() {

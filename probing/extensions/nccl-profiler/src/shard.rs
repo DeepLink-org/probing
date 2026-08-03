@@ -11,7 +11,7 @@ use crate::events::{
     event_type, CollSlot, KernelChSlot, NetPluginSlot, ProxyOpSlot, ProxyStepSlot, EVT_COLL,
     EVT_KERNEL_CH, EVT_NET_PLUGIN, EVT_PROXY_OP, EVT_PROXY_STEP,
 };
-use crate::pool::Indexed;
+use crate::pool::{Indexed, INVALID_IDX};
 
 const IDX_MASK: u32 = 0x00FF_FFFF;
 const SHARD_SHIFT: u32 = 24;
@@ -57,12 +57,21 @@ pub fn shard_for_comm(comm_hash: u64) -> usize {
 }
 
 /// Read the shard id embedded in a live NCCL event handle (lock-free).
+///
+/// Returns `None` for a recycled slot: a coll stops at enqueue time, so its
+/// slot can be freed (`self_idx` back to `INVALID_IDX`) before a child kernel-ch
+/// event references it. Callers must fall back rather than index a shard —
+/// panicking inside an NCCL callback aborts the training process.
 pub fn shard_for_handle(handle: *mut c_void) -> Option<usize> {
     if handle.is_null() {
         return None;
     }
     let packed = packed_self_idx(handle)?;
-    Some(shard_id(packed))
+    if packed == INVALID_IDX {
+        return None;
+    }
+    let shard = shard_id(packed);
+    (shard < pool_shard_count()).then_some(shard)
 }
 
 fn packed_self_idx(handle: *mut c_void) -> Option<u32> {
@@ -88,5 +97,15 @@ mod tests {
         let packed = pack_slot_id(3, 42);
         assert_eq!(shard_id(packed), 3);
         assert_eq!(slot_index(packed), 42);
+    }
+
+    /// A freed coll slot keeps `INVALID_IDX`, whose top byte would index shard
+    /// 255 and abort the process from inside an NCCL callback.
+    #[test]
+    fn recycled_slot_has_no_shard() {
+        let mut slot = CollSlot::new(Default::default(), Default::default(), 0);
+        slot.set_self_idx(INVALID_IDX);
+        let handle = &mut slot as *mut CollSlot as *mut c_void;
+        assert_eq!(shard_for_handle(handle), None);
     }
 }

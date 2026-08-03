@@ -1,7 +1,7 @@
 //! ``ProbeEndpoint`` adapter for the shared skill runner.
 
 use probing_proto::prelude::{DataFrame, NodeListResponse, Query};
-use probing_skills::backend::{parse_cluster_query_response, ClusterQueryMeta, SkillBackend};
+use probing_skills::backend::{decode_cluster_query_reply, ClusterQueryMeta, SkillBackend};
 use probing_skills::runner::{Result, SkillRunError};
 
 use crate::cli::ctrl::ProbeEndpoint;
@@ -27,10 +27,7 @@ impl SkillBackend for CliBackend {
             .post_json("/apis/cluster/query", &body.to_string())
             .await
             .map_err(|e| SkillRunError(e.to_string()))?;
-        let value: serde_json::Value =
-            serde_json::from_str(&reply).map_err(|e| SkillRunError(e.to_string()))?;
-        let (dataframe, cluster_meta) = parse_cluster_query_response(&value)?;
-        Ok((dataframe, cluster_meta))
+        decode_cluster_query_reply(&reply)
     }
 
     async fn get(&self, path: &str) -> Result<String> {

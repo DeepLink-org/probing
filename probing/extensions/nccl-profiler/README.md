@@ -42,10 +42,20 @@ pip install probing
 # or from source: make wheel && pip install dist/probing-*.whl
 
 # 3. Run a tiny distributed job
-export NCCL_PROFILER_PLUGIN=$(python -m probing.nccl --plugin-path)
+#    NCCL dlopens the value of NCCL_PROFILER_PLUGIN only when it starts with
+#    "lib" and ends with ".so" (src/plugin/plugin_open.cc); anything else is
+#    wrapped as libnccl-profiler-<value>.so. An absolute path therefore never
+#    loads — pass the bare file name and put its directory on LD_LIBRARY_PATH.
+export LD_LIBRARY_PATH="$(dirname "$(python -m probing.nccl --plugin-path)"):$LD_LIBRARY_PATH"
+export NCCL_PROFILER_PLUGIN=libprobing_nccl_profiler.so
 export NCCL_PROFILE_EVENT_MASK=$(python -m probing.nccl --event-mask)  # 94
 export PROBING=2
 torchrun --nproc_per_node=2 your_allreduce.py
+
+# Confirm the plugin is live (NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=PROFILE):
+#   PROFILER/Plugin: Plugin name set by env to libprobing_nccl_profiler.so
+#   init ok (abi=v4, mask=94, ...)
+#   finalize: coll=… proxy_op=… kernel_ch=… rows=…
 
 # 4. Query (probing attached to same PIDs, or after inject)
 probing -t <pid> query "SELECT * FROM nccl.proxy_ops LIMIT 20"
@@ -81,13 +91,17 @@ probing -t <pid> query "SELECT * FROM nccl.net_qp LIMIT 20"
 
 Rows aggregate ProxyStep state transitions at ProxyOp stop (batched under parent Coll when present).
 
+ProxyOp events only exist for proxy-driven transports (network / IB). A
+single-node NVLink job produces `nccl.coll_perf` but leaves `nccl.proxy_ops`
+empty — the culprit/victim wait decomposition needs multi-node traffic.
+
 Docs: `docs/src/design/nccl-profiler.md`.
 
 ## Environment
 
 | Variable | Purpose |
 |----------|---------|
-| `NCCL_PROFILER_PLUGIN` | Path to this `.so` (required) |
+| `NCCL_PROFILER_PLUGIN` | `libprobing_nccl_profiler.so` (required) — bare file name, resolved via `LD_LIBRARY_PATH`; a path does not work |
 | `NCCL_PROFILE_EVENT_MASK` | Override default `Coll\|P2P\|ProxyOp\|ProxyStep\|KernelCh` (94) |
 | `PROBING_DATA_DIR` | Memtable directory (default `/dev/shm/probing`) |
 | `TP_RANK`, `PP_RANK`, `DP_RANK` | Parallel roles written into `nccl.proxy_ops` |
@@ -169,6 +183,9 @@ make nccl-profiler-lib
 ```
 
 Tune E2E with `NPROC`, `BENCH_ITERS`, `MSG_BYTES`. Disable watchdog noise during bench with `PROBING_NCCL_INFLIGHT_THRESHOLD_SECS=0` (the wrapper sets this).
+
+Measured single-node H200 results and the Megatron A/B methodology are documented
+in [`docs/src/design/nccl-profiler-overhead-experiment.zh.md`](../../../docs/src/design/nccl-profiler-overhead-experiment.zh.md).
 
 ## Compatibility
 

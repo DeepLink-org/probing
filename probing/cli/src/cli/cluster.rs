@@ -1,7 +1,7 @@
 use crate::cli::fanout::fanout_strict_enabled;
 use anyhow::Result;
 use probing_proto::prelude::NodeListResponse;
-use probing_skills::backend::parse_cluster_query_response;
+use probing_skills::backend::decode_cluster_query_reply;
 
 use crate::cli::ctrl::ProbeEndpoint;
 use crate::table::render_dataframe;
@@ -46,9 +46,8 @@ async fn cluster_query(
     let reply = ctrl
         .post_json("/apis/cluster/query", &body.to_string())
         .await?;
-    let value: serde_json::Value = serde_json::from_str(&reply)?;
     let (dataframe, cluster_meta) =
-        parse_cluster_query_response(&value).map_err(|e| anyhow::anyhow!(e.0))?;
+        decode_cluster_query_reply(&reply).map_err(|e| anyhow::anyhow!(e.0))?;
     if let Some(meta) = &cluster_meta {
         eprintln!(
             "cluster query: cluster={cluster}, nodes_queried={}, nodes_failed={}",
