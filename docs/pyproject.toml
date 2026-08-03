@@ -3,7 +3,7 @@ name = "probing-docs"
 version = "0.1.0"
 description = "Documentation for Probing - Dynamic Performance Profiler for Distributed AI"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.8"
 dependencies = [
     "mkdocs>=1.5.0",
     "mkdocs-material>=9.4.0",

@@ -13,7 +13,7 @@ use crate::state::investigation::INVESTIGATION_CONTEXT;
 use crate::state::llm_config::LLM_SETTINGS_OPEN;
 use crate::state::ui_tasks::{ui_agent_busy, UI_TASK_TICK};
 
-use super::super::components::{NextPageHeader, SectionCard};
+use super::super::components::{ActionButton, SectionCard, WorkspacePage};
 use super::super::routes::NextRoute;
 
 const QUICK_SKILLS: &[(&str, &str)] = &[
@@ -33,54 +33,48 @@ pub fn InvestigatePage() -> Element {
     let context = INVESTIGATION_CONTEXT.read().clone();
 
     rsx! {
-        div { class: "space-y-5",
-            NextPageHeader {
-                title: "Investigate".to_string(),
-                subtitle: "Collect evidence with deterministic skills, preserve context, and turn findings into the next action.".to_string(),
-                actions: rsx! {
-                    button {
-                        r#type: "button",
-                        class: "rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50",
+        WorkspacePage {
+            title: "Investigate".to_string(),
+            subtitle: "Collect evidence with deterministic skills, preserve context, and keep rule output separate from summaries.".to_string(),
+            actions: rsx! {
+                    ActionButton {
+                        label: "LLM settings".to_string(),
                         onclick: move |_| *LLM_SETTINGS_OPEN.write() = true,
-                        "LLM settings"
                     }
-                    button {
-                        r#type: "button",
-                        class: "rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50",
+                    ActionButton {
+                        label: "Clear session".to_string(),
                         disabled: busy || messages.is_empty(),
                         onclick: move |_| clear_agent_messages(),
-                        "Clear session"
                     }
-                }
-            }
+                },
 
-            div { class: "grid min-h-[calc(100vh-12rem)] gap-4 xl:grid-cols-[minmax(0,1fr)_320px]",
-                InvestigateSession { compact: false }
-
-                div { class: "space-y-4",
-                    SectionCard {
-                        title: "Pinned context".to_string(),
-                        if context.is_empty() {
-                            p { class: "text-sm text-gray-500", "No rank, step, trace, or process has been pinned yet." }
-                        } else {
-                            div { class: "space-y-2 text-sm",
-                                div { class: "rounded-lg bg-blue-50 px-3 py-2 font-mono text-xs text-blue-900", "{context.summary()}" }
-                                if let Some(label) = context.label {
-                                    p { class: "text-gray-600", "{label}" }
-                                }
+            div { class: "grid gap-4 lg:grid-cols-2",
+                SectionCard {
+                    title: "Pinned context".to_string(),
+                    body_class: "p-3".to_string(),
+                    if context.is_empty() {
+                        p { class: "text-xs text-gray-500", "No rank, step, trace, or process has been pinned yet." }
+                    } else {
+                        div { class: "space-y-2 text-sm",
+                            div { class: "rounded-lg bg-blue-50 px-3 py-2 font-mono text-xs text-blue-900", "{context.summary()}" }
+                            if let Some(label) = context.label {
+                                p { class: "text-xs text-gray-600", "{label}" }
                             }
                         }
                     }
-                    SectionCard {
-                        title: "Diagnostic contract".to_string(),
-                        div { class: "space-y-3 text-xs leading-relaxed text-gray-600",
-                            p { "1. A failed step is shown as failed, never as an empty healthy result." }
-                            p { "2. Partial cluster evidence stays visible with completeness metadata." }
-                            p { "3. Findings come from skill rules; an optional LLM summarizes and selects next steps." }
-                        }
+                }
+                SectionCard {
+                    title: "Evidence rules".to_string(),
+                    body_class: "p-3".to_string(),
+                    div { class: "grid gap-2 text-xs leading-relaxed text-gray-600 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3",
+                        p { "Failures stay failures; they are never rendered as healthy empty results." }
+                        p { "Partial cluster results retain coverage and missing-peer metadata." }
+                        p { "Skill rules produce findings; the LLM only summarizes and selects next steps." }
                     }
                 }
             }
+
+            InvestigateSession { compact: false }
         }
     }
 }
@@ -141,7 +135,7 @@ pub(crate) fn InvestigateSession(compact: bool) -> Element {
                 }
                 if busy {
                     div { class: "flex items-center gap-2 px-2 py-3 text-xs text-gray-500",
-                        span { class: "h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" }
+                        span { class: "h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent motion-reduce:animate-none", aria_hidden: "true" }
                         "Collecting and interpreting evidence…"
                     }
                 }
@@ -251,7 +245,7 @@ fn NextAgentMessage(message: AgentMessage) -> Element {
                     div { class: "flex flex-wrap items-center justify-between gap-2",
                         div { class: "text-sm font-semibold text-gray-900", "{step.title}" }
                         if let Some(rows) = step.row_count {
-                            span { class: "rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-600", "{rows} rows" }
+                            span { class: "rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600", "{rows} rows" }
                         }
                     }
                     if let Some(note) = step.cluster_note {

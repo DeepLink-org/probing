@@ -19,8 +19,11 @@ use crate::state::stack::{
     bump_stack_refresh, stack_tid_label, STACK_DIST_CLUSTER, STACK_DIST_RELOAD, STACK_MODE,
     STACK_SNAPSHOT,
 };
-use crate::state::training::{TRAINING_CLUSTER_SCOPE, TRAINING_REFRESH};
-use crate::state::ui_tasks::ui_tasks_snapshot;
+use crate::state::training::{
+    PlacementAvailability, TRAINING_CLUSTER_SCOPE, TRAINING_PLACEMENT_AVAILABILITY,
+    TRAINING_REFRESH,
+};
+use crate::state::ui_tasks::running_ui_task_count;
 use crate::ui_version::{activate, UiVersion};
 use crate::utils::callframe::{mode_for_kind, FrameKind};
 
@@ -37,353 +40,101 @@ pub(super) fn NextSidebar(
     #[props(optional)] on_navigate: Option<EventHandler<()>>,
     #[props(optional)] on_toggle_compact: Option<EventHandler<()>>,
 ) -> Element {
-    if compact {
-        return rsx! {
-            CompactSidebar {
-                route,
+    let invoke_navigation = move || {
+        if let Some(handler) = on_navigate {
+            handler.call(());
+        }
+    };
+    let task_count = running_ui_task_count();
+
+    rsx! {
+        div { class: "flex h-full min-h-0 w-full",
+            SidebarRail {
+                route: route.clone(),
+                compact,
+                task_count,
+                on_navigate: move |_| invoke_navigation(),
                 on_toggle_compact: move |_| {
                     if let Some(handler) = on_toggle_compact {
                         handler.call(());
                     }
                 },
             }
-        };
-    }
-
-    let show_close = on_navigate.is_some();
-    let show_compact = on_toggle_compact.is_some();
-    let invoke_navigation = move || {
-        if let Some(handler) = on_navigate {
-            handler.call(());
-        }
-    };
-    let task_count = ui_tasks_snapshot().len();
-    let rl_active = is_rl_route(&route);
-    let profiles_active = is_profiles_route(&route);
-    let stacks_active = is_stacks_route(&route);
-    let deep_tools_active = is_deep_tools_route(&route);
-
-    rsx! {
-        div { class: "flex h-16 shrink-0 items-center gap-2 border-b border-slate-800 px-3",
-            Link {
-                to: NextRoute::Dashboard {},
-                class: "flex min-w-0 flex-1 items-center gap-2 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400",
-                onclick: move |_| invoke_navigation(),
-                img {
-                    src: "{crate::utils::base_path::with_base(\"/logo.svg\")}",
-                    alt: "Probing",
-                    class: "h-8 w-8 shrink-0"
-                }
-                div { class: "min-w-0",
-                    div { class: "truncate text-sm font-semibold", "Probing" }
-                    div { class: "truncate text-[10px] uppercase tracking-wider text-blue-300", "Diagnostics workspace" }
-                }
-            }
-            if show_close {
-                HeaderButton {
-                    label: "Close navigation",
-                    icon: &icondata::AiCloseOutlined,
-                    onclick: move |_| invoke_navigation(),
-                }
-            } else if show_compact {
-                HeaderButton {
-                    label: "Use compact sidebar",
-                    icon: &icondata::AiMenuFoldOutlined,
-                    onclick: move |_| {
-                        if let Some(handler) = on_toggle_compact {
-                            handler.call(());
-                        }
-                    },
-                }
-            }
-        }
-
-        div { class: "shrink-0 px-3 pt-3",
-            SearchButton { compact: false }
-        }
-
-        nav {
-            class: "min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 pt-2",
-            NavLeaf {
-                to: NextRoute::Dashboard {},
-                label: "Dashboard",
-                icon: &icondata::AiHomeOutlined,
-                active: matches!(route, NextRoute::Dashboard {}),
-                on_navigate: move |_| invoke_navigation(),
-            }
-            if matches!(route, NextRoute::Dashboard {}) {
-                ControlPanel {
-                    title: "Dashboard controls",
-                    DashboardControls {}
-                }
-            }
-            NavLeaf {
-                to: NextRoute::Investigate {},
-                label: "Investigate",
-                icon: &icondata::AiRobotOutlined,
-                active: matches!(route, NextRoute::Investigate {}),
-                on_navigate: move |_| invoke_navigation(),
-            }
-            if matches!(route, NextRoute::Investigate {}) {
-                ControlPanel {
-                    title: "Investigation",
-                    button {
-                        r#type: "button",
-                        class: control_button(false),
-                        onclick: move |_| *LLM_SETTINGS_OPEN.write() = true,
-                        "LLM settings"
+            if !compact {
+                div { class: "flex min-w-0 flex-1 flex-col border-l border-slate-800 bg-slate-950",
+                    SidebarDetailHeader {
+                        route: route.clone(),
+                        on_toggle_compact: move |_| {
+                            if let Some(handler) = on_toggle_compact {
+                                handler.call(());
+                            }
+                        },
                     }
-                }
-            }
-            NavLeaf {
-                to: NextRoute::Distributed {},
-                label: "Distributed health",
-                icon: &icondata::AiClusterOutlined,
-                active: matches!(route, NextRoute::Distributed {}),
-                on_navigate: move |_| invoke_navigation(),
-            }
-            if matches!(route, NextRoute::Distributed {}) {
-                ControlPanel {
-                    title: "Distributed controls",
-                    DistributedControls {}
-                }
-            }
-            NavLeaf {
-                to: NextRoute::Cluster {},
-                label: "Cluster nodes",
-                icon: &icondata::AiApartmentOutlined,
-                active: matches!(route, NextRoute::Cluster {}),
-                on_navigate: move |_| invoke_navigation(),
-            }
-
-            NavSection { label: "Workloads" }
-            NavLeaf {
-                to: NextRoute::Training {},
-                label: "Training",
-                icon: &icondata::AiRadarChartOutlined,
-                active: matches!(route, NextRoute::Training {}),
-                on_navigate: move |_| invoke_navigation(),
-            }
-            if matches!(route, NextRoute::Training {}) {
-                ControlPanel {
-                    title: "Training controls",
-                    TrainingControls {}
-                }
-            }
-            FocusBranch {
-                to: NextRoute::Rollout {},
-                label: "Reinforcement learning",
-                icon: &icondata::AiDeploymentUnitOutlined,
-                active: rl_active,
-                on_navigate: move |_| invoke_navigation(),
-                NavLeaf {
-                    to: NextRoute::Rollout {},
-                    label: "Rollout",
-                    icon: &icondata::AiDeploymentUnitOutlined,
-                    active: matches!(route, NextRoute::Rollout {} | NextRoute::RolloutLegacy {}),
-                    nested: true,
-                    on_navigate: move |_| invoke_navigation(),
-                }
-                NavLeaf {
-                    to: NextRoute::RlTrain {},
-                    label: "Policy training",
-                    icon: &icondata::AiLineChartOutlined,
-                    active: matches!(route, NextRoute::RlTrain {}),
-                    nested: true,
-                    on_navigate: move |_| invoke_navigation(),
-                }
-                NavLeaf {
-                    to: NextRoute::RlSpans {},
-                    label: "Distributed spans",
-                    icon: &icondata::AiApartmentOutlined,
-                    active: matches!(route, NextRoute::RlSpans {}),
-                    nested: true,
-                    on_navigate: move |_| invoke_navigation(),
-                }
-                NavLeaf {
-                    to: NextRoute::ProcessTimeline {},
-                    label: "Process timeline",
-                    icon: &icondata::AiClockCircleOutlined,
-                    active: matches!(route, NextRoute::ProcessTimeline {}),
-                    nested: true,
-                    on_navigate: move |_| invoke_navigation(),
-                }
-                NavLeaf {
-                    to: NextRoute::Perfetto {},
-                    label: "Perfetto",
-                    icon: &icondata::AiThunderboltOutlined,
-                    active: matches!(route, NextRoute::Perfetto {}),
-                    nested: true,
-                    on_navigate: move |_| invoke_navigation(),
-                }
-                ControlPanel {
-                    title: "RL context",
-                    RlControls { route: route.clone() }
-                }
-            }
-            NavLeaf {
-                to: NextRoute::Inference {},
-                label: "Inference",
-                icon: &icondata::AiDashboardOutlined,
-                active: matches!(route, NextRoute::Inference {}),
-                on_navigate: move |_| invoke_navigation(),
-            }
-            if matches!(route, NextRoute::Inference {}) {
-                ControlPanel {
-                    title: "Inference controls",
-                    InferenceControls {}
-                }
-            }
-
-            NavSection { label: "Advanced analysis" }
-            FocusBranch {
-                to: NextRoute::Profiles {},
-                label: "Profiles",
-                icon: &icondata::CgPerformance,
-                active: profiles_active,
-                on_navigate: move |_| invoke_navigation(),
-                ProfileNavigation {
-                    route: route.clone(),
-                    on_navigate: move |_| invoke_navigation(),
-                }
-                ControlPanel {
-                    title: "Capture controls",
-                    ProfileControls { route: route.clone() }
-                }
-            }
-            FocusBranch {
-                to: NextRoute::Stack {},
-                label: "Stacks",
-                icon: &icondata::AiApartmentOutlined,
-                active: stacks_active,
-                on_navigate: move |_| invoke_navigation(),
-                StackNavigation {
-                    route: route.clone(),
-                    on_navigate: move |_| invoke_navigation(),
-                }
-                ControlPanel {
-                    title: "Stack controls",
-                    StackControls { route: route.clone() }
-                }
-            }
-            NavLeaf {
-                to: NextRoute::Spans {},
-                label: "Spans",
-                icon: &icondata::AiApiOutlined,
-                active: matches!(route, NextRoute::Spans {} | NextRoute::TracesLegacy {}),
-                on_navigate: move |_| invoke_navigation(),
-            }
-            if matches!(route, NextRoute::Spans {} | NextRoute::TracesLegacy {}) {
-                ControlPanel {
-                    title: "Span controls",
-                    SpansControls {}
-                }
-            }
-
-            NavSection { label: "Deep tools" }
-            FocusBranch {
-                to: NextRoute::Analytics {},
-                label: "Deep tools",
-                icon: &icondata::AiToolOutlined,
-                active: deep_tools_active,
-                on_navigate: move |_| invoke_navigation(),
-                NavLeaf {
-                    to: NextRoute::Analytics {},
-                    label: "SQL Explorer",
-                    icon: &icondata::AiDatabaseOutlined,
-                    active: matches!(route, NextRoute::Analytics {}),
-                    nested: true,
-                    on_navigate: move |_| invoke_navigation(),
-                }
-                NavLeaf {
-                    to: NextRoute::Python {},
-                    label: "Python Trace",
-                    icon: &icondata::SiPython,
-                    active: matches!(route, NextRoute::Python {}),
-                    nested: true,
-                    on_navigate: move |_| invoke_navigation(),
-                }
-                NavLeaf {
-                    to: NextRoute::Pulsing {},
-                    label: "Pulsing",
-                    icon: &icondata::AiNodeIndexOutlined,
-                    active: matches!(route, NextRoute::Pulsing {}),
-                    nested: true,
-                    on_navigate: move |_| invoke_navigation(),
-                }
-                NavLeaf {
-                    to: NextRoute::System {},
-                    label: "Process & system",
-                    icon: &icondata::AiControlOutlined,
-                    active: matches!(route, NextRoute::System {}),
-                    nested: true,
-                    on_navigate: move |_| invoke_navigation(),
-                }
-                NavLeaf {
-                    to: NextRoute::Explore {},
-                    label: "Capability catalog",
-                    icon: &icondata::AiAppstoreOutlined,
-                    active: matches!(route, NextRoute::Explore {} | NextRoute::ClassicFallback { .. }),
-                    nested: true,
-                    on_navigate: move |_| invoke_navigation(),
+                    div { class: "min-h-0 flex-1 overflow-y-auto overscroll-contain p-3",
+                        ActiveSidebarPanel {
+                            route: route.clone(),
+                            on_navigate: move |_| invoke_navigation(),
+                        }
+                    }
+                    SidebarFooter { task_count }
                 }
             }
         }
-
-        SidebarFooter { task_count }
     }
 }
 
 #[component]
-fn CompactSidebar(route: NextRoute, on_toggle_compact: EventHandler<()>) -> Element {
-    let task_count = ui_tasks_snapshot().len();
+fn SidebarRail(
+    route: NextRoute,
+    compact: bool,
+    task_count: usize,
+    on_navigate: EventHandler<()>,
+    on_toggle_compact: EventHandler<()>,
+) -> Element {
     rsx! {
-        div { class: "flex h-16 shrink-0 items-center justify-center border-b border-slate-800",
-            button {
-                r#type: "button",
-                class: "rounded-lg p-2 hover:bg-slate-900",
-                aria_label: "Expand sidebar",
-                onclick: move |_| on_toggle_compact.call(()),
-                img {
-                    src: "{crate::utils::base_path::with_base(\"/logo.svg\")}",
-                    alt: "Expand Probing navigation",
-                    class: "h-8 w-8"
+        div { class: "flex w-14 shrink-0 flex-col bg-slate-950",
+            div { class: "flex h-16 shrink-0 items-center justify-center border-b border-slate-800",
+                Link {
+                    to: NextRoute::Dashboard {},
+                    class: "rounded-lg p-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400",
+                    aria_label: "Probing dashboard",
+                    onclick: move |_| on_navigate.call(()),
+                    img {
+                        src: "{crate::utils::base_path::with_base(\"/logo.svg\")}",
+                        alt: "Probing",
+                        class: "h-8 w-8"
+                    }
                 }
             }
-        }
-        div { class: "px-2 pt-3",
-            SearchButton { compact: true }
-        }
-        nav { class: "min-h-0 flex-1 space-y-1 overflow-y-auto px-2 py-3",
-            CompactLink { to: NextRoute::Dashboard {}, label: "Dashboard", icon: &icondata::AiHomeOutlined, active: matches!(route, NextRoute::Dashboard {}) }
-            CompactLink { to: NextRoute::Investigate {}, label: "Investigate", icon: &icondata::AiRobotOutlined, active: matches!(route, NextRoute::Investigate {}) }
-            CompactLink { to: NextRoute::Distributed {}, label: "Distributed health", icon: &icondata::AiClusterOutlined, active: matches!(route, NextRoute::Distributed {}) }
-            CompactLink { to: NextRoute::Cluster {}, label: "Cluster nodes", icon: &icondata::AiApartmentOutlined, active: matches!(route, NextRoute::Cluster {}) }
-            div { class: "my-2 border-t border-slate-800" }
-            CompactLink { to: NextRoute::Training {}, label: "Training", icon: &icondata::AiRadarChartOutlined, active: matches!(route, NextRoute::Training {}) }
-            CompactLink { to: NextRoute::Rollout {}, label: "Reinforcement learning", icon: &icondata::AiDeploymentUnitOutlined, active: is_rl_route(&route) }
-            CompactLink { to: NextRoute::Inference {}, label: "Inference", icon: &icondata::AiDashboardOutlined, active: matches!(route, NextRoute::Inference {}) }
-            div { class: "my-2 border-t border-slate-800" }
-            CompactLink { to: NextRoute::Profiles {}, label: "Profiles", icon: &icondata::CgPerformance, active: is_profiles_route(&route) }
-            CompactLink { to: NextRoute::Stack {}, label: "Stacks", icon: &icondata::AiApartmentOutlined, active: is_stacks_route(&route) }
-            CompactLink { to: NextRoute::Spans {}, label: "Spans", icon: &icondata::AiApiOutlined, active: matches!(route, NextRoute::Spans {} | NextRoute::TracesLegacy {}) }
-            CompactLink { to: NextRoute::Analytics {}, label: "Deep tools", icon: &icondata::AiToolOutlined, active: is_deep_tools_route(&route) }
-        }
-        div { class: "shrink-0 space-y-1 border-t border-slate-800 p-2",
-            CompactAction {
-                label: format!("Tasks · {task_count}"),
-                icon: &icondata::AiUnorderedListOutlined,
-                onclick: move |_| open_monitor_overlay(SidebarMonitor::Tasks),
+            div { class: "shrink-0 px-2 pt-2",
+                RailAction {
+                    label: "Search pages and commands · ⌘K".to_string(),
+                    icon: &icondata::AiSearchOutlined,
+                    onclick: move |_| *COMMAND_PANEL_OPEN.write() = true,
+                }
             }
-            CompactAction {
-                label: "Overhead".to_string(),
-                icon: &icondata::AiDashboardOutlined,
-                onclick: move |_| open_monitor_overlay(SidebarMonitor::Overhead),
+            nav { class: "min-h-0 flex-1 space-y-1 overflow-y-auto px-2 py-2",
+                RailLink { to: NextRoute::Dashboard {}, label: "Dashboard", icon: &icondata::AiHomeOutlined, active: matches!(route, NextRoute::Dashboard {}), on_navigate }
+                RailLink { to: NextRoute::Investigate {}, label: "Investigate", icon: &icondata::AiRobotOutlined, active: matches!(route, NextRoute::Investigate {}), on_navigate }
+                RailLink { to: NextRoute::Distributed {}, label: "Cluster", icon: &icondata::AiClusterOutlined, active: matches!(route, NextRoute::Distributed {} | NextRoute::Cluster {} | NextRoute::DistributedStatus {}), on_navigate }
+                RailSeparator {}
+                RailLink { to: NextRoute::Training {}, label: "Training", icon: &icondata::AiRadarChartOutlined, active: matches!(route, NextRoute::Training {}), on_navigate }
+                RailLink { to: NextRoute::Inference {}, label: "Inference", icon: &icondata::AiDashboardOutlined, active: matches!(route, NextRoute::Inference {}), on_navigate }
+                RailLink { to: NextRoute::Rollout {}, label: "RL", icon: &icondata::AiDeploymentUnitOutlined, active: is_rl_route(&route), on_navigate }
+                RailSeparator {}
+                RailLink { to: NextRoute::Profiles {}, label: "Profiling", icon: &icondata::CgPerformance, active: is_profiles_route(&route), on_navigate }
+                RailLink { to: NextRoute::Stack {}, label: "Stacks", icon: &icondata::AiApartmentOutlined, active: is_stacks_route(&route), on_navigate }
+                RailLink { to: NextRoute::Spans {}, label: "Tracing", icon: &icondata::AiApiOutlined, active: matches!(route, NextRoute::Spans {} | NextRoute::TracesLegacy {}), on_navigate }
+                RailSeparator {}
+                RailLink { to: NextRoute::Analytics {}, label: "Deep tools", icon: &icondata::AiToolOutlined, active: is_deep_tools_route(&route), on_navigate }
             }
-            CompactAction {
-                label: "Classic interface".to_string(),
-                icon: &icondata::AiSwapOutlined,
-                onclick: move |_| activate(UiVersion::Classic),
+            if compact {
+                div { class: "shrink-0 space-y-1 border-t border-slate-800 p-2",
+                    RailAction { label: format!("Tasks · {task_count}"), icon: &icondata::AiUnorderedListOutlined, onclick: move |_| open_monitor_overlay(SidebarMonitor::Tasks) }
+                    RailAction { label: "Overhead".to_string(), icon: &icondata::AiDashboardOutlined, onclick: move |_| open_monitor_overlay(SidebarMonitor::Overhead) }
+                    RailAction { label: "Classic interface".to_string(), icon: &icondata::AiSwapOutlined, onclick: move |_| activate(UiVersion::Classic) }
+                    RailAction { label: "Expand sidebar".to_string(), icon: &icondata::AiMenuUnfoldOutlined, onclick: move |_| on_toggle_compact.call(()) }
+                }
             }
         }
     }
@@ -408,32 +159,85 @@ fn HeaderButton(
 }
 
 #[component]
-fn SearchButton(compact: bool) -> Element {
+fn SidebarDetailHeader(route: NextRoute, on_toggle_compact: EventHandler<()>) -> Element {
+    let (group, title) = sidebar_context(&route);
     rsx! {
-        button {
-            r#type: "button",
-            class: if compact {
-                "flex h-10 w-full items-center justify-center rounded-lg border border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700 hover:text-white"
-            } else {
-                "flex w-full items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-left text-xs text-slate-400 hover:border-slate-600 hover:bg-slate-800 hover:text-slate-200"
-            },
-            aria_label: "Search capabilities and commands",
-            title: if compact { "Search pages and commands · ⌘K" } else { "" },
-            onclick: move |_| *COMMAND_PANEL_OPEN.write() = true,
-            Icon { icon: &icondata::AiSearchOutlined, class: "h-4 w-4 shrink-0" }
-            if !compact {
-                span { class: "min-w-0 flex-1 truncate", "Find a page or command" }
-                kbd { class: "rounded border border-slate-700 bg-slate-950 px-1.5 py-0.5 text-[9px] text-slate-500", "⌘K" }
+        div { class: "flex h-16 shrink-0 items-center justify-between gap-2 border-b border-slate-800 px-3",
+            div { class: "min-w-0",
+                div { class: "truncate text-xs font-semibold uppercase tracking-[0.14em] text-slate-400", "{group}" }
+                div { class: "truncate text-sm font-semibold text-slate-100", "{title}" }
+            }
+            HeaderButton {
+                label: "Collapse sidebar",
+                icon: &icondata::AiMenuFoldOutlined,
+                onclick: move |_| on_toggle_compact.call(()),
             }
         }
     }
 }
 
 #[component]
-fn NavSection(label: &'static str) -> Element {
+fn ActiveSidebarPanel(route: NextRoute, on_navigate: EventHandler<()>) -> Element {
     rsx! {
-        p { class: "mb-1.5 mt-3 px-2 text-[10px] font-medium uppercase tracking-[0.12em] text-slate-600",
-            "{label}"
+        match route.clone() {
+            NextRoute::Dashboard {} => rsx! {
+                SidebarIntro { text: "Job-level signals and recent evidence." }
+                ControlPanel { title: "Dashboard controls", DashboardControls {} }
+            },
+            NextRoute::Investigate {} => rsx! {
+                SidebarIntro { text: "Run evidence-driven diagnostic skills." }
+                ControlPanel { title: "Investigation", button { r#type: "button", class: control_button(false), onclick: move |_| *LLM_SETTINGS_OPEN.write() = true, "LLM settings" } }
+            },
+            NextRoute::Distributed {} | NextRoute::Cluster {} | NextRoute::DistributedStatus {} => rsx! {
+                SidebarSectionLabel { label: "Views" }
+                NavLeaf { to: NextRoute::Distributed {}, label: "Overview", icon: &icondata::AiClusterOutlined, active: matches!(route, NextRoute::Distributed {}), on_navigate }
+                NavLeaf { to: NextRoute::Cluster {}, label: "Nodes", icon: &icondata::AiApartmentOutlined, active: matches!(route, NextRoute::Cluster {}), on_navigate }
+                NavLeaf { to: NextRoute::DistributedStatus {}, label: "Distributed Status", icon: &icondata::AiDeploymentUnitOutlined, active: matches!(route, NextRoute::DistributedStatus {}), on_navigate }
+                if matches!(route, NextRoute::Distributed {}) {
+                    ControlPanel { title: "Cluster controls", DistributedControls {} }
+                } else {
+                    ControlPanel { title: "Cluster controls", ClusterRefreshControl {} }
+                }
+            },
+            NextRoute::Training {} => rsx! {
+                SidebarIntro { text: "Step trend, placement, compute, and communication evidence." }
+                ControlPanel { title: "Training controls", TrainingControls {} }
+            },
+            NextRoute::Inference {} => rsx! {
+                SidebarIntro { text: "Throughput, latency, queue, and cache evidence." }
+                ControlPanel { title: "Inference controls", InferenceControls {} }
+            },
+            NextRoute::Rollout {} | NextRoute::RolloutLegacy {} | NextRoute::RlTrain {} | NextRoute::RlSpans {} | NextRoute::ProcessTimeline {} | NextRoute::Perfetto {} => rsx! {
+                SidebarSectionLabel { label: "Views" }
+                NavLeaf { to: NextRoute::Rollout {}, label: "Rollout", icon: &icondata::AiDeploymentUnitOutlined, active: matches!(route, NextRoute::Rollout {} | NextRoute::RolloutLegacy {}), on_navigate }
+                NavLeaf { to: NextRoute::RlTrain {}, label: "Policy training", icon: &icondata::AiLineChartOutlined, active: matches!(route, NextRoute::RlTrain {}), on_navigate }
+                NavLeaf { to: NextRoute::RlSpans {}, label: "Distributed spans", icon: &icondata::AiApartmentOutlined, active: matches!(route, NextRoute::RlSpans {}), on_navigate }
+                NavLeaf { to: NextRoute::ProcessTimeline {}, label: "Process timeline", icon: &icondata::AiClockCircleOutlined, active: matches!(route, NextRoute::ProcessTimeline {}), on_navigate }
+                NavLeaf { to: NextRoute::Perfetto {}, label: "Perfetto", icon: &icondata::AiThunderboltOutlined, active: matches!(route, NextRoute::Perfetto {}), on_navigate }
+                ControlPanel { title: "RL context", RlControls { route: route.clone() } }
+            },
+            NextRoute::Profiles {} | NextRoute::ProfilingLegacy {} | NextRoute::ProfileView { .. } | NextRoute::ChromeTrace {} => rsx! {
+                SidebarSectionLabel { label: "Views" }
+                ProfileNavigation { route: route.clone(), on_navigate }
+                ControlPanel { title: "Capture controls", ProfileControls { route: route.clone() } }
+            },
+            NextRoute::Stack {} | NextRoute::StackThread { .. } | NextRoute::DistributedStack {} | NextRoute::DistributedPythonStack {} => rsx! {
+                SidebarSectionLabel { label: "Views" }
+                StackNavigation { route: route.clone(), on_navigate }
+                ControlPanel { title: "Stack controls", StackControls { route: route.clone() } }
+            },
+            NextRoute::Spans {} | NextRoute::TracesLegacy {} => rsx! {
+                SidebarIntro { text: "Expand the span hierarchy to the required diagnostic depth." }
+                ControlPanel { title: "Tracing controls", SpansControls {} }
+            },
+            NextRoute::Analytics {} | NextRoute::Python {} | NextRoute::Pulsing {} | NextRoute::System {} | NextRoute::Explore {} | NextRoute::ClassicFallback { .. } => rsx! {
+                SidebarSectionLabel { label: "Tools" }
+                NavLeaf { to: NextRoute::Analytics {}, label: "SQL Explorer", icon: &icondata::AiDatabaseOutlined, active: matches!(route, NextRoute::Analytics {}), on_navigate }
+                NavLeaf { to: NextRoute::Python {}, label: "Python Trace", icon: &icondata::SiPython, active: matches!(route, NextRoute::Python {}), on_navigate }
+                NavLeaf { to: NextRoute::Pulsing {}, label: "Pulsing", icon: &icondata::AiNodeIndexOutlined, active: matches!(route, NextRoute::Pulsing {}), on_navigate }
+                NavLeaf { to: NextRoute::System {}, label: "Process & system", icon: &icondata::AiControlOutlined, active: matches!(route, NextRoute::System {}), on_navigate }
+                NavLeaf { to: NextRoute::Explore {}, label: "Capability catalog", icon: &icondata::AiAppstoreOutlined, active: matches!(route, NextRoute::Explore {} | NextRoute::ClassicFallback { .. }), on_navigate }
+            },
         }
     }
 }
@@ -444,25 +248,20 @@ fn NavLeaf(
     label: String,
     icon: &'static icondata::Icon,
     active: bool,
-    #[props(default = false)] nested: bool,
     on_navigate: EventHandler<()>,
 ) -> Element {
     let class = if active {
-        "mb-1 flex items-center gap-2 rounded-lg bg-blue-500/20 px-3 py-2 text-sm font-medium text-blue-100"
+        "mb-1 flex items-center gap-2 rounded-lg bg-blue-500/20 px-3 py-2 text-sm font-medium text-blue-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
     } else {
-        "mb-1 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-300 hover:bg-slate-900 hover:text-white"
-    };
-    let icon_class = if nested {
-        "h-3.5 w-3.5 shrink-0 text-slate-500"
-    } else {
-        "h-4 w-4 shrink-0"
+        "mb-1 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-300 hover:bg-slate-900 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
     };
     rsx! {
         Link {
             to,
             class,
+            aria_current: if active { "page" } else { "false" },
             onclick: move |_| on_navigate.call(()),
-            Icon { icon, class: icon_class }
+            Icon { icon, class: "h-4 w-4 shrink-0 text-slate-400" }
             span { class: "min-w-0 flex-1 truncate", "{label}" }
             if active {
                 span { class: "h-1.5 w-1.5 shrink-0 rounded-full bg-blue-300" }
@@ -472,48 +271,33 @@ fn NavLeaf(
 }
 
 #[component]
-fn FocusBranch(
-    to: NextRoute,
-    label: &'static str,
-    icon: &'static icondata::Icon,
-    active: bool,
-    on_navigate: EventHandler<()>,
-    children: Element,
-) -> Element {
+fn SidebarIntro(text: &'static str) -> Element {
     rsx! {
-        Link {
-            to,
-            class: if active {
-                "mb-1 flex items-center gap-2 rounded-lg bg-blue-500/10 px-3 py-2 text-sm font-medium text-blue-100"
-            } else {
-                "mb-1 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-300 hover:bg-slate-900 hover:text-white"
-            },
-            aria_expanded: active,
-            onclick: move |_| on_navigate.call(()),
-            Icon { icon, class: "h-4 w-4 shrink-0" }
-            span { class: "min-w-0 flex-1 truncate", "{label}" }
-            Icon {
-                icon: if active { &icondata::AiDownOutlined } else { &icondata::AiRightOutlined },
-                class: "h-3.5 w-3.5 shrink-0 text-slate-500"
-            }
-        }
-        if active {
-            div { class: "relative mb-1 ml-4 border-l border-slate-800 pl-2",
-                {children}
-            }
-        }
+        p { class: "mb-4 text-xs leading-relaxed text-slate-400", "{text}" }
+    }
+}
+
+#[component]
+fn SidebarSectionLabel(label: &'static str) -> Element {
+    rsx! {
+        div { class: "mb-2 px-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400", "{label}" }
     }
 }
 
 #[component]
 fn ControlPanel(title: &'static str, children: Element) -> Element {
     rsx! {
-        div { class: "mb-2 ml-4 border-l border-blue-500/25 py-1 pl-3",
-            div { class: "mb-2 text-[9px] font-semibold uppercase tracking-[0.12em] text-blue-300/70",
-                "{title}"
-            }
-            div { class: "space-y-2", {children} }
+        section { class: "mt-4 rounded-lg border border-slate-800 bg-slate-900/55 p-3",
+            div { class: "mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-blue-300", "{title}" }
+            div { class: "space-y-2.5", {children} }
         }
+    }
+}
+
+#[component]
+fn RailSeparator() -> Element {
+    rsx! {
+        div { class: "my-2 border-t border-slate-800" }
     }
 }
 
@@ -565,27 +349,42 @@ fn DistributedControls() -> Element {
 }
 
 #[component]
+fn ClusterRefreshControl() -> Element {
+    rsx! {
+        button {
+            r#type: "button",
+            class: control_button(true),
+            onclick: move |_| *DISTRIBUTED_REFRESH.write() += 1,
+            "Refresh evidence"
+        }
+    }
+}
+
+#[component]
 fn TrainingControls() -> Element {
     let cluster = *TRAINING_CLUSTER_SCOPE.read();
+    let placement = *TRAINING_PLACEMENT_AVAILABILITY.read();
     rsx! {
         div { class: "grid grid-cols-2 gap-1.5",
             button {
                 r#type: "button",
                 class: if !cluster {
-                    "rounded-md bg-blue-600 px-2 py-1.5 text-[10px] font-medium text-white"
+                    "rounded-md bg-blue-600 px-2 py-1.5 text-xs font-medium text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
                 } else {
-                    "rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-[10px] text-slate-400"
+                    "rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
                 },
+                aria_pressed: (!cluster).to_string(),
                 onclick: move |_| *TRAINING_CLUSTER_SCOPE.write() = false,
                 "This node"
             }
             button {
                 r#type: "button",
                 class: if cluster {
-                    "rounded-md bg-blue-600 px-2 py-1.5 text-[10px] font-medium text-white"
+                    "rounded-md bg-blue-600 px-2 py-1.5 text-xs font-medium text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
                 } else {
-                    "rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-[10px] text-slate-400"
+                    "rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
                 },
+                aria_pressed: cluster.to_string(),
                 onclick: move |_| {
                     *TRAINING_CLUSTER_SCOPE.write() = true;
                     *TRAINING_REFRESH.write() += 1;
@@ -598,6 +397,29 @@ fn TrainingControls() -> Element {
             class: control_button(true),
             onclick: move |_| *TRAINING_REFRESH.write() += 1,
             if cluster { "Scan cluster" } else { "Refresh training" }
+        }
+        if placement == PlacementAvailability::Missing {
+            PlacementNotice {
+                detail: "No distributed heartbeat or rank topology has been reported."
+            }
+        } else if placement == PlacementAvailability::RegistryUnavailable {
+            PlacementNotice {
+                detail: "The node heartbeat registry could not be read. Refresh to retry."
+            }
+        }
+    }
+}
+
+#[component]
+fn PlacementNotice(detail: &'static str) -> Element {
+    rsx! {
+        div {
+            class: "rounded-md border border-amber-400/25 bg-amber-400/[0.06] px-2.5 py-2",
+            div { class: "flex items-center gap-1.5 text-xs font-semibold text-amber-200",
+                Icon { icon: &icondata::AiWarningOutlined, class: "h-3.5 w-3.5 shrink-0" }
+                "Placement unavailable"
+            }
+            p { class: "mt-1 text-xs leading-relaxed text-slate-400", "{detail}" }
         }
     }
 }
@@ -643,7 +465,7 @@ fn RlControls(route: NextRoute) -> Element {
             }
         }
         if perfetto {
-            p { class: "text-[10px] leading-relaxed text-slate-500",
+            p { class: "text-xs leading-relaxed text-slate-400",
                 "Perfetto fetches up to 2000 events per process."
             }
         } else {
@@ -673,7 +495,7 @@ fn InferenceControls() -> Element {
             },
             "Scrape now"
         }
-        p { class: "text-[10px] text-slate-500", "Metrics auto-refresh every 5 seconds." }
+        p { class: "text-xs text-slate-400", "Metrics auto-refresh every 5 seconds." }
     }
 }
 
@@ -693,7 +515,6 @@ fn ProfileNavigation(route: NextRoute, on_navigate: EventHandler<()>) -> Element
                 label,
                 icon,
                 active: active == id,
-                nested: true,
                 on_navigate: move |_| on_navigate.call(()),
             }
         }
@@ -703,8 +524,7 @@ fn ProfileNavigation(route: NextRoute, on_navigate: EventHandler<()>) -> Element
 #[component]
 fn ProfileControls(route: NextRoute) -> Element {
     let view = profile_view(&route);
-    let title_class =
-        "text-[10px] font-semibold uppercase tracking-wide text-slate-500".to_string();
+    let title_class = "text-xs font-semibold uppercase tracking-wide text-slate-400".to_string();
     let value_class = "text-xs font-mono text-slate-200".to_string();
     let input_class =
         "w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200"
@@ -751,7 +571,6 @@ fn StackNavigation(route: NextRoute, on_navigate: EventHandler<()>) -> Element {
             label: "Local stack",
             icon: &icondata::AiCodeOutlined,
             active: matches!(route, NextRoute::Stack {} | NextRoute::StackThread { .. }),
-            nested: true,
             on_navigate: move |_| on_navigate.call(()),
         }
         NavLeaf {
@@ -759,7 +578,6 @@ fn StackNavigation(route: NextRoute, on_navigate: EventHandler<()>) -> Element {
             label: "Distributed stack",
             icon: &icondata::AiClusterOutlined,
             active: matches!(route, NextRoute::DistributedStack {}),
-            nested: true,
             on_navigate: move |_| on_navigate.call(()),
         }
         NavLeaf {
@@ -767,7 +585,6 @@ fn StackNavigation(route: NextRoute, on_navigate: EventHandler<()>) -> Element {
             label: "Distributed Python",
             icon: &icondata::SiPython,
             active: matches!(route, NextRoute::DistributedPythonStack {}),
-            nested: true,
             on_navigate: move |_| on_navigate.call(()),
         }
     }
@@ -803,12 +620,12 @@ fn StackControls(route: NextRoute) -> Element {
     let snapshot = STACK_SNAPSHOT.read().clone();
     let mode = STACK_MODE();
     rsx! {
-        div { class: "flex items-center justify-between gap-2 text-[10px] text-slate-500",
+        div { class: "flex items-center justify-between gap-2 text-xs text-slate-400",
             span { "Thread" }
             span { class: "truncate font-mono text-slate-300", "{target}" }
         }
         if snapshot.loaded {
-            p { class: "text-[10px] leading-relaxed text-slate-500",
+            p { class: "text-xs leading-relaxed text-slate-400",
                 "{snapshot.shown}/{snapshot.total} frames · py {snapshot.py} · rust {snapshot.rust} · native {snapshot.cpp}"
             }
         }
@@ -833,9 +650,9 @@ fn StackModeButton(filter: &'static str, label: &'static str, active: bool) -> E
         button {
             r#type: "button",
             class: if active {
-                "rounded-md bg-blue-600 px-2 py-1.5 text-[10px] font-medium text-white"
+                "rounded-md bg-blue-600 px-2 py-1.5 text-xs font-medium text-white"
             } else {
-                "rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-[10px] text-slate-400 hover:text-white"
+                "rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-400 hover:text-white"
             },
             onclick: move |_| *STACK_MODE.write() = filter.to_string(),
             "{label}"
@@ -872,7 +689,7 @@ fn ToggleRow(label: &'static str, checked: bool, onchange: EventHandler<()>) -> 
             input {
                 r#type: "checkbox",
                 checked,
-                class: "h-4 w-4 rounded border-slate-600 bg-slate-900 text-blue-600",
+                class: "h-5 w-5 rounded border-slate-600 bg-slate-900 text-blue-600 focus:ring-2 focus:ring-blue-400 focus:ring-offset-1 focus:ring-offset-slate-900",
                 onchange: move |_| onchange.call(()),
             }
         }
@@ -890,7 +707,7 @@ fn RangeControl(
 ) -> Element {
     rsx! {
         label { class: "block",
-            span { class: "mb-1 flex items-center justify-between gap-2 text-[10px] text-slate-500",
+            span { class: "mb-1 flex items-center justify-between gap-2 text-xs text-slate-400",
                 span { "{label}" }
                 span { class: "font-mono text-slate-300", "{value}" }
             }
@@ -900,7 +717,8 @@ fn RangeControl(
                 max: "{max}",
                 step: "{step}",
                 value: "{value}",
-                class: "w-full accent-blue-500",
+                class: "w-full accent-blue-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400",
+                aria_label: label,
                 oninput: move |event| {
                     if let Ok(value) = event.value().parse::<usize>() {
                         oninput.call(value);
@@ -912,37 +730,36 @@ fn RangeControl(
 }
 
 #[component]
-fn CompactLink(
+fn RailLink(
     to: NextRoute,
     label: &'static str,
     icon: &'static icondata::Icon,
     active: bool,
+    on_navigate: EventHandler<()>,
 ) -> Element {
     rsx! {
         Link {
             to,
             class: if active {
-                "flex h-10 w-full items-center justify-center rounded-lg bg-blue-500/20 text-blue-200"
+                "flex h-10 w-full items-center justify-center rounded-lg bg-blue-500/20 text-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
             } else {
-                "flex h-10 w-full items-center justify-center rounded-lg text-slate-500 hover:bg-slate-900 hover:text-white"
+                "flex h-10 w-full items-center justify-center rounded-lg text-slate-400 hover:bg-slate-900 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
             },
             title: label,
             aria_label: label,
+            aria_current: if active { "page" } else { "false" },
+            onclick: move |_| on_navigate.call(()),
             Icon { icon, class: "h-4 w-4" }
         }
     }
 }
 
 #[component]
-fn CompactAction(
-    label: String,
-    icon: &'static icondata::Icon,
-    onclick: EventHandler<()>,
-) -> Element {
+fn RailAction(label: String, icon: &'static icondata::Icon, onclick: EventHandler<()>) -> Element {
     rsx! {
         button {
             r#type: "button",
-            class: "flex h-9 w-full items-center justify-center rounded-lg text-slate-500 hover:bg-slate-900 hover:text-white",
+            class: "flex h-9 w-full items-center justify-center rounded-lg text-slate-400 hover:bg-slate-900 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400",
             title: "{label}",
             aria_label: "{label}",
             onclick: move |_| onclick.call(()),
@@ -954,40 +771,66 @@ fn CompactAction(
 #[component]
 fn SidebarFooter(task_count: usize) -> Element {
     rsx! {
-        div { class: "shrink-0 border-t border-slate-800 p-3",
-            div { class: "grid grid-cols-2 gap-2",
-                button {
-                    r#type: "button",
-                    class: "flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-2 text-left text-[11px] text-slate-300 hover:border-slate-700 hover:bg-slate-800",
-                    onclick: move |_| open_monitor_overlay(SidebarMonitor::Tasks),
-                    Icon { icon: &icondata::AiUnorderedListOutlined, class: "h-4 w-4 text-slate-500" }
-                    span {
-                        span { class: "block text-slate-500", "Tasks" }
-                        span { class: "font-medium text-slate-200", "{task_count}" }
-                    }
-                }
-                button {
-                    r#type: "button",
-                    class: "flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-2 text-left text-[11px] text-slate-300 hover:border-slate-700 hover:bg-slate-800",
-                    onclick: move |_| open_monitor_overlay(SidebarMonitor::Overhead),
-                    Icon { icon: &icondata::AiDashboardOutlined, class: "h-4 w-4 text-slate-500" }
-                    span {
-                        span { class: "block text-slate-500", "Overhead" }
-                        span { class: "font-medium text-slate-200", "Inspect" }
-                    }
-                }
+        div { class: "flex h-11 shrink-0 items-center gap-1 border-t border-slate-800 px-2",
+            button {
+                r#type: "button",
+                class: "flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-slate-400 hover:bg-slate-900 hover:text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400",
+                onclick: move |_| open_monitor_overlay(SidebarMonitor::Tasks),
+                title: "Open tasks",
+                aria_label: "Open tasks",
+                Icon { icon: &icondata::AiUnorderedListOutlined, class: "h-3.5 w-3.5" }
+                span { class: "truncate", "Tasks · {task_count}" }
             }
             button {
                 r#type: "button",
-                class: "mt-2 flex w-full items-center justify-between rounded-md px-2 py-1.5 text-[11px] text-slate-500 hover:bg-slate-900 hover:text-slate-300",
+                class: "rounded-md p-1.5 text-slate-400 hover:bg-slate-900 hover:text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400",
+                title: "Inspect overhead",
+                aria_label: "Inspect overhead",
+                onclick: move |_| open_monitor_overlay(SidebarMonitor::Overhead),
+                Icon { icon: &icondata::AiDashboardOutlined, class: "h-3.5 w-3.5" }
+            }
+            button {
+                r#type: "button",
+                class: "rounded-md p-1.5 text-slate-400 hover:bg-slate-900 hover:text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400",
+                title: "Switch to Classic interface",
+                aria_label: "Switch to Classic interface",
                 onclick: move |_| activate(UiVersion::Classic),
-                span { "Switch interface" }
-                span { class: "flex items-center gap-1 text-slate-400",
-                    "Classic"
-                    Icon { icon: &icondata::AiSwapOutlined, class: "h-3.5 w-3.5" }
-                }
+                Icon { icon: &icondata::AiSwapOutlined, class: "h-3.5 w-3.5" }
             }
         }
+    }
+}
+
+fn sidebar_context(route: &NextRoute) -> (&'static str, &'static str) {
+    match route {
+        NextRoute::Dashboard {} => ("Workspace", "Dashboard"),
+        NextRoute::Investigate {} => ("Workspace", "Investigate"),
+        NextRoute::Distributed {} | NextRoute::Cluster {} | NextRoute::DistributedStatus {} => {
+            ("Workspace", "Cluster")
+        }
+        NextRoute::Training {} => ("Workloads", "Training"),
+        NextRoute::Inference {} => ("Workloads", "Inference"),
+        NextRoute::Rollout {}
+        | NextRoute::RolloutLegacy {}
+        | NextRoute::RlTrain {}
+        | NextRoute::RlSpans {}
+        | NextRoute::ProcessTimeline {}
+        | NextRoute::Perfetto {} => ("Workloads", "RL"),
+        NextRoute::Profiles {}
+        | NextRoute::ProfilingLegacy {}
+        | NextRoute::ProfileView { .. }
+        | NextRoute::ChromeTrace {} => ("Advanced analysis", "Profiling"),
+        NextRoute::Stack {}
+        | NextRoute::StackThread { .. }
+        | NextRoute::DistributedStack {}
+        | NextRoute::DistributedPythonStack {} => ("Advanced analysis", "Stacks"),
+        NextRoute::Spans {} | NextRoute::TracesLegacy {} => ("Advanced analysis", "Tracing"),
+        NextRoute::Analytics {}
+        | NextRoute::Python {}
+        | NextRoute::Pulsing {}
+        | NextRoute::System {}
+        | NextRoute::Explore {}
+        | NextRoute::ClassicFallback { .. } => ("Deep tools", "Toolbox"),
     }
 }
 
@@ -1045,16 +888,47 @@ fn is_deep_tools_route(route: &NextRoute) -> bool {
 
 fn control_button(primary: bool) -> &'static str {
     if primary {
-        "w-full rounded-md bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-500"
+        "w-full rounded-md bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
     } else {
-        "w-full rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-300 hover:border-slate-600 hover:text-white"
+        "w-full rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-300 hover:border-slate-600 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
     }
 }
 
 fn control_label() -> &'static str {
-    "mb-1 block text-[10px] font-medium uppercase tracking-wide text-slate-500"
+    "mb-1 block text-xs font-medium uppercase tracking-wide text-slate-400"
 }
 
 fn control_input() -> &'static str {
-    "w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 placeholder:text-slate-600"
+    "w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200 placeholder:text-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sidebar_context_groups_routes_by_stable_tool() {
+        assert_eq!(
+            sidebar_context(&NextRoute::Training {}),
+            ("Workloads", "Training")
+        );
+        assert_eq!(
+            sidebar_context(&NextRoute::ProfileView {
+                view: "trace".to_string(),
+            }),
+            ("Advanced analysis", "Profiling")
+        );
+        assert_eq!(
+            sidebar_context(&NextRoute::DistributedPythonStack {}),
+            ("Advanced analysis", "Stacks")
+        );
+        assert_eq!(
+            sidebar_context(&NextRoute::System {}),
+            ("Deep tools", "Toolbox")
+        );
+        assert_eq!(
+            sidebar_context(&NextRoute::DistributedStatus {}),
+            ("Workspace", "Cluster")
+        );
+    }
 }

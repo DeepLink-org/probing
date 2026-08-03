@@ -7,7 +7,7 @@
 
 | 组件 | 版本 |
 |------|------|
-| Python | 3.7+（开发建议 3.9+） |
+| Python | 3.8+ |
 | Rust（仅源码构建） | stable 通道 — 见 [贡献指南 — 前提条件](contributing.zh.md#prerequisites) |
 | 操作系统（完整功能） | Linux — `probing inject` 需要 |
 | 操作系统（仅进程内） | macOS / Windows — 启动时 `PROBING=1`，CLI query/eval 可用 |

@@ -13,6 +13,8 @@ const INITIALIZING: u8 = 3;
 
 static STATE: AtomicU8 = AtomicU8::new(UNINITIALIZED);
 static FAIL_REASON: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
+#[cfg(test)]
+pub(crate) static TEST_STATE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 fn lock_fail_reason() -> std::sync::MutexGuard<'static, Option<String>> {
     FAIL_REASON.lock().unwrap_or_else(|e| e.into_inner())
@@ -98,6 +100,7 @@ mod tests {
 
     #[test]
     fn ready_roundtrip() {
+        let _guard = TEST_STATE_LOCK.blocking_lock();
         mark_engine_ready();
         assert!(engine_is_ready());
         assert_eq!(engine_init_state(), EngineInitState::Ready);
@@ -106,6 +109,7 @@ mod tests {
 
     #[test]
     fn failed_surfaces_reason() {
+        let _guard = TEST_STATE_LOCK.blocking_lock();
         mark_engine_failed("memtable missing");
         assert!(!engine_is_ready());
         let msg = engine_not_ready_message().unwrap();

@@ -41,3 +41,22 @@ def test_profile_stop_handler():
         result = json.loads(pythonext.handle_api_request("pytorch/profile/stop", {}))
     assert result["success"] is True
     assert result["capture_id"] == "cap-42"
+
+
+def test_runtime_debug_handler_forwards_value_policy():
+    payload = {
+        "wait_counters": {"available": True, "counters": []},
+        "tcpstore": {"available": True, "entries": []},
+    }
+    with patch(
+        "probing.profiling.runtime_debug.snapshot_runtime_debug",
+        return_value=payload,
+    ) as snapshot:
+        result = json.loads(
+            pythonext.handle_api_request(
+                "pytorch/runtime-debug", {"include_values": "true"}
+            )
+        )
+
+    assert result == payload
+    snapshot.assert_called_once_with(include_values=True)

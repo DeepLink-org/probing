@@ -182,10 +182,11 @@ fn reachable_addr(bound: &str) -> String {
         }
     }
     if matches!(host, "0.0.0.0" | "::" | "" | "*") {
-        return format!(
-            "{}:{port}",
-            get_hostname().unwrap_or_else(|_| "localhost".into())
-        );
+        let peer_host = std::env::var("MASTER_ADDR")
+            .ok()
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| get_hostname().unwrap_or_else(|_| "localhost".into()));
+        return format!("{}:{port}", peer_host.trim());
     }
     format!("{host}:{port}")
 }
@@ -584,6 +585,7 @@ mod tests {
             "RANK",
             "LOCAL_RANK",
             "PROBING_PORT",
+            "PROBING_ADVERTISE_ADDR",
             "MASTER_ADDR",
         ] {
             std::env::remove_var(key);
@@ -660,6 +662,23 @@ mod tests {
         clear_torchrun_env();
         std::env::set_var("MASTER_ADDR", "10.0.0.1");
         assert_eq!(reachable_addr("0.0.0.0:9922"), "10.0.0.1:9922");
+    }
+
+    #[test]
+    fn reachable_addr_prefers_explicit_advertise_addr() {
+        let _guard = lock_mutex(&ENV_LOCK, "torchrun test ENV_LOCK");
+        clear_torchrun_env();
+        std::env::set_var("MASTER_ADDR", "10.0.0.1");
+        std::env::set_var("PROBING_ADVERTISE_ADDR", "10.0.0.2");
+        assert_eq!(reachable_addr("0.0.0.0:9922"), "10.0.0.2:9922");
+    }
+
+    #[test]
+    fn reachable_addr_preserves_specific_bind_host() {
+        let _guard = lock_mutex(&ENV_LOCK, "torchrun test ENV_LOCK");
+        clear_torchrun_env();
+        std::env::set_var("MASTER_ADDR", "10.0.0.1");
+        assert_eq!(reachable_addr("10.0.0.3:9922"), "10.0.0.3:9922");
     }
 
     #[test]

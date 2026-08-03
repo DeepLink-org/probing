@@ -61,6 +61,7 @@ mod tests {
 
     #[tokio::test]
     async fn readiness_reflects_engine_state() {
+        let _guard = crate::engine_lifecycle::TEST_STATE_LOCK.lock().await;
         mark_engine_ready();
         let resp = readiness().await.into_response();
         assert_eq!(resp.status(), StatusCode::OK);

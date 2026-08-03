@@ -17,7 +17,7 @@ pip show probing
 
 | Probing | Python |
 |---------|--------|
-| 0.2.x | 3.7 – 3.12（见 `pyproject.toml`） |
+| 0.2.x | 3.8 – 3.13（见 `pyproject.toml`） |
 
 ### PyTorch
 

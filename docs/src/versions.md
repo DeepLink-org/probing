@@ -20,7 +20,7 @@ pip show probing
 
 | Probing | Python |
 |---------|--------|
-| 0.2.x | 3.7 – 3.12 (see `pyproject.toml` classifiers) |
+| 0.2.x | 3.8 – 3.13 (see `pyproject.toml` classifiers) |
 
 ### PyTorch
 

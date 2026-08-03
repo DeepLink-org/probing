@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 pub struct InvestigationContext {
     pub pid: Option<i32>,
     pub tid: Option<i32>,
+    pub rank: Option<i32>,
+    pub host: Option<String>,
     pub trace_id: Option<i64>,
     pub span_name: Option<String>,
     /// Training coordinate from step matrix / heatmap (filters span attributes on Spans page).
@@ -16,6 +18,8 @@ impl InvestigationContext {
     pub fn is_empty(&self) -> bool {
         self.pid.is_none()
             && self.tid.is_none()
+            && self.rank.is_none()
+            && self.host.is_none()
             && self.trace_id.is_none()
             && self.span_name.is_none()
             && self.local_step.is_none()
@@ -26,12 +30,25 @@ impl InvestigationContext {
         if let Some(label) = &self.label {
             return label.clone();
         }
+        self.derived_summary()
+    }
+
+    fn derived_summary(&self) -> String {
         let mut parts = Vec::new();
         if let Some(pid) = self.pid {
             parts.push(format!("pid {pid}"));
         }
         if let Some(tid) = self.tid {
             parts.push(format!("tid {tid}"));
+        }
+        if let Some(rank) = self.rank {
+            parts.push(format!("rank {rank}"));
+        }
+        if let Some(host) = &self.host {
+            parts.push(host.clone());
+        }
+        if let Some(step) = self.local_step {
+            parts.push(format!("step {step}"));
         }
         if let Some(trace_id) = self.trace_id {
             parts.push(format!("trace {trace_id}"));
@@ -126,9 +143,11 @@ pub fn clear_spans_investigation_filters() {
 /// Stable key for detecting external investigation context changes.
 pub fn investigation_context_key(ctx: &InvestigationContext) -> String {
     format!(
-        "{}:{}:{}:{}:{}",
+        "{}:{}:{}:{}:{}:{}:{}",
         ctx.pid.unwrap_or(-1),
         ctx.tid.unwrap_or(-1),
+        ctx.rank.unwrap_or(-1),
+        ctx.host.as_deref().unwrap_or(""),
         ctx.trace_id.unwrap_or(-1),
         ctx.span_name.as_deref().unwrap_or(""),
         ctx.local_step.unwrap_or(-1),
@@ -166,7 +185,7 @@ pub fn sync_spans_filters_to_context(
         ctx.label = if ctx.is_empty() {
             None
         } else {
-            Some(ctx.summary())
+            Some(ctx.derived_summary())
         };
     });
 }
@@ -251,7 +270,7 @@ pub fn apply_context_from_dataframe_row(df: &probing_proto::prelude::DataFrame, 
             }
             ctx.label = Some(label);
         } else {
-            ctx.label = Some(ctx.summary());
+            ctx.label = Some(ctx.derived_summary());
         }
     });
 }
@@ -268,6 +287,8 @@ pub fn set_training_step_context(rank: i32, local_step: Option<i64>, host: Optio
         }
     }
     update_investigation_context(|ctx| {
+        ctx.rank = Some(rank);
+        ctx.host = host.filter(|value| !value.is_empty()).map(str::to_string);
         ctx.tid = None;
         ctx.trace_id = None;
         ctx.span_name = Some("train.step".to_string());
@@ -275,6 +296,12 @@ pub fn set_training_step_context(rank: i32, local_step: Option<i64>, host: Optio
         ctx.label = Some(label);
     });
     clear_profiling_thread_filter();
+}
+
+/// Pin a reported rank while preserving the currently selected training step.
+pub fn set_training_rank_context(rank: i32, fallback_step: Option<i64>, host: Option<&str>) {
+    let local_step = INVESTIGATION_CONTEXT.read().local_step.or(fallback_step);
+    set_training_step_context(rank, local_step, host);
 }
 
 pub fn set_thread_context(tid: i32, thread_name: Option<&str>, pid: Option<i32>) {
@@ -294,16 +321,12 @@ pub fn set_thread_context(tid: i32, thread_name: Option<&str>, pid: Option<i32>)
 }
 
 pub fn set_trace_context(trace_id: i64, span_name: Option<&str>, tid: Option<i32>) {
-    let label = match span_name {
-        Some(name) => format!("trace {trace_id} · {name}"),
-        None => format!("trace {trace_id}"),
-    };
     update_investigation_context(|ctx| {
         ctx.trace_id = Some(trace_id);
         ctx.span_name = span_name.map(str::to_string);
         ctx.tid = tid.or(ctx.tid);
-        ctx.local_step = None;
-        ctx.label = Some(label);
+        ctx.label = None;
+        ctx.label = Some(ctx.derived_summary());
     });
 }
 

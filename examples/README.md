@@ -5,7 +5,7 @@
 | 目录 | 主题 | 快速入口 |
 |------|------|----------|
 | [getting-started/](getting-started/) | Tracing / hooks / 冒烟 | `./examples/getting-started/run_tracing.sh` |
-| [megatron/](megatron/) | Megatron-Core / fakes / 真 LM | `./examples/megatron/run_fakes.sh` |
+| [megatron/](megatron/) | Megatron-Core / 64-rank CPU fixture / 真 LM | `./examples/megatron/run_64_rank_mock.sh` |
 | [imagenet/](imagenet/) | ImageNet soak / DDP | `./examples/imagenet/run_soak.sh` |
 | [inference/](inference/) | vLLM / SGLang | `./examples/inference/run_vllm_soak.sh` |
 | [ray/](ray/) | Ray tracing / actor spans | `./examples/ray/run_tracing.sh` |
@@ -29,6 +29,7 @@ uv pip install torch        # 多数示例
 
 ```bash
 ./examples/getting-started/run_tracing.sh
+./examples/megatron/run_64_rank_mock.sh     # TP2 PP4 DP8 SP2
 ./examples/megatron/run_fakes.sh
 ./examples/megatron/run_real_lm.sh          # 需 ../Megatron-LM
 DURATION_SEC=60 ./examples/imagenet/run_soak.sh

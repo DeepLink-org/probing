@@ -1,17 +1,13 @@
 use dioxus::prelude::*;
-use dioxus_router::Link;
 
-use crate::api::{ApiClient, CpuSnapshot, GpuSnapshot, StepMatrixResponse};
+use crate::api::{ApiClient, GpuSnapshot};
 use crate::hooks::{use_page_visible, use_poll_tick_gated};
-use crate::overhead::OverheadSnapshot;
-use crate::utils::error::AppError;
+use crate::state::investigation::{set_training_step_context, INVESTIGATION_CONTEXT};
 
 use super::super::components::{
-    FindingCard, FindingTone, LoadingPanel, MetricCard, NextPageHeader, SectionCard,
-    UnavailablePanel,
+    EvidenceMetric, EvidenceSection, EvidenceSurface, LoadingPanel, UnavailablePanel, WorkspacePage,
 };
-use super::super::model::{format_duration, format_percent, GpuHealth, StepHealth};
-use super::super::routes::NextRoute;
+use super::super::model::{format_duration, format_percent, GpuHealth, StepHealth, StepTrendPoint};
 use super::super::settings::{DASHBOARD_AUTO_REFRESH, DASHBOARD_MANUAL_REFRESH};
 
 const POLL_MS: u32 = 5_000;
@@ -27,34 +23,16 @@ pub fn DashboardPage() -> Element {
             *DASHBOARD_MANUAL_REFRESH.read()
         }
     });
-    let refresh_tick = refresh_key();
-
     let steps = use_resource(move || {
         let _ = refresh_key();
-        async move { ApiClient::new().fetch_step_matrix(256, true).await }
+        async move { ApiClient::new().fetch_step_matrix(256, false).await }
     });
     let gpu = use_resource(move || {
         let _ = refresh_key();
         async move { ApiClient::new().fetch_gpu_latest().await }
     });
-    let cpu = use_resource(move || {
-        let _ = refresh_key();
-        async move { ApiClient::new().fetch_cpu_latest().await }
-    });
-    let nodes = use_resource(move || {
-        let _ = refresh_key();
-        async move { ApiClient::new().get_nodes().await }
-    });
-    let overhead = use_resource(move || {
-        let _ = refresh_key();
-        async move { ApiClient::new().fetch_overhead_summary().await }
-    });
-
     let step_state = steps.read().clone();
     let gpu_state = gpu.read().clone();
-    let cpu_state = cpu.read().clone();
-    let node_state = nodes.read().clone();
-    let overhead_state = overhead.read().clone();
     let step_health = step_state
         .as_ref()
         .and_then(|result| result.as_ref().ok())
@@ -63,246 +41,258 @@ pub fn DashboardPage() -> Element {
         .as_ref()
         .and_then(|result| result.as_ref().ok())
         .map(|snapshots| GpuHealth::from_snapshots(snapshots));
-    let cpu_snapshot = cpu_state
-        .as_ref()
-        .and_then(|result| result.as_ref().ok())
-        .and_then(Clone::clone);
-    let node_count = node_state
-        .as_ref()
-        .and_then(|result| result.as_ref().ok())
-        .map(Vec::len);
-    let overhead_pct = overhead_state
-        .as_ref()
-        .and_then(|result| result.as_ref().ok())
-        .and_then(|frame| OverheadSnapshot::from_summary(frame).dispatch_overhead_pct);
     let poll_label = if *DASHBOARD_AUTO_REFRESH.read() {
-        format!(
-            "Live · refreshes every {}s · tick {refresh_tick}",
-            POLL_MS / 1000
-        )
+        format!("Live · {}s", POLL_MS / 1000)
     } else {
-        format!("Manual refresh · tick {refresh_tick}")
+        "Manual refresh".to_string()
     };
 
     rsx! {
-        div { class: "space-y-5",
-            NextPageHeader {
-                title: "Training job health".to_string(),
-                subtitle: "The first screen for algorithm engineers: progress, tail latency, rank health, accelerators, and the next diagnostic action.".to_string(),
-                actions: rsx! {
-                    span { class: "text-xs text-gray-500", "{poll_label}" }
-                    Link {
-                        to: NextRoute::Investigate {},
-                        class: "inline-flex items-center rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-700",
-                        "Investigate"
+        WorkspacePage {
+            title: "Dashboard".to_string(),
+            subtitle: "Latest step and accelerator samples from this node.".to_string(),
+            actions: rsx! {
+                span { class: "text-xs text-gray-500", "{poll_label}" }
+            },
+
+            EvidenceSurface {
+                div { class: "grid items-start xl:grid-cols-2",
+                    EvidenceSection {
+                        title: "Step time".to_string(),
+                        match step_state.as_ref() {
+                            None => rsx! { LoadingPanel { label: "Loading training steps".to_string() } },
+                            Some(Err(error)) => rsx! { UnavailablePanel {
+                                label: "Step samples unavailable".to_string(),
+                                detail: error.display_message(),
+                            }},
+                            Some(Ok(matrix)) if matrix.samples.is_empty() => rsx! { UnavailablePanel {
+                                label: "No train.step spans yet".to_string(),
+                                detail: "No completed step sample was returned.".to_string(),
+                            }},
+                            Some(Ok(_)) => rsx! { StepTimePanel { health: step_health.clone().unwrap_or_default() } },
+                        }
+                    }
+                    div { class: "border-t border-gray-200 xl:border-l xl:border-t-0",
+                        EvidenceSection {
+                            title: "GPU load".to_string(),
+                            match gpu_state.as_ref() {
+                                None => rsx! { LoadingPanel { label: "Loading GPU samples".to_string() } },
+                                Some(Err(error)) => rsx! { UnavailablePanel {
+                                    label: "GPU samples unavailable".to_string(),
+                                    detail: error.display_message(),
+                                }},
+                                Some(Ok(snapshots)) if snapshots.is_empty() => rsx! { UnavailablePanel {
+                                    label: "No GPU samples".to_string(),
+                                    detail: "The latest utilization query returned no devices.".to_string(),
+                                }},
+                                Some(Ok(snapshots)) => rsx! { GpuLoadPanel {
+                                    snapshots: snapshots.clone(),
+                                    health: gpu_health.clone().unwrap_or_default(),
+                                }},
+                            }
+                        }
                     }
                 }
-            }
-
-            FindingsRow {
-                step_state: step_state.clone(),
-                step_health: step_health.clone(),
-                gpu_state: gpu_state.clone(),
-                gpu_health: gpu_health.clone(),
-            }
-
-            div { class: "grid gap-3 sm:grid-cols-2 xl:grid-cols-5",
-                MetricCard {
-                    label: "Training progress".to_string(),
-                    value: step_health.as_ref().and_then(|health| health.latest_step).map(|step| step.to_string()).unwrap_or_else(|| "—".to_string()),
-                    detail: Some("latest coordinated step".to_string()),
-                    icon: &icondata::AiFieldTimeOutlined,
-                }
-                MetricCard {
-                    label: "Step median / P95".to_string(),
-                    value: step_health.as_ref().map(|health| format!("{} / {}", format_duration(health.median_ms), format_duration(health.p95_ms))).unwrap_or_else(|| "—".to_string()),
-                    detail: Some("latest sample per observed rank".to_string()),
-                    icon: &icondata::AiLineChartOutlined,
-                }
-                MetricCard {
-                    label: "Rank coverage".to_string(),
-                    value: step_health.as_ref().map(|health| format!("{} / {}", health.observed_ranks, health.expected_ranks)).unwrap_or_else(|| "—".to_string()),
-                    detail: step_health.as_ref().and_then(|health| health.completeness_pct()).map(|value| format!("{value:.1}% complete")),
-                    icon: &icondata::AiClusterOutlined,
-                }
-                MetricCard {
-                    label: "GPU utilization".to_string(),
-                    value: gpu_health.as_ref().map(|health| format_percent(health.average_util_pct)).unwrap_or_else(|| "—".to_string()),
-                    detail: gpu_health.as_ref().map(|health| format!("{} device(s) · memory {}", health.device_count, format_percent(health.average_memory_pct))),
-                    icon: &icondata::AiDashboardOutlined,
-                }
-                MetricCard {
-                    label: "Probe overhead".to_string(),
-                    value: format_percent(overhead_pct),
-                    detail: Some(match (node_count, cpu_snapshot.as_ref()) {
-                        (Some(nodes), Some(cpu)) => format!("{nodes} nodes · CPU {:.1}%", cpu.cpu_total_pct),
-                        (Some(nodes), None) => format!("{nodes} nodes"),
-                        (None, Some(cpu)) => format!("CPU {:.1}%", cpu.cpu_total_pct),
-                        _ => "collecting runtime health".to_string(),
-                    }),
-                    icon: &icondata::CgPerformance,
-                }
-            }
-
-            div { class: "grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]",
-                SectionCard {
-                    title: "Rank latency distribution".to_string(),
-                    subtitle: Some("Latest observed step per rank; slowest ranks are shown first.".to_string()),
+                EvidenceSection {
+                    title: "Latest rank step time".to_string(),
+                    divided: true,
                     match step_state.as_ref() {
-                        None => rsx! { LoadingPanel { label: "Loading training steps".to_string() } },
+                        None => rsx! { LoadingPanel { label: "Loading rank samples".to_string() } },
                         Some(Err(error)) => rsx! { UnavailablePanel {
-                            label: "Training step data unavailable".to_string(),
+                            label: "Rank samples unavailable".to_string(),
                             detail: error.display_message(),
                         }},
                         Some(Ok(matrix)) if matrix.samples.is_empty() => rsx! { UnavailablePanel {
-                            label: "No train.step spans yet".to_string(),
-                            detail: "Enable TorchProbe step tracing or wait for the first completed step.".to_string(),
+                            label: "No comparable rank samples".to_string(),
+                            detail: "No completed step sample was returned.".to_string(),
                         }},
-                        Some(Ok(_)) => rsx! { RankLatencyBars { health: step_health.clone().unwrap_or_default() } },
+                        Some(Ok(_)) => rsx! { RankLatencyPanel { health: step_health.clone().unwrap_or_default() } },
                     }
                 }
-                SectionCard {
-                    title: "Recommended next action".to_string(),
-                    subtitle: Some("Evidence-backed shortcuts, not a generic status list.".to_string()),
-                    RecommendationPanel { health: step_health.clone(), gpu: gpu_health.clone() }
-                }
-            }
-
-            SectionCard {
-                title: "Resource and process details".to_string(),
-                subtitle: Some("Existing CPU, GPU, thread, and process views remain available as secondary evidence.".to_string()),
-                body_class: "p-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4".to_string(),
-                {resource_summary(cpu_state, gpu_state, node_state, overhead_state)}
             }
         }
     }
 }
 
 #[component]
-fn FindingsRow(
-    step_state: Option<Result<StepMatrixResponse, AppError>>,
-    step_health: Option<StepHealth>,
-    gpu_state: Option<Result<Vec<GpuSnapshot>, AppError>>,
-    gpu_health: Option<GpuHealth>,
-) -> Element {
-    let step_finding = match (&step_state, &step_health) {
-        (None, _) => (
-            FindingTone::Info,
-            "Collecting step evidence".to_string(),
-            "The dashboard will rank findings after the first cluster sample.".to_string(),
-        ),
-        (Some(Err(_)), _) => (
-            FindingTone::Critical,
-            "Step diagnosis unavailable".to_string(),
-            "The failure is surfaced explicitly; no healthy conclusion is inferred.".to_string(),
-        ),
-        (Some(Ok(matrix)), _) if matrix.samples.is_empty() => (
-            FindingTone::Info,
-            "Waiting for train.step spans".to_string(),
-            "No step latency sample has been observed yet.".to_string(),
-        ),
-        (_, Some(health)) if !health.nodes_failed.is_empty() => (
-            FindingTone::Critical,
-            format!(
-                "Partial cluster result · {} failed",
-                health.nodes_failed.len()
-            ),
-            "Rank comparisons remain visible, but conclusions are marked incomplete.".to_string(),
-        ),
-        (_, Some(health)) if health.slowest_ratio().is_some_and(|ratio| ratio >= 1.5) => (
-            FindingTone::Warning,
-            format!(
-                "rank {} is {:.2}× slower",
-                health.slowest_rank.unwrap_or_default(),
-                health.slowest_ratio().unwrap_or_default()
-            ),
-            format!(
-                "{} versus rank median {}.",
-                format_duration(health.slowest_ms),
-                format_duration(health.median_ms)
-            ),
-        ),
-        (_, Some(_)) => (
-            FindingTone::Healthy,
-            "No severe rank outlier".to_string(),
-            "Latest rank timings are within the current outlier threshold.".to_string(),
-        ),
-        _ => (
-            FindingTone::Info,
-            "Step health unknown".to_string(),
-            "No usable cluster timing sample was returned.".to_string(),
-        ),
-    };
-
-    let gpu_finding = match (&gpu_state, &gpu_health) {
-        (None, _) => (
-            FindingTone::Info,
-            "Collecting accelerator evidence".to_string(),
-            "GPU utilization and memory pressure are loading.".to_string(),
-        ),
-        (Some(Err(_)), _) => (
-            FindingTone::Critical,
-            "GPU metrics unavailable".to_string(),
-            "Accelerator health is unknown rather than treated as idle.".to_string(),
-        ),
-        (Some(Ok(rows)), _) if rows.is_empty() => (
-            FindingTone::Info,
-            "No GPU device reported".to_string(),
-            "This may be a CPU job or an unavailable GPU collector.".to_string(),
-        ),
-        (_, Some(health)) if health.average_util_pct.is_some_and(|value| value < 30.0) => (
-            FindingTone::Warning,
-            "Low GPU utilization observed".to_string(),
-            format!(
-                "Average utilization {} across {} device(s); inspect input and synchronization waits.",
-                format_percent(health.average_util_pct),
-                health.device_count
-            ),
-        ),
-        (_, Some(health)) => (
-            FindingTone::Healthy,
-            "Accelerators are active".to_string(),
-            format!(
-                "Average GPU utilization {} across {} device(s).",
-                format_percent(health.average_util_pct),
-                health.device_count
-            ),
-        ),
-        _ => (
-            FindingTone::Info,
-            "GPU health unknown".to_string(),
-            "No usable accelerator sample was returned.".to_string(),
-        ),
-    };
+fn StepTimePanel(health: StepHealth) -> Element {
+    let latest_step = health
+        .latest_step
+        .map(|step| step.to_string())
+        .unwrap_or_else(|| "—".to_string());
+    let maximum = health
+        .slowest_ms
+        .map(|duration| format_duration(Some(duration)))
+        .unwrap_or_else(|| "—".to_string());
+    let maximum_detail = health.slowest_rank.map(|rank| format!("rank {rank}"));
 
     rsx! {
-        div { class: "grid gap-3 lg:grid-cols-2",
-            FindingCard {
-                eyebrow: "Highest-priority finding".to_string(),
-                title: step_finding.1,
-                detail: step_finding.2,
-                tone: step_finding.0,
-                action: rsx! {
-                    Link {
-                        to: NextRoute::Training {},
-                        class: "inline-flex rounded-lg border border-current/20 bg-white/70 px-3 py-1.5 text-xs font-medium hover:bg-white",
-                        "Open training evidence"
+        div { class: "space-y-4",
+            div { class: "grid grid-cols-4 divide-x divide-gray-200",
+                EvidenceMetric { label: "Latest step", value: latest_step, detail: None }
+                EvidenceMetric { label: "Median", value: format_duration(health.median_ms), detail: None }
+                EvidenceMetric { label: "P95", value: format_duration(health.p95_ms), detail: None }
+                EvidenceMetric { label: "Maximum", value: maximum, detail: maximum_detail }
+            }
+            StepTrendChart { points: health.trend }
+        }
+    }
+}
+
+#[component]
+pub(super) fn StepTrendChart(points: Vec<StepTrendPoint>) -> Element {
+    if points.is_empty() {
+        return rsx! {
+            UnavailablePanel {
+                label: "No step trend".to_string(),
+                detail: "Only the latest rank samples were returned.".to_string(),
+            }
+        };
+    }
+
+    let width = 720.0;
+    let height = 178.0;
+    let pad_left = 50.0;
+    let pad_right = 12.0;
+    let pad_top = 10.0;
+    let pad_bottom = 26.0;
+    let plot_width = width - pad_left - pad_right;
+    let plot_height = height - pad_top - pad_bottom;
+    let minimum = points
+        .iter()
+        .map(|point| point.median_ms)
+        .fold(f64::INFINITY, f64::min);
+    let maximum = points
+        .iter()
+        .map(|point| point.p95_ms)
+        .fold(f64::NEG_INFINITY, f64::max);
+    let padding = ((maximum - minimum) * 0.08)
+        .max(maximum.abs() * 0.02)
+        .max(0.1);
+    let y_min = (minimum - padding).max(0.0);
+    let y_max = maximum + padding;
+    let y_span = (y_max - y_min).max(0.1);
+    let x_span = points.len().saturating_sub(1).max(1) as f64;
+    let coordinates = |value: fn(&StepTrendPoint) -> f64| {
+        points
+            .iter()
+            .enumerate()
+            .map(|(index, point)| {
+                let x = pad_left + index as f64 / x_span * plot_width;
+                let y = pad_top + (y_max - value(point)) / y_span * plot_height;
+                format!("{x:.1},{y:.1}")
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    let median_line = coordinates(|point| point.median_ms);
+    let p95_line = coordinates(|point| point.p95_ms);
+    let first_step = points.first().map(|point| point.step).unwrap_or_default();
+    let last_step = points.last().map(|point| point.step).unwrap_or_default();
+
+    rsx! {
+        div {
+            class: "border-t border-gray-100 pt-3",
+            role: "img",
+            aria_label: "Recent step duration trend from step {first_step} to {last_step}; blue is median and violet is P95",
+            div { class: "mb-1 flex items-center justify-between text-xs text-gray-500",
+                span { "Recent steps" }
+                div { class: "flex gap-3",
+                    span { class: "flex items-center gap-1",
+                        span { class: "inline-block h-px w-4 bg-blue-600" }
+                        "median"
+                    }
+                    span { class: "flex items-center gap-1",
+                        span { class: "inline-block h-px w-4 bg-violet-500" }
+                        "P95"
                     }
                 }
             }
-            FindingCard {
-                eyebrow: "Accelerator signal".to_string(),
-                title: gpu_finding.1,
-                detail: gpu_finding.2,
-                tone: gpu_finding.0,
-                action: rsx! {
-                    Link {
-                        to: NextRoute::Profiles {},
-                        class: "inline-flex rounded-lg border border-current/20 bg-white/70 px-3 py-1.5 text-xs font-medium hover:bg-white",
-                        "Open profiles"
+            svg {
+                class: "h-44 w-full",
+                view_box: "0 0 {width} {height}",
+                preserve_aspect_ratio: "none",
+                for tick in 0..=3 {
+                    {
+                        let ratio = tick as f64 / 3.0;
+                        let y = pad_top + ratio * plot_height;
+                        let value = y_max - ratio * y_span;
+                        rsx! {
+                            line {
+                                x1: "{pad_left}", y1: "{y}",
+                                x2: "{pad_left + plot_width}", y2: "{y}",
+                                stroke: "#e5e7eb", stroke_width: "1",
+                            }
+                            text {
+                                x: "{pad_left - 6.0}", y: "{y + 3.0}",
+                                text_anchor: "end", font_size: "11", fill: "#6b7280",
+                                "{format_duration(Some(value))}"
+                            }
+                        }
                     }
                 }
+                polyline {
+                    points: "{p95_line}", fill: "none", stroke: "#8b5cf6",
+                    stroke_width: "2", stroke_linejoin: "round", stroke_linecap: "round",
+                    vector_effect: "non-scaling-stroke",
+                }
+                polyline {
+                    points: "{median_line}", fill: "none", stroke: "#2563eb",
+                    stroke_width: "2.5", stroke_linejoin: "round", stroke_linecap: "round",
+                    vector_effect: "non-scaling-stroke",
+                }
+                text {
+                    x: "{pad_left}", y: "{height - 5.0}", text_anchor: "start",
+                    font_size: "11", fill: "#6b7280", "step {first_step}"
+                }
+                text {
+                    x: "{pad_left + plot_width}", y: "{height - 5.0}", text_anchor: "end",
+                    font_size: "11", fill: "#6b7280", "step {last_step}"
+                }
             }
+        }
+    }
+}
+
+#[component]
+fn RankLatencyPanel(health: StepHealth) -> Element {
+    let coverage = format!("{} / {}", health.observed_ranks, health.expected_ranks);
+    let slowest = health
+        .slowest_rank
+        .map(|rank| format!("R{rank}"))
+        .unwrap_or_else(|| "—".to_string());
+    let slowest_detail = health
+        .slowest_ratio()
+        .map(|ratio| format!("{ratio:.2}× median"));
+    let shown = health.rank_durations.len().min(12);
+    let failed_nodes_title = health.nodes_failed.join(", ");
+
+    rsx! {
+        div { class: "space-y-4",
+            div { class: "grid grid-cols-4 divide-x divide-gray-200",
+                EvidenceMetric { label: "Ranks", value: coverage, detail: None }
+                EvidenceMetric { label: "Median", value: format_duration(health.median_ms), detail: None }
+                EvidenceMetric { label: "P95", value: format_duration(health.p95_ms), detail: None }
+                EvidenceMetric { label: "Maximum rank", value: slowest, detail: slowest_detail }
+            }
+            if !health.nodes_failed.is_empty() {
+                details {
+                    class: "rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900",
+                    summary {
+                        class: "cursor-pointer font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:ring-offset-2",
+                        "{health.nodes_failed.len()} node(s) did not return step samples · show nodes"
+                    }
+                    p { class: "mt-1 break-all font-mono text-xs", "{failed_nodes_title}" }
+                }
+            }
+            div { class: "flex items-center justify-between gap-2 border-t border-gray-100 pt-3 text-xs text-gray-500",
+                span { "Slowest {shown} of {health.rank_durations.len()} observed ranks" }
+                span { class: "flex items-center gap-1",
+                    span { class: "inline-block h-3 border-l border-dashed border-gray-500" }
+                    "median"
+                }
+            }
+            RankLatencyBars { health }
         }
     }
 }
@@ -317,12 +307,14 @@ fn RankLatencyBars(health: StepHealth) -> Element {
         .max(1.0);
     rsx! {
         div { class: "space-y-3",
-            for (rank, duration) in health.rank_durations.iter().take(10) {
+            for (rank, duration) in health.rank_durations.iter().take(12) {
                 RankLatencyBar {
                     rank: *rank,
                     duration: *duration,
                     maximum,
+                    median: health.median_ms,
                     slowest: Some(*rank) == health.slowest_rank,
+                    local_step: health.latest_step,
                 }
             }
             if health.rank_durations.is_empty() {
@@ -336,19 +328,60 @@ fn RankLatencyBars(health: StepHealth) -> Element {
 }
 
 #[component]
-fn RankLatencyBar(rank: i32, duration: f64, maximum: f64, slowest: bool) -> Element {
+fn RankLatencyBar(
+    rank: i32,
+    duration: f64,
+    maximum: f64,
+    median: Option<f64>,
+    slowest: bool,
+    local_step: Option<i64>,
+) -> Element {
     let width_style = format!(
         "width: {:.1}%;",
         (duration / maximum * 100.0).clamp(2.0, 100.0)
     );
+    let median_style = format!(
+        "left: {:.1}%;",
+        (median.unwrap_or_default() / maximum * 100.0).clamp(0.0, 100.0)
+    );
+    let pin_label = format!(
+        "Pin rank {rank} at step {}",
+        local_step
+            .map(|step| step.to_string())
+            .unwrap_or_else(|| "latest".to_string())
+    );
+    let pinned = INVESTIGATION_CONTEXT.read().rank == Some(rank)
+        && INVESTIGATION_CONTEXT.read().local_step == local_step;
+    let row_class = if pinned {
+        "grid w-full grid-cols-[6.5rem_minmax(0,1fr)_5.5rem] items-center gap-3 rounded bg-blue-50 px-1 py-0.5 text-left ring-1 ring-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+    } else {
+        "grid w-full grid-cols-[6.5rem_minmax(0,1fr)_5.5rem] items-center gap-3 rounded px-1 py-0.5 text-left hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+    };
 
     rsx! {
-        div { class: "grid grid-cols-[4.5rem_minmax(0,1fr)_5.5rem] items-center gap-3",
-            div { class: "text-xs font-medium text-gray-700", "rank {rank}" }
-            div { class: "h-2.5 overflow-hidden rounded-full bg-gray-100",
+        button {
+            r#type: "button",
+            class: "{row_class}",
+            aria_label: "{pin_label}",
+            aria_pressed: pinned.to_string(),
+            onclick: move |_| set_training_step_context(rank, local_step, None),
+            div { class: "flex items-center gap-1 text-xs font-medium text-gray-700",
+                "rank {rank}"
+                if slowest {
+                    span { class: "rounded bg-violet-100 px-1 text-violet-800", "max" }
+                }
+                if pinned {
+                    span { class: "font-bold text-blue-700", aria_hidden: "true", "✓" }
+                }
+            }
+            div { class: "relative h-2.5 rounded-full bg-gray-100",
                 div {
-                    class: if slowest { "h-full rounded-full bg-amber-500" } else { "h-full rounded-full bg-blue-500" },
+                    class: if slowest { "h-full rounded-full bg-violet-500" } else { "h-full rounded-full bg-blue-500" },
                     style: "{width_style}",
+                }
+                span {
+                    class: "absolute inset-y-[-2px] border-l border-dashed border-gray-600",
+                    style: "{median_style}",
                 }
             }
             div { class: "text-right text-xs tabular-nums text-gray-600", "{format_duration(Some(duration))}" }
@@ -357,109 +390,54 @@ fn RankLatencyBar(rank: i32, duration: f64, maximum: f64, slowest: bool) -> Elem
 }
 
 #[component]
-fn RecommendationPanel(health: Option<StepHealth>, gpu: Option<GpuHealth>) -> Element {
-    let slow_rank = health
-        .as_ref()
-        .and_then(|health| health.slowest_rank)
-        .map(|rank| format!("Start with rank {rank}"));
-    let action = slow_rank.unwrap_or_else(|| "Run a job health overview".to_string());
+fn GpuLoadPanel(snapshots: Vec<GpuSnapshot>, health: GpuHealth) -> Element {
     rsx! {
         div { class: "space-y-4",
-            div {
-                div { class: "text-sm font-semibold text-gray-900", "1 · {action}" }
-                p { class: "mt-1 text-xs leading-relaxed text-gray-500",
-                    if health.as_ref().and_then(StepHealth::slowest_ratio).is_some_and(|ratio| ratio >= 1.5) {
-                        "Compare its input, compute, and collective phases against the rank median."
-                    } else {
-                        "Collect a stable rank window before selecting a culprit."
-                    }
-                }
+            div { class: "grid grid-cols-3 divide-x divide-gray-200",
+                EvidenceMetric { label: "Devices", value: health.device_count.to_string(), detail: None }
+                EvidenceMetric { label: "Average util", value: format_percent(health.average_util_pct), detail: None }
+                EvidenceMetric { label: "Average memory", value: format_percent(health.average_memory_pct), detail: None }
             }
-            div { class: "border-t border-gray-100 pt-4",
-                div { class: "text-sm font-semibold text-gray-900", "2 · Validate accelerator pressure" }
-                p { class: "mt-1 text-xs leading-relaxed text-gray-500",
-                    "Observed average: {gpu.as_ref().map(|value| format_percent(value.average_util_pct)).unwrap_or_else(|| \"—\".to_string())}. Correlate low utilization with input or communication waits."
+            div { class: "space-y-2 border-t border-gray-100 pt-3",
+                div { class: "grid grid-cols-[3.5rem_minmax(0,1fr)_3.5rem_minmax(0,1fr)_3.5rem] gap-2 text-xs uppercase tracking-wide text-gray-500",
+                    span { "Device" }
+                    span { "Utilization" }
+                    span {}
+                    span { "Memory" }
+                    span {}
                 }
-            }
-            div { class: "flex flex-wrap gap-2 border-t border-gray-100 pt-4",
-                Link {
-                    to: NextRoute::Investigate {},
-                    class: "rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-700",
-                    "Run diagnostic skill"
+                for snapshot in snapshots.iter().take(16) {
+                    GpuLoadRow { snapshot: snapshot.clone() }
                 }
-                Link {
-                    to: NextRoute::Distributed {},
-                    class: "rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50",
-                    "Inspect rank alignment"
+                if snapshots.len() > 16 {
+                    p { class: "text-xs text-gray-500", "Showing 16 of {snapshots.len()} devices" }
                 }
             }
         }
     }
 }
 
-fn resource_summary(
-    cpu_state: Option<Result<Option<CpuSnapshot>, AppError>>,
-    gpu_state: Option<Result<Vec<GpuSnapshot>, AppError>>,
-    node_state: Option<Result<Vec<probing_proto::prelude::Node>, AppError>>,
-    overhead_state: Option<Result<probing_proto::prelude::DataFrame, AppError>>,
-) -> Element {
-    let cpu_copy = match cpu_state {
-        None => ("CPU".to_string(), "Loading…".to_string()),
-        Some(Ok(Some(cpu))) => (
-            format!("CPU {:.1}%", cpu.cpu_total_pct),
-            format!("{} threads · RSS {} KB", cpu.thread_count, cpu.rss_kb),
-        ),
-        Some(Ok(None)) => ("CPU".to_string(), "Collecting samples".to_string()),
-        Some(Err(_)) => (
-            "CPU unavailable".to_string(),
-            "Collector/query failed".to_string(),
-        ),
-    };
-    let gpu_copy = match gpu_state {
-        None => ("GPU".to_string(), "Loading…".to_string()),
-        Some(Ok(rows)) => (
-            format!("{} GPU device(s)", rows.len()),
-            format!(
-                "average {}",
-                format_percent(GpuHealth::from_snapshots(&rows).average_util_pct)
-            ),
-        ),
-        Some(Err(_)) => (
-            "GPU unavailable".to_string(),
-            "Collector/query failed".to_string(),
-        ),
-    };
-    let cluster_copy = match node_state {
-        None => ("Cluster".to_string(), "Loading…".to_string()),
-        Some(Ok(nodes)) => (
-            format!("{} node(s)", nodes.len()),
-            format!(
-                "{} ranked peer(s)",
-                nodes.iter().filter(|node| node.rank.is_some()).count()
-            ),
-        ),
-        Some(Err(_)) => (
-            "Cluster unavailable".to_string(),
-            "Node registry failed".to_string(),
-        ),
-    };
-    let overhead_copy = match overhead_state {
-        None => ("Probe overhead".to_string(), "Loading…".to_string()),
-        Some(Ok(frame)) => (
-            format_percent(OverheadSnapshot::from_summary(&frame).dispatch_overhead_pct),
-            "dispatch path estimate".to_string(),
-        ),
-        Some(Err(_)) => (
-            "Overhead unavailable".to_string(),
-            "No health conclusion inferred".to_string(),
-        ),
-    };
+#[component]
+fn GpuLoadRow(snapshot: GpuSnapshot) -> Element {
+    let util = snapshot.gpu_util_pct.map(f64::from);
+    let memory = f64::from(snapshot.mem_used_pct);
+    let util_width = format!("width: {:.1}%;", util.unwrap_or_default().clamp(0.0, 100.0));
+    let memory_width = format!("width: {:.1}%;", memory.clamp(0.0, 100.0));
+    let device_label = format!("GPU {}", snapshot.device_id);
+
     rsx! {
-        for (title, detail) in [cpu_copy, gpu_copy, cluster_copy, overhead_copy] {
-            div { class: "rounded-lg bg-gray-50 px-3 py-3",
-                div { class: "text-sm font-medium text-gray-900", "{title}" }
-                div { class: "mt-1 text-xs text-gray-500", "{detail}" }
+        div {
+            class: "grid grid-cols-[3.5rem_minmax(0,1fr)_3.5rem_minmax(0,1fr)_3.5rem] items-center gap-2",
+            title: "{snapshot.name} · {snapshot.backend}",
+            span { class: "truncate font-mono text-xs text-gray-600", "{device_label}" }
+            div { class: "h-2 rounded-full bg-gray-100",
+                div { class: "h-full rounded-full bg-blue-500", style: "{util_width}" }
             }
+            span { class: "text-right text-xs tabular-nums text-gray-600", "{format_percent(util)}" }
+            div { class: "h-2 rounded-full bg-gray-100",
+                div { class: "h-full rounded-full bg-violet-500", style: "{memory_width}" }
+            }
+            span { class: "text-right text-xs tabular-nums text-gray-600", "{format_percent(Some(memory))}" }
         }
     }
 }

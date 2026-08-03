@@ -10,6 +10,15 @@ pub enum AppError {
 
     #[error("API error: {0}")]
     Api(String),
+
+    #[error("{message}")]
+    Http {
+        status: u16,
+        code: String,
+        message: String,
+        retryable: bool,
+        action: Option<String>,
+    },
     #[error("Cancelled")]
     Cancelled,
 }
@@ -21,7 +30,31 @@ impl AppError {
 
     /// User-facing message for display in the UI (enables future i18n).
     pub fn display_message(&self) -> String {
-        self.to_string()
+        match self {
+            Self::Http {
+                message,
+                action: Some(action),
+                ..
+            } => format!("{message} · {action}"),
+            Self::Http { message, .. } => message.clone(),
+            _ => self.to_string(),
+        }
+    }
+
+    pub fn http(
+        status: u16,
+        code: impl Into<String>,
+        message: impl Into<String>,
+        retryable: bool,
+        action: Option<String>,
+    ) -> Self {
+        Self::Http {
+            status,
+            code: code.into(),
+            message: message.into(),
+            retryable,
+            action,
+        }
     }
 }
 

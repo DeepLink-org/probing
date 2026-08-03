@@ -1,14 +1,14 @@
 use dioxus::prelude::*;
-use probing_proto::prelude::Node;
+use dioxus_router::Link;
 
 use crate::api::{ApiClient, StepMatrixResponse};
-use crate::utils::error::AppError;
 
 use super::super::components::{
-    ClassicLink, FindingCard, FindingTone, LoadingPanel, MetricCard, NextPageHeader, SectionCard,
-    UnavailablePanel,
+    EvidenceMetric, InlineNotice, LoadingPanel, MetricCard, NoticeTone, SectionCard,
+    UnavailablePanel, WorkspacePage,
 };
 use super::super::model::{format_duration, StepHealth};
+use super::super::routes::NextRoute;
 use super::super::settings::{
     DISTRIBUTED_CLUSTER_SCOPE, DISTRIBUTED_REFRESH, DISTRIBUTED_STEP_LIMIT,
 };
@@ -33,97 +33,162 @@ pub fn DistributedPage() -> Element {
         .map(StepHealth::from_matrix);
 
     rsx! {
-        div { class: "space-y-5",
-            NextPageHeader {
-                title: "Distributed diagnosis".to_string(),
-                subtitle: "Cluster completeness, rank alignment, and culprit/victim evidence before opening raw stacks or timelines.".to_string(),
-                actions: rsx! {
-                    ClassicLink { path: "/stacks/distributed".to_string(), label: "Open distributed flamegraph".to_string() }
-                }
-            }
+        WorkspacePage {
+            title: "Cluster Overview".to_string(),
+            subtitle: "Heartbeat coverage and latest comparable step duration by rank.".to_string(),
+            actions: rsx! {
+                    Link {
+                        to: NextRoute::Cluster {},
+                        class: "inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50",
+                        "View nodes"
+                    }
+                },
 
-            CompletenessFinding { node_state: node_state.clone(), step_state: step_state.clone(), health: health.clone() }
+            ClusterStatus { node_state: node_state.clone(), step_state: step_state.clone(), health: health.clone() }
 
-            div { class: "grid gap-3 sm:grid-cols-2 lg:grid-cols-4",
+            div { class: "grid gap-3 md:grid-cols-3",
                 MetricCard {
-                    label: "Registered nodes".to_string(),
+                    label: "Nodes reporting".to_string(),
                     value: node_state.as_ref().and_then(|result| result.as_ref().ok()).map(|nodes| nodes.len().to_string()).unwrap_or_else(|| "—".to_string()),
-                    detail: Some("cluster heartbeat registry".to_string()),
+                    detail: Some("live heartbeat registry".to_string()),
                     icon: &icondata::AiClusterOutlined,
                 }
                 MetricCard {
-                    label: "Observed ranks".to_string(),
+                    label: "Ranks compared".to_string(),
                     value: health.as_ref().map(|health| format!("{} / {}", health.observed_ranks, health.expected_ranks)).unwrap_or_else(|| "—".to_string()),
-                    detail: Some("latest comparable step samples".to_string()),
+                    detail: Some("latest comparable train.step".to_string()),
                     icon: &icondata::AiApartmentOutlined,
                 }
                 MetricCard {
-                    label: "Slowest rank".to_string(),
-                    value: health.as_ref().and_then(|health| health.slowest_rank).map(|rank| format!("rank {rank}")).unwrap_or_else(|| "—".to_string()),
-                    detail: health.as_ref().map(|health| format_duration(health.slowest_ms)),
-                    icon: &icondata::AiWarningOutlined,
-                }
-                MetricCard {
-                    label: "Tail / median".to_string(),
+                    label: "Step skew".to_string(),
                     value: health.as_ref().and_then(StepHealth::slowest_ratio).map(|ratio| format!("{ratio:.2}×")).unwrap_or_else(|| "—".to_string()),
-                    detail: Some("latest step rank spread".to_string()),
+                    detail: health.as_ref().and_then(|health| health.slowest_rank).map(|rank| format!("rank {rank} vs cluster median")).or_else(|| Some("slowest rank vs cluster median".to_string())),
                     icon: &icondata::AiLineChartOutlined,
                 }
             }
 
-            div { class: "grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.6fr)]",
+            div { class: "grid items-start gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.6fr)]",
                 SectionCard {
-                    title: "Rank alignment".to_string(),
-                    subtitle: Some("Latest observed train.step duration by rank.".to_string()),
+                    title: "Rank comparison".to_string(),
+                    subtitle: Some("Latest comparable duration by rank, scaled against the cluster median.".to_string()),
                     match step_state.as_ref() {
-                        None => rsx! { LoadingPanel { label: "Loading cross-rank timings".to_string() } },
-                        Some(Err(error)) => rsx! { UnavailablePanel {
-                            label: "Cross-rank timing unavailable".to_string(),
-                            detail: error.display_message(),
+                        None => rsx! { LoadingPanel { label: "Comparing rank timings".to_string() } },
+                        Some(Err(_)) => rsx! { UnavailablePanel {
+                            label: "Rank comparison unavailable".to_string(),
+                            detail: "Cluster fan-out could not collect comparable steps. Check Nodes, then refresh the evidence.".to_string(),
                         }},
                         Some(Ok(matrix)) if matrix.samples.is_empty() => rsx! { UnavailablePanel {
-                            label: "No distributed step samples".to_string(),
-                            detail: "Wait for train.step spans or verify cluster fan-out.".to_string(),
+                            label: "No comparable rank samples yet".to_string(),
+                            detail: "Wait for train.step sampling to begin, then refresh the cluster evidence.".to_string(),
                         }},
                         Some(Ok(_)) => rsx! { RankTable { health: health.clone().unwrap_or_default() } },
                     }
                 }
                 SectionCard {
-                    title: "Evidence workspaces".to_string(),
-                    div { class: "space-y-3",
-                        EvidenceLink {
+                    title: "Related evidence".to_string(),
+                    subtitle: Some("These workspaces reuse the same reported cluster context.".to_string()),
+                    div { class: "space-y-2",
+                        InvestigationLink {
                             title: "Distributed stacks".to_string(),
-                            detail: "Python and native frames merged across ranks.".to_string(),
-                            path: "/stacks/distributed".to_string(),
+                            detail: "Merged mixed-language call paths across ranks.".to_string(),
+                            route: NextRoute::DistributedStack {},
                         }
-                        EvidenceLink {
-                            title: "Distributed Python".to_string(),
-                            detail: "Python-only cluster flamegraph.".to_string(),
-                            path: "/stacks/distributed/py".to_string(),
+                        InvestigationLink {
+                            title: "Python stacks".to_string(),
+                            detail: "Python-only call paths across ranks.".to_string(),
+                            route: NextRoute::DistributedPythonStack {},
                         }
-                        EvidenceLink {
-                            title: "Span hierarchy".to_string(),
-                            detail: "Cross-process Python and RL span evidence.".to_string(),
-                            path: "/spans".to_string(),
+                        InvestigationLink {
+                            title: "Tracing".to_string(),
+                            detail: "Hierarchical spans with total and self duration.".to_string(),
+                            route: NextRoute::Spans {},
                         }
                     }
                 }
             }
 
-            SectionCard {
-                title: "Cluster members".to_string(),
-                subtitle: Some("Live registry data; a failed registry request is not treated as an empty cluster.".to_string()),
-                match node_state.as_ref() {
-                    None => rsx! { LoadingPanel { label: "Loading cluster membership".to_string() } },
-                    Some(Err(error)) => rsx! { UnavailablePanel {
-                        label: "Cluster registry unavailable".to_string(),
-                        detail: error.display_message(),
-                    }},
-                    Some(Ok(nodes)) if nodes.is_empty() => rsx! { UnavailablePanel {
-                        label: "No nodes registered".to_string(),
-                        detail: "This may be a single-process job or heartbeat has not started.".to_string(),
-                    }},
-                    Some(Ok(nodes)) => rsx! { NodeTable { nodes: nodes.clone() } },
+        }
+    }
+}
+
+#[component]
+pub fn DistributedStatusPage() -> Element {
+    let runtime_debug = use_resource(|| {
+        let _ = *DISTRIBUTED_REFRESH.read();
+        async move { ApiClient::new().get_pytorch_runtime_debug().await }
+    });
+    let state = runtime_debug.read().clone();
+
+    rsx! {
+        WorkspacePage {
+            title: "Distributed Status".to_string(),
+            subtitle: "Inspect current PyTorch wait scopes and rendezvous state. Each capability reports availability independently.".to_string(),
+            match state {
+                None => rsx! { LoadingPanel { label: "Reading distributed runtime state".to_string() } },
+                Some(Err(error)) => rsx! { UnavailablePanel {
+                    label: "Distributed status unavailable".to_string(),
+                    detail: error.display_message(),
+                }},
+                Some(Ok(snapshot)) => rsx! {
+                    div { class: "grid items-start gap-4 xl:grid-cols-2",
+                        WaitCounterPanel { snapshot: snapshot.wait_counters }
+                        TcpStorePanel { snapshot: snapshot.tcpstore }
+                    }
+                },
+            }
+        }
+    }
+}
+
+#[component]
+fn WaitCounterPanel(snapshot: crate::api::WaitCounterSnapshot) -> Element {
+    if !snapshot.available {
+        return rsx! { UnavailablePanel {
+            label: "Wait counters unavailable".to_string(),
+            detail: snapshot.error.unwrap_or_else(|| "This PyTorch build does not expose the wait-counter worker handler.".to_string()),
+        }};
+    }
+    let active = snapshot
+        .counters
+        .iter()
+        .filter(|counter| counter.active_count > 0)
+        .count();
+    let calls: i64 = snapshot
+        .counters
+        .iter()
+        .map(|counter| counter.total_calls)
+        .sum();
+    let maximum = snapshot
+        .counters
+        .iter()
+        .map(|counter| counter.max_time_us)
+        .max()
+        .unwrap_or_default();
+    let mut counters = snapshot.counters;
+    counters.sort_by_key(|counter| (counter.active_count, counter.max_time_us));
+    counters.reverse();
+
+    rsx! {
+        div { class: "min-w-0 rounded-lg border border-gray-200 p-3",
+            div { class: "flex items-baseline justify-between",
+                h3 { class: "text-sm font-semibold text-gray-900", "Wait states · rank {snapshot.rank}" }
+                span { class: "text-xs text-gray-500", "{snapshot.source} · {counters.len()} counters" }
+            }
+            div { class: "mt-3 grid grid-cols-3 divide-x divide-gray-200 text-center",
+                RuntimeMetric { label: "Active", value: active.to_string() }
+                RuntimeMetric { label: "Calls", value: calls.to_string() }
+                RuntimeMetric { label: "Max", value: format_wait_us(maximum) }
+            }
+            div { class: "mt-3 divide-y divide-gray-100 border-t border-gray-100",
+                for counter in counters.iter().take(6) {
+                    div { class: "grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 py-2 text-xs",
+                        div { class: "break-all font-mono text-xs text-gray-700", "{counter.name}" }
+                        span { class: if counter.active_count > 0 { "font-medium text-amber-700" } else { "text-gray-500" }, "active {counter.active_count}" }
+                        span { class: "font-mono text-gray-600", "{format_wait_us(counter.max_time_us)}" }
+                    }
+                }
+                if counters.is_empty() {
+                    p { class: "py-3 text-xs text-gray-500", "No instrumented wait counters observed." }
                 }
             }
         }
@@ -131,56 +196,224 @@ pub fn DistributedPage() -> Element {
 }
 
 #[component]
-fn CompletenessFinding(
-    node_state: Option<Result<Vec<Node>, AppError>>,
-    step_state: Option<Result<StepMatrixResponse, AppError>>,
-    health: Option<StepHealth>,
-) -> Element {
-    let (tone, title, detail) = match (&node_state, &step_state, &health) {
-        (Some(Err(_)), _, _) => (
-            FindingTone::Critical,
-            "Cluster membership unknown".to_string(),
-            "The node registry failed; distributed conclusions are blocked.".to_string(),
-        ),
-        (_, Some(Err(_)), _) => (
-            FindingTone::Critical,
-            "Rank fan-out failed".to_string(),
-            "No local-only fallback is presented as a cluster result.".to_string(),
-        ),
-        (_, _, Some(health)) if !health.nodes_failed.is_empty() => (
-            FindingTone::Warning,
-            format!(
-                "Partial evidence · {} node(s) failed",
-                health.nodes_failed.len()
-            ),
-            format!(
-                "{} of {} ranks are represented in the latest comparison.",
-                health.observed_ranks, health.expected_ranks
-            ),
-        ),
-        (Some(Ok(nodes)), _, Some(health)) => (
-            FindingTone::Healthy,
-            "Cluster evidence available".to_string(),
-            format!(
-                "{} registered nodes and {} observed ranks.",
-                nodes.len(),
-                health.observed_ranks
-            ),
-        ),
-        _ => (
-            FindingTone::Info,
-            "Collecting distributed evidence".to_string(),
-            "Membership and rank timing requests are still running.".to_string(),
-        ),
+fn TcpStorePanel(snapshot: crate::api::TcpStoreSnapshot) -> Element {
+    if !snapshot.available {
+        return rsx! { UnavailablePanel {
+            label: "TCPStore unavailable".to_string(),
+            detail: snapshot.error.unwrap_or_else(|| "No torchrun rendezvous store is available in this process.".to_string()),
+        }};
+    }
+    let visibility = if snapshot.catalog_available {
+        "Complete"
+    } else {
+        "Known keys"
     };
+
     rsx! {
-        FindingCard {
-            eyebrow: "Data completeness".to_string(),
-            title,
-            detail,
-            tone,
+        div { class: "min-w-0 rounded-lg border border-gray-200 p-3",
+            div { class: "flex items-baseline justify-between",
+                h3 { class: "text-sm font-semibold text-gray-900", "Rendezvous store" }
+                span { class: "text-xs text-gray-500", "read only" }
+            }
+            div { class: "mt-3 grid grid-cols-3 divide-x divide-gray-200 text-center",
+                RuntimeMetric { label: "Store keys", value: snapshot.total_keys.to_string() }
+                RuntimeMetric { label: "Identified", value: snapshot.identified_keys.to_string() }
+                RuntimeMetric { label: "Catalog", value: visibility.to_string() }
+            }
+            if !snapshot.facts.is_empty() {
+                div { class: "mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-gray-100 pt-3",
+                    for fact in snapshot.facts.iter() {
+                        div { class: "min-w-0",
+                            div { class: "text-xs uppercase tracking-wide text-gray-500", "{fact.label}" }
+                            div { class: "break-all font-mono text-xs text-gray-700", "{fact.value}" }
+                        }
+                    }
+                }
+            }
+            if !snapshot.entries.is_empty() {
+                div { class: "mt-3 divide-y divide-gray-100 border-t border-gray-100",
+                    for entry in snapshot.entries.iter().take(6) {
+                        div { class: "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-2 text-xs",
+                            span { class: "rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600", "{entry.category}" }
+                            div { class: "min-w-0",
+                                div { class: "break-all font-mono text-xs text-gray-700", "{entry.key}" }
+                                if !entry.value_preview.is_empty() {
+                                    div { class: "break-all text-xs text-gray-500", "{entry.value_preview}" }
+                                }
+                            }
+                            span { class: "font-mono text-xs text-gray-500", "{entry.value_size} B" }
+                        }
+                    }
+                }
+            }
+            if !snapshot.catalog_available {
+                p { class: "mt-3 border-t border-gray-100 pt-3 text-xs leading-relaxed text-gray-500",
+                    "This PyTorch build cannot enumerate arbitrary keys. Identified entries are non-blocking probes of known torchrun and Probing key names; {snapshot.total_keys.saturating_sub(snapshot.identified_keys)} keys remain unnamed."
+                }
+            } else if snapshot.entries.is_empty() {
+                p { class: "mt-3 border-t border-gray-100 pt-3 text-xs text-gray-500", "The rendezvous store contains no keys." }
+            }
         }
     }
+}
+
+#[component]
+fn RuntimeMetric(label: &'static str, value: String) -> Element {
+    rsx! { EvidenceMetric { label, value } }
+}
+
+fn format_wait_us(value: i64) -> String {
+    if value >= 1_000_000 {
+        format!("{:.2}s", value as f64 / 1_000_000.0)
+    } else if value >= 1_000 {
+        format!("{:.1}ms", value as f64 / 1_000.0)
+    } else {
+        format!("{value}µs")
+    }
+}
+
+#[component]
+fn ClusterStatus(
+    node_state: Option<Result<Vec<probing_proto::prelude::Node>, crate::utils::error::AppError>>,
+    step_state: Option<Result<StepMatrixResponse, crate::utils::error::AppError>>,
+    health: Option<StepHealth>,
+) -> Element {
+    let node_request = request_state(&node_state);
+    let step_request = request_state(&step_state);
+    let node_count = node_state
+        .as_ref()
+        .and_then(|result| result.as_ref().ok())
+        .map(Vec::len);
+    let assessment = cluster_assessment(node_request, node_count, step_request, health.as_ref());
+    rsx! {
+        InlineNotice {
+            title: assessment.title,
+            detail: assessment.detail,
+            tone: assessment.tone,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RequestState {
+    Loading,
+    Ready,
+    Failed,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct ClusterAssessment {
+    tone: NoticeTone,
+    title: String,
+    detail: String,
+}
+
+fn request_state<T, E>(state: &Option<Result<T, E>>) -> RequestState {
+    match state {
+        None => RequestState::Loading,
+        Some(Ok(_)) => RequestState::Ready,
+        Some(Err(_)) => RequestState::Failed,
+    }
+}
+
+fn cluster_assessment(
+    node_request: RequestState,
+    node_count: Option<usize>,
+    step_request: RequestState,
+    health: Option<&StepHealth>,
+) -> ClusterAssessment {
+    let assessment = |tone, title: &str, detail: String| ClusterAssessment {
+        tone,
+        title: title.to_string(),
+        detail,
+    };
+
+    if node_request == RequestState::Failed {
+        return assessment(
+            NoticeTone::Info,
+            "Node registry request failed",
+            "No heartbeat coverage value is available for this refresh.".to_string(),
+        );
+    }
+    if node_request == RequestState::Ready && node_count == Some(0) {
+        return assessment(
+            NoticeTone::Warning,
+            "0 nodes reported",
+            "The heartbeat registry returned zero rows.".to_string(),
+        );
+    }
+    if step_request == RequestState::Failed {
+        return assessment(
+            NoticeTone::Info,
+            "Rank comparison request failed",
+            "Node registry data and comparable train.step data have independent availability."
+                .to_string(),
+        );
+    }
+
+    if let Some(health) = health {
+        if !health.nodes_failed.is_empty() {
+            return assessment(
+                NoticeTone::Warning,
+                &format!("{} node response(s) missing", health.nodes_failed.len()),
+                format!(
+                    "{} of {} ranks are represented in the returned step matrix.",
+                    health.observed_ranks, health.expected_ranks
+                ),
+            );
+        }
+        if health.observed_ranks == 0 {
+            return assessment(
+                NoticeTone::Info,
+                "0 comparable ranks",
+                "No rank returned a comparable train.step sample.".to_string(),
+            );
+        }
+        if health.observed_ranks < health.expected_ranks {
+            return assessment(
+                NoticeTone::Warning,
+                &format!(
+                    "{} / {} ranks represented",
+                    health.observed_ranks, health.expected_ranks
+                ),
+                format!(
+                    "{} of {} ranks are present in the latest step comparison.",
+                    health.observed_ranks, health.expected_ranks
+                ),
+            );
+        }
+        if let Some(ratio) = health.slowest_ratio().filter(|ratio| *ratio > 1.2) {
+            return assessment(
+                NoticeTone::Warning,
+                &format!("Slowest / median: {ratio:.2}×"),
+                format!(
+                    "The ratio is derived from the latest comparable rank durations shown below."
+                ),
+            );
+        }
+
+        return assessment(
+            NoticeTone::Info,
+            &format!(
+                "{} / {} ranks represented",
+                health.observed_ranks, health.expected_ranks
+            ),
+            format!(
+                "{} node(s) reported; slowest / median is {}.",
+                node_count.unwrap_or_default(),
+                health
+                    .slowest_ratio()
+                    .map(|ratio| format!("{ratio:.2}×"))
+                    .unwrap_or_else(|| "—".to_string())
+            ),
+        );
+    }
+
+    assessment(
+        NoticeTone::Info,
+        "Loading cluster coverage",
+        "Node heartbeats and comparable rank timings are requested independently.".to_string(),
+    )
 }
 
 #[component]
@@ -235,44 +468,86 @@ fn RankTableRow(rank: i32, duration: f64, median: Option<f64>, slowest: bool) ->
 }
 
 #[component]
-fn EvidenceLink(title: String, detail: String, path: String) -> Element {
+fn InvestigationLink(title: String, detail: String, route: NextRoute) -> Element {
     rsx! {
-        div { class: "rounded-lg border border-gray-200 bg-gray-50 p-3",
-            div { class: "text-sm font-medium text-gray-900", "{title}" }
-            p { class: "mt-1 text-xs text-gray-500", "{detail}" }
-            div { class: "mt-3",
-                ClassicLink { path, label: "Open proven view".to_string() }
+        Link {
+            to: route,
+            class: "flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 hover:border-blue-200 hover:bg-blue-50",
+            div { class: "min-w-0",
+                div { class: "text-sm font-medium text-gray-900", "{title}" }
+                p { class: "mt-0.5 text-xs leading-relaxed text-gray-500", "{detail}" }
             }
+            span { class: "shrink-0 text-xs font-medium text-blue-700", "Open →" }
         }
     }
 }
 
-#[component]
-fn NodeTable(nodes: Vec<Node>) -> Element {
-    rsx! {
-        div { class: "overflow-x-auto",
-            table { class: "w-full min-w-[640px] text-left text-xs",
-                thead { class: "text-gray-500",
-                    tr {
-                        th { class: "pb-2 font-medium", "Host" }
-                        th { class: "pb-2 font-medium", "Address" }
-                        th { class: "pb-2 font-medium", "Rank" }
-                        th { class: "pb-2 font-medium", "Role" }
-                        th { class: "pb-2 font-medium", "Status" }
-                    }
-                }
-                tbody { class: "divide-y divide-gray-100",
-                    for node in nodes.iter().take(64) {
-                        tr {
-                            td { class: "py-2 font-medium text-gray-800", "{node.host}" }
-                            td { class: "py-2 font-mono text-gray-600", "{node.addr}" }
-                            td { class: "py-2 text-gray-700", "{node.rank.map(|rank| rank.to_string()).unwrap_or_else(|| \"—\".to_string())}" }
-                            td { class: "py-2 text-gray-700", "{node.role.clone().or_else(|| node.role_name.clone()).unwrap_or_else(|| \"—\".to_string())}" }
-                            td { class: "py-2 text-gray-700", "{node.status.clone().unwrap_or_else(|| \"unknown\".to_string())}" }
-                        }
-                    }
-                }
-            }
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn assessment_explains_missing_ranks() {
+        let health = StepHealth {
+            observed_ranks: 6,
+            expected_ranks: 8,
+            ..Default::default()
+        };
+        let result = cluster_assessment(
+            RequestState::Ready,
+            Some(2),
+            RequestState::Ready,
+            Some(&health),
+        );
+
+        assert_eq!(result.tone, NoticeTone::Warning);
+        assert_eq!(result.title, "6 / 8 ranks represented");
+    }
+
+    #[test]
+    fn assessment_explains_rank_skew() {
+        let health = StepHealth {
+            median_ms: Some(10.0),
+            slowest_ms: Some(14.0),
+            observed_ranks: 8,
+            expected_ranks: 8,
+            ..Default::default()
+        };
+        let result = cluster_assessment(
+            RequestState::Ready,
+            Some(2),
+            RequestState::Ready,
+            Some(&health),
+        );
+
+        assert_eq!(result.tone, NoticeTone::Warning);
+        assert_eq!(result.title, "Slowest / median: 1.40×");
+    }
+
+    #[test]
+    fn assessment_reports_complete_rank_coverage() {
+        let health = StepHealth {
+            median_ms: Some(10.0),
+            slowest_ms: Some(11.0),
+            observed_ranks: 8,
+            expected_ranks: 8,
+            ..Default::default()
+        };
+        let result = cluster_assessment(
+            RequestState::Ready,
+            Some(2),
+            RequestState::Ready,
+            Some(&health),
+        );
+
+        assert_eq!(result.tone, NoticeTone::Info);
+        assert_eq!(result.title, "8 / 8 ranks represented");
+    }
+
+    #[test]
+    fn wait_duration_uses_readable_units() {
+        assert_eq!(format_wait_us(42), "42µs");
+        assert_eq!(format_wait_us(1_500), "1.5ms");
+        assert_eq!(format_wait_us(2_000_000), "2.00s");
     }
 }

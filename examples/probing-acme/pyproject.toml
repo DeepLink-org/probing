@@ -7,7 +7,7 @@ name = "probing-acme"
 version = "0.1.0"
 description = "Example probing vendor extension (skills + magics)"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.8"
 dependencies = [
     "probing",
     "ipython>=8.0",

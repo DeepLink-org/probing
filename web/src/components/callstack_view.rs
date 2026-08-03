@@ -15,6 +15,7 @@ pub fn CallStackView(
     index: usize,
     is_last: bool,
     #[props(optional, default = false)] default_open: bool,
+    #[props(optional)] position: Option<String>,
 ) -> Element {
     let kind = classify_frame(&callstack);
     let title = frame_title(&callstack);
@@ -25,31 +26,33 @@ pub fn CallStackView(
     let (badge_label, badge_cls) = kind.status_badge();
     let connector = if is_last { "hidden" } else { "block" };
     let location_link = frame_location_link(&callstack, location.as_ref());
+    let toggle_class = if *open.read() {
+        "flex h-6 w-6 rotate-180 items-center justify-center rounded hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+    } else {
+        "flex h-6 w-6 items-center justify-center rounded hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+    };
 
     rsx! {
-        div { class: "relative flex gap-0 pb-4 last:pb-0",
-            div { class: "relative flex flex-col items-center shrink-0 w-8 pt-3",
-                span {
-                    class: "relative z-10 inline-flex items-center justify-center w-6 h-6 rounded-full ring-4 {kind.timeline_ring()} bg-white text-[10px] font-bold tabular-nums text-gray-600",
-                    "{index}"
-                }
-                span {
-                    class: "absolute top-[1.125rem] left-1/2 -translate-x-1/2 w-2 h-2 rounded-full {kind.timeline_dot()} z-20"
-                }
-                div { class: "absolute left-1/2 -translate-x-1/2 top-8 bottom-0 w-px bg-gradient-to-b from-gray-200 to-transparent {connector}" }
+        div { class: "relative flex gap-0 pb-1.5 last:pb-0",
+            div { class: "relative flex flex-col items-center shrink-0 w-8 pt-2.5",
+                span { class: "relative z-10 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-semibold tabular-nums text-gray-500 ring-2 {kind.timeline_ring()}", "{index}" }
+                span { class: "absolute left-1/2 top-4 z-20 h-1.5 w-1.5 -translate-x-1/2 rounded-full {kind.timeline_dot()}" }
+                div { class: "absolute left-1/2 top-7 bottom-0 w-px -translate-x-1/2 bg-gray-200 {connector}" }
             }
 
             div { class: "flex-1 min-w-0",
                 AccentSurface {
                     accent: kind.accent_border(),
                     div {
-                        class: "w-full px-3 py-2.5 bg-gradient-to-r from-slate-50/80 to-white border-b border-gray-100",
+                        class: "w-full px-3 py-2 bg-gradient-to-r from-slate-50/80 to-white border-b border-gray-100",
                         div { class: "flex items-start gap-2 min-w-0",
                             div { class: "shrink-0 mt-0.5", {frame_icon(kind)} }
                             div { class: "flex-1 min-w-0",
-                                div {
-                                    class: "text-sm font-mono font-medium text-gray-900 truncate cursor-pointer hover:text-gray-700",
+                                button {
+                                    r#type: "button",
+                                    class: "block w-full break-all rounded text-left font-mono text-sm font-medium text-gray-900 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600",
                                     title: "{title}",
+                                    aria_expanded: open().to_string(),
                                     onclick: move |_| {
                                         let cur = *open.read();
                                         *open.write() = !cur;
@@ -61,22 +64,25 @@ pub fn CallStackView(
                                         path: path,
                                         line: line,
                                         label: Some(label),
-                                        class: "text-[11px] mt-0.5 block truncate max-w-full".to_string(),
+                                        class: "text-xs mt-0.5 block truncate max-w-full".to_string(),
                                     }
                                 }
                             }
                             div { class: "flex items-center gap-1.5 shrink-0 pt-0.5",
+                                if let Some(position) = position {
+                                    span { class: "rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide text-gray-500", "{position}" }
+                                }
                                 StatusBadge { label: badge_label, badge_class: badge_cls }
                                 button {
                                     r#type: "button",
-                                    class: "p-0.5 rounded hover:bg-gray-100 transition-transform duration-200",
-                                    class: if *open.read() { "rotate-180" } else { "" },
+                                    class: "{toggle_class}",
                                     aria_label: "Toggle frame details",
+                                    aria_expanded: open().to_string(),
                                     onclick: move |_| {
                                         let cur = *open.read();
                                         *open.write() = !cur;
                                     },
-                                    Icon { icon: &icondata::AiDownOutlined, class: "w-3.5 h-3.5 text-gray-400" }
+                                    Icon { icon: &icondata::AiDownOutlined, class: "w-3.5 h-3.5 text-gray-500" }
                                 }
                             }
                         }
@@ -166,7 +172,7 @@ fn FrameDetails(kind: FrameKind, callstack: CallFrame, ip: Option<String>) -> El
             rsx! {
                 div { class: "space-y-2 text-sm",
                     if let Some(ip_addr) = ip {
-                        div { class: "text-[11px] text-gray-400 font-mono px-2 py-1 rounded bg-gray-50 inline-block",
+                        div { class: "text-xs text-gray-500 font-mono px-2 py-1 rounded bg-gray-50 inline-block",
                             "ip {ip_addr}"
                         }
                     }
@@ -188,13 +194,13 @@ fn CompactLocals(locals: HashMap<String, Value>) -> Element {
     rsx! {
         div {
             class: "rounded-lg border border-gray-100 overflow-hidden",
-            div { class: "px-3 py-1.5 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold uppercase tracking-wide text-gray-500",
+            div { class: "px-3 py-1.5 bg-gray-50 border-b border-gray-100 text-xs font-semibold uppercase tracking-wide text-gray-500",
                 "Locals ({locals.len()})"
             }
             div { class: "overflow-x-auto max-h-48",
                 table { class: "min-w-full text-xs",
                     thead {
-                        tr { class: "text-left text-gray-400 border-b border-gray-100",
+                        tr { class: "text-left text-gray-500 border-b border-gray-100",
                             th { class: "px-3 py-1.5 font-medium w-8", "#" }
                             th { class: "px-3 py-1.5 font-medium", "Name" }
                             th { class: "px-3 py-1.5 font-medium", "Value" }
@@ -203,13 +209,13 @@ fn CompactLocals(locals: HashMap<String, Value>) -> Element {
                     tbody {
                         for (name, value) in locals {
                             tr { class: "border-b border-gray-50 last:border-0 hover:bg-gray-50/80",
-                                td { class: "px-3 py-1.5 font-mono text-gray-400 tabular-nums", "{value.id}" }
+                                td { class: "px-3 py-1.5 font-mono text-gray-500 tabular-nums", "{value.id}" }
                                 td { class: "px-3 py-1.5 font-mono text-gray-800", "{name}" }
                                 td { class: "px-3 py-1.5 text-gray-700 break-all font-mono",
                                     if let Some(val) = &value.value {
                                         "{val}"
                                     } else {
-                                        span { class: "text-gray-400 italic", "None" }
+                                        span { class: "text-gray-500 italic", "None" }
                                     }
                                 }
                             }

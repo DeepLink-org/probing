@@ -12,6 +12,9 @@ use crate::state::investigation::{
 
 const QUERY_PID: &str = "pid";
 const QUERY_TID: &str = "tid";
+const QUERY_RANK: &str = "rank";
+const QUERY_HOST: &str = "host";
+const QUERY_STEP: &str = "step";
 const QUERY_TRACE_ID: &str = "trace_id";
 const QUERY_SPAN: &str = "span";
 
@@ -35,6 +38,9 @@ pub fn parse_context_from_search(search: &str) -> InvestigationContext {
         match key {
             QUERY_PID => ctx.pid = value.parse().ok(),
             QUERY_TID => ctx.tid = value.parse().ok(),
+            QUERY_RANK => ctx.rank = value.parse().ok(),
+            QUERY_HOST if !value.is_empty() => ctx.host = Some(value),
+            QUERY_STEP => ctx.local_step = value.parse().ok(),
             QUERY_TRACE_ID => ctx.trace_id = value.parse().ok(),
             QUERY_SPAN if !value.is_empty() => ctx.span_name = Some(value),
             _ => {}
@@ -42,6 +48,7 @@ pub fn parse_context_from_search(search: &str) -> InvestigationContext {
     }
 
     if !ctx.is_empty() {
+        ctx.label = None;
         ctx.label = Some(ctx.summary());
     }
     ctx
@@ -58,6 +65,17 @@ pub fn context_to_search(ctx: &InvestigationContext) -> String {
     }
     if let Some(tid) = ctx.tid {
         parts.push(format!("{QUERY_TID}={tid}"));
+    }
+    if let Some(rank) = ctx.rank {
+        parts.push(format!("{QUERY_RANK}={rank}"));
+    }
+    if let Some(host) = &ctx.host {
+        if !host.is_empty() {
+            parts.push(format!("{QUERY_HOST}={}", urlencoding::encode(host)));
+        }
+    }
+    if let Some(step) = ctx.local_step {
+        parts.push(format!("{QUERY_STEP}={step}"));
     }
     if let Some(trace_id) = ctx.trace_id {
         parts.push(format!("{QUERY_TRACE_ID}={trace_id}"));
@@ -87,6 +105,15 @@ pub fn apply_investigation_context_from_url() {
         }
         if url_ctx.tid.is_some() {
             ctx.tid = url_ctx.tid;
+        }
+        if url_ctx.rank.is_some() {
+            ctx.rank = url_ctx.rank;
+        }
+        if url_ctx.host.is_some() {
+            ctx.host = url_ctx.host.clone();
+        }
+        if url_ctx.local_step.is_some() {
+            ctx.local_step = url_ctx.local_step;
         }
         if url_ctx.trace_id.is_some() {
             ctx.trace_id = url_ctx.trace_id;
@@ -121,14 +148,18 @@ pub fn sync_investigation_context_to_url() {
 
 /// Keep URL query in sync with global context; re-apply on browser back/forward.
 #[component]
-pub fn InvestigationUrlSync() -> Element {
+pub fn InvestigationUrlSync(#[props(optional)] route_key: Option<String>) -> Element {
     let ctx = INVESTIGATION_CONTEXT.read().clone();
     let ctx_key = format!(
-        "{}:{}:{}:{}",
+        "{}:{}:{}:{}:{}:{}:{}:{}",
         ctx.pid.unwrap_or(-1),
         ctx.tid.unwrap_or(-1),
+        ctx.rank.unwrap_or(-1),
+        ctx.host.as_deref().unwrap_or(""),
         ctx.trace_id.unwrap_or(-1),
-        ctx.span_name.as_deref().unwrap_or("")
+        ctx.span_name.as_deref().unwrap_or(""),
+        ctx.local_step.unwrap_or(-1),
+        route_key.as_deref().unwrap_or("")
     );
 
     use_effect(move || {
@@ -173,4 +204,32 @@ pub fn InvestigationUrlSync() -> Element {
     });
 
     rsx! {}
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn investigation_context_round_trips_training_and_trace_coordinates() {
+        let context = InvestigationContext {
+            pid: Some(42),
+            tid: Some(7),
+            rank: Some(19),
+            host: Some("trainer-02".to_string()),
+            trace_id: Some(88),
+            span_name: Some("train.step".to_string()),
+            local_step: Some(119),
+            label: None,
+        };
+
+        let parsed = parse_context_from_search(&context_to_search(&context));
+        assert_eq!(parsed.pid, context.pid);
+        assert_eq!(parsed.tid, context.tid);
+        assert_eq!(parsed.rank, context.rank);
+        assert_eq!(parsed.host, context.host);
+        assert_eq!(parsed.trace_id, context.trace_id);
+        assert_eq!(parsed.span_name, context.span_name);
+        assert_eq!(parsed.local_step, context.local_step);
+    }
 }

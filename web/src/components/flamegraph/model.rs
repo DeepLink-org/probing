@@ -44,4 +44,33 @@ pub struct FlamegraphPayload {
     /// Number of ranks included in a distributed merge (when present).
     #[serde(rename = "rankCount", default)]
     pub rank_count: Option<usize>,
+    /// Cluster peers that did not contribute to this otherwise usable payload.
+    #[serde(rename = "nodesFailed", default)]
+    pub nodes_failed: Vec<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FlamegraphPayload;
+
+    #[test]
+    fn parses_partial_distributed_stack_evidence() {
+        let payload: FlamegraphPayload = serde_json::from_str(
+            r#"{
+                "profile":"cpu-stack-distributed",
+                "title":"Distributed CPU stacks",
+                "countName":"samples",
+                "total":12,
+                "width":1400.0,
+                "frameHeight":32.0,
+                "frames":[],
+                "rankCount":7,
+                "nodesFailed":["rank-7: timeout"]
+            }"#,
+        )
+        .expect("distributed payload should parse");
+
+        assert_eq!(payload.rank_count, Some(7));
+        assert_eq!(payload.nodes_failed, vec!["rank-7: timeout"]);
+    }
 }

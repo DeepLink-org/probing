@@ -1,8 +1,9 @@
 //! Training observability: local step/collective views + on-demand cluster scan.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use dioxus::prelude::*;
+use probing_proto::prelude::Node;
 
 use crate::agent::load_skill;
 use crate::api::{ApiClient, ClusterQueryResponse, StepDurationSample, StepMatrixResponse};
@@ -13,18 +14,21 @@ use crate::components::dataframe_view::DataFrameView;
 use crate::components::icon::Icon;
 use crate::components::page::{PageContainer, PageTitle};
 use crate::components::poll_status::{PollStatusBar, RefreshButton};
-use crate::components::stat_card::StatCard;
 use crate::components::workspace::{ChipButton, WidthSegment};
 use crate::hooks::{use_app_resource, use_page_visible, use_poll_tick_gated};
 use crate::state::agent::{AGENT_INPUT, AGENT_PANEL_OPEN};
 use crate::state::investigation::{apply_context_from_dataframe_row, set_training_step_context};
-use crate::state::training::{TRAINING_CLUSTER_SCOPE, TRAINING_REFRESH};
+use crate::state::training::{
+    placement_availability, TRAINING_CLUSTER_SCOPE, TRAINING_PLACEMENT_AVAILABILITY,
+    TRAINING_REFRESH,
+};
 use crate::state::ui_tasks::ui_agent_busy;
 use crate::utils::error::AppError;
 
 const POLL_MS: u32 = 5000;
 const STEP_LIMIT: usize = 120;
 const COMM_LIMIT: usize = 30;
+const STEP_CARD_TITLE: &str = "Step time";
 
 const COMM_SQL: &str = "SELECT local_step, rank, op, group_size, duration_ms, bytes, role \
      FROM python.comm_collective ORDER BY timestamp DESC LIMIT ";
@@ -93,6 +97,45 @@ struct StepPoint {
     duration_ms: f64,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct PlacementProcess {
+    rank: Option<i32>,
+    local_rank: Option<i32>,
+    role_label: Option<String>,
+    coordinates: Vec<(String, String)>,
+    status: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct PlacementHost {
+    name: String,
+    processes: Vec<PlacementProcess>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct PlacementModel {
+    hosts: Vec<PlacementHost>,
+    observed_ranks: usize,
+    expected_ranks: usize,
+    has_parallel_coordinates: bool,
+    parallel_sizes: Vec<(String, usize)>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PlacementGroup {
+    Focus,
+    Tensor,
+    Data,
+    Pipeline,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct PlacementGroupSizes {
+    tensor: usize,
+    data: usize,
+    pipeline: usize,
+}
+
 fn trace_step(coord: i64, display: i64) -> i64 {
     if coord >= 0 {
         coord
@@ -144,7 +187,13 @@ pub fn Training(#[props(default = true)] show_controls: bool) -> Element {
     let poll = use_poll_tick_gated(POLL_MS, Some(visible));
     let local_tick = poll().wrapping_add(*TRAINING_REFRESH.read());
 
-    let nodes = use_app_resource(|| async move { ApiClient::new().get_nodes().await });
+    let nodes = use_app_resource(|| {
+        let _ = *TRAINING_REFRESH.read();
+        async move { ApiClient::new().get_nodes().await }
+    });
+    use_effect(move || {
+        *TRAINING_PLACEMENT_AVAILABILITY.write() = placement_availability(nodes().as_ref());
+    });
     let mut cluster_scan = use_action(|| async move {
         let client = ApiClient::new();
         let matrix_res = client.fetch_step_matrix(STEP_LIMIT, true).await;
@@ -177,8 +226,10 @@ pub fn Training(#[props(default = true)] show_controls: bool) -> Element {
         }
     });
 
-    let peer_count = nodes()
-        .and_then(|r| r.ok())
+    let node_state = nodes();
+    let peer_count = node_state
+        .as_ref()
+        .and_then(|r| r.as_ref().ok())
         .map(|nodes| nodes.len().saturating_sub(1))
         .unwrap_or(0);
 
@@ -194,7 +245,7 @@ pub fn Training(#[props(default = true)] show_controls: bool) -> Element {
         PageContainer {
             PageTitle {
                 title: "Training".to_string(),
-                subtitle: Some("Step timing, per-step breakdown, module hooks, and collective latency.".to_string()),
+                subtitle: None,
                 icon: Some(&icondata::AiRadarChartOutlined),
                 header_right: if show_controls {
                     Some(rsx! {
@@ -232,39 +283,42 @@ pub fn Training(#[props(default = true)] show_controls: bool) -> Element {
                 }
             }
 
-            div { class: "space-y-4 min-w-0",
-                if current_scope == DataScope::Local {
-                    AsyncBoundary {
-                        message: Some("Loading step timings…".to_string()),
-                        LocalStepMatrixPanel {
-                            refresh_tick: local_tick,
+            div { class: "space-y-4",
+                div { class: "min-w-0",
+                    if current_scope == DataScope::Local {
+                        AsyncBoundary {
+                            message: Some("Loading step timings…".to_string()),
+                            LocalStepMatrixPanel {
+                                refresh_tick: local_tick,
+                                selected_step,
+                            }
+                        }
+                    } else if scan_pending {
+                        Card {
+                            title: STEP_CARD_TITLE,
+                            LoadingState { message: Some("Scanning cluster…".to_string()) }
+                        }
+                    } else if let Some(Err(err)) = cluster_scan.value() {
+                        Card {
+                            title: STEP_CARD_TITLE,
+                            AppErrorDisplay {
+                                error: AppError::Api(err.to_string()),
+                                title: Some("Cluster scan failed".to_string()),
+                            }
+                        }
+                    } else if let Some(Ok(output)) = cluster_scan.value() {
+                        ClusterStepMatrixPanel {
+                            matrix: output().matrix.clone(),
                             selected_step,
                         }
-                    }
-                } else if scan_pending {
-                    Card {
-                        title: "Step timings",
-                        LoadingState { message: Some("Scanning cluster…".to_string()) }
-                    }
-                } else if let Some(Err(err)) = cluster_scan.value() {
-                    Card {
-                        title: "Step timings",
-                        AppErrorDisplay {
-                            error: AppError::Api(err.to_string()),
-                            title: Some("Cluster scan failed".to_string()),
+                    } else {
+                        Card {
+                            title: STEP_CARD_TITLE,
+                            EmptyState { message: "Run a cluster scan to compare ranks.".to_string() }
                         }
                     }
-                } else if let Some(Ok(output)) = cluster_scan.value() {
-                    ClusterStepMatrixPanel {
-                        matrix: output().matrix.clone(),
-                        selected_step,
-                    }
-                } else {
-                    Card {
-                        title: "Step timings",
-                        EmptyState { message: "Run a cluster scan to compare ranks.".to_string() }
-                    }
                 }
+                TrainingPlacement { node_state: node_state.clone() }
             }
 
             StepInspectorOverlay { selected: selected_step }
@@ -286,6 +340,358 @@ pub fn Training(#[props(default = true)] show_controls: bool) -> Element {
                 }
             }
         }
+    }
+}
+
+#[component]
+fn TrainingPlacement(node_state: Option<Result<Vec<Node>, AppError>>) -> Element {
+    match node_state {
+        Some(Ok(nodes)) if !nodes.is_empty() => rsx! {
+            Card {
+                title: "Placement",
+                content_class: Some("p-4"),
+                PlacementDiagram { placement: build_placement(&nodes) }
+            }
+        },
+        _ => rsx! {},
+    }
+}
+
+#[component]
+fn PlacementDiagram(placement: PlacementModel) -> Element {
+    let missing_ranks = placement
+        .expected_ranks
+        .saturating_sub(placement.observed_ranks);
+    rsx! {
+        div { class: "space-y-3",
+            div { class: "flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-600",
+                span { class: "font-medium text-gray-900", "{placement.hosts.len()} hosts" }
+                span { "{placement.observed_ranks} / {placement.expected_ranks} ranks" }
+                if placement.has_parallel_coordinates {
+                    for (dimension, size) in placement.parallel_sizes.iter() {
+                        span { class: "font-mono font-semibold uppercase text-violet-700",
+                            "{dimension}{size}"
+                        }
+                    }
+                } else if placement.expected_ranks > 1 {
+                    span { class: "text-gray-400", "parallel roles unavailable" }
+                }
+                if missing_ranks > 0 {
+                    span { class: "rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800",
+                        "{missing_ranks} missing"
+                    }
+                }
+            }
+
+            PlacementOverview { placement: placement.clone() }
+        }
+    }
+}
+
+#[component]
+fn PlacementOverview(placement: PlacementModel) -> Element {
+    let mut hovered_rank = use_signal(|| None::<i32>);
+    let active_process = hovered_rank().and_then(|rank| {
+        placement
+            .hosts
+            .iter()
+            .flat_map(|host| host.processes.iter())
+            .find(|process| process.rank == Some(rank))
+            .cloned()
+    });
+    let group_sizes = active_process
+        .as_ref()
+        .and_then(|active| placement_group_sizes(&placement, active));
+    let host_columns = placement_host_columns(placement.hosts.len());
+
+    rsx! {
+        div {
+            class: "rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5",
+            onmouseleave: move |_| hovered_rank.set(None),
+            div { class: "mb-2 flex flex-wrap items-center justify-between gap-2",
+                div { class: "flex items-center gap-2",
+                    span { class: "text-[10px] font-medium uppercase tracking-wide text-gray-500", "Overview" }
+                    if let Some(rank) = hovered_rank() {
+                        span { class: "font-mono text-[10px] font-semibold text-blue-700", "R{rank}" }
+                    }
+                }
+                div { class: "flex items-center gap-3 text-[9px] text-gray-500",
+                    PlacementGroupLegend {
+                        label: "TP",
+                        count: group_sizes.map(|sizes| sizes.tensor),
+                        class: "border-violet-500 bg-violet-100",
+                    }
+                    PlacementGroupLegend {
+                        label: "DP",
+                        count: group_sizes.map(|sizes| sizes.data),
+                        class: "border-emerald-500 bg-emerald-100",
+                    }
+                    PlacementGroupLegend {
+                        label: "PP",
+                        count: group_sizes.map(|sizes| sizes.pipeline),
+                        class: "border-amber-500 bg-amber-100",
+                    }
+                    span { class: "text-gray-400", "hover a GPU" }
+                }
+            }
+            div { class: "overflow-x-auto pb-0.5",
+                div {
+                    class: "grid min-w-max gap-2",
+                    style: "grid-template-columns: repeat({host_columns}, 26px);",
+                    for (host_index, host) in placement.hosts.iter().enumerate() {
+                        div {
+                            class: "rounded border border-gray-200 bg-white p-1",
+                            title: "{host.name}",
+                            div { class: "mb-1 truncate text-center font-mono text-[8px] text-gray-400", "H{host_index}" }
+                            div { class: "grid grid-cols-1 justify-items-center gap-0.5",
+                                for process in host.processes.iter() {
+                                    {
+                                        let rank = process.rank;
+                                        let rank_label = rank.map(|value| format!("R{value}")).unwrap_or_else(|| "R?".to_string());
+                                        let local_rank = process.local_rank.map(|value| value.to_string()).unwrap_or_else(|| "?".to_string());
+                                        let gpu_label = format!("GPU{local_rank}");
+                                        let status = process.status.as_deref().unwrap_or("unknown");
+                                        let role = process.role_label.as_deref().unwrap_or("rank");
+                                        let coordinates = process.coordinates.iter()
+                                            .map(|(dimension, value)| format!("{}{}", dimension.chars().next().unwrap_or('?').to_ascii_uppercase(), value))
+                                            .collect::<Vec<_>>()
+                                            .join(" ");
+                                        let group = active_process
+                                            .as_ref()
+                                            .and_then(|active| placement_group_membership(active, process));
+                                        let cell_class = placement_overview_cell_class(group, process.status.as_deref());
+                                        let cell_title = if coordinates.is_empty() {
+                                            format!("{rank_label} · {} · {gpu_label} · {status} · {role}", host.name)
+                                        } else {
+                                            format!("{rank_label} · {} · {gpu_label} · {status} · {role} · {coordinates}", host.name)
+                                        };
+                                        rsx! {
+                                            button {
+                                                r#type: "button",
+                                                class: "flex h-4 w-4 items-center justify-center rounded-[2px] border text-[7px] font-mono transition-colors {cell_class}",
+                                                aria_label: "{cell_title}",
+                                                title: "{cell_title}",
+                                                onmouseover: move |_| hovered_rank.set(rank),
+                                                onfocus: move |_| hovered_rank.set(rank),
+                                                onclick: move |_| hovered_rank.set(rank),
+                                                onblur: move |_| hovered_rank.set(None),
+                                                "{local_rank}"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn PlacementGroupLegend(label: &'static str, count: Option<usize>, class: &'static str) -> Element {
+    rsx! {
+        span { class: "flex items-center gap-1",
+            span { class: "h-3 w-3 rounded-[2px] border border-dashed {class}" }
+            "{label}"
+            if let Some(count) = count {
+                span { class: "font-mono font-semibold text-gray-700", "{count}" }
+            }
+        }
+    }
+}
+
+fn placement_coordinate<'a>(process: &'a PlacementProcess, dimension: &str) -> Option<&'a str> {
+    process
+        .coordinates
+        .iter()
+        .find_map(|(key, value)| (key == dimension).then_some(value.as_str()))
+}
+
+fn placement_group_membership(
+    active: &PlacementProcess,
+    candidate: &PlacementProcess,
+) -> Option<PlacementGroup> {
+    if active.rank == candidate.rank {
+        return Some(PlacementGroup::Focus);
+    }
+
+    let active_dp = placement_coordinate(active, "dp")?;
+    let active_pp = placement_coordinate(active, "pp")?;
+    let active_tp = placement_coordinate(active, "tp")?;
+    let candidate_dp = placement_coordinate(candidate, "dp")?;
+    let candidate_pp = placement_coordinate(candidate, "pp")?;
+    let candidate_tp = placement_coordinate(candidate, "tp")?;
+
+    if active_dp == candidate_dp && active_pp == candidate_pp {
+        Some(PlacementGroup::Tensor)
+    } else if active_pp == candidate_pp && active_tp == candidate_tp {
+        Some(PlacementGroup::Data)
+    } else if active_dp == candidate_dp && active_tp == candidate_tp {
+        Some(PlacementGroup::Pipeline)
+    } else {
+        None
+    }
+}
+
+fn placement_group_sizes(
+    placement: &PlacementModel,
+    active: &PlacementProcess,
+) -> Option<PlacementGroupSizes> {
+    placement_coordinate(active, "dp")?;
+    placement_coordinate(active, "pp")?;
+    placement_coordinate(active, "tp")?;
+
+    let mut sizes = PlacementGroupSizes {
+        tensor: 1,
+        data: 1,
+        pipeline: 1,
+    };
+    for candidate in placement
+        .hosts
+        .iter()
+        .flat_map(|host| host.processes.iter())
+    {
+        match placement_group_membership(active, candidate) {
+            Some(PlacementGroup::Tensor) => sizes.tensor += 1,
+            Some(PlacementGroup::Data) => sizes.data += 1,
+            Some(PlacementGroup::Pipeline) => sizes.pipeline += 1,
+            Some(PlacementGroup::Focus) | None => {}
+        }
+    }
+    Some(sizes)
+}
+
+fn placement_overview_cell_class(
+    group: Option<PlacementGroup>,
+    status: Option<&str>,
+) -> &'static str {
+    match group {
+        Some(PlacementGroup::Focus) => {
+            "border-blue-700 bg-blue-600 text-white ring-2 ring-blue-200"
+        }
+        Some(PlacementGroup::Tensor) => {
+            "border-dashed border-violet-500 bg-violet-100 text-violet-900"
+        }
+        Some(PlacementGroup::Data) => {
+            "border-dashed border-emerald-500 bg-emerald-100 text-emerald-900"
+        }
+        Some(PlacementGroup::Pipeline) => {
+            "border-dashed border-amber-500 bg-amber-100 text-amber-900"
+        }
+        None if matches!(
+            status.unwrap_or_default().to_ascii_lowercase().as_str(),
+            "failed" | "error" | "offline" | "unhealthy"
+        ) =>
+        {
+            "border-red-400 bg-red-100 text-red-800"
+        }
+        None => "border-gray-300 bg-gray-100 text-gray-500 hover:border-blue-400 hover:bg-blue-50",
+    }
+}
+
+fn placement_host_columns(host_count: usize) -> usize {
+    host_count.clamp(1, 8)
+}
+
+fn parse_parallel_coordinates(role: Option<&str>) -> Vec<(String, String)> {
+    let mut parsed = BTreeMap::new();
+    for part in role.unwrap_or_default().split(',') {
+        let Some((key, value)) = part.split_once('=') else {
+            continue;
+        };
+        let key = key.trim().to_ascii_lowercase();
+        let value = value.trim();
+        if matches!(key.as_str(), "dp" | "pp" | "tp" | "sp" | "cp" | "ep") && !value.is_empty() {
+            parsed.insert(key, value.to_string());
+        }
+    }
+
+    ["dp", "pp", "tp", "sp", "cp", "ep"]
+        .into_iter()
+        .filter_map(|key| parsed.remove(key).map(|value| (key.to_string(), value)))
+        .collect()
+}
+
+fn build_placement(nodes: &[Node]) -> PlacementModel {
+    let mut hosts: BTreeMap<String, Vec<PlacementProcess>> = BTreeMap::new();
+    let mut ranks = BTreeSet::new();
+    let mut expected_ranks = 0usize;
+
+    for node in nodes {
+        if let Some(rank) = node.rank {
+            ranks.insert(rank);
+        }
+        if let Some(world_size) = node.world_size.filter(|size| *size > 0) {
+            expected_ranks = expected_ranks.max(world_size as usize);
+        }
+        let coordinates = parse_parallel_coordinates(node.role.as_deref());
+        let role_label = node
+            .role_name
+            .clone()
+            .filter(|role| !role.trim().is_empty())
+            .or_else(|| coordinates.is_empty().then(|| node.role.clone()).flatten());
+        let host = if node.host.trim().is_empty() {
+            "Unknown host".to_string()
+        } else {
+            node.host.clone()
+        };
+        hosts.entry(host).or_default().push(PlacementProcess {
+            rank: node.rank,
+            local_rank: node.local_rank,
+            role_label,
+            coordinates,
+            status: node.status.clone(),
+        });
+    }
+
+    let mut hosts = hosts
+        .into_iter()
+        .map(|(name, mut processes)| {
+            processes.sort_by_key(|process| {
+                (
+                    process.rank.unwrap_or(i32::MAX),
+                    process.local_rank.unwrap_or(i32::MAX),
+                )
+            });
+            PlacementHost { name, processes }
+        })
+        .collect::<Vec<_>>();
+    hosts.sort_by(|a, b| a.name.cmp(&b.name));
+
+    let observed_ranks = ranks.len();
+    if expected_ranks == 0 {
+        expected_ranks = observed_ranks;
+    }
+    let mut coordinate_values: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    for process in hosts.iter().flat_map(|host| host.processes.iter()) {
+        for (dimension, value) in &process.coordinates {
+            coordinate_values
+                .entry(dimension.clone())
+                .or_default()
+                .insert(value.clone());
+        }
+    }
+    let parallel_sizes = ["dp", "pp", "tp", "sp", "cp", "ep"]
+        .into_iter()
+        .filter_map(|dimension| {
+            coordinate_values
+                .get(dimension)
+                .map(|values| (dimension.to_string(), values.len()))
+        })
+        .collect::<Vec<_>>();
+    let has_parallel_coordinates = hosts
+        .iter()
+        .flat_map(|host| host.processes.iter())
+        .any(|process| !process.coordinates.is_empty());
+
+    PlacementModel {
+        hosts,
+        observed_ranks,
+        expected_ranks,
+        has_parallel_coordinates,
+        parallel_sizes,
     }
 }
 
@@ -729,51 +1135,19 @@ fn single_rank_summary_stats(series: &[(i64, f64)]) -> Vec<(String, String, Opti
     }
     let durations: Vec<f64> = series.iter().map(|(_, d)| *d).collect();
     let avg = durations.iter().sum::<f64>() / durations.len() as f64;
-    let min = durations.iter().copied().fold(f64::INFINITY, f64::min);
     let max = durations.iter().copied().fold(0.0f64, f64::max);
     let p95 = percentile(&durations, 0.95);
     let (latest_step, latest_ms) = series.last().copied().unwrap_or((-1, 0.0));
 
-    let (trend_value, trend_hint) = if series.len() >= 6 {
-        let mid = series.len() / 2;
-        let first_half = series[..mid].iter().map(|(_, d)| d).sum::<f64>() / mid.max(1) as f64;
-        let second_half =
-            series[mid..].iter().map(|(_, d)| d).sum::<f64>() / (series.len() - mid).max(1) as f64;
-        let pct = (second_half - first_half) / first_half.max(1.0) * 100.0;
-        if pct.abs() < 3.0 {
-            (
-                "Stable".to_string(),
-                Some("Second half vs first half of window".to_string()),
-            )
-        } else if pct > 0.0 {
-            (
-                format!("+{pct:.0}% slower"),
-                Some("Second half vs first half of window".to_string()),
-            )
-        } else {
-            (
-                format!("{pct:.0}% faster"),
-                Some("Second half vs first half of window".to_string()),
-            )
-        }
-    } else {
-        ("—".to_string(), None)
-    };
-
     vec![
         (
-            "Latest step".to_string(),
-            latest_step.to_string(),
-            Some(format_step_ms(latest_ms)),
+            "Latest".to_string(),
+            format_step_ms(latest_ms),
+            Some(format!("step {latest_step}")),
         ),
-        ("Avg step".to_string(), format_step_ms(avg), None),
-        (
-            "Min / Max".to_string(),
-            format!("{} / {}", format_step_ms(min), format_step_ms(max)),
-            None,
-        ),
+        ("Average".to_string(), format_step_ms(avg), None),
         ("P95".to_string(), format_step_ms(p95), None),
-        ("Trend".to_string(), trend_value, trend_hint),
+        ("Maximum".to_string(), format_step_ms(max), None),
     ]
 }
 
@@ -806,7 +1180,7 @@ fn render_step_matrix_result(
     match result {
         Ok(resp) if resp.samples.is_empty() => rsx! {
             Card {
-                title: "Step timings",
+                title: STEP_CARD_TITLE,
                 EmptyState {
                     message: "No train.step spans yet. Enable phase hooks with probing.attach_training_phases(model, optimizer) or record train.step spans manually.".to_string()
                 }
@@ -826,37 +1200,22 @@ fn render_step_matrix_result(
                 "local node · auto-refresh".to_string()
             };
             let stats = step_summary_stats(&resp.samples, single_rank);
-            let title = if single_rank {
-                "Step timings"
-            } else {
-                "Step straggler heatmap"
-            };
-            let legend = if single_rank {
-                "Bar height = train.step duration · red = >1.2× window avg · click to inspect"
-            } else {
-                "Darker = slower · red ring = outlier (>1.2× step median) · click to inspect"
-            };
             let rank = primary_rank(&resp.samples);
             rsx! {
                 Card {
-                    title: title,
+                    title: STEP_CARD_TITLE,
                     content_class: Some("p-4"),
-                    div { class: "space-y-4",
-                        div { class: "grid grid-cols-2 sm:grid-cols-5 gap-3",
+                    div { class: "space-y-3",
+                        div { class: "grid grid-cols-4 divide-x divide-gray-200",
                             for (label, value, hint) in stats {
-                                StatCard { label, value, hint }
-                            }
-                        }
-                        div { class: "flex flex-wrap items-center gap-4 text-sm text-gray-600",
-                            span { "{scope_note}" }
-                            if single_rank {
-                                span { "·" }
-                                span { class: "text-xs font-mono text-violet-700 bg-violet-50 px-2 py-0.5 rounded",
-                                    "rank {rank} · single-process view"
+                                div { class: "min-w-0 px-4 first:pl-0 last:pr-0",
+                                    p { class: "text-[10px] font-medium uppercase tracking-wide text-gray-500", "{label}" }
+                                    p { class: "mt-1 truncate text-xl font-semibold text-gray-900", "{value}" }
+                                    if let Some(hint) = hint {
+                                        p { class: "mt-0.5 text-[10px] text-gray-400", "{hint}" }
+                                    }
                                 }
                             }
-                            span { "·" }
-                            span { class: "text-xs text-gray-500", "{legend}" }
                         }
                         if single_rank {
                             StepDurationTimeline {
@@ -865,6 +1224,9 @@ fn render_step_matrix_result(
                                 selected_step,
                             }
                         } else {
+                            p { class: "text-[10px] text-gray-500",
+                                "{scope_note} · darker cells are slower; outlined cells exceed 1.2× the step median"
+                            }
                             StepHeatmap {
                                 ranks: ranks.clone(),
                                 steps: steps.clone(),
@@ -880,7 +1242,7 @@ fn render_step_matrix_result(
         }
         Err(err) => rsx! {
             Card {
-                title: "Step timings",
+                title: STEP_CARD_TITLE,
                 AppErrorDisplay { error: err.clone(), title: None }
             }
         },
@@ -1103,140 +1465,142 @@ fn StepDurationTimeline(
         };
     }
 
+    let width = 1000.0;
+    let height = 170.0;
+    let pad_left = 46.0;
+    let pad_right = 14.0;
+    let pad_top = 12.0;
+    let pad_bottom = 28.0;
+    let plot_width = width - pad_left - pad_right;
+    let plot_height = height - pad_top - pad_bottom;
+    let min_ms = points
+        .iter()
+        .map(|point| point.duration_ms)
+        .fold(f64::INFINITY, f64::min);
     let max_ms = points
         .iter()
-        .map(|p| p.duration_ms)
-        .fold(0.0f64, f64::max)
-        .max(1.0);
+        .map(|point| point.duration_ms)
+        .fold(f64::NEG_INFINITY, f64::max);
+    let y_padding = ((max_ms - min_ms) * 0.08).max(max_ms.abs() * 0.02).max(0.1);
+    let y_min = (min_ms - y_padding).max(0.0);
+    let y_max = max_ms + y_padding;
+    let y_span = (y_max - y_min).max(0.1);
     let avg_ms = points.iter().map(|p| p.duration_ms).sum::<f64>() / points.len() as f64;
     let latest_idx = points.len().saturating_sub(1);
-    let detail_rows: Vec<_> = points.iter().rev().take(12).cloned().collect();
-
+    let point_count_span = latest_idx.max(1) as f64;
+    let chart_points = points
+        .iter()
+        .enumerate()
+        .map(|(index, point)| {
+            let x = pad_left + index as f64 / point_count_span * plot_width;
+            let y = pad_top + (y_max - point.duration_ms) / y_span * plot_height;
+            (point.clone(), x, y)
+        })
+        .collect::<Vec<_>>();
+    let line_points = chart_points
+        .iter()
+        .map(|(_, x, y)| format!("{x:.1},{y:.1}"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let avg_y = pad_top + (y_max - avg_ms) / y_span * plot_height;
+    let first_step = points
+        .first()
+        .map(|point| point.display_step)
+        .unwrap_or_default();
+    let last_step = points
+        .last()
+        .map(|point| point.display_step)
+        .unwrap_or_default();
     rsx! {
-        div { class: "space-y-4",
-            div { class: "overflow-x-auto pb-1",
-                div { class: "flex items-end gap-1 min-w-max h-36 px-1",
-                    for (i, point) in points.iter().enumerate() {
-                        {
-                            let is_latest = i == latest_idx;
-                            let dur = point.duration_ms;
-                            let pct = (dur / max_ms).clamp(0.08, 1.0);
-                            let slow = dur > avg_ms * 1.2;
-                            let bar_color = if slow {
-                                "bg-red-500/90 hover:bg-red-600"
-                            } else {
-                                "bg-violet-500/85 hover:bg-violet-600"
-                            };
-                            let is_selected = selected_step()
-                                .map(|s| s.rank == rank && s.display_step == point.display_step)
-                                .unwrap_or(false);
-                            let ring = if is_selected {
-                                "ring-2 ring-blue-500 ring-offset-1"
-                            } else if is_latest {
-                                "ring-2 ring-blue-400 ring-offset-1"
-                            } else if slow {
-                                "ring-1 ring-red-300"
-                            } else {
-                                ""
-                            };
-                            let step_val = point.display_step;
-                            let coord_step = point.coord_step;
-                            let title = format!("step {step_val}: {dur:.1} ms — click to inspect");
-                            rsx! {
-                                button {
-                                    r#type: "button",
-                                    class: "flex flex-col items-center justify-end gap-1 min-w-[36px] h-full group",
-                                    title: "{title}",
-                                    onclick: move |_| {
-                                        select_training_step(
-                                            rank,
-                                            step_val,
-                                            coord_step,
-                                            dur,
-                                            selected_step,
-                                        );
-                                    },
-                                    span {
-                                        class: "text-[9px] font-mono text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity",
-                                        "{dur:.0}"
-                                    }
-                                    div {
-                                        class: "w-7 rounded-t-sm {bar_color} {ring} transition-colors",
-                                        style: "height: {pct * 100.0}%",
-                                    }
-                                    span {
-                                        class: if is_selected || is_latest {
-                                            "text-[10px] font-mono font-semibold text-blue-700"
-                                        } else {
-                                            "text-[10px] font-mono text-gray-500"
-                                        },
-                                        "{step_val}"
-                                    }
-                                }
+        div { class: "border-t border-gray-100 pt-3",
+            div { class: "mb-1 flex items-center justify-between gap-2 text-[10px] text-gray-500",
+                span { "Recent steps" }
+                span { class: "font-mono", "rank {rank}" }
+            }
+            svg {
+                class: "h-44 w-full",
+                view_box: "0 0 {width} {height}",
+                preserve_aspect_ratio: "none",
+                for tick in 0..=3 {
+                    {
+                        let ratio = tick as f64 / 3.0;
+                        let y = pad_top + ratio * plot_height;
+                        let tick_value = y_max - ratio * y_span;
+                        rsx! {
+                            line {
+                                x1: "{pad_left}", y1: "{y}",
+                                x2: "{pad_left + plot_width}", y2: "{y}",
+                                stroke: "#e5e7eb", stroke_width: "1",
+                            }
+                            text {
+                                x: "{pad_left - 6.0}", y: "{y + 3.0}",
+                                text_anchor: "end", font_size: "9", fill: "#9ca3af",
+                                "{format_step_ms(tick_value)}"
                             }
                         }
                     }
                 }
-            }
-
-            div { class: "border border-gray-200 rounded-lg overflow-hidden",
-                table { class: "w-full text-xs",
-                    thead {
-                        tr { class: "bg-gray-50 text-gray-500",
-                            th { class: "px-3 py-2 text-left font-medium", "Step" }
-                            th { class: "px-3 py-2 text-right font-medium", "Duration" }
-                            th { class: "px-3 py-2 text-right font-medium", "vs avg" }
-                        }
-                    }
-                    tbody {
-                        for point in detail_rows {
-                            {
-                                let dur = point.duration_ms;
-                                let delta_pct = (dur - avg_ms) / avg_ms.max(1.0) * 100.0;
-                                let delta_label = if delta_pct.abs() < 1.0 {
-                                    "±0%".to_string()
-                                } else if delta_pct > 0.0 {
-                                    format!("+{delta_pct:.0}%")
-                                } else {
-                                    format!("{delta_pct:.0}%")
-                                };
-                                let delta_class = if delta_pct > 10.0 {
-                                    "text-red-600 font-medium"
-                                } else if delta_pct < -10.0 {
-                                    "text-emerald-600 font-medium"
-                                } else {
-                                    "text-gray-500"
-                                };
-                                let is_selected = selected_step()
-                                    .map(|s| s.rank == rank && s.display_step == point.display_step)
-                                    .unwrap_or(false);
-                                let row_class = if is_selected {
-                                    "border-t border-gray-100 bg-blue-50 cursor-pointer"
-                                } else {
-                                    "border-t border-gray-100 hover:bg-gray-50 cursor-pointer"
-                                };
-                                let step_val = point.display_step;
-                                let coord_step = point.coord_step;
-                                rsx! {
-                                    tr {
-                                        class: "{row_class}",
-                                        onclick: move |_| {
-                                            select_training_step(
-                                                rank,
-                                                step_val,
-                                                coord_step,
-                                                dur,
-                                                selected_step,
-                                            );
-                                        },
-                                        td { class: "px-3 py-1.5 font-mono text-gray-800", "{step_val}" }
-                                        td { class: "px-3 py-1.5 text-right font-mono text-gray-800", "{dur:.1} ms" }
-                                        td { class: "px-3 py-1.5 text-right font-mono {delta_class}", "{delta_label}" }
-                                    }
-                                }
+                line {
+                    x1: "{pad_left}", y1: "{avg_y}",
+                    x2: "{pad_left + plot_width}", y2: "{avg_y}",
+                    stroke: "#9ca3af", stroke_width: "1", stroke_dasharray: "4 4",
+                }
+                polyline {
+                    points: "{line_points}",
+                    fill: "none",
+                    stroke: "#2563eb",
+                    stroke_width: "2.5",
+                    stroke_linejoin: "round",
+                    stroke_linecap: "round",
+                    vector_effect: "non-scaling-stroke",
+                }
+                for (index, (point, x, y)) in chart_points.iter().enumerate() {
+                    {
+                        let step_val = point.display_step;
+                        let coord_step = point.coord_step;
+                        let duration_ms = point.duration_ms;
+                        let is_selected = selected_step()
+                            .map(|selected| selected.rank == rank && selected.display_step == step_val)
+                            .unwrap_or(false);
+                        let visible = is_selected || index == latest_idx;
+                        rsx! {
+                            circle {
+                                cx: "{x}", cy: "{y}", r: if visible { "4" } else { "7" },
+                                fill: if visible { "#2563eb" } else { "transparent" },
+                                stroke: if is_selected { "#1e3a8a" } else { "transparent" },
+                                stroke_width: "2",
+                                class: "cursor-pointer",
+                                onclick: move |_| {
+                                    select_training_step(
+                                        rank,
+                                        step_val,
+                                        coord_step,
+                                        duration_ms,
+                                        selected_step,
+                                    );
+                                },
+                                title { "step {step_val}: {duration_ms:.1} ms" }
                             }
                         }
                     }
+                }
+                text {
+                    x: "{pad_left}", y: "{height - 6.0}",
+                    text_anchor: "start", font_size: "9", fill: "#9ca3af", "step {first_step}"
+                }
+                text {
+                    x: "{pad_left + plot_width}", y: "{height - 6.0}",
+                    text_anchor: "end", font_size: "9", fill: "#9ca3af", "step {last_step}"
+                }
+            }
+            div { class: "mt-1 flex justify-end gap-4 text-[9px] text-gray-400",
+                span { class: "flex items-center gap-1",
+                    span { class: "inline-block h-px w-4 bg-blue-600" }
+                    "duration"
+                }
+                span { class: "flex items-center gap-1",
+                    span { class: "inline-block w-4 border-t border-dashed border-gray-400" }
+                    "average"
                 }
             }
         }
@@ -1373,5 +1737,158 @@ fn comm_table_collapsible(
                 }
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn placement_node(host: &str, rank: i32, local_rank: i32, role: Option<&str>) -> Node {
+        Node {
+            host: host.to_string(),
+            addr: format!("127.0.0.1:{}", 9000 + rank),
+            rank: Some(rank),
+            local_rank: Some(local_rank),
+            world_size: Some(4),
+            role: role.map(str::to_string),
+            status: Some("running".to_string()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn parallel_coordinates_use_stable_megatron_order() {
+        let coordinates = parse_parallel_coordinates(Some("tp=1, dp=2,ignored=x,pp=0,sp=1"));
+
+        assert_eq!(
+            coordinates,
+            vec![
+                ("dp".to_string(), "2".to_string()),
+                ("pp".to_string(), "0".to_string()),
+                ("tp".to_string(), "1".to_string()),
+                ("sp".to_string(), "1".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn placement_matches_cpu_megatron_mock_topology() {
+        let nodes = vec![
+            placement_node("cpu-worker", 3, 3, Some("dp=0,pp=1,tp=1")),
+            placement_node("cpu-worker", 1, 1, Some("dp=0,pp=0,tp=1")),
+            placement_node("cpu-worker", 2, 2, Some("dp=0,pp=1,tp=0")),
+            placement_node("cpu-worker", 0, 0, Some("dp=0,pp=0,tp=0")),
+        ];
+
+        let placement = build_placement(&nodes);
+
+        assert_eq!(placement.observed_ranks, 4);
+        assert_eq!(placement.expected_ranks, 4);
+        assert!(placement.has_parallel_coordinates);
+        assert_eq!(placement.hosts.len(), 1);
+        assert_eq!(placement.hosts[0].name, "cpu-worker");
+        assert_eq!(placement.hosts[0].processes[0].rank, Some(0));
+        assert_eq!(placement.hosts[0].processes[3].rank, Some(3));
+        assert_eq!(
+            placement.parallel_sizes,
+            vec![
+                ("dp".to_string(), 1),
+                ("pp".to_string(), 2),
+                ("tp".to_string(), 2),
+            ]
+        );
+        assert_eq!(
+            placement.hosts[0].processes[3].coordinates,
+            vec![
+                ("dp".to_string(), "0".to_string()),
+                ("pp".to_string(), "1".to_string()),
+                ("tp".to_string(), "1".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn placement_summarizes_64_rank_megatron_topology() {
+        let nodes = (0..64)
+            .map(|rank| {
+                let tp = rank % 2;
+                let pp = (rank / 2) % 4;
+                let dp = rank / 8;
+                let mut node = placement_node(
+                    &format!("worker-{:02}", rank / 8),
+                    rank,
+                    rank % 8,
+                    Some(&format!("dp={dp},pp={pp},sp={tp},tp={tp}")),
+                );
+                node.world_size = Some(64);
+                node
+            })
+            .collect::<Vec<_>>();
+
+        let placement = build_placement(&nodes);
+
+        assert_eq!(placement.hosts.len(), 8);
+        assert_eq!(placement_host_columns(placement.hosts.len()), 8);
+        assert!(placement.hosts.iter().all(|host| host.processes.len() == 8));
+        assert_eq!(placement.observed_ranks, 64);
+        assert_eq!(placement.expected_ranks, 64);
+        assert_eq!(
+            placement.parallel_sizes,
+            vec![
+                ("dp".to_string(), 8),
+                ("pp".to_string(), 4),
+                ("tp".to_string(), 2),
+                ("sp".to_string(), 2),
+            ]
+        );
+        assert_eq!(placement.hosts[7].processes[7].rank, Some(63));
+        assert_eq!(
+            placement.hosts[7].processes[7].coordinates,
+            vec![
+                ("dp".to_string(), "7".to_string()),
+                ("pp".to_string(), "3".to_string()),
+                ("tp".to_string(), "1".to_string()),
+                ("sp".to_string(), "1".to_string()),
+            ]
+        );
+
+        let active = &placement.hosts[0].processes[0];
+        assert_eq!(
+            placement_group_membership(active, &placement.hosts[0].processes[0]),
+            Some(PlacementGroup::Focus)
+        );
+        assert_eq!(
+            placement_group_membership(active, &placement.hosts[0].processes[1]),
+            Some(PlacementGroup::Tensor)
+        );
+        assert_eq!(
+            placement_group_membership(active, &placement.hosts[0].processes[2]),
+            Some(PlacementGroup::Pipeline)
+        );
+        assert_eq!(
+            placement_group_membership(active, &placement.hosts[1].processes[0]),
+            Some(PlacementGroup::Data)
+        );
+        assert_eq!(
+            placement_group_membership(active, &placement.hosts[0].processes[3]),
+            None
+        );
+        assert_eq!(
+            placement_group_sizes(&placement, active),
+            Some(PlacementGroupSizes {
+                tensor: 2,
+                data: 8,
+                pipeline: 4,
+            })
+        );
+    }
+
+    #[test]
+    fn placement_wraps_after_eight_host_columns() {
+        assert_eq!(placement_host_columns(1), 1);
+        assert_eq!(placement_host_columns(8), 8);
+        assert_eq!(placement_host_columns(9), 8);
+        assert_eq!(placement_host_columns(32), 8);
     }
 }

@@ -611,7 +611,7 @@ fn attr_string(attributes: &Option<String>, key: &str) -> Option<String> {
 
 // --- Inference engine metrics (framework-neutral scrape API) ---
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 pub struct EngineInfo {
     pub engine_id: String,
     pub engine_type: String,

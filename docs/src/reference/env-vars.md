@@ -34,7 +34,8 @@ Prefix syntax: `init:SCRIPT+<mode>` runs `exec(open(SCRIPT).read())` after activ
 |----------|---------|-------------|
 | `PROBING_PORT` | unset | TCP port for the embedded HTTP server. Set to `RANDOM` for automatic port selection. Required for remote access. |
 | `PROBING_SERVER_ADDR` | Inferred from port | Explicit bind address (e.g. `0.0.0.0:8080`). |
-| `PROBING_ADVERTISE_ADDR` | Hostname | Address published to cluster peers when the server binds a wildcard address. Accepts `host`, `host:port`, IPv6, or a `{port}` placeholder. Required when the process hostname is not peer-resolvable. |
+| `PROBING_ADVERTISE_ADDR` | `MASTER_ADDR`, then hostname | Address published to cluster peers when the server binds a wildcard address. Accepts `host`, `host:port`, IPv6, or a `{port}` placeholder. Set it explicitly on multi-homed hosts or when `MASTER_ADDR` is not the current node's peer-reachable address. |
+| `PROBING_NODE_HOST` | OS hostname | Explicit host label reported in cluster heartbeats. Intended for container identity and local logical-node fixtures; it does not change the advertised network address. |
 | `PROBING_SERVER_ADDRPATTERN` | unset | IP pattern filter for multi-homed hosts. Selects the first matching interface. |
 | `PROBING_SERVER_WORKER_THREADS` | auto | Number of Tokio worker threads. |
 | `PROBING_MAX_CONNECTIONS` | `max(128, fan-out concurrency)` | Maximum number of in-flight HTTP requests. Runtime `SET server.max_connections=...` updates the same limit. |
@@ -139,6 +140,7 @@ Non-PROBING-prefixed aliases are also recognized for Megatron compatibility:
 | `PROBING_TORCH_PROFILING` | — | Set to `on` to activate PyTorch module hooks and write `python.torch_trace`. Default when enabled: **5% step sampling** (`rate=0.05`), full-snapshot (`layer_rate=1.0`), **shadow cadence 4:1** (`shadow=4:1` — one baseline step per four probed steps for in-run overhead in `python.torch_step_timing`). Spec is `rate[:layer_rate]` (`layer_rate` = per-layer hit probability on a sampled step); a leading `random:`/`ordered:` token is accepted for back-compat (always `random`). Override with e.g. `1.0`, `0.05:0.1`, `shadow=8:2`, or `shadow=off`. **Backward** timing (`backward=on`) times each module's backward via output/input grad hooks; off by default. |
 | `PROBING_TORCHRUN_CLUSTER` | `1` | Enable automatic torchrun cluster registration. Set to `0` to disable. |
 | `PROBING_TORCHRUN_STORE_TIMEOUT` | — | Timeout for torchrun distributed store operations. |
+| `PROBING_TCPSTORE_INSPECT` | `0` | Allow `pytorch/runtime-debug?include_values=true` to preview otherwise-redacted TCPStore values. The endpoint remains read-only. Use only in trusted environments. |
 
 ### Megatron autostart
 
@@ -214,6 +216,8 @@ Hierarchical side-channel registration when `WORLD_SIZE > 1`. See [torchrun clus
 | `PROBING_REMOTE_QUERY_TIMEOUT_SECS` | `30` | Per-peer timeout for remote federated / cluster queries (seconds). |
 | `PROBING_FANOUT_CONCURRENCY` | `128` | Max concurrent in-flight remote fan-out HTTP requests per query. |
 | `PROBING_FANOUT_STRICT` | unset | When `1` or `true`, any federated peer failure or dropped batch fails the whole query instead of returning partial results. |
+| `PROBING_STACK_FANOUT_CONCURRENCY` | `32` | Max concurrent peer captures for Distributed stacks. |
+| `PROBING_STACK_FANOUT_DEADLINE_SEC` | `15` | Overall Distributed stacks fan-out deadline. Completed peers are returned as a partial flamegraph when the deadline expires. |
 | `PROBING_NCCL_CHUNK_BYTES` | `65536` | NCCL profiler mmap ring chunk size (bytes). |
 | `PROBING_NCCL_NUM_CHUNKS` | `64` | NCCL profiler mmap ring chunk count (~4 MiB total per table at defaults). |
 | `PROBING_NCCL_MAX_COLL_SLOTS` | `512` | Max in-flight collective/P2P event slots per rank. |

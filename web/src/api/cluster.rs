@@ -3,6 +3,8 @@ use crate::utils::error::Result;
 use probing_proto::prelude::*;
 use serde::{Deserialize, Serialize};
 
+const NODE_REGISTRY_REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClusterQueryRequest {
     pub expr: String,
@@ -34,7 +36,11 @@ impl ApiClient {
         let mut offset = 0usize;
         loop {
             let response = self
-                .get_request(&format!("/apis/nodes?offset={offset}&limit=1024"))
+                .get_request_accepting_with_timeout(
+                    &format!("/apis/nodes?offset={offset}&limit=1024"),
+                    &[],
+                    Some(NODE_REGISTRY_REQUEST_TIMEOUT),
+                )
                 .await?;
             let page: NodeListResponse = Self::parse_json(&response)?;
             let empty = page.nodes.is_empty();
@@ -55,7 +61,7 @@ impl ApiClient {
         })
         .map_err(|e| crate::utils::error::AppError::Api(e.to_string()))?;
         let response = self
-            .post_request_with_body("/apis/cluster/query", body)
+            .post_request_with_body_accepting("/apis/cluster/query", body, &[503])
             .await?;
         Self::parse_json(&response)
     }

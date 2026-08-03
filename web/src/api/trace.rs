@@ -14,7 +14,7 @@ pub struct TraceResponse {
 }
 
 /// Variable change record
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VariableRecord {
     pub function_name: String,
     pub filename: String,

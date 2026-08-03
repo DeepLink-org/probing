@@ -11,6 +11,14 @@ pub fn get_hostname() -> Result<String> {
     Ok(hostname)
 }
 
+fn node_hostname() -> String {
+    std::env::var("PROBING_NODE_HOST")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| value.trim().to_string())
+        .unwrap_or_else(|| get_hostname().unwrap_or_else(|_| "localhost".to_string()))
+}
+
 fn cluster_report_enabled() -> bool {
     match std::env::var("PROBING_CLUSTER_REPORT") {
         Ok(val) => {
@@ -86,7 +94,7 @@ async fn report_worker(report_addr: String, local_addr: String) {
 }
 
 pub(crate) fn build_local_node(local_addr: &str) -> Node {
-    let hostname = get_hostname().unwrap_or_else(|_| "localhost".to_string());
+    let hostname = node_hostname();
     let address = {
         let probing_address = read_probing_address();
         if !probing_address.is_empty() {
@@ -111,6 +119,30 @@ pub(crate) fn build_local_node(local_addr: &str) -> Node {
             .filter(|s| !s.trim().is_empty()),
         status: Some("running".to_string()),
         timestamp: 0,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use probing_core::sync::lock_mutex;
+    use std::sync::{LazyLock, Mutex};
+
+    static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+    #[test]
+    fn node_hostname_prefers_explicit_logical_host() {
+        let _guard = lock_mutex(&ENV_LOCK, "report test ENV_LOCK");
+        let previous = std::env::var("PROBING_NODE_HOST").ok();
+        std::env::set_var("PROBING_NODE_HOST", " megatron-node-03 ");
+
+        assert_eq!(node_hostname(), "megatron-node-03");
+
+        if let Some(previous) = previous {
+            std::env::set_var("PROBING_NODE_HOST", previous);
+        } else {
+            std::env::remove_var("PROBING_NODE_HOST");
+        }
     }
 }
 

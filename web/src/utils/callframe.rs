@@ -50,6 +50,25 @@ impl FrameKind {
             FrameKind::Cpp => ("NAT", "bg-blue-50 text-blue-700 border-blue-200"),
         }
     }
+
+    pub fn overview_cell(self) -> &'static str {
+        match self {
+            FrameKind::Python => "bg-emerald-500 hover:bg-emerald-600",
+            FrameKind::Rust => "bg-orange-500 hover:bg-orange-600",
+            FrameKind::Cpp => "bg-blue-500 hover:bg-blue-600",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct StackEvidence {
+    pub total: usize,
+    pub python: usize,
+    pub rust: usize,
+    pub native: usize,
+    pub runtime_boundaries: usize,
+    pub source_frames: usize,
+    pub local_values: usize,
 }
 
 pub fn classify_frame(frame: &CallFrame) -> FrameKind {
@@ -164,6 +183,47 @@ pub fn count_by_kind(frames: &[CallFrame]) -> (usize, usize, usize) {
     (py, rust, cpp)
 }
 
+pub fn stack_evidence(frames: &[CallFrame]) -> StackEvidence {
+    let (python, rust, native) = count_by_kind(frames);
+    let runtime_boundaries = frames
+        .windows(2)
+        .filter(|pair| classify_frame(&pair[0]) != classify_frame(&pair[1]))
+        .count();
+    let source_frames = frames
+        .iter()
+        .filter(|frame| frame_location(frame).is_some_and(|(file, _)| !file.is_empty()))
+        .count();
+    let local_values = frames
+        .iter()
+        .map(|frame| match frame {
+            CallFrame::PyFrame { locals, .. } => locals.len(),
+            CallFrame::CFrame { .. } => 0,
+        })
+        .sum();
+
+    StackEvidence {
+        total: frames.len(),
+        python,
+        rust,
+        native,
+        runtime_boundaries,
+        source_frames,
+        local_values,
+    }
+}
+
+pub fn frame_matches_query(frame: &CallFrame, query: &str) -> bool {
+    let query = query.trim().to_ascii_lowercase();
+    if query.is_empty() {
+        return true;
+    }
+    match frame {
+        CallFrame::CFrame { file, func, .. } | CallFrame::PyFrame { file, func, .. } => {
+            func.to_ascii_lowercase().contains(&query) || file.to_ascii_lowercase().contains(&query)
+        }
+    }
+}
+
 pub fn matches_mode(frame: &CallFrame, mode: &str) -> bool {
     match mode {
         "py" => matches!(frame, CallFrame::PyFrame { .. }),
@@ -210,5 +270,58 @@ mod tests {
             locals: Default::default(),
         };
         assert_eq!(classify_frame(&frame), FrameKind::Python);
+    }
+
+    #[test]
+    fn summarizes_stack_without_interpreting_it() {
+        let frames = vec![
+            CallFrame::PyFrame {
+                file: "train.py".into(),
+                func: "train".into(),
+                lineno: 12,
+                locals: [("step".into(), Default::default())].into(),
+            },
+            CallFrame::CFrame {
+                ip: "0x1".into(),
+                file: "runtime.cc".into(),
+                func: "launch".into(),
+                lineno: 42,
+                lang: Some("cpp".into()),
+            },
+            CallFrame::CFrame {
+                ip: "0x2".into(),
+                file: "runtime.rs".into(),
+                func: "probing_runtime::wait".into(),
+                lineno: 9,
+                lang: Some("rust".into()),
+            },
+        ];
+
+        assert_eq!(
+            stack_evidence(&frames),
+            StackEvidence {
+                total: 3,
+                python: 1,
+                rust: 1,
+                native: 1,
+                runtime_boundaries: 2,
+                source_frames: 3,
+                local_values: 1,
+            }
+        );
+    }
+
+    #[test]
+    fn searches_function_and_file_case_insensitively() {
+        let frame = CallFrame::PyFrame {
+            file: "/workspace/model.py".into(),
+            func: "ForwardPass".into(),
+            lineno: 7,
+            locals: Default::default(),
+        };
+
+        assert!(frame_matches_query(&frame, "forward"));
+        assert!(frame_matches_query(&frame, "MODEL.PY"));
+        assert!(!frame_matches_query(&frame, "backward"));
     }
 }

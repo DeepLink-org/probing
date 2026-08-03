@@ -7,7 +7,7 @@ Contributors building from a git checkout should follow [Contributing — Develo
 
 | Component | Version |
 |-----------|---------|
-| Python | 3.7+ (3.9+ recommended for development) |
+| Python | 3.8+ |
 | Rust (source build only) | stable channel — see [Contributing — Prerequisites](contributing.md#prerequisites) |
 | OS (full features) | Linux — required for `probing inject` |
 | OS (in-process only) | macOS / Windows — `PROBING=1` at startup, query/eval via CLI |
