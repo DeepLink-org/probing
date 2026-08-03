@@ -1766,6 +1766,8 @@
       
         
       
+        
+      
     
     
     
@@ -1835,6 +1837,34 @@
     
   
     Training Debugging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/training-placement-validation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    64-rank Placement Validation
   
 
     
@@ -2321,8 +2351,13 @@
 </tr>
 <tr>
 <td><code>PROBING_ADVERTISE_ADDR</code></td>
-<td>hostname</td>
-<td>Peer-reachable address published for the current rank; set explicitly on multi-homed or non-resolvable hosts</td>
+<td><code>MASTER_ADDR</code>, then hostname</td>
+<td>Peer-reachable address published for the current rank; set explicitly when the rendezvous host is not this node's reachable address</td>
+</tr>
+<tr>
+<td><code>PROBING_NODE_HOST</code></td>
+<td>OS hostname</td>
+<td>Explicit host label reported by heartbeat; affects node identity and UI grouping, not the peer network address</td>
 </tr>
 <tr>
 <td><code>PROBING_CLUSTER_REPORT</code></td>

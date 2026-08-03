@@ -1650,6 +1650,8 @@
       
         
       
+        
+      
     
     
     
@@ -1719,6 +1721,34 @@
     
   
     训练调试
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/training-placement-validation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    64-rank Placement Validation
   
 
     
@@ -2309,9 +2339,24 @@
 <td>单次 cluster fan-out 的最大并发远程 HTTP 请求数。</td>
 </tr>
 <tr>
+<td><code>PROBING_STACK_FANOUT_CONCURRENCY</code></td>
+<td><code>32</code></td>
+<td>Distributed stacks 同时采集的最大 peer 数。</td>
+</tr>
+<tr>
+<td><code>PROBING_STACK_FANOUT_DEADLINE_SEC</code></td>
+<td><code>15</code></td>
+<td>Distributed stacks 的整体 fan-out 截止时间；超时后返回已完成 peer 的部分火焰图并列出失败 peer。</td>
+</tr>
+<tr>
 <td><code>PROBING_ADVERTISE_ADDR</code></td>
-<td>hostname</td>
-<td>wildcard bind 时向 peer 发布的地址；支持 <code>host</code>、<code>host:port</code>、IPv6 或 <code>{port}</code> 占位符。hostname 无法被其他节点解析时必须显式设置。</td>
+<td><code>MASTER_ADDR</code>，否则 hostname</td>
+<td>wildcard bind 时向 peer 发布的地址；支持 <code>host</code>、<code>host:port</code>、IPv6 或 <code>{port}</code> 占位符。多网卡环境或 <code>MASTER_ADDR</code> 不是当前节点的 peer 可达地址时必须显式设置。</td>
+</tr>
+<tr>
+<td><code>PROBING_NODE_HOST</code></td>
+<td>操作系统 hostname</td>
+<td>cluster heartbeat 中上报的显式 host 标签。用于容器身份和本地逻辑节点 fixture；不会改变向 peer 发布的网络地址。</td>
 </tr>
 <tr>
 <td><code>PROBING_NCCL_CHUNK_BYTES</code></td>
@@ -2362,6 +2407,9 @@
 </table>
 <h2 id="_3">其余变量<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
 <p>激活、存储、Server、认证、Tracing、采样、NCCL、RDMA、PyTorch、调试等章节与 <a href="./">英文 env-vars</a> 同步；尚未单独翻译。</p>
+<p><code>PROBING_TCPSTORE_INSPECT</code> 默认为 <code>0</code>。设为 <code>1</code> 后，
+<code>pytorch/runtime-debug?include_values=true</code> 才能预览默认打码的 TCPStore value；
+接口仍为只读，仅应在可信环境启用。</p>
 
 
 

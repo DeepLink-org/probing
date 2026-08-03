@@ -1648,6 +1648,8 @@
       
         
       
+        
+      
     
     
     
@@ -1717,6 +1719,34 @@
     
   
     Training Debugging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/training-placement-validation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    64-rank Placement Validation
   
 
     
@@ -2008,6 +2038,17 @@
     <span class="md-ellipsis">
       
         Cluster (distributed)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytorch-runtime-internals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PyTorch runtime internals
       
     </span>
   </a>
@@ -2362,6 +2403,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#pytorch-runtime-internals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PyTorch runtime internals
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#diagnostic-skills" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2644,6 +2696,26 @@
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>probing<span class="w"> </span>-t<span class="w"> </span>rank0:8080<span class="w"> </span>cluster<span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;SELECT _rank, _role, AVG(duration) FROM global.python.comm_collective GROUP BY 1,2&quot;</span>
 </span></code></pre></div>
 <p>In-process equivalent: <code>probing.query("SELECT … FROM global.python.torch_trace …")</code> when peers are registered.</p>
+<h3 id="pytorch-runtime-internals">PyTorch runtime internals<a class="headerlink" href="#pytorch-runtime-internals" title="Permanent link">&para;</a></h3>
+<p><code>GET /apis/pythonext/pytorch/runtime-debug</code> returns two independent capability
+snapshots used by <strong>Cluster → Distributed Status</strong>:</p>
+<ul>
+<li>PyTorch C++ wait counters for the connected rank (<code>active_count</code>, calls,
+  cumulative/maximum time).</li>
+<li>The job-wide torchrun TCPStore key catalog, classified into debug workers,
+  rank assignments, roles, process groups, and Probing keys.</li>
+</ul>
+<p>The endpoint is read-only. Known operational namespaces receive a short value
+preview; unknown values are redacted. Full previews require both
+<code>?include_values=true</code> and <code>PROBING_TCPSTORE_INSPECT=1</code>. Wait counters require a
+PyTorch build that exposes the experimental distributed debug worker handler;
+unsupported builds return <code>available: false</code> without affecting TCPStore data.
+Older TCPStore bindings that do not expose key enumeration still report the
+store's total key count and set <code>catalog_available: false</code>. In that mode the
+response probes known torchrun and Probing key names with non-blocking
+<code>Store.check()</code> calls, reports their count as <code>identified_keys</code>, and returns
+store/rank/node/role/restart context in <code>facts</code>. These entries are explicitly a
+partial catalog; the endpoint never presents them as all keys in the store.</p>
 <h3 id="diagnostic-skills">Diagnostic skills<a class="headerlink" href="#diagnostic-skills" title="Permanent link">&para;</a></h3>
 <p>Structured multi-step SQL playbooks (CLI, Web Agent, MCP). Skills from the bundled
 tree and from installed packages that register <code>probing.skills</code> entry points.</p>

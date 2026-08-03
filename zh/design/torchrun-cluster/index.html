@@ -1840,6 +1840,8 @@
       
         
       
+        
+      
     
     
     
@@ -1909,6 +1911,34 @@
     
   
     训练调试
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/training-placement-validation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    64-rank Placement Validation
   
 
     
@@ -2539,7 +2569,11 @@
 </tr>
 <tr>
 <td><code>PROBING_ADVERTISE_ADDR</code></td>
-<td>当前 rank 向 peer 发布的可达地址；多网卡或 hostname 不可解析时必须显式设置</td>
+<td>当前 rank 向 peer 发布的可达地址；默认使用 <code>MASTER_ADDR</code>，再回退 hostname；rendezvous 地址不是当前节点可达地址时必须显式设置</td>
+</tr>
+<tr>
+<td><code>PROBING_NODE_HOST</code></td>
+<td>heartbeat 中显式上报的 host 标签；仅影响节点身份与 UI 分组，不改变 peer 网络地址</td>
 </tr>
 <tr>
 <td><code>MASTER_ADDR</code> / <code>MASTER_PORT</code></td>

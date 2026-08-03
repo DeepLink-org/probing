@@ -1650,6 +1650,8 @@
       
         
       
+        
+      
     
     
     
@@ -1719,6 +1721,34 @@
     
   
     训练调试
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/training-placement-validation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    64-rank Placement Validation
   
 
     
@@ -2010,6 +2040,17 @@
     <span class="md-ellipsis">
       
         集群（分布式）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytorch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PyTorch 运行时内部状态
       
     </span>
   </a>
@@ -2364,6 +2405,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#pytorch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PyTorch 运行时内部状态
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#skill" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2646,6 +2698,22 @@
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>probing<span class="w"> </span>-t<span class="w"> </span>rank0:8080<span class="w"> </span>cluster<span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;SELECT _rank, _role, AVG(duration) FROM global.python.comm_collective GROUP BY 1,2&quot;</span>
 </span></code></pre></div>
 <p>进程内等价：<code>probing.query("SELECT … FROM global.python.torch_trace …")</code>（需已注册 peer）。</p>
+<h3 id="pytorch">PyTorch 运行时内部状态<a class="headerlink" href="#pytorch" title="Permanent link">&para;</a></h3>
+<p><code>GET /apis/pythonext/pytorch/runtime-debug</code> 返回两个相互独立的能力快照，供
+<strong>Cluster → Distributed Status</strong> 使用：</p>
+<ul>
+<li>当前连接 rank 的 PyTorch C++ Wait Counter（active 数、调用次数、累计/最大耗时）；</li>
+<li>作业级 torchrun TCPStore key 目录，并分类为 debug worker、rank assignment、
+  role、process group 与 Probing key。</li>
+</ul>
+<p>接口只读。已知运维命名空间只展示短预览，未知 value 默认打码；完整预览必须同时
+传入 <code>?include_values=true</code> 并设置 <code>PROBING_TCPSTORE_INSPECT=1</code>。Wait Counter
+依赖 PyTorch 实验性的 distributed debug worker handler；不支持的版本返回
+<code>available: false</code>，不会影响 TCPStore 快照。旧版 TCPStore binding 如果不能枚举
+key，仍会返回 key 总数，并将 <code>catalog_available</code> 设为 <code>false</code>。此时接口会通过非阻塞
+的 <code>Store.check()</code> 探测已知 torchrun 与 Probing key，以 <code>identified_keys</code> 返回已识别
+数量，并在 <code>facts</code> 中给出 store、rank、node、role 与 restart 上下文。这些条目明确是
+部分目录，不会被包装成 TCPStore 的全部内容。</p>
 <h3 id="skill">诊断 skill<a class="headerlink" href="#skill" title="Permanent link">&para;</a></h3>
 <p>多步 SQL 剧本（CLI、Web Agent、MCP 共用）。来源包括内置 <code>skills/</code> 与已安装包注册的
 <code>probing.skills</code> entry point。</p>

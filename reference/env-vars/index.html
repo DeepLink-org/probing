@@ -1648,6 +1648,8 @@
       
         
       
+        
+      
     
     
     
@@ -1717,6 +1719,34 @@
     
   
     Training Debugging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/training-placement-validation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    64-rank Placement Validation
   
 
     
@@ -2659,8 +2689,13 @@ by subsystem.</p>
 </tr>
 <tr>
 <td><code>PROBING_ADVERTISE_ADDR</code></td>
-<td>Hostname</td>
-<td>Address published to cluster peers when the server binds a wildcard address. Accepts <code>host</code>, <code>host:port</code>, IPv6, or a <code>{port}</code> placeholder. Required when the process hostname is not peer-resolvable.</td>
+<td><code>MASTER_ADDR</code>, then hostname</td>
+<td>Address published to cluster peers when the server binds a wildcard address. Accepts <code>host</code>, <code>host:port</code>, IPv6, or a <code>{port}</code> placeholder. Set it explicitly on multi-homed hosts or when <code>MASTER_ADDR</code> is not the current node's peer-reachable address.</td>
+</tr>
+<tr>
+<td><code>PROBING_NODE_HOST</code></td>
+<td>OS hostname</td>
+<td>Explicit host label reported in cluster heartbeats. Intended for container identity and local logical-node fixtures; it does not change the advertised network address.</td>
 </tr>
 <tr>
 <td><code>PROBING_SERVER_ADDRPATTERN</code></td>
@@ -3009,6 +3044,11 @@ them into a <code>role</code> string like <code>dp=2,pp=1,tp=0</code>.</p>
 <td>—</td>
 <td>Timeout for torchrun distributed store operations.</td>
 </tr>
+<tr>
+<td><code>PROBING_TCPSTORE_INSPECT</code></td>
+<td><code>0</code></td>
+<td>Allow <code>pytorch/runtime-debug?include_values=true</code> to preview otherwise-redacted TCPStore values. The endpoint remains read-only. Use only in trusted environments.</td>
+</tr>
 </tbody>
 </table>
 <h3 id="megatron-autostart">Megatron autostart<a class="headerlink" href="#megatron-autostart" title="Permanent link">&para;</a></h3>
@@ -3229,6 +3269,16 @@ These variables are read by PyTorch, not Probing, but should be set before
 <td><code>PROBING_FANOUT_STRICT</code></td>
 <td>unset</td>
 <td>When <code>1</code> or <code>true</code>, any federated peer failure or dropped batch fails the whole query instead of returning partial results.</td>
+</tr>
+<tr>
+<td><code>PROBING_STACK_FANOUT_CONCURRENCY</code></td>
+<td><code>32</code></td>
+<td>Max concurrent peer captures for Distributed stacks.</td>
+</tr>
+<tr>
+<td><code>PROBING_STACK_FANOUT_DEADLINE_SEC</code></td>
+<td><code>15</code></td>
+<td>Overall Distributed stacks fan-out deadline. Completed peers are returned as a partial flamegraph when the deadline expires.</td>
 </tr>
 <tr>
 <td><code>PROBING_NCCL_CHUNK_BYTES</code></td>
