@@ -4,7 +4,9 @@
 use std::fmt;
 use std::sync::Arc;
 
-use probing_core::core::cluster::{reset_cluster_for_tests, update_node};
+use probing_core::core::cluster::{
+    reset_cluster_for_tests, update_node, HIERARCHICAL_METADATA_UNAVAILABLE,
+};
 use probing_core::core::federation::{
     set_remote_query_hook, take_fanout_stats, FanoutScope, FanoutStats, PeerQueryOutcome,
     PeerQueryTransport, FEDERATION_TAG_COLUMNS, GLOBAL_CATALOG, PROBE_ADDR_COL, PROBE_HOST_COL,
@@ -354,6 +356,36 @@ async fn global_and_probe_return_same_ranks_without_peers() {
         df_col_i32(&probe_df, "rank"),
         df_col_i32(&global_df, "rank")
     );
+}
+
+#[tokio::test]
+async fn global_query_with_remote_peer_missing_hierarchical_metadata_fails_closed() {
+    let _lock = federation_test_lock().await;
+    reset_cluster_for_tests();
+    set_remote_query_hook(None);
+    std::env::set_var("PROBING_ADDRESS", "127.0.0.1:19999");
+    std::env::set_var("PROBING_CLUSTER_FANOUT_HIERARCHICAL", "1");
+    update_node(Node {
+        host: "peer-host".into(),
+        addr: "127.0.0.1:20001".into(),
+        rank: Some(1),
+        ..Default::default()
+    });
+
+    let engine = build_demo_engine().await;
+    let error = engine
+        .async_query("SELECT rank FROM global.demo.metrics")
+        .await
+        .expect_err("remote fan-out with incomplete metadata must fail closed");
+    assert!(
+        error
+            .to_string()
+            .contains(HIERARCHICAL_METADATA_UNAVAILABLE),
+        "unexpected error: {error}"
+    );
+
+    std::env::remove_var("PROBING_CLUSTER_FANOUT_HIERARCHICAL");
+    reset_cluster_for_tests();
 }
 
 #[tokio::test]

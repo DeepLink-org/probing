@@ -310,6 +310,9 @@ impl ProbeClusterExecutor {
         let resolved = resolve_fanout_scope(current_fanout_scope());
         match resolved {
             FanoutScope::Coordinator => {
+                if remote_peers_excluding_local().is_empty() {
+                    return Ok(Vec::new());
+                }
                 if !hierarchical_metadata_available() {
                     return Err(hierarchical_metadata_unavailable_err().into());
                 }
@@ -319,6 +322,9 @@ impl ProbeClusterExecutor {
                 ))
             }
             FanoutScope::Node => {
+                if remote_peers_excluding_local().is_empty() {
+                    return Ok(Vec::new());
+                }
                 if !hierarchical_metadata_available() {
                     return Err(hierarchical_metadata_unavailable_err().into());
                 }
