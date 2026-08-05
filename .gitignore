@@ -19,6 +19,7 @@ probing.egg-info/
 .idea/
 app/dist/
 dist/
+python/probing/bundled_web/
 .python-version
 report.json
 pkg/
