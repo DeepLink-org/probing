@@ -654,6 +654,8 @@
       
         
       
+        
+      
     
     
     
@@ -706,6 +708,34 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guide/web-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Next Web UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -2304,7 +2334,11 @@ Status</strong> 提供真实 rendezvous TCPStore。Wait Counter 不会被伪造�
 <p>页面摘要显示 <code>8 hosts</code>、<code>64 / 64 ranks</code>、<code>DP8</code>、<code>PP4</code>、<code>TP2</code>。
 截图中选中了 rank 0。渲染状态中有 1 个焦点方格、1 个额外 TP 方格、
 3 个额外 PP 方格和 7 个额外 DP 方格；加上焦点方格后，通信组大小分别为
-2、4、8。</p>
+2、4、8。CPU mock 还会通过 <code>python.comm_collective</code> 表上报三个通信组的
+collective 样本。右侧联动证据必须显示当前节点 endpoint、运行状态、heartbeat
+新鲜度和该 rank 的 step 时间；TP / DP / PP 性能只聚合
+<code>participate_ranks</code> 与上述成员集合完全一致的样本。<code>This node</code> 范围下的 coverage
+允许小于组大小，切换到 <code>Cluster</code> 后才显式 fan-out，不把局部样本伪装成完整集群数据。</p>
 <p><img alt="64-rank、TP2、PP4、DP8 的 Training Placement" src="../../../assets/screenshots/training-placement-64-ranks-tp2-pp4-dp8.jpg" /></p>
 <h2 id="_3">自动化检查<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
 <p>Web 单元测试构造相同的 64 个节点，校验机器、rank 和并行维度推导；fake

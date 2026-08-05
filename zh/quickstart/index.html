@@ -800,6 +800,8 @@
       
         
       
+        
+      
     
     
     
@@ -852,6 +854,34 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/web-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Next Web UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -2426,6 +2456,13 @@ backtrace、skill）在服务器运行后全平台通用。</p>
 </span></code></pre></div>
 <h3 id="gpu">GPU 内存在增长<a class="headerlink" href="#gpu" title="Permanent link">&para;</a></h3>
 <p>内存随 step 不断增长——泄漏或累积。查询 torch_trace 表看每步分配趋势：</p>
+<p>在 Next Web UI 中，从 <strong>Advanced analysis</strong> 打开 <strong>Memory</strong>。这个页面同时服务于
+训练和推理：设备图分别展示最新采样值、所选时间窗口内的最高采样值、容量和当前
+余量。选择一张 GPU 后，其 Rank、Host 和设备编号会作为调查上下文跨页面保留。
+Training placement 使用同一份“当前值 / 容量”数据控制每张卡的颜色深浅；TP、DP、
+PP 仍由带文字的虚线边框表达，避免两种语义共用一种颜色。
+只有采集到 <code>python.torch_trace</code> 时，页面才展示 PyTorch allocator 和模块分配证据；
+空白数据不能被解释为“没有显存问题”。</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
 </span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="s2">  SELECT local_step, AVG(allocated) as avg_mb, MAX(allocated_delta) as max_delta_mb</span>
 </span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="s2">  FROM python.torch_trace</span>

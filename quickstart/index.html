@@ -798,6 +798,8 @@
       
         
       
+        
+      
     
     
     
@@ -850,6 +852,34 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/web-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Next Web UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -2435,6 +2465,15 @@ fine:</p>
 <h3 id="gpu-memory-is-growing">GPU memory is growing<a class="headerlink" href="#gpu-memory-is-growing" title="Permanent link">&para;</a></h3>
 <p>Memory creeping up step after step — a leak or accumulation pattern. Query the
 torch_trace table to see per-step allocation trends:</p>
+<p>In the Next Web UI, open <strong>Memory</strong> under <strong>Advanced analysis</strong>. The page is
+shared by training and inference workloads. Its device map reports the latest
+sample, the highest sampled value inside the selected window, capacity, and
+current headroom. Select a GPU to pin its rank, host, and device across pages.
+The Training placement uses the same current/capacity ratio as a per-GPU color
+scale; TP/DP/PP membership remains encoded by labeled dashed outlines.
+PyTorch allocator and module-allocation sections appear only when
+<code>python.torch_trace</code> data is available; an empty section is not treated as proof
+that no memory issue exists.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
 </span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="s2">  SELECT local_step, AVG(allocated) as avg_mb, MAX(allocated_delta) as max_delta_mb</span>
 </span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="s2">  FROM python.torch_trace</span>
