@@ -1,16 +1,35 @@
 use dioxus::prelude::*;
 
-use crate::api::{ApiClient, GpuSnapshot};
+use crate::api::{ApiClient, GpuSnapshot, StepMatrixResponse};
 use crate::hooks::{use_page_visible, use_poll_tick_gated};
-use crate::state::investigation::{set_training_step_context, INVESTIGATION_CONTEXT};
+use crate::state::investigation::{
+    set_memory_device_context, set_training_step_context, INVESTIGATION_CONTEXT,
+};
+use crate::state::page_context::publish_page_evidence;
 
+use super::super::capabilities::{capability_status, CapabilityStatus};
 use super::super::components::{
-    EvidenceMetric, EvidenceSection, EvidenceSurface, LoadingPanel, UnavailablePanel, WorkspacePage,
+    EvidenceLink, EvidenceMetric, EvidenceSection, EvidenceSurface, InlineNotice, LoadingPanel,
+    NoticeTone, UnavailablePanel, WorkspacePage,
+};
+use super::super::evidence::{
+    step_matrix_payload, EvidenceBundle, EvidencePayload, EvidenceReceipt, EvidenceRequest,
+    EvidenceScope,
 };
 use super::super::model::{format_duration, format_percent, GpuHealth, StepHealth, StepTrendPoint};
+use super::super::routes::NextRoute;
 use super::super::settings::{DASHBOARD_AUTO_REFRESH, DASHBOARD_MANUAL_REFRESH};
 
 const POLL_MS: u32 = 5_000;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum StepPresentation {
+    Loading,
+    Ready,
+    NotReported,
+    Empty,
+    Failed,
+}
 
 #[component]
 pub fn DashboardPage() -> Element {
@@ -23,94 +42,281 @@ pub fn DashboardPage() -> Element {
             *DASHBOARD_MANUAL_REFRESH.read()
         }
     });
+    let step_request = use_memo(move || {
+        EvidenceRequest::new(
+            u64::from(refresh_key()),
+            EvidenceScope::ClusterFanout,
+            None,
+            INVESTIGATION_CONTEXT.read().clone(),
+        )
+    });
+    let gpu_request = use_memo(move || {
+        EvidenceRequest::new(
+            u64::from(refresh_key()),
+            EvidenceScope::LocalProcess,
+            None,
+            INVESTIGATION_CONTEXT.read().clone(),
+        )
+    });
     let steps = use_resource(move || {
-        let _ = refresh_key();
-        async move { ApiClient::new().fetch_step_matrix(256, false).await }
+        let request = step_request();
+        let available = capability_status(
+            "python",
+            "trace_event",
+            &["record_type", "span_id", "name", "time"],
+        );
+        async move {
+            let matrix = if available.allows_query() {
+                ApiClient::new().fetch_step_matrix(256, true).await
+            } else {
+                Ok(empty_step_matrix())
+            }?;
+            Ok(step_matrix_payload(matrix, &request))
+        }
     });
     let gpu = use_resource(move || {
-        let _ = refresh_key();
-        async move { ApiClient::new().fetch_gpu_latest().await }
+        let request = gpu_request();
+        async move {
+            let snapshots = ApiClient::new().fetch_gpu_latest().await?;
+            let receipt = EvidenceReceipt::local("gpu.utilization", &request, snapshots.len());
+            Ok(EvidencePayload::new(snapshots, receipt))
+        }
     });
     let step_state = steps.read().clone();
     let gpu_state = gpu.read().clone();
     let step_health = step_state
         .as_ref()
         .and_then(|result| result.as_ref().ok())
-        .map(StepHealth::from_matrix);
+        .map(|payload| StepHealth::from_matrix(&payload.value));
     let gpu_health = gpu_state
         .as_ref()
         .and_then(|result| result.as_ref().ok())
-        .map(|snapshots| GpuHealth::from_snapshots(snapshots));
+        .map(|payload| GpuHealth::from_snapshots(&payload.value));
+    let step_matrix = step_state
+        .as_ref()
+        .and_then(|result| result.as_ref().ok())
+        .map(|payload| &payload.value);
+    let step_scope = step_scope_label(step_matrix);
+    let step_partial = step_matrix.is_some_and(|matrix| matrix.partial);
     let poll_label = if *DASHBOARD_AUTO_REFRESH.read() {
         format!("Live · {}s", POLL_MS / 1000)
     } else {
         "Manual refresh".to_string()
     };
+    let step_source = capability_status(
+        "python",
+        "trace_event",
+        &["record_type", "span_id", "name", "time"],
+    );
+    let step_presentation = dashboard_step_presentation(step_source, step_state.as_ref());
+    let bundle_request = step_request();
+    let bundle_step_state = step_state.clone();
+    let bundle_gpu_state = gpu_state.clone();
+    use_effect(move || {
+        if let Some(snapshot) = dashboard_evidence_bundle(
+            &bundle_request,
+            bundle_step_state.as_ref(),
+            bundle_gpu_state.as_ref(),
+        ) {
+            publish_page_evidence(
+                "dashboard",
+                &crate::state::investigation::investigation_context_key(&bundle_request.context),
+                bundle_request.requested_at_ms,
+                snapshot,
+            );
+        }
+    });
+    let step_notice = match step_presentation {
+        StepPresentation::NotReported => Some((
+            "Training step source not reported".to_string(),
+            "Dashboard is showing process-local accelerator evidence only.".to_string(),
+            NoticeTone::Info,
+        )),
+        StepPresentation::Empty => Some((
+            "No completed training steps".to_string(),
+            "The cluster step request completed but returned no train.step samples.".to_string(),
+            NoticeTone::Info,
+        )),
+        StepPresentation::Failed => Some((
+            "Training step evidence unavailable".to_string(),
+            step_state
+                .as_ref()
+                .and_then(|result| result.as_ref().err())
+                .map(|error| error.display_message())
+                .unwrap_or_else(|| "The cluster step request failed.".to_string()),
+            NoticeTone::Warning,
+        )),
+        StepPresentation::Loading | StepPresentation::Ready => None,
+    };
 
     rsx! {
         WorkspacePage {
             title: "Dashboard".to_string(),
-            subtitle: "Latest step and accelerator samples from this node.".to_string(),
+            subtitle: "Each panel states its collection scope; cluster and process-local values are not combined.".to_string(),
             actions: rsx! {
                 span { class: "text-xs text-gray-500", "{poll_label}" }
             },
 
+            if let Some((title, detail, tone)) = step_notice {
+                InlineNotice {
+                    title,
+                    detail,
+                    tone,
+                }
+            }
+
             EvidenceSurface {
-                div { class: "grid items-start xl:grid-cols-2",
-                    EvidenceSection {
-                        title: "Step time".to_string(),
-                        match step_state.as_ref() {
-                            None => rsx! { LoadingPanel { label: "Loading training steps".to_string() } },
-                            Some(Err(error)) => rsx! { UnavailablePanel {
-                                label: "Step samples unavailable".to_string(),
-                                detail: error.display_message(),
-                            }},
-                            Some(Ok(matrix)) if matrix.samples.is_empty() => rsx! { UnavailablePanel {
-                                label: "No train.step spans yet".to_string(),
-                                detail: "No completed step sample was returned.".to_string(),
-                            }},
-                            Some(Ok(_)) => rsx! { StepTimePanel { health: step_health.clone().unwrap_or_default() } },
+                div { class: if matches!(step_presentation, StepPresentation::Ready | StepPresentation::Loading) { "grid items-start xl:grid-cols-2" } else { "grid items-start" },
+                    if step_presentation == StepPresentation::Ready {
+                        EvidenceSection {
+                        title: "Cluster step time".to_string(),
+                        subtitle: Some("Completed train.step samples aggregated across the returned ranks.".to_string()),
+                        actions: rsx! {
+                            ScopeBadge { label: step_scope.clone() }
+                            if step_partial {
+                                span { class: "rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800", "Partial" }
+                            }
+                        },
+                        StepTimePanel { health: step_health.clone().unwrap_or_default() }
+                        }
+                    } else if step_presentation == StepPresentation::Loading {
+                        EvidenceSection {
+                            title: "Cluster step evidence".to_string(),
+                            subtitle: Some("One request supplies both the trend and rank comparison below.".to_string()),
+                            LoadingPanel { label: "Loading training steps".to_string() }
                         }
                     }
-                    div { class: "border-t border-gray-200 xl:border-l xl:border-t-0",
+                    div { class: if matches!(step_presentation, StepPresentation::Ready | StepPresentation::Loading) { "border-t border-gray-200 xl:border-l xl:border-t-0" } else { "" },
                         EvidenceSection {
-                            title: "GPU load".to_string(),
+                            title: "Local GPU load".to_string(),
+                            subtitle: Some("Latest accelerator samples exposed by the current server process only.".to_string()),
+                            actions: rsx! {
+                                ScopeBadge { label: "Process-local".to_string() }
+                                EvidenceLink { route: NextRoute::Memory {}, label: "Open Memory →".to_string() }
+                            },
                             match gpu_state.as_ref() {
                                 None => rsx! { LoadingPanel { label: "Loading GPU samples".to_string() } },
                                 Some(Err(error)) => rsx! { UnavailablePanel {
                                     label: "GPU samples unavailable".to_string(),
                                     detail: error.display_message(),
                                 }},
-                                Some(Ok(snapshots)) if snapshots.is_empty() => rsx! { UnavailablePanel {
+                                Some(Ok(payload)) if payload.value.is_empty() => rsx! { UnavailablePanel {
                                     label: "No GPU samples".to_string(),
                                     detail: "The latest utilization query returned no devices.".to_string(),
                                 }},
-                                Some(Ok(snapshots)) => rsx! { GpuLoadPanel {
-                                    snapshots: snapshots.clone(),
+                                Some(Ok(payload)) => rsx! { GpuLoadPanel {
+                                    snapshots: payload.value.clone(),
                                     health: gpu_health.clone().unwrap_or_default(),
                                 }},
                             }
                         }
                     }
                 }
-                EvidenceSection {
-                    title: "Latest rank step time".to_string(),
-                    divided: true,
-                    match step_state.as_ref() {
-                        None => rsx! { LoadingPanel { label: "Loading rank samples".to_string() } },
-                        Some(Err(error)) => rsx! { UnavailablePanel {
-                            label: "Rank samples unavailable".to_string(),
-                            detail: error.display_message(),
-                        }},
-                        Some(Ok(matrix)) if matrix.samples.is_empty() => rsx! { UnavailablePanel {
-                            label: "No comparable rank samples".to_string(),
-                            detail: "No completed step sample was returned.".to_string(),
-                        }},
-                        Some(Ok(_)) => rsx! { RankLatencyPanel { health: step_health.clone().unwrap_or_default() } },
+                if step_presentation == StepPresentation::Ready {
+                    EvidenceSection {
+                        title: "Cluster rank step time".to_string(),
+                        subtitle: Some("Latest completed train.step duration for each rank present in the cluster response.".to_string()),
+                        actions: rsx! {
+                            ScopeBadge { label: step_scope.clone() }
+                            if step_partial {
+                                span { class: "rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800", "Partial" }
+                            }
+                        },
+                        divided: true,
+                        RankLatencyPanel { health: step_health.clone().unwrap_or_default() }
                     }
                 }
             }
         }
+    }
+}
+
+fn dashboard_step_presentation(
+    source: CapabilityStatus,
+    state: Option<&crate::utils::error::Result<EvidencePayload<StepMatrixResponse>>>,
+) -> StepPresentation {
+    match source {
+        CapabilityStatus::Checking => StepPresentation::Loading,
+        CapabilityStatus::Missing => StepPresentation::NotReported,
+        CapabilityStatus::Available | CapabilityStatus::CatalogUnavailable => match state {
+            None => StepPresentation::Loading,
+            Some(Err(_)) => StepPresentation::Failed,
+            Some(Ok(payload)) if payload.value.samples.is_empty() => StepPresentation::Empty,
+            Some(Ok(_)) => StepPresentation::Ready,
+        },
+    }
+}
+
+fn dashboard_evidence_bundle(
+    request: &EvidenceRequest,
+    steps: Option<&crate::utils::error::Result<EvidencePayload<StepMatrixResponse>>>,
+    gpu: Option<&crate::utils::error::Result<EvidencePayload<Vec<GpuSnapshot>>>>,
+) -> Option<String> {
+    let (steps, gpu) = (steps?, gpu?);
+    let mut bundle = EvidenceBundle::new("dashboard", request);
+    match steps {
+        Ok(payload) => bundle.push(
+            &payload.receipt,
+            super::super::page_snapshot::format_step_matrix(&payload.value, request),
+        ),
+        Err(error) => bundle.push_failure("train.step", &error.display_message()),
+    }
+    match gpu {
+        Ok(payload) => bundle.push(&payload.receipt, gpu_snapshot_preview(&payload.value)),
+        Err(error) => bundle.push_failure("gpu.utilization", &error.display_message()),
+    }
+    Some(bundle.render())
+}
+
+fn gpu_snapshot_preview(snapshots: &[GpuSnapshot]) -> String {
+    if snapshots.is_empty() {
+        return "(empty)".into();
+    }
+    snapshots
+        .iter()
+        .map(|snapshot| {
+            format!(
+                "GPU {} · memory {:.1}% · compute {}",
+                snapshot.device_id,
+                snapshot.mem_used_pct,
+                snapshot
+                    .gpu_util_pct
+                    .map(|value| format!("{value:.1}%"))
+                    .unwrap_or_else(|| "not reported".into()),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn empty_step_matrix() -> StepMatrixResponse {
+    StepMatrixResponse {
+        samples: Vec::new(),
+        rank_count: 0,
+        step_count: 0,
+        cluster: true,
+        partial: false,
+        nodes_queried: 0,
+        nodes_failed: Vec::new(),
+    }
+}
+
+#[component]
+fn ScopeBadge(label: String) -> Element {
+    rsx! {
+        span {
+            class: "rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-700",
+            aria_label: "Evidence scope: {label}",
+            "{label}"
+        }
+    }
+}
+
+fn step_scope_label(matrix: Option<&StepMatrixResponse>) -> String {
+    match matrix {
+        Some(matrix) if matrix.cluster => format!("Cluster · {} observed ranks", matrix.rank_count),
+        Some(_) => "Process-local response".to_string(),
+        None => "Cluster requested".to_string(),
     }
 }
 
@@ -129,10 +335,10 @@ fn StepTimePanel(health: StepHealth) -> Element {
     rsx! {
         div { class: "space-y-4",
             div { class: "grid grid-cols-4 divide-x divide-gray-200",
-                EvidenceMetric { label: "Latest step", value: latest_step, detail: None }
-                EvidenceMetric { label: "Median", value: format_duration(health.median_ms), detail: None }
-                EvidenceMetric { label: "P95", value: format_duration(health.p95_ms), detail: None }
-                EvidenceMetric { label: "Maximum", value: maximum, detail: maximum_detail }
+                EvidenceMetric { label: "Latest complete step", value: latest_step, detail: None }
+                EvidenceMetric { label: "Rank median", value: format_duration(health.median_ms), detail: None }
+                EvidenceMetric { label: "Rank P95", value: format_duration(health.p95_ms), detail: None }
+                EvidenceMetric { label: "Slowest rank", value: maximum, detail: maximum_detail }
             }
             StepTrendChart { points: health.trend }
         }
@@ -256,7 +462,6 @@ pub(super) fn StepTrendChart(points: Vec<StepTrendPoint>) -> Element {
 
 #[component]
 fn RankLatencyPanel(health: StepHealth) -> Element {
-    let coverage = format!("{} / {}", health.observed_ranks, health.expected_ranks);
     let slowest = health
         .slowest_rank
         .map(|rank| format!("R{rank}"))
@@ -270,7 +475,7 @@ fn RankLatencyPanel(health: StepHealth) -> Element {
     rsx! {
         div { class: "space-y-4",
             div { class: "grid grid-cols-4 divide-x divide-gray-200",
-                EvidenceMetric { label: "Ranks", value: coverage, detail: None }
+                EvidenceMetric { label: "Observed ranks", value: health.observed_ranks.to_string(), detail: None }
                 EvidenceMetric { label: "Median", value: format_duration(health.median_ms), detail: None }
                 EvidenceMetric { label: "P95", value: format_duration(health.p95_ms), detail: None }
                 EvidenceMetric { label: "Maximum rank", value: slowest, detail: slowest_detail }
@@ -280,7 +485,7 @@ fn RankLatencyPanel(health: StepHealth) -> Element {
                     class: "rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900",
                     summary {
                         class: "cursor-pointer font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:ring-offset-2",
-                        "{health.nodes_failed.len()} node(s) did not return step samples · show nodes"
+                        "{health.nodes_failed.len()} peer endpoint(s) did not return step samples · show peers"
                     }
                     p { class: "mt-1 break-all font-mono text-xs", "{failed_nodes_title}" }
                 }
@@ -424,11 +629,21 @@ fn GpuLoadRow(snapshot: GpuSnapshot) -> Element {
     let util_width = format!("width: {:.1}%;", util.unwrap_or_default().clamp(0.0, 100.0));
     let memory_width = format!("width: {:.1}%;", memory.clamp(0.0, 100.0));
     let device_label = format!("GPU {}", snapshot.device_id);
+    let device_id = snapshot.device_id;
+    let selected = INVESTIGATION_CONTEXT.read().device_id == Some(device_id);
 
     rsx! {
-        div {
-            class: "grid grid-cols-[3.5rem_minmax(0,1fr)_3.5rem_minmax(0,1fr)_3.5rem] items-center gap-2",
+        button {
+            r#type: "button",
+            class: if selected {
+                "grid w-full grid-cols-[3.5rem_minmax(0,1fr)_3.5rem_minmax(0,1fr)_3.5rem] items-center gap-2 rounded bg-blue-50 px-1 py-1 text-left ring-1 ring-blue-200"
+            } else {
+                "grid w-full grid-cols-[3.5rem_minmax(0,1fr)_3.5rem_minmax(0,1fr)_3.5rem] items-center gap-2 rounded px-1 py-1 text-left hover:bg-blue-50/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            },
             title: "{snapshot.name} · {snapshot.backend}",
+            aria_label: "Select {device_label} for Memory evidence",
+            aria_pressed: selected.to_string(),
+            onclick: move |_| set_memory_device_context(None, None, device_id),
             span { class: "truncate font-mono text-xs text-gray-600", "{device_label}" }
             div { class: "h-2 rounded-full bg-gray-100",
                 div { class: "h-full rounded-full bg-blue-500", style: "{util_width}" }
@@ -439,5 +654,56 @@ fn GpuLoadRow(snapshot: GpuSnapshot) -> Element {
             }
             span { class: "text-right text-xs tabular-nums text-gray-600", "{format_percent(Some(memory))}" }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn matrix(cluster: bool, rank_count: usize) -> StepMatrixResponse {
+        StepMatrixResponse {
+            samples: Vec::new(),
+            rank_count,
+            step_count: 0,
+            cluster,
+            partial: false,
+            nodes_queried: 8,
+            nodes_failed: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn scope_label_follows_the_returned_response_scope() {
+        let cluster = matrix(true, 64);
+        let local = matrix(false, 1);
+
+        assert_eq!(
+            step_scope_label(Some(&cluster)),
+            "Cluster · 64 observed ranks"
+        );
+        assert_eq!(step_scope_label(Some(&local)), "Process-local response");
+        assert_eq!(step_scope_label(None), "Cluster requested");
+    }
+
+    #[test]
+    fn one_step_source_state_drives_both_dashboard_views() {
+        let request =
+            EvidenceRequest::new(1, EvidenceScope::ClusterFanout, None, Default::default());
+        let empty = Ok(step_matrix_payload(matrix(true, 0), &request));
+        let failed = Err(crate::utils::error::AppError::Api("fan-out failed".into()));
+
+        assert_eq!(
+            dashboard_step_presentation(CapabilityStatus::Missing, None),
+            StepPresentation::NotReported
+        );
+        assert_eq!(
+            dashboard_step_presentation(CapabilityStatus::Available, Some(&empty)),
+            StepPresentation::Empty
+        );
+        assert_eq!(
+            dashboard_step_presentation(CapabilityStatus::Available, Some(&failed)),
+            StepPresentation::Failed
+        );
     }
 }

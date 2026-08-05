@@ -46,7 +46,11 @@ local_rank = rank % 8
 页面摘要显示 `8 hosts`、`64 / 64 ranks`、`DP8`、`PP4`、`TP2`。
 截图中选中了 rank 0。渲染状态中有 1 个焦点方格、1 个额外 TP 方格、
 3 个额外 PP 方格和 7 个额外 DP 方格；加上焦点方格后，通信组大小分别为
-2、4、8。
+2、4、8。CPU mock 还会通过 `python.comm_collective` 表上报三个通信组的
+collective 样本。右侧联动证据必须显示当前节点 endpoint、运行状态、heartbeat
+新鲜度和该 rank 的 step 时间；TP / DP / PP 性能只聚合
+`participate_ranks` 与上述成员集合完全一致的样本。`This node` 范围下的 coverage
+允许小于组大小，切换到 `Cluster` 后才显式 fan-out，不把局部样本伪装成完整集群数据。
 
 ![64-rank、TP2、PP4、DP8 的 Training Placement](../assets/screenshots/training-placement-64-ranks-tp2-pp4-dp8.jpg)
 

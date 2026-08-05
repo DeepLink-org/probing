@@ -7,7 +7,7 @@ use super::pages::{
     DistributedPage as Distributed, DistributedPythonStackPage as DistributedPythonStack,
     DistributedStackPage as DistributedStack, DistributedStatusPage as DistributedStatus,
     ExplorePage as Explore, InferencePage as Inference, InvestigatePage as Investigate,
-    PerfettoPage as Perfetto, ProcessTimelinePage as ProcessTimeline,
+    MemoryPage as Memory, PerfettoPage as Perfetto, ProcessTimelinePage as ProcessTimeline,
     ProfileViewPage as ProfileView, ProfilesPage as Profiles, ProfilesPage as ProfilingLegacy,
     PulsingPage as Pulsing, PythonPage as Python, RlSpansPage as RlSpans, RlTrainPage as RlTrain,
     RolloutPage as Rollout, RolloutPage as RolloutLegacy, SpansPage as Spans,
@@ -73,6 +73,9 @@ pub enum NextRoute {
 
         #[route("/spans")]
         Spans {},
+
+        #[route("/memory")]
+        Memory {},
 
         #[route("/traces")]
         TracesLegacy {},
@@ -140,6 +143,7 @@ mod tests {
             "/python",
             "/traces",
             "/spans",
+            "/memory",
             "/chrome-tracing",
             "/pulsing",
             "/training",
@@ -156,5 +160,16 @@ mod tests {
                 "{path} unexpectedly resolved to the Classic fallback"
             );
         }
+    }
+
+    #[test]
+    fn route_context_support_matches_actual_page_consumers() {
+        assert!(NextRoute::Training {}.investigation_support().rank);
+        assert!(!NextRoute::Training {}.investigation_support().step);
+        assert!(NextRoute::Memory {}.investigation_support().device);
+        assert!(NextRoute::Memory {}.investigation_support().host);
+        assert!(NextRoute::Spans {}.investigation_support().trace);
+        assert!(NextRoute::Spans {}.investigation_support().step);
+        assert!(NextRoute::Cluster {}.investigation_support().host);
     }
 }
