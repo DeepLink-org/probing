@@ -1,8 +1,9 @@
 use dioxus::prelude::*;
-use dioxus_router::Link;
+use dioxus_router::use_route;
 
 use crate::components::icon::Icon;
 use crate::state::investigation::{clear_investigation_context, INVESTIGATION_CONTEXT};
+use crate::state::investigation_url::context_to_search;
 use crate::ui_version::{href_for, UiVersion};
 
 use super::routes::NextRoute;
@@ -69,6 +70,7 @@ pub fn WorkspacePage(
     #[props(optional)] actions: Option<Element>,
     #[props(default = false)] fill: bool,
 ) -> Element {
+    let route = use_route::<NextRoute>();
     let class = if fill {
         "flex h-full min-h-0 flex-col gap-4"
     } else {
@@ -77,7 +79,7 @@ pub fn WorkspacePage(
     rsx! {
         div { class,
             NextPageHeader { title, subtitle, actions }
-            InvestigationBar {}
+            InvestigationBar { support: route.investigation_support() }
             {children}
         }
     }
@@ -86,7 +88,7 @@ pub fn WorkspacePage(
 /// Persistent, URL-backed evidence selection shared by diagnostic pages.
 /// It stays deliberately flat so context is visible without becoming another card.
 #[component]
-pub fn InvestigationBar() -> Element {
+pub fn InvestigationBar(support: super::page_registry::InvestigationSupport) -> Element {
     let context = INVESTIGATION_CONTEXT.read().clone();
     if context.is_empty() {
         return rsx! {};
@@ -98,35 +100,53 @@ pub fn InvestigationBar() -> Element {
             tid: tid.to_string(),
         })
         .unwrap_or(NextRoute::Stack {});
+    let unused_fields = unused_context_fields(&context, support);
+    let unused_label = unused_fields.join(", ");
 
     rsx! {
         div {
             class: "flex min-h-9 flex-wrap items-center gap-x-3 gap-y-1 border-y border-blue-100 bg-blue-50/70 px-3 py-1.5 text-xs",
             aria_live: "polite",
             div { class: "flex min-w-0 flex-1 flex-wrap items-center gap-1.5",
-                span { class: "mr-1 font-semibold uppercase tracking-wide text-blue-700", "Pinned" }
+                span { class: "mr-1 font-semibold uppercase tracking-wide text-blue-700",
+                    "Pinned context"
+                }
+                if let Some(pid) = context.pid {
+                    ContextChip { label: format!("pid {pid}"), available_here: support.pid }
+                }
                 if let Some(step) = context.local_step {
-                    ContextChip { label: format!("step {step}") }
+                    ContextChip { label: format!("step {step}"), available_here: support.step }
                 }
                 if let Some(rank) = context.rank {
-                    ContextChip { label: format!("rank {rank}") }
+                    ContextChip { label: format!("rank {rank}"), available_here: support.rank }
                 }
-                if let Some(host) = context.host {
-                    ContextChip { label: host }
+                if let Some(ref host) = context.host {
+                    ContextChip { label: host.clone(), available_here: support.host }
+                }
+                if let Some(device_id) = context.device_id {
+                    ContextChip { label: format!("GPU {device_id}"), available_here: support.device }
                 }
                 if let Some(trace_id) = context.trace_id {
-                    ContextChip { label: format!("trace {trace_id}") }
+                    ContextChip { label: format!("trace {trace_id}"), available_here: support.trace }
                 }
                 if let Some(tid) = context.tid {
-                    ContextChip { label: format!("thread {tid}") }
+                    ContextChip { label: format!("thread {tid}"), available_here: support.tid }
                 }
                 if let Some(span) = context.span_name {
-                    ContextChip { label: span }
+                    ContextChip { label: span, available_here: support.span }
+                }
+                if !unused_fields.is_empty() {
+                    span { class: "ml-1 text-gray-500",
+                        "Not used here: {unused_label}"
+                    }
                 }
             }
             nav { class: "flex shrink-0 items-center gap-1", aria_label: "Continue investigation",
                 if context.rank.is_some() || context.local_step.is_some() {
                     ContextLink { route: NextRoute::Training {}, label: "Training" }
+                }
+                if context.rank.is_some() || context.host.is_some() || context.device_id.is_some() {
+                    ContextLink { route: NextRoute::Memory {}, label: "Memory" }
                 }
                 ContextLink { route: NextRoute::Spans {}, label: "Tracing" }
                 ContextLink { route: stack_route, label: "Stacks" }
@@ -145,21 +165,99 @@ pub fn InvestigationBar() -> Element {
 }
 
 #[component]
-fn ContextChip(label: String) -> Element {
+fn ContextChip(label: String, available_here: bool) -> Element {
+    let class = if available_here {
+        "max-w-80 break-all rounded bg-white px-1.5 py-0.5 font-mono leading-5 text-blue-900 ring-1 ring-blue-100"
+    } else {
+        "max-w-80 break-all rounded bg-gray-50 px-1.5 py-0.5 font-mono leading-5 text-gray-500 ring-1 ring-gray-200"
+    };
     rsx! {
-        span { class: "max-w-80 break-all rounded bg-white px-1.5 py-0.5 font-mono leading-5 text-blue-900 ring-1 ring-blue-100", "{label}" }
+        span {
+            class,
+            title: if available_here { "This page has evidence that can use this coordinate" } else { "This page does not use this coordinate" },
+            "{label}"
+        }
     }
+}
+
+fn unused_context_fields(
+    context: &crate::state::investigation::InvestigationContext,
+    support: super::page_registry::InvestigationSupport,
+) -> Vec<&'static str> {
+    let mut fields = Vec::new();
+    if context.pid.is_some() && !support.pid {
+        fields.push("pid");
+    }
+    if context.tid.is_some() && !support.tid {
+        fields.push("thread");
+    }
+    if context.rank.is_some() && !support.rank {
+        fields.push("rank");
+    }
+    if context.host.is_some() && !support.host {
+        fields.push("host");
+    }
+    if context.device_id.is_some() && !support.device {
+        fields.push("GPU");
+    }
+    if context.trace_id.is_some() && !support.trace {
+        fields.push("trace");
+    }
+    if context.span_name.is_some() && !support.span {
+        fields.push("span");
+    }
+    if context.local_step.is_some() && !support.step {
+        fields.push("step");
+    }
+    fields
 }
 
 #[component]
 fn ContextLink(route: NextRoute, label: &'static str) -> Element {
     rsx! {
-        Link {
-            to: route,
-            class: "rounded px-1.5 py-1 font-medium text-blue-700 hover:bg-white hover:text-blue-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600",
-            "{label}"
+        EvidenceLink {
+            route,
+            label: label.to_string(),
+            class_name: "rounded px-1.5 py-1 font-medium text-blue-700 hover:bg-white hover:text-blue-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600".to_string(),
         }
     }
+}
+
+/// A durable cross-page evidence link. The rendered href includes the complete
+/// investigation coordinates, so regular clicks, copied links, and new tabs
+/// all continue from the same evidence selection.
+#[component]
+pub fn EvidenceLink(
+    route: NextRoute,
+    label: String,
+    #[props(default = String::from("text-xs font-medium text-blue-600 hover:underline"))]
+    class_name: String,
+) -> Element {
+    let context = INVESTIGATION_CONTEXT.read().clone();
+    let href = evidence_href(&route, &context);
+    rsx! {
+        a { href, class: "{class_name}", "{label}" }
+    }
+}
+
+pub fn evidence_href(
+    route: &NextRoute,
+    context: &crate::state::investigation::InvestigationContext,
+) -> String {
+    let path = route.to_string();
+    append_evidence_context(href_for(&path, UiVersion::Next), context)
+}
+
+fn append_evidence_context(
+    mut href: String,
+    context: &crate::state::investigation::InvestigationContext,
+) -> String {
+    let query = context_to_search(context);
+    if !query.is_empty() {
+        href.push('&');
+        href.push_str(&query);
+    }
+    href
 }
 
 /// A single page-level evidence plane. Related sections should use dividers
@@ -368,5 +466,49 @@ pub fn ClassicLink(path: String, label: String) -> Element {
             "{label}"
             span { aria_hidden: "true", "↗" }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::investigation::InvestigationContext;
+
+    #[test]
+    fn evidence_links_are_shareable_with_the_same_coordinates() {
+        let context = InvestigationContext {
+            rank: Some(7),
+            device_id: Some(3),
+            local_step: Some(31),
+            ..Default::default()
+        };
+        let href = append_evidence_context("/memory?ui=next".to_string(), &context);
+
+        assert!(href.contains("/memory?ui=next"));
+        assert!(href.contains("rank=7"));
+        assert!(href.contains("gpu=3"));
+        assert!(href.contains("step=31"));
+    }
+
+    #[test]
+    fn unused_context_fields_are_named_instead_of_counted() {
+        let context = InvestigationContext {
+            rank: Some(7),
+            host: Some("node-1".to_string()),
+            device_id: Some(3),
+            local_step: Some(31),
+            span_name: Some("train.step".to_string()),
+            ..Default::default()
+        };
+        let support = super::super::page_registry::InvestigationSupport {
+            rank: true,
+            device: true,
+            ..Default::default()
+        };
+
+        assert_eq!(
+            unused_context_fields(&context, support),
+            vec!["host", "span", "step"]
+        );
     }
 }

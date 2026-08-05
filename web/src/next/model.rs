@@ -1,8 +1,72 @@
 //! Pure view models for the next diagnostics UI.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use crate::api::{GpuSnapshot, StepDurationSample, StepMatrixResponse};
+use probing_proto::prelude::Node;
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct RegistryHealth {
+    pub processes: usize,
+    pub hosts: usize,
+    pub observed_ranks: usize,
+    pub expected_ranks: Option<usize>,
+    pub world_sizes: Vec<i32>,
+}
+
+impl RegistryHealth {
+    pub fn from_nodes(nodes: &[Node]) -> Self {
+        let hosts = nodes
+            .iter()
+            .map(|node| node.host.as_str())
+            .filter(|host| !host.trim().is_empty())
+            .collect::<BTreeSet<_>>()
+            .len();
+        let observed_ranks = nodes
+            .iter()
+            .filter_map(|node| node.rank)
+            .collect::<BTreeSet<_>>()
+            .len();
+        let world_sizes = nodes
+            .iter()
+            .filter_map(|node| node.world_size)
+            .filter(|world_size| *world_size > 0)
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        let expected_ranks = if world_sizes.len() == 1 {
+            Some(world_sizes[0] as usize)
+        } else {
+            None
+        };
+
+        Self {
+            processes: nodes.len(),
+            hosts,
+            observed_ranks,
+            expected_ranks,
+            world_sizes,
+        }
+    }
+
+    pub fn rank_coverage(&self) -> String {
+        self.expected_ranks
+            .map(|expected| format!("{} / {expected}", self.observed_ranks))
+            .unwrap_or_else(|| self.observed_ranks.to_string())
+    }
+
+    pub fn world_size_label(&self) -> String {
+        if self.world_sizes.is_empty() {
+            "—".to_string()
+        } else {
+            self.world_sizes
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        }
+    }
+}
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct StepHealth {
@@ -173,6 +237,38 @@ pub fn format_percent(value: Option<f64>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn registry_node(host: &str, rank: Option<i32>, world_size: Option<i32>) -> Node {
+        Node {
+            host: host.to_string(),
+            rank,
+            world_size,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn registry_health_distinguishes_hosts_processes_and_ranks() {
+        let nodes = vec![
+            registry_node("node-a", Some(0), Some(4)),
+            registry_node("node-a", Some(1), Some(4)),
+            registry_node("node-b", Some(2), Some(4)),
+            registry_node("node-b", Some(3), Some(4)),
+        ];
+        let health = RegistryHealth::from_nodes(&nodes);
+        assert_eq!(health.hosts, 2);
+        assert_eq!(health.processes, 4);
+        assert_eq!(health.rank_coverage(), "4 / 4");
+    }
+
+    #[test]
+    fn registry_health_does_not_index_missing_world_size() {
+        let nodes = vec![registry_node("node-a", Some(0), None)];
+        let health = RegistryHealth::from_nodes(&nodes);
+        assert_eq!(health.expected_ranks, None);
+        assert_eq!(health.rank_coverage(), "1");
+        assert_eq!(health.world_size_label(), "—");
+    }
 
     fn sample(rank: i32, step: i64, duration_ms: f64) -> StepDurationSample {
         StepDurationSample {

@@ -11,8 +11,8 @@ const UI_VERSION_KEY: &str = "probing.ui.version";
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum UiVersion {
-    #[default]
     Classic,
+    #[default]
     Next,
 }
 
@@ -80,7 +80,7 @@ fn initial_version() -> UiVersion {
     #[cfg(target_arch = "wasm32")]
     {
         let Some(window) = web_sys::window() else {
-            return UiVersion::Classic;
+            return UiVersion::default();
         };
         if let Ok(search) = window.location().search() {
             if let Some(version) = version_from_search(&search) {
@@ -96,7 +96,7 @@ fn initial_version() -> UiVersion {
             }
         }
     }
-    UiVersion::Classic
+    UiVersion::default()
 }
 
 pub fn activate(version: UiVersion) {
@@ -158,6 +158,12 @@ fn UiVersionSwitch(current: UiVersion) -> Element {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn next_is_the_default_interface() {
+        assert_eq!(UiVersion::default(), UiVersion::Next);
+        assert_eq!(initial_version(), UiVersion::Next);
+    }
 
     #[test]
     fn query_version_has_aliases() {

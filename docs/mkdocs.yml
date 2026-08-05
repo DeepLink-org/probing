@@ -85,6 +85,7 @@ plugins:
             Quick Start: 快速开始
             Core model: 核心模型
             User Guide: 用户指南
+            Next Web UI: Next Web UI
             SQL Analytics: SQL 分析
             Diagnostic Skills: 诊断 Skill
             Memory Analysis: 内存分析
@@ -143,6 +144,7 @@ nav:
     - Core model: guide/concepts.md
   - User Guide:
     - guide/index.md
+    - Next Web UI: guide/web-ui.md
     - SQL Analytics: guide/sql-analytics.md
     - Diagnostic Skills: guide/skills.md
     - Memory Analysis: guide/memory-analysis.md

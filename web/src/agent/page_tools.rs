@@ -6,6 +6,7 @@ use probing_proto::prelude::{DataFrame, Ele};
 use crate::api::ApiClient;
 use crate::app::Route;
 use crate::components::flamegraph::FlamegraphPayload;
+use crate::next::capabilities::capability_available;
 use crate::state::profiling::{
     normalize_profiling_view, PROFILING_PPROF_FREQ, PROFILING_TORCH_ENABLED,
 };
@@ -80,14 +81,16 @@ pub async fn fetch_page_snapshot(route: &Route) -> Result<String> {
             {
                 parts.push(format!("[gpu.utilization]\n{p}"));
             }
-            if let Some(p) = query_preview(
-                &client,
-                "SELECT max(local_step) AS latest_step FROM python.torch_trace",
-                1,
-            )
-            .await
-            {
-                parts.push(format!("[torch_trace]\n{p}"));
+            if capability_available("python", "torch_trace", &["local_step"]).await {
+                if let Some(p) = query_preview(
+                    &client,
+                    "SELECT max(local_step) AS latest_step FROM python.torch_trace",
+                    1,
+                )
+                .await
+                {
+                    parts.push(format!("[torch_trace]\n{p}"));
+                }
             }
         }
         Route::ClusterPage {} => {
@@ -150,7 +153,7 @@ pub async fn fetch_page_snapshot(route: &Route) -> Result<String> {
                 }
             }
             match v {
-                "torch" => {
+                "torch" if capability_available("python", "torch_trace", &["local_step"]).await => {
                     if let Some(p) = query_preview(
                         &client,
                         "SELECT max(local_step) AS latest_step, count(*) AS rows FROM python.torch_trace",
@@ -197,6 +200,12 @@ pub async fn fetch_page_snapshot(route: &Route) -> Result<String> {
             }
         }
         Route::TrainingPage {} => {
+            let collective_available = capability_available(
+                "python",
+                "comm_collective",
+                &["rank", "op", "duration_ms"],
+            )
+            .await;
             if cluster.has_peers() {
                 if let Ok(resp) = client
                     .cluster_query(
@@ -213,7 +222,8 @@ pub async fn fetch_page_snapshot(route: &Route) -> Result<String> {
                         resp.meta.nodes_queried
                     ));
                 }
-            } else if let Some(p) = query_preview(
+            } else if collective_available {
+                if let Some(p) = query_preview(
                 &client,
                 "SELECT rank, op, avg(duration_ms) AS avg_ms, count(*) AS n FROM python.comm_collective GROUP BY rank, op ORDER BY avg_ms DESC LIMIT 8",
                 8,
@@ -221,26 +231,31 @@ pub async fn fetch_page_snapshot(route: &Route) -> Result<String> {
             .await
             {
                 parts.push(format!("[comm_collective by rank]\n{p}"));
+                }
             }
-            if let Some(p) = query_preview(
-                &client,
-                "SELECT max(local_step) AS latest_step FROM python.torch_trace",
-                1,
-            )
-            .await
-            {
-                parts.push(format!("[torch_trace]\n{p}"));
+            if capability_available("python", "torch_trace", &["local_step"]).await {
+                if let Some(p) = query_preview(
+                    &client,
+                    "SELECT max(local_step) AS latest_step FROM python.torch_trace",
+                    1,
+                )
+                .await
+                {
+                    parts.push(format!("[torch_trace]\n{p}"));
+                }
             }
         }
         Route::SpansPage {} | Route::TracesRedirect {} => {
-            if let Some(p) = query_preview(
-                &client,
-                "SELECT record_type, count(*) AS n FROM python.trace_event GROUP BY record_type",
-                8,
-            )
-            .await
-            {
-                parts.push(format!("[trace_event counts]\n{p}"));
+            if capability_available("python", "trace_event", &["record_type"]).await {
+                if let Some(p) = query_preview(
+                    &client,
+                    "SELECT record_type, count(*) AS n FROM python.trace_event GROUP BY record_type",
+                    8,
+                )
+                .await
+                {
+                    parts.push(format!("[trace_event counts]\n{p}"));
+                }
             }
         }
         Route::PulsingPage {} => {

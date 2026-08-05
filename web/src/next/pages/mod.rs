@@ -5,6 +5,7 @@ mod distributed;
 mod explore;
 mod inference;
 mod investigate;
+mod memory;
 mod profiles;
 mod pulsing;
 mod python;
@@ -23,6 +24,7 @@ pub use explore::{ClassicFallbackPage, ExplorePage};
 pub use inference::InferencePage;
 pub use investigate::InvestigatePage;
 pub(crate) use investigate::InvestigateSession;
+pub use memory::MemoryPage;
 pub use profiles::{ChromeTracePage, ProfileViewPage, ProfilesPage};
 pub use pulsing::PulsingPage;
 pub use python::PythonPage;
@@ -33,14 +35,15 @@ pub use tracing::SpansPage;
 pub use training::TrainingPage;
 
 #[cfg(test)]
-mod migration_tests {
-    const NATIVE_PAGES: &[(&str, &str)] = &[
+mod architecture_tests {
+    const WORKSPACE_PAGES: &[(&str, &str)] = &[
         ("dashboard", include_str!("dashboard.rs")),
         ("cluster", include_str!("cluster.rs")),
         ("distributed", include_str!("distributed.rs")),
         ("training", include_str!("training.rs")),
         ("training placement", include_str!("training_placement.rs")),
         ("inference", include_str!("inference.rs")),
+        ("memory", include_str!("memory.rs")),
         ("rl", include_str!("rl.rs")),
         ("profiles", include_str!("profiles.rs")),
         ("stacks", include_str!("stacks.rs")),
@@ -54,8 +57,8 @@ mod migration_tests {
     ];
 
     #[test]
-    fn native_next_pages_do_not_mount_classic_pages() {
-        for (name, source) in NATIVE_PAGES {
+    fn workspace_pages_do_not_import_classic_pages() {
+        for (name, source) in WORKSPACE_PAGES {
             assert!(
                 !source.contains("crate::pages::"),
                 "{name} must not mount a Classic page"
@@ -65,7 +68,7 @@ mod migration_tests {
 
     #[test]
     fn product_pages_share_the_next_workspace_frame() {
-        for (name, source) in NATIVE_PAGES
+        for (name, source) in WORKSPACE_PAGES
             .iter()
             .filter(|(name, _)| *name != "training placement")
         {
@@ -96,7 +99,7 @@ mod migration_tests {
             ),
         ];
 
-        for (name, source) in NATIVE_PAGES.iter().copied().chain(shared_sources) {
+        for (name, source) in WORKSPACE_PAGES.iter().copied().chain(shared_sources) {
             for size in [7, 8, 9, 10] {
                 assert!(
                     !source.contains(&format!("text-[{size}px]")),

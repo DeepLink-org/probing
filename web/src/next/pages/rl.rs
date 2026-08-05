@@ -10,7 +10,8 @@ use crate::state::rl::{RL_EVENT_LIMIT, ROLLOUT_FILTER};
 use crate::utils::tracing_viewer;
 
 use super::super::components::{
-    ActionButton, EvidenceMetric, LoadingPanel, SectionCard, UnavailablePanel, WorkspacePage,
+    ActionButton, EvidenceMetric, InlineNotice, LoadingPanel, NoticeTone, SectionCard,
+    UnavailablePanel, WorkspacePage,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -157,6 +158,8 @@ fn dedupe_and_sort_spans(spans: &mut Vec<SpanInfo>) {
 #[component]
 fn RlEvidenceView(mode: RlMode, evidence: RlEvidence) -> Element {
     let total_spans = count_spans(&evidence.spans);
+    let active_spans = count_active(&evidence.spans);
+    let completed_spans = total_spans.saturating_sub(active_spans);
     let total_events = count_events(&evidence.spans);
     let window = TraceTimeWindow::from_spans(&evidence.spans);
     let duration = format_ns(window.range_ns());
@@ -186,11 +189,12 @@ fn RlEvidenceView(mode: RlMode, evidence: RlEvidence) -> Element {
                 })
             } else { None },
             div { class: "grid grid-cols-4 divide-x divide-gray-200",
-                EvidenceMetric { label: "Processes queried", value: evidence.processes_queried.to_string() }
+                EvidenceMetric { label: "Span sources queried", value: evidence.processes_queried.to_string() }
                 EvidenceMetric { label: "Root / all spans", value: format!("{} / {total_spans}", evidence.spans.len()) }
-                EvidenceMetric { label: "Events", value: total_events.to_string() }
+                EvidenceMetric { label: "Completed / active", value: format!("{completed_spans} / {active_spans}") }
                 EvidenceMetric { label: "Time window", value: duration }
             }
+            div { class: "mt-2 text-xs text-gray-500", "{total_events} events in the loaded hierarchy" }
             if !evidence.processes_failed.is_empty() {
                 div { class: "mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900",
                     "No span response from PID(s): {failed_processes}"
@@ -208,6 +212,15 @@ fn RlEvidenceView(mode: RlMode, evidence: RlEvidence) -> Element {
                     detail: "Change the rollout filter or wait for trace_event samples.".to_string(),
                 }}
             } else {
+                if active_spans > 0 {
+                    div { class: "p-3 pb-0",
+                        InlineNotice {
+                            title: format!("{active_spans} span(s) still in progress"),
+                            detail: "Active spans remain visible in the hierarchy, but total duration and coverage are withheld until an end timestamp is reported.".to_string(),
+                            tone: NoticeTone::Warning,
+                        }
+                    }
+                }
                 div { class: "overflow-x-auto",
                     SpanSummaryHeader { window }
                     for span in evidence.spans {
@@ -223,11 +236,12 @@ fn RlEvidenceView(mode: RlMode, evidence: RlEvidence) -> Element {
 fn RlSpanRow(span: SpanInfo, window: TraceTimeWindow, depth: usize) -> Element {
     let child_count = span.children.len();
     let event_count = span.events.len();
-    let total = format_ns(span_total_ns(&span, window));
+    let active = span.end_timestamp.is_none();
+    let total = span_total_label(&span, window);
     let self_time = span_self_ns(&span)
         .map(format_ns)
         .unwrap_or_else(|| "—".to_string());
-    let cover = span_total_ns(&span, window) as f64 / window.range_ns() as f64 * 100.0;
+    let cover = span_cover_label(&span, window);
     let children = span.children.clone();
     let indent = depth * 14;
     let indent_style = format!("padding-left: {}px", 16 + indent);
@@ -240,12 +254,15 @@ fn RlSpanRow(span: SpanInfo, window: TraceTimeWindow, depth: usize) -> Element {
                         span { class: "text-xs text-gray-500 transition-transform group-open:rotate-90", "▶" }
                         span { class: "break-all text-xs font-medium text-gray-800", "{span.name}" }
                         span { class: "shrink-0 text-xs text-gray-500", "{child_count} nested · {event_count} events" }
+                        if active {
+                            span { class: "shrink-0 rounded bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700", "Active" }
+                        }
                     }
                 }
                 SpanSummaryBar { span: span.clone(), window }
                 div { class: "w-24 shrink-0 px-3 py-2 text-right font-mono text-xs text-gray-600", "{total}" }
                 div { class: "w-24 shrink-0 px-3 py-2 text-right font-mono text-xs text-blue-700", "{self_time}" }
-                div { class: "w-16 shrink-0 px-3 py-2 text-right font-mono text-xs text-gray-500", "{cover:.1}%" }
+                div { class: "w-16 shrink-0 px-3 py-2 text-right font-mono text-xs text-gray-500", "{cover}" }
             }
             for child in children {
                 RlSpanRow { span: child, window, depth: depth + 1 }
@@ -266,6 +283,30 @@ fn count_events(spans: &[SpanInfo]) -> usize {
         .iter()
         .map(|span| span.events.len() + count_events(&span.children))
         .sum()
+}
+
+fn count_active(spans: &[SpanInfo]) -> usize {
+    spans
+        .iter()
+        .map(|span| usize::from(span.end_timestamp.is_none()) + count_active(&span.children))
+        .sum()
+}
+
+fn span_total_label(span: &SpanInfo, window: TraceTimeWindow) -> String {
+    if span.end_timestamp.is_none() {
+        "In progress".to_string()
+    } else {
+        format_ns(span_total_ns(span, window))
+    }
+}
+
+fn span_cover_label(span: &SpanInfo, window: TraceTimeWindow) -> String {
+    if span.end_timestamp.is_none() {
+        "—".to_string()
+    } else {
+        let cover = span_total_ns(span, window) as f64 / window.range_ns().max(1) as f64 * 100.0;
+        format!("{cover:.1}%")
+    }
 }
 
 fn format_ns(value: i64) -> String {
@@ -333,5 +374,21 @@ mod tests {
         let spans = vec![span(1, vec![span(2, vec![span(3, vec![])])])];
         assert_eq!(count_spans(&spans), 3);
         assert!(spans_to_chrome_trace(&spans).contains("span-3"));
+    }
+
+    #[test]
+    fn active_spans_are_not_reported_as_completed_time() {
+        let active = SpanInfo {
+            end_timestamp: None,
+            ..span(1, vec![])
+        };
+        let window = TraceTimeWindow {
+            start_ns: 0,
+            end_ns: 10_000,
+        };
+
+        assert_eq!(count_active(std::slice::from_ref(&active)), 1);
+        assert_eq!(span_total_label(&active, window), "In progress");
+        assert_eq!(span_cover_label(&active, window), "—");
     }
 }

@@ -12,6 +12,10 @@ pub static DISTRIBUTED_CLUSTER_SCOPE: GlobalSignal<bool> = Signal::global(|| tru
 pub static DISTRIBUTED_STEP_LIMIT: GlobalSignal<usize> = Signal::global(|| 256);
 pub static DISTRIBUTED_REFRESH: GlobalSignal<u32> = Signal::global(|| 0);
 
+pub static MEMORY_CLUSTER_SCOPE: GlobalSignal<bool> = Signal::global(|| false);
+pub static MEMORY_WINDOW_MINUTES: GlobalSignal<usize> = Signal::global(|| 5);
+pub static MEMORY_REFRESH: GlobalSignal<u32> = Signal::global(|| 0);
+
 const NEXT_SIDEBAR_COMPACT_KEY: &str = "probing_next_sidebar_compact";
 
 pub static NEXT_SIDEBAR_COMPACT: GlobalSignal<bool> = Signal::global(|| false);
