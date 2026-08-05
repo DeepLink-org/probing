@@ -99,6 +99,14 @@ probing $ENDPOINT eval "
 
 内存随 step 不断增长——泄漏或累积。查询 torch_trace 表看每步分配趋势：
 
+在 Next Web UI 中，从 **Advanced analysis** 打开 **Memory**。这个页面同时服务于
+训练和推理：设备图分别展示最新采样值、所选时间窗口内的最高采样值、容量和当前
+余量。选择一张 GPU 后，其 Rank、Host 和设备编号会作为调查上下文跨页面保留。
+Training placement 使用同一份“当前值 / 容量”数据控制每张卡的颜色深浅；TP、DP、
+PP 仍由带文字的虚线边框表达，避免两种语义共用一种颜色。
+只有采集到 `python.torch_trace` 时，页面才展示 PyTorch allocator 和模块分配证据；
+空白数据不能被解释为“没有显存问题”。
+
 ```bash
 probing $ENDPOINT query "
   SELECT local_step, AVG(allocated) as avg_mb, MAX(allocated_delta) as max_delta_mb

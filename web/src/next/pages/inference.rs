@@ -7,6 +7,7 @@ use crate::api::{ApiClient, EngineInfo};
 use crate::components::rl::metrics_line_chart::{ChartSeries, MetricsLineChart};
 use crate::hooks::{use_page_visible, use_poll_tick_gated};
 use crate::state::inference::INFERENCE_REFRESH;
+use crate::utils::error::{AppError, Result};
 
 use super::super::components::{
     EvidenceMetric, LoadingPanel, SectionCard, UnavailablePanel, WorkspacePage,
@@ -27,30 +28,29 @@ const COLORS: [&str; 6] = [
     "#2563eb", "#dc2626", "#16a34a", "#9333ea", "#ea580c", "#0891b2",
 ];
 
+#[derive(Clone, Debug, PartialEq)]
+struct InferenceEvidence {
+    engines: Vec<EngineInfo>,
+    history: MetricHistoryEvidence,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum MetricHistoryEvidence {
+    NotApplicable,
+    Loaded(DataFrame),
+    Unavailable(AppError),
+}
+
 #[component]
 pub fn InferencePage() -> Element {
     let visible = use_page_visible();
     let poll = use_poll_tick_gated(POLL_MS, Some(visible));
     let refresh_key = use_memo(move || u64::from(poll()).wrapping_add(*INFERENCE_REFRESH.read()));
-    let engines = use_resource(move || {
+    let evidence = use_resource(move || {
         let _ = refresh_key();
-        async move {
-            ApiClient::new()
-                .fetch_inference_engines()
-                .await
-                .map(|response| response.engines)
-        }
+        async move { load_inference_evidence().await }
     });
-    let metrics = use_resource(move || {
-        let _ = refresh_key();
-        async move {
-            ApiClient::new()
-                .fetch_inference_engine_metrics(HISTORY_LIMIT)
-                .await
-        }
-    });
-    let engine_state = engines.read().clone();
-    let metric_state = metrics.read().clone();
+    let evidence_state = evidence.read().clone();
 
     rsx! {
         WorkspacePage {
@@ -61,24 +61,38 @@ pub fn InferencePage() -> Element {
                 title: "Registered engines".to_string(),
                 subtitle: Some("Endpoints and scrape state reported by the inference registry.".to_string()),
                 body_class: "p-0".to_string(),
-                EngineRegistry { state: engine_state.clone() }
+                EngineRegistry { state: evidence_state.clone() }
             }
             SectionCard {
                 title: "Latest normalized metrics".to_string(),
                 subtitle: Some("Values from the latest successful scrape for each engine.".to_string()),
-                LatestMetrics { state: engine_state }
+                LatestMetrics { state: evidence_state.clone() }
             }
             SectionCard {
                 title: "Metric history".to_string(),
                 subtitle: Some("Stored normalized samples; one line per registered engine.".to_string()),
-                MetricHistory { state: metric_state }
+                MetricHistory { state: evidence_state }
             }
         }
     }
 }
 
+async fn load_inference_evidence() -> Result<InferenceEvidence> {
+    let client = ApiClient::new();
+    let engines = client.fetch_inference_engines().await?.engines;
+    let history = if engines.is_empty() {
+        MetricHistoryEvidence::NotApplicable
+    } else {
+        match client.fetch_inference_engine_metrics(HISTORY_LIMIT).await {
+            Ok(dataframe) => MetricHistoryEvidence::Loaded(dataframe),
+            Err(error) => MetricHistoryEvidence::Unavailable(error),
+        }
+    };
+    Ok(InferenceEvidence { engines, history })
+}
+
 #[component]
-fn EngineRegistry(state: Option<crate::utils::error::Result<Vec<EngineInfo>>>) -> Element {
+fn EngineRegistry(state: Option<Result<InferenceEvidence>>) -> Element {
     match state {
         None => {
             rsx! { div { class: "p-4", LoadingPanel { label: "Loading engine registry".to_string() } } }
@@ -87,11 +101,13 @@ fn EngineRegistry(state: Option<crate::utils::error::Result<Vec<EngineInfo>>>) -
             label: "Engine registry unavailable".to_string(),
             detail: error.display_message(),
         }}},
-        Some(Ok(engines)) if engines.is_empty() => rsx! { div { class: "p-4", UnavailablePanel {
-            label: "No inference engines registered".to_string(),
-            detail: "The inference registry returned zero engines.".to_string(),
-        }}},
-        Some(Ok(engines)) => rsx! {
+        Some(Ok(evidence)) if evidence.engines.is_empty() => {
+            rsx! { div { class: "p-4", UnavailablePanel {
+                label: "No inference engines registered".to_string(),
+                detail: "Register a supported serving engine, then use Scrape now to collect metrics.".to_string(),
+            }}}
+        }
+        Some(Ok(evidence)) => rsx! {
             div { class: "overflow-x-auto",
                 table { class: "w-full border-collapse text-xs",
                     thead {
@@ -104,7 +120,7 @@ fn EngineRegistry(state: Option<crate::utils::error::Result<Vec<EngineInfo>>>) -
                         }
                     }
                     tbody { class: "divide-y divide-gray-100",
-                        for engine in engines {
+                        for engine in evidence.engines {
                             tr { class: "hover:bg-gray-50/70",
                                 td { class: "px-3 py-2 font-medium text-gray-900", "{engine.engine_id}" }
                                 td { class: "px-3 py-2 text-gray-600", "{engine.engine_type} · {engine.framework}" }
@@ -126,20 +142,20 @@ fn EngineRegistry(state: Option<crate::utils::error::Result<Vec<EngineInfo>>>) -
 }
 
 #[component]
-fn LatestMetrics(state: Option<crate::utils::error::Result<Vec<EngineInfo>>>) -> Element {
+fn LatestMetrics(state: Option<Result<InferenceEvidence>>) -> Element {
     match state {
         None => rsx! { LoadingPanel { label: "Loading latest metrics".to_string() } },
         Some(Err(error)) => rsx! { UnavailablePanel {
             label: "Latest metrics unavailable".to_string(),
             detail: error.display_message(),
         }},
-        Some(Ok(engines)) if engines.is_empty() => rsx! { UnavailablePanel {
+        Some(Ok(evidence)) if evidence.engines.is_empty() => rsx! { UnavailablePanel {
             label: "No engine metrics".to_string(),
-            detail: "Register and scrape an engine to populate normalized metrics.".to_string(),
+            detail: "Metric queries start only after an engine is registered.".to_string(),
         }},
-        Some(Ok(engines)) => rsx! {
+        Some(Ok(evidence)) => rsx! {
             div { class: "space-y-4",
-                for engine in engines {
+                for engine in evidence.engines {
                     div {
                         div { class: "mb-2 text-xs font-semibold text-gray-700", "{engine.engine_id}" }
                         div { class: "grid grid-cols-2 gap-2 lg:grid-cols-4",
@@ -160,33 +176,53 @@ fn LatestMetrics(state: Option<crate::utils::error::Result<Vec<EngineInfo>>>) ->
 }
 
 #[component]
-fn MetricHistory(state: Option<crate::utils::error::Result<DataFrame>>) -> Element {
+fn MetricHistory(state: Option<Result<InferenceEvidence>>) -> Element {
     match state {
         None => rsx! { LoadingPanel { label: "Loading metric history".to_string() } },
-        Some(Err(error)) => rsx! { UnavailablePanel {
-            label: "Metric history unavailable".to_string(),
-            detail: error.display_message(),
+        Some(Err(_)) => rsx! { UnavailablePanel {
+            label: "Metric history not requested".to_string(),
+            detail: "The engine registry is unavailable for this refresh.".to_string(),
         }},
-        Some(Ok(dataframe)) => {
-            let grouped = group_metric_rows(&dataframe);
-            if grouped.is_empty() {
-                return rsx! { UnavailablePanel {
-                    label: "No normalized metric history".to_string(),
-                    detail: "No stored normalized samples were returned.".to_string(),
-                }};
-            }
-            let colors = engine_colors(&grouped);
-            rsx! {
-                div { class: "grid grid-cols-1 gap-4 xl:grid-cols-2",
-                    for (metric, title) in METRICS.iter() {
-                        MetricsLineChart {
-                            title: title.to_string(),
-                            series: chart_series(&grouped, &colors, metric),
+        Some(Ok(evidence)) => match evidence.history {
+            MetricHistoryEvidence::NotApplicable => rsx! { UnavailablePanel {
+                label: "No metric history yet".to_string(),
+                detail: "History queries remain idle until at least one engine is registered.".to_string(),
+            }},
+            MetricHistoryEvidence::Unavailable(error) => rsx! { UnavailablePanel {
+                label: "Metric history unavailable".to_string(),
+                detail: metric_history_error_detail(&error),
+            }},
+            MetricHistoryEvidence::Loaded(dataframe) => {
+                let grouped = group_metric_rows(&dataframe);
+                if grouped.is_empty() {
+                    return rsx! { UnavailablePanel {
+                        label: "No normalized metric history".to_string(),
+                        detail: "No stored normalized samples were returned.".to_string(),
+                    }};
+                }
+                let colors = engine_colors(&grouped);
+                rsx! {
+                    div { class: "grid grid-cols-1 gap-4 xl:grid-cols-2",
+                        for (metric, title) in METRICS.iter() {
+                            MetricsLineChart {
+                                title: title.to_string(),
+                                series: chart_series(&grouped, &colors, metric),
+                            }
                         }
                     }
                 }
             }
-        }
+        },
+    }
+}
+
+fn metric_history_error_detail(error: &AppError) -> String {
+    let raw = error.to_string();
+    if raw.contains("Schema error") || raw.contains("No field named") {
+        "Metric history storage is not available in this runtime; current engine status remains usable."
+            .to_string()
+    } else {
+        error.display_message()
     }
 }
 
@@ -333,6 +369,17 @@ mod tests {
         assert_eq!(
             grouped.get(&("normalized.queue_depth".into(), "0".into())),
             Some(&vec![(1_000.0, 3.0)])
+        );
+    }
+
+    #[test]
+    fn schema_errors_are_presented_as_capability_absence() {
+        let error = AppError::Api(
+            "Schema error: No field named metric_name. Valid fields are _error".to_string(),
+        );
+        assert_eq!(
+            metric_history_error_detail(&error),
+            "Metric history storage is not available in this runtime; current engine status remains usable."
         );
     }
 }

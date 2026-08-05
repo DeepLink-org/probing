@@ -1,7 +1,6 @@
 //! Focused navigation tree and route-owned controls for the Next UI.
 
 use dioxus::prelude::*;
-use dioxus_router::Link;
 
 use crate::api::ApiClient;
 use crate::components::icon::Icon;
@@ -11,9 +10,12 @@ use crate::components::sidebar::profiling::controls::{
 };
 use crate::state::commands::COMMAND_PANEL_OPEN;
 use crate::state::inference::INFERENCE_REFRESH;
+use crate::state::investigation::INVESTIGATION_CONTEXT;
 use crate::state::llm_config::LLM_SETTINGS_OPEN;
 use crate::state::overlays::{open_monitor_overlay, SidebarMonitor};
-use crate::state::profiling::{normalize_profiling_view, SPANS_TREE_LIMIT, SPANS_TREE_RELOAD};
+use crate::state::profiling::{
+    normalize_profiling_view, PROFILING_PPROF_FREQ, SPANS_TREE_LIMIT, SPANS_TREE_RELOAD,
+};
 use crate::state::rl::{RL_EVENT_LIMIT, ROLLOUT_FILTER, ROLLOUT_FILTER_INPUT};
 use crate::state::stack::{
     bump_stack_refresh, stack_tid_label, STACK_DIST_CLUSTER, STACK_DIST_RELOAD, STACK_MODE,
@@ -27,10 +29,13 @@ use crate::state::ui_tasks::running_ui_task_count;
 use crate::ui_version::{activate, UiVersion};
 use crate::utils::callframe::{mode_for_kind, FrameKind};
 
+use super::components::evidence_href;
+use super::page_registry::SidebarTool;
 use super::routes::NextRoute;
 use super::settings::{
     DASHBOARD_AUTO_REFRESH, DASHBOARD_MANUAL_REFRESH, DISTRIBUTED_CLUSTER_SCOPE,
-    DISTRIBUTED_REFRESH, DISTRIBUTED_STEP_LIMIT,
+    DISTRIBUTED_REFRESH, DISTRIBUTED_STEP_LIMIT, MEMORY_CLUSTER_SCOPE, MEMORY_REFRESH,
+    MEMORY_WINDOW_MINUTES,
 };
 
 #[component]
@@ -91,11 +96,15 @@ fn SidebarRail(
     on_navigate: EventHandler<()>,
     on_toggle_compact: EventHandler<()>,
 ) -> Element {
+    let dashboard_href = evidence_href(
+        &NextRoute::Dashboard {},
+        &INVESTIGATION_CONTEXT.read().clone(),
+    );
     rsx! {
         div { class: "flex w-14 shrink-0 flex-col bg-slate-950",
             div { class: "flex h-16 shrink-0 items-center justify-center border-b border-slate-800",
-                Link {
-                    to: NextRoute::Dashboard {},
+                a {
+                    href: dashboard_href,
                     class: "rounded-lg p-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400",
                     aria_label: "Probing dashboard",
                     onclick: move |_| on_navigate.call(()),
@@ -114,19 +123,20 @@ fn SidebarRail(
                 }
             }
             nav { class: "min-h-0 flex-1 space-y-1 overflow-y-auto px-2 py-2",
-                RailLink { to: NextRoute::Dashboard {}, label: "Dashboard", icon: &icondata::AiHomeOutlined, active: matches!(route, NextRoute::Dashboard {}), on_navigate }
-                RailLink { to: NextRoute::Investigate {}, label: "Investigate", icon: &icondata::AiRobotOutlined, active: matches!(route, NextRoute::Investigate {}), on_navigate }
-                RailLink { to: NextRoute::Distributed {}, label: "Cluster", icon: &icondata::AiClusterOutlined, active: matches!(route, NextRoute::Distributed {} | NextRoute::Cluster {} | NextRoute::DistributedStatus {}), on_navigate }
+                RailLink { to: NextRoute::Dashboard {}, label: "Dashboard", icon: &icondata::AiHomeOutlined, active: route.page_spec().sidebar_tool == SidebarTool::Dashboard, on_navigate }
+                RailLink { to: NextRoute::Investigate {}, label: "Investigate", icon: &icondata::AiRobotOutlined, active: route.page_spec().sidebar_tool == SidebarTool::Investigate, on_navigate }
+                RailLink { to: NextRoute::Distributed {}, label: "Cluster", icon: &icondata::AiClusterOutlined, active: route.page_spec().sidebar_tool == SidebarTool::Cluster, on_navigate }
                 RailSeparator {}
-                RailLink { to: NextRoute::Training {}, label: "Training", icon: &icondata::AiRadarChartOutlined, active: matches!(route, NextRoute::Training {}), on_navigate }
-                RailLink { to: NextRoute::Inference {}, label: "Inference", icon: &icondata::AiDashboardOutlined, active: matches!(route, NextRoute::Inference {}), on_navigate }
-                RailLink { to: NextRoute::Rollout {}, label: "RL", icon: &icondata::AiDeploymentUnitOutlined, active: is_rl_route(&route), on_navigate }
+                RailLink { to: NextRoute::Training {}, label: "Training", icon: &icondata::AiRadarChartOutlined, active: route.page_spec().sidebar_tool == SidebarTool::Training, on_navigate }
+                RailLink { to: NextRoute::Inference {}, label: "Inference", icon: &icondata::AiDashboardOutlined, active: route.page_spec().sidebar_tool == SidebarTool::Inference, on_navigate }
+                RailLink { to: NextRoute::Rollout {}, label: "RL", icon: &icondata::AiDeploymentUnitOutlined, active: route.page_spec().sidebar_tool == SidebarTool::Rl, on_navigate }
                 RailSeparator {}
-                RailLink { to: NextRoute::Profiles {}, label: "Profiling", icon: &icondata::CgPerformance, active: is_profiles_route(&route), on_navigate }
-                RailLink { to: NextRoute::Stack {}, label: "Stacks", icon: &icondata::AiApartmentOutlined, active: is_stacks_route(&route), on_navigate }
-                RailLink { to: NextRoute::Spans {}, label: "Tracing", icon: &icondata::AiApiOutlined, active: matches!(route, NextRoute::Spans {} | NextRoute::TracesLegacy {}), on_navigate }
+                RailLink { to: NextRoute::Memory {}, label: "Memory", icon: &icondata::AiDatabaseOutlined, active: route.page_spec().sidebar_tool == SidebarTool::Memory, on_navigate }
+                RailLink { to: NextRoute::Profiles {}, label: "Profiling", icon: &icondata::CgPerformance, active: route.page_spec().sidebar_tool == SidebarTool::Profiling, on_navigate }
+                RailLink { to: NextRoute::Stack {}, label: "Stacks", icon: &icondata::AiApartmentOutlined, active: route.page_spec().sidebar_tool == SidebarTool::Stacks, on_navigate }
+                RailLink { to: NextRoute::Spans {}, label: "Tracing", icon: &icondata::AiApiOutlined, active: route.page_spec().sidebar_tool == SidebarTool::Tracing, on_navigate }
                 RailSeparator {}
-                RailLink { to: NextRoute::Analytics {}, label: "Deep tools", icon: &icondata::AiToolOutlined, active: is_deep_tools_route(&route), on_navigate }
+                RailLink { to: NextRoute::Analytics {}, label: "Deep tools", icon: &icondata::AiToolOutlined, active: route.page_spec().sidebar_tool == SidebarTool::DeepTools, on_navigate }
             }
             if compact {
                 div { class: "shrink-0 space-y-1 border-t border-slate-800 p-2",
@@ -160,7 +170,9 @@ fn HeaderButton(
 
 #[component]
 fn SidebarDetailHeader(route: NextRoute, on_toggle_compact: EventHandler<()>) -> Element {
-    let (group, title) = sidebar_context(&route);
+    let spec = route.page_spec();
+    let group = spec.sidebar_group;
+    let title = spec.sidebar_title;
     rsx! {
         div { class: "flex h-16 shrink-0 items-center justify-between gap-2 border-b border-slate-800 px-3",
             div { class: "min-w-0",
@@ -181,7 +193,7 @@ fn ActiveSidebarPanel(route: NextRoute, on_navigate: EventHandler<()>) -> Elemen
     rsx! {
         match route.clone() {
             NextRoute::Dashboard {} => rsx! {
-                SidebarIntro { text: "Job-level signals and recent evidence." }
+                SidebarIntro { text: "Cluster step health and local accelerator evidence." }
                 ControlPanel { title: "Dashboard controls", DashboardControls {} }
             },
             NextRoute::Investigate {} => rsx! {
@@ -230,12 +242,16 @@ fn ActiveSidebarPanel(route: NextRoute, on_navigate: EventHandler<()>) -> Elemen
                 SidebarIntro { text: "Expand the span hierarchy to the required diagnostic depth." }
                 ControlPanel { title: "Tracing controls", SpansControls {} }
             },
+            NextRoute::Memory {} => rsx! {
+                SidebarIntro { text: "Device capacity, sampled peaks, allocator state, and allocation evidence." }
+                ControlPanel { title: "Memory controls", MemoryControls {} }
+            },
             NextRoute::Analytics {} | NextRoute::Python {} | NextRoute::Pulsing {} | NextRoute::System {} | NextRoute::Explore {} | NextRoute::ClassicFallback { .. } => rsx! {
                 SidebarSectionLabel { label: "Tools" }
                 NavLeaf { to: NextRoute::Analytics {}, label: "SQL Explorer", icon: &icondata::AiDatabaseOutlined, active: matches!(route, NextRoute::Analytics {}), on_navigate }
                 NavLeaf { to: NextRoute::Python {}, label: "Python Trace", icon: &icondata::SiPython, active: matches!(route, NextRoute::Python {}), on_navigate }
                 NavLeaf { to: NextRoute::Pulsing {}, label: "Pulsing", icon: &icondata::AiNodeIndexOutlined, active: matches!(route, NextRoute::Pulsing {}), on_navigate }
-                NavLeaf { to: NextRoute::System {}, label: "Process & system", icon: &icondata::AiControlOutlined, active: matches!(route, NextRoute::System {}), on_navigate }
+                NavLeaf { to: NextRoute::System {}, label: "Process snapshot", icon: &icondata::AiControlOutlined, active: matches!(route, NextRoute::System {}), on_navigate }
                 NavLeaf { to: NextRoute::Explore {}, label: "Capability catalog", icon: &icondata::AiAppstoreOutlined, active: matches!(route, NextRoute::Explore {} | NextRoute::ClassicFallback { .. }), on_navigate }
             },
         }
@@ -250,14 +266,15 @@ fn NavLeaf(
     active: bool,
     on_navigate: EventHandler<()>,
 ) -> Element {
+    let href = evidence_href(&to, &INVESTIGATION_CONTEXT.read().clone());
     let class = if active {
         "mb-1 flex items-center gap-2 rounded-lg bg-blue-500/20 px-3 py-2 text-sm font-medium text-blue-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
     } else {
         "mb-1 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-300 hover:bg-slate-900 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
     };
     rsx! {
-        Link {
-            to,
+        a {
+            href,
             class,
             aria_current: if active { "page" } else { "false" },
             onclick: move |_| on_navigate.call(()),
@@ -305,6 +322,10 @@ fn RailSeparator() -> Element {
 fn DashboardControls() -> Element {
     let enabled = *DASHBOARD_AUTO_REFRESH.read();
     rsx! {
+        ControlSummary {
+            scope: "Cluster steps + local GPU".to_string(),
+            update: if enabled { "Every 5s".to_string() } else { "Manual".to_string() },
+        }
         ToggleRow {
             label: "Auto refresh",
             checked: enabled,
@@ -314,7 +335,7 @@ fn DashboardControls() -> Element {
             r#type: "button",
             class: control_button(true),
             onclick: move |_| *DASHBOARD_MANUAL_REFRESH.write() += 1,
-            "Refresh now"
+            "Refresh dashboard"
         }
     }
 }
@@ -324,6 +345,10 @@ fn DistributedControls() -> Element {
     let cluster = *DISTRIBUTED_CLUSTER_SCOPE.read();
     let limit = *DISTRIBUTED_STEP_LIMIT.read();
     rsx! {
+        ControlSummary {
+            scope: if cluster { "Cluster fan-out".to_string() } else { "Current process".to_string() },
+            update: format!("{limit} steps · changes apply immediately"),
+        }
         ToggleRow {
             label: "Cluster fan-out",
             checked: cluster,
@@ -343,7 +368,38 @@ fn DistributedControls() -> Element {
             r#type: "button",
             class: control_button(true),
             onclick: move |_| *DISTRIBUTED_REFRESH.write() += 1,
-            "Refresh evidence"
+            if cluster { "Refresh cluster evidence" } else { "Refresh local evidence" }
+        }
+    }
+}
+
+#[component]
+fn MemoryControls() -> Element {
+    let cluster = *MEMORY_CLUSTER_SCOPE.read();
+    let window = *MEMORY_WINDOW_MINUTES.read();
+    rsx! {
+        ControlSummary {
+            scope: if cluster { "Cluster fan-out".to_string() } else { "Current process".to_string() },
+            update: format!("{window}m window · every 5s"),
+        }
+        ToggleRow {
+            label: "Cluster fan-out",
+            checked: cluster,
+            onchange: move |_| *MEMORY_CLUSTER_SCOPE.write() = !*MEMORY_CLUSTER_SCOPE.read(),
+        }
+        RangeControl {
+            label: "Window (minutes)",
+            value: window,
+            min: 1,
+            max: 30,
+            step: 1,
+            oninput: move |value| *MEMORY_WINDOW_MINUTES.write() = value,
+        }
+        button {
+            r#type: "button",
+            class: control_button(true),
+            onclick: move |_| *MEMORY_REFRESH.write() += 1,
+            if cluster { "Refresh cluster memory" } else { "Refresh local memory" }
         }
     }
 }
@@ -351,11 +407,15 @@ fn DistributedControls() -> Element {
 #[component]
 fn ClusterRefreshControl() -> Element {
     rsx! {
+        ControlSummary {
+            scope: "Current cluster registry".to_string(),
+            update: "Explicit refresh".to_string(),
+        }
         button {
             r#type: "button",
             class: control_button(true),
             onclick: move |_| *DISTRIBUTED_REFRESH.write() += 1,
-            "Refresh evidence"
+            "Refresh cluster evidence"
         }
     }
 }
@@ -365,6 +425,10 @@ fn TrainingControls() -> Element {
     let cluster = *TRAINING_CLUSTER_SCOPE.read();
     let placement = *TRAINING_PLACEMENT_AVAILABILITY.read();
     rsx! {
+        ControlSummary {
+            scope: if cluster { "Cluster fan-out".to_string() } else { "Current process".to_string() },
+            update: "Every 5s · scope applies immediately".to_string(),
+        }
         div { class: "grid grid-cols-2 gap-1.5",
             button {
                 r#type: "button",
@@ -396,7 +460,7 @@ fn TrainingControls() -> Element {
             r#type: "button",
             class: control_button(true),
             onclick: move |_| *TRAINING_REFRESH.write() += 1,
-            if cluster { "Scan cluster" } else { "Refresh training" }
+            if cluster { "Refresh cluster training" } else { "Refresh local training" }
         }
         if placement == PlacementAvailability::Missing {
             PlacementNotice {
@@ -432,6 +496,16 @@ fn RlControls(route: NextRoute) -> Element {
     let show_rollout = matches!(route, NextRoute::Rollout {} | NextRoute::RolloutLegacy {});
     let perfetto = matches!(route, NextRoute::Perfetto {});
     rsx! {
+        ControlSummary {
+            scope: if show_rollout { "Selected rollout".to_string() } else { "Current process events".to_string() },
+            update: if show_rollout {
+                "Load applies the typed rollout ID".to_string()
+            } else if perfetto {
+                "Up to 2000 events per process".to_string()
+            } else {
+                format!("Up to {limit} events · limit applies immediately")
+            },
+        }
         if show_rollout {
             label { class: "block",
                 span { class: control_label(), "Rollout ID" }
@@ -464,11 +538,7 @@ fn RlControls(route: NextRoute) -> Element {
                 }
             }
         }
-        if perfetto {
-            p { class: "text-xs leading-relaxed text-slate-400",
-                "Perfetto fetches up to 2000 events per process."
-            }
-        } else {
+        if !perfetto {
             RangeControl {
                 label: "Event limit",
                 value: limit,
@@ -484,6 +554,10 @@ fn RlControls(route: NextRoute) -> Element {
 #[component]
 fn InferenceControls() -> Element {
     rsx! {
+        ControlSummary {
+            scope: "Registered engine endpoints".to_string(),
+            update: "Scrape writes a new metric sample".to_string(),
+        }
         button {
             r#type: "button",
             class: control_button(true),
@@ -493,9 +567,8 @@ fn InferenceControls() -> Element {
                     *INFERENCE_REFRESH.write() += 1;
                 });
             },
-            "Scrape now"
+            "Scrape registered engines"
         }
-        p { class: "text-xs text-slate-400", "Metrics auto-refresh every 5 seconds." }
     }
 }
 
@@ -524,12 +597,43 @@ fn ProfileNavigation(route: NextRoute, on_navigate: EventHandler<()>) -> Element
 #[component]
 fn ProfileControls(route: NextRoute) -> Element {
     let view = profile_view(&route);
+    let (scope, update) = match view {
+        "pprof" => {
+            let frequency = *PROFILING_PPROF_FREQ.read();
+            (
+                "Current process CPU samples".to_string(),
+                if frequency <= 0 {
+                    "Disabled · choose a non-zero frequency to enable".to_string()
+                } else {
+                    format!("{frequency} Hz · frequency applies immediately")
+                },
+            )
+        }
+        "torch" => (
+            "Current process module hooks".to_string(),
+            "Toggle applies immediately".to_string(),
+        ),
+        "trace" => (
+            "Current process trace buffer".to_string(),
+            "Limit applies immediately · Reload reads the buffer".to_string(),
+        ),
+        "pytorch" => (
+            "Current process PyTorch profiler".to_string(),
+            "Steps apply to the next explicit capture".to_string(),
+        ),
+        "ray" => (
+            "Current process Ray timeline".to_string(),
+            "Capture occurs on explicit reload".to_string(),
+        ),
+        _ => ("Current process".to_string(), "Explicit action".to_string()),
+    };
     let title_class = "text-xs font-semibold uppercase tracking-wide text-slate-400".to_string();
     let value_class = "text-xs font-mono text-slate-200".to_string();
     let input_class =
         "w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200"
             .to_string();
     rsx! {
+        ControlSummary { scope, update }
         match view {
             "pprof" => rsx! {
                 PprofControls {
@@ -598,6 +702,10 @@ fn StackControls(route: NextRoute) -> Element {
     ) {
         let cluster = *STACK_DIST_CLUSTER.read();
         return rsx! {
+            ControlSummary {
+                scope: if cluster { "Cluster fan-out".to_string() } else { "Current process".to_string() },
+                update: "Capture on explicit reload".to_string(),
+            }
             ToggleRow {
                 label: "Cluster fan-out",
                 checked: cluster,
@@ -607,7 +715,7 @@ fn StackControls(route: NextRoute) -> Element {
                 r#type: "button",
                 class: control_button(true),
                 onclick: move |_| *STACK_DIST_RELOAD.write() += 1,
-                "Reload flamegraph"
+                "Capture distributed stacks"
             }
         };
     }
@@ -620,6 +728,10 @@ fn StackControls(route: NextRoute) -> Element {
     let snapshot = STACK_SNAPSHOT.read().clone();
     let mode = STACK_MODE();
     rsx! {
+        ControlSummary {
+            scope: format!("Thread {target}"),
+            update: format!("{mode} frames · capture on refresh"),
+        }
         div { class: "flex items-center justify-between gap-2 text-xs text-slate-400",
             span { "Thread" }
             span { class: "truncate font-mono text-slate-300", "{target}" }
@@ -639,7 +751,7 @@ fn StackControls(route: NextRoute) -> Element {
             r#type: "button",
             class: control_button(true),
             onclick: move |_| bump_stack_refresh(),
-            "Refresh stack"
+            "Capture stack now"
         }
     }
 }
@@ -664,6 +776,10 @@ fn StackModeButton(filter: &'static str, label: &'static str, active: bool) -> E
 fn SpansControls() -> Element {
     let limit = *SPANS_TREE_LIMIT.read();
     rsx! {
+        ControlSummary {
+            scope: "Current process trace buffer".to_string(),
+            update: format!("Up to {limit} rows · limit applies immediately"),
+        }
         RangeControl {
             label: "Tree rows",
             value: limit,
@@ -676,7 +792,19 @@ fn SpansControls() -> Element {
             r#type: "button",
             class: control_button(true),
             onclick: move |_| *SPANS_TREE_RELOAD.write() += 1,
-            "Refresh spans"
+            "Reload span evidence"
+        }
+    }
+}
+
+#[component]
+fn ControlSummary(scope: String, update: String) -> Element {
+    rsx! {
+        dl { class: "grid grid-cols-[3.5rem_minmax(0,1fr)] gap-x-2 gap-y-1 border-b border-slate-800 pb-2 text-xs",
+            dt { class: "text-slate-500", "Scope" }
+            dd { class: "min-w-0 break-words text-slate-300", "{scope}" }
+            dt { class: "text-slate-500", "Update" }
+            dd { class: "min-w-0 break-words text-slate-300", "{update}" }
         }
     }
 }
@@ -737,9 +865,10 @@ fn RailLink(
     active: bool,
     on_navigate: EventHandler<()>,
 ) -> Element {
+    let href = evidence_href(&to, &INVESTIGATION_CONTEXT.read().clone());
     rsx! {
-        Link {
-            to,
+        a {
+            href,
             class: if active {
                 "flex h-10 w-full items-center justify-center rounded-lg bg-blue-500/20 text-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
             } else {
@@ -801,89 +930,12 @@ fn SidebarFooter(task_count: usize) -> Element {
     }
 }
 
-fn sidebar_context(route: &NextRoute) -> (&'static str, &'static str) {
-    match route {
-        NextRoute::Dashboard {} => ("Workspace", "Dashboard"),
-        NextRoute::Investigate {} => ("Workspace", "Investigate"),
-        NextRoute::Distributed {} | NextRoute::Cluster {} | NextRoute::DistributedStatus {} => {
-            ("Workspace", "Cluster")
-        }
-        NextRoute::Training {} => ("Workloads", "Training"),
-        NextRoute::Inference {} => ("Workloads", "Inference"),
-        NextRoute::Rollout {}
-        | NextRoute::RolloutLegacy {}
-        | NextRoute::RlTrain {}
-        | NextRoute::RlSpans {}
-        | NextRoute::ProcessTimeline {}
-        | NextRoute::Perfetto {} => ("Workloads", "RL"),
-        NextRoute::Profiles {}
-        | NextRoute::ProfilingLegacy {}
-        | NextRoute::ProfileView { .. }
-        | NextRoute::ChromeTrace {} => ("Advanced analysis", "Profiling"),
-        NextRoute::Stack {}
-        | NextRoute::StackThread { .. }
-        | NextRoute::DistributedStack {}
-        | NextRoute::DistributedPythonStack {} => ("Advanced analysis", "Stacks"),
-        NextRoute::Spans {} | NextRoute::TracesLegacy {} => ("Advanced analysis", "Tracing"),
-        NextRoute::Analytics {}
-        | NextRoute::Python {}
-        | NextRoute::Pulsing {}
-        | NextRoute::System {}
-        | NextRoute::Explore {}
-        | NextRoute::ClassicFallback { .. } => ("Deep tools", "Toolbox"),
-    }
-}
-
 fn profile_view(route: &NextRoute) -> &'static str {
     match route {
         NextRoute::ProfileView { view } => normalize_profiling_view(view),
         NextRoute::ChromeTrace {} => "trace",
         _ => "pprof",
     }
-}
-
-fn is_rl_route(route: &NextRoute) -> bool {
-    matches!(
-        route,
-        NextRoute::Rollout {}
-            | NextRoute::RolloutLegacy {}
-            | NextRoute::RlTrain {}
-            | NextRoute::RlSpans {}
-            | NextRoute::ProcessTimeline {}
-            | NextRoute::Perfetto {}
-    )
-}
-
-fn is_profiles_route(route: &NextRoute) -> bool {
-    matches!(
-        route,
-        NextRoute::Profiles {}
-            | NextRoute::ProfilingLegacy {}
-            | NextRoute::ProfileView { .. }
-            | NextRoute::ChromeTrace {}
-    )
-}
-
-fn is_stacks_route(route: &NextRoute) -> bool {
-    matches!(
-        route,
-        NextRoute::Stack {}
-            | NextRoute::StackThread { .. }
-            | NextRoute::DistributedStack {}
-            | NextRoute::DistributedPythonStack {}
-    )
-}
-
-fn is_deep_tools_route(route: &NextRoute) -> bool {
-    matches!(
-        route,
-        NextRoute::Analytics {}
-            | NextRoute::Python {}
-            | NextRoute::Pulsing {}
-            | NextRoute::System {}
-            | NextRoute::Explore {}
-            | NextRoute::ClassicFallback { .. }
-    )
 }
 
 fn control_button(primary: bool) -> &'static str {
@@ -907,27 +959,50 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sidebar_context_groups_routes_by_stable_tool() {
+    fn page_registry_groups_routes_by_stable_tool() {
         assert_eq!(
-            sidebar_context(&NextRoute::Training {}),
-            ("Workloads", "Training")
+            (
+                NextRoute::Training {}.page_spec().sidebar_group,
+                NextRoute::Training {}.page_spec().sidebar_title,
+            ),
+            ("Workloads", "Training"),
         );
         assert_eq!(
-            sidebar_context(&NextRoute::ProfileView {
-                view: "trace".to_string(),
-            }),
+            {
+                let spec = NextRoute::ProfileView {
+                    view: "trace".to_string(),
+                }
+                .page_spec();
+                (spec.sidebar_group, spec.sidebar_title)
+            },
             ("Advanced analysis", "Profiling")
         );
         assert_eq!(
-            sidebar_context(&NextRoute::DistributedPythonStack {}),
+            {
+                let spec = NextRoute::DistributedPythonStack {}.page_spec();
+                (spec.sidebar_group, spec.sidebar_title)
+            },
             ("Advanced analysis", "Stacks")
         );
         assert_eq!(
-            sidebar_context(&NextRoute::System {}),
+            {
+                let spec = NextRoute::Memory {}.page_spec();
+                (spec.sidebar_group, spec.sidebar_title)
+            },
+            ("Advanced analysis", "Memory")
+        );
+        assert_eq!(
+            {
+                let spec = NextRoute::System {}.page_spec();
+                (spec.sidebar_group, spec.sidebar_title)
+            },
             ("Deep tools", "Toolbox")
         );
         assert_eq!(
-            sidebar_context(&NextRoute::DistributedStatus {}),
+            {
+                let spec = NextRoute::DistributedStatus {}.page_spec();
+                (spec.sidebar_group, spec.sidebar_title)
+            },
             ("Workspace", "Cluster")
         );
     }

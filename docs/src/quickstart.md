@@ -110,6 +110,16 @@ probing $ENDPOINT eval "
 Memory creeping up step after step — a leak or accumulation pattern. Query the
 torch_trace table to see per-step allocation trends:
 
+In the Next Web UI, open **Memory** under **Advanced analysis**. The page is
+shared by training and inference workloads. Its device map reports the latest
+sample, the highest sampled value inside the selected window, capacity, and
+current headroom. Select a GPU to pin its rank, host, and device across pages.
+The Training placement uses the same current/capacity ratio as a per-GPU color
+scale; TP/DP/PP membership remains encoded by labeled dashed outlines.
+PyTorch allocator and module-allocation sections appear only when
+`python.torch_trace` data is available; an empty section is not treated as proof
+that no memory issue exists.
+
 ```bash
 probing $ENDPOINT query "
   SELECT local_step, AVG(allocated) as avg_mb, MAX(allocated_delta) as max_delta_mb

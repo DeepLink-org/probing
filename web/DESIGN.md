@@ -8,11 +8,11 @@
 
 `main.rs` 通过 `ui_version.rs::RootApp` 只挂载一个应用根：
 
-- `classic`（默认）：原有 `app::App`，路由和组件保持不变。
-- `next`：`next::NextApp`，独立 Router、Shell、信息架构和诊断首页。
+- `next`（默认）：`next::NextApp`，独立 Router、Shell、信息架构和诊断首页。
+- `classic`（冻结回退）：原有 `app::App`，路由和组件保持不变。
 
-Classic 用户可通过右下角入口进入 Next；Next 用户通过侧栏底部切回 Classic，
-也可使用 `?ui=classic|next` 手动切换。选择保存在
+未保存过界面偏好的用户直接进入 Next。已有偏好继续生效；Classic 用户可通过右下角入口进入 Next，
+Next 用户通过侧栏底部切回 Classic，也可使用 `?ui=classic|next` 手动切换。选择保存在
 `localStorage["probing.ui.version"]`。切换时整页重载，避免两个 Router、hook
 和全局监听器同时存在。
 
@@ -21,6 +21,7 @@ Next UI 代码边界：
 ```text
 web/src/next/
 ├── routes.rs       # 独立 NextRoute
+├── page_registry.rs # 页面身份、布局、侧栏分组、证据与调查上下文合同
 ├── shell.rs        # 诊断优先的导航与任务上下文
 ├── components.rs   # Next 专用页面原语
 ├── model.rs        # 首页/分布式健康派生模型
@@ -37,7 +38,7 @@ Next Router 保持 Classic 产品 URL 的兼容性，并在新壳层中直接承
 | 工具 | `/analytics`、`/python`、`/pulsing`、`/cluster`、`/system` |
 
 Next Shell 同时挂载通过 `⌘K` 唤起的 Command Panel、全局快捷键、Investigation
-URL 同步、页面 snapshot、后台任务与 Torch overhead monitor，以及可浮动的
+URL 同步、页面发布的 evidence snapshot、后台任务与 Torch overhead monitor，以及可浮动的
 Investigate 面板。主内容区不设置固定顶栏，运行上下文和操作由当前页面按需承载。
 低频命令输入不常驻占用页面纵向空间。
 Classic 继续作为独立应用保留；已知产品路由不再依赖 Classic fallback。
@@ -61,7 +62,7 @@ Next 页面采用平行迁移，不在 Classic 页面中增加 Next 分支：
 | 4 | Profiling / Stacks / Tracing | 已在 Next 原生实现 |
 | 5 | Analytics / Python Trace / Pulsing / System | 已在 Next 原生实现 |
 | 6 | Investigate | Next 原生；保留与 Skill/Agent 合同的持续能力对照 |
-| 7 | Shell / Classic retirement | 产品路由覆盖完成；Classic 继续冻结，待独立退休阶段删除 |
+| 7 | Shell / Classic retirement | Next 已成为默认入口；Classic 继续冻结并保留显式回退，待独立退休阶段删除 |
 
 ---
 
@@ -120,8 +121,8 @@ APP_OVERLAY: None | SourceViewer(path, line) | Monitor(Tasks | Overhead)
 
 - **整体**：左侧固定功能工作区 + 右侧主内容；不设置全局固定顶栏。
 - **侧栏功能聚焦**：Next 侧栏由 56px 固定功能轨道和当前功能详情区组成，但整体仍是一个侧栏。Dashboard、Investigate、Cluster、Training、Inference、RL、Profiling、Stacks、Tracing、Deep tools 图标始终保持固定顺序和坐标；切换页面只替换详情区，不移动轨道。详情区承载当前功能名称、子视图和控制项，不再把控制面板插入导航树，也不依赖 hover 承载可编辑参数。
-- **Dashboard 证据平面**：Dashboard 不生成“健康”“异常”或“下一步建议”等自动结论，只在一个主证据平面内提供三组可直接比较的事实：Step time 展示 latest step、median、P95、maximum 与近期 median/P95 曲线；GPU load 展示设备平均值和逐设备 utilization/memory；Latest rank step time 展示 rank 覆盖、失败节点、median 参考线及最慢 rank 的原始时长。区域之间使用分隔线而不是等权卡片。点击 rank 行会固定 rank/step 调查上下文。Dashboard 自动刷新只查询本地节点，不隐式发起 cluster fan-out；跨节点证据由 Cluster 或 Training 的显式 Cluster 控件触发。缺失采集数据只陈述缺失范围，不从缺失推断工作负载状态。
-- **Training 证据平面**：页面不使用流程提问或结论式引导；Step time、Placement、Module Hotspots、Collective Communications 是同一主证据平面中的四个分区。Step time 只保留 Latest / Average / P95 / Maximum 与趋势折线。Placement 只显示 heartbeat 实际上报的 host/rank，且仅保留微型 Overview：一格代表一张 GPU，单机按 local rank 组成 `8×1` 纵列，桌面端每行最多 8 台主机，超过后换行。悬停只预览该 rank 的 TP / DP / PP 通信组；点击会固定 rank、host 和当前 step，并通过全局调查条继续进入 Tracing、Stacks、Profiling 或 Investigate。仅在 `_role` 含 `dp/pp/tp/cp/ep` 坐标时展示并行坐标，不从 world size 猜测并行策略。当 heartbeat 未上报或 registry 请求失败时，主内容不渲染空 Placement 分区；左侧 Training 控制区显示缺失原因和重试语义，数据恢复后提示自动消失。
+- **Dashboard 证据平面**：Dashboard 不生成“健康”“异常”或“下一步建议”等自动结论，只在一个主证据平面内提供三组可直接比较的事实：Step time 展示 latest step、median、P95、maximum 与近期 median/P95 曲线；GPU load 展示设备平均值和逐设备 utilization/memory；Latest rank step time 展示 rank 覆盖、失败节点、median 参考线及最慢 rank 的原始时长。区域之间使用分隔线而不是等权卡片。点击 rank 行会固定 rank/step 调查上下文。Step time 与 rank comparison 来自同一次 cluster fan-out，GPU load 明确保持 process-local；两种 Scope 不混合成同一个统计量。缺失采集数据只陈述缺失范围，不从缺失推断工作负载状态。
+- **Training 证据平面**：页面不使用流程提问或结论式引导；Step time、Placement、Module Hotspots、Collective Communications 是同一主证据平面中的四个分区。Step time 只保留 Latest / Average / P95 / Maximum 与趋势折线。Placement 只显示 heartbeat 实际上报的 host/rank，且仅保留微型 Overview：一格代表一张 GPU，单机按 local rank 组成 `8×1` 纵列，桌面端每行最多 8 台主机，超过后换行。悬停只预览该 rank 的 TP / DP / PP 通信组；点击固定 rank 后，在同一证据区联动显示节点 endpoint、上报状态、heartbeat 新鲜度、该 rank 最新 step 相对当前可比 rank 中位数的差值、设备与 PyTorch allocator 两层显存证据，以及 TP / DP / PP 三个通信组的成员与性能。设备层通过 `gpu.utilization` 显示当前 used、最近 5 分钟采样峰值、capacity、headroom 和样本数；allocator 层严格区分最新 `post *` hook 的 `allocated`、自 allocator reset 以来的 `max_allocated` 和当前 `cached/reserved`，并给出 peak−current、reserved−allocated 与 allocated/reserved。两层口径不互相替代，也不把 allocator 占用误写成整卡显存利用率。通信组性能只接受 `participate_ranks` 与当前组成员完全一致的样本，并明确标注 Torch API wall time、采样 rank 覆盖和数据范围；缺少样本时保持 unknown，不从 topology 推测性能。Module、Collective、Placement 的通信与显存子证据均保留 fan-out receipt；任何失败 peer 或 partial response 都必须在对应分区可见，不能在传给可视化组件时解包丢失。固定的 rank、host 和当前 step 可通过全局调查条继续进入 Tracing、Stacks、Profiling 或 Investigate。仅在 `_role` 含 `dp/pp/tp/cp/ep` 坐标时展示并行坐标，不从 world size 猜测并行策略。当 heartbeat 未上报或 registry 请求失败时，主内容不渲染空 Placement 分区；左侧 Training 控制区显示缺失原因和重试语义，数据恢复后提示自动消失。
 - **Stacks 证据平面**：Local stacks 明确标注一次 on-demand capture 的 thread 和 root→current 顺序；Captured evidence 与 Call hierarchy 使用同一主证据平面和内部区隔。Call path 支持按函数/源码搜索，语言过滤保留在侧栏，帧默认紧凑并优先展开 current frame。Distributed stacks 在同一平面中展示覆盖摘要与 flamegraph；部分 fan-out 结果继续渲染，并明确缺失 peer，不把部分结果伪装成完整集群结论。
 - **Spans / Timeline 树状交互**：Spans 与 Chrome trace 默认都使用稳定的聚合时间树。Tracing 先按 `trace_id` 分组；Trace 折叠行保留 roots、spans、threads、events、active、root occupancy union、窗口跨度与 self time 汇总，再按真实父子关系逐级展开 Span。Span 行固定为 `Structure / Position & occupancy / Total / Self / Cover`；折叠时保留 nested/event 数、thread、total、self、窗口覆盖率，并在父 span 的真实时间条上叠加直接子节点 occupancy，用户无需展开也能看到子树结构。展开仅分解真实父子关系和 events；高频 attributes 不自动占行，只在点击明确的 `meta` 控件后展示。Chrome trace 使用 `track → 同名同类事件组 → 单次 slice → children`，同样保留 occurrence 数、nested 数和时间 summary。`Expand all / Collapse all` 同步控制所有层级。Chrome Timeline 保留原横向轨道、缩放与 Perfetto 导出作为 `Timeline` 模式。各模式使用同一份采集数据且不生成自动瓶颈结论。
 - **标准主内容**：Next Shell 统一使用 `max-w-[1600px] mx-auto` 与 `p-4 lg:p-5`，背景 `bg-gray-50`。
@@ -234,11 +235,15 @@ GitHub footer
 | URL | `state/investigation_url.rs` | query 参数读写、与 localStorage 同步 |
 | 提示 | `components/investigation_context_hint.rs` | 页内空状态 / 上下文引导 |
 
-固定上下文以紧凑的 blue-50 调查条显示，字段写入 URL 和 localStorage；跨页导航后不得丢失。Hover 只做预览，Click/键盘选择才固定上下文。
+固定上下文以紧凑的 blue-50 调查条显示，字段写入 URL 和 localStorage；调查条、侧栏轨道和侧栏子视图都使用包含完整坐标的 durable link，普通跳转、复制链接和新标签页不得丢失上下文。Hover 只做预览，Click/键盘选择才固定上下文。
+
+调查条只表示用户固定的坐标以及页面是否具备使用该坐标的证据，不代表每个面板都已经成功筛选。面板必须根据实际查询结果区分 `matched`、`out of scope`、`no matching sample` 和 `unsupported`；找不到 Rank/Host/GPU 时禁止静默回退到其他设备。集群覆盖率同时区分 heartbeat 注册 Rank、返回 step 样本的 Rank 和失败 peer endpoint，不能把 endpoint 数量当成 world size。
+
+Cluster Nodes 在 registry 表格上提供 Rank、Host、GPU、endpoint、role 的本地筛选，并可只显示固定进程；Profiler 控制项必须同时陈述 Scope、设置生效时机和 disabled/enabled 状态，不能只暴露一个缺少动作语义的数值控件。
 
 **写入入口示例**：Dashboard 慢 rank 行、Training placement GPU、Tracing trace/span 行、Dashboard 线程行、Agent/SQL 结果行。
 
-**Agent 页面上下文**（与 investigation 独立）：`state/page_context.rs` + `PageContextSync` + `agent/page_tools.rs`（route snapshot 供 LLM）。
+**Agent 页面上下文**（与 investigation 独立）：Next 页面以 `EvidenceRequest → EvidencePayload<T> → EvidenceBundle` 传递 scope、采样时间、行数、fan-out peer 与 partial 状态。Dashboard、Training、Memory 将当前 UI 实际渲染的 payload 发布到 `PAGE_CONTEXT`，Agent 直接消费同一份 bundle；面板关闭时不发起 snapshot 请求。证据身份使用完整的 pid/tid/rank/host/GPU/step/trace/span coordinate key，不使用可能重复的友好 label；LLM grounding 同时保留友好摘要和完整坐标。尚未接入页面发布的路由只在 Agent 打开或用户显式刷新时执行 route snapshot fallback。迟到的旧 route、旧调查坐标和旧请求不会覆盖当前页面证据。
 
 ---
 
