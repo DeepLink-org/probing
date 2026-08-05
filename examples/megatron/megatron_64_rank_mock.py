@@ -265,8 +265,37 @@ def _verify_live_endpoints(nodes: list[dict[str, Any]]) -> None:
 
 
 def _emit_training_step(
-    probing: Any, iteration: int, waits: WaitCounterRecorder
+    probing: Any,
+    iteration: int,
+    waits: WaitCounterRecorder,
+    worker: MockRank,
+    topology: list[MockRank],
+    comm_table: Any,
 ) -> None:
+    groups = groups_for_rank(topology, worker.rank)
+
+    def record_group(
+        *, op: str, started: float, group: str, group_rank: int, nbytes: int
+    ) -> None:
+        comm_table(
+            micro_step=iteration,
+            local_step=iteration,
+            global_step=iteration,
+            micro_batches=1,
+            rank=worker.rank,
+            world_size=WORLD_SIZE,
+            role=worker.role,
+            op=op,
+            duration_ms=(time.perf_counter() - started) * 1_000.0,
+            group_rank=group_rank,
+            group_size=len(groups[group]),
+            participate_ranks=json.dumps(groups[group]),
+            tensor_shape="",
+            tensor_dtype="",
+            bytes=nbytes,
+            async_op=0,
+        ).save()
+
     # Deterministic variation makes the trend useful without claiming a diagnosis.
     jitter = (iteration % 7) * 0.00015
     spike = 0.008 if iteration > 0 and iteration % 17 == 0 else 0.0
@@ -274,18 +303,42 @@ def _emit_training_step(
         with probing.span("forward", phase="forward", source="megatron64.cpu_mock"):
             time.sleep(0.0038 + jitter)
         with probing.span("tensor_parallel.all_gather", source="megatron64.cpu_mock"):
+            started = time.perf_counter()
             with waits.wait("pytorch.wait_counter.fixture.ProcessGroupTP__all_gather"):
                 time.sleep(0.0012)
+            record_group(
+                op="all_gather",
+                started=started,
+                group="tp",
+                group_rank=worker.tp_rank,
+                nbytes=8 << 20,
+            )
         with probing.span("pipeline_parallel.recv", source="megatron64.cpu_mock"):
+            started = time.perf_counter()
             with waits.wait("pytorch.wait_counter.fixture.ProcessGroupPP__recv"):
                 time.sleep(0.0008)
+            record_group(
+                op="recv",
+                started=started,
+                group="pp",
+                group_rank=worker.pp_rank,
+                nbytes=4 << 20,
+            )
         with probing.span("backward", phase="backward", source="megatron64.cpu_mock"):
             time.sleep(0.0058 + jitter + spike)
         with probing.span("data_parallel.reduce_scatter", source="megatron64.cpu_mock"):
+            started = time.perf_counter()
             with waits.wait(
                 "pytorch.wait_counter.fixture.ProcessGroupDP__reduce_scatter"
             ):
                 time.sleep(0.0016)
+            record_group(
+                op="reduce_scatter",
+                started=started,
+                group="dp",
+                group_rank=worker.dp_rank,
+                nbytes=16 << 20,
+            )
         with probing.span("optimizer", phase="optimizer", source="megatron64.cpu_mock"):
             time.sleep(0.0010)
 
@@ -374,6 +427,8 @@ def main() -> int:
     os.environ["PROBING_ROLE_SP"] = str(worker.sp_rank)
 
     import probing
+    import torch  # noqa: F401 - complete Probing's Torch import hook first
+    from probing.profiling.collective.record import CommCollective
     from probing.profiling.runtime_debug import register_wait_counter_provider
 
     waits = WaitCounterRecorder()
@@ -388,7 +443,7 @@ def main() -> int:
     )
 
     base_url = f"http://127.0.0.1:{args.port}"
-    _emit_training_step(probing, 0, waits)
+    _emit_training_step(probing, 0, waits, worker, topology, CommCollective)
     _wait_for_server(base_url, timeout=args.startup_timeout)
     nodes = _wait_for_live_workers(
         base_url,
@@ -421,7 +476,9 @@ def main() -> int:
     iteration = 1
     try:
         while args.duration <= 0 or time.monotonic() - started < args.duration:
-            _emit_training_step(probing, iteration, waits)
+            _emit_training_step(
+                probing, iteration, waits, worker, topology, CommCollective
+            )
             iteration += 1
             time.sleep(max(args.step_interval, 0.0))
     except KeyboardInterrupt:

@@ -20,11 +20,12 @@ Built-in tables: `python.torch_trace`, `python.comm_collective`, `gpu.utilizatio
 
 ## Page order
 
-1. [SQL Analytics](sql-analytics.md) — `global.*`, federation tags, JOIN rules
-2. [Diagnostic Skills](skills.md) — `steps.yaml` runner
-3. [Memory Analysis](memory-analysis.md) — `python.torch_trace`, GPU tables
-4. [Live Debugging](debugging.md) — backtrace, eval, REPL
-5. [Troubleshooting](troubleshooting.md) — HTTP, inject, empty tables
+1. [Next Web UI](web-ui.md) — evidence scope, investigation path, page semantics
+2. [SQL Analytics](sql-analytics.md) — `global.*`, federation tags, JOIN rules
+3. [Diagnostic Skills](skills.md) — `steps.yaml` runner
+4. [Memory Analysis](memory-analysis.md) — `python.torch_trace`, GPU tables
+5. [Live Debugging](debugging.md) — backtrace, eval, REPL
+6. [Troubleshooting](troubleshooting.md) — HTTP, inject, empty tables
 
 Getting started path: Installation → Quick Start → Core model (nav **Getting Started**).
 

@@ -20,11 +20,12 @@
 
 ## 页面顺序
 
-1. [SQL 分析](sql-analytics.zh.md) — `global.*`、联邦标签、JOIN 规则
-2. [诊断 Skill](skills.zh.md) — `steps.yaml` 运行器
-3. [内存分析](memory-analysis.zh.md) — `python.torch_trace`、GPU 表
-4. [现场调试](debugging.zh.md) — backtrace、eval、REPL
-5. [常见问题](troubleshooting.zh.md) — HTTP、inject、空表
+1. [Next Web UI](web-ui.zh.md) — 证据口径、调查路径和页面语义
+2. [SQL 分析](sql-analytics.zh.md) — `global.*`、联邦标签、JOIN 规则
+3. [诊断 Skill](skills.zh.md) — `steps.yaml` 运行器
+4. [内存分析](memory-analysis.zh.md) — `python.torch_trace`、GPU 表
+5. [现场调试](debugging.zh.md) — backtrace、eval、REPL
+6. [常见问题](troubleshooting.zh.md) — HTTP、inject、空表
 
 入门路径：安装指南 → 快速开始 → 核心模型（导航 **入门**）。
 

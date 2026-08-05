@@ -7,6 +7,7 @@ pub struct InvestigationContext {
     pub tid: Option<i32>,
     pub rank: Option<i32>,
     pub host: Option<String>,
+    pub device_id: Option<i32>,
     pub trace_id: Option<i64>,
     pub span_name: Option<String>,
     /// Training coordinate from step matrix / heatmap (filters span attributes on Spans page).
@@ -20,6 +21,7 @@ impl InvestigationContext {
             && self.tid.is_none()
             && self.rank.is_none()
             && self.host.is_none()
+            && self.device_id.is_none()
             && self.trace_id.is_none()
             && self.span_name.is_none()
             && self.local_step.is_none()
@@ -30,6 +32,12 @@ impl InvestigationContext {
         if let Some(label) = &self.label {
             return label.clone();
         }
+        self.derived_summary()
+    }
+
+    /// Exact coordinates used to filter evidence, independent of a friendly
+    /// presentation label such as a thread name.
+    pub fn coordinates_summary(&self) -> String {
         self.derived_summary()
     }
 
@@ -46,6 +54,9 @@ impl InvestigationContext {
         }
         if let Some(host) = &self.host {
             parts.push(host.clone());
+        }
+        if let Some(device_id) = self.device_id {
+            parts.push(format!("GPU {device_id}"));
         }
         if let Some(step) = self.local_step {
             parts.push(format!("step {step}"));
@@ -143,11 +154,12 @@ pub fn clear_spans_investigation_filters() {
 /// Stable key for detecting external investigation context changes.
 pub fn investigation_context_key(ctx: &InvestigationContext) -> String {
     format!(
-        "{}:{}:{}:{}:{}:{}:{}",
+        "{}:{}:{}:{}:{}:{}:{}:{}",
         ctx.pid.unwrap_or(-1),
         ctx.tid.unwrap_or(-1),
         ctx.rank.unwrap_or(-1),
         ctx.host.as_deref().unwrap_or(""),
+        ctx.device_id.unwrap_or(-1),
         ctx.trace_id.unwrap_or(-1),
         ctx.span_name.as_deref().unwrap_or(""),
         ctx.local_step.unwrap_or(-1),
@@ -289,6 +301,7 @@ pub fn set_training_step_context(rank: i32, local_step: Option<i64>, host: Optio
     update_investigation_context(|ctx| {
         ctx.rank = Some(rank);
         ctx.host = host.filter(|value| !value.is_empty()).map(str::to_string);
+        ctx.device_id = None;
         ctx.tid = None;
         ctx.trace_id = None;
         ctx.span_name = Some("train.step".to_string());
@@ -302,6 +315,30 @@ pub fn set_training_step_context(rank: i32, local_step: Option<i64>, host: Optio
 pub fn set_training_rank_context(rank: i32, fallback_step: Option<i64>, host: Option<&str>) {
     let local_step = INVESTIGATION_CONTEXT.read().local_step.or(fallback_step);
     set_training_step_context(rank, local_step, host);
+}
+
+/// Pin a physical accelerator while keeping any step/span coordinate available
+/// for cross-page investigation.
+pub fn set_memory_device_context(rank: Option<i32>, host: Option<&str>, device_id: i32) {
+    update_investigation_context(|ctx| {
+        ctx.rank = rank;
+        ctx.host = host.filter(|value| !value.is_empty()).map(str::to_string);
+        ctx.device_id = Some(device_id);
+        ctx.label = None;
+        ctx.label = Some(ctx.derived_summary());
+    });
+}
+
+/// Pin a reported process/accelerator without discarding the current step.
+/// Cluster, Training, and Memory use this common coordinate set.
+pub fn set_node_context(rank: Option<i32>, host: Option<&str>, device_id: Option<i32>) {
+    update_investigation_context(|ctx| {
+        ctx.rank = rank;
+        ctx.host = host.filter(|value| !value.is_empty()).map(str::to_string);
+        ctx.device_id = device_id;
+        ctx.label = None;
+        ctx.label = Some(ctx.derived_summary());
+    });
 }
 
 pub fn set_thread_context(tid: i32, thread_name: Option<&str>, pid: Option<i32>) {
@@ -338,4 +375,47 @@ pub fn sync_overview_process_context(pid: i32, exe: &str) {
             ctx.label = Some(format!("{exe} · pid {pid}"));
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn friendly_label_does_not_hide_exact_evidence_coordinates() {
+        let context = InvestigationContext {
+            pid: Some(42),
+            tid: Some(7),
+            rank: Some(58),
+            host: Some("node-07".into()),
+            device_id: Some(2),
+            label: Some("trainer thread".into()),
+            ..Default::default()
+        };
+
+        assert_eq!(context.summary(), "trainer thread");
+        assert_eq!(
+            context.coordinates_summary(),
+            "pid 42 · tid 7 · rank 58 · node-07 · GPU 2"
+        );
+    }
+
+    #[test]
+    fn investigation_identity_ignores_friendly_label_but_tracks_coordinates() {
+        let first = InvestigationContext {
+            rank: Some(1),
+            label: Some("selected rank".into()),
+            ..Default::default()
+        };
+        let second = InvestigationContext {
+            rank: Some(2),
+            label: Some("selected rank".into()),
+            ..Default::default()
+        };
+
+        assert_ne!(
+            investigation_context_key(&first),
+            investigation_context_key(&second)
+        );
+    }
 }

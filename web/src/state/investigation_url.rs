@@ -14,6 +14,7 @@ const QUERY_PID: &str = "pid";
 const QUERY_TID: &str = "tid";
 const QUERY_RANK: &str = "rank";
 const QUERY_HOST: &str = "host";
+const QUERY_DEVICE: &str = "gpu";
 const QUERY_STEP: &str = "step";
 const QUERY_TRACE_ID: &str = "trace_id";
 const QUERY_SPAN: &str = "span";
@@ -40,6 +41,7 @@ pub fn parse_context_from_search(search: &str) -> InvestigationContext {
             QUERY_TID => ctx.tid = value.parse().ok(),
             QUERY_RANK => ctx.rank = value.parse().ok(),
             QUERY_HOST if !value.is_empty() => ctx.host = Some(value),
+            QUERY_DEVICE => ctx.device_id = value.parse().ok(),
             QUERY_STEP => ctx.local_step = value.parse().ok(),
             QUERY_TRACE_ID => ctx.trace_id = value.parse().ok(),
             QUERY_SPAN if !value.is_empty() => ctx.span_name = Some(value),
@@ -73,6 +75,9 @@ pub fn context_to_search(ctx: &InvestigationContext) -> String {
         if !host.is_empty() {
             parts.push(format!("{QUERY_HOST}={}", urlencoding::encode(host)));
         }
+    }
+    if let Some(device_id) = ctx.device_id {
+        parts.push(format!("{QUERY_DEVICE}={device_id}"));
     }
     if let Some(step) = ctx.local_step {
         parts.push(format!("{QUERY_STEP}={step}"));
@@ -111,6 +116,9 @@ pub fn apply_investigation_context_from_url() {
         }
         if url_ctx.host.is_some() {
             ctx.host = url_ctx.host.clone();
+        }
+        if url_ctx.device_id.is_some() {
+            ctx.device_id = url_ctx.device_id;
         }
         if url_ctx.local_step.is_some() {
             ctx.local_step = url_ctx.local_step;
@@ -151,11 +159,12 @@ pub fn sync_investigation_context_to_url() {
 pub fn InvestigationUrlSync(#[props(optional)] route_key: Option<String>) -> Element {
     let ctx = INVESTIGATION_CONTEXT.read().clone();
     let ctx_key = format!(
-        "{}:{}:{}:{}:{}:{}:{}:{}",
+        "{}:{}:{}:{}:{}:{}:{}:{}:{}",
         ctx.pid.unwrap_or(-1),
         ctx.tid.unwrap_or(-1),
         ctx.rank.unwrap_or(-1),
         ctx.host.as_deref().unwrap_or(""),
+        ctx.device_id.unwrap_or(-1),
         ctx.trace_id.unwrap_or(-1),
         ctx.span_name.as_deref().unwrap_or(""),
         ctx.local_step.unwrap_or(-1),
@@ -217,6 +226,7 @@ mod tests {
             tid: Some(7),
             rank: Some(19),
             host: Some("trainer-02".to_string()),
+            device_id: Some(3),
             trace_id: Some(88),
             span_name: Some("train.step".to_string()),
             local_step: Some(119),
@@ -228,6 +238,7 @@ mod tests {
         assert_eq!(parsed.tid, context.tid);
         assert_eq!(parsed.rank, context.rank);
         assert_eq!(parsed.host, context.host);
+        assert_eq!(parsed.device_id, context.device_id);
         assert_eq!(parsed.trace_id, context.trace_id);
         assert_eq!(parsed.span_name, context.span_name);
         assert_eq!(parsed.local_step, context.local_step);
