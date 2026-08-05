@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use super::cluster_executor::{reset_fanout_stats, ProbeClusterExecutor};
+use super::cluster_executor::{reset_fanout_stats, PeerQueryTransport, ProbeClusterExecutor};
 use super::convert::{
     cluster_rank_for_endpoint, extend_projection_with_probe_tags, federated_output_schema,
 };
@@ -59,6 +59,7 @@ pub struct GlobalFederatedTable {
     schema_name: String,
     table_name: String,
     local: Arc<dyn TableProvider>,
+    transport: Option<Arc<dyn PeerQueryTransport>>,
 }
 
 impl GlobalFederatedTable {
@@ -66,11 +67,13 @@ impl GlobalFederatedTable {
         schema_name: impl Into<String>,
         table_name: impl Into<String>,
         local: Arc<dyn TableProvider>,
+        transport: Option<Arc<dyn PeerQueryTransport>>,
     ) -> Self {
         Self {
             schema_name: schema_name.into(),
             table_name: table_name.into(),
             local,
+            transport,
         }
     }
 }
@@ -101,9 +104,13 @@ impl TableProvider for GlobalFederatedTable {
         let local_rank = cluster_rank_for_endpoint(&host, &addr);
 
         reset_fanout_stats();
-        let (remote_nodes, remote_scope) = ProbeClusterExecutor::federated_scan_targets();
+        let remote_targets = ProbeClusterExecutor::federated_scan_targets()?;
         // With peers registered, LIMIT is global top-K at the coordinator only.
-        let scan_limit = if remote_nodes.is_empty() { limit } else { None };
+        let scan_limit = if remote_targets.is_empty() {
+            limit
+        } else {
+            None
+        };
 
         // Local scan stays lazy; coalesce to a single partition so the federated
         // plan can expose it as partition 0 without losing rows from sub-partitions.
@@ -130,12 +137,12 @@ impl TableProvider for GlobalFederatedTable {
             output_schema,
             scan_projection,
             remote_sql,
-            remote_nodes,
-            remote_scope,
+            remote_targets,
             host,
             addr,
             local_rank,
             current_fanout_stats_handle(),
+            self.transport.clone(),
         )?;
         Ok(Arc::new(exec))
     }

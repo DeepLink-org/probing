@@ -288,10 +288,10 @@ impl EntityStore for DistributedEntityStore {
 
     async fn list_paginated<T: PersistentEntity>(
         &self,
-        limit: usize,
         offset: usize,
+        limit: usize,
     ) -> Result<(Vec<T>, bool)> {
-        self.local_store().list_paginated(limit, offset).await
+        self.local_store().list_paginated(offset, limit).await
     }
 }
 
@@ -425,5 +425,32 @@ mod tests {
             retrieved_job_after_delete.is_none(),
             "Job should not exist after deletion"
         );
+    }
+
+    #[tokio::test]
+    async fn pagination_uses_offset_then_limit_without_overflow() {
+        let store = setup_default_store();
+        for id in ["job-1", "job-2"] {
+            store
+                .put(&ClusterJob {
+                    id: id.to_string(),
+                    name: id.to_string(),
+                    tasks_count: 1,
+                    status: "Pending".to_string(),
+                })
+                .await
+                .unwrap();
+        }
+
+        let (first_page, has_more) = store.list_paginated::<ClusterJob>(0, 1).await.unwrap();
+        assert_eq!(first_page.len(), 1);
+        assert!(has_more);
+
+        let (past_end, has_more) = store
+            .list_paginated::<ClusterJob>(usize::MAX, usize::MAX)
+            .await
+            .unwrap();
+        assert!(past_end.is_empty());
+        assert!(!has_more);
     }
 }

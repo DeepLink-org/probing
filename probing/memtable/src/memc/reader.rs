@@ -1,9 +1,9 @@
 //! [`SegmentReader`]: mmap a `.memc` file and read its tables and pages.
 //!
-//! A sealed segment is read via its footer page directory. An unsealed or
-//! torn segment (writer crashed before `seal`) falls back to a forward
-//! scan of checksummed blocks, stopping at the first damaged/partial block
-//! — so a half-written tail is silently dropped rather than surfaced.
+//! A sealed segment is read via its footer page directory and any integrity
+//! failure is surfaced. An unsealed segment (writer crashed before `seal`)
+//! falls back to a forward scan of checksummed blocks; only an incomplete tail
+//! is ignored, while corruption of a complete block remains an error.
 
 use std::collections::HashMap;
 use std::io;
@@ -56,13 +56,23 @@ impl SegmentReader {
         let mut tables = HashMap::new();
         let mut pages = Vec::new();
 
-        let footer_ok = header.is_sealed()
-            && header.footer_off != 0
-            && Self::load_footer(&mmap, &header, &mut pages);
+        let footer_ok = if header.is_sealed() {
+            if header.footer_off == 0 {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "sealed MEMC segment has no footer",
+                ));
+            }
+            Self::load_footer(&mmap, &header, &mut pages).map_err(invalid_data)?;
+            true
+        } else {
+            false
+        };
 
         // Always scan blocks for table definitions (cheap; MCTB blocks live
-        // before pages). On footer failure this also recovers page metadata.
-        Self::scan_blocks(&mmap, &header, &mut tables, footer_ok, &mut pages);
+        // before pages). Unsealed segments also recover page metadata here.
+        Self::scan_blocks(&mmap, &header, &mut tables, footer_ok, &mut pages)
+            .map_err(invalid_data)?;
 
         Ok(Self {
             mmap,
@@ -73,56 +83,52 @@ impl SegmentReader {
         })
     }
 
-    /// Parse the footer page directory. Returns `false` (and leaves `pages`
-    /// untouched) if the footer is malformed or fails its checksum.
-    fn load_footer(mmap: &[u8], header: &SegmentHeader, pages: &mut Vec<PageMeta>) -> bool {
-        let Ok(foff) = usize::try_from(header.footer_off) else {
-            return false;
-        };
-        let Some(footer_header_end) = foff.checked_add(16) else {
-            return false;
-        };
+    /// Parse and verify the footer page directory.
+    fn load_footer(
+        mmap: &[u8],
+        header: &SegmentHeader,
+        pages: &mut Vec<PageMeta>,
+    ) -> Result<(), &'static str> {
+        let foff = usize::try_from(header.footer_off).map_err(|_| "footer offset overflow")?;
+        let footer_header_end = foff.checked_add(16).ok_or("footer header overflow")?;
         if footer_header_end > mmap.len() || get_u32(mmap, foff) != MAGIC_FOOTER {
-            return false;
+            return Err("MEMC footer missing or invalid");
         }
         let count = get_u32(mmap, foff + 4) as usize;
         let entries_len = get_u32(mmap, foff + 8) as usize;
         let checksum = get_u32(mmap, foff + 12);
-        let Some(expected_entries_len) = count.checked_mul(PAGE_DIR_ENTRY_SIZE) else {
-            return false;
-        };
+        let expected_entries_len = count
+            .checked_mul(PAGE_DIR_ENTRY_SIZE)
+            .ok_or("footer page count overflow")?;
         if count != header.page_count as usize || entries_len != expected_entries_len {
-            return false;
+            return Err("MEMC footer page count mismatch");
         }
         let entries_start = footer_header_end;
-        let Some(entries_end) = entries_start.checked_add(entries_len) else {
-            return false;
-        };
+        let entries_end = entries_start
+            .checked_add(entries_len)
+            .ok_or("footer entries length overflow")?;
         if entries_end > mmap.len() || xxh32(&mmap[entries_start..entries_end]) != checksum {
-            return false;
+            return Err("MEMC footer checksum mismatch");
         }
 
         let mut out = Vec::with_capacity(count);
         for i in 0..count {
-            let Some(entry_off) = i
+            let entry_off = i
                 .checked_mul(PAGE_DIR_ENTRY_SIZE)
                 .and_then(|offset| entries_start.checked_add(offset))
-            else {
-                return false;
-            };
+                .ok_or("footer entry offset overflow")?;
             let block_off = super::layout::get_u64(mmap, entry_off + 24);
             let block_len = get_u32(mmap, entry_off + 32);
-            let Ok(block_start) = usize::try_from(block_off) else {
-                return false;
-            };
-            let Some(block_end) = block_start.checked_add(block_len as usize) else {
-                return false;
-            };
+            let block_start =
+                usize::try_from(block_off).map_err(|_| "footer block offset overflow")?;
+            let block_end = block_start
+                .checked_add(block_len as usize)
+                .ok_or("footer block length overflow")?;
             if block_start < SEGMENT_HEADER_SIZE
                 || block_len < BLOCK_HEADER_SIZE as u32
                 || block_end > foff
             {
-                return false;
+                return Err("MEMC footer page block range invalid");
             }
             out.push(PageMeta {
                 table_id: get_u32(mmap, entry_off),
@@ -138,23 +144,24 @@ impl SegmentReader {
             });
         }
         *pages = out;
-        true
+        Ok(())
     }
 
     /// Forward-scan blocks from the first block to `footer_off`/EOF.
     /// Collects table definitions always; collects page metadata only when
-    /// `footer_ok` is false (recovery path). Stops at the first block that
-    /// fails to decode or whose payload checksum mismatches.
+    /// `footer_ok` is false (recovery path). Complete corrupt blocks are
+    /// rejected; only an incomplete tail of an unsealed segment is ignored.
     fn scan_blocks(
         mmap: &[u8],
         header: &SegmentHeader,
         tables: &mut HashMap<u32, TableDef>,
         footer_ok: bool,
         pages: &mut Vec<PageMeta>,
-    ) {
+    ) -> Result<(), &'static str> {
+        let sealed = header.is_sealed();
         let limit = if header.footer_off != 0 {
             usize::try_from(header.footer_off)
-                .unwrap_or(usize::MAX)
+                .map_err(|_| "footer offset overflow")?
                 .min(mmap.len())
         } else {
             mmap.len()
@@ -164,42 +171,46 @@ impl SegmentReader {
             .checked_add(BLOCK_HEADER_SIZE)
             .is_some_and(|end| end <= limit)
         {
-            let Some(bh) = BlockHeader::decode(&mmap[off..]) else {
-                break;
-            };
-            let Some(payload_start) = off.checked_add(BLOCK_HEADER_SIZE) else {
-                break;
-            };
-            let Some(payload_end) = payload_start.checked_add(bh.payload_len as usize) else {
-                break;
-            };
+            let bh = BlockHeader::decode(&mmap[off..]).ok_or("MEMC block header invalid")?;
+            let payload_start = off
+                .checked_add(BLOCK_HEADER_SIZE)
+                .ok_or("MEMC block payload offset overflow")?;
+            let payload_end = payload_start
+                .checked_add(bh.payload_len as usize)
+                .ok_or("MEMC block payload length overflow")?;
             if payload_end > limit {
-                break; // torn tail
+                if sealed {
+                    return Err("sealed MEMC block payload out of bounds");
+                }
+                break; // crash during an unsealed tail write
             }
             if xxh32(&mmap[payload_start..payload_end]) != bh.payload_xxh {
-                break; // corrupt payload — stop here
+                return Err("MEMC block payload checksum mismatch");
             }
-            let Some(raw_block_len) = BLOCK_HEADER_SIZE.checked_add(bh.payload_len as usize) else {
-                break;
-            };
-            let Some(block_len) = raw_block_len.checked_add(63).map(|n| n & !63) else {
-                break;
-            };
-            let Some(next_off) = off.checked_add(block_len) else {
-                break;
-            };
+            let raw_block_len = BLOCK_HEADER_SIZE
+                .checked_add(bh.payload_len as usize)
+                .ok_or("MEMC block length overflow")?;
+            let block_len = raw_block_len
+                .checked_add(63)
+                .map(|n| n & !63)
+                .ok_or("MEMC aligned block length overflow")?;
+            let next_off = off
+                .checked_add(block_len)
+                .ok_or("MEMC next block offset overflow")?;
             if next_off > limit {
+                if sealed {
+                    return Err("sealed MEMC aligned block out of bounds");
+                }
                 break;
             }
 
             match bh.magic {
                 MAGIC_TABLE_BLOCK => {
-                    if let Ok(def) = super::layout::decode_table_payload(
+                    let def = super::layout::decode_table_payload(
                         bh.table_id,
                         &mmap[payload_start..payload_end],
-                    ) {
-                        tables.insert(bh.table_id, def);
-                    }
+                    )?;
+                    tables.insert(bh.table_id, def);
                 }
                 MAGIC_PAGE_BLOCK if !footer_ok => {
                     pages.push(PageMeta {
@@ -219,6 +230,10 @@ impl SegmentReader {
             }
             off = next_off;
         }
+        if sealed && off != limit {
+            return Err("sealed MEMC segment has trailing or truncated block bytes");
+        }
+        Ok(())
     }
 
     pub fn path(&self) -> &Path {
@@ -332,4 +347,8 @@ impl SegmentReader {
         }
         Ok(cols)
     }
+}
+
+fn invalid_data(message: &'static str) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidData, message)
 }

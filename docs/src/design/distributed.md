@@ -116,6 +116,11 @@ See [Federated query engine](federation.md) for engine paths and acceptance test
 
 At wan scale, **`cluster query` defaults to [hierarchical fan-out](hierarchical-fanout.md)** (coordinator → per-machine local0 → on-node leaves). Set `PROBING_CLUSTER_FANOUT_HIERARCHICAL=0` or use CLI `--flat` for legacy flat fan-out.
 
+Raw `global.*` scans use the same topology: the coordinator reads its own partition, queries its
+local leaf ranks directly, and sends node-aggregate requests to remote local0 peers. Hierarchical
+execution requires `group_rank` and `local_rank` on every live registry entry; partial metadata is
+reported as an error instead of falling back to a potentially incomplete flat/partial scan.
+
 ## Synchronized Debugging
 
 ### Capture All Stacks
@@ -243,6 +248,10 @@ PROBING_AUTH_TOKEN=secret python train.py
 # Connect with token
 probing -t host:8080 --token secret query "..."
 ```
+
+Use the same token on every peer. Probing applies the configured credential to internal
+node discovery, heartbeat, flat federation queries, and hierarchical fan-out requests;
+load-balancer health endpoints remain public.
 
 ## Best Practices
 

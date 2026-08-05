@@ -292,28 +292,16 @@ impl CoreRuntime {
         }
     }
 
-    pub fn spawn<F>(&self, future: F) -> tokio::task::JoinHandle<F::Output>
+    pub fn spawn<F>(&self, future: F) -> Result<tokio::task::JoinHandle<F::Output>, RuntimeError>
     where
         F: Future + Send + 'static,
         F::Output: Send + 'static,
     {
         match self.ensure_runtime() {
-            Some(rt) => rt.spawn(future),
+            Some(rt) => Ok(rt.spawn(future)),
             None => {
                 self.mark_degraded();
-                log::error!("probing: no tokio runtime for spawn; creating per-call ephemeral");
-                match tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                {
-                    Ok(rt) => rt.spawn(future),
-                    Err(e) => {
-                        log::error!("probing: per-call spawn runtime build failed: {e}");
-                        try_ephemeral_runtime()
-                            .expect("probing: no tokio runtime for spawn")
-                            .spawn(future)
-                    }
-                }
+                Err(RuntimeError::Unavailable)
             }
         }
     }
@@ -346,30 +334,6 @@ impl CoreRuntime {
             "probing: no tokio runtime for try_block_on; using per-call ephemeral executor"
         );
         block_on_ephemeral(future)
-    }
-
-    /// Prefer [`try_block_on`] when the caller can surface bridge failures.
-    pub fn block_on<F, T>(&self, future: F) -> T
-    where
-        F: Future<Output = T>,
-    {
-        if let Some(rt) = &self.current_slot().runtime {
-            return rt.block_on(future);
-        }
-        if let Some(rt) = fallback_runtime() {
-            self.mark_degraded();
-            return rt.block_on(future);
-        }
-        if let Some(rt) = try_ephemeral_runtime() {
-            self.mark_degraded();
-            return rt.block_on(future);
-        }
-        self.mark_degraded();
-        log::error!("probing: CoreRuntime::block_on using per-call ephemeral executor");
-        block_on_ephemeral(future).unwrap_or_else(|err| {
-            log::error!("probing: CoreRuntime::block_on failed: {err}");
-            panic!("probing: async bridge unavailable: {err}");
-        })
     }
 }
 
@@ -808,14 +772,16 @@ mod tests {
             let native_bridge_ok = block_on(async { 6 * 7 }).is_ok_and(|value| value == 42);
             let completed = Arc::new(AtomicBool::new(false));
             let task_completed = Arc::clone(&completed);
-            std::mem::drop(CORE_RUNTIME.spawn(async move {
-                task_completed.store(true, Ordering::Release);
-            }));
+            let spawn_ok = CORE_RUNTIME
+                .spawn(async move {
+                    task_completed.store(true, Ordering::Release);
+                })
+                .is_ok();
             let spawn_deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
             while !completed.load(Ordering::Acquire) && std::time::Instant::now() < spawn_deadline {
                 std::thread::sleep(std::time::Duration::from_millis(10));
             }
-            let spawn_ok = completed.load(Ordering::Acquire);
+            let spawn_ok = spawn_ok && completed.load(Ordering::Acquire);
             // SAFETY: `_exit` avoids running inherited parent-only destructors in the child.
             unsafe {
                 libc::_exit(if block_on_ok && native_bridge_ok && spawn_ok {

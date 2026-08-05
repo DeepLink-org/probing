@@ -181,9 +181,10 @@ MEMC v2 reader 会明确拒绝 v1 段，因为 v1 缺少实例身份，无法安
 
 ### 崩溃恢复
 
-- **已封存**段通过 footer 的 page 目录读取——O(1) 定位每个 page；
-- **未封存或撕裂**的段通过**前向扫描**恢复：从头遍历 block，校验每个 block 的头部和 payload
-  校验和，在第一个坏 block 处停止并丢弃撕裂的尾部。表定义 block 总会被扫描（开销小，且位于 page 之前）。
+- **已封存**段通过 footer 的 page 目录读取——O(1) 定位每个 page。footer、block、payload 或 page
+  的完整性校验一旦失败，整个段及 SQL 扫描都会报错，查询不会再成功返回不完整的冷层结果；
+- **未封存或撕裂**的段通过**前向扫描**恢复。只有不完整的最后一个头部或 payload 会被当作崩溃尾部
+  丢弃；完整 block 的校验和损坏仍会报错。表定义 block 总会被扫描（开销小，且位于 page 之前）。
 
 不存在任何试图修复半行记录的启发式逻辑。
 
@@ -217,6 +218,11 @@ MEMC v2 reader 会明确拒绝 v1 段，因为 v1 缺少实例身份，无法安
 - 后台线程每轮**重新发现** `<data_dir>/<pid>/` 下的环形文件（表会随时间出现），将每个徕出到共享的
   `ColdStore`，按时长滚动，并执行预算约束；
 - 启动时调用 `prime_from_cold()`；停止时 flush（封存打开的段）。
+
+发现、段枚举、写入/滚动与 retention I/O 都是可失败操作。worker 会记录 warning，并通过
+`CompactorRuntimeStats` 暴露 `error_count` 和带操作上下文的 `last_error`。启动时的 watermark
+恢复失败会 fail-closed，因为继续运行可能重复写入冷层；目录或 metadata 读取失败时 retention 也不会
+再被当作成功。
 
 它**默认关闭**（opt-in），以避免在每个 fork 出来的 worker 中都启动一个压缩线程。配置通过
 `MemTableProbeExtension` 选项面或环境变量下发；server 在引擎初始化时调用

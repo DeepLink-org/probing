@@ -30,9 +30,6 @@ elif is_probing_cli():
     cli_main = _core.cli_main
     __all__ = ["VERSION", "cli_main"]
 else:
-    from probing.web_assets import configure_assets_root
-
-    configure_assets_root()
     import probing.config as config
     from probing import _core
     from probing.external_table import ExternalTable

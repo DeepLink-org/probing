@@ -89,7 +89,7 @@ pub fn run(args: &MixedArgs, json: bool, seed: u64) -> Result<()> {
             ttl: args.ttl_secs.map(Duration::from_secs),
         };
         let handle = attach.open()?;
-        Some(Compactor::new(store, config).spawn(vec![("bench".to_string(), handle)]))
+        Some(Compactor::new(store, config).spawn(vec![("bench".to_string(), handle)])?)
     };
 
     let mut threads = Vec::new();

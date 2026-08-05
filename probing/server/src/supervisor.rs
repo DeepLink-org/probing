@@ -217,13 +217,27 @@ impl ServerSupervisor {
         let (start_tx, start_rx) = oneshot::channel();
         let future = factory(generation);
         let supervisor = self;
-        let handle = crate::server::SERVER_RUNTIME.spawn(async move {
+        let handle = match crate::server::SERVER_RUNTIME.spawn(async move {
             if start_rx.await.is_err() {
                 return;
             }
             let result = future.await;
             supervisor.remote_listener_finished(generation, result.err());
-        });
+        }) {
+            Ok(handle) => handle,
+            Err(error) => {
+                transition(
+                    "remote_listener",
+                    &mut slot.state,
+                    ComponentState::Failed {
+                        generation,
+                        key,
+                        error: error.to_string(),
+                    },
+                );
+                return;
+            }
+        };
         slot.candidate = Some(ManagedTask {
             generation,
             key,
@@ -347,14 +361,28 @@ impl ServerSupervisor {
         let (start_tx, start_rx) = oneshot::channel();
         let future = factory(generation);
         let supervisor = self;
-        let handle = crate::server::SERVER_RUNTIME.spawn(async move {
+        let handle = match crate::server::SERVER_RUNTIME.spawn(async move {
             if start_rx.await.is_err() {
                 return;
             }
             supervisor.mark_component_running(component, generation);
             let result = future.await;
             supervisor.component_finished(component, generation, result.err());
-        });
+        }) {
+            Ok(handle) => handle,
+            Err(error) => {
+                transition(
+                    component.name(),
+                    &mut slot.state,
+                    ComponentState::Failed {
+                        generation,
+                        key,
+                        error: error.to_string(),
+                    },
+                );
+                return;
+            }
+        };
         slot.active = Some(ManagedTask {
             generation,
             key,

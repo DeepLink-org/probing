@@ -1,5 +1,6 @@
 //! Hierarchical cluster query fan-out integration test (mock HTTP peers + real engine).
 
+use std::future::Future;
 use std::sync::{LazyLock, Mutex};
 
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
@@ -22,17 +23,24 @@ fn lock_test_env() -> std::sync::MutexGuard<'static, ()> {
 }
 
 fn local_http_available() -> bool {
-    match SERVER_RUNTIME.block_on(TcpListener::bind("127.0.0.1:0")) {
-        Ok(listener) => {
+    match SERVER_RUNTIME.try_block_on(TcpListener::bind("127.0.0.1:0")) {
+        Ok(Ok(listener)) => {
             drop(listener);
             true
         }
-        Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
+        Ok(Err(error)) if error.kind() == std::io::ErrorKind::PermissionDenied => {
             eprintln!("skipping local HTTP fan-out test: environment denied TCP bind ({error})");
             false
         }
-        Err(error) => panic!("probe local HTTP bind capability: {error}"),
+        Ok(Err(error)) => panic!("probe local HTTP bind capability: {error}"),
+        Err(error) => panic!("probe runtime unavailable: {error}"),
     }
+}
+
+fn run_on_server_runtime(future: impl Future<Output = ()>) {
+    SERVER_RUNTIME
+        .try_block_on(future)
+        .expect("probing runtime");
 }
 
 #[derive(Clone)]
@@ -182,7 +190,7 @@ fn hierarchical_fanout_contacts_node_aggregators_not_every_rank() {
     }
     clear_rank_env();
 
-    SERVER_RUNTIME.block_on(async {
+    run_on_server_runtime(async {
         initialize_engine()
             .await
             .expect("initialize probing engine");
@@ -237,7 +245,7 @@ fn flat_fanout_contacts_all_remote_peers() {
     }
     clear_rank_env();
 
-    SERVER_RUNTIME.block_on(async {
+    run_on_server_runtime(async {
         initialize_engine()
             .await
             .expect("initialize probing engine");
@@ -275,7 +283,7 @@ fn hierarchical_fanout_rejects_without_metadata() {
     }
     clear_rank_env();
 
-    SERVER_RUNTIME.block_on(async {
+    run_on_server_runtime(async {
         initialize_engine()
             .await
             .expect("initialize probing engine");
@@ -311,7 +319,7 @@ fn hierarchical_fanout_reports_failed_remote_node_aggregator() {
     }
     clear_rank_env();
 
-    SERVER_RUNTIME.block_on(async {
+    run_on_server_runtime(async {
         initialize_engine()
             .await
             .expect("initialize probing engine");
@@ -356,7 +364,7 @@ fn hierarchical_fanout_reports_failed_local_leaf() {
     }
     clear_rank_env();
 
-    SERVER_RUNTIME.block_on(async {
+    run_on_server_runtime(async {
         initialize_engine()
             .await
             .expect("initialize probing engine");
@@ -416,7 +424,7 @@ fn hierarchical_fanout_leaf_rank_stays_local_only() {
     }
     clear_rank_env();
 
-    SERVER_RUNTIME.block_on(async {
+    run_on_server_runtime(async {
         initialize_engine()
             .await
             .expect("initialize probing engine");

@@ -1,7 +1,7 @@
 # Probing Makefile
 #
 #   develop          → maturin develop (Rust/Python daily loop)
-#   frontend         → dx bundle → python/probing/bundled_web/public (web/dist symlink)
+#   frontend         → dx bundle → probing/server/web-assets/public (web/dist symlink)
 #   wheel            → bundle skills + UI, then maturin build
 #   frontend wheel   → full release path
 #
@@ -27,7 +27,7 @@ else
 endif
 
 MATURIN_FLAGS := $(MATURIN_RELEASE) --features $(MATURIN_FEATURES)
-BUNDLED_WEB_PUBLIC := python/probing/bundled_web/public
+EMBEDDED_WEB_PUBLIC := probing/server/web-assets/public
 
 ifdef ZIG
 ifdef TARGET
@@ -85,8 +85,8 @@ help:
 	@echo "  develop / dev     Bootstrap: _core, CLI, pytest, site hook"
 	@echo "                    Tip: DEBUG=1 make develop → dev profile (faster link)"
 	@echo "  core              Rebuild probing._core after Rust edits"
-	@echo "  frontend          Build UI into python/probing/bundled_web (dx bundle)"
-	@echo "  wheel             Build dist/*.whl (needs bundled_web; bundles skills + UI)"
+	@echo "  frontend          Build UI for compile-time embedding into probing-server"
+	@echo "  wheel             Build dist/*.whl (UI is embedded in probing._core)"
 	@echo "  wheel-ci          alias for wheel (native build; PyPI uses maturin-action + zig)"
 	@echo "  install-wheel     pip install dist/probing-*.whl"
 	@echo "  venv              create/sync project .venv (from .python-version when set)"
@@ -206,23 +206,24 @@ soak-quick: check-dev
 	DURATION_SEC=60 MAX_STEPS=8 PYTHON=$(VENV_PYTHON) PROBING=1 ./examples/imagenet/run_soak.sh
 
 frontend:
-	@test -n "$$SKIP_FRONTEND_CLEAN" || rm -rf python/probing/bundled_web
-	cd web && dx bundle --release
-	@test -f $(BUNDLED_WEB_PUBLIC)/index.html
-	@chmod +x scripts/prune-bundled-web.sh
-	@./scripts/prune-bundled-web.sh $(BUNDLED_WEB_PUBLIC)
-	@mkdir -p $(BUNDLED_WEB_PUBLIC)/assets
-	@cp -f web/assets/logo.svg $(BUNDLED_WEB_PUBLIC)/logo.svg 2>/dev/null || true
-	@cp -f web/assets/logo.svg $(BUNDLED_WEB_PUBLIC)/assets/logo.svg 2>/dev/null || true
-	@cp -f web/assets/tailwind.css $(BUNDLED_WEB_PUBLIC)/assets/tailwind.css
-	@$(PYTHON) scripts/verify_web_assets.py $(BUNDLED_WEB_PUBLIC)
+	@test -n "$$SKIP_FRONTEND_CLEAN" || rm -rf probing/server/web-assets
+	cd web && dx bundle --release --debug-symbols false
+	@test -f $(EMBEDDED_WEB_PUBLIC)/index.html
+	@chmod +x scripts/prune-web-assets.sh
+	@./scripts/prune-web-assets.sh $(EMBEDDED_WEB_PUBLIC)
+	@mkdir -p $(EMBEDDED_WEB_PUBLIC)/assets
+	@cp -f web/assets/logo.svg $(EMBEDDED_WEB_PUBLIC)/logo.svg 2>/dev/null || true
+	@cp -f web/assets/logo.svg $(EMBEDDED_WEB_PUBLIC)/assets/logo.svg 2>/dev/null || true
+	@cp -f web/assets/tailwind.css $(EMBEDDED_WEB_PUBLIC)/assets/tailwind.css
+	@printf '%s\n' '__PROBING_EMBEDDED_WEB_ASSETS_V1__' > $(EMBEDDED_WEB_PUBLIC)/embedded.manifest
+	@PROBING_CLI_MODE=1 $(PYTHON) scripts/verify_web_assets.py $(EMBEDDED_WEB_PUBLIC)
 	@rm -rf web/dist
-	@ln -sfn ../python/probing/bundled_web/public web/dist
-	@echo "$(BUNDLED_WEB_PUBLIC) ($$(du -sh $(BUNDLED_WEB_PUBLIC) | cut -f1))"
+	@ln -sfn ../probing/server/web-assets/public web/dist
+	@echo "$(EMBEDDED_WEB_PUBLIC) ($$(du -sh $(EMBEDDED_WEB_PUBLIC) | cut -f1))"
 
 wheel-bundle:
-	@test -f $(BUNDLED_WEB_PUBLIC)/index.html || { echo "error: run 'make frontend' first"; exit 1; }
-	@$(PYTHON) scripts/verify_web_assets.py $(BUNDLED_WEB_PUBLIC)
+	@test -f $(EMBEDDED_WEB_PUBLIC)/index.html || { echo "error: run 'make frontend' first"; exit 1; }
+	@PROBING_CLI_MODE=1 $(PYTHON) scripts/verify_web_assets.py $(EMBEDDED_WEB_PUBLIC)
 	@test -f python/probing/bundled_skills/catalog.yaml \
 		|| { echo "error: missing python/probing/bundled_skills/catalog.yaml"; exit 1; }
 
@@ -234,7 +235,7 @@ wheel-ci:
 	$(MAKE) wheel
 
 verify-wheel-contents:
-	@$(PYTHON) scripts/verify_wheel_contents.py
+	@PROBING_CLI_MODE=1 $(PYTHON) scripts/verify_wheel_contents.py
 
 install-wheel: verify-wheel-contents
 	@WH=$$(ls -1 dist/probing-*.whl 2>/dev/null | head -1); \
@@ -246,7 +247,7 @@ import importlib.util; \
 import probing; from probing import _core; from pathlib import Path; \
 root = Path(probing.__file__).resolve().parent; \
 assert (root / 'bundled_skills' / 'catalog.yaml').is_file(), f'missing bundled skills under {root}'; \
-assert (root / 'bundled_web' / 'public' / 'index.html').is_file() or (root / 'bundled_web' / 'index.html').is_file(), f'missing bundled web UI under {root}'; \
+assert not (root / 'bundled_web').exists(), f'legacy bundled_web must not be shipped under {root}'; \
 assert all(importlib.util.find_spec(m) for m in ('probing.skills.loader', 'probing.ext', 'probing.handlers')), 'missing probing.* modules in installed wheel'; \
 print('probing', probing.VERSION)"
 
@@ -393,7 +394,7 @@ docs-clean:
 	@cd docs && $(MAKE) clean
 
 clean:
-	rm -rf dist docs/site python/probing/bundled_web web/dist web/target
+	rm -rf dist docs/site probing/server/web-assets web/dist web/target
 	rm -rf python/probing/libs python/probing/shim/hccl
 	rm -rf .pytest_cache .coverage coverage.xml coverage.lcov
 	cargo clean

@@ -8,7 +8,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use datafusion::config::{ConfigExtension, ExtensionOptions};
-use once_cell::sync::Lazy;
 use tokio::sync::{Mutex, RwLock};
 
 use super::error::EngineError;
@@ -16,12 +15,6 @@ use crate::config;
 
 /// Shared probe extension instances keyed by extension name.
 pub type ProbeExtensionMap = BTreeMap<String, Arc<Mutex<dyn ProbeExtension + Send + Sync>>>;
-
-/// Global probe extension registry.
-///
-/// Shared storage for [`ProbeExtension`] instances; [`ProbeExtensionManager`] operates on this map.
-pub static PROBE_EXTENSIONS: Lazy<RwLock<ProbeExtensionMap>> =
-    Lazy::new(|| RwLock::new(BTreeMap::new()));
 
 #[derive(Clone, Debug, Default)]
 pub enum Maybe<T> {
@@ -221,22 +214,31 @@ pub trait ProbeExtension: Debug + Send + Sync + ProbeExtensionCall {
 /// // Or if used in a #[tokio::test] or #[tokio::main] annotated function:
 /// // manager_usage_example().await.unwrap();
 /// ```
-/// Engine extension manager that operates on the global extensions registry.
+/// Engine-scoped extension manager.
 ///
-/// This struct no longer holds extensions directly. Instead, it operates
-/// on the global `PROBE_EXTENSIONS` registry, allowing multiple instances to
-/// work with the same set of extensions.
-#[derive(Clone, Debug, Default)]
-pub struct ProbeExtensionManager;
+/// Clones share one engine's registry, while independently built engines keep
+/// separate extension instances and configuration state.
+#[derive(Clone, Debug)]
+pub struct ProbeExtensionManager {
+    extensions: Arc<RwLock<ProbeExtensionMap>>,
+}
+
+impl Default for ProbeExtensionManager {
+    fn default() -> Self {
+        Self {
+            extensions: Arc::new(RwLock::new(BTreeMap::new())),
+        }
+    }
+}
 
 impl ProbeExtensionManager {
-    /// Register an extension in the global extensions registry.
+    /// Register an extension in this manager's engine-scoped registry.
     pub async fn register(
         &mut self,
         name: String,
         extension: Arc<Mutex<dyn ProbeExtension + Send + Sync>>,
     ) {
-        PROBE_EXTENSIONS.write().await.insert(name, extension);
+        self.extensions.write().await.insert(name, extension);
     }
 
     /// Extract namespace from extension name by removing "extension" suffix and converting to lowercase
@@ -254,7 +256,7 @@ impl ProbeExtensionManager {
     /// ConfigStore is not updated by this method.
     pub async fn set_option(&mut self, key: &str, value: &str) -> Result<(), EngineError> {
         let extensions_clone: Vec<_> = {
-            let extensions = PROBE_EXTENSIONS.read().await;
+            let extensions = self.extensions.read().await;
             extensions.values().cloned().collect()
         }; // Lock is released here
 
@@ -306,7 +308,7 @@ impl ProbeExtensionManager {
 
     pub async fn get_option(&self, key: &str) -> Result<String, EngineError> {
         let extensions_clone: Vec<_> = {
-            let extensions = PROBE_EXTENSIONS.read().await;
+            let extensions = self.extensions.read().await;
             extensions.values().cloned().collect()
         }; // Lock is released here
 
@@ -332,7 +334,7 @@ impl ProbeExtensionManager {
     pub async fn options(&self) -> Vec<ProbeExtensionOption> {
         let mut all_options = Vec::new();
         let extensions_clone: Vec<_> = {
-            let extensions = PROBE_EXTENSIONS.read().await;
+            let extensions = self.extensions.read().await;
             extensions.values().cloned().collect()
         }; // Lock is released here
 
@@ -350,7 +352,7 @@ impl ProbeExtensionManager {
         body: &[u8],
     ) -> Result<Vec<u8>, EngineError> {
         let extensions_clone: Vec<_> = {
-            let extensions = PROBE_EXTENSIONS.read().await;
+            let extensions = self.extensions.read().await;
             extensions.values().cloned().collect()
         }; // Lock is released here
 
@@ -416,25 +418,23 @@ impl ExtensionOptions for ProbeExtensionManager {
     }
 
     fn cloned(&self) -> Box<dyn ExtensionOptions> {
-        // ProbeExtensionManager is now a zero-sized type, so cloning is trivial
-        Box::new(ProbeExtensionManager)
+        Box::new(self.clone())
     }
 
     fn set(&mut self, key: &str, value: &str) -> datafusion::error::Result<()> {
-        let fut = self.set_option(key, value);
-        if let Ok(handle) = tokio::runtime::Handle::try_current() {
-            tokio::task::block_in_place(|| handle.block_on(fut))
-                .map_err(datafusion::error::DataFusionError::from)
-        } else {
-            crate::runtime::CORE_RUNTIME
-                .block_on(fut)
-                .map_err(datafusion::error::DataFusionError::from)
-        }
+        let mut manager = self.clone();
+        let key = key.to_string();
+        let value = value.to_string();
+        crate::runtime::block_on(async move { manager.set_option(&key, &value).await })
+            .map_err(datafusion::error::DataFusionError::from)?
+            .map_err(datafusion::error::DataFusionError::from)
     }
 
     fn entries(&self) -> Vec<datafusion::config::ConfigEntry> {
-        let fut = async {
-            self.options()
+        let manager = self.clone();
+        match crate::runtime::block_on(async move {
+            manager
+                .options()
                 .await
                 .iter()
                 .map(|option| datafusion::config::ConfigEntry {
@@ -443,11 +443,12 @@ impl ExtensionOptions for ProbeExtensionManager {
                     description: option.help,
                 })
                 .collect()
-        };
-        if let Ok(handle) = tokio::runtime::Handle::try_current() {
-            tokio::task::block_in_place(|| handle.block_on(fut))
-        } else {
-            crate::runtime::CORE_RUNTIME.block_on(fut)
+        }) {
+            Ok(entries) => entries,
+            Err(error) => {
+                log::error!("failed to enumerate probing extension options: {error}");
+                Vec::new()
+            }
         }
     }
 }
@@ -461,18 +462,12 @@ mod tests {
     async fn setup_test() -> tokio::sync::MutexGuard<'static, ()> {
         let guard = config::TEST_STATE_LOCK.lock().await;
         config::clear().await;
-        PROBE_EXTENSIONS.write().await.clear();
         guard
     }
 
     // Helper to ensure clean state after each test
     async fn teardown_test() {
         config::clear().await;
-        // 确保在清空之前所有锁都已释放
-        let mut extensions = PROBE_EXTENSIONS.write().await;
-        extensions.clear();
-        // 显式释放写锁
-        drop(extensions);
     }
 
     #[derive(Debug)]
@@ -526,9 +521,11 @@ mod tests {
     async fn test_set_option_syncs_to_config_store() {
         let _state_guard = setup_test().await;
 
-        let mut manager = ProbeExtensionManager;
+        let mut manager = ProbeExtensionManager::default();
         let extension = Arc::new(Mutex::new(TestExtension::default()));
-        manager.register("test".to_string(), extension).await;
+        manager
+            .register("test".to_string(), extension.clone())
+            .await;
 
         // Set option through manager using set_option_with_store_update
         manager
@@ -541,12 +538,10 @@ mod tests {
         assert_eq!(value, Some("new_value".to_string()));
 
         // Verify extension was updated
-        {
-            let extensions = PROBE_EXTENSIONS.read().await;
-            let ext_guard = extensions.get("test").unwrap().lock().await;
-            let value = ext_guard.get("option").unwrap();
-            assert_eq!(value, "new_value");
-        } // 确保锁在这里释放
+        let ext_guard = extension.lock().await;
+        let value = ext_guard.get("option").unwrap();
+        assert_eq!(value, "new_value");
+        drop(ext_guard);
 
         teardown_test().await;
     }
@@ -558,7 +553,7 @@ mod tests {
         // Pre-populate ConfigStore
         config::set("test.option", "old_value").await;
 
-        let mut manager = ProbeExtensionManager;
+        let mut manager = ProbeExtensionManager::default();
         let extension = Arc::new(Mutex::new(TestExtension::default()));
         manager.register("test".to_string(), extension).await;
 
@@ -579,7 +574,7 @@ mod tests {
     async fn test_set_option_unsupported_key() {
         let _state_guard = setup_test().await;
 
-        let mut manager = ProbeExtensionManager;
+        let mut manager = ProbeExtensionManager::default();
         let extension = Arc::new(Mutex::new(TestExtension::default()));
         manager.register("test".to_string(), extension).await;
 
@@ -609,5 +604,24 @@ mod tests {
         assert_eq!(value, Some("stored_value".to_string()));
 
         teardown_test().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn independently_built_managers_do_not_share_extensions() {
+        let mut first = ProbeExtensionManager::default();
+        let second = ProbeExtensionManager::default();
+        first
+            .register(
+                "test".to_string(),
+                Arc::new(Mutex::new(TestExtension::default())),
+            )
+            .await;
+
+        first.set_option("test.option", "first").await.unwrap();
+        assert_eq!(first.get_option("test.option").await.unwrap(), "first");
+        assert!(matches!(
+            second.get_option("test.option").await,
+            Err(EngineError::UnsupportedOption(_))
+        ));
     }
 }

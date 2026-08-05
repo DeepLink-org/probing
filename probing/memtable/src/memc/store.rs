@@ -72,7 +72,7 @@ impl ColdStore {
         std::fs::create_dir_all(&dir)?;
         let pid = std::process::id();
         let wid = writer_id(pid, process_start_time(pid));
-        let next_seq = Self::max_seq_for(&dir, &wid) + 1;
+        let next_seq = Self::max_seq_for(&dir, &wid)?.saturating_add(1);
         Ok(Self {
             dir,
             writer_id: wid,
@@ -89,19 +89,18 @@ impl ColdStore {
     }
 
     /// Highest existing sequence number for `wid` in `dir` (0 if none).
-    fn max_seq_for(dir: &Path, wid: &str) -> u32 {
+    fn max_seq_for(dir: &Path, wid: &str) -> io::Result<u32> {
         let mut max = 0u32;
-        if let Ok(entries) = std::fs::read_dir(dir) {
-            for e in entries.flatten() {
-                let name = e.file_name().to_string_lossy().to_string();
-                if let Some((w, seq)) = parse_segment_name(&name) {
-                    if w == wid {
-                        max = max.max(seq);
-                    }
+        for entry in std::fs::read_dir(dir)? {
+            let entry = entry?;
+            let name = entry.file_name().to_string_lossy().to_string();
+            if let Some((w, seq)) = parse_segment_name(&name) {
+                if w == wid {
+                    max = max.max(seq);
                 }
             }
         }
-        max
+        Ok(max)
     }
 
     /// Path for the next segment (does not create the file).
@@ -133,45 +132,67 @@ impl ColdStore {
     /// All segment files in the directory (any writer), sorted oldest →
     /// newest by modification time.
     pub fn segment_paths(&self) -> Vec<PathBuf> {
-        let mut segs: Vec<(SystemTime, PathBuf)> = Vec::new();
-        if let Ok(entries) = std::fs::read_dir(&self.dir) {
-            for e in entries.flatten() {
-                let path = e.path();
-                if path.extension().and_then(|s| s.to_str()) != Some(SEGMENT_EXT) {
-                    continue;
-                }
-                let mtime = e
-                    .metadata()
-                    .and_then(|m| m.modified())
-                    .unwrap_or(SystemTime::UNIX_EPOCH);
-                segs.push((mtime, path));
+        match self.segment_paths_checked() {
+            Ok(paths) => paths,
+            Err(error) => {
+                log::warn!(
+                    "MEMC segment enumeration failed for {}: {error}",
+                    self.dir.display()
+                );
+                Vec::new()
             }
         }
+    }
+
+    /// Fallible segment enumeration for correctness-sensitive workers.
+    pub fn segment_paths_checked(&self) -> io::Result<Vec<PathBuf>> {
+        let mut segs: Vec<(SystemTime, PathBuf)> = Vec::new();
+        for entry in std::fs::read_dir(&self.dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.extension().and_then(|s| s.to_str()) != Some(SEGMENT_EXT) {
+                continue;
+            }
+            let mtime = entry.metadata()?.modified()?;
+            segs.push((mtime, path));
+        }
         segs.sort_by_key(|a| a.0);
-        segs.into_iter().map(|(_, p)| p).collect()
+        Ok(segs.into_iter().map(|(_, p)| p).collect())
     }
 
     pub fn stats(&self) -> ColdStats {
-        let paths = self.segment_paths();
+        match self.stats_checked() {
+            Ok(stats) => stats,
+            Err(error) => {
+                log::warn!(
+                    "MEMC stats collection failed for {}: {error}",
+                    self.dir.display()
+                );
+                ColdStats::default()
+            }
+        }
+    }
+
+    /// Fallible capacity snapshot used by retention accounting.
+    pub fn stats_checked(&self) -> io::Result<ColdStats> {
+        let paths = self.segment_paths_checked()?;
         let mut total = 0u64;
         let mut oldest = u64::MAX;
         for p in &paths {
-            if let Ok(meta) = std::fs::metadata(p) {
-                total += meta.len();
-                if let Ok(mtime) = meta.modified() {
-                    let ms = mtime
-                        .duration_since(SystemTime::UNIX_EPOCH)
-                        .map(|d| d.as_millis() as u64)
-                        .unwrap_or(0);
-                    oldest = oldest.min(ms);
-                }
-            }
+            let meta = std::fs::metadata(p)?;
+            total = total.saturating_add(meta.len());
+            let ms = meta
+                .modified()?
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0);
+            oldest = oldest.min(ms);
         }
-        ColdStats {
+        Ok(ColdStats {
             segment_count: paths.len(),
             total_bytes: total,
             oldest_unix_ms: if paths.is_empty() { 0 } else { oldest },
-        }
+        })
     }
 
     /// Evict oldest segments until under `max_bytes` and within `ttl`.
@@ -197,7 +218,7 @@ impl ColdStore {
         max_bytes: Option<u64>,
         ttl: Option<Duration>,
     ) -> io::Result<Vec<PathBuf>> {
-        let paths = self.segment_paths();
+        let paths = self.segment_paths_checked()?;
         if paths.len() <= 1 {
             return Ok(Vec::new());
         }
@@ -208,8 +229,17 @@ impl ColdStore {
                 // A concurrent writer may be between create/header write or
                 // actively appending. Conservatively retain both cases.
                 Err(_) if legacy_segment_is_sealed(path) => {}
-                Ok(_) | Err(_) => {
+                Ok(_) => {
                     protected.insert(path.clone());
+                }
+                Err(error) => {
+                    return Err(io::Error::new(
+                        error.kind(),
+                        format!(
+                            "cannot validate MEMC segment {} for retention: {error}",
+                            path.display()
+                        ),
+                    ));
                 }
             }
         }
@@ -220,28 +250,32 @@ impl ColdStore {
         }
 
         let now = SystemTime::now();
-        let mut total: u64 = self.stats().total_bytes;
+        let mut total = 0u64;
+        for path in &paths {
+            total = total.saturating_add(std::fs::metadata(path)?.len());
+        }
 
         let mut removed = Vec::new();
         for path in paths {
             if protected.contains(&path) {
                 continue;
             }
-            let too_old = ttl
-                .and_then(|ttl| {
-                    let mtime = std::fs::metadata(&path).ok()?.modified().ok()?;
-                    now.duration_since(mtime).ok().map(|age| age > ttl)
-                })
-                .unwrap_or(false);
+            let metadata = match std::fs::metadata(&path) {
+                Ok(metadata) => metadata,
+                Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+                Err(error) => return Err(error),
+            };
+            let too_old = match ttl {
+                Some(ttl) => now
+                    .duration_since(metadata.modified()?)
+                    .is_ok_and(|age| age > ttl),
+                None => false,
+            };
             let over_budget = max_bytes.is_some_and(|max| total > max);
             if !(too_old || over_budget) {
                 break; // sorted oldest-first: nothing newer qualifies either
             }
-            let sz = match std::fs::metadata(&path) {
-                Ok(metadata) => metadata.len(),
-                Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
-                Err(error) => return Err(error),
-            };
+            let sz = metadata.len();
             match std::fs::remove_file(&path) {
                 Ok(()) => {
                     total = total.saturating_sub(sz);

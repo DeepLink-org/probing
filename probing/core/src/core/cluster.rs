@@ -380,7 +380,20 @@ pub fn node_aggregator_peers() -> Vec<Node> {
 /// Leaf ranks on this node (same ``group_rank``, excluding self).
 pub fn local_leaf_peers() -> Vec<Node> {
     let local_addrs = local_listen_addrs();
-    let group_rank = env_i32("GROUP_RANK").or_else(|| env_i32("NODE_RANK"));
+    let group_rank = env_i32("GROUP_RANK")
+        .or_else(|| env_i32("NODE_RANK"))
+        .or_else(|| {
+            get_nodes()
+                .into_iter()
+                .find(|node| local_addrs.iter().any(|local| local == &node.addr))
+                .and_then(|node| node.group_rank)
+        });
+    let Some(group_rank) = group_rank else {
+        log::warn!(
+            "hierarchical fan-out cannot identify the local group_rank; refusing cross-node leaf selection"
+        );
+        return Vec::new();
+    };
     let self_rank = env_i32("RANK");
 
     get_nodes()
@@ -390,10 +403,8 @@ pub fn local_leaf_peers() -> Vec<Node> {
             if local_addrs.iter().any(|local| local == &node.addr) {
                 return false;
             }
-            if let (Some(g), Some(expected)) = (node.group_rank, group_rank) {
-                if g != expected {
-                    return false;
-                }
+            if node.group_rank != Some(group_rank) {
+                return false;
             }
             if let (Some(r), Some(self_r)) = (node.rank, self_rank) {
                 if r == self_r {
@@ -411,10 +422,11 @@ fn env_i32(name: &str) -> Option<i32> {
 
 /// Whether ``cluster.nodes`` has enough metadata for hierarchical fan-out.
 pub fn hierarchical_metadata_available() -> bool {
-    get_nodes()
-        .iter()
-        .filter(|n| is_node_alive(n))
-        .any(|n| n.group_rank.is_some() && n.local_rank.is_some())
+    let alive: Vec<Node> = get_nodes().into_iter().filter(is_node_alive).collect();
+    !alive.is_empty()
+        && alive
+            .iter()
+            .all(|n| n.group_rank.is_some() && n.local_rank.is_some())
 }
 
 /// Error prefix returned when hierarchical fan-out is requested but metadata is missing.
@@ -649,5 +661,25 @@ mod tests {
         assert_eq!(leaves[0].rank, Some(1));
         std::env::remove_var("GROUP_RANK");
         std::env::remove_var("RANK");
+    }
+
+    #[test]
+    fn hierarchical_metadata_requires_every_alive_node() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        reset_cluster_for_tests();
+        for (rank, group_rank, local_rank) in [(0, Some(0), Some(0)), (1, None, Some(1))] {
+            write_cluster().put(Node {
+                host: "h".into(),
+                addr: format!("10.0.0.1:{}", 8080 + rank),
+                rank: Some(rank),
+                group_rank,
+                local_rank,
+                status: Some("running".into()),
+                ..Default::default()
+            });
+        }
+
+        assert!(!hierarchical_metadata_available());
+        reset_cluster_for_tests();
     }
 }

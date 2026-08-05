@@ -205,10 +205,12 @@ Each column is encoded independently (`ColEncoding`):
 
 ### Crash Recovery
 
-- A **sealed** segment is read via its footer page directory — O(1) location of every page.
-- An **unsealed or torn** segment is recovered by **forward scan**: walk blocks from the start,
-  verifying each block's header and payload checksum, stopping at the first bad block and dropping
-  the torn tail. Table-definition blocks are always scanned (cheap, and they precede pages).
+- A **sealed** segment is read via its footer page directory — O(1) location of every page. Footer,
+  block, payload, and page integrity failures reject the segment and fail the SQL scan; queries
+  never return a successful but incomplete cold result.
+- An **unsealed or torn** segment is recovered by **forward scan**. Only an incomplete final
+  header/payload is dropped as a crash tail; corruption of a complete checksummed block is an
+  error. Table-definition blocks are always scanned (cheap, and they precede pages).
 
 There is no heuristic that tries to repair a half-written record.
 
@@ -250,6 +252,12 @@ compactor a single lifecycle home:
 - a background thread **rediscovers** ring files under `<data_dir>/<pid>/` each pass (tables appear
   over time), drains each into the shared `ColdStore`, rolls by age, and enforces the budget;
 - on startup it calls `prime_from_cold()`; on stop it flushes (seals the open segment).
+
+Discovery, segment enumeration, write/roll, and retention I/O are fallible operations. The worker
+logs failures and records an observable `CompactorRuntimeStats` snapshot (`error_count` plus the
+operation-qualified `last_error`). Startup priming fails closed, because continuing without recovered
+watermarks could duplicate cold rows; retention never reports success after an unreadable directory
+or metadata failure.
 
 It is **opt-in** (off by default) to avoid spawning a compaction thread in every forked worker.
 Configuration is applied via the `MemTableProbeExtension` option surface or environment variables; the

@@ -8,11 +8,6 @@ import sys
 import zipfile
 from pathlib import Path
 
-try:
-    from verify_web_assets import verify_web_files
-except ModuleNotFoundError:  # Imported as `scripts.verify_wheel_contents` in tests.
-    from scripts.verify_web_assets import verify_web_files
-
 # Paths that must exist in every release wheel (wheel archive member names).
 REQUIRED_PATHS = (
     "probing/__init__.py",
@@ -21,8 +16,21 @@ REQUIRED_PATHS = (
     "probing/handlers/router.py",
     "probing/profiling/torch_probe.py",
     "probing/bundled_skills/catalog.yaml",
-    "probing/bundled_web/public/index.html",
 )
+
+EMBEDDED_WEB_MARKER = b"__PROBING_EMBEDDED_WEB_ASSETS_V1__"
+
+
+def _native_extension(names: set[str]) -> str | None:
+    return next(
+        (
+            name
+            for name in names
+            if name.startswith("probing/_core")
+            and name.endswith((".so", ".pyd", ".dylib"))
+        ),
+        None,
+    )
 
 
 def _pick_wheel(path: Path | None) -> Path:
@@ -43,24 +51,18 @@ def verify_wheel(wheel: Path) -> list[str]:
         names = set(zf.namelist())
         for member in REQUIRED_PATHS:
             if member not in names:
-                # Legacy dx layout (no public/ subdir).
-                if member == "probing/bundled_web/public/index.html":
-                    if "probing/bundled_web/index.html" in names:
-                        continue
                 missing.append(member)
-        web_root = (
-            "probing/bundled_web/public/"
-            if "probing/bundled_web/public/index.html" in names
-            else "probing/bundled_web/"
-        )
-        index_member = f"{web_root}index.html"
-        if index_member in names:
-            errors = verify_web_files(
-                zf.read(index_member).decode("utf-8"),
-                lambda path: f"{web_root}{path}" in names,
-                lambda path: zf.read(f"{web_root}{path}").decode("utf-8"),
-            )
-            missing.extend(f"invalid web bundle: {error}" for error in errors)
+        legacy_web = sorted(name for name in names if name.startswith("probing/bundled_web/"))
+        if legacy_web:
+            missing.append("legacy probing/bundled_web files must not be shipped")
+
+        native = _native_extension(names)
+        if native is None:
+            missing.append("probing/_core native extension")
+        else:
+            binary = zf.read(native)
+            if EMBEDDED_WEB_MARKER not in binary:
+                missing.append("native extension does not contain embedded Web assets")
     return missing
 
 
@@ -80,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
         for path in missing:
             print(f"  - {path}", file=sys.stderr)
         print(
-            "hint: run 'make frontend && make wheel' before install-wheel",
+            "hint: run 'make frontend && make wheel' so Web assets are embedded in probing._core",
             file=sys.stderr,
         )
         return 1

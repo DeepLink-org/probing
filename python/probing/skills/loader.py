@@ -178,12 +178,27 @@ def validate_skill(skill: Skill) -> List[str]:
         if not skill.summary_template.strip() and not skill.next_steps:
             warnings.append(f"{skill.id}: no steps defined")
     seen_ids: set[str] = set()
+    seen_parameters: set[str] = set()
+    for parameter in skill.parameters:
+        name = str(parameter.get("name", ""))
+        parameter_type = parameter.get("type")
+        if name in seen_parameters:
+            warnings.append(f"{skill.id}: duplicate parameter id {name}")
+        seen_parameters.add(name)
+        if parameter_type not in {"integer", "number", "boolean", "string"}:
+            warnings.append(
+                f"{skill.id}.{name}: unsupported parameter type {parameter_type!r}"
+            )
     for step in skill.steps:
         if step.id in seen_ids:
             warnings.append(f"{skill.id}: duplicate step id {step.id}")
         seen_ids.add(step.id)
         if step.type == "sql" and not step.sql:
             warnings.append(f"{skill.id}.{step.id}: sql step missing sql")
+        if step.platform not in {None, "linux", "macos", "windows"}:
+            warnings.append(
+                f"{skill.id}.{step.id}: unsupported platform {step.platform!r}"
+            )
     skill_md = skill.path.parent / "SKILL.md"
     if not skill_md.is_file():
         warnings.append(f"{skill.id}: missing SKILL.md")
@@ -194,6 +209,10 @@ def validate_all() -> List[str]:
     catalog = load_catalog()
     all_warnings: List[str] = []
     for entry in catalog.skills:
-        skill = load_skill(entry.id)
+        try:
+            skill = load_skill(entry.id)
+        except Exception as error:
+            all_warnings.append(f"{entry.id}: invalid skill contract: {error}")
+            continue
         all_warnings.extend(validate_skill(skill))
     return all_warnings

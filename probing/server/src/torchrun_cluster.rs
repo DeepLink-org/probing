@@ -554,13 +554,15 @@ pub fn refresh_torchrun_role() -> bool {
         return false;
     }
     lock_mutex(&REPORT_BACKOFF, "torchrun REPORT_BACKOFF").reset();
-    SERVER_RUNTIME.spawn(async {
+    if let Err(error) = SERVER_RUNTIME.spawn(async {
         let outcome = tokio::task::spawn_blocking(report_once)
             .await
             .unwrap_or(ReportOutcome::Failed);
         let mut backoff = lock_mutex(&REPORT_BACKOFF, "torchrun REPORT_BACKOFF");
         backoff.record(outcome);
-    });
+    }) {
+        log::error!("failed to schedule torchrun cluster reporter: {error}");
+    }
     true
 }
 

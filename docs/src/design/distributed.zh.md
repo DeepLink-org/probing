@@ -111,6 +111,10 @@ ORDER BY avg_ms DESC"
 
 万卡场景下 `cluster query` 默认走 **[分层 fan-out](hierarchical-fanout.zh.md)**（coordinator 仅联系各机 local0，local0 再聚合本机 leaf rank），可用 `PROBING_CLUSTER_FANOUT_HIERARCHICAL=0` 或 CLI `--flat` 恢复扁平 fan-out。
 
+普通 `global.*` 扫描采用同一拓扑：coordinator 读取自身分区、直接查询本机 leaf ranks，并向异机
+local0 发送节点聚合请求。层级执行要求每个存活注册节点都具有 `group_rank` 与 `local_rank`；元数据
+只要部分缺失就会明确报错，不再降级为可能漏数的 flat/partial 扫描。
+
 ## 同步调试
 
 ### 捕获所有堆栈
@@ -238,6 +242,9 @@ PROBING_AUTH_TOKEN=secret python train.py
 # 带令牌连接
 probing -t host:8080 --token secret query "..."
 ```
+
+所有 peer 必须使用相同令牌。Probing 会把已配置的凭据附加到内部节点发现、心跳、
+普通联邦查询和层级 fan-out 请求；负载均衡器使用的健康检查端点仍保持公开。
 
 ## 最佳实践
 

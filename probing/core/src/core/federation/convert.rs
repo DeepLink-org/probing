@@ -244,33 +244,8 @@ pub fn dataframe_to_record_batch(
         return Ok(RecordBatch::new_empty(Arc::new(Schema::empty())));
     }
 
-    let mut tags = federation_tags_for_endpoint(host, addr);
-    if let Some(rank) = rank {
-        tags.rank = rank;
-    }
-    let mut columns = Vec::with_capacity(df.cols.len() + FEDERATION_TAG_COLUMNS.len());
-    let mut fields = Vec::with_capacity(df.names.len() + FEDERATION_TAG_COLUMNS.len());
-
-    for (name, col) in df.names.iter().zip(df.cols.iter()) {
-        fields.push(Field::new(name, array_data_type(col), true));
-        columns.push(seq_to_array(col)?);
-    }
-
-    let rows = df.len();
-    fields.push(Field::new(PROBE_HOST_COL, DataType::Utf8, false));
-    fields.push(Field::new(PROBE_ADDR_COL, DataType::Utf8, false));
-    fields.push(Field::new(PROBE_RANK_COL, DataType::Int32, true));
-    fields.push(Field::new(PROBE_NODE_RANK_COL, DataType::Int32, true));
-    fields.push(Field::new(PROBE_LOCAL_RANK_COL, DataType::Int32, true));
-    fields.push(Field::new(PROBE_ROLE_COL, DataType::Utf8, true));
-    columns.push(Arc::new(StringArray::from(vec![tags.host; rows])));
-    columns.push(Arc::new(StringArray::from(vec![tags.addr; rows])));
-    columns.push(Arc::new(Int32Array::from(vec![tags.rank; rows])));
-    columns.push(Arc::new(Int32Array::from(vec![tags.node_rank; rows])));
-    columns.push(Arc::new(Int32Array::from(vec![tags.local_rank; rows])));
-    columns.push(Arc::new(StringArray::from(vec![tags.role; rows])));
-
-    record_batch(Schema::new(fields), columns, "dataframe conversion failed")
+    let batch = proto_dataframe_to_record_batch(df)?;
+    tag_record_batch(batch, host, addr, rank)
 }
 
 pub fn tag_record_batch(
@@ -493,6 +468,28 @@ mod tests {
         for col in FEDERATION_TAG_COLUMNS {
             assert!(tagged.schema().index_of(col).is_ok());
         }
+    }
+
+    #[test]
+    fn dataframe_conversion_preserves_existing_federation_tags() {
+        let df = DataFrame {
+            names: vec!["value".into(), PROBE_ADDR_COL.into(), PROBE_RANK_COL.into()],
+            cols: vec![
+                Seq::SeqI32(vec![7]),
+                Seq::SeqText(vec!["leaf:8081".into()]),
+                Seq::SeqI32(vec![1]),
+            ],
+            size: 1,
+        };
+
+        let batch = dataframe_to_record_batch(&df, "aggregator", "node:8080", Some(0)).unwrap();
+        assert_eq!(batch.schema().fields().len(), 7);
+        let addr = batch
+            .column(batch.schema().index_of(PROBE_ADDR_COL).unwrap())
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+        assert_eq!(addr.value(0), "leaf:8081");
     }
 
     #[test]
