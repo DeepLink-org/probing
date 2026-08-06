@@ -659,6 +659,25 @@ where
     T: Send + 'static,
 {
     if is_inside_core_runtime() {
+        if on_native_bridge() {
+            let Ok(handle) = tokio::runtime::Handle::try_current() else {
+                return block_on_failed("nested native bridge has no Tokio runtime handle");
+            };
+            if !matches!(
+                handle.runtime_flavor(),
+                tokio::runtime::RuntimeFlavor::MultiThread
+            ) {
+                return block_on_failed(
+                    "nested native bridge requires a multi-thread Tokio runtime",
+                );
+            }
+            return match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                tokio::task::block_in_place(|| handle.block_on(future))
+            })) {
+                Ok(value) => Ok(value),
+                Err(_) => block_on_failed("nested native bridge block_on panicked"),
+            };
+        }
         return spawn_block_on_thread(future);
     }
     run_on_native_thread(move || {
@@ -703,6 +722,16 @@ mod tests {
             .expect("outer bridge")
             .expect("inner bridge");
         assert_eq!(value, 42);
+    }
+
+    #[test]
+    fn nested_block_on_preserves_native_bridge_thread() {
+        let stayed_on_bridge = run_on_native_bridge(|| {
+            block_on(async { block_on(async { on_native_bridge_thread() }) })
+        })
+        .expect("outer bridge")
+        .expect("inner bridge");
+        assert!(stayed_on_bridge);
     }
 
     #[test]
