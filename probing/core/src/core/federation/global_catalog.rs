@@ -7,6 +7,7 @@ use datafusion::error::Result;
 use datafusion::execution::context::SessionContext;
 
 use super::global_table::GlobalFederatedTable;
+use super::PeerQueryTransport;
 
 pub const GLOBAL_CATALOG: &str = "global";
 const SKIP_SCHEMAS: &[&str] = &["information_schema"];
@@ -16,11 +17,14 @@ const SKIP_SCHEMAS: &[&str] = &["information_schema"];
 /// Schemas and tables are discovered on demand at query time, so tables registered
 /// after engine build (e.g. new Python extensions or memtable files) are visible
 /// under `global.*` without refreshing or rebuilding the catalog.
-pub fn install_global_catalog(ctx: &SessionContext) -> Result<()> {
+pub fn install_global_catalog(
+    ctx: &SessionContext,
+    transport: Option<Arc<dyn PeerQueryTransport>>,
+) -> Result<()> {
     let shared_ctx = Arc::new(ctx.clone());
     ctx.register_catalog(
         GLOBAL_CATALOG,
-        Arc::new(DynamicGlobalCatalog::new(shared_ctx)),
+        Arc::new(DynamicGlobalCatalog::new(shared_ctx, transport)),
     );
     Ok(())
 }
@@ -28,6 +32,7 @@ pub fn install_global_catalog(ctx: &SessionContext) -> Result<()> {
 /// Read-only view over `probe` that exposes federated wrappers for every table.
 struct DynamicGlobalCatalog {
     ctx: Arc<SessionContext>,
+    transport: Option<Arc<dyn PeerQueryTransport>>,
 }
 
 impl std::fmt::Debug for DynamicGlobalCatalog {
@@ -39,8 +44,8 @@ impl std::fmt::Debug for DynamicGlobalCatalog {
 }
 
 impl DynamicGlobalCatalog {
-    fn new(ctx: Arc<SessionContext>) -> Self {
-        Self { ctx }
+    fn new(ctx: Arc<SessionContext>, transport: Option<Arc<dyn PeerQueryTransport>>) -> Self {
+        Self { ctx, transport }
     }
 
     fn probe_catalog(&self) -> Option<Arc<dyn CatalogProvider>> {
@@ -66,7 +71,11 @@ impl CatalogProvider for DynamicGlobalCatalog {
         }
         let probe = self.probe_catalog()?;
         let inner = probe.schema(name)?;
-        Some(Arc::new(GlobalSchemaProvider::new(name.to_string(), inner)))
+        Some(Arc::new(GlobalSchemaProvider::new(
+            name.to_string(),
+            inner,
+            self.transport.clone(),
+        )))
     }
 }
 
@@ -75,11 +84,20 @@ impl CatalogProvider for DynamicGlobalCatalog {
 struct GlobalSchemaProvider {
     schema_name: String,
     inner: Arc<dyn SchemaProvider>,
+    transport: Option<Arc<dyn PeerQueryTransport>>,
 }
 
 impl GlobalSchemaProvider {
-    fn new(schema_name: String, inner: Arc<dyn SchemaProvider>) -> Self {
-        Self { schema_name, inner }
+    fn new(
+        schema_name: String,
+        inner: Arc<dyn SchemaProvider>,
+        transport: Option<Arc<dyn PeerQueryTransport>>,
+    ) -> Self {
+        Self {
+            schema_name,
+            inner,
+            transport,
+        }
     }
 }
 
@@ -97,6 +115,7 @@ impl SchemaProvider for GlobalSchemaProvider {
             &self.schema_name,
             name,
             local,
+            self.transport.clone(),
         ))))
     }
 

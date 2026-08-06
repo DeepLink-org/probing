@@ -40,6 +40,27 @@ pub struct FanoutStats {
     pub nodes_failed: Vec<String>,
     /// Peer partial DataFrames dropped during coordinator merge (conversion failure).
     pub peer_batches_dropped: usize,
+    /// True when any descendant reported incomplete data, even if it did not
+    /// provide a concrete failed-node or dropped-batch count.
+    pub partial: bool,
+}
+
+impl FanoutStats {
+    /// A successful transport response from one leaf endpoint.
+    pub fn complete_node() -> Self {
+        Self {
+            nodes_succeeded: 1,
+            ..Self::default()
+        }
+    }
+
+    /// Merge a complete child-subtree outcome into the current request.
+    pub fn absorb(&mut self, child: Self) {
+        self.nodes_succeeded += child.nodes_succeeded;
+        self.nodes_failed.extend(child.nodes_failed);
+        self.peer_batches_dropped += child.peer_batches_dropped;
+        self.partial |= child.partial;
+    }
 }
 
 /// Shareable stats sink captured by physical execution plans.
@@ -62,12 +83,25 @@ impl FanoutStatsHandle {
         *self.lock() = stats;
     }
 
+    #[cfg(test)]
     pub(crate) fn record_success(&self) {
         self.lock().nodes_succeeded += 1;
     }
 
     pub(crate) fn record_failure(&self, addr: &str) {
-        self.lock().nodes_failed.push(addr.to_string());
+        let mut stats = self.lock();
+        stats.nodes_failed.push(addr.to_string());
+        stats.partial = true;
+    }
+
+    pub(crate) fn record_batch_drop(&self) {
+        let mut stats = self.lock();
+        stats.peer_batches_dropped += 1;
+        stats.partial = true;
+    }
+
+    pub(crate) fn absorb(&self, child: FanoutStats) {
+        self.lock().absorb(child);
     }
 
     pub(crate) fn take(&self) -> FanoutStats {

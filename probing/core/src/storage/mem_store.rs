@@ -89,7 +89,7 @@ impl EntityStore for MemoryStore {
         let total = all_entities.len();
 
         let start = offset.min(total);
-        let end = (offset + limit).min(total);
+        let end = offset.saturating_add(limit).min(total);
         let has_more = end < total;
 
         Ok((all_entities[start..end].to_vec(), has_more))

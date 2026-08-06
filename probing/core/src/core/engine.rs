@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use std::sync::RwLock;
 
 use arrow::compute::concat_batches;
 use datafusion::catalog::MemoryCatalogProvider;
@@ -17,6 +17,7 @@ use super::probe_extension::ProbeExtensionManager;
 
 use super::data_source::{ProbeDataSource, ProbeDataSourceKind};
 use super::federation;
+use super::federation::PeerQueryTransport;
 use super::metadata_rewrite;
 use super::semantic_catalog;
 
@@ -53,27 +54,17 @@ pub struct Engine {
     pub context: SessionContext,
     /// Registry of enabled plugins, mapped by their fully qualified names
     data_sources: RwLock<HashMap<String, Arc<dyn ProbeDataSource + Sync + Send>>>,
+    peer_query_transport: Option<Arc<dyn PeerQueryTransport>>,
 }
 
 impl Clone for Engine {
     fn clone(&self) -> Self {
-        let plugins_clone = match self.data_sources.try_read() {
-            Ok(guard) => guard.clone(),
-            Err(_) => {
-                log::warn!("Engine::clone: data_sources contended; blocking for read");
-                if let Ok(handle) = tokio::runtime::Handle::try_current() {
-                    tokio::task::block_in_place(|| {
-                        handle.block_on(async { self.data_sources.read().await.clone() })
-                    })
-                } else {
-                    crate::runtime::CORE_RUNTIME
-                        .block_on(async { self.data_sources.read().await.clone() })
-                }
-            }
-        };
+        let plugins_clone =
+            crate::sync::read_rwlock(&self.data_sources, "engine data_sources").clone();
         Self {
             context: self.context.clone(),
             data_sources: RwLock::new(plugins_clone),
+            peer_query_transport: self.peer_query_transport.clone(),
         }
     }
 }
@@ -92,6 +83,7 @@ impl Default for Engine {
         Engine {
             context: SessionContext::new_with_config(config),
             data_sources: Default::default(),
+            peer_query_transport: None,
         }
     }
 }
@@ -192,7 +184,7 @@ impl Engine {
             if let Some(wrapper) = data_source.provide_catalog(catalog) {
                 self.context.register_catalog("probe", wrapper);
             }
-            let mut maps = self.data_sources.write().await;
+            let mut maps = crate::sync::write_rwlock(&self.data_sources, "engine data_sources");
             maps.insert(format!("probe.{namespace}"), data_source);
         } else if data_source.kind() == ProbeDataSourceKind::Table {
             // In DataFusion, schemas are used to implement namespaces
@@ -205,13 +197,17 @@ impl Engine {
             })?;
             let state: SessionState = self.context.state();
             data_source.register_table(schema, &state)?;
-            let mut maps = self.data_sources.write().await;
+            let mut maps = crate::sync::write_rwlock(&self.data_sources, "engine data_sources");
             maps.insert(
                 format!("probe.{}.{}", namespace, data_source.name()),
                 data_source,
             );
         }
         Ok(())
+    }
+
+    pub fn peer_query_transport(&self) -> Option<Arc<dyn PeerQueryTransport>> {
+        self.peer_query_transport.clone()
     }
 }
 
@@ -221,6 +217,7 @@ pub struct EngineBuilder {
     default_namespace: Option<String>,
     data_sources: Vec<Arc<dyn ProbeDataSource + Sync + Send>>,
     probe_extensions: HashMap<String, Arc<tokio::sync::Mutex<dyn ProbeExtension + Send + Sync>>>,
+    peer_query_transport: Option<Arc<dyn PeerQueryTransport>>,
 }
 
 impl EngineBuilder {
@@ -231,6 +228,7 @@ impl EngineBuilder {
             default_namespace: None,
             data_sources: Vec::new(),
             probe_extensions: Default::default(),
+            peer_query_transport: None,
         }
     }
 
@@ -257,9 +255,14 @@ impl EngineBuilder {
         self
     }
 
+    pub fn with_peer_query_transport(mut self, transport: Arc<dyn PeerQueryTransport>) -> Self {
+        self.peer_query_transport = Some(transport);
+        self
+    }
+
     // Build the Engine with the specified configurations
     pub async fn build(mut self) -> Result<Engine> {
-        let mut eem = ProbeExtensionManager;
+        let mut eem = ProbeExtensionManager::default();
         for (name, extension) in self.probe_extensions.iter() {
             eem.register(name.clone(), extension.clone()).await;
         }
@@ -279,12 +282,13 @@ impl EngineBuilder {
         let engine = Engine {
             context,
             data_sources: Default::default(),
+            peer_query_transport: self.peer_query_transport,
         };
         for data_source in self.data_sources {
             engine.enable(data_source).await?;
         }
         semantic_catalog::install_semantic_catalog(&engine.context)?;
-        federation::install_global_catalog(&engine.context)?;
+        federation::install_global_catalog(&engine.context, engine.peer_query_transport())?;
 
         Ok(engine)
     }
@@ -313,6 +317,33 @@ mod tests {
     use datafusion::physical_plan::ExecutionPlan;
     use probing_proto::prelude::Seq;
     use std::sync::Arc;
+
+    #[derive(Debug)]
+    struct TestPeerTransport;
+
+    impl PeerQueryTransport for TestPeerTransport {
+        fn query(
+            &self,
+            _addr: &str,
+            _sql: &str,
+            _scope: federation::FanoutScope,
+        ) -> Result<federation::PeerQueryOutcome> {
+            unreachable!("transport isolation test does not execute queries")
+        }
+    }
+
+    #[tokio::test]
+    async fn peer_transport_is_scoped_to_the_built_engine() {
+        let configured = Engine::builder()
+            .with_peer_query_transport(Arc::new(TestPeerTransport))
+            .build()
+            .await
+            .unwrap();
+        let plain = Engine::builder().build().await.unwrap();
+
+        assert!(configured.peer_query_transport().is_some());
+        assert!(plain.peer_query_transport().is_none());
+    }
 
     #[derive(Debug, Clone)]
     struct TestTableProbeDataSource {

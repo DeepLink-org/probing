@@ -34,7 +34,7 @@ fn load_spec() -> serde_json::Value {
 }
 
 async fn register_pythonext_stub() -> ProbeExtensionManager {
-    let mut manager = ProbeExtensionManager;
+    let mut manager = ProbeExtensionManager::default();
     manager
         .register(
             "pythonext".to_string(),

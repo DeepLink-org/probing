@@ -110,8 +110,10 @@ parameters:
     description: "Number of recent steps to analyze"
 ```
 
-Types: `integer`, `boolean`, `string`. Parameter values are referenced in SQL as
-`{param_name}`.
+Types: `integer`, `number`, `boolean`, `string`. Parameter values are referenced in SQL as
+`{param_name}`. Overrides are validated and normalized before planning or execution;
+unknown parameters are rejected. String parameters represent SQL literal contents and
+single quotes are escaped during template expansion.
 
 ### Requires
 
@@ -158,6 +160,8 @@ Step fields:
 - `cluster`: If `true`, uses federation fan-out (`POST /apis/cluster/query`).
 - `when`: Optional condition. `"always"` or `"{use_global}"` (runs only when the
   boolean variable is true).
+- `platform`: Optional execution platform: `linux`, `macos`, or `windows`. A step for a
+  different platform is reported as skipped without issuing its SQL/API request.
 
 **`api`** — Call an HTTP API on the probing endpoint.
 
@@ -236,6 +240,7 @@ interpretation:
 | Row count | `rows == 0`, `rows >= 1` |
 | Column predicate | `column:<name> \| <tail>` — pairs with the tail on the right |
 | Numeric compare | `value == 0`, `value > 10`, `max > 1e6`, `avg > 5` |
+| Text equality | `value = propagated_victim` — exact match on the first row |
 | Spread | `max/min(ratio) > 1.5` |
 | Ratio of columns | `ratio(num_col/den_col) > 0.3` |
 | Text search | `any_contains('dead', 'stale')` — case-insensitive substring |
@@ -341,5 +346,8 @@ python -m probing.skills validate my_skill
 python -m probing.skills validate --all
 ```
 
-The validator checks: missing steps, duplicate step IDs, read-only SQL compliance
-(all statements must start with SELECT/WITH/SHOW/DESCRIBE), and missing SKILL.md.
+The validator compiles every catalog skill through the Rust execution schema. It rejects
+unknown YAML fields, mismatched parameter defaults/overrides, unsupported platforms and
+interpretation grammar, duplicate IDs, unresolved templates, and missing required step
+fields. SQL is parsed as an AST; every statement and nested CTE must be read-only, so a
+read followed by a trailing write is rejected. It also checks that `SKILL.md` exists.

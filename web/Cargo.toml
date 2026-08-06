@@ -77,10 +77,10 @@ dioxus-code = { version = "0.1.2", default-features = false, features = [
     "lang-toml",
 ] }
 
-# Match workspace root: fast dev compiles, lean debug artifacts.
+# Match the workspace root's incremental, symbol-free dev profile. Opt in to
+# symbols with CARGO_PROFILE_DEV_DEBUG=1.
 [profile.dev]
-debug = 1
-split-debuginfo = "unpacked"
+debug = 0
 incremental = true
 codegen-units = 256
 

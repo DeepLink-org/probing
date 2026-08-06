@@ -5,7 +5,10 @@ use axum::body::Body;
 use axum::http::{header, HeaderMap, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
+use include_dir::{include_dir, Dir};
 use once_cell::sync::Lazy;
+
+static EMBEDDED_ASSETS: Dir<'_> = include_dir!("$OUT_DIR/probing-web-assets");
 
 static BASE_PATH: Lazy<String> = Lazy::new(|| {
     env::var("PROBING_BASE_PATH")
@@ -43,17 +46,26 @@ fn read_from_disk(key: &str) -> Option<Bytes> {
     Some(Bytes::from(content))
 }
 
+fn read_embedded(key: &str) -> Option<Bytes> {
+    EMBEDDED_ASSETS
+        .get_file(key)
+        .map(|file| Bytes::copy_from_slice(file.contents()))
+}
+
 pub fn contains(path: &str) -> bool {
     let key = normalize_asset_path(path);
     if let Some(root) = assets_root() {
         return Path::new(&root).join(&key).exists();
     }
-    key == "index.html"
+    EMBEDDED_ASSETS.get_file(&key).is_some()
 }
 
 pub fn get(path: &str) -> Bytes {
     let key = normalize_asset_path(path);
     if let Some(data) = read_from_disk(&key) {
+        return data;
+    }
+    if let Some(data) = read_embedded(&key) {
         return data;
     }
     if key == "index.html" {
@@ -97,6 +109,11 @@ fn resolve_asset(path: &str, accept_encoding: &str) -> (Bytes, Option<&'static s
     if accepts_brotli(accept_encoding) {
         let br_key = format!("{key}.br");
         if let Some(data) = read_from_disk(&br_key) {
+            if !data.is_empty() {
+                return (data, Some("br"));
+            }
+        }
+        if let Some(data) = read_embedded(&br_key) {
             if !data.is_empty() {
                 return (data, Some("br"));
             }
@@ -230,7 +247,7 @@ pub async fn static_files(uri: Uri, headers: HeaderMap) -> Result<Response, Stat
 #[cfg(test)]
 mod tests {
     use super::{
-        accepts_brotli, assets_root, cache_control, get, get_content_type, is_content_hashed,
+        accepts_brotli, cache_control, contains, get, get_content_type, is_content_hashed,
         normalize_asset_path,
     };
 
@@ -281,17 +298,34 @@ mod tests {
     }
 
     #[test]
-    fn index_html_from_assets_root_or_stub() {
+    fn embedded_bundle_is_complete_or_uses_fallback() {
         let html = get("index.html");
         assert!(!html.is_empty());
         let body = String::from_utf8_lossy(&html);
-        if let Some(root) = assets_root() {
-            assert!(
-                body.contains("web-dxh"),
-                "UI assets at {root} have no Dioxus bundle — run `make frontend`"
-            );
-        } else {
-            assert!(body.contains("make frontend"));
+        if !contains("embedded.manifest") {
+            assert!(body.contains("Web UI not available"));
+            return;
         }
+        let entry = body
+            .split(['\"', '\''])
+            .find(|part| part.contains("assets/web-dxh") && part.ends_with(".js"))
+            .expect("embedded index references a hashed entry script");
+        assert!(contains(entry), "missing embedded entry script: {entry}");
+
+        let javascript_bytes = get(entry);
+        let javascript = String::from_utf8_lossy(&javascript_bytes);
+        let wasm_name = javascript
+            .split(['\"', '\''])
+            .find_map(|part| {
+                let start = part.find("web_bg-dxh")?;
+                let rest = &part[start..];
+                let end = rest.find(".wasm")? + ".wasm".len();
+                Some(&rest[..end])
+            })
+            .expect("embedded entry references a hashed WASM module");
+        assert!(
+            contains(&format!("assets/{wasm_name}")),
+            "missing embedded WASM module: {wasm_name}"
+        );
     }
 }

@@ -120,7 +120,6 @@ include = [
     "probing/**/*.py",
     "probing/libs/*",
     "probing/bundled_skills/**",
-    "probing/bundled_web/**",
 ]
 
 [build-system]

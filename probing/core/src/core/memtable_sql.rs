@@ -28,7 +28,7 @@
 
 use std::collections::{BTreeSet, HashSet};
 use std::panic::AssertUnwindSafe;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread::JoinHandle;
 use std::time::Duration;
@@ -55,7 +55,8 @@ use once_cell::sync::Lazy;
 
 use probing_memtable::discover::{default_dir, MappedFile};
 use probing_memtable::memc::{
-    ColdStats, ColdStore, ColumnData, Compactor, CompactorConfig, SegmentReader,
+    ColdStats, ColdStore, ColumnData, Compactor, CompactorConfig, CompactorRuntimeStats,
+    SegmentReader,
 };
 use probing_memtable::{
     detect_table, DType, MemTableView, MemhView, MemtableError, TableKind, TypedValue,
@@ -626,19 +627,26 @@ impl TableProvider for RingMmapTable {
 
 // ── Cold segments (MEMC) → Arrow, with two-level time pruning ─────────
 
+type ColdCoverage = HashSet<(u64, usize, u64)>;
+type ColdScanResult = (Vec<RecordBatch>, ColdCoverage);
+
 /// `.memc` segment paths in `dir`, or empty if the dir does not exist.
 /// Read-only: never creates the directory (unlike `ColdStore::open`).
-fn cold_segment_paths(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+fn cold_segment_paths(dir: &std::path::Path) -> std::io::Result<Vec<std::path::PathBuf>> {
     let mut out = Vec::new();
-    if let Ok(entries) = std::fs::read_dir(dir) {
-        for e in entries.flatten() {
-            let p = e.path();
-            if p.extension().and_then(|s| s.to_str()) == Some("memc") {
-                out.push(p);
+    match std::fs::read_dir(dir) {
+        Ok(entries) => {
+            for entry in entries {
+                let p = entry?.path();
+                if p.extension().and_then(|s| s.to_str()) == Some("memc") {
+                    out.push(p);
+                }
             }
         }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
     }
-    out
+    Ok(out)
 }
 
 /// One decoded cold column → an Arrow array (schema order is preserved).
@@ -670,13 +678,16 @@ fn cold_scan(
     table: &str,
     schema: &SchemaRef,
     bounds: &TsBounds,
-) -> (Vec<RecordBatch>, HashSet<(u64, usize, u64)>) {
+) -> DfResult<ColdScanResult> {
     let mut out = Vec::new();
     let mut covered: HashSet<(u64, usize, u64)> = HashSet::new();
-    for path in cold_segment_paths(dir) {
-        let Ok(reader) = SegmentReader::open(&path) else {
-            continue; // unreadable/foreign file: skip rather than fail the scan
-        };
+    for path in cold_segment_paths(dir).map_err(DataFusionError::IoError)? {
+        let reader = SegmentReader::open(&path).map_err(|error| {
+            DataFusionError::External(Box::new(std::io::Error::new(
+                error.kind(),
+                format!("failed to read MEMC segment {}: {error}", path.display()),
+            )))
+        })?;
         if let Some((smin, smax)) = reader.ts_range() {
             if bounds.lower.is_some_and(|lo| smax < lo) || bounds.upper.is_some_and(|hi| smin > hi)
             {
@@ -688,26 +699,28 @@ fn cold_scan(
         };
         let pages = reader.pages();
         for idx in reader.pages_in_range(tid, bounds.lower, bounds.upper) {
+            let cols = reader.read_page(idx).map_err(|error| {
+                DataFusionError::External(Box::new(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!(
+                        "failed to decode MEMC page {idx} in {}: {error}",
+                        path.display()
+                    ),
+                )))
+            })?;
+            let arrays: Vec<ArrayRef> = cols.into_iter().map(cold_column_to_array).collect();
+            let batch = RecordBatch::try_new(Arc::clone(schema), arrays)?;
             if let Some(p) = pages.get(idx) {
                 if p.source_chunk != probing_memtable::memc::SOURCE_CHUNK_NONE {
                     covered.insert((p.source_instance, p.source_chunk as usize, p.source_gen));
                 }
             }
-            match reader.read_page(idx) {
-                Ok(cols) => {
-                    let arrays: Vec<ArrayRef> =
-                        cols.into_iter().map(cold_column_to_array).collect();
-                    match RecordBatch::try_new(Arc::clone(schema), arrays) {
-                        Ok(b) if b.num_rows() > 0 => out.push(b),
-                        Ok(_) => {}
-                        Err(e) => log::error!("cold page {idx} → RecordBatch failed: {e}"),
-                    }
-                }
-                Err(e) => log::debug!("cold page {idx} decode skipped: {e}"),
+            if batch.num_rows() > 0 {
+                out.push(batch);
             }
         }
     }
-    (out, covered)
+    Ok((out, covered))
 }
 
 /// [`TableProvider`] unioning a hot ring with its cold MEMC segments under one
@@ -760,7 +773,7 @@ impl TableProvider for HotColdTable {
         limit: Option<usize>,
     ) -> DfResult<Arc<dyn ExecutionPlan>> {
         let bounds = self.hot.bounds_for(filters);
-        let (cold, covered) = cold_scan(&self.cold_dir, &self.table, &self.schema, &bounds);
+        let (cold, covered) = cold_scan(&self.cold_dir, &self.table, &self.schema, &bounds)?;
         // Drop hot chunks already in cold so each row is counted once.
         let hot = self.hot.pruned_batches_excluding(&bounds, &covered);
 
@@ -1140,21 +1153,24 @@ impl ColdRuntimeConfig {
 /// returned as `(on-disk basename, path)`. The basename is the cold table
 /// identity (matching the SQL read path), so names never collide across
 /// schemas. The `cold/` subdir is skipped (it is a directory, not a file).
-fn cold_source_candidates() -> Vec<(String, std::path::PathBuf)> {
+fn cold_source_candidates() -> std::io::Result<Vec<(String, std::path::PathBuf)>> {
     let mut out = Vec::new();
-    if let Ok(entries) = std::fs::read_dir(self_dir()) {
-        for e in entries.flatten() {
-            let p = e.path();
-            if !p.is_file() {
-                continue;
-            }
-            let name = e.file_name().to_string_lossy().to_string();
-            if classify_mmap_basename(&name).is_some() {
-                out.push((name, p));
-            }
+    let entries = match std::fs::read_dir(self_dir()) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(out),
+        Err(error) => return Err(error),
+    };
+    for entry in entries {
+        let entry = entry?;
+        if !entry.metadata()?.is_file() {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().to_string();
+        if classify_mmap_basename(&name).is_some() {
+            out.push((name, entry.path()));
         }
     }
-    out
+    Ok(out)
 }
 
 /// Process-global owner of the background hot→cold compactor thread.
@@ -1167,6 +1183,8 @@ fn cold_source_candidates() -> Vec<(String, std::path::PathBuf)> {
 pub struct ColdCompactor {
     running: Arc<AtomicBool>,
     handle: Mutex<Option<JoinHandle<()>>>,
+    error_count: Arc<AtomicU64>,
+    last_error: Arc<Mutex<Option<String>>>,
 }
 
 fn lock_compactor_handle(
@@ -1175,17 +1193,47 @@ fn lock_compactor_handle(
     crate::sync::lock_mutex(m, "ColdCompactor handle")
 }
 
+fn lock_compactor_last_error(m: &Mutex<Option<String>>) -> MutexGuard<'_, Option<String>> {
+    crate::sync::lock_mutex(m, "ColdCompactor last_error")
+}
+
+fn record_cold_compactor_error(
+    error_count: &AtomicU64,
+    last_error: &Mutex<Option<String>>,
+    message: impl Into<String>,
+) {
+    let message = message.into();
+    log::warn!("cold compactor: {message}");
+    error_count.fetch_add(1, Ordering::Relaxed);
+    *lock_compactor_last_error(last_error) = Some(message);
+}
+
 impl ColdCompactor {
     pub fn instance() -> &'static Self {
         static INSTANCE: Lazy<ColdCompactor> = Lazy::new(|| ColdCompactor {
             running: Arc::new(AtomicBool::new(false)),
             handle: Mutex::new(None),
+            error_count: Arc::new(AtomicU64::new(0)),
+            last_error: Arc::new(Mutex::new(None)),
         });
         &INSTANCE
     }
 
     pub fn is_running(&self) -> bool {
         self.running.load(Ordering::Acquire)
+    }
+
+    /// Background write/roll/retention health for the current run.
+    pub fn runtime_stats(&self) -> CompactorRuntimeStats {
+        CompactorRuntimeStats {
+            error_count: self.error_count.load(Ordering::Relaxed),
+            last_error: lock_compactor_last_error(&self.last_error).clone(),
+        }
+    }
+
+    fn reset_runtime_stats(&self) {
+        self.error_count.store(0, Ordering::Relaxed);
+        *lock_compactor_last_error(&self.last_error) = None;
     }
 
     /// (Re)apply `cfg`: stop any running thread, then start a fresh one when
@@ -1202,11 +1250,16 @@ impl ColdCompactor {
         if self.running.swap(true, Ordering::SeqCst) {
             return; // already running
         }
+        self.reset_runtime_stats();
         let dir = cold_dir();
         let store = match ColdStore::open(&dir) {
             Ok(s) => s,
             Err(e) => {
-                log::error!("cold compactor: cannot open {}: {e}", dir.display());
+                record_cold_compactor_error(
+                    &self.error_count,
+                    &self.last_error,
+                    format!("cannot open {}: {e}", dir.display()),
+                );
                 self.running.store(false, Ordering::SeqCst);
                 return;
             }
@@ -1215,42 +1268,99 @@ impl ColdCompactor {
         // Exactly-once across restarts: recover per-chunk watermarks from any
         // segments already on disk before draining.
         if let Err(e) = compactor.prime_from_cold() {
-            log::warn!("cold compactor: prime_from_cold failed: {e}");
+            record_cold_compactor_error(
+                &self.error_count,
+                &self.last_error,
+                format!("prime_from_cold failed: {e}"),
+            );
+            self.running.store(false, Ordering::SeqCst);
+            return;
         }
 
         let running = self.running.clone();
+        let error_count = self.error_count.clone();
+        let last_error = self.last_error.clone();
         let poll = cfg.poll;
         match std::thread::Builder::new()
             .name("memc-compactor".into())
             .spawn(move || {
                 while running.load(Ordering::SeqCst) {
-                    for (name, path) in cold_source_candidates() {
-                        let Ok(mapped) = MappedFile::open(&path) else {
-                            continue;
-                        };
-                        if !matches!(detect_table(mapped.as_bytes()), Some(TableKind::Ring)) {
-                            continue; // only ring tables tier to cold
-                        }
-                        if let Ok(view) = MemTableView::new(mapped.as_bytes()) {
-                            if let Err(e) = compactor.drain_view(&name, &view) {
-                                log::debug!("cold compactor: drain {name}: {e}");
+                    match cold_source_candidates() {
+                        Ok(candidates) => {
+                            for (name, path) in candidates {
+                                let mapped = match MappedFile::open(&path) {
+                                    Ok(mapped) => mapped,
+                                    Err(error) => {
+                                        record_cold_compactor_error(
+                                            &error_count,
+                                            &last_error,
+                                            format!("open source {}: {error}", path.display()),
+                                        );
+                                        continue;
+                                    }
+                                };
+                                if !matches!(detect_table(mapped.as_bytes()), Some(TableKind::Ring))
+                                {
+                                    continue; // only ring tables tier to cold
+                                }
+                                match MemTableView::new(mapped.as_bytes()) {
+                                    Ok(view) => {
+                                        if let Err(error) = compactor.drain_view(&name, &view) {
+                                            record_cold_compactor_error(
+                                                &error_count,
+                                                &last_error,
+                                                format!("drain {name}: {error}"),
+                                            );
+                                        }
+                                    }
+                                    Err(error) => record_cold_compactor_error(
+                                        &error_count,
+                                        &last_error,
+                                        format!("open table view {name}: {error}"),
+                                    ),
+                                }
                             }
                         }
+                        Err(error) => record_cold_compactor_error(
+                            &error_count,
+                            &last_error,
+                            format!("discover hot sources: {error}"),
+                        ),
                     }
-                    let _ = compactor.maybe_roll_on_age();
-                    let _ = compactor.enforce();
+                    if let Err(error) = compactor.maybe_roll_on_age() {
+                        record_cold_compactor_error(
+                            &error_count,
+                            &last_error,
+                            format!("age-triggered roll: {error}"),
+                        );
+                    }
+                    if let Err(error) = compactor.enforce_checked() {
+                        record_cold_compactor_error(
+                            &error_count,
+                            &last_error,
+                            format!("retention enforcement: {error}"),
+                        );
+                    }
                     sleep_interruptible(&running, poll);
                 }
                 // Final flush so the last open segment is sealed on shutdown.
-                if let Err(e) = compactor.flush() {
-                    log::debug!("cold compactor: final flush: {e}");
+                if let Err(error) = compactor.flush() {
+                    record_cold_compactor_error(
+                        &error_count,
+                        &last_error,
+                        format!("final flush: {error}"),
+                    );
                 }
             }) {
             Ok(handle) => {
                 *lock_compactor_handle(&self.handle) = Some(handle);
             }
             Err(e) => {
-                log::error!("cold compactor: failed to spawn background thread: {e}");
+                record_cold_compactor_error(
+                    &self.error_count,
+                    &self.last_error,
+                    format!("failed to spawn background thread: {e}"),
+                );
                 self.running.store(false, Ordering::SeqCst);
             }
         }
@@ -1262,7 +1372,13 @@ impl ColdCompactor {
             return;
         }
         if let Some(h) = lock_compactor_handle(&self.handle).take() {
-            let _ = h.join();
+            if h.join().is_err() {
+                record_cold_compactor_error(
+                    &self.error_count,
+                    &self.last_error,
+                    "background thread panicked",
+                );
+            }
         }
     }
 
@@ -1753,6 +1869,29 @@ mod tests {
             .unwrap();
         assert_eq!(collect_i32(&span), vec![2, 3, 4, 5]);
 
+        // A corrupted sealed segment must fail the query instead of returning
+        // only the still-resident hot rows.
+        let segment = std::fs::read_dir(&cold)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .find(|path| path.extension().and_then(|ext| ext.to_str()) == Some("memc"))
+            .expect("cold segment");
+        let mut bytes = std::fs::read(&segment).unwrap();
+        let footer_off = u64::from_le_bytes(bytes[32..40].try_into().unwrap()) as usize;
+        bytes[footer_off + 12] ^= 0xff;
+        std::fs::write(&segment, bytes).unwrap();
+        let error = ctx
+            .sql("SELECT v FROM hc_demo ORDER BY v")
+            .await
+            .unwrap()
+            .collect()
+            .await
+            .unwrap_err();
+        assert!(
+            error.to_string().contains("MEMC footer checksum mismatch"),
+            "unexpected error: {error}"
+        );
+
         drop(t);
     }
 
@@ -1870,6 +2009,38 @@ mod tests {
         ColdCompactor::instance().stop();
         match orig {
             Some(v) => std::env::set_var("PROBING_DATA_DIR", v),
+            None => std::env::remove_var("PROBING_DATA_DIR"),
+        }
+    }
+
+    #[test]
+    fn cold_compactor_start_failure_is_observable() {
+        let _lock = PROBING_DATA_DIR_LOCK.lock().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let original = std::env::var("PROBING_DATA_DIR").ok();
+        std::env::set_var("PROBING_DATA_DIR", tmp.path());
+
+        ColdCompactor::instance().stop();
+        std::fs::create_dir_all(self_dir()).unwrap();
+        std::fs::File::create(cold_dir()).unwrap();
+        ColdCompactor::instance().apply(ColdRuntimeConfig {
+            enabled: true,
+            ..Default::default()
+        });
+
+        let stats = ColdCompactor::instance().runtime_stats();
+        assert!(!ColdCompactor::instance().is_running());
+        assert_eq!(stats.error_count, 1);
+        assert!(
+            stats
+                .last_error
+                .as_deref()
+                .is_some_and(|message| message.contains("cannot open")),
+            "unexpected runtime stats: {stats:?}"
+        );
+
+        match original {
+            Some(value) => std::env::set_var("PROBING_DATA_DIR", value),
             None => std::env::remove_var("PROBING_DATA_DIR"),
         }
     }

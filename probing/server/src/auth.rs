@@ -7,7 +7,7 @@ use axum::{
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use once_cell::sync::Lazy;
 use probing_core::config;
-use std::env;
+use std::{env, sync::RwLock};
 
 use crate::server::error::ApiError;
 
@@ -24,6 +24,20 @@ pub static AUTH_USERNAME: Lazy<String> =
 pub static AUTH_REALM: Lazy<String> =
     Lazy::new(|| env::var(AUTH_REALM_ENV).unwrap_or_else(|_| "Probe Server".to_string()));
 
+static PEER_AUTH_TOKEN: Lazy<RwLock<Option<String>>> = Lazy::new(|| RwLock::new(None));
+
+fn configure_peer_auth_token(token: &str) {
+    let token = token.trim();
+    *probing_core::sync::write_rwlock(&PEER_AUTH_TOKEN, "PEER_AUTH_TOKEN") =
+        (!token.is_empty()).then(|| token.to_string());
+}
+
+pub(crate) fn peer_auth_header_value() -> Option<String> {
+    probing_core::sync::read_rwlock(&PEER_AUTH_TOKEN, "PEER_AUTH_TOKEN")
+        .as_ref()
+        .map(|token| format!("Bearer {token}"))
+}
+
 /// Load `PROBING_AUTH_TOKEN` into the config store so middleware can enforce it.
 pub async fn bootstrap_auth_from_env() {
     let Ok(token) = env::var(AUTH_TOKEN_ENV) else {
@@ -33,14 +47,17 @@ pub async fn bootstrap_auth_from_env() {
     if token.is_empty() {
         return;
     }
-    if let Err(err) = config::write(AUTH_TOKEN_CONFIG_KEY, token).await {
-        log::error!("failed to bootstrap auth token from {AUTH_TOKEN_ENV}: {err}");
+    match config::write(AUTH_TOKEN_CONFIG_KEY, token).await {
+        Ok(()) => configure_peer_auth_token(token),
+        Err(err) => log::error!("failed to bootstrap auth token from {AUTH_TOKEN_ENV}: {err}"),
     }
 }
 
 /// Persist auth token to the config store (used by SET and extension options).
 pub async fn persist_auth_token(token: &str) -> Result<(), probing_core::core::EngineError> {
-    config::write(AUTH_TOKEN_CONFIG_KEY, token).await
+    config::write(AUTH_TOKEN_CONFIG_KEY, token).await?;
+    configure_peer_auth_token(token);
+    Ok(())
 }
 
 /// Get the auth token from the request

@@ -19,12 +19,16 @@ async fn metrics_engine(values: Vec<i32>) -> Engine {
         host: "explain-coord".into(),
         addr: "127.0.0.1:19999".into(),
         rank: Some(0),
+        group_rank: Some(0),
+        local_rank: Some(0),
         ..Default::default()
     });
     update_node(Node {
         host: "explain-peer".into(),
         addr: "127.0.0.1:20001".into(),
         rank: Some(1),
+        group_rank: Some(1),
+        local_rank: Some(0),
         ..Default::default()
     });
 

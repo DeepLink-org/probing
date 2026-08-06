@@ -24,6 +24,7 @@ use planner::{peers_for_scope, plan_fanout};
 use transport::HttpPeerQueryClient;
 use types::{finish_fanout, FanoutOutcome};
 
+pub(crate) use transport::core_transport;
 pub use transport::remote_query_df;
 pub use types::{ClusterFanoutScope, FanoutMeta, FanoutQueryResponse};
 
@@ -187,7 +188,7 @@ async fn fanout_via_global_catalog(sql: &str, scope: FanoutScope) -> anyhow::Res
             } else {
                 0
             },
-            partial: false,
+            partial: stats.partial,
         },
         "global-catalog",
     )

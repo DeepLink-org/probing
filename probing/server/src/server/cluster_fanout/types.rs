@@ -87,6 +87,7 @@ impl FanoutMeta {
             nodes_succeeded: self.nodes_queried.saturating_sub(self.nodes_failed.len()),
             nodes_failed: self.nodes_failed.clone(),
             peer_batches_dropped: self.peer_batches_dropped,
+            partial: self.partial,
         }
     }
 }

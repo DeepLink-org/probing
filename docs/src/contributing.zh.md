@@ -176,7 +176,7 @@ PROBING=1 python examples/getting-started/tracing.py
 
 - **编写**：仓库根 `skills/`（`SKILL.md`、`steps.yaml`、`catalog.yaml`）
 - **安装到 IDE**：`./skills/install.sh` 或 `probing skill install`
-- **打进 wheel**：`make wheel` 自动复制到 `python/probing/bundled_skills/`、`python/probing/bundled_web/`
+- **打进 wheel**：`make wheel` 复制 Skill 到 `python/probing/bundled_skills/`；`make frontend` 将被忽略的 UI 产物构建到 `probing/server/web-assets/`，server build script 在编译时把它嵌入 `probing._core`（普通 Rust 构建使用受版本控制的 fallback 页面）
 - **说明**：`skills/README.md`、[扩展机制 — 诊断 skill](design/extensibility.zh.md#path-2-diagnostic-skill)
 
 ## 开发流程
@@ -245,13 +245,11 @@ probing/                          # 仓库根
 ├── python/
 │   ├── probing/                  # Python 包（不是 Rust）
 │   │   ├── skills/               # skill 加载/安装代码 — 见 python/probing/skills/README.md
-│   │   ├── web_assets.py         # wheel _web/ + editable web/dist → PROBING_ASSETS_ROOT
-│   │   ├── bundled_skills/       # wheel 打包的 skill 数据（编写在 repo-root skills/）
-│   │   └── bundled_web/          # wheel 打包的 UI（make frontend）
+│   │   └── bundled_skills/       # wheel 打包的 skill 数据（编写在 repo-root skills/）
 │   ├── probing_hook.py
 │   └── probing.pth
 ├── src/lib.rs                    # PyO3 → probing._core
-├── probing/                      # Rust workspace
+├── probing/                      # Rust workspace（server/web-assets 编译进 probing._core）
 ├── web/                          # Dioxus UI（`make frontend` → web/dist/）
 ├── tests/                        # 见 tests/README.md
 ├── examples/

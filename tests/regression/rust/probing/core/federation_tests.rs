@@ -1,13 +1,16 @@
 //! Regression tests for the `global` federated catalog path:
 //! probe catalog (local) vs global catalog (fan-out + `_addr` / `_rank` tagging).
 
+use std::fmt;
 use std::sync::Arc;
 
-use probing_core::core::cluster::{reset_cluster_for_tests, update_node};
+use probing_core::core::cluster::{
+    reset_cluster_for_tests, update_node, HIERARCHICAL_METADATA_UNAVAILABLE,
+};
 use probing_core::core::federation::{
-    set_remote_query_hook, take_fanout_stats, FEDERATION_TAG_COLUMNS, GLOBAL_CATALOG,
-    PROBE_ADDR_COL, PROBE_HOST_COL, PROBE_LOCAL_RANK_COL, PROBE_NODE_RANK_COL, PROBE_RANK_COL,
-    PROBE_ROLE_COL,
+    set_remote_query_hook, take_fanout_stats, FanoutScope, FanoutStats, PeerQueryOutcome,
+    PeerQueryTransport, FEDERATION_TAG_COLUMNS, GLOBAL_CATALOG, PROBE_ADDR_COL, PROBE_HOST_COL,
+    PROBE_LOCAL_RANK_COL, PROBE_NODE_RANK_COL, PROBE_RANK_COL, PROBE_ROLE_COL,
 };
 use probing_core::core::{Engine, ProbeDataSource};
 use probing_proto::prelude::{Node, Seq};
@@ -84,6 +87,45 @@ struct FederatedTestCluster {
     peer_addr: String,
 }
 
+struct PartialSubtreeTransport {
+    peer_engine: Engine,
+    peer_addr: String,
+}
+
+impl fmt::Debug for PartialSubtreeTransport {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("PartialSubtreeTransport")
+            .field("peer_addr", &self.peer_addr)
+            .finish()
+    }
+}
+
+impl PeerQueryTransport for PartialSubtreeTransport {
+    fn query(
+        &self,
+        addr: &str,
+        sql: &str,
+        scope: FanoutScope,
+    ) -> datafusion::error::Result<PeerQueryOutcome> {
+        assert_eq!(addr, self.peer_addr);
+        assert_eq!(scope, FanoutScope::Coordinator);
+        let dataframe = futures::executor::block_on(self.peer_engine.async_query(sql))?
+            .ok_or_else(|| {
+                datafusion::error::DataFusionError::Execution("missing peer data".into())
+            })?;
+        Ok(PeerQueryOutcome::with_stats(
+            dataframe,
+            FanoutStats {
+                nodes_succeeded: 1,
+                nodes_failed: vec!["remote-leaf: timeout".into()],
+                peer_batches_dropped: 0,
+                partial: true,
+            },
+        ))
+    }
+}
+
 impl FederatedTestCluster {
     async fn setup(local_values: Vec<i32>, peer_values: Vec<i32>) -> Self {
         reset_cluster_for_tests();
@@ -147,6 +189,72 @@ impl FederatedTestCluster {
         set_remote_query_hook(None);
         reset_cluster_for_tests();
     }
+}
+
+#[tokio::test]
+async fn global_query_preserves_nested_partial_transport_stats() {
+    let _lock = federation_test_lock().await;
+    reset_cluster_for_tests();
+    set_remote_query_hook(None);
+    std::env::set_var("PROBING_ADDRESS", "127.0.0.1:19999");
+    std::env::set_var("HOSTNAME", "coord-host");
+    std::env::set_var("RANK", "0");
+    std::env::set_var("LOCAL_RANK", "0");
+    std::env::set_var("GROUP_RANK", "0");
+    std::env::set_var("PROBING_CLUSTER_FANOUT_HIERARCHICAL", "1");
+
+    register_local_node(0, "127.0.0.1:19999", "coord-host");
+    let peer_addr = "127.0.0.1:20002".to_string();
+    update_node(Node {
+        host: "remote-node".into(),
+        addr: peer_addr.clone(),
+        rank: Some(2),
+        group_rank: Some(1),
+        local_rank: Some(0),
+        status: Some("running".into()),
+        ..Default::default()
+    });
+
+    let peer_table =
+        GenericTableProbeDataSource::single_column_table("metrics", "demo", "v", vec![2]);
+    let peer_engine = Engine::builder()
+        .with_data_source(Arc::new(peer_table) as Arc<dyn ProbeDataSource + Send + Sync>)
+        .build()
+        .await
+        .expect("peer engine");
+    let local_table =
+        GenericTableProbeDataSource::single_column_table("metrics", "demo", "v", vec![0]);
+    let engine = Engine::builder()
+        .with_peer_query_transport(Arc::new(PartialSubtreeTransport {
+            peer_engine,
+            peer_addr,
+        }))
+        .with_data_source(Arc::new(local_table) as Arc<dyn ProbeDataSource + Send + Sync>)
+        .build()
+        .await
+        .expect("coordinator engine");
+
+    let dataframe = engine
+        .async_query("SELECT v FROM global.demo.metrics ORDER BY v")
+        .await
+        .expect("global query")
+        .expect("global dataframe");
+    assert_eq!(df_col_i32(&dataframe, "v"), vec![0, 2]);
+
+    let stats = take_fanout_stats();
+    assert!(stats.partial);
+    assert_eq!(stats.nodes_succeeded, 1);
+    assert_eq!(stats.nodes_failed, vec!["remote-leaf: timeout"]);
+
+    for key in [
+        "RANK",
+        "LOCAL_RANK",
+        "GROUP_RANK",
+        "PROBING_CLUSTER_FANOUT_HIERARCHICAL",
+    ] {
+        std::env::remove_var(key);
+    }
+    reset_cluster_for_tests();
 }
 
 #[tokio::test]
@@ -248,6 +356,36 @@ async fn global_and_probe_return_same_ranks_without_peers() {
         df_col_i32(&probe_df, "rank"),
         df_col_i32(&global_df, "rank")
     );
+}
+
+#[tokio::test]
+async fn global_query_with_remote_peer_missing_hierarchical_metadata_fails_closed() {
+    let _lock = federation_test_lock().await;
+    reset_cluster_for_tests();
+    set_remote_query_hook(None);
+    std::env::set_var("PROBING_ADDRESS", "127.0.0.1:19999");
+    std::env::set_var("PROBING_CLUSTER_FANOUT_HIERARCHICAL", "1");
+    update_node(Node {
+        host: "peer-host".into(),
+        addr: "127.0.0.1:20001".into(),
+        rank: Some(1),
+        ..Default::default()
+    });
+
+    let engine = build_demo_engine().await;
+    let error = engine
+        .async_query("SELECT rank FROM global.demo.metrics")
+        .await
+        .expect_err("remote fan-out with incomplete metadata must fail closed");
+    assert!(
+        error
+            .to_string()
+            .contains(HIERARCHICAL_METADATA_UNAVAILABLE),
+        "unexpected error: {error}"
+    );
+
+    std::env::remove_var("PROBING_CLUSTER_FANOUT_HIERARCHICAL");
+    reset_cluster_for_tests();
 }
 
 #[tokio::test]

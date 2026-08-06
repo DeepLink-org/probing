@@ -118,7 +118,7 @@ pub async fn engine_query_json(sql: String, limit: usize) -> Result<serde_json::
 /// Surface federated / global-table fan-out completeness when peers were dropped.
 fn attach_fanout_quality(payload: &mut serde_json::Value) -> Result<(), ErrorData> {
     let stats = take_fanout_stats();
-    if stats.nodes_failed.is_empty() && stats.peer_batches_dropped == 0 {
+    if !probing_core::core::federation::fanout_stats_partial(&stats) {
         return Ok(());
     }
     if fanout_strict_enabled() {

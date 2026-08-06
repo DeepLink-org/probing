@@ -17,7 +17,8 @@ use probing_core::config;
 use crate::server::error::{ApiError, ApiResult};
 
 use probing_core::core::federation::{
-    reset_fanout_stats, take_fanout_stats, with_fanout_scope_async, FanoutScope,
+    fanout_stats_partial, reset_fanout_stats, take_fanout_stats, with_fanout_scope_async,
+    FanoutScope,
 };
 use probing_core::core::UnifiedMemtableProbeDataSource;
 pub use probing_core::ENGINE;
@@ -28,8 +29,8 @@ use probing_python::extensions::python::PythonProbeDataSource;
 pub async fn initialize_engine() -> Result<()> {
     probing_hccl_shim::register_docs();
     probing_nccl_profiler::register_docs();
-
     let builder = probing_core::create_engine()
+        .with_peer_query_transport(crate::server::cluster_fanout::core_transport())
         .with_data_source(cc::ClusterProbeDataSource::create("cluster", "nodes"))
         .with_data_source(cc::EnvProbeDataSource::create("process", "envs"))
         .with_data_source(cc::FilesProbeDataSource::create("files"))
@@ -171,7 +172,7 @@ fn is_missing_table_error(err: &impl std::fmt::Display) -> bool {
 fn fanout_meta_from_stats(
     stats: probing_core::core::federation::FanoutStats,
 ) -> Option<serde_json::Value> {
-    if stats.nodes_failed.is_empty() && stats.peer_batches_dropped == 0 {
+    if !fanout_stats_partial(&stats) {
         return None;
     }
     Some(serde_json::json!({
@@ -185,7 +186,7 @@ fn fanout_meta_from_stats(
 }
 
 fn query_response_partial(stats: &probing_core::core::federation::FanoutStats) -> bool {
-    !stats.nodes_failed.is_empty() || stats.peer_batches_dropped > 0
+    fanout_stats_partial(stats)
 }
 
 /// Serialized `/query` body plus whether federated fan-out was partial.
@@ -250,4 +251,23 @@ async fn query_in_fanout_context(req: String) -> ApiResult<QueryHttpEnvelope> {
         partial,
         error,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{fanout_meta_from_stats, query_response_partial};
+    use probing_core::core::federation::FanoutStats;
+
+    #[test]
+    fn child_partial_flag_surfaces_without_failure_details() {
+        let stats = FanoutStats {
+            nodes_succeeded: 2,
+            partial: true,
+            ..FanoutStats::default()
+        };
+
+        assert!(query_response_partial(&stats));
+        let meta = fanout_meta_from_stats(stats).expect("partial response metadata");
+        assert_eq!(meta["fanout"]["partial"], true);
+    }
 }

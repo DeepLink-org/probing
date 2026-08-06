@@ -82,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
         "root",
         nargs="?",
         type=Path,
-        default=Path("python/probing/bundled_web/public"),
+        default=Path("probing/server/web-assets/public"),
         help="bundle root containing index.html",
     )
     args = parser.parse_args(argv)

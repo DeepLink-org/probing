@@ -180,7 +180,7 @@ See [examples/README.md](https://github.com/DeepLink-org/probing/blob/main/examp
 
 - **Authoring**: repo root `skills/` (`SKILL.md`, `steps.yaml`, `catalog.yaml`)
 - **Install to IDE agents**: `./skills/install.sh` or `probing skill install`
-- **Bundled in wheel**: `make wheel` copies skills into `python/probing/bundled_skills/` and UI into `python/probing/bundled_web/`
+- **Bundled in wheel**: `make wheel` copies skills into `python/probing/bundled_skills/`; `make frontend` builds ignored UI artifacts under `probing/server/web-assets/`, and the server build script embeds them into `probing._core` at compile time (plain Rust builds use a tracked fallback page)
 - **Docs**: `skills/README.md`, [Extensibility — Diagnostic skill](design/extensibility.md#path-2-diagnostic-skill)
 
 ## Development workflow
@@ -250,13 +250,11 @@ probing/                          # repo root
 ├── python/
 │   ├── probing/                  # Python PACKAGE (not Rust)
 │   │   ├── skills/               # skill loader/install CODE — see python/probing/skills/README.md
-│   │   ├── web_assets.py         # wheel _web/ + editable web/dist → PROBING_ASSETS_ROOT
-│   │   ├── bundled_skills/       # skill DATA bundled in wheel (author in repo-root skills/)
-│   │   └── bundled_web/          # UI bundled in wheel (make frontend)
+│   │   └── bundled_skills/       # skill DATA bundled in wheel (author in repo-root skills/)
 │   ├── probing_hook.py           # .pth → site hook
 │   └── probing.pth
 ├── src/lib.rs                    # PyO3 entry → probing._core (maturin)
-├── probing/                      # Rust WORKSPACE (core, server, cli, extensions)
+├── probing/                      # Rust WORKSPACE (server/web-assets is embedded in probing._core)
 ├── web/                          # Dioxus UI (`make frontend` → web/dist/)
 ├── tests/                        # see tests/README.md
 ├── examples/                     # optional torch/etc.
