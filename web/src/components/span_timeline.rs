@@ -4,7 +4,9 @@ use dioxus::prelude::*;
 
 use crate::api::SpanInfo;
 
+#[cfg(test)]
 const TIMELINE_LANE_PX: f64 = 148.0;
+#[cfg(test)]
 const MIN_BAR_PX: f64 = 3.0;
 
 /// Nanosecond window covering all spans in the current tree.
@@ -51,11 +53,13 @@ impl TraceTimeWindow {
         (self.end_ns - self.start_ns).max(1)
     }
 
+    #[cfg(test)]
     pub fn offset_px(&self, timestamp_ns: i64) -> f64 {
         let pct = (timestamp_ns - self.start_ns) as f64 / self.range_ns() as f64;
         (pct.clamp(0.0, 1.0) * TIMELINE_LANE_PX).max(0.0)
     }
 
+    #[cfg(test)]
     pub fn width_px(&self, start_ns: i64, end_ns: Option<i64>) -> f64 {
         let end = end_ns.unwrap_or(self.end_ns);
         let dur = (end - start_ns).max(0) as f64;
@@ -118,6 +122,7 @@ pub fn span_total_ns(span: &SpanInfo, window: TraceTimeWindow) -> i64 {
 }
 
 /// Percentage of the visible trace window covered by this span.
+#[cfg(test)]
 pub fn span_cover_pct(span: &SpanInfo, window: TraceTimeWindow) -> f64 {
     span_total_ns(span, window) as f64 / window.range_ns() as f64 * 100.0
 }
@@ -153,66 +158,6 @@ fn span_tooltip(span: &SpanInfo, window: TraceTimeWindow) -> String {
         end,
         dur,
     )
-}
-
-#[component]
-pub fn SpanTimelineHeader(window: TraceTimeWindow) -> Element {
-    let total = format_axis_label(window.range_ns() as f64);
-    let mid = format_axis_label(window.range_ns() as f64 / 2.0);
-    rsx! {
-        div {
-            class: "flex shrink-0 border-b border-gray-200 bg-gray-50/90 sticky top-0 z-10",
-            div {
-                class: "shrink-0 border-r border-gray-200 px-2 py-1.5",
-                style: "width: {TIMELINE_LANE_PX}px",
-                div { class: "text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1",
-                    "Timeline"
-                }
-                div { class: "relative h-4 text-xs text-gray-500 font-mono tabular-nums",
-                    span { class: "absolute left-0 top-0", "0" }
-                    span { class: "absolute left-1/2 -translate-x-1/2 top-0", "{mid}" }
-                    span { class: "absolute right-0 top-0", "{total}" }
-                    div { class: "absolute inset-x-0 top-[14px] h-px bg-gray-200" }
-                    div { class: "absolute left-0 top-[11px] w-px h-[7px] bg-gray-300" }
-                    div { class: "absolute left-1/2 top-[11px] w-px h-[7px] bg-gray-300" }
-                    div { class: "absolute right-0 top-[11px] w-px h-[7px] bg-gray-300" }
-                }
-            }
-            div { class: "flex-1 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500",
-                "Span tree"
-            }
-        }
-    }
-}
-
-#[component]
-pub fn SpanTimelineLegend() -> Element {
-    rsx! {
-        div {
-            class: "flex flex-wrap items-center gap-x-4 gap-y-1 px-2 py-1.5 border-b border-gray-100 bg-white text-xs text-gray-500 sticky top-[52px] z-10",
-            span { class: "font-medium text-gray-600", "Lane" }
-            div { class: "inline-flex items-center gap-1",
-                span { class: "w-3 h-2 rounded-sm bg-blue-500", aria_hidden: "true" }
-                span { "forward" }
-            }
-            div { class: "inline-flex items-center gap-1",
-                span { class: "w-3 h-2 rounded-sm bg-purple-500", aria_hidden: "true" }
-                span { "backward" }
-            }
-            div { class: "inline-flex items-center gap-1",
-                span { class: "w-3 h-2 rounded-sm bg-amber-500", aria_hidden: "true" }
-                span { "optimizer" }
-            }
-            div { class: "inline-flex items-center gap-1",
-                span { class: "w-3 h-2 rounded-sm bg-emerald-500", aria_hidden: "true" }
-                span { "other" }
-            }
-            div { class: "inline-flex items-center gap-1",
-                span { class: "w-3 h-2 rounded-sm bg-amber-500 animate-pulse motion-reduce:animate-none", aria_hidden: "true" }
-                span { "active" }
-            }
-        }
-    }
 }
 
 #[component]
@@ -292,73 +237,6 @@ pub fn SpanSummaryBar(span: SpanInfo, window: TraceTimeWindow) -> Element {
                     }
                 }
             }
-        }
-    }
-}
-
-#[component]
-pub fn SpanSummarySpacer() -> Element {
-    rsx! { div { class: "w-[38%] min-w-[320px] shrink-0" } }
-}
-
-#[component]
-pub fn SpanTimelineBar(span: SpanInfo, window: TraceTimeWindow, depth: usize) -> Element {
-    let active = span.end_timestamp.is_none();
-    let left = window.offset_px(span.start_timestamp);
-    let width = window.width_px(span.start_timestamp, span.end_timestamp);
-    let (track_bg, bar_bg) = span_bar_style(span.phase.as_deref(), active);
-    let indent = depth * 10;
-    let tooltip = span_tooltip(&span, window);
-    let lane_inner = TIMELINE_LANE_PX - indent as f64;
-    let bar_left = left.min(lane_inner - MIN_BAR_PX).max(0.0);
-    let bar_width = width.min(lane_inner - bar_left);
-    let guide_left = indent.saturating_sub(6);
-
-    rsx! {
-        div {
-            class: "shrink-0 border-r border-gray-100 flex items-center py-0.5 relative",
-            style: "width: {TIMELINE_LANE_PX}px; padding-left: {indent}px",
-            role: "img",
-            aria_label: "{tooltip}",
-            title: "{tooltip}",
-            if depth > 0 {
-                div {
-                    class: "absolute top-0 bottom-1/2 w-px bg-gray-200",
-                    style: "left: {guide_left}px",
-                }
-                div {
-                    class: "absolute top-1/2 w-2 h-px bg-gray-200",
-                    style: "left: {guide_left}px",
-                }
-            }
-            div { class: "relative h-[22px] flex-1 min-w-0 pr-1",
-                div { class: "absolute inset-y-[7px] inset-x-0 rounded-full {track_bg}" }
-                div {
-                    class: "absolute top-[5px] h-[12px] rounded-sm {bar_bg} shadow-sm",
-                    style: "left: {bar_left:.2}px; width: {bar_width:.2}px;",
-                }
-                div {
-                    class: "absolute top-[9px] w-1.5 h-1.5 rounded-full {bar_bg} ring-2 ring-white -translate-x-1/2",
-                    style: "left: {bar_left:.2}px;",
-                }
-                if active {
-                    div {
-                        class: "absolute top-[10px] h-0.5 bg-amber-400/60 animate-pulse motion-reduce:animate-none",
-                        style: "left: calc({bar_left:.2}px + {bar_width:.2}px); right: 0;",
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// Empty lane cell for detail rows (attributes / events) that have no bar.
-#[component]
-pub fn SpanTimelineSpacer() -> Element {
-    rsx! {
-        div {
-            class: "shrink-0 border-r border-gray-100 bg-gray-50/30",
-            style: "width: {TIMELINE_LANE_PX}px",
         }
     }
 }

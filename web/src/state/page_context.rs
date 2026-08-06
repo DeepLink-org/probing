@@ -2,8 +2,6 @@
 
 use dioxus::prelude::*;
 
-use crate::app::Route;
-
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct PageContext {
     pub page_id: String,
@@ -77,9 +75,6 @@ impl PageContext {
 }
 
 pub static PAGE_CONTEXT: GlobalSignal<PageContext> = Signal::global(PageContext::default);
-
-/// Active route (for snapshot refresh before Agent LLM calls).
-pub static CURRENT_ROUTE: GlobalSignal<Option<Route>> = Signal::global(|| None);
 
 fn commit_page_context(ctx: PageContext) {
     if ctx == *PAGE_CONTEXT.read() {

@@ -29,6 +29,19 @@ impl ProbeExtensionCall for TorchProbeExtension {
                 let metric = params.get("metric").map(|s| s.as_str());
                 Ok(crate::features::torch::flamegraph_json(metric).into_bytes())
             }
+            "flamegraph/distributed/json" => {
+                let cluster = params
+                    .get("cluster")
+                    .map(|v| v.as_str())
+                    .map(|v| v != "0" && v != "false")
+                    .unwrap_or(true);
+                let step = params.get("step").and_then(|s| s.parse::<i64>().ok());
+                let metric = params.get("metric").map(|s| s.as_str());
+                crate::features::torch::collect_distributed_flamegraph_json(cluster, step, metric)
+                    .await
+                    .map(|body| body.into_bytes())
+                    .map_err(|e| EngineError::CallError(e.to_string()))
+            }
             _ => Err(EngineError::UnsupportedCall),
         }
     }

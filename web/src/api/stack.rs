@@ -35,7 +35,7 @@ impl ApiClient {
             _ => "mixed",
         };
         let path = format!(
-            "/apis/training/distributed_stack_flamegraph/json?cluster={cluster}&mode={mode}"
+            "/apis/pprofextension/flamegraph/distributed/json?cluster={cluster}&mode={mode}"
         );
         let body = self
             .get_request_accepting_with_timeout(

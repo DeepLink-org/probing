@@ -42,13 +42,6 @@ pub fn open_monitor_overlay(monitor: SidebarMonitor) {
     open_app_overlay(AppOverlay::Monitor(monitor));
 }
 
-pub fn monitor_overlay_open() -> Option<SidebarMonitor> {
-    match app_overlay() {
-        Some(AppOverlay::Monitor(m)) => Some(m),
-        _ => None,
-    }
-}
-
 pub fn open_source_viewer(path: String, line: Option<i64>) {
     open_app_overlay(AppOverlay::SourceViewer(SourceViewerTarget { path, line }));
 }

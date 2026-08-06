@@ -19,10 +19,6 @@ pub fn normalize_profiling_view(view: &str) -> &'static str {
     }
 }
 
-pub fn profiling_view_label(view: &str) -> &'static str {
-    profiling_view_spec(view).label
-}
-
 /// Apply server `df_settings` rows to global profiling UI state.
 pub fn apply_profiler_config(config: &[(String, String)]) {
     *PROFILING_PPROF_FREQ.write() = 0;
@@ -85,40 +81,28 @@ pub fn clear_profiling_feedback() {
 pub struct ProfilingViewSpec {
     pub id: &'static str,
     pub label: &'static str,
-    pub sidebar_label: &'static str,
-    pub tooltip: &'static str,
 }
 
 pub const PROFILING_VIEWS: &[ProfilingViewSpec] = &[
     ProfilingViewSpec {
         id: "pprof",
         label: "CPU sampling",
-        sidebar_label: "CPU (pprof)",
-        tooltip: "SIGPROF stack sampling · statistical flamegraph",
     },
     ProfilingViewSpec {
         id: "torch",
         label: "Torch modules",
-        sidebar_label: "Torch flamegraph",
-        tooltip: "PyTorch module hook durations · statistical flamegraph (not the profiler timeline)",
     },
     ProfilingViewSpec {
         id: "trace",
         label: "Chrome trace",
-        sidebar_label: "Chrome trace",
-        tooltip: "Chrome trace event timeline from probing trace buffers (not distributed spans on the Spans page)",
     },
     ProfilingViewSpec {
         id: "pytorch",
         label: "PyTorch profiler",
-        sidebar_label: "PyTorch timeline",
-        tooltip: "PyTorch profiler chrome trace export",
     },
     ProfilingViewSpec {
         id: "ray",
         label: "Ray timeline",
-        sidebar_label: "Ray timeline",
-        tooltip: "Ray task and actor timeline",
     },
 ];
 

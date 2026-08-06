@@ -98,17 +98,6 @@ async fn refresh_capability_catalog() {
     };
 }
 
-/// Async guard for snapshot code that can also run outside the Next shell.
-pub async fn capability_available(schema: &str, table: &str, required: &[&str]) -> bool {
-    if matches!(
-        &*CAPABILITY_CATALOG.read(),
-        CapabilityCatalogState::Checking
-    ) {
-        refresh_capability_catalog().await;
-    }
-    capability_status(schema, table, required).allows_query()
-}
-
 #[component]
 pub fn CapabilityCatalogPoller() -> Element {
     let tick = use_poll_tick_gated(REFRESH_MS, None);

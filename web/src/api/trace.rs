@@ -1,6 +1,5 @@
 use super::ApiClient;
 use crate::utils::error::Result;
-use probing_proto::prelude::DataFrame;
 use serde::{Deserialize, Serialize};
 
 /// Trace API response structure
@@ -115,56 +114,5 @@ impl ApiClient {
             }
         }
         Self::parse_json(&response)
-    }
-
-    /// Get variable change records (via SQL query)
-    /// Returns DataFrame directly, uses SQL AS to control column name display
-    pub async fn get_variable_records(
-        &self,
-        function: Option<&str>,
-        limit: Option<usize>,
-    ) -> Result<DataFrame> {
-        // Build SQL query with column renaming via AS (SQL controls column names)
-        let limit_clause = limit.map(|l| format!(" LIMIT {}", l)).unwrap_or_default();
-        let where_clause = if let Some(func) = function {
-            // Escape single quotes in function name
-            let escaped_func = func.replace("'", "''");
-            format!(" WHERE function_name = '{}'", escaped_func)
-        } else {
-            String::new()
-        };
-
-        // Use snake_case column names (DataFusion lowercases unquoted aliases).
-        let queries = [
-            format!(
-                "SELECT function_name, filename, lineno, variable_name, value, value_type, timestamp FROM python.trace_variables{} ORDER BY timestamp DESC{}",
-                where_clause, limit_clause
-            ),
-            format!(
-                "SELECT function_name, filename, lineno, variable_name, value, value_type, timestamp FROM trace_variables{} ORDER BY timestamp DESC{}",
-                where_clause, limit_clause
-            ),
-        ];
-
-        // Try each query until one succeeds
-        let mut last_err: Option<crate::utils::error::AppError> = None;
-        for query in queries.iter() {
-            match self.execute_query(query).await {
-                Ok(df) => {
-                    return Ok(df);
-                }
-                Err(e) => {
-                    last_err = Some(e);
-                    continue;
-                }
-            }
-        }
-
-        // If all queries failed, return error
-        Err(last_err.unwrap_or_else(|| {
-            crate::utils::error::AppError::Api(
-                "Failed to query python.trace_variables table".to_string(),
-            )
-        }))
     }
 }

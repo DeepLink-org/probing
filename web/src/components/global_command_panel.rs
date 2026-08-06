@@ -1,16 +1,13 @@
-//! Global Command Panel (VS Code style) and floating result.
+//! Global Command Panel (VS Code style) and floating result toast.
 //!
-//! Open via Commands button in command bar. Select command to fill input (↑↓ + Enter).
-//! Edit in input bar, then Run to execute.
+//! Open via ⌘K. Select/Enter executes the command via `ApiClient::eval`.
 
 use dioxus::prelude::*;
 
 use crate::api::{ApiClient, MagicGroup, MagicItem};
-use crate::components::colors::colors;
 use crate::hooks::use_api;
-use crate::state::agent::AGENT_PANEL_OPEN;
 use crate::state::commands::{
-    Cell, EvalState, FloatingResult, COMMAND_INPUT, COMMAND_PANEL_OPEN, EVAL_HISTORY,
+    Cell, EvalState, FloatingResult, COMMAND_PANEL_OPEN, EVAL_HISTORY, FLOATING_RESULT,
     SHORTCUTS_HELP_OPEN,
 };
 
@@ -43,6 +40,45 @@ fn filter_magics(items: &[(String, MagicItem)], query: &str) -> Vec<(String, Mag
         .collect()
 }
 
+fn execute_command(code: String) {
+    let code = code.trim().to_string();
+    if code.is_empty() {
+        return;
+    }
+    *COMMAND_PANEL_OPEN.write() = false;
+    spawn(async move {
+        let client = ApiClient::new();
+        let eval_state = match client.eval(&code).await {
+            Ok(resp) => {
+                let mut text = resp.output;
+                if !resp.traceback.is_empty() {
+                    text.push('\n');
+                    text.push_str(&resp.traceback.join("\n"));
+                }
+                EvalState {
+                    output: text,
+                    is_error: resp.status == "error" || !resp.traceback.is_empty(),
+                }
+            }
+            Err(e) => EvalState {
+                output: e.display_message(),
+                is_error: true,
+            },
+        };
+
+        EVAL_HISTORY.write().push(Cell {
+            input: code.clone(),
+            output: eval_state.clone(),
+        });
+
+        *FLOATING_RESULT.write() = Some(FloatingResult {
+            command: code,
+            output: eval_state.output,
+            is_error: eval_state.is_error,
+        });
+    });
+}
+
 #[component]
 fn CommandPanelItem(
     cmd: String,
@@ -72,38 +108,7 @@ fn CommandPanelItem(
     }
 }
 
-#[component]
-fn HistoryItem(
-    command: String,
-    output: String,
-    is_error: bool,
-    history_open: Signal<bool>,
-    on_show: EventHandler<FloatingResult>,
-) -> Element {
-    let cmd = command.clone();
-    rsx! {
-        button {
-            class: "w-full text-left px-3 py-2 hover:bg-gray-50 text-sm font-mono truncate",
-            onclick: move |_| {
-                *history_open.write() = false;
-                on_show.call(FloatingResult {
-                    command: cmd.clone(),
-                    output: output.clone(),
-                    is_error,
-                });
-            },
-            "{command}"
-        }
-    }
-}
-
-/// Fill input and close. Does NOT execute.
-fn fill_input_and_close(command: String) {
-    *COMMAND_INPUT.write() = command;
-    *COMMAND_PANEL_OPEN.write() = false;
-}
-
-/// Global Command Panel overlay. On select: fill input, close. Arrow keys to navigate, Enter to confirm.
+/// Global Command Panel overlay. Select / Enter runs the command and shows a toast.
 #[component]
 pub fn GlobalCommandPanel() -> Element {
     let mut panel_query = use_signal(String::new);
@@ -137,9 +142,16 @@ pub fn GlobalCommandPanel() -> Element {
     }
 
     let current_highlight = *highlight_idx.read();
+    let history_preview: Vec<(String, bool)> = EVAL_HISTORY
+        .read()
+        .iter()
+        .rev()
+        .take(5)
+        .map(|h| (h.input.clone(), h.output.is_error))
+        .collect();
 
     let on_select = EventHandler::new(move |selected: String| {
-        fill_input_and_close(selected);
+        execute_command(selected);
     });
 
     rsx! {
@@ -153,7 +165,7 @@ pub fn GlobalCommandPanel() -> Element {
                     r#type: "text",
                     autofocus: true,
                     class: "w-full px-4 py-3 text-sm font-mono border-b border-gray-200 focus:outline-none focus:ring-0",
-                    placeholder: "Type to search... ↑↓ navigate, Enter to fill input",
+                    placeholder: "Type to search… ↑↓ navigate, Enter runs the command",
                     value: "{query}",
                     oninput: move |e| {
                         *panel_query.write() = e.value();
@@ -167,7 +179,12 @@ pub fn GlobalCommandPanel() -> Element {
                             if !items_to_show.is_empty() {
                                 let idx = current_highlight.min(items_to_show.len() - 1);
                                 let cmd = items_to_show[idx].1.clone();
-                                fill_input_and_close(cmd);
+                                execute_command(cmd);
+                            } else {
+                                let typed = panel_query.read().trim().to_string();
+                                if !typed.is_empty() {
+                                    execute_command(typed);
+                                }
                             }
                         } else if e.key() == Key::ArrowDown {
                             e.prevent_default();
@@ -190,7 +207,7 @@ pub fn GlobalCommandPanel() -> Element {
                     } else if all_items.is_empty() {
                         div { class: "px-4 py-6 text-sm text-gray-500", "No magics (REPL not ready)" }
                     } else if items_to_show.is_empty() {
-                        div { class: "px-4 py-6 text-sm text-gray-500", "No matching commands" }
+                        div { class: "px-4 py-6 text-sm text-gray-500", "No matching commands — press Enter to run typed text" }
                     } else {
                         for (i, row) in items_to_show.iter().enumerate() {
                             CommandPanelItem {
@@ -203,164 +220,57 @@ pub fn GlobalCommandPanel() -> Element {
                         }
                     }
                 }
-            }
-        }
-    }
-}
-
-/// Command bar: input + Run + History. Execute on Run or Enter. History recalls past results.
-#[component]
-pub fn CommandBar(on_execute_done: EventHandler<FloatingResult>) -> Element {
-    let mut loading = use_signal(|| false);
-    let mut history_open = use_signal(|| false);
-    let input_val = COMMAND_INPUT.read().clone();
-    let history_items: Vec<(String, String, bool)> = EVAL_HISTORY
-        .read()
-        .iter()
-        .rev()
-        .take(20)
-        .map(|h| (h.input.clone(), h.output.output.clone(), h.output.is_error))
-        .collect();
-
-    let do_run = EventHandler::new(move |_: ()| {
-        let code = COMMAND_INPUT.read().trim().to_string();
-        if code.is_empty() {
-            return;
-        }
-        *loading.write() = true;
-        spawn(async move {
-            let client = ApiClient::new();
-            let result = client.eval(&code).await;
-
-            let eval_state = match result {
-                Ok(resp) => {
-                    let mut text = resp.output;
-                    if !resp.traceback.is_empty() {
-                        text.push('\n');
-                        text.push_str(&resp.traceback.join("\n"));
-                    }
-                    EvalState {
-                        output: text.clone(),
-                        is_error: resp.status == "error" || !resp.traceback.is_empty(),
-                    }
-                }
-                Err(e) => EvalState {
-                    output: e.display_message(),
-                    is_error: true,
-                },
-            };
-
-            EVAL_HISTORY.write().push(Cell {
-                input: code.clone(),
-                output: eval_state.clone(),
-            });
-
-            on_execute_done.call(FloatingResult {
-                command: code.clone(),
-                output: eval_state.output,
-                is_error: eval_state.is_error,
-            });
-            *COMMAND_INPUT.write() = String::new();
-            *loading.write() = false;
-        });
-    });
-
-    rsx! {
-        div {
-            class: "flex items-center gap-2 px-4 py-2 bg-white border-b border-gray-200",
-            button {
-                class: format!("shrink-0 px-3 py-2 rounded-lg text-sm font-medium bg-{} text-white hover:opacity-90", colors::PRIMARY),
-                title: "Open command palette (⌘K)",
-                onclick: move |_| *COMMAND_PANEL_OPEN.write() = true,
-                "⌘K"
-            }
-            button {
-                class: if *AGENT_PANEL_OPEN.read() {
-                    "shrink-0 px-2.5 py-2 rounded-lg text-sm font-medium bg-blue-100 text-blue-800 border border-blue-300"
-                } else {
-                    "shrink-0 px-2.5 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 border border-gray-300"
-                },
-                title: "Investigate (⌘J) — skill diagnostic agent overlay",
-                onclick: move |_| {
-                    let open = *AGENT_PANEL_OPEN.read();
-                    *AGENT_PANEL_OPEN.write() = !open;
-                },
-                "Investigate"
-            }
-            button {
-                class: "shrink-0 px-2.5 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 border border-gray-300",
-                title: "Keyboard shortcuts",
-                onclick: move |_| *SHORTCUTS_HELP_OPEN.write() = true,
-                "?"
-            }
-            input {
-                class: "flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500",
-                placeholder: "%trace list | %inspect ls modules | ...",
-                value: "{input_val}",
-                oninput: move |e| *COMMAND_INPUT.write() = e.value(),
-                onkeydown: move |e: dioxus::html::events::KeyboardEvent| {
-                    use dioxus::html::input_data::keyboard_types::Key;
-                    if e.key() == Key::Enter {
-                        do_run.call(());
-                    }
-                },
-            }
-            button {
-                class: "px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 shrink-0",
-                disabled: *loading.read() || COMMAND_INPUT.read().trim().is_empty(),
-                onclick: move |_| do_run.call(()),
-                if *loading.read() { "…" } else { "Run" }
-            }
-            div {
-                class: "relative shrink-0",
-                button {
-                    class: "px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 border border-gray-300 flex items-center gap-2",
-                    disabled: history_items.is_empty(),
-                    onclick: move |_| {
-                        let v = *history_open.read();
-                        *history_open.write() = !v;
-                    },
-                    "History"
-                    span {
-                        class: "text-xs text-gray-500 font-normal",
-                        "({history_items.len()})"
-                    }
-                }
-                if *history_open.read() && !history_items.is_empty() {
+                if !history_preview.is_empty() {
                     div {
-                        class: "fixed inset-0 z-[9996]",
-                        onclick: move |_| *history_open.write() = false,
-                    }
-                    div {
-                        class: "absolute top-full right-0 mt-1 w-80 max-h-72 overflow-y-auto py-1 bg-white border border-gray-200 rounded-lg shadow-lg z-[9997]",
-                        for item in history_items.iter() {
-                            HistoryItem {
-                                command: item.0.clone(),
-                                output: item.1.clone(),
-                                is_error: item.2,
-                                history_open,
-                                on_show: on_execute_done,
+                        class: "border-t border-gray-100 bg-gray-50 px-4 py-2",
+                        div { class: "mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400", "Recent" }
+                        div { class: "flex flex-col gap-0.5",
+                            for (cmd, is_error) in history_preview {
+                                button {
+                                    class: if is_error {
+                                        "w-full truncate text-left font-mono text-xs text-red-600 hover:underline"
+                                    } else {
+                                        "w-full truncate text-left font-mono text-xs text-gray-600 hover:underline"
+                                    },
+                                    onclick: {
+                                        let cmd = cmd.clone();
+                                        move |_| execute_command(cmd.clone())
+                                    },
+                                    "{cmd}"
+                                }
                             }
                         }
                     }
                 }
+                div {
+                    class: "flex items-center justify-between border-t border-gray-100 px-4 py-2 text-xs text-gray-400",
+                    span { "Enter runs · Esc closes" }
+                    button {
+                        class: "hover:text-gray-600",
+                        onclick: move |_| {
+                            *COMMAND_PANEL_OPEN.write() = false;
+                            *SHORTCUTS_HELP_OPEN.write() = true;
+                        },
+                        "Shortcuts ?"
+                    }
+                }
             }
         }
     }
 }
 
-/// Centered modal showing execution result (like command panel style)
+/// Centered modal showing execution result. Mounted from NextShell so it outlives the panel.
 #[component]
-pub fn FloatingResultToast(result: Signal<Option<FloatingResult>>) -> Element {
-    let opt = result.read().clone();
+pub fn FloatingResultToast() -> Element {
+    let opt = FLOATING_RESULT.read().clone();
     if let Some(ref fr) = opt {
         let output = fr.output.clone();
         let is_error = fr.is_error;
         let command = fr.command.clone();
         rsx! {
             div {
-                class: "fixed inset-0 z-[9997] flex items-start justify-center pt-[10vh] bg-black/20",
-                onclick: move |_| *result.write() = None,
+                class: "fixed inset-0 z-[9999] flex items-start justify-center pt-[10vh] bg-black/20",
+                onclick: move |_| *FLOATING_RESULT.write() = None,
                 div {
                     class: "w-full max-w-2xl mx-4 max-h-[80vh] overflow-hidden rounded-lg shadow-2xl border border-gray-200 bg-white flex flex-col",
                     onclick: move |e| { e.stop_propagation(); },
@@ -381,7 +291,7 @@ pub fn FloatingResultToast(result: Signal<Option<FloatingResult>>) -> Element {
                         class: "px-4 py-2 border-t border-gray-200 flex justify-end",
                         button {
                             class: "px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg",
-                            onclick: move |_| *result.write() = None,
+                            onclick: move |_| *FLOATING_RESULT.write() = None,
                             "Close"
                         }
                     }

@@ -8,8 +8,8 @@ use crate::components::dataframe_view::DataFrameView;
 use crate::components::markdown_view::MarkdownView;
 use crate::components::source_viewer::SourceRefChip;
 use crate::state::agent::{
-    clear_agent_messages, AgentMessage, AgentMessageKind, AgentStepStatus, AGENT_INPUT,
-    AGENT_MESSAGES,
+    clear_agent_messages, take_agent_pending_action, AgentMessage, AgentMessageKind,
+    AgentPendingAction, AgentStepStatus, AGENT_ACTION_TICK, AGENT_INPUT, AGENT_MESSAGES,
 };
 use crate::state::llm_config::LLM_SETTINGS_OPEN;
 use crate::state::ui_tasks::{ui_agent_busy, UI_TASK_TICK};
@@ -50,6 +50,17 @@ pub(crate) fn InvestigateSession(compact: bool) -> Element {
     let input = AGENT_INPUT.read().clone();
     let _task_tick = UI_TASK_TICK.read();
     let busy = ui_agent_busy();
+
+    use_effect(move || {
+        let _ = *AGENT_ACTION_TICK.read();
+        if let Some(action) = take_agent_pending_action() {
+            match action {
+                AgentPendingAction::SubmitText(text) => submit_agent_text(text),
+                AgentPendingAction::RunSkill(skill_id) => trigger_skill(skill_id),
+            }
+        }
+    });
+
     let skill_store = use_resource(|| async move {
         if skill_store_loaded() {
             Ok(())

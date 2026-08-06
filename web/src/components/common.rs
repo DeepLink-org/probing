@@ -81,21 +81,3 @@ pub fn AppErrorDisplay(error: AppError, #[props(optional)] title: Option<String>
         }
     }
 }
-
-/// Match a resolved API [`Result`] into error, empty, or success UI.
-pub fn query_result<T>(
-    result: Result<T, AppError>,
-    is_empty: impl FnOnce(&T) -> bool,
-    empty_message: &str,
-    render: impl FnOnce(T) -> Element,
-) -> Element {
-    match result {
-        Ok(value) if is_empty(&value) => rsx! {
-            EmptyState { message: empty_message.to_string() }
-        },
-        Ok(value) => render(value),
-        Err(err) => rsx! {
-            AppErrorDisplay { error: err, title: None }
-        },
-    }
-}

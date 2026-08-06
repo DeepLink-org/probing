@@ -58,6 +58,7 @@ impl OverheadLevel {
         }
     }
 
+    #[cfg(test)]
     pub fn label(self) -> &'static str {
         match self {
             Self::Low => "Within normal range",
@@ -67,12 +68,14 @@ impl OverheadLevel {
         }
     }
 
+    #[cfg(test)]
     pub fn is_reassuring(self) -> bool {
         matches!(self, Self::Low)
     }
 }
 
 /// Compact copy for the left sidebar monitor row.
+#[cfg(test)]
 #[derive(Clone, Debug, PartialEq)]
 pub struct SidebarOverheadCopy {
     pub headline: String,
@@ -185,6 +188,7 @@ impl OverheadSnapshot {
         OverheadLevel::from_pct(self.dispatch_overhead_pct)
     }
 
+    #[cfg(test)]
     pub fn sidebar_copy(&self) -> SidebarOverheadCopy {
         if !self.shadow_enabled() {
             return SidebarOverheadCopy {
@@ -326,10 +330,6 @@ pub fn table_missing_message(err: &AppError) -> Option<&'static str> {
     } else {
         None
     }
-}
-
-pub fn table_missing_trigger_label(err: &AppError) -> Option<String> {
-    table_missing_message(err).map(|_| "Profiler off".to_string())
 }
 
 pub fn parse_overhead_steps(df: &DataFrame) -> Vec<OverheadStep> {

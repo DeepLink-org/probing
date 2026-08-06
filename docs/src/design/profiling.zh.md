@@ -227,7 +227,7 @@ configure("on,rate=0.5,layer_rate=0.3")
 - **分布式火焰图**：`sample_freq` 开启后只聚合各 rank 采样桶（为空则空图，不回退 on-demand）；跨 rank merge 后每个 frame 携带 `ranks`。
 - **canonicalize**：剥 `_Py_RunMain` / importlib / `platform.py` 等 bootstrap；SIGPROF 仅统计已注册 Python 主线程样本。
 
-TorchProbe 模块钩子与上述栈采集相互独立。分布式 CPU 混合栈火焰图见 `GET /apis/training/distributed_stack_flamegraph/json`（Web：**Stacks → Distributed**）。旧版 torch 模块级 API `/apis/training/distributed_flamegraph/json` 仍保留。
+TorchProbe 模块钩子与上述栈采集相互独立。分布式 CPU 混合栈火焰图见 `GET /apis/pprofextension/flamegraph/distributed/json`（Web：**Stacks → Distributed**）。SPMD torch 模块级火焰图：`GET /apis/torchextension/flamegraph/distributed/json`。
 
 ## 系统指标
 

@@ -95,6 +95,7 @@ fn looks_like_source_path(path: &str) -> bool {
 }
 
 /// Parse `GET /apis/files?path=…` into a local path.
+#[cfg(test)]
 pub fn parse_files_api_path(api_path: &str) -> Option<String> {
     if !api_path.contains("/apis/files") {
         return None;
