@@ -2993,6 +2993,9 @@
 <p>通过 torchrun 注入后 Rust ctor <strong>默认</strong>启动分层集群心跳（见 <a href="../torchrun-cluster/">torchrun 集群心跳</a>），或手动 <code>setup_torchrun_cluster()</code> / <code>PUT /apis/nodes</code> 注册节点，<code>_rank</code> / <code>_role</code> 才能正确解析。训练脚本中可用 <code>probing.set_role(...)</code> 运行时覆盖 role。</p>
 <p>引擎实现与正确性测试要求见 <strong><a href="../federation/">联邦查询引擎</a></strong>。</p>
 <p>万卡场景下 <code>cluster query</code> 默认走 <strong><a href="../hierarchical-fanout/">分层 fan-out</a></strong>（coordinator 仅联系各机 local0，local0 再聚合本机 leaf rank），可用 <code>PROBING_CLUSTER_FANOUT_HIERARCHICAL=0</code> 或 CLI <code>--flat</code> 恢复扁平 fan-out。</p>
+<p>普通 <code>global.*</code> 扫描采用同一拓扑：coordinator 读取自身分区、直接查询本机 leaf ranks，并向异机
+local0 发送节点聚合请求。层级执行要求每个存活注册节点都具有 <code>group_rank</code> 与 <code>local_rank</code>；元数据
+只要部分缺失就会明确报错，不再降级为可能漏数的 flat/partial 扫描。</p>
 <h2 id="_10">同步调试<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h2>
 <h3 id="_11">捕获所有堆栈<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># 从所有 rank 捕获堆栈跟踪</span>
@@ -3082,6 +3085,8 @@
 </span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="c1"># 带令牌连接</span>
 </span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>probing<span class="w"> </span>-t<span class="w"> </span>host:8080<span class="w"> </span>--token<span class="w"> </span>secret<span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;...&quot;</span>
 </span></code></pre></div>
+<p>所有 peer 必须使用相同令牌。Probing 会把已配置的凭据附加到内部节点发现、心跳、
+普通联邦查询和层级 fan-out 请求；负载均衡器使用的健康检查端点仍保持公开。</p>
 <h2 id="_20">最佳实践<a class="headerlink" href="#_20" title="Permanent link">&para;</a></h2>
 <h3 id="_21">一致的环境变量<a class="headerlink" href="#_21" title="Permanent link">&para;</a></h3>
 <p>各 rank 使用相同配置（示例）：</p>

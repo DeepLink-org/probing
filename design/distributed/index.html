@@ -2996,6 +2996,10 @@ key from the node registry, e.g. <code>dp=2,pp=1,tp=0</code>).</p>
 scripts.</p>
 <p>See <a href="../federation/">Federated query engine</a> for engine paths and acceptance tests.</p>
 <p>At wan scale, <strong><code>cluster query</code> defaults to <a href="../hierarchical-fanout/">hierarchical fan-out</a></strong> (coordinator → per-machine local0 → on-node leaves). Set <code>PROBING_CLUSTER_FANOUT_HIERARCHICAL=0</code> or use CLI <code>--flat</code> for legacy flat fan-out.</p>
+<p>Raw <code>global.*</code> scans use the same topology: the coordinator reads its own partition, queries its
+local leaf ranks directly, and sends node-aggregate requests to remote local0 peers. Hierarchical
+execution requires <code>group_rank</code> and <code>local_rank</code> on every live registry entry; partial metadata is
+reported as an error instead of falling back to a potentially incomplete flat/partial scan.</p>
 <h2 id="synchronized-debugging">Synchronized Debugging<a class="headerlink" href="#synchronized-debugging" title="Permanent link">&para;</a></h2>
 <h3 id="capture-all-stacks">Capture All Stacks<a class="headerlink" href="#capture-all-stacks" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Capture stack traces from all ranks</span>
@@ -3085,6 +3089,9 @@ scripts.</p>
 </span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="c1"># Connect with token</span>
 </span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>probing<span class="w"> </span>-t<span class="w"> </span>host:8080<span class="w"> </span>--token<span class="w"> </span>secret<span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;...&quot;</span>
 </span></code></pre></div>
+<p>Use the same token on every peer. Probing applies the configured credential to internal
+node discovery, heartbeat, flat federation queries, and hierarchical fan-out requests;
+load-balancer health endpoints remain public.</p>
 <h2 id="best-practices">Best Practices<a class="headerlink" href="#best-practices" title="Permanent link">&para;</a></h2>
 <h3 id="consistent-environment">Consistent environment<a class="headerlink" href="#consistent-environment" title="Permanent link">&para;</a></h3>
 <p>Same env on all ranks (example):</p>

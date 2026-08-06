@@ -3026,7 +3026,7 @@
 <ul>
 <li><strong>编写</strong>：仓库根 <code>skills/</code>（<code>SKILL.md</code>、<code>steps.yaml</code>、<code>catalog.yaml</code>）</li>
 <li><strong>安装到 IDE</strong>：<code>./skills/install.sh</code> 或 <code>probing skill install</code></li>
-<li><strong>打进 wheel</strong>：<code>make wheel</code> 自动复制到 <code>python/probing/bundled_skills/</code>、<code>python/probing/bundled_web/</code></li>
+<li><strong>打进 wheel</strong>：<code>make wheel</code> 复制 Skill 到 <code>python/probing/bundled_skills/</code>；<code>make frontend</code> 将被忽略的 UI 产物构建到 <code>probing/server/web-assets/</code>，server build script 在编译时把它嵌入 <code>probing._core</code>（普通 Rust 构建使用受版本控制的 fallback 页面）</li>
 <li><strong>说明</strong>：<code>skills/README.md</code>、<a href="../design/extensibility/#path-2-diagnostic-skill">扩展机制 — 诊断 skill</a></li>
 </ul>
 <h2 id="_3">开发流程<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
@@ -3089,17 +3089,15 @@
 </span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>├── python/
 </span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>│   ├── probing/                  # Python 包（不是 Rust）
 </span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>│   │   ├── skills/               # skill 加载/安装代码 — 见 python/probing/skills/README.md
-</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>│   │   ├── web_assets.py         # wheel _web/ + editable web/dist → PROBING_ASSETS_ROOT
-</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>│   │   ├── bundled_skills/       # wheel 打包的 skill 数据（编写在 repo-root skills/）
-</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>│   │   └── bundled_web/          # wheel 打包的 UI（make frontend）
-</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>│   ├── probing_hook.py
-</span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>│   └── probing.pth
-</span><span id="__span-11-11"><a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>├── src/lib.rs                    # PyO3 → probing._core
-</span><span id="__span-11-12"><a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>├── probing/                      # Rust workspace
-</span><span id="__span-11-13"><a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>├── web/                          # Dioxus UI（`make frontend` → web/dist/）
-</span><span id="__span-11-14"><a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>├── tests/                        # 见 tests/README.md
-</span><span id="__span-11-15"><a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a>├── examples/
-</span><span id="__span-11-16"><a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a>└── docs/src/
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>│   │   └── bundled_skills/       # wheel 打包的 skill 数据（编写在 repo-root skills/）
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>│   ├── probing_hook.py
+</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>│   └── probing.pth
+</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>├── src/lib.rs                    # PyO3 → probing._core
+</span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>├── probing/                      # Rust workspace（server/web-assets 编译进 probing._core）
+</span><span id="__span-11-11"><a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>├── web/                          # Dioxus UI（`make frontend` → web/dist/）
+</span><span id="__span-11-12"><a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>├── tests/                        # 见 tests/README.md
+</span><span id="__span-11-13"><a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>├── examples/
+</span><span id="__span-11-14"><a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>└── docs/src/
 </span></code></pre></div>
 <p>分层与依赖规则：<a href="../design/modularity/">模块化</a>。
 Agent 工作流：<a href="https://github.com/DeepLink-org/probing/blob/main/AGENTS.md">AGENTS.md</a>。</p>

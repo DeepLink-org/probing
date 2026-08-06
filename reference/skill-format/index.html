@@ -2636,8 +2636,10 @@ interpretation rules, and summary template.</p>
 </span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">    </span><span class="nt">default</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
 </span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Number</span><span class="nv"> </span><span class="s">of</span><span class="nv"> </span><span class="s">recent</span><span class="nv"> </span><span class="s">steps</span><span class="nv"> </span><span class="s">to</span><span class="nv"> </span><span class="s">analyze&quot;</span>
 </span></code></pre></div>
-<p>Types: <code>integer</code>, <code>boolean</code>, <code>string</code>. Parameter values are referenced in SQL as
-<code>{param_name}</code>.</p>
+<p>Types: <code>integer</code>, <code>number</code>, <code>boolean</code>, <code>string</code>. Parameter values are referenced in SQL as
+<code>{param_name}</code>. Overrides are validated and normalized before planning or execution;
+unknown parameters are rejected. String parameters represent SQL literal contents and
+single quotes are escaped during template expansion.</p>
 <h3 id="requires">Requires<a class="headerlink" href="#requires" title="Permanent link">&para;</a></h3>
 <p>Prerequisite check. The skill won't run if requirements aren't met.</p>
 <div class="language-yaml highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">requires</span><span class="p">:</span>
@@ -2672,7 +2674,9 @@ interpretation rules, and summary template.</p>
 - <code>empty_message</code>: Shown when the query returns zero rows (if <code>on_empty</code> is not <code>skip</code>).
 - <code>cluster</code>: If <code>true</code>, uses federation fan-out (<code>POST /apis/cluster/query</code>).
 - <code>when</code>: Optional condition. <code>"always"</code> or <code>"{use_global}"</code> (runs only when the
-  boolean variable is true).</p>
+  boolean variable is true).
+- <code>platform</code>: Optional execution platform: <code>linux</code>, <code>macos</code>, or <code>windows</code>. A step for a
+  different platform is reported as skipped without issuing its SQL/API request.</p>
 <p><strong><code>api</code></strong> — Call an HTTP API on the probing endpoint.</p>
 <div class="language-yaml highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">check_nodes</span>
 </span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">    </span><span class="nt">title</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Cluster</span><span class="nv"> </span><span class="s">Peers&quot;</span>
@@ -2748,6 +2752,10 @@ all steps complete. Clauses are joined with <code>|</code> (all must match).</p>
 <tr>
 <td>Numeric compare</td>
 <td><code>value == 0</code>, <code>value &gt; 10</code>, <code>max &gt; 1e6</code>, <code>avg &gt; 5</code></td>
+</tr>
+<tr>
+<td>Text equality</td>
+<td><code>value = propagated_victim</code> — exact match on the first row</td>
 </tr>
 <tr>
 <td>Spread</td>
@@ -2843,8 +2851,11 @@ and execute the skills during conversations.</p>
 </span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="c1"># Validate all skills</span>
 </span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>python<span class="w"> </span>-m<span class="w"> </span>probing.skills<span class="w"> </span>validate<span class="w"> </span>--all
 </span></code></pre></div>
-<p>The validator checks: missing steps, duplicate step IDs, read-only SQL compliance
-(all statements must start with SELECT/WITH/SHOW/DESCRIBE), and missing SKILL.md.</p>
+<p>The validator compiles every catalog skill through the Rust execution schema. It rejects
+unknown YAML fields, mismatched parameter defaults/overrides, unsupported platforms and
+interpretation grammar, duplicate IDs, unresolved templates, and missing required step
+fields. SQL is parsed as an AST; every statement and nested CTE must be read-only, so a
+read followed by a trailing write is rejected. It also checks that <code>SKILL.md</code> exists.</p>
 
 
 

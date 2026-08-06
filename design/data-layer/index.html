@@ -3106,10 +3106,12 @@ file/directory count from table count: hundreds of tables share one set of segme
 </ul>
 <h3 id="crash-recovery">Crash Recovery<a class="headerlink" href="#crash-recovery" title="Permanent link">&para;</a></h3>
 <ul>
-<li>A <strong>sealed</strong> segment is read via its footer page directory — O(1) location of every page.</li>
-<li>An <strong>unsealed or torn</strong> segment is recovered by <strong>forward scan</strong>: walk blocks from the start,
-  verifying each block's header and payload checksum, stopping at the first bad block and dropping
-  the torn tail. Table-definition blocks are always scanned (cheap, and they precede pages).</li>
+<li>A <strong>sealed</strong> segment is read via its footer page directory — O(1) location of every page. Footer,
+  block, payload, and page integrity failures reject the segment and fail the SQL scan; queries
+  never return a successful but incomplete cold result.</li>
+<li>An <strong>unsealed or torn</strong> segment is recovered by <strong>forward scan</strong>. Only an incomplete final
+  header/payload is dropped as a crash tail; corruption of a complete checksummed block is an
+  error. Table-definition blocks are always scanned (cheap, and they precede pages).</li>
 </ul>
 <p>There is no heuristic that tries to repair a half-written record.</p>
 <div class="admonition warning">
@@ -3148,6 +3150,11 @@ compactor a single lifecycle home:</p>
   over time), drains each into the shared <code>ColdStore</code>, rolls by age, and enforces the budget;</li>
 <li>on startup it calls <code>prime_from_cold()</code>; on stop it flushes (seals the open segment).</li>
 </ul>
+<p>Discovery, segment enumeration, write/roll, and retention I/O are fallible operations. The worker
+logs failures and records an observable <code>CompactorRuntimeStats</code> snapshot (<code>error_count</code> plus the
+operation-qualified <code>last_error</code>). Startup priming fails closed, because continuing without recovered
+watermarks could duplicate cold rows; retention never reports success after an unreadable directory
+or metadata failure.</p>
 <p>It is <strong>opt-in</strong> (off by default) to avoid spawning a compaction thread in every forked worker.
 Configuration is applied via the <code>MemTableProbeExtension</code> option surface or environment variables; the
 server calls <code>start_cold_compaction_from_env()</code> at engine init.</p>

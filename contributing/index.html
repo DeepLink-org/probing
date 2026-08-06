@@ -3034,7 +3034,7 @@ Training / tests: set <code>PROBING=1</code> (or <code>2</code>, filters — see
 <ul>
 <li><strong>Authoring</strong>: repo root <code>skills/</code> (<code>SKILL.md</code>, <code>steps.yaml</code>, <code>catalog.yaml</code>)</li>
 <li><strong>Install to IDE agents</strong>: <code>./skills/install.sh</code> or <code>probing skill install</code></li>
-<li><strong>Bundled in wheel</strong>: <code>make wheel</code> copies skills into <code>python/probing/bundled_skills/</code> and UI into <code>python/probing/bundled_web/</code></li>
+<li><strong>Bundled in wheel</strong>: <code>make wheel</code> copies skills into <code>python/probing/bundled_skills/</code>; <code>make frontend</code> builds ignored UI artifacts under <code>probing/server/web-assets/</code>, and the server build script embeds them into <code>probing._core</code> at compile time (plain Rust builds use a tracked fallback page)</li>
 <li><strong>Docs</strong>: <code>skills/README.md</code>, <a href="../design/extensibility/#path-2-diagnostic-skill">Extensibility — Diagnostic skill</a></li>
 </ul>
 <h2 id="development-workflow">Development workflow<a class="headerlink" href="#development-workflow" title="Permanent link">&para;</a></h2>
@@ -3098,17 +3098,15 @@ Training / tests: set <code>PROBING=1</code> (or <code>2</code>, filters — see
 </span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>├── python/
 </span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>│   ├── probing/                  # Python PACKAGE (not Rust)
 </span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>│   │   ├── skills/               # skill loader/install CODE — see python/probing/skills/README.md
-</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>│   │   ├── web_assets.py         # wheel _web/ + editable web/dist → PROBING_ASSETS_ROOT
-</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>│   │   ├── bundled_skills/       # skill DATA bundled in wheel (author in repo-root skills/)
-</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>│   │   └── bundled_web/          # UI bundled in wheel (make frontend)
-</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>│   ├── probing_hook.py           # .pth → site hook
-</span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>│   └── probing.pth
-</span><span id="__span-11-11"><a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>├── src/lib.rs                    # PyO3 entry → probing._core (maturin)
-</span><span id="__span-11-12"><a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>├── probing/                      # Rust WORKSPACE (core, server, cli, extensions)
-</span><span id="__span-11-13"><a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>├── web/                          # Dioxus UI (`make frontend` → web/dist/)
-</span><span id="__span-11-14"><a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>├── tests/                        # see tests/README.md
-</span><span id="__span-11-15"><a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a>├── examples/                     # optional torch/etc.
-</span><span id="__span-11-16"><a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a>└── docs/src/                     # this documentation site
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>│   │   └── bundled_skills/       # skill DATA bundled in wheel (author in repo-root skills/)
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>│   ├── probing_hook.py           # .pth → site hook
+</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>│   └── probing.pth
+</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>├── src/lib.rs                    # PyO3 entry → probing._core (maturin)
+</span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>├── probing/                      # Rust WORKSPACE (server/web-assets is embedded in probing._core)
+</span><span id="__span-11-11"><a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>├── web/                          # Dioxus UI (`make frontend` → web/dist/)
+</span><span id="__span-11-12"><a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>├── tests/                        # see tests/README.md
+</span><span id="__span-11-13"><a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>├── examples/                     # optional torch/etc.
+</span><span id="__span-11-14"><a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>└── docs/src/                     # this documentation site
 </span></code></pre></div>
 <p>Architecture layers (what may call what): <a href="../design/modularity/">Modularity</a>.
 Agent workflow: <a href="https://github.com/DeepLink-org/probing/blob/main/AGENTS.md">AGENTS.md</a>.</p>
