@@ -8,8 +8,10 @@ use probing_proto::prelude::DataFrame;
 use crate::backend::{cluster_meta_note, SkillBackend};
 use crate::interpret::{evaluate_rules, InterpretFinding, StepEvidence};
 use crate::loader::{
-    build_context, default_parameters, expand_template, load_skill, Skill, SkillStep,
+    build_context, default_parameters, expand_template, load_skill, normalize_parameter_overrides,
+    Skill, SkillStep,
 };
+use crate::sql_guard::ensure_read_only_sql;
 
 #[derive(Debug, Clone)]
 pub struct SkillRunError(pub String);
@@ -82,6 +84,8 @@ pub struct RunResult {
 
 pub fn plan_skill(skill_id: &str, overrides: HashMap<String, String>) -> Result<serde_json::Value> {
     let pb = load_skill(skill_id).map_err(|e| SkillRunError(e.to_string()))?;
+    let mut overrides = overrides;
+    normalize_parameter_overrides(&pb, &mut overrides).map_err(SkillRunError::from)?;
     let mut params = default_parameters(&pb);
     params.extend(overrides);
     let ctx = build_context(&pb, &params);
@@ -115,6 +119,9 @@ fn step_plan_json(step: &SkillStep, ctx: &HashMap<String, String>) -> serde_json
     if let Some(when) = &step.when {
         item["when"] = serde_json::Value::String(when.clone());
     }
+    if let Some(platform) = step.platform {
+        item["platform"] = serde_json::Value::String(platform.as_str().to_string());
+    }
     item
 }
 
@@ -123,6 +130,7 @@ pub async fn resolve_use_global<B: SkillBackend>(
     pb: &Skill,
     overrides: &mut HashMap<String, String>,
 ) -> Result<()> {
+    normalize_parameter_overrides(pb, overrides).map_err(SkillRunError::from)?;
     if overrides.contains_key("use_global") {
         return Ok(());
     }
@@ -221,6 +229,19 @@ pub async fn run_step<B: SkillBackend>(
     ctx: &HashMap<String, String>,
     options: &RunOptions,
 ) -> StepOutcome {
+    if let Some(platform) = step.platform {
+        if !platform.is_current() {
+            return StepOutcome::Skipped {
+                step_id: step.id.clone(),
+                title: step.title.clone(),
+                reason: format!(
+                    "step requires platform {}, current platform is {}",
+                    platform.as_str(),
+                    std::env::consts::OS
+                ),
+            };
+        }
+    }
     if let Some(reason) = should_skip_step(step, ctx) {
         return StepOutcome::Skipped {
             step_id: step.id.clone(),
@@ -288,26 +309,12 @@ fn sql_needs_cluster(sql: &str, step_cluster: bool) -> bool {
     step_cluster || sql.to_lowercase().contains("global.")
 }
 
-fn ensure_read_only_sql(sql: &str) -> Result<()> {
-    let upper = sql.trim().to_uppercase();
-    if upper.starts_with("SELECT")
-        || upper.starts_with("WITH")
-        || upper.starts_with("SHOW")
-        || upper.starts_with("DESCRIBE")
-    {
-        return Ok(());
-    }
-    Err(SkillRunError(
-        "Only read-only SQL is allowed in skills".to_string(),
-    ))
-}
-
 async fn run_sql_step<B: SkillBackend>(backend: &B, step: &SkillStep, sql: &str) -> StepOutcome {
     if let Err(e) = ensure_read_only_sql(sql) {
         return StepOutcome::Error {
             step_id: step.id.clone(),
             title: step.title.clone(),
-            message: e.0,
+            message: e,
         };
     }
     let cluster = sql_needs_cluster(sql, step.cluster.unwrap_or(false));
@@ -672,12 +679,15 @@ mod tests {
             title: format!("title-{id}"),
             step_type: "sql".into(),
             sql: Some(sql.into()),
+            method: None,
             path: None,
             view: None,
             on_empty: "skip".into(),
             empty_message: None,
             when: None,
             cluster: None,
+            platform: None,
+            action: None,
         }
     }
 
@@ -692,13 +702,16 @@ mod tests {
             trigger_keywords: Default::default(),
             parameters: vec![SkillParameter {
                 name: "use_global".into(),
+                parameter_type: crate::loader::SkillParameterType::Boolean,
                 default: serde_yaml::Value::Bool(true),
+                description: String::new(),
             }],
             steps,
             interpretation,
             summary_template: "rows={available_tables.row_count}".into(),
             next_steps: vec![],
             variables: HashMap::new(),
+            requires: Default::default(),
         }
     }
 
@@ -758,6 +771,29 @@ mod tests {
         let step = sample_step("bad", "SET probing.x=1");
         let outcome = run_step(&backend, &step, &HashMap::new(), &RunOptions::default()).await;
         assert!(matches!(outcome, StepOutcome::Error { .. }));
+    }
+
+    #[tokio::test]
+    async fn run_step_rejects_trailing_mutating_sql() {
+        let backend = MockBackend::new(0, 1);
+        let step = sample_step("bad", "SELECT 1; DELETE FROM python.t");
+        let outcome = run_step(&backend, &step, &HashMap::new(), &RunOptions::default()).await;
+        assert!(matches!(outcome, StepOutcome::Error { .. }));
+        assert_eq!(backend.calls.load(Ordering::Relaxed), 0);
+    }
+
+    #[tokio::test]
+    async fn run_step_skips_other_platform() {
+        let backend = MockBackend::new(0, 1);
+        let mut step = sample_step("platform", "SELECT 1");
+        step.platform = Some(if cfg!(target_os = "linux") {
+            crate::loader::SkillPlatform::Macos
+        } else {
+            crate::loader::SkillPlatform::Linux
+        });
+        let outcome = run_step(&backend, &step, &HashMap::new(), &RunOptions::default()).await;
+        assert!(matches!(outcome, StepOutcome::Skipped { .. }));
+        assert_eq!(backend.calls.load(Ordering::Relaxed), 0);
     }
 
     #[tokio::test]

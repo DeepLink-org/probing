@@ -1190,6 +1190,13 @@ video {
   margin-top: 1rem;
 }
 
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .block {
   display: block;
 }
@@ -1999,6 +2006,10 @@ video {
 
 .grid-cols-\[minmax\(0\2c 1fr\)_auto_auto\] {
   grid-template-columns: minmax(0,1fr) auto auto;
+}
+
+.grid-cols-\[minmax\(180px\2c 0\.7fr\)_minmax\(0\2c 1\.7fr\)_auto\] {
+  grid-template-columns: minmax(180px,0.7fr) minmax(0,1.7fr) auto;
 }
 
 .grid-cols-\[minmax\(180px\2c 22\%\)_130px_1fr\] {
@@ -8162,10 +8173,6 @@ video {
 
   .xl\:grid-cols-4 {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .xl\:grid-cols-5 {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   .xl\:grid-cols-\[320px_minmax\(0\2c 1fr\)\] {

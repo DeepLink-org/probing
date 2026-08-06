@@ -2,12 +2,12 @@
 # Drop stale dx hashed assets after `dx bundle` — keep only what index.html loads.
 set -euo pipefail
 
-PUBLIC="${1:-python/probing/bundled_web/public}"
+PUBLIC="${1:-probing/server/web-assets/public}"
 INDEX="$PUBLIC/index.html"
 ASSETS="$PUBLIC/assets"
 
 if [[ ! -f "$INDEX" ]]; then
-  echo "error: missing bundled web index: $INDEX" >&2
+  echo "error: missing embedded web index: $INDEX" >&2
   exit 1
 fi
 

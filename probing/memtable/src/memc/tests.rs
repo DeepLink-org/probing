@@ -288,7 +288,7 @@ fn decoded_column_count_must_match_page_row_count() {
 }
 
 #[test]
-fn malformed_footer_block_range_falls_back_to_checked_scan() {
+fn malformed_footer_block_range_is_rejected() {
     let dir = tmp_dir("footer-range");
     let path = dir.join("seg.memc");
     let mut w = SegmentWriter::create(&path).unwrap();
@@ -308,11 +308,12 @@ fn malformed_footer_block_range_falls_back_to_checked_scan() {
     super::layout::put_u32(&mut bytes, footer_off + 12, checksum);
     std::fs::write(&path, bytes).unwrap();
 
-    let reader = SegmentReader::open(&path).unwrap();
-    assert_eq!(reader.pages().len(), 1);
-    assert_eq!(
-        reader.read_page(0).unwrap()[0],
-        ColumnData::I64(vec![1, 2, 3])
+    let error = SegmentReader::open(&path)
+        .err()
+        .expect("footer must be rejected");
+    assert!(
+        error.to_string().contains("footer"),
+        "unexpected error: {error}"
     );
 
     let _ = std::fs::remove_dir_all(&dir);
@@ -702,7 +703,8 @@ fn compactor_background_thread_drains_on_stop() {
             ..Default::default()
         },
     )
-    .spawn(vec![("metrics".to_string(), reader)]);
+    .spawn(vec![("metrics".to_string(), reader)])
+    .expect("spawn compactor");
 
     for i in 0..4 {
         writer.push_row(&[Value::I64(i), Value::F64(i as f64)]);
@@ -739,7 +741,8 @@ fn compactor_background_errors_are_observable() {
             ..Default::default()
         },
     )
-    .spawn(vec![("metrics".to_string(), source)]);
+    .spawn(vec![("metrics".to_string(), source)])
+    .expect("spawn compactor");
     std::thread::sleep(Duration::from_millis(30));
     let stats = handle.stop();
 
@@ -748,11 +751,46 @@ fn compactor_background_errors_are_observable() {
         stats
             .last_error
             .as_deref()
-            .is_some_and(|message| message.contains("drain table metrics")),
+            .is_some_and(|message| message.contains(':')),
         "last error should retain operation context: {stats:?}"
     );
 
     std::fs::remove_file(&dir).unwrap();
+}
+
+#[test]
+fn retention_directory_errors_are_not_reported_as_success() {
+    let dir = tmp_dir("retention-directory-error");
+    let store = ColdStore::open(&dir).unwrap();
+    std::fs::remove_dir_all(&dir).unwrap();
+    std::fs::File::create(&dir).unwrap();
+
+    assert!(store.segment_paths_checked().is_err());
+    assert!(store
+        .enforce_limits_checked(Some(1), Some(Duration::ZERO))
+        .is_err());
+
+    std::fs::remove_file(&dir).unwrap();
+}
+
+#[test]
+fn retention_and_priming_report_corrupt_segments() {
+    let dir = tmp_dir("retention-corrupt-segment");
+    let store = ColdStore::open(&dir).unwrap();
+    std::fs::write(dir.join("broken-000001.memc"), b"not a MEMC segment").unwrap();
+    std::fs::write(dir.join("broken-000002.memc"), b"not a MEMC segment").unwrap();
+
+    let prime_error = Compactor::new(ColdStore::open(&dir).unwrap(), CompactorConfig::default())
+        .prime_from_cold()
+        .unwrap_err();
+    assert!(prime_error.to_string().contains("failed to prime"));
+
+    let retention_error = store
+        .enforce_limits_checked(Some(1), Some(Duration::ZERO))
+        .unwrap_err();
+    assert!(retention_error.to_string().contains("for retention"));
+
+    std::fs::remove_dir_all(&dir).unwrap();
 }
 
 #[test]

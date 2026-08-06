@@ -2,8 +2,8 @@
 
 use std::collections::HashMap;
 
-use anyhow::{anyhow, Result};
-use serde::Deserialize;
+use anyhow::{anyhow, bail, Context, Result};
+use serde::{Deserialize, Serialize};
 
 use super::catalog;
 use super::discovery;
@@ -13,12 +13,17 @@ pub use discovery::all_skill_root_paths;
 pub use catalog::CatalogEntry;
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct SkillFile {
+    #[serde(rename = "apiVersion")]
+    api_version: String,
+    kind: String,
     metadata: SkillMeta,
     spec: SkillSpec,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct KeywordsSpec {
     #[serde(default)]
     pub zh: Vec<String>,
@@ -27,15 +32,19 @@ pub struct KeywordsSpec {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct TriggersSpec {
     #[serde(default)]
     keywords: KeywordsSpec,
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct SkillMeta {
     id: String,
     title: String,
+    #[serde(default, rename = "title_en")]
+    _title_en: String,
     #[serde(default)]
     category: String,
     #[serde(default)]
@@ -47,6 +56,7 @@ struct SkillMeta {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct SkillSpec {
     #[serde(default)]
     parameters: Vec<SkillParameter>,
@@ -60,16 +70,45 @@ struct SkillSpec {
     next_steps: Vec<String>,
     #[serde(default)]
     variables: HashMap<String, String>,
+    #[serde(default)]
+    requires: RequiresSpec,
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum SkillParameterType {
+    Integer,
+    Number,
+    Boolean,
+    #[default]
+    String,
+}
+
+impl SkillParameterType {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Integer => "integer",
+            Self::Number => "number",
+            Self::Boolean => "boolean",
+            Self::String => "string",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SkillParameter {
     pub name: String,
+    #[serde(rename = "type")]
+    pub parameter_type: SkillParameterType,
     #[serde(default)]
     pub default: serde_yaml::Value,
+    #[serde(default)]
+    pub description: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct SkillStepRaw {
     id: String,
     title: String,
@@ -78,7 +117,7 @@ struct SkillStepRaw {
     #[serde(default)]
     sql: Option<String>,
     #[serde(default, rename = "method")]
-    _method: Option<String>,
+    method: Option<String>,
     #[serde(default)]
     path: Option<String>,
     #[serde(default)]
@@ -91,21 +130,56 @@ struct SkillStepRaw {
     when: Option<String>,
     #[serde(default)]
     cluster: Option<bool>,
+    #[serde(default)]
+    platform: Option<SkillPlatform>,
+    #[serde(default)]
+    action: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct InterpretationSpec {
     #[serde(default)]
     rules: Vec<InterpretRule>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct InterpretRule {
     pub id: String,
     pub when: String,
     #[serde(default = "default_severity")]
     pub severity: String,
     pub message: String,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RequiresSpec {
+    #[serde(default)]
+    pub any_tables: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum SkillPlatform {
+    Linux,
+    Macos,
+    Windows,
+}
+
+impl SkillPlatform {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Linux => "linux",
+            Self::Macos => "macos",
+            Self::Windows => "windows",
+        }
+    }
+
+    pub fn is_current(self) -> bool {
+        self.as_str() == std::env::consts::OS
+    }
 }
 
 fn default_severity() -> String {
@@ -126,12 +200,15 @@ pub struct SkillStep {
     pub title: String,
     pub step_type: String,
     pub sql: Option<String>,
+    pub method: Option<String>,
     pub path: Option<String>,
     pub view: Option<String>,
     pub on_empty: String,
     pub empty_message: Option<String>,
     pub when: Option<String>,
     pub cluster: Option<bool>,
+    pub platform: Option<SkillPlatform>,
+    pub action: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -149,6 +226,7 @@ pub struct Skill {
     pub summary_template: String,
     pub next_steps: Vec<String>,
     pub variables: HashMap<String, String>,
+    pub requires: RequiresSpec,
 }
 
 impl Skill {
@@ -167,7 +245,9 @@ pub fn list_skill_ids() -> Vec<String> {
 
 pub fn load_skill(id: &str) -> Result<Skill> {
     let yaml = discovery::load_fs_steps_yaml(id).ok_or_else(|| anyhow!("Unknown skill: {id}"))?;
-    let file: SkillFile = serde_yaml::from_str(&yaml)?;
+    let file: SkillFile =
+        serde_yaml::from_str(&yaml).with_context(|| format!("invalid skill schema for `{id}`"))?;
+    validate_skill_file(id, &file)?;
     let steps = file
         .spec
         .steps
@@ -177,16 +257,19 @@ pub fn load_skill(id: &str) -> Result<Skill> {
             title: s.title,
             step_type: s.step_type,
             sql: s.sql,
+            method: s.method,
             path: s.path,
             view: s.view,
             on_empty: s.on_empty,
             empty_message: s.empty_message,
             when: s.when,
             cluster: s.cluster,
+            platform: s.platform,
+            action: s.action,
         })
         .collect();
     let keywords = collect_keywords(&file.metadata);
-    Ok(Skill {
+    let skill = Skill {
         id: file.metadata.id,
         title: file.metadata.title,
         category: file.metadata.category,
@@ -200,7 +283,184 @@ pub fn load_skill(id: &str) -> Result<Skill> {
         summary_template: file.spec.summary_template.trim().to_string(),
         next_steps: file.spec.next_steps,
         variables: file.spec.variables,
-    })
+        requires: file.spec.requires,
+    };
+    validate_skill_contract(&skill)?;
+    Ok(skill)
+}
+
+fn validate_default_sql(skill: &Skill) -> Result<()> {
+    let context = build_context(skill, &HashMap::new());
+    for step in &skill.steps {
+        let Some(sql) = &step.sql else { continue };
+        let expanded = expand_template(sql, &context);
+        if contains_template_placeholder(&expanded) {
+            bail!("step `{}` contains an unresolved SQL template", step.id);
+        }
+        crate::sql_guard::ensure_read_only_sql(&expanded)
+            .map_err(|error| anyhow!("step `{}`: {error}", step.id))?;
+    }
+    Ok(())
+}
+
+fn contains_template_placeholder(value: &str) -> bool {
+    let mut rest = value;
+    while let Some(open) = rest.find('{') {
+        rest = &rest[open + 1..];
+        let Some(close) = rest.find('}') else {
+            return false;
+        };
+        let name = &rest[..close];
+        if !name.is_empty()
+            && name
+                .chars()
+                .all(|character| character.is_ascii_alphanumeric() || character == '_')
+        {
+            return true;
+        }
+        rest = &rest[close + 1..];
+    }
+    false
+}
+
+fn validate_skill_file(requested_id: &str, file: &SkillFile) -> Result<()> {
+    if file.api_version != "probing.dev/v1" {
+        bail!("unsupported apiVersion `{}`", file.api_version);
+    }
+    if file.kind != "Skill" {
+        bail!("expected kind `Skill`, got `{}`", file.kind);
+    }
+    if file.metadata.id != requested_id {
+        bail!(
+            "skill id `{}` does not match requested id `{requested_id}`",
+            file.metadata.id
+        );
+    }
+
+    Ok(())
+}
+
+pub(crate) fn validate_skill_contract(skill: &Skill) -> Result<()> {
+    let mut parameter_names = std::collections::HashSet::new();
+    for parameter in &skill.parameters {
+        if !parameter_names.insert(parameter.name.as_str()) {
+            bail!("duplicate parameter id `{}`", parameter.name);
+        }
+        validate_parameter_default(parameter)?;
+    }
+
+    let mut step_ids = std::collections::HashSet::new();
+    for step in &skill.steps {
+        if !step_ids.insert(step.id.as_str()) {
+            bail!("duplicate step id `{}`", step.id);
+        }
+        if !matches!(step.step_type.as_str(), "sql" | "api" | "ui" | "config") {
+            bail!(
+                "step `{}` has unsupported type `{}`",
+                step.id,
+                step.step_type
+            );
+        }
+        if !matches!(step.on_empty.as_str(), "skip" | "warn" | "abort") {
+            bail!(
+                "step `{}` has invalid on_empty `{}`",
+                step.id,
+                step.on_empty
+            );
+        }
+        match step.step_type.as_str() {
+            "sql" if step.sql.as_ref().is_none_or(|sql| sql.trim().is_empty()) => {
+                bail!("SQL step `{}` is missing sql", step.id)
+            }
+            "api" if step.path.as_ref().is_none_or(|path| path.trim().is_empty()) => {
+                bail!("API step `{}` is missing path", step.id)
+            }
+            "api"
+                if step
+                    .method
+                    .as_deref()
+                    .is_some_and(|method| !method.eq_ignore_ascii_case("GET")) =>
+            {
+                bail!("API step `{}` only supports method GET", step.id)
+            }
+            "ui" if step.view.as_ref().is_none_or(|view| view.trim().is_empty()) => {
+                bail!("UI step `{}` is missing view", step.id)
+            }
+            _ => {}
+        }
+    }
+
+    let mut rule_ids = std::collections::HashSet::new();
+    for rule in &skill.interpretation {
+        if !rule_ids.insert(rule.id.as_str()) {
+            bail!("duplicate interpretation rule id `{}`", rule.id);
+        }
+        if !matches!(rule.severity.as_str(), "error" | "warning" | "info") {
+            bail!(
+                "rule `{}` has invalid severity `{}`",
+                rule.id,
+                rule.severity
+            );
+        }
+        crate::interpret::validate_rule_expression(&rule.when)
+            .map_err(|error| anyhow!("rule `{}`: {error}", rule.id))?;
+    }
+    validate_default_sql(skill)
+}
+
+fn validate_parameter_default(parameter: &SkillParameter) -> Result<()> {
+    let valid = match parameter.parameter_type {
+        SkillParameterType::Integer => parameter.default.as_i64().is_some(),
+        SkillParameterType::Number => parameter.default.as_f64().is_some(),
+        SkillParameterType::Boolean => parameter.default.as_bool().is_some(),
+        SkillParameterType::String => parameter.default.as_str().is_some(),
+    };
+    if valid {
+        Ok(())
+    } else {
+        bail!(
+            "parameter `{}` default does not match type `{}`",
+            parameter.name,
+            parameter.parameter_type.as_str()
+        )
+    }
+}
+
+/// Validate and normalize user-supplied parameter values before expansion.
+pub fn normalize_parameter_overrides(
+    skill: &Skill,
+    overrides: &mut HashMap<String, String>,
+) -> Result<()> {
+    for (name, value) in overrides.iter_mut() {
+        let parameter = skill
+            .parameters
+            .iter()
+            .find(|parameter| parameter.name == *name)
+            .ok_or_else(|| anyhow!("unknown parameter `{name}` for skill `{}`", skill.id))?;
+        let normalized = match parameter.parameter_type {
+            SkillParameterType::Integer => value
+                .parse::<i64>()
+                .map(|value| value.to_string())
+                .map_err(|_| anyhow!("parameter `{name}` must be an integer"))?,
+            SkillParameterType::Number => {
+                let number = value
+                    .parse::<f64>()
+                    .map_err(|_| anyhow!("parameter `{name}` must be a number"))?;
+                if !number.is_finite() {
+                    bail!("parameter `{name}` must be a finite number");
+                }
+                number.to_string()
+            }
+            SkillParameterType::Boolean => match value.to_ascii_lowercase().as_str() {
+                "true" => "true".to_string(),
+                "false" => "false".to_string(),
+                _ => bail!("parameter `{name}` must be true or false"),
+            },
+            SkillParameterType::String => value.clone(),
+        };
+        *value = normalized;
+    }
+    Ok(())
 }
 
 fn collect_keywords(meta: &SkillMeta) -> Vec<String> {
@@ -304,6 +564,15 @@ pub fn build_context(pb: &Skill, overrides: &HashMap<String, String>) -> HashMap
         ctx.insert(k.clone(), v.clone());
     }
     ctx.extend(derive_variables(&ctx));
+    // String parameters are authored as SQL literal contents (for example
+    // `stage = '{stage_filter}'`). Escape quotes before template expansion.
+    for parameter in &pb.parameters {
+        if parameter.parameter_type == SkillParameterType::String {
+            if let Some(value) = ctx.get_mut(&parameter.name) {
+                *value = value.replace('\'', "''");
+            }
+        }
+    }
     for (key, template) in &pb.variables {
         let expanded = expand_template(template, &ctx);
         ctx.insert(key.clone(), expanded);
@@ -325,6 +594,64 @@ mod tests {
 
     fn normalize_sql(sql: &str) -> String {
         sql.split_whitespace().collect::<Vec<_>>().join(" ")
+    }
+
+    #[test]
+    fn every_catalog_skill_compiles() {
+        for id in list_skill_ids() {
+            load_skill(&id).unwrap_or_else(|error| panic!("skill {id}: {error:#}"));
+        }
+    }
+
+    #[test]
+    fn parameter_overrides_are_typed_and_normalized() {
+        let skill = load_skill("slow_rank").expect("slow_rank skill");
+        let mut valid = HashMap::from([
+            ("step_window".to_string(), "0042".to_string()),
+            ("use_global".to_string(), "TRUE".to_string()),
+        ]);
+        normalize_parameter_overrides(&skill, &mut valid).expect("valid overrides");
+        assert_eq!(valid["step_window"], "42");
+        assert_eq!(valid["use_global"], "true");
+
+        let mut invalid = HashMap::from([("step_window".to_string(), "1; SELECT 1".to_string())]);
+        assert!(normalize_parameter_overrides(&skill, &mut invalid).is_err());
+        let mut unknown = HashMap::from([("typo".to_string(), "1".to_string())]);
+        assert!(normalize_parameter_overrides(&skill, &mut unknown).is_err());
+
+        let string_skill = load_skill("module_bottleneck").expect("module_bottleneck skill");
+        let string_overrides =
+            HashMap::from([("stage_filter".to_string(), "x' OR '1'='1".to_string())]);
+        let context = build_context(&string_skill, &string_overrides);
+        assert_eq!(context["stage_filter"], "x'' OR ''1''=''1");
+    }
+
+    #[test]
+    fn yaml_schema_rejects_unknown_fields() {
+        let yaml = r#"
+apiVersion: probing.dev/v1
+kind: Skill
+metadata:
+  id: strict
+  title: Strict
+spec:
+  parameters:
+    - name: limit
+      type: integer
+      default: 1
+      typo: ignored-before
+  steps: []
+"#;
+        let error = serde_yaml::from_str::<SkillFile>(yaml).expect_err("unknown field must fail");
+        assert!(error.to_string().contains("unknown field `typo`"));
+    }
+
+    #[test]
+    fn unresolved_template_detection_ignores_non_template_braces() {
+        assert!(contains_template_placeholder("SELECT {missing_value}"));
+        assert!(!contains_template_placeholder(
+            "SELECT '{\"json\": true}' AS payload"
+        ));
     }
 
     #[test]

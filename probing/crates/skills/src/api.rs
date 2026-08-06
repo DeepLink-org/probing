@@ -7,7 +7,10 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use super::catalog::{load_catalog, load_intents, load_pages, CatalogEntry};
-use super::loader::{load_skill, InterpretRule, KeywordsSpec, Skill, SkillParameter, SkillStep};
+use super::loader::{
+    load_skill, validate_skill_contract, InterpretRule, KeywordsSpec, RequiresSpec, Skill,
+    SkillParameter, SkillParameterType, SkillPlatform, SkillStep,
+};
 use super::routing::match_skills;
 
 pub fn skill_to_json(skill: &Skill) -> Value {
@@ -21,10 +24,15 @@ pub fn skill_to_json(skill: &Skill) -> Value {
         "parameters": skill.parameters.iter().map(|p| {
             json!({
                 "name": p.name,
+                "type": p.parameter_type.as_str(),
                 "default": yaml_to_json(&p.default),
+                "description": p.description,
             })
         }).collect::<Vec<_>>(),
         "steps": skill.steps.iter().map(step_to_json).collect::<Vec<_>>(),
+        "requires": {
+            "any_tables": skill.requires.any_tables,
+        },
         "interpretation": {
             "rules": skill.interpretation.iter().map(|r| {
                 json!({
@@ -50,12 +58,15 @@ fn step_to_json(step: &SkillStep) -> Value {
         "title": step.title,
         "type": step.step_type,
         "sql": step.sql,
+        "method": step.method,
         "path": step.path,
         "view": step.view,
         "on_empty": step.on_empty,
         "empty_message": step.empty_message,
         "when": step.when,
         "cluster": step.cluster,
+        "platform": step.platform.map(SkillPlatform::as_str),
+        "action": step.action,
     })
 }
 
@@ -84,7 +95,9 @@ pub fn load_skill_json(id: &str) -> Result<String> {
 pub fn skill_from_api(value: &Value) -> Result<Skill> {
     let payload: SkillApiPayload =
         serde_json::from_value(value.clone()).context("deserialize skill")?;
-    Ok(payload.into_skill())
+    let skill = payload.into_skill();
+    validate_skill_contract(&skill).context("validate skill contract")?;
+    Ok(skill)
 }
 
 #[derive(Debug, Deserialize)]
@@ -105,6 +118,8 @@ struct SkillApiPayload {
     #[serde(default)]
     steps: Vec<SkillStepApi>,
     #[serde(default)]
+    requires: RequiresSpec,
+    #[serde(default)]
     interpretation: InterpretationApi,
     #[serde(default)]
     summary_template: String,
@@ -115,8 +130,12 @@ struct SkillApiPayload {
 #[derive(Debug, Deserialize)]
 struct SkillParameterApi {
     name: String,
+    #[serde(rename = "type", default)]
+    parameter_type: SkillParameterType,
     #[serde(default)]
     default: Value,
+    #[serde(default)]
+    description: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -127,6 +146,8 @@ struct SkillStepApi {
     step_type: String,
     #[serde(default)]
     sql: Option<String>,
+    #[serde(default)]
+    method: Option<String>,
     #[serde(default)]
     path: Option<String>,
     #[serde(default)]
@@ -139,6 +160,10 @@ struct SkillStepApi {
     when: Option<String>,
     #[serde(default)]
     cluster: Option<bool>,
+    #[serde(default)]
+    platform: Option<SkillPlatform>,
+    #[serde(default)]
+    action: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -196,7 +221,9 @@ impl SkillApiPayload {
                 .into_iter()
                 .map(|p| SkillParameter {
                     name: p.name,
+                    parameter_type: p.parameter_type,
                     default: json_to_yaml(&p.default),
+                    description: p.description,
                 })
                 .collect(),
             steps: self
@@ -207,12 +234,15 @@ impl SkillApiPayload {
                     title: s.title,
                     step_type: s.step_type,
                     sql: s.sql,
+                    method: s.method,
                     path: s.path,
                     view: s.view,
                     on_empty: s.on_empty,
                     empty_message: s.empty_message,
                     when: s.when,
                     cluster: s.cluster,
+                    platform: s.platform,
+                    action: s.action,
                 })
                 .collect(),
             interpretation: self
@@ -229,6 +259,7 @@ impl SkillApiPayload {
             summary_template: self.summary_template,
             next_steps: self.next_steps,
             variables: HashMap::new(),
+            requires: self.requires,
         }
     }
 }
@@ -336,5 +367,31 @@ fn yaml_to_json(value: &serde_yaml::Value) -> Value {
             Value::Object(out)
         }
         serde_yaml::Value::Tagged(tagged) => yaml_to_json(&tagged.value),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn skill_json_preserves_parameter_and_platform_contracts() {
+        let skill = load_skill("comm_bottleneck").expect("comm_bottleneck skill");
+        let value = skill_to_json(&skill);
+        assert_eq!(value["parameters"][0]["type"], "integer");
+        assert!(value["parameters"][0]["description"].is_string());
+        let rdma = value["steps"]
+            .as_array()
+            .expect("steps")
+            .iter()
+            .find(|step| step["id"] == "rdma_hint")
+            .expect("rdma_hint step");
+        assert_eq!(rdma["platform"], "linux");
+
+        let roundtrip = skill_from_api(&value).expect("valid roundtrip contract");
+        assert_eq!(
+            roundtrip.parameters[0].parameter_type,
+            SkillParameterType::Integer
+        );
     }
 }

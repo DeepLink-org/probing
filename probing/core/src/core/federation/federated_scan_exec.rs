@@ -25,11 +25,13 @@ use datafusion::physical_plan::{
     SendableRecordBatchStream,
 };
 use futures::StreamExt;
-use probing_proto::prelude::{DataFrame, Node};
+use probing_proto::prelude::DataFrame;
 
-use super::cluster_executor::{fanout_strict_enabled, ProbeClusterExecutor};
+use super::cluster_executor::{
+    fanout_strict_enabled, FederatedScanTarget, PeerQueryTransport, ProbeClusterExecutor,
+};
 use super::convert::{align_batch_to_schema, dataframe_to_record_batch, tag_record_batch};
-use super::fanout_scope::{FanoutScope, FanoutStatsHandle};
+use super::fanout_scope::FanoutStatsHandle;
 
 fn log_federated_peer_failure(context: &str, addr_tag: &str, detail: &str) {
     if fanout_strict_enabled() {
@@ -52,15 +54,14 @@ pub struct FederatedScanExec {
     projection: Vec<usize>,
     /// `probe.*` SQL executed on each peer node.
     remote_sql: String,
-    /// Snapshot of peer nodes captured at planning time (one partition each).
-    remote_nodes: Vec<Node>,
-    /// How [`Self::execute_remote`] talks to each peer (plain SQL vs node aggregate API).
-    remote_scope: FanoutScope,
+    /// Snapshot of peer nodes and their routing scope (one partition each).
+    remote_targets: Vec<FederatedScanTarget>,
     local_host: String,
     local_addr: String,
     local_rank: Option<i32>,
     /// Request-owned sink; explicit because DataFusion may poll partitions in child tasks.
     fanout_stats: FanoutStatsHandle,
+    transport: Option<Arc<dyn PeerQueryTransport>>,
     properties: Arc<PlanProperties>,
 }
 
@@ -71,19 +72,19 @@ impl FederatedScanExec {
         output_schema: SchemaRef,
         projection: Vec<usize>,
         remote_sql: String,
-        remote_nodes: Vec<Node>,
-        remote_scope: FanoutScope,
+        remote_targets: Vec<FederatedScanTarget>,
         local_host: String,
         local_addr: String,
         local_rank: Option<i32>,
         fanout_stats: FanoutStatsHandle,
+        transport: Option<Arc<dyn PeerQueryTransport>>,
     ) -> Result<Self> {
         let projected_schema = Arc::new(
             output_schema
                 .project(&projection)
                 .map_err(DataFusionError::from)?,
         );
-        let num_partitions = 1 + remote_nodes.len();
+        let num_partitions = 1 + remote_targets.len();
         let properties = PlanProperties::new(
             EquivalenceProperties::new(projected_schema.clone()),
             Partitioning::UnknownPartitioning(num_partitions),
@@ -96,12 +97,12 @@ impl FederatedScanExec {
             projected_schema,
             projection,
             remote_sql,
-            remote_nodes,
-            remote_scope,
+            remote_targets,
             local_host,
             local_addr,
             local_rank,
             fanout_stats,
+            transport,
             properties: Arc::new(properties),
         })
     }
@@ -126,37 +127,43 @@ impl FederatedScanExec {
     }
 
     fn execute_remote(&self, node_index: usize) -> Result<SendableRecordBatchStream> {
-        let node = self.remote_nodes.get(node_index).ok_or_else(|| {
+        let target = self.remote_targets.get(node_index).ok_or_else(|| {
             DataFusionError::Internal(format!(
                 "FederatedScanExec: no peer node at index {node_index}"
             ))
         })?;
-        let addr_query = node.addr.clone();
-        let addr_tag = node.addr.clone();
-        let host = if node.host.is_empty() {
-            node.addr.clone()
+        let addr_query = target.node.addr.clone();
+        let addr_tag = target.node.addr.clone();
+        let host = if target.node.host.is_empty() {
+            target.node.addr.clone()
         } else {
-            node.host.clone()
+            target.node.host.clone()
         };
-        let rank = node.rank;
+        let rank = target.node.rank;
         let sql = self.remote_sql.clone();
-        let remote_scope = self.remote_scope;
+        let remote_scope = target.scope;
         let full = self.output_schema.clone();
         let projection = self.projection.clone();
         let projected_schema = self.projected_schema.clone();
         let fanout_stats = self.fanout_stats.clone();
+        let transport = self.transport.clone();
 
         // Best-effort fetch: failures (network, conversion) drop the node from
         // the result set and are recorded in the fan-out stats rather than
         // failing the whole query, matching the legacy partial-result behavior.
         let fut = async move {
             let joined = tokio::task::spawn_blocking(move || {
-                ProbeClusterExecutor::execute_remote_for_scope(&addr_query, &sql, remote_scope)
+                ProbeClusterExecutor::execute_remote_for_scope(
+                    transport.as_ref(),
+                    &addr_query,
+                    &sql,
+                    remote_scope,
+                )
             })
             .await;
             match joined {
-                Ok(Ok(df)) => match finalize_remote_dataframe(
-                    &df,
+                Ok(Ok(outcome)) => match finalize_remote_dataframe(
+                    &outcome.dataframe,
                     &host,
                     &addr_tag,
                     rank,
@@ -164,16 +171,17 @@ impl FederatedScanExec {
                     &projection,
                 ) {
                     Ok(opt) => {
-                        fanout_stats.record_success();
+                        fanout_stats.absorb(outcome.stats);
                         opt
                     }
                     Err(err) => {
+                        fanout_stats.absorb(outcome.stats);
+                        fanout_stats.record_batch_drop();
                         log_federated_peer_failure(
                             "federated scan dropped",
                             &addr_tag,
                             &err.to_string(),
                         );
-                        fanout_stats.record_failure(&addr_tag);
                         None
                     }
                 },
@@ -246,7 +254,7 @@ impl DisplayAs for FederatedScanExec {
         write!(
             f,
             "FederatedScanExec: peers={}, remote_sql={}",
-            self.remote_nodes.len(),
+            self.remote_targets.len(),
             self.remote_sql
         )
     }
@@ -278,12 +286,12 @@ impl ExecutionPlan for FederatedScanExec {
             projected_schema: self.projected_schema.clone(),
             projection: self.projection.clone(),
             remote_sql: self.remote_sql.clone(),
-            remote_nodes: self.remote_nodes.clone(),
-            remote_scope: self.remote_scope,
+            remote_targets: self.remote_targets.clone(),
             local_host: self.local_host.clone(),
             local_addr: self.local_addr.clone(),
             local_rank: self.local_rank,
             fanout_stats: self.fanout_stats.clone(),
+            transport: self.transport.clone(),
             properties: self.properties.clone(),
         }))
     }

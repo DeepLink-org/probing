@@ -52,6 +52,10 @@ def test_catalog_loads_all_skills():
 
 def test_load_slow_rank_global():
     skill = load_skill("slow_rank")
+    assert {parameter["type"] for parameter in skill.parameters} == {
+        "integer",
+        "boolean",
+    }
     steps = expand_skill(skill, {"use_global": True, "step_window": 10})
     assert steps
     sql = " ".join(s.sql or "" for s in steps if s.sql)

@@ -19,7 +19,6 @@ probing.egg-info/
 .idea/
 app/dist/
 dist/
-python/probing/bundled_web/
 .python-version
 report.json
 pkg/
@@ -35,4 +34,6 @@ docs/site/
 .coverage
 .pytest_cache/
 web/target/
+probing/server/web-assets/
+/web/dist
 frontend/

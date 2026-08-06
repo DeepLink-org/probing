@@ -101,6 +101,7 @@ struct SharedRuntimeStats {
 
 impl SharedRuntimeStats {
     fn record(&self, message: String) {
+        log::warn!("MEMC compactor: {message}");
         self.error_count.fetch_add(1, Ordering::Relaxed);
         match self.last_error.lock() {
             Ok(mut last) => *last = Some(message),
@@ -168,10 +169,13 @@ impl Compactor {
     /// `(source_instance, source_gen, source_chunk)` it came from; we keep
     /// the max generation per instance/chunk.
     pub fn prime_from_cold(&mut self) -> io::Result<()> {
-        for path in self.store.segment_paths() {
-            let Ok(reader) = SegmentReader::open(&path) else {
-                continue; // unreadable/foreign file: skip, never fail priming
-            };
+        for path in self.store.segment_paths_checked()? {
+            let reader = SegmentReader::open(&path).map_err(|error| {
+                io::Error::new(
+                    error.kind(),
+                    format!("failed to prime from {}: {error}", path.display()),
+                )
+            })?;
             for page in reader.pages() {
                 if page.source_chunk == SOURCE_CHUNK_NONE {
                     continue;
@@ -336,7 +340,11 @@ impl Compactor {
         if w.page_count() == 0 {
             let path = w.path().to_path_buf();
             drop(w);
-            let _ = std::fs::remove_file(&path);
+            match std::fs::remove_file(&path) {
+                Ok(()) => {}
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error),
+            }
             return Ok(None);
         }
         Ok(Some(w.seal()?))
@@ -353,7 +361,8 @@ impl Compactor {
             .enforce_limits(self.config.max_total_bytes, self.config.ttl)
     }
 
-    fn enforce_checked(&self) -> io::Result<Vec<PathBuf>> {
+    /// Fallible retention pass for workers that must surface filesystem errors.
+    pub fn enforce_checked(&self) -> io::Result<Vec<PathBuf>> {
         self.store
             .enforce_limits_checked(self.config.max_total_bytes, self.config.ttl)
     }
@@ -395,7 +404,7 @@ impl Compactor {
     /// shared/file-backed [`MemTable`] the application is writing elsewhere.
     /// Dropping (or [`stop`](CompactorHandle::stop)ping) the returned handle
     /// does a final drain + flush so no sealed chunk is left behind.
-    pub fn spawn(mut self, sources: Vec<(String, MemTable)>) -> CompactorHandle {
+    pub fn spawn(mut self, sources: Vec<(String, MemTable)>) -> io::Result<CompactorHandle> {
         let stop = Arc::new(AtomicBool::new(false));
         let stop_thread = stop.clone();
         let runtime_stats = Arc::new(SharedRuntimeStats::default());
@@ -431,13 +440,12 @@ impl Compactor {
                 if let Err(error) = self.enforce_checked() {
                     thread_stats.record(format!("final retention enforcement: {error}"));
                 }
-            })
-            .expect("spawn memc-compactor thread");
-        CompactorHandle {
+            })?;
+        Ok(CompactorHandle {
             stop,
             thread: Some(thread),
             runtime_stats,
-        }
+        })
     }
 }
 

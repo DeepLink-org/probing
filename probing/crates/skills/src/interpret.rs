@@ -6,6 +6,154 @@ use probing_proto::prelude::{DataFrame, Ele};
 
 use super::loader::InterpretRule;
 
+/// Validate the complete interpretation-rule grammar accepted by this module.
+pub fn validate_rule_expression(when: &str) -> Result<(), String> {
+    let parts: Vec<&str> = when
+        .split('|')
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .collect();
+    if parts.is_empty() {
+        return Err("empty interpretation expression".to_string());
+    }
+
+    let mut index = 0;
+    let mut has_step = false;
+    if let Some(step_id) = parts[0].strip_prefix("step:") {
+        if step_id.trim().is_empty() {
+            return Err("step binding requires an id".to_string());
+        }
+        has_step = true;
+        index = 1;
+    }
+
+    while index < parts.len() {
+        let clause = parts[index];
+        if clause == "always" {
+            index += 1;
+            continue;
+        }
+        if let Some(predicate) = clause.strip_prefix("rows ") {
+            if !has_step {
+                return Err("rows predicate requires step:<id>".to_string());
+            }
+            validate_rows_predicate(predicate)?;
+            index += 1;
+            continue;
+        }
+        if clause.contains("top(row)") {
+            if !has_step || !valid_top_median_clause(clause) {
+                return Err(format!("unsupported top/median predicate `{clause}`"));
+            }
+            index += 1;
+            continue;
+        }
+        if let Some(column) = clause.strip_prefix("column:") {
+            if !has_step || column.trim().is_empty() {
+                return Err("column predicate requires step:<id> and a column name".to_string());
+            }
+            let tail = parts
+                .get(index + 1)
+                .ok_or_else(|| format!("column `{}` is missing a predicate", column.trim()))?;
+            if !valid_column_predicate(tail) {
+                return Err(format!("unsupported column predicate `{tail}`"));
+            }
+            index += 2;
+            continue;
+        }
+        return Err(format!("unsupported interpretation clause `{clause}`"));
+    }
+    Ok(())
+}
+
+fn validate_rows_predicate(predicate: &str) -> Result<(), String> {
+    let Some((operator, expression)) = predicate.split_once(' ') else {
+        return Err(format!("invalid rows predicate `{predicate}`"));
+    };
+    if !matches!(operator, "==" | ">=" | ">" | "<=" | "<")
+        || !valid_numeric_expression(expression.trim())
+    {
+        return Err(format!("invalid rows predicate `{predicate}`"));
+    }
+    Ok(())
+}
+
+fn valid_numeric_expression(expression: &str) -> bool {
+    expression.split('*').all(|term| {
+        let term = term.trim();
+        term.parse::<f64>().is_ok()
+            || (term.starts_with('{')
+                && term.ends_with('}')
+                && !term[1..term.len() - 1].trim().is_empty())
+    })
+}
+
+fn valid_column_predicate(predicate: &str) -> bool {
+    let predicate = predicate.trim();
+    if let Some(rhs) = predicate.strip_prefix("max/min(ratio) >") {
+        return rhs.trim().parse::<f64>().is_ok();
+    }
+    for prefix in ["max >", "avg >", "top >", "value >", "value <"] {
+        if let Some(rhs) = predicate.strip_prefix(prefix) {
+            return rhs.trim().parse::<f64>().is_ok();
+        }
+    }
+    if let Some(rhs) = predicate.strip_prefix("value ==") {
+        return rhs.trim().parse::<f64>().is_ok();
+    }
+    if let Some(rhs) = predicate.strip_prefix("value =") {
+        return !rhs.trim().trim_matches(['\'', '"']).is_empty();
+    }
+    if let Some(rest) = predicate.strip_prefix("ratio(") {
+        let Some((columns, comparison)) = rest.split_once(')') else {
+            return false;
+        };
+        let Some((numerator, denominator)) = columns.split_once('/') else {
+            return false;
+        };
+        return !numerator.trim().is_empty()
+            && !denominator.trim().is_empty()
+            && comparison
+                .trim()
+                .strip_prefix('>')
+                .is_some_and(|rhs| rhs.trim().parse::<f64>().is_ok());
+    }
+    if let Some(rhs) = predicate.strip_prefix("last >") {
+        let Some((factor, column)) = rhs.trim().split_once("* avg(") else {
+            return false;
+        };
+        return factor.trim().parse::<f64>().is_ok()
+            && column.ends_with(')')
+            && !column.trim_end_matches(')').trim().is_empty();
+    }
+    if let Some(inner) = predicate
+        .strip_prefix("any_contains(")
+        .and_then(|rest| rest.strip_suffix(')'))
+    {
+        return !inner.trim().is_empty()
+            && inner
+                .split(',')
+                .all(|item| !item.trim().trim_matches(['\'', '"']).is_empty());
+    }
+    false
+}
+
+fn valid_top_median_clause(clause: &str) -> bool {
+    let Some(rest) = clause.strip_prefix("top(row).") else {
+        return false;
+    };
+    let Some((top_column, rhs)) = rest.split_once(" > ") else {
+        return false;
+    };
+    let Some((factor, median_column)) = rhs.split_once(" * median(") else {
+        return false;
+    };
+    !top_column.trim().is_empty()
+        && factor.trim().parse::<f64>().is_ok()
+        && median_column.ends_with(')')
+        && median_column.trim_end_matches(')').trim() == top_column.trim()
+}
+
 #[derive(Debug, Clone)]
 pub struct StepEvidence {
     pub step_id: String,
@@ -211,6 +359,10 @@ fn eval_column_predicate(col_name: &str, tail: &str, ev: &StepEvidence) -> bool 
         let threshold = rhs.trim().parse::<f64>().unwrap_or(f64::NAN);
         let value = nums.first().copied().unwrap_or(0.0);
         return (value - threshold).abs() < f64::EPSILON;
+    }
+    if let Some(rhs) = tail.strip_prefix("value =") {
+        let expected = rhs.trim().trim_matches(['\'', '"']);
+        return texts.first().is_some_and(|value| value == expected);
     }
     if let Some(rest) = tail.strip_prefix("ratio(") {
         if let Some((expr, pred)) = rest.split_once(')') {
@@ -449,6 +601,35 @@ mod tests {
         }];
         let findings = evaluate_rules(&rules, &steps, &HashMap::new());
         assert_eq!(findings.len(), 1);
+    }
+
+    #[test]
+    fn text_value_equality_rule() {
+        let rules = vec![InterpretRule {
+            id: "propagated".into(),
+            when: "step:topology | column:attribution_class | value = propagated_victim".into(),
+            severity: "warning".into(),
+            message: "propagated victim".into(),
+        }];
+        let steps = vec![StepEvidence {
+            step_id: "topology".into(),
+            row_count: 1,
+            dataframe: DataFrame::new(
+                vec!["attribution_class".into()],
+                vec![Seq::SeqText(vec!["propagated_victim".into()])],
+            ),
+        }];
+        assert_eq!(evaluate_rules(&rules, &steps, &HashMap::new()).len(), 1);
+    }
+
+    #[test]
+    fn validates_supported_grammar_and_rejects_unknown_syntax() {
+        assert!(validate_rule_expression(
+            "step:topology | rows >= 1 | column:attribution_class | value = propagated_victim"
+        )
+        .is_ok());
+        assert!(validate_rule_expression("step:x | column:y | slope() > 1").is_err());
+        assert!(validate_rule_expression("rows > 0").is_err());
     }
 
     #[test]

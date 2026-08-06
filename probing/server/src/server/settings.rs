@@ -34,7 +34,7 @@ pub fn sync_env_settings() {
         })
         .collect();
 
-    super::SERVER_RUNTIME.spawn(async move {
+    if let Err(error) = super::SERVER_RUNTIME.spawn(async move {
         for (key, value) in env_vars {
             let key = key.replace('_', ".").to_lowercase();
             match config::write(&key, &value).await {
@@ -42,7 +42,9 @@ pub fn sync_env_settings() {
                 Err(error) => error!("Failed to sync env setting '{key}': {error}"),
             };
         }
-    });
+    }) {
+        log::error!("failed to schedule server settings update: {error}");
+    }
 }
 
 #[cfg(test)]

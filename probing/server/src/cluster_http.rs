@@ -3,6 +3,15 @@ use std::time::Duration;
 use anyhow::Result;
 use probing_proto::prelude::{Node, NodeListResponse, NodeReportRequest, NodeReportResponse};
 
+use crate::auth::peer_auth_header_value;
+
+fn authenticate_peer_request<B>(request: ureq::RequestBuilder<B>) -> ureq::RequestBuilder<B> {
+    match peer_auth_header_value() {
+        Some(value) => request.header("Authorization", value),
+        None => request,
+    }
+}
+
 pub fn get_i32_env(name: &str) -> Option<i32> {
     std::env::var(name)
         .ok()
@@ -25,11 +34,12 @@ pub fn fetch_nodes_blocking(http_base: &str) -> Result<Vec<Node>> {
     let mut all = Vec::new();
     loop {
         let url = format!("{base}/apis/nodes?offset={offset}&limit={page_size}");
-        let text = ureq::get(&url)
+        let request = ureq::get(&url)
             .config()
             .no_delay(true)
             .timeout_global(Some(Duration::from_secs(10)))
-            .build()
+            .build();
+        let text = authenticate_peer_request(request)
             .call()?
             .body_mut()
             .read_to_string()?;
@@ -54,7 +64,7 @@ pub fn put_nodes_blocking(
         nodes,
         seen_version,
     };
-    let text = ureq::put(&url)
+    let request = ureq::put(&url)
         .config()
         .no_delay(true)
         .timeout_global(Some(Duration::from_secs(
@@ -63,7 +73,8 @@ pub fn put_nodes_blocking(
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(5),
         )))
-        .build()
+        .build();
+    let text = authenticate_peer_request(request)
         .send_json(body)?
         .body_mut()
         .read_to_string()?;

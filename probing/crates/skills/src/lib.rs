@@ -8,6 +8,7 @@ pub mod interpret;
 pub mod loader;
 pub mod routing;
 pub mod runner;
+mod sql_guard;
 
 #[cfg(feature = "python-bridge")]
 pub mod pyo3;
@@ -21,7 +22,8 @@ pub use catalog::{load_catalog, load_intents, load_pages, CatalogEntry};
 pub use interpret::{evaluate_rules, InterpretFinding, StepEvidence};
 pub use loader::{
     build_context, default_parameters, derive_variables, expand_template, list_skill_ids,
-    load_skill, InterpretRule, KeywordsSpec, Skill, SkillParameter, SkillStep,
+    load_skill, normalize_parameter_overrides, InterpretRule, KeywordsSpec, RequiresSpec, Skill,
+    SkillParameter, SkillParameterType, SkillPlatform, SkillStep,
 };
 pub use routing::{
     match_intent_routes, match_routed_skills, match_skills, IntentRoute, SkillRoute,

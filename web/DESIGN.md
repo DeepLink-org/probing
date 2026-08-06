@@ -423,7 +423,7 @@ web/src/
 ## 九、构建与部署
 
 - 开发 / 构建：`dx serve` / `dx build --release`；仓库根 `make frontend` 复制产物到 `web/dist/`。
-- UI 静态资源由 Python 包提供（wheel：`python/probing/_web/`；editable：`web/dist/`），经 `probing.web_assets` 设置 `PROBING_ASSETS_ROOT`，`probing-server` 只读该目录；未配置时返回占位页。
+- UI 静态资源由 `make frontend` 生成到被 Git 忽略的 `probing/server/web-assets/`，build script 将其复制到 `$OUT_DIR` 后通过 `include_dir` 编译进 `probing._core`；没有前端产物的普通 Rust 构建使用轻量 fallback，`PROBING_ASSETS_ROOT` 仅作为开发期显式磁盘覆盖。
 
 ---
 

@@ -95,12 +95,18 @@ pub async fn try_execute_aggregate_pushdown(
     }
 
     let per_node_sql = plan.per_node_sql.clone();
+    let transport = engine.peer_query_transport();
     let mut stats = FanoutStats::default();
 
     if scope == FanoutScope::Coordinator && is_local0_from_env() {
         let leaf_sql = per_node_sql.clone();
+        let leaf_transport = transport.clone();
         let leaf_outcomes = tokio::task::spawn_blocking(move || {
-            ProbeClusterExecutor::fanout_query_to_peers_scoped(&leaf_sql, FanoutScope::Node)
+            ProbeClusterExecutor::fanout_query_to_peers_scoped(
+                &leaf_sql,
+                FanoutScope::Node,
+                leaf_transport,
+            )
         })
         .await
         .map_err(|e| DataFusionError::Execution(format!("local leaf fan-out failed: {e}")))?;
@@ -110,7 +116,7 @@ pub async fn try_execute_aggregate_pushdown(
     let remote_scope = scope;
     let remote_sql = per_node_sql.clone();
     let outcomes = tokio::task::spawn_blocking(move || {
-        ProbeClusterExecutor::fanout_query_to_peers_scoped(&remote_sql, remote_scope)
+        ProbeClusterExecutor::fanout_query_to_peers_scoped(&remote_sql, remote_scope, transport)
     })
     .await
     .map_err(|e| DataFusionError::Execution(format!("aggregate fan-out join failed: {e}")))?;
@@ -135,6 +141,7 @@ pub async fn try_execute_aggregate_pushdown(
             }
         }
         stats.peer_batches_dropped += convert_failed;
+        stats.partial |= convert_failed > 0;
         merge_on_coordinator(&engine.context, &merge_sql, batches).await?
     } else if proto_parts.len() == 1 {
         proto_parts.remove(0)
@@ -159,18 +166,20 @@ fn append_fanout_outcomes(
     plan: &FederatedAggregatePlan,
     outcomes: Vec<super::cluster_executor::RemoteFanoutResult>,
 ) {
-    for outcome in outcomes {
-        match outcome.result {
-            Ok(mut df) => {
-                stats.nodes_succeeded += 1;
+    for remote in outcomes {
+        match remote.result {
+            Ok(outcome) => {
+                stats.absorb(outcome.stats);
+                let mut df = outcome.dataframe;
                 if plan.inject_tags {
-                    tag_proto_dataframe(&mut df, &outcome.host, &outcome.addr, outcome.rank);
+                    tag_proto_dataframe(&mut df, &remote.host, &remote.addr, remote.rank);
                 }
                 proto_parts.push(df);
             }
             Err(err) => {
-                log::warn!("aggregate pushdown skipped {}: {err}", outcome.addr);
-                stats.nodes_failed.push(outcome.addr);
+                log::warn!("aggregate pushdown skipped {}: {err}", remote.addr);
+                stats.nodes_failed.push(remote.addr);
+                stats.partial = true;
             }
         }
     }
