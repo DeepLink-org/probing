@@ -57,6 +57,7 @@ pub struct PageCatalogFile {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)] // Deserialized from routing API; not read after Classic page catalog removal.
 pub struct PageEntry {
     pub title: String,
     pub path: String,
@@ -116,10 +117,6 @@ pub fn intent_catalog() -> HashMap<String, IntentEntry> {
         .read()
         .map(|s| s.intents.clone())
         .unwrap_or_default()
-}
-
-pub fn page_catalog() -> HashMap<String, PageEntry> {
-    store().read().map(|s| s.pages.clone()).unwrap_or_default()
 }
 
 pub fn list_skill_ids() -> Vec<String> {

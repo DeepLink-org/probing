@@ -65,7 +65,7 @@ fn cluster_query_request_roundtrip() {
 #[test]
 fn distributed_torch_sql_valid_for_global_fanout() {
     use probing_core::core::federation::validate_global_query;
-    use probing_server::server::training::distributed_torch_trace_sql;
+    use probing_python::features::torch::distributed_torch_trace_sql;
 
     let sql = distributed_torch_trace_sql("global.python.torch_trace", Some(42));
     assert!(sql.contains("local_step = 42"));
@@ -115,16 +115,4 @@ fn distributed_flamegraph_json_contract_from_dataframe() {
         .map(|a| !a.is_empty())
         .unwrap_or(false));
     assert_eq!(payload["total"], 4_000_000);
-}
-
-#[test]
-fn distributed_flamegraph_params_roundtrip() {
-    use probing_server::server::training::DistributedFlamegraphParams;
-
-    let params: DistributedFlamegraphParams =
-        serde_json::from_str(r#"{"step":5,"metric":"peak_mb","cluster":false}"#)
-            .expect("deserialize");
-    assert_eq!(params.step, Some(5));
-    assert_eq!(params.metric.as_deref(), Some("peak_mb"));
-    assert_eq!(params.cluster, Some(false));
 }

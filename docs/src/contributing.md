@@ -42,7 +42,7 @@ Preview docs while editing: `make docs-install && make docs-serve` → http://12
 | **Rust** | SQL engine, server, collectors, CLI | `probing/` (Rust workspace) | [Modularity](design/modularity.md) | Issues in `probing/core`, `probing/server`, extensions |
 | **Web UI** | Investigate agent, dashboards | `web/` | [web/DESIGN.md](https://github.com/DeepLink-org/probing/blob/main/web/DESIGN.md) | Agent UX, page polish (needs `dx` for full wheel build) |
 
-**Skills vs Python package:** edit skill **data** in repo-root `skills/` (symlink to `python/probing/bundled_skills/`); edit skill **loader / install code** in `python/probing/skills/`.
+**Skills vs Python package:** skill **data** SSOT is `python/probing/bundled_skills/` (repo-root `skills/` is a symlink to it); edit skill **loader / install code** in `python/probing/skills/`.
 
 **Two folders named `probing/`:** `probing/` at the repo root is **Rust**; `python/probing/` is the **Python package**. `src/lib.rs` at the root is the PyO3 entry for `probing._core`.
 
@@ -178,9 +178,9 @@ See [examples/README.md](https://github.com/DeepLink-org/probing/blob/main/examp
 
 ## Skills & agents {#skills-agents}
 
-- **Authoring**: repo root `skills/` (`SKILL.md`, `steps.yaml`, `catalog.yaml`)
+- **Authoring**: `python/probing/bundled_skills/` (repo-root `skills/` symlink; `SKILL.md`, `steps.yaml`, `catalog.yaml`)
 - **Install to IDE agents**: `./skills/install.sh` or `probing skill install`
-- **Bundled in wheel**: `make wheel` copies skills into `python/probing/bundled_skills/`; `make frontend` builds ignored UI artifacts under `probing/server/web-assets/`, and the server build script embeds them into `probing._core` at compile time (plain Rust builds use a tracked fallback page)
+- **Bundled in wheel**: maturin packages `python/probing/bundled_skills/` directly (no separate copy step); `make frontend` builds ignored UI artifacts under `probing/server/web-assets/`, and the server build script embeds them into `probing._core` at compile time (plain Rust builds use a tracked fallback page)
 - **Docs**: `skills/README.md`, [Extensibility — Diagnostic skill](design/extensibility.md#path-2-diagnostic-skill)
 
 ## Development workflow
@@ -246,11 +246,11 @@ Advanced: `cd docs && make deploy` for GitHub Pages.
 
 ```
 probing/                          # repo root
-├── skills/                       # skill DATA (authoring) — see skills/README.md
+├── skills/                       # symlink → python/probing/bundled_skills/ (authoring alias)
 ├── python/
 │   ├── probing/                  # Python PACKAGE (not Rust)
 │   │   ├── skills/               # skill loader/install CODE — see python/probing/skills/README.md
-│   │   └── bundled_skills/       # skill DATA bundled in wheel (author in repo-root skills/)
+│   │   └── bundled_skills/       # skill DATA SSOT (packaged in wheel)
 │   ├── probing_hook.py           # .pth → site hook
 │   └── probing.pth
 ├── src/lib.rs                    # PyO3 entry → probing._core (maturin)

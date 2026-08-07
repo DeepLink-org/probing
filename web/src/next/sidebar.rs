@@ -4,7 +4,7 @@ use dioxus::prelude::*;
 
 use crate::api::ApiClient;
 use crate::components::icon::Icon;
-use crate::components::sidebar::profiling::controls::{
+use crate::components::profiling_controls::{
     PprofControls, PyTorchTimelineControls, RayTimelineControls, TorchControls,
     TraceTimelineControls,
 };
@@ -26,7 +26,6 @@ use crate::state::training::{
     TRAINING_REFRESH,
 };
 use crate::state::ui_tasks::running_ui_task_count;
-use crate::ui_version::{activate, UiVersion};
 use crate::utils::callframe::{mode_for_kind, FrameKind};
 
 use super::components::evidence_href;
@@ -142,7 +141,6 @@ fn SidebarRail(
                 div { class: "shrink-0 space-y-1 border-t border-slate-800 p-2",
                     RailAction { label: format!("Tasks · {task_count}"), icon: &icondata::AiUnorderedListOutlined, onclick: move |_| open_monitor_overlay(SidebarMonitor::Tasks) }
                     RailAction { label: "Overhead".to_string(), icon: &icondata::AiDashboardOutlined, onclick: move |_| open_monitor_overlay(SidebarMonitor::Overhead) }
-                    RailAction { label: "Classic interface".to_string(), icon: &icondata::AiSwapOutlined, onclick: move |_| activate(UiVersion::Classic) }
                     RailAction { label: "Expand sidebar".to_string(), icon: &icondata::AiMenuUnfoldOutlined, onclick: move |_| on_toggle_compact.call(()) }
                 }
             }
@@ -917,14 +915,6 @@ fn SidebarFooter(task_count: usize) -> Element {
                 aria_label: "Inspect overhead",
                 onclick: move |_| open_monitor_overlay(SidebarMonitor::Overhead),
                 Icon { icon: &icondata::AiDashboardOutlined, class: "h-3.5 w-3.5" }
-            }
-            button {
-                r#type: "button",
-                class: "rounded-md p-1.5 text-slate-400 hover:bg-slate-900 hover:text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400",
-                title: "Switch to Classic interface",
-                aria_label: "Switch to Classic interface",
-                onclick: move |_| activate(UiVersion::Classic),
-                Icon { icon: &icondata::AiSwapOutlined, class: "h-3.5 w-3.5" }
             }
         }
     }

@@ -128,7 +128,7 @@ component state, logs, and readiness responses.
 | Unit | Path | Responsibility |
 |------|------|----------------|
 | **web/** | Dioxus WASM | Pages, visualization, Investigate agent |
-| **skills/** | YAML + SKILL.md | Skill content SSOT |
+| **skills/** | symlink → `python/probing/bundled_skills/` | Authoring alias for skill content SSOT |
 | **probing-skills** | `probing/crates/skills/` | Shared loader, interpreter, runner (CLI / Web / MCP) |
 | **python/probing/extensions/** | entry points | Skill + magic + vendor package discovery |
 | **python/probing/** | Python package | Hooks, `query()`, agent install helpers |
@@ -192,7 +192,7 @@ class CommCollective: ...
 
 ### 3.4 Skill contract — diagnostic workflows
 
-**Where:** `skills/<id>/SKILL.md` + `steps.yaml`, catalog `skills/catalog.yaml`
+**Where:** `python/probing/bundled_skills/<id>/SKILL.md` + `steps.yaml` (alias: `skills/`), catalog `catalog.yaml`
 
 | Field | Purpose |
 |-------|---------|
@@ -205,7 +205,7 @@ class CommCollective: ...
 
 - Skills **only** talk to the engine via SQL (`probing query`) or documented HTTP APIs.
 - No Rust/Python code in skills — YAML + markdown only.
-- **Content SSOT:** `skills/` (wheel: `python/probing/bundled_skills/`).
+- **Content SSOT:** `python/probing/bundled_skills/` (repo-root `skills/` is a symlink alias).
 - **Discovery:** `python/probing/extensions/` entry points + `GET /apis/pythonext/skills/*`.
 - **Execution SSOT:** `probing-skills` — CLI (`probing/cli/skill/`), Web WASM
   (`web/src/agent/runner.rs`), MCP (`run_skill` / `plan_skill` in server).
@@ -259,7 +259,7 @@ Forbidden (fix if found):
   L1 → L2/L3/L4
   L2 → L2 (collector cross-deps)
   L2 → L3 (extensions must not import server)
-  L2 → probing-cli  — **packaging only** (see §4.1; not a runtime collector→control violation)
+  L2 → probing-cli  — collectors must not depend on CLI (wheel `cli_main` is wired in root `src/lib.rs`; see §4.1)
   skills → Rust internals
   web → probing-core / pyo3
 ```
@@ -276,7 +276,7 @@ Forbidden (fix if found):
 | **cli** | ✓ | opt | | | | — |
 | **web** | ✓ | | | | | |
 
-### 4.1 PyPI packaging coupling (`probing-python` → `probing-cli`)
+### 4.1 PyPI packaging coupling (cdylib → `probing-cli`)
 
 Maturin builds **one native artifact** (`probing._core` cdylib from root `Cargo.toml`). The
 `probing` console script is **not** a separate Rust binary on PyPI:
@@ -293,15 +293,16 @@ control plane at runtime for data paths.
 
 **Contract (keep the edge thin):**
 
-- `probing-python` may depend on `probing-cli` **only** to re-export `cli_main` in
-  `features/python_api.rs` for the PyO3 entrypoint.
+- Root `src/lib.rs` (the maturin cdylib composition root) may call `probing_cli::pyo3::cli_main`
+  and re-export it as `_core.cli_main`. `probing-python` itself does **not** depend on
+  `probing-cli`.
 - Do **not** import other `probing-cli` modules (inject, skill runner internals, ctrl) from
   collectors or server.
 - Standalone Rust binary (`probing/cli/src/main.rs`) remains optional for non-PyPI installs;
   PyPI users always go through the Python script entry.
 
 If CLI logic grows, split **`probing-cli-lib`** (shared `cli_main` + HTTP client) from CLI-only
-commands, rather than letting `probing-python` spread imports across the cli crate.
+commands, rather than letting collectors or the cdylib spread imports across the cli crate.
 
 ---
 
@@ -387,11 +388,11 @@ Track and fix incrementally:
 
 | Issue | Current | Target |
 |-------|---------|--------|
-| Python ext → CLI | `probing-python` → `probing-cli` | **Accepted** for maturin wheel (`cli_main` only); keep import surface minimal |
+| Python ext → CLI | ~~`probing-python` → `probing-cli`~~ | **Done** — no crate dep; wheel `cli_main` wired only in root `src/lib.rs` (§4.1) |
 | Python ext → CC | ~~`probing-python` → `probing-cc`~~ | **Done** — `send_sigusr2_to_thread_id` moved to `probing-core::signal` |
 | Core → NCCL/HCCL | ~~`probing-core` → `probing-nccl-profiler` / `probing-hccl-shim` (`builtin-schema-docs` feature) for `semantic_catalog`~~ | **Done** — `register_docs()` called from `server/engine.rs` composition root; `probing-core` default features empty |
 | Core → skills YAML | ~~`semantic_catalog.rs` `include_str!(skills/semantic/tables.yaml)`~~ | **Done** — overlay at `probing/core/resources/tables.yaml`; descriptions SSOT in `docs` registry |
-| Server → python `features/*` | ~~`server/profiling.rs`~~ removed | Flamegraphs via `torchextension` / `pprofextension` `ProbeExtensionCall` |
+| Server → python `features/*` | ~~`server/profiling.rs` / training flamegraph handlers~~ | **Done** — flamegraphs via `torchextension` / `pprofextension` `ProbeExtensionCall` only |
 | Server → python REPL internals | ~~`PythonRepl` in server~~ | `/ws` uses `ReplSession` facade only |
 | Composition sprawl | All wiring in `server/engine.rs` | Optional: manifest TOML listing enabled extensions |
 | Skills triple loader | ~~Rust + Python + Web compile-time embed~~ | **Done** — `probing-skills` is loader/interpret/runner SSOT; Python keeps discovery entry-points + PyO3 serialize bridge; Web deserializes API into shared types |

@@ -5,16 +5,6 @@ use dioxus::prelude::*;
 use crate::components::common::{EmptyState, ErrorState};
 
 #[component]
-pub fn ProfilingContentPanel(children: Element) -> Element {
-    rsx! {
-        div {
-            class: "flex flex-col flex-1 min-h-0 bg-white rounded-lg border border-gray-200 overflow-hidden",
-            {children}
-        }
-    }
-}
-
-#[component]
 pub fn ProfilingCenteredPanel(children: Element) -> Element {
     rsx! {
         div {

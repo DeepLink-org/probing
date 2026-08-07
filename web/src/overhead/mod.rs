@@ -5,6 +5,6 @@ pub mod sql;
 
 pub use metrics::{
     dataframe_rows, df_scalar_f64, df_scalar_i64, format_pct_display, format_pct_signed,
-    format_step_ms, parse_overhead_steps, table_missing_message, table_missing_trigger_label,
-    OverheadLevel, OverheadSnapshot, OverheadStep, SidebarOverheadCopy,
+    format_step_ms, parse_overhead_steps, table_missing_message, OverheadLevel, OverheadSnapshot,
+    OverheadStep,
 };

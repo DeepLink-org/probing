@@ -3,7 +3,7 @@ use dioxus_router::{use_route, Outlet};
 
 use crate::api::ApiClient;
 use crate::components::agent::LlmSettingsOverlay;
-use crate::components::global_command_panel::GlobalCommandPanel;
+use crate::components::global_command_panel::{FloatingResultToast, GlobalCommandPanel};
 use crate::components::icon::Icon;
 use crate::components::keyboard_shortcuts::{GlobalShortcutInstaller, ShortcutsHelpOverlay};
 use crate::components::ui_task_runtime::UiTaskRuntime;
@@ -96,6 +96,7 @@ pub fn NextShell() -> Element {
         if *COMMAND_PANEL_OPEN.read() {
             GlobalCommandPanel {}
         }
+        FloatingResultToast {}
         ShortcutsHelpOverlay {}
         LlmSettingsOverlay {}
         div { class: "flex h-screen overflow-hidden bg-gray-50 text-gray-950",

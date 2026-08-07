@@ -4,31 +4,25 @@
 
 **技术栈**：Dioxus 0.7（WASM）、dioxus-router、Tailwind（dx 构建）、reqwest、`probing-skills`（技能执行 SSOT）、async-openai（浏览器 BYOK LLM）。
 
-## 双 UI 渐进迁移
+## 应用根
 
-`main.rs` 通过 `ui_version.rs::RootApp` 只挂载一个应用根：
+`main.rs` 只挂载 `next::NextApp`。历史上的 Classic UI（`app.rs` / `pages/` / `ui_version`）已删除；产品界面只有这一套。
 
-- `next`（默认）：`next::NextApp`，独立 Router、Shell、信息架构和诊断首页。
-- `classic`（冻结回退）：原有 `app::App`，路由和组件保持不变。
-
-未保存过界面偏好的用户直接进入 Next。已有偏好继续生效；Classic 用户可通过右下角入口进入 Next，
-Next 用户通过侧栏底部切回 Classic，也可使用 `?ui=classic|next` 手动切换。选择保存在
-`localStorage["probing.ui.version"]`。切换时整页重载，避免两个 Router、hook
-和全局监听器同时存在。
-
-Next UI 代码边界：
+代码边界：
 
 ```text
 web/src/next/
-├── routes.rs       # 独立 NextRoute
+├── routes.rs        # NextRoute（产品 URL）
 ├── page_registry.rs # 页面身份、布局、侧栏分组、证据与调查上下文合同
-├── shell.rs        # 诊断优先的导航与任务上下文
-├── components.rs   # Next 专用页面原语
-├── model.rs        # 首页/分布式健康派生模型
-└── pages/          # Dashboard、Investigate、Training、Distributed、Profiles、Explore
+├── shell.rs         # 诊断优先的导航与任务上下文
+├── components.rs    # 页面原语（WorkspacePage / EvidenceSurface …）
+├── evidence.rs      # EvidenceRequest / Receipt
+├── page_snapshot.rs # 页面向 Agent 发布的证据快照
+├── sidebar.rs       # 功能轨道 + 详情控制区
+└── pages/           # Dashboard、Investigate、Training、…
 ```
 
-Next Router 保持 Classic 产品 URL 的兼容性，并在新壳层中直接承载成熟能力：
+共享能力（HTTP、火焰图、Agent skill runner、overlays）留在 `web/src/{api,components,agent,state}/`，由 Next 消费。
 
 | 工作区 | 路由 |
 |--------|------|
@@ -37,32 +31,9 @@ Next Router 保持 Classic 产品 URL 的兼容性，并在新壳层中直接承
 | 证据 | `/spans`、`/stacks/*`、`/profiles`、`/profiling/:view` |
 | 工具 | `/analytics`、`/python`、`/pulsing`、`/cluster`、`/system` |
 
-Next Shell 同时挂载通过 `⌘K` 唤起的 Command Panel、全局快捷键、Investigation
-URL 同步、页面发布的 evidence snapshot、后台任务与 Torch overhead monitor，以及可浮动的
-Investigate 面板。主内容区不设置固定顶栏，运行上下文和操作由当前页面按需承载。
-低频命令输入不常驻占用页面纵向空间。
-Classic 继续作为独立应用保留；已知产品路由不再依赖 Classic fallback。
+Shell 挂载 ⌘K Command Panel、全局快捷键、Investigation URL 同步、页面 evidence snapshot、后台任务与 Torch overhead monitor，以及可浮动的 Investigate 面板。主内容区不设固定顶栏。未知 URL 由 `ClassicFallback`（历史命名）落到能力目录引导页，不再切回旧 UI。
 
-### 迁移边界与顺序
-
-Next 页面采用平行迁移，不在 Classic 页面中增加 Next 分支：
-
-- `src/pages/` 是 Classic 冻结基线；迁移期间只接受 Classic 自身的阻断性修复。
-- `src/next/pages/` 拥有 Next 页面、状态组合和交互。
-- `src/api/`、协议 DTO 与纯派生模型可以共享；已完成迁移的 Next 页面不得再挂载 Classic 页面组件。
-- 所有已知产品路由已解除 Classic 页面挂载；`ClassicFallback` 只承接未知或历史 URL，并引导用户回到 Next 能力目录。
-
-迁移台账：
-
-| 顺序 | 工作区 | 当前状态 |
-|------|--------|----------|
-| 1 | Dashboard | Next 原生 |
-| 2 | Cluster Overview / Nodes / Distributed Status | Next 原生 |
-| 3 | Training / Inference / RL | Next 原生 |
-| 4 | Profiling / Stacks / Tracing | 已在 Next 原生实现 |
-| 5 | Analytics / Python Trace / Pulsing / System | 已在 Next 原生实现 |
-| 6 | Investigate | Next 原生；保留与 Skill/Agent 合同的持续能力对照 |
-| 7 | Shell / Classic retirement | Next 已成为默认入口；Classic 继续冻结并保留显式回退，待独立退休阶段删除 |
+**新页面**放在 `web/src/next/pages/`，在 `routes.rs` 注册，并在 `page_registry.rs` 声明 page spec。
 
 ---
 
@@ -88,18 +59,18 @@ Probing Web 是 **训练/推理现场的 live 诊断工作台**，不是 experim
 
 ### 1.2 全局壳层（非路由）
 
-挂载于 `App` 根节点或 `AppLayout`，任意页面可用：
+挂载于 `NextApp` / `NextShell`，任意页面可用：
 
 | 组件 | 快捷键 / 触发 | 职责 |
 |------|----------------|------|
 | `AppOverlays` | 侧栏 Monitors 点击 / `file:line` | 根级 viewport overlay（任务队列、Torch overhead、源码预览） |
 | `GlobalCommandPanel` | 侧栏搜索 / ⌘K | SQL / eval REPL；不常驻输入条 |
-| `AgentPanel` | ⌘J（`/agent` 全页时禁用浮层） | 右侧浮层 Agent |
-| `InvestigationContextHint` | 页内（有上下文时） | 轻量提示条 + 跳转 Spans |
+| `AgentPanel` | ⌘J（`/agent` 全页时禁用浮层） | 右侧浮层 Investigate |
+| （已移除）InvestigationContextHint | — | 调查上下文由 Next 页内固定条承载 |
 | `SidebarMonitors` | — | 侧栏底部紧凑摘要（Tasks + Torch overhead）；点击打开对应 overlay |
 | `LlmSettingsOverlay` | Agent ⚙ | LLM API 配置（localStorage） |
 | `ShortcutsHelpOverlay` | `?` | 快捷键帮助 |
-| `PageContextSync` | 路由变更 | 同步 `PAGE_CONTEXT`、拉 page snapshot |
+| `PageContextSync` | — | 已由 `NextShell` + `page_snapshot` 取代 |
 | `InvestigationUrlSync` | — | 上下文 ↔ URL query 双向同步 |
 | `UiTaskRuntime` | — | 全局任务计时 tick |
 
@@ -191,7 +162,7 @@ Cluster                          ├── Overview
 ── Workloads: Training / Inference / RL
 ── Advanced: Profiling / Stacks / Tracing
 ── Deep tools
-Tasks / Overhead / Classic      紧凑状态行
+Tasks / Overhead                紧凑状态行
 ```
 
 活动路径同时承载当前页面的控制项，例如刷新、数据范围、cluster fan-out、
@@ -199,18 +170,6 @@ Tasks / Overhead / Classic      紧凑状态行
 功能切换不会改变轨道中其他图标的位置。子视图导航与参数控制只出现在详情区，
 因此不存在“点击标题究竟是导航还是展开”的混合语义，也不使用 `More` hover
 面板。桌面侧栏支持 288px 控制模式和 56px 图标模式。
-
-Classic 侧栏保持原结构：
-
-```text
-Logo
-├── Overview: Dashboard, Investigate, Stacks▾
-├── Analysis: Profiling▾, Analytics, Spans, Training, Pulsing
-├── System: Cluster, Python
-nav（flex-1 滚动）
-Monitors: Background tasks · Torch overhead（摘要行，点击打开 overlay）
-GitHub footer
-```
 
 ### 2.5 键盘快捷键（`keyboard_shortcuts.rs`）
 
@@ -288,10 +247,10 @@ Web **不嵌入** skill YAML；启动时从 probing server 拉取，执行走共
 
 | 模块 | 路径 | 职责 |
 |------|------|------|
-| UI | `components/agent/` | `chat.rs`（全页 + 浮层）、`step_card.rs`、`panel.rs`、`settings.rs` |
+| UI | `next/pages/investigate.rs` + `components/agent/chat.rs` | Investigate 会话 UI + skill runner |
 | 加载 | `agent/skill.rs` | 内存 store；`populate_skill_store` |
 | API | `api/skills.rs` | `GET /apis/pythonext/skills/routing` + per-id `load` |
-| 路由 | `agent/routing.rs` | `Route` → page_id；catalog / intents / pages 来自 server |
+| 路由 | `agent/routing.rs` | skill catalog / intents（供 LLM） |
 | 执行 | `agent/runner.rs` | `run_skill` → `probing_skills::run_step` |
 | 后端 | `agent/skills_backend.rs` | `WebBackend`：`POST /query`、`/apis/cluster/query`、GET API |
 | 解释 | `agent/interpret.rs` | 桥接 `probing-skills` interpret 类型 |
@@ -301,10 +260,10 @@ Web **不嵌入** skill YAML；启动时从 probing server 拉取，执行走共
 **数据流**：
 
 ```text
-AppLayout mount → ApiClient::load_skill_store()
+NextShell mount → ApiClient::load_skill_store()
   → /apis/pythonext/skills/routing + /load?id=…
   → agent/skill.rs STORE
-Agent chip / LLM → resolve_skill_id → run_skill(WebBackend)
+Investigate chip / LLM → resolve_skill_id → run_skill(WebBackend)
   → probing-skills runner (与 CLI / MCP 同语义)
 ```
 
@@ -316,56 +275,18 @@ Skill 内容 SSOT：仓库根 `skills/`（wheel：`python/probing/bundled_skills
 
 ```
 web/src/
-├── main.rs                 # WASM 入口；支持 base_path 子路径部署
-├── app.rs                  # Route 枚举 + 页面包 AppLayout + App 根 AppOverlays
-├── api/                    # ApiClient 与分域 endpoint（含 skills、overhead）
+├── main.rs                 # WASM 入口 → next::NextApp
+├── next/                   # 产品 UI（路由、壳、页面、证据合同）
+├── api/                    # ApiClient 与分域 endpoint
 ├── agent/                  # Skill 加载、LLM、runner、WebBackend、routing
-├── overhead/               # Torch overhead 领域逻辑（metrics + SQL，无 UI）
-├── hooks/mod.rs            # use_app_resource（首选）、use_api（遗留）、poll 辅助
-├── pages/                  # 业务页
-│   ├── dashboard.rs
-│   ├── agent.rs
-│   ├── profiling.rs
-│   ├── traces.rs           # Spans（/spans、/traces redirect）
-│   ├── training.rs
-│   ├── analytics.rs
-│   ├── stack.rs
-│   ├── python/
-│   ├── pulsing.rs
-│   └── cluster.rs
-├── state/
-│   ├── investigation.rs
-│   ├── investigation_url.rs
-│   ├── page_context.rs
-│   ├── ui_tasks.rs
-│   ├── overlays.rs         # APP_OVERLAY 状态机
-│   ├── scroll_lock.rs      # overlay 打开时锁定 body 滚动
-│   ├── profiling.rs
-│   ├── stack.rs
-│   ├── agent.rs
-│   ├── profile_snapshots.rs
-│   ├── sidebar.rs
-│   ├── commands.rs
-│   ├── llm_config.rs
-│   └── source_viewer.rs    # 薄封装，转发 overlays API
-├── components/
-│   ├── layout.rs           # AppLayout 壳
-│   ├── app_overlays.rs     # Tasks / Overhead / SourceViewer 根渲染
-│   ├── overlay_shell.rs    # 居中 modal 壳
-│   ├── sidebar/            # 导航、Monitors、Profiling/Stack 子菜单、resize
-│   ├── overhead/           # TorchOverheadPanel（UI）
-│   ├── workspace/
-│   ├── agent/
-│   ├── flamegraph/
-│   ├── timeline_viewer/
-│   ├── source_viewer.rs
-│   ├── global_command_panel.rs
-│   ├── investigation_context_hint.rs
-│   ├── profile_snapshot_bar.rs
-│   ├── page_context_sync.rs
-│   ├── ui_task_runtime.rs
-│   ├── keyboard_shortcuts.rs
-│   └── ...
+├── overhead/               # Torch overhead 领域逻辑（metrics + SQL）
+├── hooks/mod.rs            # use_app_resource、poll 辅助
+├── state/                  # GlobalSignal（investigation、page_context、agent…）
+├── components/             # 共享可视化与 overlays（flamegraph、timeline、agent runner）
+│   ├── app_overlays.rs
+│   ├── profiling_controls/ # 侧栏采集控件（被 next/sidebar 引用）
+│   ├── agent/              # skill runner helpers + LLM settings
+│   └── …
 └── utils/
 ```
 
@@ -373,7 +294,7 @@ web/src/
 
 | 主题 | 约定 |
 |------|------|
-| **新页面** | 放 `pages/`，在 `app.rs` 注册 `Route` + 路由组件 |
+| **新页面** | 放 `next/pages/`，在 `next/routes.rs` 注册，并更新 `page_registry.rs` |
 | **跨页状态** | `state/` GlobalSignal；避免在 render 分支内 `write()`（用 `use_effect`） |
 | **拉数** | 新代码用 `use_app_resource` + `AsyncBoundary`；`use_api` 仅遗留页（如 Pulsing） |
 | **样式** | `colors.rs` 常量 > 硬编码 Tailwind |
@@ -386,8 +307,8 @@ web/src/
 
 | 模块 | 职责 |
 |------|------|
-| `layout` | 侧栏、运行上下文、主内容区、Agent 浮层容器；启动 `load_skill_store` |
-| `sidebar` | 导航、Monitors 摘要、Profiling/Stack 控件、resize |
+| `next/shell` | 侧栏、主内容、Investigate 浮层、page evidence 发布 |
+| `next/sidebar` | 功能轨道、详情控制、Profiling/Stack 控件 |
 | `app_overlays` | 根级 Tasks / Overhead / SourceViewer |
 | `flamegraph` | pprof / torch 火焰图、diff |
 | `timeline_viewer` | trace / pytorch / ray timeline |
@@ -402,10 +323,10 @@ web/src/
 
 ## 八、路由一览
 
-| 路由 | 页面 | AppLayout |
-|------|------|-----------|
+| 路由 | 页面 | 布局 |
+|------|------|------|
 | `/` | Dashboard | 标准 |
-| `/agent` | Investigate（全页 Agent） | 标准 |
+| `/agent` | Investigate | 标准 |
 | `/distributed` | Cluster Overview | 标准 |
 | `/cluster` | Cluster Nodes | 标准 |
 | `/cluster/status` | Distributed Status（Wait Counters / Rendezvous） | 标准 |
@@ -413,10 +334,10 @@ web/src/
 | `/profiling`, `/profiling/:view` | Profiling | **fullscreen** |
 | `/analytics` | Analytics SQL | 标准 |
 | `/python` | Python variable trace | 标准 |
-| `/spans`, `/traces` | Spans（`/traces` → redirect） | **fullscreen** |
-| `/training` | Training 热力图 / collective | 标准 |
+| `/spans`, `/traces` | Spans（`/traces` 兼容别名） | **fullscreen** |
+| `/training` | Training 证据平面 | 标准 |
 | `/pulsing` | Pulsing actors | 标准 |
-| `/chrome-tracing` | → redirect `/profiling/trace` | — |
+| `/chrome-tracing` | → `/profiling/trace` | — |
 
 ---
 
@@ -431,7 +352,7 @@ web/src/
 
 以下为当前实现与理想状态之间的差距，供迭代参考（非阻塞发布）：
 
-**已修复（历史 P0）**：`pages/stack.rs` 侧栏帧计数改为 `use_effect`；删除 `chrome_tracing_iframe`；Playbook 体系迁移为 Skills + `probing-skills`。
+**已修复（历史 P0）**：旧 Classic `pages/stack.rs` 侧栏帧计数改为 `use_effect`；删除 `chrome_tracing_iframe`；Playbook 体系迁移为 Skills + `probing-skills`。
 
 **重构后已落地**：`SidebarMonitors` + `AppOverlays`；`overhead/` 领域模块；runtime skill 加载；`OverlayShell` 统一 modal。
 

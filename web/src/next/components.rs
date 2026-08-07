@@ -4,7 +4,7 @@ use dioxus_router::use_route;
 use crate::components::icon::Icon;
 use crate::state::investigation::{clear_investigation_context, INVESTIGATION_CONTEXT};
 use crate::state::investigation_url::context_to_search;
-use crate::ui_version::{href_for, UiVersion};
+use crate::utils::base_path::with_base;
 
 use super::routes::NextRoute;
 
@@ -244,8 +244,8 @@ pub fn evidence_href(
     route: &NextRoute,
     context: &crate::state::investigation::InvestigationContext,
 ) -> String {
-    let path = route.to_string();
-    append_evidence_context(href_for(&path, UiVersion::Next), context)
+    let path = with_base(&route.to_string());
+    append_evidence_context(path, context)
 }
 
 fn append_evidence_context(
@@ -253,10 +253,15 @@ fn append_evidence_context(
     context: &crate::state::investigation::InvestigationContext,
 ) -> String {
     let query = context_to_search(context);
-    if !query.is_empty() {
-        href.push('&');
-        href.push_str(&query);
+    if query.is_empty() {
+        return href;
     }
+    if href.contains('?') {
+        href.push('&');
+    } else {
+        href.push('?');
+    }
+    href.push_str(&query);
     href
 }
 
@@ -454,21 +459,6 @@ pub fn UnavailablePanel(label: String, detail: String) -> Element {
     }
 }
 
-#[component]
-pub fn ClassicLink(path: String, label: String) -> Element {
-    let href = href_for(&path, UiVersion::Classic);
-    rsx! {
-        a {
-            href,
-            class: "inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white \
-                    px-3 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 \
-                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
-            "{label}"
-            span { aria_hidden: "true", "↗" }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -482,12 +472,13 @@ mod tests {
             local_step: Some(31),
             ..Default::default()
         };
-        let href = append_evidence_context("/memory?ui=next".to_string(), &context);
+        let href = append_evidence_context("/memory".to_string(), &context);
 
-        assert!(href.contains("/memory?ui=next"));
+        assert!(href.starts_with("/memory?"));
         assert!(href.contains("rank=7"));
         assert!(href.contains("gpu=3"));
         assert!(href.contains("step=31"));
+        assert!(!href.contains("ui="));
     }
 
     #[test]

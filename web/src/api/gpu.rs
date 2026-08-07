@@ -4,18 +4,6 @@ use super::ApiClient;
 use crate::utils::error::{AppError, Result};
 use probing_proto::prelude::{DataFrame, Ele};
 
-/// Static GPU device from `gpu.devices`.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct GpuDeviceRow {
-    pub device_id: i32,
-    pub backend: String,
-    pub name: String,
-    pub memory_model: String,
-    pub chip: Option<String>,
-    pub compute_capability: Option<String>,
-    pub total_mem_bytes: i64,
-}
-
 /// Latest per-device sample from `gpu.utilization` (memory + compute util merged).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct GpuSnapshot {
@@ -42,16 +30,6 @@ pub struct GpuHistorySample {
 }
 
 impl ApiClient {
-    pub async fn fetch_gpu_devices(&self) -> Result<Vec<GpuDeviceRow>> {
-        let df = self
-            .execute_query(
-                "SELECT device_id, backend, name, memory_model, chip, compute_capability, total_mem_bytes \
-                 FROM gpu.devices ORDER BY device_id",
-            )
-            .await?;
-        parse_gpu_devices(&df)
-    }
-
     /// Latest utilization row per `device_id` (supports multi-GPU / 8× nodes).
     pub async fn fetch_gpu_latest(&self) -> Result<Vec<GpuSnapshot>> {
         let df = self
@@ -182,38 +160,6 @@ fn non_empty(value: String) -> Option<String> {
     (!value.is_empty()).then_some(value)
 }
 
-fn parse_gpu_devices(df: &DataFrame) -> Result<Vec<GpuDeviceRow>> {
-    const COLUMNS: &[&str] = &[
-        "device_id",
-        "backend",
-        "name",
-        "memory_model",
-        "chip",
-        "compute_capability",
-        "total_mem_bytes",
-    ];
-    let (rows, indexes) = required_columns(df, COLUMNS)?;
-    let mut devices = Vec::with_capacity(rows);
-    for row in 0..rows {
-        let text = |position| {
-            ele_text(
-                cell(df, row, indexes[position], COLUMNS[position])?,
-                COLUMNS[position],
-            )
-        };
-        devices.push(GpuDeviceRow {
-            device_id: ele_i32(cell(df, row, indexes[0], COLUMNS[0])?, COLUMNS[0])?,
-            backend: text(1)?,
-            name: text(2)?,
-            memory_model: text(3)?,
-            chip: non_empty(text(4)?.trim().to_string()),
-            compute_capability: non_empty(text(5)?.trim().to_string()),
-            total_mem_bytes: ele_i64(cell(df, row, indexes[6], COLUMNS[6])?, COLUMNS[6])?,
-        });
-    }
-    Ok(devices)
-}
-
 fn parse_gpu_snapshots(df: &DataFrame) -> Result<Vec<GpuSnapshot>> {
     const COLUMNS: &[&str] = &[
         "ts",
@@ -282,22 +228,7 @@ fn parse_gpu_history(
     Ok(map)
 }
 
-pub fn format_bytes(bytes: i64) -> String {
-    const GB: f64 = 1024.0 * 1024.0 * 1024.0;
-    const MB: f64 = 1024.0 * 1024.0;
-    const KB: f64 = 1024.0;
-    let b = bytes as f64;
-    if b >= GB {
-        format!("{:.1} GB", b / GB)
-    } else if b >= MB {
-        format!("{:.1} MB", b / MB)
-    } else if b >= KB {
-        format!("{:.1} KB", b / KB)
-    } else {
-        format!("{bytes} B")
-    }
-}
-
+#[cfg(test)]
 pub fn gpu_device_label(device_id: i32, name: &str) -> String {
     let short = name.split_whitespace().next().unwrap_or(name);
     if name.len() > 24 {
@@ -305,11 +236,6 @@ pub fn gpu_device_label(device_id: i32, name: &str) -> String {
     } else {
         format!("GPU {device_id} · {name}")
     }
-}
-
-pub fn format_opt_pct(v: Option<f32>) -> String {
-    v.map(|p| format!("{p:.1}%"))
-        .unwrap_or_else(|| "—".to_string())
 }
 
 #[cfg(test)]
