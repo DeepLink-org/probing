@@ -59,6 +59,10 @@ pub enum EngineError {
     #[error("Unsupported API call")]
     UnsupportedCall,
 
+    /// Invalid external API call parameter.
+    #[error("Invalid API parameter: {0}={1}")]
+    InvalidCallParameter(String, String),
+
     // ===== Data Processing Errors =====
     /// Apache Arrow data processing error.
     #[error(transparent)]

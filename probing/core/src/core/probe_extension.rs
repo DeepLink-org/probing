@@ -77,6 +77,23 @@ pub struct ProbeExtensionOption {
     pub help: &'static str,
 }
 
+/// Body plus transport-neutral completeness metadata returned by an extension.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ProbeExtensionResponse {
+    pub body: Vec<u8>,
+    /// True when the body is usable but omits data from one or more peers.
+    pub partial: bool,
+}
+
+impl From<Vec<u8>> for ProbeExtensionResponse {
+    fn from(body: Vec<u8>) -> Self {
+        Self {
+            body,
+            partial: false,
+        }
+    }
+}
+
 /// Extension trait for handling HTTP API calls
 #[allow(unused)]
 #[async_trait]
@@ -98,6 +115,16 @@ pub trait ProbeExtensionCall: Debug + Send + Sync {
         body: &[u8],
     ) -> Result<Vec<u8>, EngineError> {
         Err(EngineError::UnsupportedCall)
+    }
+
+    /// Handle an API call while preserving response metadata for HTTP callers.
+    async fn call_response(
+        &self,
+        path: &str,
+        params: &HashMap<String, String>,
+        body: &[u8],
+    ) -> Result<ProbeExtensionResponse, EngineError> {
+        self.call(path, params, body).await.map(Into::into)
     }
 }
 
@@ -351,6 +378,17 @@ impl ProbeExtensionManager {
         params: &HashMap<String, String>,
         body: &[u8],
     ) -> Result<Vec<u8>, EngineError> {
+        self.call_response(path, params, body)
+            .await
+            .map(|response| response.body)
+    }
+
+    pub async fn call_response(
+        &self,
+        path: &str,
+        params: &HashMap<String, String>,
+        body: &[u8],
+    ) -> Result<ProbeExtensionResponse, EngineError> {
         let extensions_clone: Vec<_> = {
             let extensions = self.extensions.read().await;
             extensions.values().cloned().collect()
@@ -379,8 +417,8 @@ impl ProbeExtensionManager {
             log::debug!("checking extension [{name}]:{path}");
             log::debug!("Extension [{name}] matched, local_path: {}", local_path);
 
-            // Call the extension's async call method
-            match ext.call(&local_path, params, body).await {
+            // Call the extension while preserving response completeness metadata.
+            match ext.call_response(&local_path, params, body).await {
                 Ok(value) => return Ok(value),
                 Err(EngineError::UnsupportedCall) => {
                     log::debug!(
@@ -515,6 +553,49 @@ mod tests {
                 help: "Test option",
             }]
         }
+    }
+
+    #[derive(Debug)]
+    struct PartialResponseExtension;
+
+    #[async_trait]
+    impl ProbeExtensionCall for PartialResponseExtension {
+        async fn call_response(
+            &self,
+            _path: &str,
+            _params: &HashMap<String, String>,
+            _body: &[u8],
+        ) -> Result<ProbeExtensionResponse, EngineError> {
+            Ok(ProbeExtensionResponse {
+                body: b"partial".to_vec(),
+                partial: true,
+            })
+        }
+    }
+
+    impl ProbeExtension for PartialResponseExtension {
+        fn name(&self) -> String {
+            "partial".to_string()
+        }
+    }
+
+    #[tokio::test]
+    async fn call_response_preserves_extension_metadata() {
+        let mut manager = ProbeExtensionManager::default();
+        manager
+            .register(
+                "partial".to_string(),
+                Arc::new(Mutex::new(PartialResponseExtension)),
+            )
+            .await;
+
+        let response = manager
+            .call_response("/partial/data", &HashMap::new(), &[])
+            .await
+            .unwrap();
+
+        assert_eq!(response.body, b"partial");
+        assert!(response.partial);
     }
 
     #[tokio::test(flavor = "multi_thread")]

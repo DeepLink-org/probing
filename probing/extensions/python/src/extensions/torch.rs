@@ -6,6 +6,7 @@ use probing_core::core::Maybe;
 use probing_core::core::ProbeExtension;
 use probing_core::core::ProbeExtensionCall;
 use probing_core::core::ProbeExtensionOption;
+use probing_core::core::ProbeExtensionResponse;
 use pyo3::prelude::*;
 
 #[derive(Debug, Default, ProbeExtension)]
@@ -30,24 +31,53 @@ impl ProbeExtensionCall for TorchProbeExtension {
                 Ok(crate::features::torch::flamegraph_json(metric).into_bytes())
             }
             "flamegraph/distributed/json" => {
-                let cluster = params
-                    .get("cluster")
-                    .map(|v| v.as_str())
-                    .map(|v| v != "0" && v != "false")
-                    .unwrap_or(true);
-                let step = params.get("step").and_then(|s| s.parse::<i64>().ok());
-                let metric = params.get("metric").map(|s| s.as_str());
-                crate::features::torch::collect_distributed_flamegraph_json(cluster, step, metric)
-                    .await
-                    .map(|body| body.into_bytes())
-                    .map_err(|e| EngineError::CallError(e.to_string()))
+                Ok(self.distributed_flamegraph_response(params).await?.body)
             }
             _ => Err(EngineError::UnsupportedCall),
         }
     }
+
+    async fn call_response(
+        &self,
+        path: &str,
+        params: &HashMap<String, String>,
+        body: &[u8],
+    ) -> Result<ProbeExtensionResponse, EngineError> {
+        if path.trim_start_matches('/') != "flamegraph/distributed/json" {
+            return self.call(path, params, body).await.map(Into::into);
+        }
+
+        self.distributed_flamegraph_response(params).await
+    }
 }
 
 impl TorchProbeExtension {
+    async fn distributed_flamegraph_response(
+        &self,
+        params: &HashMap<String, String>,
+    ) -> Result<ProbeExtensionResponse, EngineError> {
+        let cluster = super::bool_param(params, "cluster", true)?;
+        let step = super::optional_i64_param(params, "step")?;
+        let metric = super::one_of_param(
+            params,
+            "metric",
+            "duration",
+            &[
+                "duration", "delta_mb", "memory", "delta", "mem", "peak_mb", "peak",
+            ],
+        )?;
+        let (body, partial) = crate::features::torch::collect_distributed_flamegraph_json(
+            cluster,
+            step,
+            Some(metric),
+        )
+        .await?;
+        Ok(ProbeExtensionResponse {
+            body: body.into_bytes(),
+            partial,
+        })
+    }
+
     fn set_profiling(&mut self, profiling: Maybe<String>) -> Result<(), EngineError> {
         let py_result = Python::attach(|py| -> pyo3::PyResult<()> {
             let module = py.import("probing.profiling.torch_probe")?;
