@@ -1,14 +1,14 @@
-# Bundled diagnostic skills (wheel copy)
+# Bundled diagnostic skills
 
-**Do not edit skill content here.** This tree is generated from repo-root
-[`skills/`](../../../skills/README.md):
+Skill **data** lives in [`bundled_skills/`](bundled_skills/README.md) (SSOT, packaged in the wheel).
+Repo-root [`skills/`](../../../skills) is a **symlink** to `bundled_skills/` for authoring ergonomics
+(`./skills/install.sh`, docs, L4 layout).
 
 ```bash
-make wheel         # bundles skills/ and web/dist/ automatically
+# Edit either path — they are the same directory:
+ls skills/catalog.yaml
+ls python/probing/bundled_skills/catalog.yaml
 ```
 
-Shipped inside the PyPI wheel so `probing skill list` and install tooling work
-without a git checkout. At runtime, repo / user / project skill dirs can override
-these entries (see [`../skills/README.md`](../skills/README.md)).
-
-Python loader code lives in [`../skills/`](../skills/README.md) (`probing.skills` package).
+Python loader / install code lives in [`skills/`](skills/README.md) (`probing.skills` package) —
+that is a different folder from `bundled_skills/`.

@@ -53,7 +53,7 @@ jobs:
         env:
           SKIP_FRONTEND_CLEAN: "1"
         run: |
-          if [ ! -f python/probing/bundled_web/public/index.html ]; then
+          if [ ! -f probing/server/web-assets/public/index.html ]; then
             make frontend
           fi
           make wheel-ci
@@ -108,7 +108,7 @@ jobs:
         env:
           SKIP_FRONTEND_CLEAN: "1"
         run: |
-          if [ ! -f python/probing/bundled_web/public/index.html ]; then
+          if [ ! -f probing/server/web-assets/public/index.html ]; then
             make frontend
           fi
           make wheel-ci

@@ -8,13 +8,6 @@ pub const SURFACE_BASE: &str =
     "rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden";
 
 #[component]
-pub fn SurfaceCard(children: Element) -> Element {
-    rsx! {
-        div { class: "{SURFACE_BASE}", {children} }
-    }
-}
-
-#[component]
 pub fn AccentSurface(accent: &'static str, children: Element) -> Element {
     rsx! {
         div { class: "border-l-4 {accent} {SURFACE_BASE}", {children} }
@@ -88,29 +81,6 @@ pub fn ChipButton(
         button {
             class: "{class} disabled:opacity-50 disabled:pointer-events-none transition-colors",
             disabled: disabled,
-            onclick: move |_| onclick.call(()),
-            "{label}"
-        }
-    }
-}
-
-/// Segmented width control (e.g. panel ⅓ / ⅔).
-#[component]
-pub fn WidthSegment(
-    label: &'static str,
-    selected: bool,
-    title: &'static str,
-    onclick: EventHandler<()>,
-) -> Element {
-    let class = if selected {
-        "px-2 py-1 text-[10px] font-semibold rounded-md bg-white text-blue-700 shadow-sm border border-gray-200"
-    } else {
-        "px-2 py-1 text-[10px] font-medium rounded-md text-gray-500 hover:text-gray-800"
-    };
-    rsx! {
-        button {
-            class: "{class}",
-            title: "{title}",
             onclick: move |_| onclick.call(()),
             "{label}"
         }

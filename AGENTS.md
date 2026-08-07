@@ -180,8 +180,8 @@ Keep the propagation chain clean — don't reintroduce scattered `map_err`/`insp
 
 ## Skills
 
-All diagnostic skills live under **`skills/`** (authoring SSOT; wheel copy in
-`python/probing/bundled_skills/`). Each subdirectory contains:
+All diagnostic skills live under **`python/probing/bundled_skills/`** (content SSOT;
+repo-root `skills/` is a symlink alias). Each subdirectory contains:
 
 - **`SKILL.md`** — when to use the skill and how to interpret results (read this for routing)
 - **`steps.yaml`** — executable probe steps (used by `probing skill run` and the Web Investigate agent)

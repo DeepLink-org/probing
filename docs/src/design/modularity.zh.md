@@ -122,7 +122,7 @@ HTTP 契约：`probing/server/API.md` + `tests/regression/spec/api_spec.json`。
 | 单元 | 路径 | 职责 |
 |------|------|------|
 | **web/** | Dioxus | 页面、可视化、Investigate Agent |
-| **skills/** | YAML + SKILL.md | 诊断 skill 内容 SSOT |
+| **skills/** | 符号链接 → `python/probing/bundled_skills/` | skill 内容 SSOT 的编写别名 |
 | **probing-skills** | `probing/crates/skills/` | 共享 loader、解释器、runner（CLI / Web / MCP） |
 | **python/probing/extensions/** | entry points | Skills + magics + 厂商包发现（代码 SSOT） |
 | **python/probing/** | Python 包 | hooks、`query()`、agent 安装辅助 |
@@ -163,7 +163,7 @@ HTTP 契约：`probing/server/API.md` + `tests/regression/spec/api_spec.json`。
 
 ### 3.4 Skill 契约 — 诊断工作流
 
-**SSOT：** `skills/<id>/` + `skills/catalog.yaml`
+**SSOT：** `python/probing/bundled_skills/<id>/` + `catalog.yaml`（仓库根 `skills/` 为符号链接别名）
 
 | 字段 | 作用 |
 |------|------|
@@ -174,7 +174,7 @@ HTTP 契约：`probing/server/API.md` + `tests/regression/spec/api_spec.json`。
 
 **规则：** Skill 只通过 SQL / 文档化 HTTP 访问数据；**不含 Rust/Python 业务代码**。
 
-- **内容 SSOT：** `skills/`（wheel：`python/probing/bundled_skills/`）。
+- **内容 SSOT：** `python/probing/bundled_skills/`（仓库根 `skills/` 为指向该目录的符号链接别名）。
 - **发现：** `python/probing/extensions/` entry point + `GET /apis/pythonext/skills/*`。
 - **执行 SSOT：** `probing-skills` — CLI（`probing/cli/skill/`）、Web WASM
   （`web/src/agent/runner.rs`）、MCP（server 内 `run_skill` / `plan_skill`）。
@@ -214,8 +214,8 @@ HTTP 契约：`probing/server/API.md` + `tests/regression/spec/api_spec.json`。
 禁止：
   L1 → 上层
   L2 ↔ L2（采集器互调）
-  L2 → server / cli
-  probing-python → probing-cli  — **打包耦合**（见 §4.1，非运行时采集→控制面）
+  L2 → server
+  L2 → probing-cli  — 采集器不得依赖 CLI（wheel 的 `cli_main` 仅在根 `src/lib.rs` 组装；见 §4.1）
   skills → Rust 内部
   web → probing-core
 ```
@@ -232,7 +232,7 @@ HTTP 契约：`probing/server/API.md` + `tests/regression/spec/api_spec.json`。
 | **cli** | ✓ | opt | | | | — |
 | **web** | ✓ | | | | | |
 
-### 4.1 PyPI 打包耦合（`probing-python` → `probing-cli`）
+### 4.1 PyPI 打包耦合（cdylib → `probing-cli`）
 
 Maturin 只构建 **一个 native 产物**（根 `Cargo.toml` 的 `probing._core` cdylib）。PyPI 上的
 `probing` 命令 **不是** 独立 Rust 二进制：
@@ -248,12 +248,13 @@ pip install probing
 
 **契约（保持边界薄）：**
 
-- `probing-python` 依赖 `probing-cli` **仅** 用于在 `python_api.rs` 暴露 `cli_main` 给 PyO3。
+- 根 `src/lib.rs`（maturin cdylib 组装根）可调用 `probing_cli::pyo3::cli_main` 并导出为
+  `_core.cli_main`。**`probing-python` 本身不依赖 `probing-cli`**。
 - **禁止** 从采集器/server 引用 cli 的 inject、skill 内部、ctrl 等模块。
 - 非 PyPI 安装仍可选用独立 Rust binary（`cli/src/main.rs`）；PyPI 用户走 Python 入口。
 
 若 CLI 继续膨胀，可拆 **`probing-cli-lib`**（共享 `cli_main` + HTTP 客户端），而不是让
-python ext 扩散 import cli crate 内部。
+采集器或 cdylib 扩散 import cli crate 内部。
 
 ---
 
@@ -329,11 +330,11 @@ sequenceDiagram
 
 | 问题 | 现状 | 目标 |
 |------|------|------|
-| python → cli | `probing-python` → `probing-cli` | **可接受**（maturin wheel，仅 `cli_main`）；禁止扩散 import |
+| python → cli | ~~`probing-python` → `probing-cli`~~ | **已完成** — 无 crate 依赖；wheel `cli_main` 仅在根 `src/lib.rs` 组装（§4.1） |
 | python → cc | ~~`probing-python` → `probing-cc`~~ | **已完成** — `send_sigusr2_to_thread_id` 迁至 `probing-core::signal` |
 | core → NCCL/HCCL | ~~`probing-core` → nccl/hccl shim（`builtin-schema-docs`）供 `semantic_catalog`~~ | **已完成** — `register_docs()` 在 `server/engine.rs` 组装根调用；`probing-core` 默认 feature 为空 |
 | core → skills YAML | ~~`semantic_catalog` `include_str!(skills/semantic/tables.yaml)`~~ | **已完成** — overlay 在 `probing/core/resources/tables.yaml`；描述 SSOT 为 `docs` 注册表 |
-| server → python features | ~~`server/profiling.rs`~~ 已删 | 火焰图走 Extension |
+| server → python features | ~~`server/profiling.rs` / training 火焰图 handler~~ | **已完成** — 火焰图仅走 `torchextension` / `pprofextension` `ProbeExtensionCall` |
 | server → REPL 内部 | ~~`PythonRepl`~~ | `/ws` 仅用 `ReplSession` 门面 |
 | 组装集中 | 全在 server/engine.rs | 可选 extension manifest |
 | Skill 三份 loader | ~~Rust/Python/Web 编译期 embed~~ | **已完成** — `probing-skills` 为 loader/interpret/runner SSOT；Python 保留发现 entry point + PyO3 序列化桥；Web 从 API 反序列化为共享类型 |

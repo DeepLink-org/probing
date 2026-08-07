@@ -36,4 +36,6 @@ docs/site/
 web/target/
 probing/server/web-assets/
 /web/dist
+# Legacy Python-side Web copy (assets embed into probing._core via server/web-assets)
+python/probing/bundled_web/
 frontend/

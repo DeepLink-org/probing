@@ -27,8 +27,6 @@ Registered in `server/api/mod.rs`:
 | GET | `/apis/files?path=…` | Read workspace file |
 | GET/PUT | `/apis/nodes` | Cluster node list / register |
 | GET | `/apis/training/step_matrix` | Cross-rank train.step samples (`cluster=false` default; set `cluster=true` for on-demand fan-out) |
-| GET | `/apis/training/distributed_flamegraph/json` | SPMD torch module flamegraph at one `local_step` (legacy; prefer distributed stack flamegraph) |
-| GET | `/apis/training/distributed_stack_flamegraph/json` | Distributed CPU stack flamegraph (`?cluster=true` default, `?mode=mixed\|py`). Peer capture is bounded-concurrent with an overall deadline; completed peers are returned on timeout with `nodesFailed`. Frames may include `ranks: [i32]` (contributing training ranks under that partition) and payload `rankCount`. |
 | POST | `/apis/cluster/query` | On-demand SQL fan-out (`{"expr":"…","cluster":true}`; read-only SQL only) |
 
 Flamegraphs are served by profiler extensions (extension fallback, not public routes):
@@ -37,10 +35,13 @@ Flamegraphs are served by profiler extensions (extension fallback, not public ro
 |--------|------|-------|
 | GET | `/apis/torchextension/flamegraph` | PyTorch module flamegraph (interactive HTML) |
 | GET | `/apis/torchextension/flamegraph/json` | JSON for native Web UI (`?metric=` optional) |
+| GET | `/apis/torchextension/flamegraph/distributed/json` | SPMD torch module flamegraph at one `local_step` (`?cluster=true` default, `?step=`, `?metric=`) |
 | GET | `/apis/pprofextension/flamegraph` | CPU sampling flamegraph (interactive HTML) |
 | GET | `/apis/pprofextension/flamegraph/json` | JSON for native Web UI |
 | GET | `/apis/pprofextension/flamegraph/folded/json` | Raw folded stack lines for cluster merge |
-| GET | `/apis/pprofextension/flamegraph/distributed/json` | Distributed SIGPROF stack flamegraph (`?cluster=true` default) |
+| GET | `/apis/pprofextension/flamegraph/distributed/json` | Distributed SIGPROF stack flamegraph (`?cluster=true` default, `?mode=mixed\|py`). Peer capture is bounded-concurrent with an overall deadline; completed peers are returned on timeout with `nodesFailed`. Frames may include `ranks: [i32]` and payload `rankCount`. |
+
+Removed public aliases (see `api_spec.json` `deprecated_paths`): `/apis/training/distributed_flamegraph/json`, `/apis/training/distributed_stack_flamegraph/json`.
 
 ## Cluster query (on-demand fan-out)
 
@@ -72,8 +73,8 @@ All handlers live in `python/probing/handlers/pythonext.py`, one canonical local
 | GET | `/apis/pythonext/trace/variables` | `trace/variables` |
 | GET | `/apis/pythonext/trace/chrome-tracing` | `trace/chrome-tracing` |
 | GET | `/apis/pythonext/pytorch/timeline` | `pytorch/timeline` |
-| GET | `/apis/pythonext/pytorch/profile` | `pytorch/profile` — start profiler (legacy) |
-| GET | `/apis/pythonext/pytorch/profile/start` | `pytorch/profile/start` — `steps`, `trigger` |
+| GET | `/apis/pythonext/pytorch/profile` | `pytorch/profile` — start profiler (legacy alias of `profile/start`; prefer `/start`) |
+| GET | `/apis/pythonext/pytorch/profile/start` | `pytorch/profile/start` — `steps`, `trigger` (canonical; Web clients use this) |
 | GET | `/apis/pythonext/pytorch/profile/stop` | `pytorch/profile/stop` — finalize capture |
 | GET | `/apis/pythonext/pytorch/profile/status` | `pytorch/profile/status` |
 | GET | `/apis/pythonext/pytorch/runtime-debug?include_values=` | `pytorch/runtime-debug` — local wait counters + read-only job TCPStore snapshot |

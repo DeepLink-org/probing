@@ -13,10 +13,6 @@ pub struct ClusterSnapshot {
 }
 
 impl ClusterSnapshot {
-    pub fn has_peers(&self) -> bool {
-        self.peer_count > 0
-    }
-
     pub fn is_distributed(&self) -> bool {
         self.node_count > 1 || self.peer_count > 0
     }

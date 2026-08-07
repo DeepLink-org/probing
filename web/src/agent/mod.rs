@@ -3,7 +3,6 @@
 mod cluster;
 mod interpret;
 mod llm;
-pub mod page_tools;
 mod routing;
 mod runner;
 mod skill;
@@ -13,7 +12,6 @@ mod source_bridge;
 pub use cluster::fetch_cluster_snapshot;
 pub use interpret::{build_skill_summary, evaluate_rules_for_skill, format_findings};
 pub use llm::{outcomes_to_evidence, select_skill, summarize_run};
-pub use page_tools::refresh_page_snapshot_for_route;
 pub use routing::{catalog_skills, routing_context_for_llm};
 pub use runner::{run_skill, StepOutcome};
 pub use skill::{

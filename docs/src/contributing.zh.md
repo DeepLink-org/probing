@@ -42,7 +42,7 @@ make test-python-regression    # Python 冒烟；完整套件：make test
 | **Rust** | 引擎、服务、采集、CLI | `probing/`（Rust workspace） | [模块化](design/modularity.zh.md) | `probing/core`、`probing/server` 相关 issue |
 | **Web UI** | Investigate、各页面 | `web/` | [web/DESIGN.md](https://github.com/DeepLink-org/probing/blob/main/web/DESIGN.md) | Agent 体验（完整 wheel 构建需 `dx`） |
 
-**Skill 数据 vs Python 包：** skill **内容**改仓库根 `skills/`（wheel 复制到 `python/probing/bundled_skills/`）；**加载/安装代码**改 `python/probing/skills/`。**不要**手改 `python/probing/bundled_skills/`（由 `make wheel` 自动生成）。
+**Skill 数据 vs Python 包：** skill **内容** SSOT 是 `python/probing/bundled_skills/`（仓库根 `skills/` 为其符号链接别名）；**加载/安装代码**改 `python/probing/skills/`。
 
 **两个 `probing/` 目录：** 仓库根 `probing/` 是 **Rust**；`python/probing/` 是 **Python 包**。根目录 `src/lib.rs` 是 PyO3 入口，构建为 `probing._core`。
 
@@ -174,9 +174,9 @@ PROBING=1 python examples/getting-started/tracing.py
 
 ## Skills 与 Agent {#skills-agents}
 
-- **编写**：仓库根 `skills/`（`SKILL.md`、`steps.yaml`、`catalog.yaml`）
+- **编写**：`python/probing/bundled_skills/`（仓库根 `skills/` 为符号链接；`SKILL.md`、`steps.yaml`、`catalog.yaml`）
 - **安装到 IDE**：`./skills/install.sh` 或 `probing skill install`
-- **打进 wheel**：`make wheel` 复制 Skill 到 `python/probing/bundled_skills/`；`make frontend` 将被忽略的 UI 产物构建到 `probing/server/web-assets/`，server build script 在编译时把它嵌入 `probing._core`（普通 Rust 构建使用受版本控制的 fallback 页面）
+- **打进 wheel**：maturin 直接打包 `python/probing/bundled_skills/`（无额外复制步骤）；`make frontend` 将被忽略的 UI 产物构建到 `probing/server/web-assets/`，server build script 在编译时把它嵌入 `probing._core`（普通 Rust 构建使用受版本控制的 fallback 页面）
 - **说明**：`skills/README.md`、[扩展机制 — 诊断 skill](design/extensibility.zh.md#path-2-diagnostic-skill)
 
 ## 开发流程
@@ -241,11 +241,11 @@ make docs           # 静态构建 → docs/site/
 
 ```
 probing/                          # 仓库根
-├── skills/                       # skill 数据（编写）— 见 skills/README.md
+├── skills/                       # 符号链接 → python/probing/bundled_skills/（编写别名）
 ├── python/
 │   ├── probing/                  # Python 包（不是 Rust）
 │   │   ├── skills/               # skill 加载/安装代码 — 见 python/probing/skills/README.md
-│   │   └── bundled_skills/       # wheel 打包的 skill 数据（编写在 repo-root skills/）
+│   │   └── bundled_skills/       # skill 数据 SSOT（直接打进 wheel）
 │   ├── probing_hook.py
 │   └── probing.pth
 ├── src/lib.rs                    # PyO3 → probing._core

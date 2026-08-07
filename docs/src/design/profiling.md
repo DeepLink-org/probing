@@ -224,7 +224,7 @@ On-demand and CPU sampling share one pipeline:
 - **Main-thread HTTP path:** prefer the latest mixed snapshot. On macOS, when no native sample exists, briefly suspend the target through Mach, copy its PC/frame-pointer chain, resume it, and only then symbolize; this avoids delivering a signal to the training thread. **Never `SIGUSR2` the main tid while `sample_freq` is active** (Distributed included). Linux defaults to on-demand `SIGUSR2` with an alternate signal stack and bounded frame-pointer walk when sampling is off; `PROBING_STACK_SIGUSR2_MAIN=0` disables it. Cross-thread on-demand still uses `SIGUSR2`.
 - **Distributed flamegraph:** with sampling on, export only aggregated sampler buckets per rank (empty buckets → empty graph; no on-demand fallback).
 
-TorchProbe module hooks are independent. Distributed CPU mixed-mode flamegraphs: `GET /apis/training/distributed_stack_flamegraph/json` (Web: **Stacks → Distributed**). Legacy torch module API `/apis/training/distributed_flamegraph/json` remains.
+TorchProbe module hooks are independent. Distributed CPU mixed-mode flamegraphs: `GET /apis/pprofextension/flamegraph/distributed/json` (Web: **Stacks → Distributed**). SPMD torch module flamegraph: `GET /apis/torchextension/flamegraph/distributed/json`.
 
 ## System Metrics
 

@@ -274,20 +274,6 @@ fn parse_cpu_top_threads(df: &DataFrame, limit: usize) -> Result<Vec<CpuThreadRo
     Ok(out)
 }
 
-pub fn format_rss(kb: i64) -> String {
-    if kb >= 1024 * 1024 {
-        format!("{:.1} GB", kb as f64 / (1024.0 * 1024.0))
-    } else if kb >= 1024 {
-        format!("{:.1} MB", kb as f64 / 1024.0)
-    } else {
-        format!("{kb} KB")
-    }
-}
-
-pub fn format_pct(v: f32) -> String {
-    format!("{v:.1}%")
-}
-
 pub fn format_cpu_ms(ns: i64) -> String {
     format!("{:.1} ms", ns as f64 / 1_000_000.0)
 }

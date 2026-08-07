@@ -10,7 +10,6 @@ pub mod profile_snapshots;
 pub mod profiling;
 pub mod rl;
 pub mod scroll_lock;
-pub mod sidebar;
 pub mod source_viewer;
 pub mod stack;
 pub mod training;

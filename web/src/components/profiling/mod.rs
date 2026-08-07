@@ -5,9 +5,7 @@ mod sections;
 mod timeline;
 
 pub use feedback::ProfilingFeedbackToast;
-pub use sections::{
-    ProfilerDisabledNotice, ProfilingContentPanel, ProfilingErrorPanel, TimelinePlaceholder,
-};
+pub use sections::{ProfilerDisabledNotice, ProfilingErrorPanel, TimelinePlaceholder};
 pub use timeline::{
     PytorchChromeTimelineLoader, RayChromeTimelineLoader, TraceChromeTimelineLoader,
 };

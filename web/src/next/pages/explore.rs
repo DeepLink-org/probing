@@ -4,7 +4,7 @@ use crate::state::commands::COMMAND_PANEL_OPEN;
 use crate::state::investigation::INVESTIGATION_CONTEXT;
 
 use super::super::components::{
-    evidence_href, ActionButton, ClassicLink, FilterInput, SectionCard, WorkspacePage,
+    evidence_href, ActionButton, FilterInput, SectionCard, WorkspacePage,
 };
 use super::super::routes::NextRoute;
 
@@ -135,14 +135,11 @@ pub fn ClassicFallbackPage(segments: Vec<String>) -> Element {
         div { class: "mx-auto max-w-2xl py-12",
             WorkspacePage {
                 title: "Route not found".to_string(),
-                subtitle: format!("{path} is not a registered Next route."),
+                subtitle: format!("{path} is not a registered product route."),
                 SectionCard {
-                    title: "Compatibility route".to_string(),
-                    subtitle: Some("The same path can still be opened in the frozen Classic interface.".to_string()),
-                    div { class: "flex flex-wrap gap-2",
-                        a { href: explore_href, class: "inline-flex rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50", "Search Next workspaces" }
-                        ClassicLink { path, label: "Open Classic path".to_string() }
-                    }
+                    title: "Available workspaces".to_string(),
+                    subtitle: Some("Open the capability catalog to find the matching evidence surface.".to_string()),
+                    a { href: explore_href, class: "inline-flex rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50", "Browse workspaces" }
                 }
             }
         }

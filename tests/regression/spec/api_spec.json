@@ -51,14 +51,6 @@
       "path": "/apis/training/step_matrix"
     },
     {
-      "method": "GET",
-      "path": "/apis/training/distributed_flamegraph/json"
-    },
-    {
-      "method": "GET",
-      "path": "/apis/training/distributed_stack_flamegraph/json"
-    },
-    {
       "method": "POST",
       "path": "/apis/cluster/query"
     },
@@ -404,6 +396,16 @@
       }
     },
     {
+      "extension_name": "torchextension",
+      "method": "GET",
+      "path": "/apis/torchextension/flamegraph/distributed/json",
+      "local_path": "flamegraph/distributed/json",
+      "response": {
+        "content_type": "application/json",
+        "cors": false
+      }
+    },
+    {
       "extension_name": "pprofextension",
       "method": "GET",
       "path": "/apis/pprofextension/flamegraph",
@@ -457,23 +459,38 @@
   "deprecated_paths": [
     {
       "path": "/apis/flamegraph/torch",
-      "replacement": "/apis/torchextension/flamegraph"
+      "replacement": "/apis/torchextension/flamegraph",
+      "status": "removed"
     },
     {
       "path": "/apis/flamegraph/pprof",
-      "replacement": "/apis/pprofextension/flamegraph"
+      "replacement": "/apis/pprofextension/flamegraph",
+      "status": "removed"
     },
     {
       "path": "/apis/python/ray/timeline",
-      "replacement": "/apis/pythonext/ray/timeline"
+      "replacement": "/apis/pythonext/ray/timeline",
+      "status": "removed"
     },
     {
       "path": "/apis/python/ray/timeline/chrome",
-      "replacement": "/apis/pythonext/ray/timeline/chrome"
+      "replacement": "/apis/pythonext/ray/timeline/chrome",
+      "status": "removed"
     },
     {
       "path": "/apis/pythonext/flamegraph",
-      "replacement": "/apis/torchextension/flamegraph"
+      "replacement": "/apis/torchextension/flamegraph",
+      "status": "removed"
+    },
+    {
+      "path": "/apis/training/distributed_flamegraph/json",
+      "replacement": "/apis/torchextension/flamegraph/distributed/json",
+      "status": "removed"
+    },
+    {
+      "path": "/apis/training/distributed_stack_flamegraph/json",
+      "replacement": "/apis/pprofextension/flamegraph/distributed/json",
+      "status": "removed"
     }
   ],
   "client_contracts": {
@@ -531,7 +548,7 @@
           },
           {
             "method": "GET",
-            "path": "/apis/training/distributed_stack_flamegraph/json"
+            "path": "/apis/pprofextension/flamegraph/distributed/json"
           }
         ]
       },
@@ -565,7 +582,7 @@
           },
           {
             "method": "GET",
-            "path": "/apis/pythonext/pytorch/profile"
+            "path": "/apis/pythonext/pytorch/profile/start"
           }
         ]
       },

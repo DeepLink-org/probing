@@ -89,7 +89,7 @@ impl ApiClient {
 
     /// Start PyTorch profiler, specify the number of steps to profile
     pub async fn start_pytorch_profile(&self, steps: i32) -> Result<ProfileResponse> {
-        let path = format!("/apis/pythonext/pytorch/profile?steps={}", steps);
+        let path = format!("/apis/pythonext/pytorch/profile/start?steps={}", steps);
         let response = self.get_request(&path).await?;
         let result: ProfileResponse = Self::parse_json(&response)?;
         Ok(result)

@@ -1,10 +1,8 @@
-//! Investigation Agent — skill-driven diagnostic chat panel.
+//! Investigation Agent — skill-driven diagnostic helpers.
 
 pub mod chat;
-pub mod panel;
 mod settings;
 mod step_card;
-mod view_route;
 
-pub use panel::AgentPanel;
 pub use settings::LlmSettingsOverlay;
+pub use step_card::step_outcome_to_card;

@@ -922,6 +922,58 @@ fn distributed_torch_flamegraph_options(metric: TorchMetric, subtitle: &str) -> 
     }
 }
 
+/// SQL for one ``local_step`` snapshot of ``torch_trace`` across ranks (federated or local).
+///
+/// Uses the row's training ``rank`` column (not federation ``_rank`` tags, which are added
+/// after fan-out merge). ``COALESCE(_rank, …)`` breaks local ``python.torch_trace`` scans.
+pub fn distributed_torch_trace_sql(table: &str, step: Option<i64>) -> String {
+    let step_pred = match step {
+        Some(s) => format!("local_step = {s}"),
+        None => format!("local_step = (SELECT max(local_step) FROM {table})"),
+    };
+    format!(
+        r#"
+SELECT
+  CAST(COALESCE(rank, 0) AS BIGINT) AS rank,
+  module,
+  stage,
+  CAST(duration AS DOUBLE) AS duration,
+  CAST(allocated_delta AS DOUBLE) AS allocated_delta,
+  CAST(max_allocated_delta AS DOUBLE) AS max_allocated_delta,
+  CAST(allocated AS DOUBLE) AS allocated,
+  CAST(max_allocated AS DOUBLE) AS max_allocated,
+  CAST(local_step AS BIGINT) AS local_step
+FROM {table}
+WHERE {step_pred}
+  AND module <> 'None'
+  AND (stage LIKE 'post %' OR stage LIKE 'pre %')
+"#
+    )
+}
+
+/// Query ``python.torch_trace`` / ``global.python.torch_trace`` and render SPMD flamegraph JSON.
+pub async fn collect_distributed_flamegraph_json(
+    cluster: bool,
+    step: Option<i64>,
+    metric: Option<&str>,
+) -> anyhow::Result<String> {
+    let table = if cluster {
+        "global.python.torch_trace"
+    } else {
+        "python.torch_trace"
+    };
+    let sql = distributed_torch_trace_sql(table, step);
+    let engine = probing_core::ENGINE.read().await;
+    let dataframe = engine
+        .async_query(&sql)
+        .await
+        .context("distributed torch flamegraph query failed")?
+        .ok_or_else(|| {
+            anyhow::anyhow!("engine returned no dataframe for distributed torch query")
+        })?;
+    Ok(distributed_flamegraph_json_from_df(&dataframe, metric))
+}
+
 /// JSON flamegraph from a federated or local ``torch_trace`` snapshot at one ``local_step``.
 pub fn distributed_flamegraph_json_from_df(
     data: &probing_proto::types::DataFrame,
