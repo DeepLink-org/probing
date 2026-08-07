@@ -20,7 +20,7 @@ pub use analytics::AnalyticsPage;
 pub use cluster::ClusterPage;
 pub use dashboard::DashboardPage;
 pub use distributed::{DistributedPage, DistributedStatusPage};
-pub use explore::{ClassicFallbackPage, ExplorePage};
+pub use explore::{ExplorePage, NotFoundPage};
 pub use inference::InferencePage;
 pub use investigate::InvestigatePage;
 pub(crate) use investigate::InvestigateSession;
@@ -55,16 +55,6 @@ mod architecture_tests {
         ("explore", include_str!("explore.rs")),
         ("investigate", include_str!("investigate.rs")),
     ];
-
-    #[test]
-    fn workspace_pages_do_not_import_classic_pages() {
-        for (name, source) in WORKSPACE_PAGES {
-            assert!(
-                !source.contains("crate::pages::"),
-                "{name} must not mount a Classic page"
-            );
-        }
-    }
 
     #[test]
     fn product_pages_share_the_next_workspace_frame() {

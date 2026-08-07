@@ -2,12 +2,12 @@ use dioxus::prelude::*;
 use dioxus_router::Routable;
 
 use super::pages::{
-    AnalyticsPage as Analytics, ChromeTracePage as ChromeTrace,
-    ClassicFallbackPage as ClassicFallback, ClusterPage as Cluster, DashboardPage as Dashboard,
-    DistributedPage as Distributed, DistributedPythonStackPage as DistributedPythonStack,
-    DistributedStackPage as DistributedStack, DistributedStatusPage as DistributedStatus,
-    ExplorePage as Explore, InferencePage as Inference, InvestigatePage as Investigate,
-    MemoryPage as Memory, PerfettoPage as Perfetto, ProcessTimelinePage as ProcessTimeline,
+    AnalyticsPage as Analytics, ChromeTracePage as ChromeTrace, ClusterPage as Cluster,
+    DashboardPage as Dashboard, DistributedPage as Distributed,
+    DistributedPythonStackPage as DistributedPythonStack, DistributedStackPage as DistributedStack,
+    DistributedStatusPage as DistributedStatus, ExplorePage as Explore, InferencePage as Inference,
+    InvestigatePage as Investigate, MemoryPage as Memory, NotFoundPage as NotFound,
+    PerfettoPage as Perfetto, ProcessTimelinePage as ProcessTimeline,
     ProfileViewPage as ProfileView, ProfilesPage as Profiles, ProfilesPage as ProfilingLegacy,
     PulsingPage as Pulsing, PythonPage as Python, RlSpansPage as RlSpans, RlTrainPage as RlTrain,
     RolloutPage as Rollout, RolloutPage as RolloutLegacy, SpansPage as Spans,
@@ -108,7 +108,7 @@ pub enum NextRoute {
         Explore {},
 
         #[route("/:..segments")]
-        ClassicFallback { segments: Vec<String> },
+        NotFound { segments: Vec<String> },
 }
 
 #[cfg(test)]
@@ -156,8 +156,8 @@ mod tests {
                 panic!("Next UI should resolve {path}: {error}");
             });
             assert!(
-                !matches!(route, NextRoute::ClassicFallback { .. }),
-                "{path} unexpectedly resolved to the Classic fallback"
+                !matches!(route, NextRoute::NotFound { .. }),
+                "{path} unexpectedly resolved to the not-found route"
             );
         }
     }

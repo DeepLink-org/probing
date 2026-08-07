@@ -62,13 +62,10 @@ SGLang 指标端点（/metrics 或 /engine_metrics）
 在仓库根目录执行（需已安装 [Dioxus CLI](https://dioxuslabs.com/learn/0.6/getting_started/) `dx`）：
 
 ```bash
-cd web
-dx build --release
-mkdir -p dist
-cp -r target/dx/web/release/web/public/* dist/
+make frontend
 ```
 
-完成后存在 `web/dist/index.html`，后续将 `PROBING_ASSETS_ROOT` 设为 `web/dist`。
+完成后 `web/dist` 会链接到嵌入式 Web 产物目录；如需显式磁盘覆盖，可将 `PROBING_ASSETS_ROOT` 设为 `web/dist`。
 
 ### 步骤 1：启动 SGLang 推理服务
 

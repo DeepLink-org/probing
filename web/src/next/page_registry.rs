@@ -310,7 +310,7 @@ impl NextRoute {
                 "Toolbox",
                 DeepTools
             ),
-            Self::Explore {} | Self::ClassicFallback { .. } => page!(
+            Self::Explore {} | Self::NotFound { .. } => page!(
                 "explore",
                 "Capability Catalog",
                 "/explore",
