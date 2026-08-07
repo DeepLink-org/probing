@@ -2923,7 +2923,7 @@ collector 的不同配置，也不共享采集 session、事件缓冲或生命�
 <li><strong>分布式火焰图</strong>：<code>sample_freq</code> 开启后只聚合各 rank 采样桶（为空则空图，不回退 on-demand）；跨 rank merge 后每个 frame 携带 <code>ranks</code>。</li>
 <li><strong>canonicalize</strong>：剥 <code>_Py_RunMain</code> / importlib / <code>platform.py</code> 等 bootstrap；SIGPROF 仅统计已注册 Python 主线程样本。</li>
 </ul>
-<p>TorchProbe 模块钩子与上述栈采集相互独立。分布式 CPU 混合栈火焰图见 <code>GET /apis/training/distributed_stack_flamegraph/json</code>（Web：<strong>Stacks → Distributed</strong>）。旧版 torch 模块级 API <code>/apis/training/distributed_flamegraph/json</code> 仍保留。</p>
+<p>TorchProbe 模块钩子与上述栈采集相互独立。分布式 CPU 混合栈火焰图见 <code>GET /apis/pprofextension/flamegraph/distributed/json</code>（Web：<strong>Stacks → Distributed</strong>）。SPMD torch 模块级火焰图：<code>GET /apis/torchextension/flamegraph/distributed/json</code>。</p>
 <h2 id="_6">系统指标<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
 <p>通过 <code>PROBING_GPU_SAMPLE_MS</code> 等环境变量配置间隔，采集主机 CPU、内存、GPU 利用率等。</p>
 <p><strong>变量/张量 watch（<code>probing.inspect.trace</code>）：</strong> 默认写入 Python logger；设置 <code>PROBING_TRACE_STDOUT=1</code> 可改为 <strong>stdout</strong> 输出（本地调试方便，生产训练日志慎用）。</p>

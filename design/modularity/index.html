@@ -1275,10 +1275,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#41-pypi-packaging-coupling-probing-python-probing-cli" class="md-nav__link">
+  <a href="#41-pypi-packaging-coupling-cdylib-probing-cli" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4.1 PyPI packaging coupling (probing-python → probing-cli)
+        4.1 PyPI packaging coupling (cdylib → probing-cli)
       
     </span>
   </a>
@@ -2638,10 +2638,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#41-pypi-packaging-coupling-probing-python-probing-cli" class="md-nav__link">
+  <a href="#41-pypi-packaging-coupling-cdylib-probing-cli" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4.1 PyPI packaging coupling (probing-python → probing-cli)
+        4.1 PyPI packaging coupling (cdylib → probing-cli)
       
     </span>
   </a>
@@ -3014,8 +3014,8 @@ component state, logs, and readiness responses.</p>
 </tr>
 <tr>
 <td><strong>skills/</strong></td>
-<td>YAML + SKILL.md</td>
-<td>Skill content SSOT</td>
+<td>symlink → <code>python/probing/bundled_skills/</code></td>
+<td>Authoring alias for skill content SSOT</td>
 </tr>
 <tr>
 <td><strong>probing-skills</strong></td>
@@ -3113,7 +3113,7 @@ component state, logs, and readiness responses.</p>
 <li>No direct Rust imports from Python plugins.</li>
 </ul>
 <h3 id="34-skill-contract-diagnostic-workflows">3.4 Skill contract — diagnostic workflows<a class="headerlink" href="#34-skill-contract-diagnostic-workflows" title="Permanent link">&para;</a></h3>
-<p><strong>Where:</strong> <code>skills/&lt;id&gt;/SKILL.md</code> + <code>steps.yaml</code>, catalog <code>skills/catalog.yaml</code></p>
+<p><strong>Where:</strong> <code>python/probing/bundled_skills/&lt;id&gt;/SKILL.md</code> + <code>steps.yaml</code> (alias: <code>skills/</code>), catalog <code>catalog.yaml</code></p>
 <table>
 <thead>
 <tr>
@@ -3144,7 +3144,7 @@ component state, logs, and readiness responses.</p>
 <ul>
 <li>Skills <strong>only</strong> talk to the engine via SQL (<code>probing query</code>) or documented HTTP APIs.</li>
 <li>No Rust/Python code in skills — YAML + markdown only.</li>
-<li><strong>Content SSOT:</strong> <code>skills/</code> (wheel: <code>python/probing/bundled_skills/</code>).</li>
+<li><strong>Content SSOT:</strong> <code>python/probing/bundled_skills/</code> (repo-root <code>skills/</code> is a symlink alias).</li>
 <li><strong>Discovery:</strong> <code>python/probing/extensions/</code> entry points + <code>GET /apis/pythonext/skills/*</code>.</li>
 <li><strong>Execution SSOT:</strong> <code>probing-skills</code> — CLI (<code>probing/cli/skill/</code>), Web WASM
   (<code>web/src/agent/runner.rs</code>), MCP (<code>run_skill</code> / <code>plan_skill</code> in server).</li>
@@ -3233,7 +3233,7 @@ component state, logs, and readiness responses.</p>
 </span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>  L1 → L2/L3/L4
 </span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>  L2 → L2 (collector cross-deps)
 </span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>  L2 → L3 (extensions must not import server)
-</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>  L2 → probing-cli  — **packaging only** (see §4.1; not a runtime collector→control violation)
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>  L2 → probing-cli  — collectors must not depend on CLI (wheel `cli_main` is wired in root `src/lib.rs`; see §4.1)
 </span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>  skills → Rust internals
 </span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>  web → probing-core / pyo3
 </span></code></pre></div>
@@ -3316,7 +3316,7 @@ component state, logs, and readiness responses.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="41-pypi-packaging-coupling-probing-python-probing-cli">4.1 PyPI packaging coupling (<code>probing-python</code> → <code>probing-cli</code>)<a class="headerlink" href="#41-pypi-packaging-coupling-probing-python-probing-cli" title="Permanent link">&para;</a></h3>
+<h3 id="41-pypi-packaging-coupling-cdylib-probing-cli">4.1 PyPI packaging coupling (cdylib → <code>probing-cli</code>)<a class="headerlink" href="#41-pypi-packaging-coupling-cdylib-probing-cli" title="Permanent link">&para;</a></h3>
 <p>Maturin builds <strong>one native artifact</strong> (<code>probing._core</code> cdylib from root <code>Cargo.toml</code>). The
 <code>probing</code> console script is <strong>not</strong> a separate Rust binary on PyPI:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pip install probing
@@ -3328,15 +3328,16 @@ component state, logs, and readiness responses.</p>
 control plane at runtime for data paths.</p>
 <p><strong>Contract (keep the edge thin):</strong></p>
 <ul>
-<li><code>probing-python</code> may depend on <code>probing-cli</code> <strong>only</strong> to re-export <code>cli_main</code> in
-  <code>features/python_api.rs</code> for the PyO3 entrypoint.</li>
+<li>Root <code>src/lib.rs</code> (the maturin cdylib composition root) may call <code>probing_cli::pyo3::cli_main</code>
+  and re-export it as <code>_core.cli_main</code>. <code>probing-python</code> itself does <strong>not</strong> depend on
+  <code>probing-cli</code>.</li>
 <li>Do <strong>not</strong> import other <code>probing-cli</code> modules (inject, skill runner internals, ctrl) from
   collectors or server.</li>
 <li>Standalone Rust binary (<code>probing/cli/src/main.rs</code>) remains optional for non-PyPI installs;
   PyPI users always go through the Python script entry.</li>
 </ul>
 <p>If CLI logic grows, split <strong><code>probing-cli-lib</code></strong> (shared <code>cli_main</code> + HTTP client) from CLI-only
-commands, rather than letting <code>probing-python</code> spread imports across the cli crate.</p>
+commands, rather than letting collectors or the cdylib spread imports across the cli crate.</p>
 <hr />
 <pre class="mermaid"><code>sequenceDiagram
     participant C as Collector L2
@@ -3542,8 +3543,8 @@ commands, rather than letting <code>probing-python</code> spread imports across 
 <tbody>
 <tr>
 <td>Python ext → CLI</td>
-<td><code>probing-python</code> → <code>probing-cli</code></td>
-<td><strong>Accepted</strong> for maturin wheel (<code>cli_main</code> only); keep import surface minimal</td>
+<td>~~<code>probing-python</code> → <code>probing-cli</code>~~</td>
+<td><strong>Done</strong> — no crate dep; wheel <code>cli_main</code> wired only in root <code>src/lib.rs</code> (§4.1)</td>
 </tr>
 <tr>
 <td>Python ext → CC</td>
@@ -3562,8 +3563,8 @@ commands, rather than letting <code>probing-python</code> spread imports across 
 </tr>
 <tr>
 <td>Server → python <code>features/*</code></td>
-<td>~~<code>server/profiling.rs</code>~~ removed</td>
-<td>Flamegraphs via <code>torchextension</code> / <code>pprofextension</code> <code>ProbeExtensionCall</code></td>
+<td>~~<code>server/profiling.rs</code> / training flamegraph handlers~~</td>
+<td><strong>Done</strong> — flamegraphs via <code>torchextension</code> / <code>pprofextension</code> <code>ProbeExtensionCall</code> only</td>
 </tr>
 <tr>
 <td>Server → python REPL internals</td>

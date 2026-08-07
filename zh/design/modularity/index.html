@@ -1277,10 +1277,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#41-pypi-probing-python-probing-cli" class="md-nav__link">
+  <a href="#41-pypi-cdylib-probing-cli" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4.1 PyPI 打包耦合（probing-python → probing-cli）
+        4.1 PyPI 打包耦合（cdylib → probing-cli）
       
     </span>
   </a>
@@ -2640,10 +2640,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#41-pypi-probing-python-probing-cli" class="md-nav__link">
+  <a href="#41-pypi-cdylib-probing-cli" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4.1 PyPI 打包耦合（probing-python → probing-cli）
+        4.1 PyPI 打包耦合（cdylib → probing-cli）
       
     </span>
   </a>
@@ -3010,8 +3010,8 @@
 </tr>
 <tr>
 <td><strong>skills/</strong></td>
-<td>YAML + SKILL.md</td>
-<td>诊断 skill 内容 SSOT</td>
+<td>符号链接 → <code>python/probing/bundled_skills/</code></td>
+<td>skill 内容 SSOT 的编写别名</td>
 </tr>
 <tr>
 <td><strong>probing-skills</strong></td>
@@ -3086,7 +3086,7 @@
 <h3 id="33-python-table">3.3 Python <code>@table</code> — 应用数据插件<a class="headerlink" href="#33-python-table" title="Permanent link">&para;</a></h3>
 <p>见 <a href="../extensibility/">扩展机制</a>。训练行应带 <code>local_step</code>、<code>global_step</code>、<code>rank</code>、<code>role</code>（见 <a href="../../guide/concepts/">核心概念</a>）。</p>
 <h3 id="34-skill">3.4 Skill 契约 — 诊断工作流<a class="headerlink" href="#34-skill" title="Permanent link">&para;</a></h3>
-<p><strong>SSOT：</strong> <code>skills/&lt;id&gt;/</code> + <code>skills/catalog.yaml</code></p>
+<p><strong>SSOT：</strong> <code>python/probing/bundled_skills/&lt;id&gt;/</code> + <code>catalog.yaml</code>（仓库根 <code>skills/</code> 为符号链接别名）</p>
 <table>
 <thead>
 <tr>
@@ -3115,7 +3115,7 @@
 </table>
 <p><strong>规则：</strong> Skill 只通过 SQL / 文档化 HTTP 访问数据；<strong>不含 Rust/Python 业务代码</strong>。</p>
 <ul>
-<li><strong>内容 SSOT：</strong> <code>skills/</code>（wheel：<code>python/probing/bundled_skills/</code>）。</li>
+<li><strong>内容 SSOT：</strong> <code>python/probing/bundled_skills/</code>（仓库根 <code>skills/</code> 为指向该目录的符号链接别名）。</li>
 <li><strong>发现：</strong> <code>python/probing/extensions/</code> entry point + <code>GET /apis/pythonext/skills/*</code>。</li>
 <li><strong>执行 SSOT：</strong> <code>probing-skills</code> — CLI（<code>probing/cli/skill/</code>）、Web WASM
   （<code>web/src/agent/runner.rs</code>）、MCP（server 内 <code>run_skill</code> / <code>plan_skill</code>）。</li>
@@ -3192,8 +3192,8 @@
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>禁止：
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>  L1 → 上层
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>  L2 ↔ L2（采集器互调）
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>  L2 → server / cli
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>  probing-python → probing-cli  — **打包耦合**（见 §4.1，非运行时采集→控制面）
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>  L2 → server
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>  L2 → probing-cli  — 采集器不得依赖 CLI（wheel 的 `cli_main` 仅在根 `src/lib.rs` 组装；见 §4.1）
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>  skills → Rust 内部
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>  web → probing-core
 </span></code></pre></div>
@@ -3276,7 +3276,7 @@
 </tr>
 </tbody>
 </table>
-<h3 id="41-pypi-probing-python-probing-cli">4.1 PyPI 打包耦合（<code>probing-python</code> → <code>probing-cli</code>）<a class="headerlink" href="#41-pypi-probing-python-probing-cli" title="Permanent link">&para;</a></h3>
+<h3 id="41-pypi-cdylib-probing-cli">4.1 PyPI 打包耦合（cdylib → <code>probing-cli</code>）<a class="headerlink" href="#41-pypi-cdylib-probing-cli" title="Permanent link">&para;</a></h3>
 <p>Maturin 只构建 <strong>一个 native 产物</strong>（根 <code>Cargo.toml</code> 的 <code>probing._core</code> cdylib）。PyPI 上的
 <code>probing</code> 命令 <strong>不是</strong> 独立 Rust 二进制：</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip install probing
@@ -3287,12 +3287,13 @@
 <code>[project.scripts]</code>）的 <strong>可接受编译期耦合</strong>，不是采集器在运行时反向调用控制面。</p>
 <p><strong>契约（保持边界薄）：</strong></p>
 <ul>
-<li><code>probing-python</code> 依赖 <code>probing-cli</code> <strong>仅</strong> 用于在 <code>python_api.rs</code> 暴露 <code>cli_main</code> 给 PyO3。</li>
+<li>根 <code>src/lib.rs</code>（maturin cdylib 组装根）可调用 <code>probing_cli::pyo3::cli_main</code> 并导出为
+  <code>_core.cli_main</code>。<strong><code>probing-python</code> 本身不依赖 <code>probing-cli</code></strong>。</li>
 <li><strong>禁止</strong> 从采集器/server 引用 cli 的 inject、skill 内部、ctrl 等模块。</li>
 <li>非 PyPI 安装仍可选用独立 Rust binary（<code>cli/src/main.rs</code>）；PyPI 用户走 Python 入口。</li>
 </ul>
 <p>若 CLI 继续膨胀，可拆 <strong><code>probing-cli-lib</code></strong>（共享 <code>cli_main</code> + HTTP 客户端），而不是让
-python ext 扩散 import cli crate 内部。</p>
+采集器或 cdylib 扩散 import cli crate 内部。</p>
 <hr />
 <pre class="mermaid"><code>sequenceDiagram
     participant C as 采集 L2
@@ -3485,8 +3486,8 @@ python ext 扩散 import cli crate 内部。</p>
 <tbody>
 <tr>
 <td>python → cli</td>
-<td><code>probing-python</code> → <code>probing-cli</code></td>
-<td><strong>可接受</strong>（maturin wheel，仅 <code>cli_main</code>）；禁止扩散 import</td>
+<td>~~<code>probing-python</code> → <code>probing-cli</code>~~</td>
+<td><strong>已完成</strong> — 无 crate 依赖；wheel <code>cli_main</code> 仅在根 <code>src/lib.rs</code> 组装（§4.1）</td>
 </tr>
 <tr>
 <td>python → cc</td>
@@ -3505,8 +3506,8 @@ python ext 扩散 import cli crate 内部。</p>
 </tr>
 <tr>
 <td>server → python features</td>
-<td>~~<code>server/profiling.rs</code>~~ 已删</td>
-<td>火焰图走 Extension</td>
+<td>~~<code>server/profiling.rs</code> / training 火焰图 handler~~</td>
+<td><strong>已完成</strong> — 火焰图仅走 <code>torchextension</code> / <code>pprofextension</code> <code>ProbeExtensionCall</code></td>
 </tr>
 <tr>
 <td>server → REPL 内部</td>
