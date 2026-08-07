@@ -956,22 +956,26 @@ pub async fn collect_distributed_flamegraph_json(
     cluster: bool,
     step: Option<i64>,
     metric: Option<&str>,
-) -> anyhow::Result<String> {
+) -> probing_core::core::Result<(String, bool)> {
     let table = if cluster {
         "global.python.torch_trace"
     } else {
         "python.torch_trace"
     };
     let sql = distributed_torch_trace_sql(table, step);
+    probing_core::core::federation::reset_fanout_stats();
     let engine = probing_core::ENGINE.read().await;
-    let dataframe = engine
-        .async_query(&sql)
-        .await
-        .context("distributed torch flamegraph query failed")?
-        .ok_or_else(|| {
-            anyhow::anyhow!("engine returned no dataframe for distributed torch query")
-        })?;
-    Ok(distributed_flamegraph_json_from_df(&dataframe, metric))
+    let query_result = engine.async_query(&sql).await;
+    let stats = probing_core::core::federation::take_fanout_stats();
+    let dataframe = query_result?.ok_or_else(|| {
+        probing_core::core::EngineError::internal(
+            "engine returned no dataframe for distributed torch query",
+        )
+    })?;
+    Ok((
+        distributed_flamegraph_json_from_df(&dataframe, metric),
+        probing_core::core::federation::fanout_stats_partial(&stats),
+    ))
 }
 
 /// JSON flamegraph from a federated or local ``torch_trace`` snapshot at one ``local_step``.

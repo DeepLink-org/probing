@@ -400,6 +400,7 @@
       "method": "GET",
       "path": "/apis/torchextension/flamegraph/distributed/json",
       "local_path": "flamegraph/distributed/json",
+      "requires_engine_ready": true,
       "response": {
         "content_type": "application/json",
         "cors": false

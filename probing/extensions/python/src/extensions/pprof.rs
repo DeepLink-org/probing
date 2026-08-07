@@ -6,6 +6,7 @@ use probing_core::core::Maybe;
 use probing_core::core::ProbeExtension;
 use probing_core::core::ProbeExtensionCall;
 use probing_core::core::ProbeExtensionOption;
+use probing_core::core::ProbeExtensionResponse;
 
 #[derive(Debug, Default, ProbeExtension)]
 pub struct PprofProbeExtension {
@@ -33,24 +34,44 @@ impl ProbeExtensionCall for PprofProbeExtension {
                 Ok(crate::features::stacktrace::tracers::pprof::folded_lines_json().into_bytes())
             }
             "flamegraph/distributed/json" => {
-                let cluster = params
-                    .get("cluster")
-                    .map(|v| v.as_str())
-                    .map(|v| v != "0" && v != "false")
-                    .unwrap_or(true);
-                let mode = params.get("mode").map(|s| s.as_str()).unwrap_or("mixed");
-                let (body, _) = crate::features::stacktrace::tracers::pprof::collect_distributed_stack_flamegraph_json(
-                    cluster, mode,
-                )
-                .await;
-                Ok(body.into_bytes())
+                Ok(self.distributed_flamegraph_response(params).await?.body)
             }
             _ => Err(EngineError::UnsupportedCall),
         }
     }
+
+    async fn call_response(
+        &self,
+        path: &str,
+        params: &HashMap<String, String>,
+        body: &[u8],
+    ) -> Result<ProbeExtensionResponse, EngineError> {
+        if path.trim_start_matches('/') != "flamegraph/distributed/json" {
+            return self.call(path, params, body).await.map(Into::into);
+        }
+
+        self.distributed_flamegraph_response(params).await
+    }
 }
 
 impl PprofProbeExtension {
+    async fn distributed_flamegraph_response(
+        &self,
+        params: &HashMap<String, String>,
+    ) -> Result<ProbeExtensionResponse, EngineError> {
+        let cluster = super::bool_param(params, "cluster", true)?;
+        let mode = super::one_of_param(params, "mode", "mixed", &["mixed", "py"])?;
+        let (body, partial) =
+            crate::features::stacktrace::tracers::pprof::collect_distributed_stack_flamegraph_json(
+                cluster, mode,
+            )
+            .await;
+        Ok(ProbeExtensionResponse {
+            body: body.into_bytes(),
+            partial,
+        })
+    }
+
     fn set_sample_freq(&mut self, pprof_sample_freq: Maybe<i32>) -> Result<(), EngineError> {
         // Clearing the option (`set probing.pprof.sample_freq=;`) or a value < 1
         // disables sampling and tears the sampler down.
