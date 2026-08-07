@@ -125,7 +125,7 @@ fn canonical_capability_routes() -> Vec<NextRoute> {
 }
 
 #[component]
-pub fn ClassicFallbackPage(segments: Vec<String>) -> Element {
+pub fn NotFoundPage(segments: Vec<String>) -> Element {
     let path = format!("/{}", segments.join("/"));
     let explore_href = evidence_href(
         &NextRoute::Explore {},
@@ -163,7 +163,7 @@ mod tests {
         let routes = canonical_capability_routes();
         assert!(routes.iter().all(|route| {
             route.page_spec().canonical_path != "/explore"
-                && !matches!(route, NextRoute::ClassicFallback { .. })
+                && !matches!(route, NextRoute::NotFound { .. })
         }));
     }
 }

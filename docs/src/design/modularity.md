@@ -354,7 +354,7 @@ Use this table to decide **where a change belongs**:
 | Auth, request limits | probing-server | middleware |
 | Inject, query CLI | probing-cli | HTTP to server |
 | Diagnostic skills | skills/ | steps.yaml |
-| Training step matrix UI | web/pages/training | GET `/apis/training/step_matrix` |
+| Training step matrix UI | web/src/next/pages/training.rs | GET `/apis/training/step_matrix` |
 | Agent routing | web/agent + skills catalog | skill metadata |
 
 ---

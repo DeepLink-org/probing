@@ -1,7 +1,7 @@
 //! Native Next-page evidence snapshots consumed by the Investigate panel.
 //!
 //! This module deliberately speaks in Next routes and evidence requests. It
-//! must not translate through Classic routes: page UI and Agent context should
+//! must not translate through removed legacy routes: page UI and Agent context should
 //! use the same scope and investigation coordinates.
 
 use dioxus::prelude::ReadableExt;
@@ -485,7 +485,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn next_snapshot_routes_do_not_require_classic_route_identity() {
+    fn snapshot_ids_follow_canonical_routes() {
         assert_eq!(NextRoute::Memory {}.snapshot_id(), "memory");
         assert_eq!(NextRoute::Training {}.snapshot_id(), "training");
         assert_eq!(NextRoute::Cluster {}.snapshot_id(), "cluster-nodes");
