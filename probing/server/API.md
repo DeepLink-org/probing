@@ -35,7 +35,7 @@ Flamegraphs are served by profiler extensions (extension fallback, not public ro
 |--------|------|-------|
 | GET | `/apis/torchextension/flamegraph` | PyTorch module flamegraph (interactive HTML) |
 | GET | `/apis/torchextension/flamegraph/json` | JSON for native Web UI (`?metric=` optional) |
-| GET | `/apis/torchextension/flamegraph/distributed/json` | SPMD torch module flamegraph at one `local_step` (`?cluster=true` default, `?step=`, `?metric=`) |
+| GET | `/apis/torchextension/flamegraph/distributed/json` | SPMD torch module flamegraph at one `local_step` (`?cluster=true` default, `?step=`, `?metric=`). Requires the query engine to be ready. |
 | GET | `/apis/pprofextension/flamegraph` | CPU sampling flamegraph (interactive HTML) |
 | GET | `/apis/pprofextension/flamegraph/json` | JSON for native Web UI |
 | GET | `/apis/pprofextension/flamegraph/folded/json` | Raw folded stack lines for cluster merge |
@@ -218,7 +218,8 @@ envelope and these documented endpoint-specific formats.
 | Invalid `/query` JSON body | 400 |
 | SQL/config execution failure on `/query` | 500 (`QueryDataFormat::Error` payload preserved) |
 | `/query/dto` engine errors | Same HTTP status as underlying `ApiError` (e.g. 404, 503); DTO `code` mirrors status (`BAD_REQUEST`, `NOT_FOUND`, `SERVICE_UNAVAILABLE`, …) |
-| Partial cluster fan-out (`meta.partial` / `nodes_failed` non-empty) on `/query`, `/query/dto`, `POST /apis/cluster/query`, `GET /apis/training/step_matrix` | 503 (body still returned so clients can inspect partial data) |
+| Partial cluster fan-out (`meta.partial` / `nodes_failed` non-empty) on `/query`, `/query/dto`, `POST /apis/cluster/query`, `GET /apis/training/step_matrix`, or a distributed Torch/pprof flamegraph | 503 (body still returned so clients can inspect partial data) |
+| Invalid extension query parameter (`cluster`, `step`, `metric`, or `mode`) | 400 |
 | Invalid file path / missing param | 400 |
 | File too large | 413 |
 

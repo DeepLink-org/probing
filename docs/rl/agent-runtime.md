@@ -34,7 +34,7 @@ Agentic RL 的性能问题常表现为 GPU 空转，根因却可能在 Sandbox�
          Web UI：Rollout / Train / Spans / Perfetto / Inference
 ```
 
-框架在关键边界打 Span 并传递 `rollout_id`、`sample_id`、`phase` 等**通用属性**；Web UI 只读这些契约字段，不依赖框架私有 span 名称（契约定义见 `web/src/rl_contract.rs`）。因此同一套 UI 可对接多种 RL 栈。
+框架在关键边界打 Span 并传递 `rollout_id`、`sample_id`、`phase` 等**通用属性**；Web UI 只读这些契约字段，不依赖框架私有 span 名称（查询与转换见 `web/src/api/rl.rs`，页面消费见 `web/src/next/pages/rl.rs`）。因此同一套 UI 可对接多种 RL 栈。
 
 ---
 

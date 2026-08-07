@@ -244,13 +244,13 @@ fn ActiveSidebarPanel(route: NextRoute, on_navigate: EventHandler<()>) -> Elemen
                 SidebarIntro { text: "Device capacity, sampled peaks, allocator state, and allocation evidence." }
                 ControlPanel { title: "Memory controls", MemoryControls {} }
             },
-            NextRoute::Analytics {} | NextRoute::Python {} | NextRoute::Pulsing {} | NextRoute::System {} | NextRoute::Explore {} | NextRoute::ClassicFallback { .. } => rsx! {
+            NextRoute::Analytics {} | NextRoute::Python {} | NextRoute::Pulsing {} | NextRoute::System {} | NextRoute::Explore {} | NextRoute::NotFound { .. } => rsx! {
                 SidebarSectionLabel { label: "Tools" }
                 NavLeaf { to: NextRoute::Analytics {}, label: "SQL Explorer", icon: &icondata::AiDatabaseOutlined, active: matches!(route, NextRoute::Analytics {}), on_navigate }
                 NavLeaf { to: NextRoute::Python {}, label: "Python Trace", icon: &icondata::SiPython, active: matches!(route, NextRoute::Python {}), on_navigate }
                 NavLeaf { to: NextRoute::Pulsing {}, label: "Pulsing", icon: &icondata::AiNodeIndexOutlined, active: matches!(route, NextRoute::Pulsing {}), on_navigate }
                 NavLeaf { to: NextRoute::System {}, label: "Process snapshot", icon: &icondata::AiControlOutlined, active: matches!(route, NextRoute::System {}), on_navigate }
-                NavLeaf { to: NextRoute::Explore {}, label: "Capability catalog", icon: &icondata::AiAppstoreOutlined, active: matches!(route, NextRoute::Explore {} | NextRoute::ClassicFallback { .. }), on_navigate }
+                NavLeaf { to: NextRoute::Explore {}, label: "Capability catalog", icon: &icondata::AiAppstoreOutlined, active: matches!(route, NextRoute::Explore {} | NextRoute::NotFound { .. }), on_navigate }
             },
         }
     }

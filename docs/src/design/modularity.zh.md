@@ -299,7 +299,7 @@ sequenceDiagram
 | 认证、限流 | probing-server | middleware |
 | inject、query CLI | probing-cli | HTTP → server |
 | 诊断 skill | skills/ | steps.yaml |
-| Training step 矩阵 UI | web/pages/training | `GET /apis/training/step_matrix` |
+| Training step 矩阵 UI | web/src/next/pages/training.rs | `GET /apis/training/step_matrix` |
 | Agent 路由 | web/agent + skills catalog | skill 元数据 |
 
 ---

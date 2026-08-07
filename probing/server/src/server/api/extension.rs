@@ -6,7 +6,7 @@ use axum::{
 };
 use http_body_util::BodyExt;
 
-use probing_core::core::ProbeExtensionManager;
+use probing_core::core::{ProbeExtensionManager, ProbeExtensionResponse};
 
 use crate::engine::ENGINE;
 use crate::server::api::response;
@@ -29,6 +29,11 @@ pub async fn handle(req: axum::extract::Request) -> ApiResult<Response> {
                 "Method {method} not allowed for {path}; expected {}",
                 route.method
             )));
+        }
+        if route.requires_engine_ready {
+            if let Some(message) = crate::engine_lifecycle::engine_not_ready_message() {
+                return Err(ApiError::service_unavailable(message));
+            }
         }
     }
 
@@ -61,8 +66,8 @@ pub async fn handle(req: axum::extract::Request) -> ApiResult<Response> {
         return Ok((StatusCode::NOT_FOUND, "Extension manager not available").into_response());
     };
 
-    match eem.call(path, &params, &body_bytes).await {
-        Ok(response_bytes) => Ok(extension_response(path, response_bytes).into_response()),
+    match eem.call_response(path, &params, &body_bytes).await {
+        Ok(extension) => Ok(extension_response(path, extension).into_response()),
         Err(e) => {
             log::error!("Extension call failed for path '{path}': {e}");
             Err(ApiError::from_engine(e))
@@ -75,12 +80,19 @@ pub fn api_path(full_path: &str) -> &str {
     full_path.strip_prefix("/apis").unwrap_or(full_path)
 }
 
-fn extension_response(path: &str, body: Vec<u8>) -> (StatusCode, HeaderMap, Vec<u8>) {
+fn extension_response(
+    path: &str,
+    response: ProbeExtensionResponse,
+) -> (StatusCode, HeaderMap, Vec<u8>) {
     let meta = response::lookup(path);
-    let status = response::status_for_extension_body(meta.content_type, &body);
+    let status = if response.partial {
+        StatusCode::SERVICE_UNAVAILABLE
+    } else {
+        response::status_for_extension_body(meta.content_type, &response.body)
+    };
     let mut headers = HeaderMap::new();
     response::apply_response_headers(meta, &mut headers);
-    (status, headers, body)
+    (status, headers, response.body)
 }
 
 fn cors_preflight() -> (StatusCode, HeaderMap, &'static str) {
@@ -95,11 +107,12 @@ fn cors_preflight() -> (StatusCode, HeaderMap, &'static str) {
 
 #[cfg(test)]
 mod tests {
-    use super::api_path;
+    use super::{api_path, extension_response};
     use crate::server::api::response::{
         lookup, route_spec, status_for_extension_body, ResponseMeta,
     };
     use axum::http::StatusCode;
+    use probing_core::core::ProbeExtensionResponse;
 
     fn load_spec() -> serde_json::Value {
         let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -120,6 +133,14 @@ mod tests {
     fn eval_route_is_post_in_spec() {
         let route = route_spec("/pythonext/eval").expect("eval route");
         assert_eq!(route.method, "POST");
+        assert!(!route.requires_engine_ready);
+    }
+
+    #[test]
+    fn distributed_torch_route_requires_ready_engine() {
+        let route = route_spec("/torchextension/flamegraph/distributed/json")
+            .expect("distributed torch route");
+        assert!(route.requires_engine_ready);
     }
 
     #[test]
@@ -154,6 +175,19 @@ mod tests {
                 br#"{"error":"No handler found for path: x"}"#
             ),
             StatusCode::NOT_FOUND
+        );
+    }
+
+    #[test]
+    fn partial_extension_response_maps_to_service_unavailable() {
+        let response = ProbeExtensionResponse {
+            body: br#"{"frames":[]}"#.to_vec(),
+            partial: true,
+        };
+
+        assert_eq!(
+            extension_response("/torchextension/flamegraph/distributed/json", response).0,
+            StatusCode::SERVICE_UNAVAILABLE
         );
     }
 }

@@ -15,14 +15,12 @@ dioxus-web = "0.7.9"
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-serde_yaml = "0.9"
 
 # HTTP client
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 urlencoding = "2.1"
 
 # Error handling
-anyhow = "1.0"
 thiserror = "1.0"
 
 # Logging

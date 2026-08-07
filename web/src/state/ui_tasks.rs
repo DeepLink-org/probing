@@ -13,8 +13,6 @@ pub enum UiTaskKind {
     Agent,
     Snapshot,
     Skill,
-    #[allow(dead_code)] // reserved for Command Panel / SQL tasks
-    Query,
 }
 
 impl UiTaskKind {
@@ -23,7 +21,6 @@ impl UiTaskKind {
             UiTaskKind::Agent => "Agent",
             UiTaskKind::Snapshot => "Snapshot",
             UiTaskKind::Skill => "Skill",
-            UiTaskKind::Query => "Query",
         }
     }
 }

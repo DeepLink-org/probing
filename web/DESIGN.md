@@ -31,7 +31,7 @@ web/src/next/
 | 证据 | `/spans`、`/stacks/*`、`/profiles`、`/profiling/:view` |
 | 工具 | `/analytics`、`/python`、`/pulsing`、`/cluster`、`/system` |
 
-Shell 挂载 ⌘K Command Panel、全局快捷键、Investigation URL 同步、页面 evidence snapshot、后台任务与 Torch overhead monitor，以及可浮动的 Investigate 面板。主内容区不设固定顶栏。未知 URL 由 `ClassicFallback`（历史命名）落到能力目录引导页，不再切回旧 UI。
+Shell 挂载 ⌘K Command Panel、全局快捷键、Investigation URL 同步、页面 evidence snapshot、后台任务与 Torch overhead monitor，以及可浮动的 Investigate 面板。主内容区不设固定顶栏。未知 URL 由 `NotFound` 路由落到能力目录引导页。
 
 **新页面**放在 `web/src/next/pages/`，在 `routes.rs` 注册，并在 `page_registry.rs` 声明 page spec。
 
@@ -66,11 +66,10 @@ Probing Web 是 **训练/推理现场的 live 诊断工作台**，不是 experim
 | `AppOverlays` | 侧栏 Monitors 点击 / `file:line` | 根级 viewport overlay（任务队列、Torch overhead、源码预览） |
 | `GlobalCommandPanel` | 侧栏搜索 / ⌘K | SQL / eval REPL；不常驻输入条 |
 | `AgentPanel` | ⌘J（`/agent` 全页时禁用浮层） | 右侧浮层 Investigate |
-| （已移除）InvestigationContextHint | — | 调查上下文由 Next 页内固定条承载 |
-| `SidebarMonitors` | — | 侧栏底部紧凑摘要（Tasks + Torch overhead）；点击打开对应 overlay |
+| Monitor rail actions | 侧栏底部 Tasks / Overhead | 展示任务摘要并打开对应 overlay |
 | `LlmSettingsOverlay` | Agent ⚙ | LLM API 配置（localStorage） |
 | `ShortcutsHelpOverlay` | `?` | 快捷键帮助 |
-| `PageContextSync` | — | 已由 `NextShell` + `page_snapshot` 取代 |
+| `page_snapshot` | 路由或调查坐标变化 | 由 `NextShell` 向 Agent 发布当前页面证据 |
 | `InvestigationUrlSync` | — | 上下文 ↔ URL query 双向同步 |
 | `UiTaskRuntime` | — | 全局任务计时 tick |
 
@@ -133,14 +132,14 @@ APP_OVERLAY: None | SourceViewer(path, line) | Monitor(Tasks | Overhead)
 
 ### 2.3 页面与状态组件
 
-**经典页面模式**（Dashboard、Cluster、Analytics 等）：
+**统一页面模式**（Dashboard、Cluster、Analytics 等）：
 
-- `PageContainer` + `PageTitle` + 若干 `Card` / `StatCard`。
-- 异步数据：`AsyncBoundary` + `use_app_resource`；poll 页配合 `use_poll_tick_gated` + `PollStatusBar`。
+- `next/components.rs` 的 `WorkspacePage` + `NextPageHeader` + 若干 `SectionCard` / evidence panel。
+- 异步数据：页面按资源状态使用 `LoadingPanel` / `UnavailablePanel`；需要 Suspense 时使用 `AsyncBoundary`，轮询配合 `use_poll_tick_gated` + `PollStatusBar`。
 
-**Workspace 模式**（Agent、部分新面板）：
+**可分栏工作区**（Agent、时间线等）：
 
-- `workspace/panel_shell.rs`、`surface.rs`、`split.rs` — 统一 Agent 与浮层视觉。
+- `components/workspace/surface.rs`、`split.rs` — 统一可调整分栏和 surface 视觉。
 
 **反馈状态**（`components/common.rs`）：
 
@@ -192,7 +191,7 @@ Tasks / Overhead                紧凑状态行
 |------|------|------|
 | 状态 | `state/investigation.rs` | `INVESTIGATION_CONTEXT`（step、rank、host、trace_id、span、pid/tid） |
 | URL | `state/investigation_url.rs` | query 参数读写、与 localStorage 同步 |
-| 提示 | `components/investigation_context_hint.rs` | 页内空状态 / 上下文引导 |
+| 固定条 | `next/components.rs` | `InvestigationBar` 展示当前坐标及页面支持状态 |
 
 固定上下文以紧凑的 blue-50 调查条显示，字段写入 URL 和 localStorage；调查条、侧栏轨道和侧栏子视图都使用包含完整坐标的 durable link，普通跳转、复制链接和新标签页不得丢失上下文。Hover 只做预览，Click/键盘选择才固定上下文。
 
@@ -219,9 +218,9 @@ Cluster Nodes 在 registry 表格上提供 Rank、Host、GPU、endpoint、role �
 | `ui_agent_busy()` | Agent 输入禁用、chip disabled |
 | `UI_TASK_TICK` | 500ms tick，驱动侧栏 Monitors elapsed 显示 |
 
-**任务种类**（`UiTaskKind`）：`Agent` · `Snapshot` · `Skill` · `Query`（Query 预留，Command Panel 待接入）。
+**任务种类**（`UiTaskKind`）：`Agent` · `Snapshot` · `Skill`。
 
-**UI 入口**：侧栏 `SidebarMonitors` 摘要 → `AppOverlays::TasksMonitorOverlay` 全屏列表（可 Cancel all / Clear finished）。
+**UI 入口**：侧栏 Tasks rail action → `AppOverlays::TasksMonitorOverlay` 全屏列表（可 Cancel all / Clear finished）。
 
 ---
 
@@ -235,7 +234,7 @@ Cluster Nodes 在 registry 表格上提供 Rank、Host、GPU、endpoint、role �
 | SQL | `overhead/sql.rs` | 固定窗口 SQL（`WINDOW_STEPS=80` 等常量） |
 | API | `api/overhead.rs` | `fetch_overhead_summary`、NCCL counters 可选 |
 | UI | `components/overhead/panel.rs` | `TorchOverheadPanel` 表格与脚注 |
-| 侧栏 | `components/sidebar/monitors.rs` | 轮询摘要 + 打开 `OverheadMonitorOverlay` |
+| 入口 | `next/sidebar.rs` + `components/app_overlays.rs` | 侧栏触发并渲染 `OverheadMonitorOverlay` |
 
 轮询间隔：`OVERHEAD_POLL_MS`（2000ms），页面不可见时 `use_poll_tick_gated` 暂停。
 
@@ -343,7 +342,7 @@ web/src/
 
 ## 九、构建与部署
 
-- 开发 / 构建：`dx serve` / `dx build --release`；仓库根 `make frontend` 复制产物到 `web/dist/`。
+- 开发 / 构建：`dx serve` / `dx bundle --release`；仓库根 `make frontend` 将产物嵌入 `probing/server/web-assets/`，并把 `web/dist/` 链接到该目录。
 - UI 静态资源由 `make frontend` 生成到被 Git 忽略的 `probing/server/web-assets/`，build script 将其复制到 `$OUT_DIR` 后通过 `include_dir` 编译进 `probing._core`；没有前端产物的普通 Rust 构建使用轻量 fallback，`PROBING_ASSETS_ROOT` 仅作为开发期显式磁盘覆盖。
 
 ---
@@ -352,9 +351,9 @@ web/src/
 
 以下为当前实现与理想状态之间的差距，供迭代参考（非阻塞发布）：
 
-**已修复（历史 P0）**：旧 Classic `pages/stack.rs` 侧栏帧计数改为 `use_effect`；删除 `chrome_tracing_iframe`；Playbook 体系迁移为 Skills + `probing-skills`。
+**已完成的架构收敛**：Classic 页面与 iframe tracing 已删除；Playbook 体系已迁移为 Skills + `probing-skills`。
 
-**重构后已落地**：`SidebarMonitors` + `AppOverlays`；`overhead/` 领域模块；runtime skill 加载；`OverlayShell` 统一 modal。
+**重构后已落地**：Next sidebar + `AppOverlays`；`overhead/` 领域模块；runtime skill 加载；`OverlayShell` 统一 modal。
 
 1. **全局 Esc 与 monitor overlay** — `keyboard_shortcuts.rs` 未调用 `close_app_overlay()`；Tasks/Overhead 仅依赖 `OverlayShell` 局部 Esc。
 2. **`/traces` 与 `/spans` 重复** — 侧栏仅推广 `/spans`；`/traces` 保留兼容 redirect。

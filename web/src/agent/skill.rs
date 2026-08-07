@@ -13,7 +13,6 @@ use serde_json::Value;
 pub struct RoutingPayload {
     pub catalog: CatalogPayload,
     pub intents: IntentCatalogFile,
-    pub pages: PageCatalogFile,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -50,23 +49,6 @@ pub struct IntentEntry {
     pub skills: Vec<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct PageCatalogFile {
-    #[serde(default)]
-    pub pages: HashMap<String, PageEntry>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[allow(dead_code)] // Deserialized from routing API; not read after Classic page catalog removal.
-pub struct PageEntry {
-    pub title: String,
-    pub path: String,
-    #[serde(default)]
-    pub description: String,
-    #[serde(default)]
-    pub skills: Vec<String>,
-}
-
 pub type SkillPayload = Value;
 
 #[derive(Debug, Default)]
@@ -74,7 +56,6 @@ struct SkillStore {
     skills: HashMap<String, Skill>,
     catalog: Vec<CatalogEntry>,
     intents: HashMap<String, IntentEntry>,
-    pages: HashMap<String, PageEntry>,
     loaded: bool,
 }
 
@@ -99,7 +80,6 @@ pub fn populate_skill_store(routing: RoutingPayload, payloads: Vec<SkillPayload>
     if let Ok(mut guard) = store().write() {
         guard.catalog = routing.catalog.skills;
         guard.intents = routing.intents.intents;
-        guard.pages = routing.pages.pages;
         guard.skills = skills;
         guard.loaded = true;
     }

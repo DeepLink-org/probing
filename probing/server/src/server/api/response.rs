@@ -26,6 +26,7 @@ impl Default for ResponseMeta {
 pub struct ExtensionRouteSpec {
     pub method: &'static str,
     pub response: ResponseMeta,
+    pub requires_engine_ready: bool,
 }
 
 static ROUTE_MAP: Lazy<HashMap<String, ExtensionRouteSpec>> = Lazy::new(|| {
@@ -67,6 +68,10 @@ fn build_route_map() -> Result<HashMap<String, ExtensionRouteSpec>, String> {
             ExtensionRouteSpec {
                 method: parse_method(method),
                 response: parse_response_meta(response, &defaults),
+                requires_engine_ready: handler
+                    .get("requires_engine_ready")
+                    .and_then(|value| value.as_bool())
+                    .unwrap_or(false),
             },
         );
     }
@@ -93,6 +98,10 @@ fn build_route_map() -> Result<HashMap<String, ExtensionRouteSpec>, String> {
             ExtensionRouteSpec {
                 method: parse_method(method),
                 response: parse_response_meta(response, &defaults),
+                requires_engine_ready: entry
+                    .get("requires_engine_ready")
+                    .and_then(|value| value.as_bool())
+                    .unwrap_or(false),
             },
         );
     }

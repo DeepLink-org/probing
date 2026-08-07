@@ -37,6 +37,7 @@ pub use probe_extension::ProbeExtension;
 pub use probe_extension::ProbeExtensionCall;
 pub use probe_extension::ProbeExtensionManager;
 pub use probe_extension::ProbeExtensionOption;
+pub use probe_extension::ProbeExtensionResponse;
 
 pub use probing_macros::ProbeExtension;
 

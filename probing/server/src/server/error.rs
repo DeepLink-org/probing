@@ -71,6 +71,9 @@ impl ApiError {
         match err {
             EngineError::CallError(msg) | EngineError::PluginNotFound(msg) => Self::not_found(msg),
             EngineError::UnsupportedCall => Self::not_found("Unsupported API call"),
+            EngineError::InvalidCallParameter(name, value) => {
+                Self::bad_request(format!("Invalid API parameter: {name}={value}"))
+            }
             EngineError::PluginError(msg) => Self::new(StatusCode::BAD_GATEWAY, msg),
             EngineError::QueryError(msg)
             | EngineError::InternalError(msg)
@@ -157,6 +160,15 @@ mod tests {
     fn engine_plugin_error_maps_to_bad_gateway() {
         let err = ApiError::from_engine(EngineError::PluginError("boom".into()));
         assert_eq!(err.status(), StatusCode::BAD_GATEWAY);
+    }
+
+    #[test]
+    fn invalid_call_parameter_maps_to_bad_request() {
+        let err = ApiError::from_engine(EngineError::InvalidCallParameter(
+            "cluster".into(),
+            "sometimes".into(),
+        ));
+        assert_eq!(err.status(), StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]
