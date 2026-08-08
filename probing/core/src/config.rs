@@ -124,7 +124,10 @@ pub async fn write(key: &str, value: &str) -> Result<(), EngineError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::{ProbeExtension, ProbeExtensionCall, ProbeExtensionOption};
+    use crate::core::{
+        ExtensionConfigSpec, ProbeExtension, ProbeExtensionCall, ProbeExtensionConfig,
+        ProbeExtensionOption,
+    };
     use crate::{create_engine, initialize_engine};
 
     async fn setup_test() -> tokio::sync::MutexGuard<'static, ()> {
@@ -155,6 +158,16 @@ mod tests {
     impl ProbeExtension for TestExtension {
         fn name(&self) -> String {
             "test".to_string()
+        }
+    }
+
+    impl ProbeExtensionConfig for TestExtension {
+        fn config_specs(&self) -> &'static [ExtensionConfigSpec] {
+            &[ExtensionConfigSpec {
+                key: "option",
+                aliases: &[],
+                help: "Test option",
+            }]
         }
 
         fn set(&mut self, key: &str, value: &str) -> Result<String, EngineError> {

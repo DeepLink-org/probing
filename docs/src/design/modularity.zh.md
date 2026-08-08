@@ -145,17 +145,18 @@ HTTP 契约：`probing/server/API.md` + `tests/regression/spec/api_spec.json`。
 
 **规则：** schema/scan 在采集 crate 内；跨信号用 SQL JOIN，不在 `scan()` 里调别的采集器。
 
-### 3.2 `ProbeExtension` — 配置 + 命令式 HTTP
+### 3.2 `ProbeExtension` — 类型化配置与 HTTP 契约
 
 **定义：** `probing/core/src/core/probe_extension.rs`
 
 | 能力 | 机制 |
 |------|------|
-| 配置 | `probing.<ns>.<option>` |
+| 身份 | `ProbeExtension::name` 定义注册命名空间 |
+| 配置 | `ProbeExtensionConfig` 声明 key/alias 并实现 `set` / `get` / `options` |
 | 副作用 | `set_*` 里启停采样线程 |
-| HTTP | `/apis/<name>/...` |
+| HTTP | `ProbeExtensionCall::routes` 声明 method/content-type/CORS/readiness，`call` 负责执行 |
 
-**规则：** 数据走表，控制走 Extension；trait 默认实现禁止 `todo!()`。
+**规则：** 注册阶段校验扩展名、重复 route、配置 key/alias 冲突；数据走表，控制走 Extension；trait 默认实现禁止 `todo!()`。
 
 ### 3.3 Python `@table` — 应用数据插件
 

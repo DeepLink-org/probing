@@ -386,7 +386,7 @@ impl ServerHandler for ProbingMcp {
         })
         .await
         .map_err(tool_error_from)?;
-        let QueryDataFormat::DataFrame(df) = reply else {
+        let QueryDataFormat::DataFrame(df) = reply.data else {
             return Ok(ListResourcesResult {
                 resources: vec![catalog_resource()],
                 meta: None,

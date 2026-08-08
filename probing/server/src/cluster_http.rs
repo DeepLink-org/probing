@@ -1,15 +1,14 @@
 use std::time::Duration;
 
 use anyhow::Result;
+use probing_core::core::federation::{FanoutHttpMethod, FanoutHttpRequest};
 use probing_proto::prelude::{Node, NodeListResponse, NodeReportRequest, NodeReportResponse};
 
-use crate::auth::peer_auth_header_value;
-
-fn authenticate_peer_request<B>(request: ureq::RequestBuilder<B>) -> ureq::RequestBuilder<B> {
-    match peer_auth_header_value() {
-        Some(value) => request.header("Authorization", value),
-        None => request,
-    }
+fn peer_addr(http_base: &str) -> &str {
+    http_base
+        .trim_end_matches('/')
+        .trim_start_matches("http://")
+        .trim_start_matches("https://")
 }
 
 pub fn get_i32_env(name: &str) -> Option<i32> {
@@ -28,22 +27,29 @@ fn nodes_page_size() -> usize {
 }
 
 pub fn fetch_nodes_blocking(http_base: &str) -> Result<Vec<Node>> {
-    let base = http_base.trim_end_matches('/');
+    let addr = peer_addr(http_base);
     let page_size = nodes_page_size();
     let mut offset = 0usize;
     let mut all = Vec::new();
     loop {
-        let url = format!("{base}/apis/nodes?offset={offset}&limit={page_size}");
-        let request = ureq::get(&url)
-            .config()
-            .no_delay(true)
-            .timeout_global(Some(Duration::from_secs(10)))
-            .build();
-        let text = authenticate_peer_request(request)
-            .call()?
-            .body_mut()
-            .read_to_string()?;
-        let resp: NodeListResponse = serde_json::from_str(&text)?;
+        let response = crate::server::cluster_fanout::request_peer_blocking(
+            addr,
+            FanoutHttpRequest {
+                method: FanoutHttpMethod::Get,
+                path: format!("/apis/nodes?offset={offset}&limit={page_size}"),
+                content_type: None,
+                body: Vec::new(),
+                timeout: Duration::from_secs(10),
+            },
+        )?;
+        if response.status >= 400 {
+            anyhow::bail!(
+                "HTTP {}: {}",
+                response.status,
+                String::from_utf8_lossy(&response.body)
+            );
+        }
+        let resp: NodeListResponse = serde_json::from_slice(&response.body)?;
         let empty = resp.nodes.is_empty();
         all.extend(resp.nodes);
         if all.len() >= resp.total || empty {
@@ -59,24 +65,56 @@ pub fn put_nodes_blocking(
     nodes: Vec<Node>,
     seen_version: u64,
 ) -> Result<NodeReportResponse> {
-    let url = format!("{}/apis/nodes", http_base.trim_end_matches('/'));
-    let body = NodeReportRequest {
-        nodes,
-        seen_version,
-    };
-    let request = ureq::put(&url)
-        .config()
-        .no_delay(true)
-        .timeout_global(Some(Duration::from_secs(
+    let addr = peer_addr(http_base);
+    let response = crate::server::cluster_fanout::request_peer_blocking(
+        addr,
+        node_report_request(nodes, seen_version)?,
+    )?;
+    decode_node_report(response)
+}
+
+pub async fn put_nodes(
+    http_base: &str,
+    nodes: Vec<Node>,
+    seen_version: u64,
+) -> Result<NodeReportResponse> {
+    let response = crate::server::cluster_fanout::core_service()?
+        .request_peer(
+            peer_addr(http_base),
+            node_report_request(nodes, seen_version)?,
+        )
+        .await
+        .map_err(anyhow::Error::new)?;
+    decode_node_report(response)
+}
+
+fn node_report_request(nodes: Vec<Node>, seen_version: u64) -> Result<FanoutHttpRequest> {
+    Ok(FanoutHttpRequest {
+        method: FanoutHttpMethod::Put,
+        path: "/apis/nodes".into(),
+        content_type: Some("application/json".into()),
+        body: serde_json::to_vec(&NodeReportRequest {
+            nodes,
+            seen_version,
+        })?,
+        timeout: Duration::from_secs(
             std::env::var("PROBING_CLUSTER_REPORT_TIMEOUT_SEC")
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(5),
-        )))
-        .build();
-    let text = authenticate_peer_request(request)
-        .send_json(body)?
-        .body_mut()
-        .read_to_string()?;
-    Ok(serde_json::from_str(&text)?)
+        ),
+    })
+}
+
+fn decode_node_report(
+    response: probing_core::core::federation::FanoutHttpResponse,
+) -> Result<NodeReportResponse> {
+    if response.status >= 400 {
+        anyhow::bail!(
+            "HTTP {}: {}",
+            response.status,
+            String::from_utf8_lossy(&response.body)
+        );
+    }
+    Ok(serde_json::from_slice(&response.body)?)
 }

@@ -215,8 +215,8 @@ Hierarchical side-channel registration when `WORLD_SIZE > 1`. See [torchrun clus
 | `PROBING_CLUSTER_FANOUT_HIERARCHICAL` | `1` | Hierarchical cluster query fan-out (coordinator → local0 → leaves). `0` = flat fan-out to every peer. See [Hierarchical fan-out](../design/hierarchical-fanout.md). |
 | `PROBING_REMOTE_QUERY_TIMEOUT_SECS` | `30` | Per-peer timeout for remote federated / cluster queries (seconds). |
 | `PROBING_FANOUT_CONCURRENCY` | `128` | Max concurrent in-flight remote fan-out HTTP requests per query. |
+| `PROBING_FANOUT_WORKER_THREADS` | `4` | Worker threads in the isolated async fan-out runtime shared by distributed SQL, extension capture, discovery, and heartbeat requests. |
 | `PROBING_FANOUT_STRICT` | unset | When `1` or `true`, any federated peer failure or dropped batch fails the whole query instead of returning partial results. |
-| `PROBING_STACK_FANOUT_CONCURRENCY` | `32` | Max concurrent peer captures for Distributed stacks. |
 | `PROBING_STACK_FANOUT_DEADLINE_SEC` | `15` | Overall Distributed stacks fan-out deadline. Completed peers are returned as a partial flamegraph when the deadline expires. |
 | `PROBING_NCCL_CHUNK_BYTES` | `65536` | NCCL profiler mmap ring chunk size (bytes). |
 | `PROBING_NCCL_NUM_CHUNKS` | `64` | NCCL profiler mmap ring chunk count (~4 MiB total per table at defaults). |

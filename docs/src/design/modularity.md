@@ -156,20 +156,22 @@ New work should extend **one** of these contracts instead of adding cross-module
   `global.<schema>.<table>`.
 - Do **not** query other collectors from inside `scan()`; join at SQL layer.
 
-### 3.2 `ProbeExtension` — config + imperative HTTP
+### 3.2 `ProbeExtension` — typed config + HTTP contracts
 
 **Where:** `probing/core/src/core/probe_extension.rs`
 **Derive:** `#[derive(ProbeExtension)]` in `probing-macros`
 
 | Capability | Mechanism |
 |------------|-----------|
-| Config keys | `probing.<namespace>.<option>` via `set` / `get` / `options` |
+| Identity | `ProbeExtension::name` supplies the registration namespace |
+| Config keys | `ProbeExtensionConfig` publishes typed key/alias specs and implements `set` / `get` / `options` |
 | Side effects | Background sampler start/stop in `set_*` handlers |
-| HTTP | `ProbeExtensionCall::call` → `/apis/<name>/...` fallback |
+| HTTP | `ProbeExtensionCall::routes` registers method/content-type/CORS/readiness contracts; `call` executes them |
 
 **Rules:**
 
 - Extension name = URL segment (`pythonext`, `rdmaextension`, …).
+- Registration validates names, duplicate routes, and config key/alias collisions before engine publication.
 - Prefer **tables for data**, extension for **control** (start/stop, eval, flamegraph render).
 - Never `todo!()` in default trait methods — return `EngineError`.
 

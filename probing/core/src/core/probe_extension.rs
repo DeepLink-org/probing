@@ -77,6 +77,88 @@ pub struct ProbeExtensionOption {
     pub help: &'static str,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExtensionHttpMethod {
+    Get,
+    Post,
+    Put,
+    Delete,
+}
+
+impl ExtensionHttpMethod {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Get => "GET",
+            Self::Post => "POST",
+            Self::Put => "PUT",
+            Self::Delete => "DELETE",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExtensionContentType {
+    Json,
+    Text,
+    Html,
+}
+
+impl ExtensionContentType {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Json => "application/json",
+            Self::Text => "text/plain",
+            Self::Html => "text/html",
+        }
+    }
+}
+
+/// Static HTTP contract published by an extension.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ExtensionRoute {
+    /// Extension-local path without a leading slash.
+    pub path: &'static str,
+    pub method: ExtensionHttpMethod,
+    pub content_type: ExtensionContentType,
+    pub cors: bool,
+    pub requires_engine_ready: bool,
+}
+
+impl ExtensionRoute {
+    pub const fn new(
+        path: &'static str,
+        method: ExtensionHttpMethod,
+        content_type: ExtensionContentType,
+    ) -> Self {
+        Self {
+            path,
+            method,
+            content_type,
+            cors: false,
+            requires_engine_ready: false,
+        }
+    }
+
+    pub const fn with_cors(mut self) -> Self {
+        self.cors = true;
+        self
+    }
+
+    pub const fn requiring_engine(mut self) -> Self {
+        self.requires_engine_ready = true;
+        self
+    }
+}
+
+/// Static configuration contract published by an extension.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ExtensionConfigSpec {
+    /// Extension-local canonical key.
+    pub key: &'static str,
+    pub aliases: &'static [&'static str],
+    pub help: &'static str,
+}
+
 /// Body plus transport-neutral completeness metadata returned by an extension.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ProbeExtensionResponse {
@@ -98,6 +180,12 @@ impl From<Vec<u8>> for ProbeExtensionResponse {
 #[allow(unused)]
 #[async_trait]
 pub trait ProbeExtensionCall: Debug + Send + Sync {
+    /// HTTP routes owned by this extension. Registration validates and indexes
+    /// these contracts before the engine becomes visible.
+    fn routes(&self) -> Vec<ExtensionRoute> {
+        Vec::new()
+    }
+
     /// Handle API calls to the extension
     ///
     /// # Arguments
@@ -128,22 +216,32 @@ pub trait ProbeExtensionCall: Debug + Send + Sync {
     }
 }
 
+/// Runtime configuration contract, intentionally independent from HTTP calls.
+pub trait ProbeExtensionConfig: Debug + Send + Sync {
+    fn set(&mut self, key: &str, _value: &str) -> Result<String, EngineError> {
+        Err(EngineError::UnsupportedOption(key.to_string()))
+    }
+
+    fn get(&self, key: &str) -> Result<String, EngineError> {
+        Err(EngineError::UnsupportedOption(key.to_string()))
+    }
+
+    fn options(&self) -> Vec<ProbeExtensionOption> {
+        Vec::new()
+    }
+
+    fn config_specs(&self) -> &'static [ExtensionConfigSpec] {
+        &[]
+    }
+}
+
 /// Configurable Probing extension: HTTP calls, SET options, and runtime side effects.
 ///
 /// SQL catalog registration is separate — use [`ProbeDataSource`] via
 /// [`super::engine::EngineBuilder::with_data_source`].
 #[allow(unused)]
-pub trait ProbeExtension: Debug + Send + Sync + ProbeExtensionCall {
+pub trait ProbeExtension: Debug + Send + Sync + ProbeExtensionCall + ProbeExtensionConfig {
     fn name(&self) -> String;
-    fn set(&mut self, key: &str, _value: &str) -> Result<String, EngineError> {
-        Err(EngineError::UnsupportedOption(key.to_string()))
-    }
-    fn get(&self, key: &str) -> Result<String, EngineError> {
-        Err(EngineError::UnsupportedOption(key.to_string()))
-    }
-    fn options(&self) -> Vec<ProbeExtensionOption> {
-        Vec::new()
-    }
 }
 
 /// Engine extension management module for configurable functionality.
@@ -164,7 +262,7 @@ pub trait ProbeExtension: Debug + Send + Sync + ProbeExtensionCall {
 /// use std::sync::Arc;
 /// use tokio::sync::Mutex;
 /// use probing_core::core::ProbeExtensionManager;
-/// use probing_core::core::{ProbeExtension, ProbeExtensionOption, ProbeExtensionCall, EngineError};
+/// use probing_core::core::{EngineError, ExtensionConfigSpec, ProbeExtension, ProbeExtensionConfig, ProbeExtensionOption, ProbeExtensionCall};
 ///
 /// #[derive(Debug)]
 /// struct MyExtension {
@@ -176,6 +274,12 @@ pub trait ProbeExtension: Debug + Send + Sync + ProbeExtensionCall {
 /// impl ProbeExtension for MyExtension {
 ///     fn name(&self) -> String {
 ///         "my_extension".to_string() // This name is used to form the option namespace
+///     }
+/// }
+///
+/// impl ProbeExtensionConfig for MyExtension {
+///     fn config_specs(&self) -> &'static [ExtensionConfigSpec] {
+///         &[ExtensionConfigSpec { key: "some_option", aliases: &[], help: "An example option" }]
 ///     }
 ///
 ///     fn set(&mut self, key: &str, value: &str) -> Result<String, EngineError> {
@@ -210,12 +314,11 @@ pub trait ProbeExtension: Debug + Send + Sync + ProbeExtensionCall {
 /// // This example demonstrates usage within an async context.
 /// # async fn manager_usage_example() -> Result<(), EngineError> {
 ///     let mut manager = ProbeExtensionManager::default();
-///     // Register extensions. The first argument "my_ext_instance_key" is an internal key for the manager
-///     // and does not directly affect option key formation for set_option/get_option.
+///     // Registration keys must match the extension's declared name.
 ///     manager.register(
-///         "my_ext_instance_key".to_string(),
+///         "my_extension".to_string(),
 ///         Arc::new(Mutex::new(MyExtension { some_option: "default".to_string() }))
-///     );
+///     ).await?;
 ///
 ///     // Configure extensions. The option key is "<extension_name>.<local_option_key>".
 ///     // MyExtension::name() returns "my_extension". The local key is "some_option".
@@ -248,12 +351,28 @@ pub trait ProbeExtension: Debug + Send + Sync + ProbeExtensionCall {
 #[derive(Clone, Debug)]
 pub struct ProbeExtensionManager {
     extensions: Arc<RwLock<ProbeExtensionMap>>,
+    routes: Arc<RwLock<BTreeMap<String, RegisteredExtensionRoute>>>,
+    configs: Arc<RwLock<BTreeMap<String, RegisteredExtensionConfig>>>,
+}
+
+#[derive(Clone, Debug)]
+struct RegisteredExtensionRoute {
+    extension: Arc<Mutex<dyn ProbeExtension + Send + Sync>>,
+    contract: ExtensionRoute,
+}
+
+#[derive(Clone, Debug)]
+struct RegisteredExtensionConfig {
+    extension: Arc<Mutex<dyn ProbeExtension + Send + Sync>>,
+    local_key: &'static str,
 }
 
 impl Default for ProbeExtensionManager {
     fn default() -> Self {
         Self {
             extensions: Arc::new(RwLock::new(BTreeMap::new())),
+            routes: Arc::new(RwLock::new(BTreeMap::new())),
+            configs: Arc::new(RwLock::new(BTreeMap::new())),
         }
     }
 }
@@ -264,8 +383,95 @@ impl ProbeExtensionManager {
         &mut self,
         name: String,
         extension: Arc<Mutex<dyn ProbeExtension + Send + Sync>>,
-    ) {
-        self.extensions.write().await.insert(name, extension);
+    ) -> Result<(), EngineError> {
+        let (actual_name, contracts, config_specs) = {
+            let extension = extension.lock().await;
+            (
+                extension.name(),
+                extension.routes(),
+                extension.config_specs().to_vec(),
+            )
+        };
+        validate_extension_name(&actual_name)?;
+        if name != actual_name {
+            return Err(EngineError::config(format!(
+                "extension registration key '{name}' does not match declared name '{actual_name}'"
+            )));
+        }
+        validate_config_specs(&actual_name, &config_specs)?;
+
+        let config_namespace = Self::extract_namespace(&actual_name);
+        let mut indexed_configs = Vec::new();
+        for spec in config_specs {
+            indexed_configs.push((format!("{config_namespace}{}", spec.key), spec.key));
+            indexed_configs.extend(
+                spec.aliases
+                    .iter()
+                    .map(|alias| (format!("{config_namespace}{alias}"), *alias)),
+            );
+        }
+
+        let mut indexed = Vec::with_capacity(contracts.len());
+        for contract in contracts {
+            validate_route(&actual_name, contract)?;
+            let full_path = extension_route_key(&actual_name, contract.path);
+            if indexed.iter().any(|(path, _)| path == &full_path) {
+                return Err(EngineError::config(format!(
+                    "extension '{actual_name}' declares duplicate route '/{full_path}'"
+                )));
+            }
+            indexed.push((full_path, contract));
+        }
+
+        let mut extensions = self.extensions.write().await;
+        if extensions.contains_key(&actual_name) {
+            return Err(EngineError::config(format!(
+                "duplicate extension name '{actual_name}'"
+            )));
+        }
+        let mut routes = self.routes.write().await;
+        if let Some((path, _)) = indexed.iter().find(|(path, _)| routes.contains_key(path)) {
+            return Err(EngineError::config(format!(
+                "duplicate extension route '/{path}'"
+            )));
+        }
+        let mut configs = self.configs.write().await;
+        if let Some((key, _)) = indexed_configs
+            .iter()
+            .find(|(key, _)| configs.contains_key(key))
+        {
+            return Err(EngineError::config(format!(
+                "duplicate registered extension config key '{key}'"
+            )));
+        }
+        extensions.insert(actual_name, extension.clone());
+        for (path, contract) in indexed {
+            routes.insert(
+                path,
+                RegisteredExtensionRoute {
+                    extension: extension.clone(),
+                    contract,
+                },
+            );
+        }
+        for (key, local_key) in indexed_configs {
+            configs.insert(
+                key,
+                RegisteredExtensionConfig {
+                    extension: extension.clone(),
+                    local_key,
+                },
+            );
+        }
+        Ok(())
+    }
+
+    pub async fn route(&self, path: &str) -> Option<ExtensionRoute> {
+        self.routes
+            .read()
+            .await
+            .get(&normalize_route_key(path))
+            .map(|route| route.contract)
     }
 
     /// Extract namespace from extension name by removing "extension" suffix and converting to lowercase
@@ -282,40 +488,17 @@ impl ProbeExtensionManager {
     /// This is the core implementation that updates extension configuration.
     /// ConfigStore is not updated by this method.
     pub async fn set_option(&mut self, key: &str, value: &str) -> Result<(), EngineError> {
-        let extensions_clone: Vec<_> = {
-            let extensions = self.extensions.read().await;
-            extensions.values().cloned().collect()
-        }; // Lock is released here
-
-        for extension in extensions_clone {
-            let namespace = {
-                let ext = extension.lock().await;
-                Self::extract_namespace(&ext.name())
-            };
-
-            if !key.starts_with(&namespace) {
-                continue;
-            }
-
-            let local_key = key.trim_start_matches(&namespace).to_string();
-            let result = {
-                let mut ext = extension.lock().await;
-                ext.set(&local_key, value)
-            };
-
-            match result {
-                Ok(old) => {
-                    log::info!(
-                        "setting update [{}]:{local_key}={value} <= {old}",
-                        namespace.trim_end_matches('.')
-                    );
-                    return Ok(());
-                }
-                Err(EngineError::UnsupportedOption(_)) => continue,
-                Err(e) => return Err(e),
-            }
-        }
-        Err(EngineError::UnsupportedOption(key.to_string()))
+        let registered = self
+            .configs
+            .read()
+            .await
+            .get(key)
+            .cloned()
+            .ok_or_else(|| EngineError::UnsupportedOption(key.to_string()))?;
+        let mut extension = registered.extension.lock().await;
+        let old = extension.set(registered.local_key, value)?;
+        log::info!("setting update [{key}]={value} <= {old}");
+        Ok(())
     }
 
     /// Set an option and update ConfigStore.
@@ -334,28 +517,17 @@ impl ProbeExtensionManager {
     }
 
     pub async fn get_option(&self, key: &str) -> Result<String, EngineError> {
-        let extensions_clone: Vec<_> = {
-            let extensions = self.extensions.read().await;
-            extensions.values().cloned().collect()
-        }; // Lock is released here
-
-        for extension in extensions_clone {
-            let ext = extension.lock().await;
-            let namespace = Self::extract_namespace(&ext.name());
-            if !key.starts_with(&namespace) {
-                continue;
-            }
-            let local_key = key.trim_start_matches(&namespace);
-            match ext.get(local_key) {
-                Ok(value) => {
-                    log::info!("setting read [{}]:{local_key}={value}", ext.name());
-                    return Ok(value);
-                }
-                Err(EngineError::UnsupportedOption(_)) => continue,
-                Err(e) => return Err(e),
-            }
-        }
-        Err(EngineError::UnsupportedOption(key.to_string()))
+        let registered = self
+            .configs
+            .read()
+            .await
+            .get(key)
+            .cloned()
+            .ok_or_else(|| EngineError::UnsupportedOption(key.to_string()))?;
+        let extension = registered.extension.lock().await;
+        let value = extension.get(registered.local_key)?;
+        log::info!("setting read [{key}]={value}");
+        Ok(value)
     }
 
     pub async fn options(&self) -> Vec<ProbeExtensionOption> {
@@ -389,57 +561,81 @@ impl ProbeExtensionManager {
         params: &HashMap<String, String>,
         body: &[u8],
     ) -> Result<ProbeExtensionResponse, EngineError> {
-        let extensions_clone: Vec<_> = {
-            let extensions = self.extensions.read().await;
-            extensions.values().cloned().collect()
-        }; // Lock is released here
+        let registered = self
+            .routes
+            .read()
+            .await
+            .get(&normalize_route_key(path))
+            .cloned()
+            .ok_or_else(|| EngineError::CallError(format!("API call error: {path}")))?;
+        let extension = registered.extension.lock().await;
+        extension
+            .call_response(registered.contract.path, params, body)
+            .await
+    }
+}
 
-        for extension in extensions_clone {
-            let ext = extension.lock().await;
-            let name = ext.name();
-            let expected_prefix = format!("/{name}/");
+fn normalize_route_key(path: &str) -> String {
+    path.trim().trim_matches('/').to_ascii_lowercase()
+}
 
-            // Also check without leading slash for flexibility
-            let expected_prefix_no_slash = format!("{name}/");
+fn extension_route_key(extension_name: &str, local_path: &str) -> String {
+    let local_path = local_path.trim_matches('/');
+    if local_path.is_empty() {
+        normalize_route_key(extension_name)
+    } else {
+        normalize_route_key(&format!("{extension_name}/{local_path}"))
+    }
+}
 
-            let (matched, local_path) = if path.starts_with(&expected_prefix) {
-                (true, path[expected_prefix.len()..].to_string())
-            } else if path.starts_with(&expected_prefix_no_slash) {
-                (true, path[expected_prefix_no_slash.len()..].to_string())
-            } else {
-                (false, String::new())
-            };
+fn validate_extension_name(name: &str) -> Result<(), EngineError> {
+    if name.is_empty()
+        || name != name.to_ascii_lowercase()
+        || !name
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
+    {
+        return Err(EngineError::config(format!(
+            "invalid extension name '{name}': use lowercase ASCII letters, digits, or '_'"
+        )));
+    }
+    Ok(())
+}
 
-            if !matched {
-                continue;
+fn validate_route(extension_name: &str, route: ExtensionRoute) -> Result<(), EngineError> {
+    if route.path.starts_with('/')
+        || route.path.ends_with('/')
+        || route.path.contains("..")
+        || route.path.contains(['?', '#'])
+    {
+        return Err(EngineError::config(format!(
+            "invalid route path '{}' declared by extension '{extension_name}'",
+            route.path
+        )));
+    }
+    Ok(())
+}
+
+fn validate_config_specs(
+    extension_name: &str,
+    specs: &[ExtensionConfigSpec],
+) -> Result<(), EngineError> {
+    let mut keys = std::collections::BTreeSet::new();
+    for spec in specs {
+        for key in std::iter::once(spec.key).chain(spec.aliases.iter().copied()) {
+            if key.is_empty() || key.starts_with('.') || key.ends_with('.') || key.contains("..") {
+                return Err(EngineError::config(format!(
+                    "invalid config key '{key}' declared by extension '{extension_name}'"
+                )));
             }
-
-            log::debug!("checking extension [{name}]:{path}");
-            log::debug!("Extension [{name}] matched, local_path: {}", local_path);
-
-            // Call the extension while preserving response completeness metadata.
-            match ext.call_response(&local_path, params, body).await {
-                Ok(value) => return Ok(value),
-                Err(EngineError::UnsupportedCall) => {
-                    log::debug!(
-                        "Extension [{name}] returned UnsupportedCall for path: {}",
-                        local_path
-                    );
-                    continue;
-                }
-                Err(e) => {
-                    log::error!(
-                        "Extension [{name}] call failed for path '{}': {}",
-                        local_path,
-                        e
-                    );
-                    return Err(e);
-                }
+            if !keys.insert(key) {
+                return Err(EngineError::config(format!(
+                    "duplicate config key or alias '{key}' in extension '{extension_name}'"
+                )));
             }
         }
-        log::error!("No extension matched path: {}", path);
-        Err(EngineError::CallError(format!("API call error: {}", path)))
     }
+    Ok(())
 }
 
 impl ConfigExtension for ProbeExtensionManager {
@@ -527,6 +723,16 @@ mod tests {
         fn name(&self) -> String {
             "test".to_string()
         }
+    }
+
+    impl ProbeExtensionConfig for TestExtension {
+        fn config_specs(&self) -> &'static [ExtensionConfigSpec] {
+            &[ExtensionConfigSpec {
+                key: "option",
+                aliases: &[],
+                help: "Test option",
+            }]
+        }
 
         fn set(&mut self, key: &str, value: &str) -> Result<String, EngineError> {
             match key {
@@ -560,6 +766,14 @@ mod tests {
 
     #[async_trait]
     impl ProbeExtensionCall for PartialResponseExtension {
+        fn routes(&self) -> Vec<ExtensionRoute> {
+            vec![ExtensionRoute::new(
+                "data",
+                ExtensionHttpMethod::Get,
+                ExtensionContentType::Text,
+            )]
+        }
+
         async fn call_response(
             &self,
             _path: &str,
@@ -579,6 +793,83 @@ mod tests {
         }
     }
 
+    impl ProbeExtensionConfig for PartialResponseExtension {}
+
+    #[derive(Debug)]
+    struct InvalidContractExtension {
+        duplicate_config: bool,
+    }
+
+    impl ProbeExtensionCall for InvalidContractExtension {
+        fn routes(&self) -> Vec<ExtensionRoute> {
+            vec![
+                ExtensionRoute::new("same", ExtensionHttpMethod::Get, ExtensionContentType::Json),
+                ExtensionRoute::new(
+                    "same",
+                    ExtensionHttpMethod::Post,
+                    ExtensionContentType::Text,
+                ),
+            ]
+        }
+    }
+
+    impl ProbeExtensionConfig for InvalidContractExtension {
+        fn config_specs(&self) -> &'static [ExtensionConfigSpec] {
+            if self.duplicate_config {
+                &[
+                    ExtensionConfigSpec {
+                        key: "sample",
+                        aliases: &["rate"],
+                        help: "sample",
+                    },
+                    ExtensionConfigSpec {
+                        key: "other",
+                        aliases: &["rate"],
+                        help: "other",
+                    },
+                ]
+            } else {
+                &[]
+            }
+        }
+    }
+
+    impl ProbeExtension for InvalidContractExtension {
+        fn name(&self) -> String {
+            "invalid".into()
+        }
+    }
+
+    #[tokio::test]
+    async fn registration_rejects_duplicate_routes() {
+        let mut manager = ProbeExtensionManager::default();
+        let error = manager
+            .register(
+                "invalid".into(),
+                Arc::new(Mutex::new(InvalidContractExtension {
+                    duplicate_config: false,
+                })),
+            )
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("duplicate route"));
+    }
+
+    #[tokio::test]
+    async fn registration_rejects_duplicate_config_aliases() {
+        let mut manager = ProbeExtensionManager::default();
+        let error = manager
+            .register(
+                "invalid".into(),
+                Arc::new(Mutex::new(InvalidContractExtension {
+                    duplicate_config: true,
+                })),
+            )
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("duplicate config key or alias"));
+    }
+
     #[tokio::test]
     async fn call_response_preserves_extension_metadata() {
         let mut manager = ProbeExtensionManager::default();
@@ -587,7 +878,8 @@ mod tests {
                 "partial".to_string(),
                 Arc::new(Mutex::new(PartialResponseExtension)),
             )
-            .await;
+            .await
+            .unwrap();
 
         let response = manager
             .call_response("/partial/data", &HashMap::new(), &[])
@@ -606,7 +898,8 @@ mod tests {
         let extension = Arc::new(Mutex::new(TestExtension::default()));
         manager
             .register("test".to_string(), extension.clone())
-            .await;
+            .await
+            .unwrap();
 
         // Set option through manager using set_option_with_store_update
         manager
@@ -636,7 +929,10 @@ mod tests {
 
         let mut manager = ProbeExtensionManager::default();
         let extension = Arc::new(Mutex::new(TestExtension::default()));
-        manager.register("test".to_string(), extension).await;
+        manager
+            .register("test".to_string(), extension)
+            .await
+            .unwrap();
 
         // Set option through manager using set_option_with_store_update
         manager
@@ -657,7 +953,10 @@ mod tests {
 
         let mut manager = ProbeExtensionManager::default();
         let extension = Arc::new(Mutex::new(TestExtension::default()));
-        manager.register("test".to_string(), extension).await;
+        manager
+            .register("test".to_string(), extension)
+            .await
+            .unwrap();
 
         // Try to set unsupported key
         let result = manager.set_option("test.invalid", "value").await;
@@ -696,7 +995,8 @@ mod tests {
                 "test".to_string(),
                 Arc::new(Mutex::new(TestExtension::default())),
             )
-            .await;
+            .await
+            .unwrap();
 
         first.set_option("test.option", "first").await.unwrap();
         assert_eq!(first.get_option("test.option").await.unwrap(), "first");

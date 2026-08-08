@@ -4,7 +4,9 @@ use std::sync::{Arc, LazyLock};
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 
+use async_trait::async_trait;
 use datafusion::error::{DataFusionError, Result};
+use futures::stream::{self, StreamExt};
 use probing_proto::prelude::{DataFrame, Node};
 
 use crate::core::cluster::{
@@ -22,9 +24,101 @@ type RemoteQueryHook = Box<dyn Fn(&str, &str) -> Result<DataFrame> + Send + Sync
 static REMOTE_QUERY_HOOK: LazyLock<Mutex<Option<RemoteQueryHook>>> =
     LazyLock::new(|| Mutex::new(None));
 
-/// L3-provided transport for L1 federation execution.
-pub trait PeerQueryTransport: Debug + Send + Sync {
-    fn query(&self, addr: &str, sql: &str, scope: FanoutScope) -> Result<PeerQueryOutcome>;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FanoutHttpMethod {
+    Get,
+    Post,
+    Put,
+}
+
+#[derive(Debug, Clone)]
+pub struct FanoutHttpRequest {
+    pub method: FanoutHttpMethod,
+    pub path: String,
+    pub content_type: Option<String>,
+    pub body: Vec<u8>,
+    pub timeout: Duration,
+}
+
+#[derive(Debug, Clone)]
+pub struct FanoutHttpResponse {
+    pub status: u16,
+    pub body: Vec<u8>,
+}
+
+/// One peer plus the routing scope used for its request.
+#[derive(Debug, Clone)]
+pub struct FanoutTarget {
+    pub node: Node,
+    pub scope: FanoutScope,
+}
+
+/// L3-provided distributed execution service for SQL and extension requests.
+///
+/// Implementations own scheduling, authentication, deadlines, and execution
+/// resources. Core and collectors only describe peer work through this contract.
+#[async_trait]
+pub trait FanoutService: Debug + Send + Sync {
+    async fn query_peer(
+        &self,
+        addr: &str,
+        sql: &str,
+        scope: FanoutScope,
+    ) -> Result<PeerQueryOutcome>;
+
+    async fn request_peer(
+        &self,
+        addr: &str,
+        request: FanoutHttpRequest,
+    ) -> Result<FanoutHttpResponse>;
+
+    async fn query_many(&self, targets: Vec<FanoutTarget>, sql: &str) -> Vec<RemoteFanoutResult> {
+        let sql = sql.to_string();
+        let request_count = targets.len().max(1);
+        stream::iter(targets)
+            .map(|target| {
+                let sql = sql.clone();
+                async move {
+                    let node = target.node;
+                    let host = if node.host.is_empty() {
+                        node.addr.clone()
+                    } else {
+                        node.host.clone()
+                    };
+                    let result = self.query_peer(&node.addr, &sql, target.scope).await;
+                    RemoteFanoutResult {
+                        addr: node.addr,
+                        host,
+                        rank: node.rank,
+                        result,
+                    }
+                }
+            })
+            // The service owns the global limiter. Poll every request so its
+            // deadline includes time waiting for an execution permit.
+            .buffer_unordered(request_count)
+            .collect()
+            .await
+    }
+
+    async fn request_many(
+        &self,
+        nodes: Vec<Node>,
+        request: FanoutHttpRequest,
+    ) -> Vec<(Node, Result<FanoutHttpResponse>)> {
+        let request_count = nodes.len().max(1);
+        stream::iter(nodes)
+            .map(|node| {
+                let request = request.clone();
+                async move {
+                    let result = self.request_peer(&node.addr, request).await;
+                    (node, result)
+                }
+            })
+            .buffer_unordered(request_count)
+            .collect()
+            .await
+    }
 }
 
 /// Data and completeness metadata returned for one remote subtree.
@@ -235,69 +329,71 @@ impl ProbeClusterExecutor {
 
     /// Execute `sql` on every peer node concurrently, returning each node's result.
     ///
-    /// Requests run in parallel (one OS thread per peer via [`std::thread::scope`]),
-    /// so total latency is bounded by the slowest peer rather than the sum of all
-    /// peers. Node identity is preserved for row tagging and fan-out accounting.
-    pub fn fanout_query_to_peers(
+    /// Requests run through the L3-provided service. Its execution resources are
+    /// isolated from the caller runtime; node identity is preserved for tagging
+    /// and fan-out accounting.
+    pub async fn fanout_query_to_peers(
         sql: &str,
-        transport: Option<Arc<dyn PeerQueryTransport>>,
+        service: Option<Arc<dyn FanoutService>>,
     ) -> Vec<RemoteFanoutResult> {
-        Self::fanout_query_to_peers_scoped(sql, current_fanout_scope(), transport)
+        Self::fanout_query_to_peers_scoped(sql, current_fanout_scope(), service).await
     }
 
-    pub fn fanout_query_to_peers_scoped(
+    pub async fn fanout_query_to_peers_scoped(
         sql: &str,
         scope: FanoutScope,
-        transport: Option<Arc<dyn PeerQueryTransport>>,
+        service: Option<Arc<dyn FanoutService>>,
     ) -> Vec<RemoteFanoutResult> {
         let nodes = Self::remote_nodes_for_scope(scope);
         if nodes.is_empty() {
             return Vec::new();
         }
         let scope = resolve_fanout_scope(scope);
-        let concurrency = remote_fanout_concurrency();
-        let mut results = Vec::with_capacity(nodes.len());
-        for chunk in nodes.chunks(concurrency) {
-            std::thread::scope(|s| {
-                let handles: Vec<_> = chunk
-                    .iter()
-                    .map(|node| {
-                        let node = node.clone();
-                        let transport = transport.clone();
-                        s.spawn(move || {
-                            let host = if node.host.is_empty() {
-                                node.addr.clone()
-                            } else {
-                                node.host.clone()
-                            };
-                            let result = Self::execute_remote_scoped(
-                                transport.as_ref(),
-                                &node.addr,
-                                sql,
-                                scope,
-                            );
-                            RemoteFanoutResult {
-                                addr: node.addr,
-                                host,
-                                rank: node.rank,
-                                result,
-                            }
-                        })
-                    })
-                    .collect();
-                for handle in handles {
-                    results.push(handle.join().unwrap_or_else(|_| RemoteFanoutResult {
-                        addr: String::new(),
-                        host: String::new(),
-                        rank: None,
-                        result: Err(DataFusionError::Execution(
-                            "remote query thread panicked".into(),
-                        )),
-                    }));
-                }
-            });
+        #[cfg(any(test, feature = "test-utils"))]
+        if lock_remote_query_hook().is_some() {
+            return stream::iter(nodes)
+                .map(|node| {
+                    let service = service.clone();
+                    let sql = sql.to_string();
+                    async move {
+                        let host = if node.host.is_empty() {
+                            node.addr.clone()
+                        } else {
+                            node.host.clone()
+                        };
+                        let result =
+                            Self::execute_remote_scoped(service.as_ref(), &node.addr, &sql, scope)
+                                .await;
+                        RemoteFanoutResult {
+                            addr: node.addr,
+                            host,
+                            rank: node.rank,
+                            result,
+                        }
+                    }
+                })
+                .buffer_unordered(remote_fanout_concurrency())
+                .collect()
+                .await;
         }
-        results
+        let Some(service) = service else {
+            return nodes
+                .into_iter()
+                .map(|node| RemoteFanoutResult {
+                    addr: node.addr,
+                    host: node.host,
+                    rank: node.rank,
+                    result: Err(DataFusionError::Execution(
+                        "fan-out service is not configured".to_string(),
+                    )),
+                })
+                .collect();
+        };
+        let targets = nodes
+            .into_iter()
+            .map(|node| FanoutTarget { node, scope })
+            .collect();
+        service.query_many(targets, sql).await
     }
 
     /// Remote partitions for a federated table scan.
@@ -364,25 +460,25 @@ impl ProbeClusterExecutor {
             .collect()
     }
 
-    pub fn execute_remote_query(
-        transport: Option<&Arc<dyn PeerQueryTransport>>,
+    pub async fn execute_remote_query(
+        service: Option<&Arc<dyn FanoutService>>,
         addr: &str,
         sql: &str,
     ) -> Result<PeerQueryOutcome> {
-        Self::execute_remote_for_scope(transport, addr, sql, current_fanout_scope())
+        Self::execute_remote_for_scope(service, addr, sql, current_fanout_scope()).await
     }
 
-    pub fn execute_remote_for_scope(
-        transport: Option<&Arc<dyn PeerQueryTransport>>,
+    pub async fn execute_remote_for_scope(
+        service: Option<&Arc<dyn FanoutService>>,
         addr: &str,
         sql: &str,
         scope: FanoutScope,
     ) -> Result<PeerQueryOutcome> {
-        Self::execute_remote_scoped(transport, addr, sql, scope)
+        Self::execute_remote_scoped(service, addr, sql, scope).await
     }
 
-    fn execute_remote_scoped(
-        transport: Option<&Arc<dyn PeerQueryTransport>>,
+    async fn execute_remote_scoped(
+        service: Option<&Arc<dyn FanoutService>>,
         addr: &str,
         sql: &str,
         scope: FanoutScope,
@@ -392,10 +488,10 @@ impl ProbeClusterExecutor {
         if let Some(hook) = lock_remote_query_hook().as_ref() {
             return hook(addr, sql).map(PeerQueryOutcome::complete);
         }
-        let transport = transport.ok_or_else(|| {
-            DataFusionError::Execution("peer query transport is not configured".to_string())
+        let service = service.ok_or_else(|| {
+            DataFusionError::Execution("fan-out service is not configured".to_string())
         })?;
-        transport.query(addr, sql, scope)
+        service.query_peer(addr, sql, scope).await
     }
 }
 

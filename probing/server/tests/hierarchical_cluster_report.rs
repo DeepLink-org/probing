@@ -296,7 +296,7 @@ fn authenticated_peer_traffic_supports_heartbeat_and_fanout() {
             let transport = probing_core::ENGINE
                 .read()
                 .await
-                .peer_query_transport()
+                .fanout_service()
                 .expect("composition root transport");
             ProbeClusterExecutor::execute_remote_for_scope(
                 Some(&transport),
@@ -304,6 +304,7 @@ fn authenticated_peer_traffic_supports_heartbeat_and_fanout() {
                 "SELECT 1",
                 FanoutScope::Flat,
             )
+            .await
             .expect("authenticated core leaf fan-out");
             ProbeClusterExecutor::execute_remote_for_scope(
                 Some(&transport),
@@ -311,6 +312,7 @@ fn authenticated_peer_traffic_supports_heartbeat_and_fanout() {
                 "SELECT 1",
                 FanoutScope::Coordinator,
             )
+            .await
             .expect("authenticated hierarchical fan-out");
 
             persist_auth_token("").await.expect("clear auth token");

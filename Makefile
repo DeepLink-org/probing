@@ -395,7 +395,7 @@ docs-clean:
 
 clean:
 	rm -rf dist docs/site probing/server/web-assets web/dist web/target
-	rm -rf python/probing/libs python/probing/shim/hccl
+	rm -rf python/probing/bundled_web python/probing/libs python/probing/shim/hccl
 	rm -rf .pytest_cache .coverage coverage.xml coverage.lcov
 	cargo clean
 	rm -f coverage.lcov coverage.json

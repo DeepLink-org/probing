@@ -6,6 +6,8 @@ use std::cell::{Cell, RefCell};
 use std::future::Future;
 use std::sync::{Arc, Mutex, MutexGuard};
 
+pub type FanoutStats = probing_proto::prelude::QueryQuality;
+
 /// How remote peers are selected for federated / cluster fan-out.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum FanoutScope {
@@ -30,36 +32,6 @@ impl FanoutScope {
             Self::Node => "node",
             Self::Local => "local",
         }
-    }
-}
-
-/// Outcome of a federated query's remote work.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct FanoutStats {
-    pub nodes_succeeded: usize,
-    pub nodes_failed: Vec<String>,
-    /// Peer partial DataFrames dropped during coordinator merge (conversion failure).
-    pub peer_batches_dropped: usize,
-    /// True when any descendant reported incomplete data, even if it did not
-    /// provide a concrete failed-node or dropped-batch count.
-    pub partial: bool,
-}
-
-impl FanoutStats {
-    /// A successful transport response from one leaf endpoint.
-    pub fn complete_node() -> Self {
-        Self {
-            nodes_succeeded: 1,
-            ..Self::default()
-        }
-    }
-
-    /// Merge a complete child-subtree outcome into the current request.
-    pub fn absorb(&mut self, child: Self) {
-        self.nodes_succeeded += child.nodes_succeeded;
-        self.nodes_failed.extend(child.nodes_failed);
-        self.peer_batches_dropped += child.peer_batches_dropped;
-        self.partial |= child.partial;
     }
 }
 

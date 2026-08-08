@@ -8,7 +8,7 @@ use probing_cli::pyo3::cli_main;
 use probing_core::{install_panic_hook, register_python_main_thread};
 use probing_python::extensions::python::{register_table_docs, ExternalTable};
 use probing_python::features::python::bindings;
-use probing_python::features::python::bindings::query_json;
+use probing_python::features::python::bindings::{query_json, query_outcome_json};
 use probing_python::features::python::tracing;
 use probing_python::features::stacktrace::vm::{
     _get_python_frames, _get_python_stacks, disable_tracer, enable_tracer, initialize_globals,
@@ -220,6 +220,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Register all functions
     m.add_function(wrap_pyfunction!(query_json, m)?)?;
+    m.add_function(wrap_pyfunction!(query_outcome_json, m)?)?;
     m.add_function(wrap_pyfunction!(enable_tracer, m)?)?;
     m.add_function(wrap_pyfunction!(disable_tracer, m)?)?;
     m.add_function(wrap_pyfunction!(_get_python_stacks, m)?)?;

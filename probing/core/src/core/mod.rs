@@ -32,9 +32,14 @@ pub use plugin_advanced::PluginAdvancedTable;
 pub use memtable_sql::MemTableProbeExtension;
 pub use memtable_sql::UnifiedMemtableProbeDataSource;
 
+pub use probe_extension::ExtensionConfigSpec;
+pub use probe_extension::ExtensionContentType;
+pub use probe_extension::ExtensionHttpMethod;
+pub use probe_extension::ExtensionRoute;
 pub use probe_extension::Maybe;
 pub use probe_extension::ProbeExtension;
 pub use probe_extension::ProbeExtensionCall;
+pub use probe_extension::ProbeExtensionConfig;
 pub use probe_extension::ProbeExtensionManager;
 pub use probe_extension::ProbeExtensionOption;
 pub use probe_extension::ProbeExtensionResponse;

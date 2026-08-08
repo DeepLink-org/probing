@@ -2,9 +2,7 @@
 
 use std::collections::HashMap;
 
-use probing_core::core::federation::{
-    fanout_strict_enabled, take_fanout_stats, with_fanout_scope_async, FanoutScope,
-};
+use probing_core::core::federation::{fanout_strict_enabled, with_fanout_scope_async, FanoutScope};
 use probing_core::core::ProbeExtensionManager;
 use probing_proto::prelude::{Ele, Query, QueryDataFormat};
 use rmcp::ErrorData;
@@ -102,23 +100,25 @@ pub(crate) async fn extension_request(path: &str, body: &[u8]) -> Result<Vec<u8>
 pub async fn engine_query_json(sql: String, limit: usize) -> Result<serde_json::Value, ErrorData> {
     crate::server::sql_guard::ensure_read_only_sql(&sql).map_err(tool_error)?;
     with_fanout_scope_async(FanoutScope::Auto, async move {
-        let reply = handle_query(Query {
+        let outcome = handle_query(Query {
             expr: sql,
             opts: None,
         })
         .await
         .map_err(tool_error_from)?;
-        let mut payload = dataframe_reply_to_json(reply, limit)?;
-        attach_fanout_quality(&mut payload)?;
+        let mut payload = dataframe_reply_to_json(outcome.data, limit)?;
+        attach_fanout_quality(&mut payload, outcome.quality)?;
         Ok(payload)
     })
     .await
 }
 
 /// Surface federated / global-table fan-out completeness when peers were dropped.
-fn attach_fanout_quality(payload: &mut serde_json::Value) -> Result<(), ErrorData> {
-    let stats = take_fanout_stats();
-    if !probing_core::core::federation::fanout_stats_partial(&stats) {
+fn attach_fanout_quality(
+    payload: &mut serde_json::Value,
+    stats: probing_proto::prelude::QueryQuality,
+) -> Result<(), ErrorData> {
+    if !stats.is_partial() {
         return Ok(());
     }
     if fanout_strict_enabled() {

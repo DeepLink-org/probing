@@ -16,7 +16,14 @@ Public Interfaces:
 - `load_extension`: Load dynamic extensions into the engine.
 """
 
-from .engine import load_extension, query
+from .engine import QueryOutcome, QueryQuality, load_extension, query, query_outcome
 from .table import table
 
-__all__ = ["table", "query", "load_extension"]
+__all__ = [
+    "table",
+    "query",
+    "query_outcome",
+    "QueryOutcome",
+    "QueryQuality",
+    "load_extension",
+]

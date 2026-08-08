@@ -233,17 +233,20 @@ flowchart LR
     RW --> EX[Execute shards]
     EX --> TG[Inject federation tags]
     TG --> MG[Merge / re-aggregate]
-    MG --> OUT[DataFrame + FanoutMeta]
+    MG --> OUT[QueryOutcome DataFrame + QueryQuality]
 ```
 
 **Conventions**
 
 | Item | Semantics |
 |------|-----------|
-| Response | `dataframe` + `meta.nodes_queried` + `meta.nodes_failed` |
+| Core result | `QueryOutcome<T>` always carries `data` and typed `QueryQuality`; partialness is not a task-local side channel |
+| HTTP response | `dataframe` + `meta.nodes_queried` + `meta.nodes_failed` |
 | Peer set | Snapshot of `cluster.nodes`, **excluding** coordinator listen addrs |
 | Peer execution | Always `probe.*`; peers must not fan-out again |
-| Concurrency | Parallel peer requests; latency ≈ slowest peer + coordinator merge |
+| Execution | SQL, extension capture, node discovery, and heartbeat HTTP share one async `FanoutService` |
+| Isolation | Peer network I/O runs on a dedicated Tokio runtime (`PROBING_FANOUT_WORKER_THREADS`), separate from Axum/DataFusion caller workers |
+| Concurrency | Shared bounded peer requests; latency ≈ slowest peer + coordinator merge |
 | Timeout | Failed peer → `nodes_failed`; default **30s** (`PROBING_REMOTE_QUERY_TIMEOUT_SECS`) |
 | Strict fan-out | `PROBING_FANOUT_STRICT=1` fails query on any `nodes_failed` or `peer_batches_dropped` (no partial merge) |
 | Partial HTTP | Cluster/fan-out APIs return **503** with partial `dataframe` when `meta.partial=true` (non-strict only) |

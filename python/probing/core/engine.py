@@ -9,7 +9,22 @@ interface between Python code and the underlying Rust implementation.
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass, field
 from typing import Any
+
+
+@dataclass(frozen=True)
+class QueryQuality:
+    nodes_succeeded: int = 0
+    nodes_failed: list[str] = field(default_factory=list)
+    peer_batches_dropped: int = 0
+    partial: bool = False
+
+
+@dataclass(frozen=True)
+class QueryOutcome:
+    data: Any
+    quality: QueryQuality
 
 
 def _col_values(column: Any) -> list[Any]:
@@ -49,6 +64,23 @@ def query(sql: str) -> "DataFrame":  # noqa: F821
         raise RuntimeError(f"unexpected query_json response: {ret[:500]}")
     except ImportError:
         return ret
+
+
+def query_outcome(sql: str) -> QueryOutcome:
+    """Execute SQL and preserve distributed completeness metadata."""
+    from probing import _core
+
+    payload = json.loads(_core.query_outcome_json(sql))
+    raw_quality = payload.get("quality") or {}
+    quality = QueryQuality(
+        nodes_succeeded=int(raw_quality.get("nodes_succeeded", 0)),
+        nodes_failed=list(raw_quality.get("nodes_failed") or []),
+        peer_batches_dropped=int(raw_quality.get("peer_batches_dropped", 0)),
+        partial=bool(raw_quality.get("partial", False)),
+    )
+    raw_data = payload.get("data")
+    data = None if raw_data is None else _dataframe_from_proto(raw_data)
+    return QueryOutcome(data=data, quality=quality)
 
 
 def load_extension(statement: str):

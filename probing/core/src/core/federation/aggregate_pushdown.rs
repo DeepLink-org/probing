@@ -95,31 +95,26 @@ pub async fn try_execute_aggregate_pushdown(
     }
 
     let per_node_sql = plan.per_node_sql.clone();
-    let transport = engine.peer_query_transport();
+    let service = engine.fanout_service();
     let mut stats = FanoutStats::default();
 
     if scope == FanoutScope::Coordinator && is_local0_from_env() {
         let leaf_sql = per_node_sql.clone();
-        let leaf_transport = transport.clone();
-        let leaf_outcomes = tokio::task::spawn_blocking(move || {
-            ProbeClusterExecutor::fanout_query_to_peers_scoped(
-                &leaf_sql,
-                FanoutScope::Node,
-                leaf_transport,
-            )
-        })
-        .await
-        .map_err(|e| DataFusionError::Execution(format!("local leaf fan-out failed: {e}")))?;
+        let leaf_service = service.clone();
+        let leaf_outcomes = ProbeClusterExecutor::fanout_query_to_peers_scoped(
+            &leaf_sql,
+            FanoutScope::Node,
+            leaf_service,
+        )
+        .await;
         append_fanout_outcomes(&mut proto_parts, &mut stats, &plan, leaf_outcomes);
     }
 
     let remote_scope = scope;
     let remote_sql = per_node_sql.clone();
-    let outcomes = tokio::task::spawn_blocking(move || {
-        ProbeClusterExecutor::fanout_query_to_peers_scoped(&remote_sql, remote_scope, transport)
-    })
-    .await
-    .map_err(|e| DataFusionError::Execution(format!("aggregate fan-out join failed: {e}")))?;
+    let outcomes =
+        ProbeClusterExecutor::fanout_query_to_peers_scoped(&remote_sql, remote_scope, service)
+            .await;
     append_fanout_outcomes(&mut proto_parts, &mut stats, &plan, outcomes);
 
     if proto_parts.is_empty() {

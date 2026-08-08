@@ -9,6 +9,10 @@ use probing_core::core::ProbeExtension;
 use probing_core::core::ProbeExtensionCall;
 use probing_core::core::ProbeExtensionOption;
 use probing_core::core::Result as EngineResult;
+use probing_core::core::{
+    ExtensionConfigSpec, ExtensionContentType, ExtensionHttpMethod, ExtensionRoute,
+    ProbeExtensionConfig,
+};
 use probing_core::run_on_native_thread;
 use probing_proto::prelude::CallFrame;
 use pyo3::prelude::*;
@@ -70,6 +74,44 @@ pub struct PythonExt {
 
 #[async_trait]
 impl ProbeExtensionCall for PythonExt {
+    fn routes(&self) -> Vec<ExtensionRoute> {
+        use ExtensionContentType::Json;
+        use ExtensionHttpMethod::{Get, Post};
+        vec![
+            ExtensionRoute::new("callstack", Get, Json),
+            ExtensionRoute::new("eval", Post, ExtensionContentType::Text),
+            ExtensionRoute::new("trace/list", Get, Json),
+            ExtensionRoute::new("trace/show", Get, Json),
+            ExtensionRoute::new("trace/start", Get, Json),
+            ExtensionRoute::new("trace/stop", Get, Json),
+            ExtensionRoute::new("trace/variables", Get, Json),
+            ExtensionRoute::new("trace/chrome-tracing", Get, Json).with_cors(),
+            ExtensionRoute::new("pytorch/timeline", Get, Json).with_cors(),
+            ExtensionRoute::new("pytorch/profile", Get, Json),
+            ExtensionRoute::new("pytorch/profile/start", Get, Json),
+            ExtensionRoute::new("pytorch/profile/stop", Get, Json),
+            ExtensionRoute::new("pytorch/profile/status", Get, Json),
+            ExtensionRoute::new("pytorch/runtime-debug", Get, Json),
+            ExtensionRoute::new("ray/timeline", Get, Json).with_cors(),
+            ExtensionRoute::new("ray/timeline/chrome", Get, Json).with_cors(),
+            ExtensionRoute::new("magics", Get, Json),
+            ExtensionRoute::new("flight-recorder/snapshot", Get, Json),
+            ExtensionRoute::new("crash/hold", Get, Json),
+            ExtensionRoute::new("crash/release", Get, Json),
+            ExtensionRoute::new("skills/list", Get, Json),
+            ExtensionRoute::new("skills/load", Get, Json),
+            ExtensionRoute::new("skills/catalog", Get, Json),
+            ExtensionRoute::new("skills/routing", Get, Json),
+            ExtensionRoute::new("skills/roots", Get, Json),
+            ExtensionRoute::new("extensions/list", Get, Json),
+            ExtensionRoute::new("engines/register", Get, Json),
+            ExtensionRoute::new("engines/register_slime", Get, Json),
+            ExtensionRoute::new("engines/list", Get, Json),
+            ExtensionRoute::new("engines/scrape", Get, Json),
+            ExtensionRoute::new("engines/snapshot", Get, Json),
+        ]
+    }
+
     async fn call(
         &self,
         path: &str,

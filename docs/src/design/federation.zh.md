@@ -240,17 +240,20 @@ flowchart LR
     RW --> EX[各分片执行]
     EX --> TG[注入联邦标签]
     TG --> MG[合并 / 二次聚合]
-    MG --> OUT[DataFrame + FanoutMeta]
+    MG --> OUT[QueryOutcome DataFrame + QueryQuality]
 ```
 
 **统一约定**
 
 | 项 | 语义 |
 |----|------|
-| 响应体 | `dataframe` + `meta.nodes_queried` + `meta.nodes_failed` |
+| Core 返回值 | `QueryOutcome<T>` 始终同时携带 `data` 与类型化 `QueryQuality`；partial 不再是 task-local 旁路状态 |
+| HTTP 响应体 | `dataframe` + `meta.nodes_queried` + `meta.nodes_failed` |
 | Peer 集合 | `cluster.nodes` 快照，**排除** coordinator 自身 listen addr |
 | Peer 执行 | 永远 `probe.*`；禁止 peer 再 fan-out（防递归） |
-| 并发 | 各 peer 并行请求；总延迟 ≈ 最慢 peer + coordinator 合并 |
+| 统一执行 | SQL、Extension 采集、节点发现和心跳 HTTP 共用一个异步 `FanoutService` |
+| 资源隔离 | Peer 网络 I/O 使用独立 Tokio runtime（`PROBING_FANOUT_WORKER_THREADS`），不占用 Axum/DataFusion 调用线程 |
+| 并发 | 共用有界并发；总延迟 ≈ 最慢 peer + coordinator 合并 |
 | 超时 | 失败 peer → `nodes_failed`；默认 **30s**（`PROBING_REMOTE_QUERY_TIMEOUT_SECS`） |
 | 严格 fan-out | `PROBING_FANOUT_STRICT=1`：任一 `nodes_failed` 或 `peer_batches_dropped` 则整查失败（无 partial merge） |
 | Partial HTTP | 集群/fan-out API 在 `meta.partial=true` 时返回 **503** 及 partial `dataframe`（非 strict 模式） |

@@ -7,7 +7,7 @@ use datafusion::error::Result;
 use datafusion::execution::context::SessionContext;
 
 use super::global_table::GlobalFederatedTable;
-use super::PeerQueryTransport;
+use super::FanoutService;
 
 pub const GLOBAL_CATALOG: &str = "global";
 const SKIP_SCHEMAS: &[&str] = &["information_schema"];
@@ -19,12 +19,12 @@ const SKIP_SCHEMAS: &[&str] = &["information_schema"];
 /// under `global.*` without refreshing or rebuilding the catalog.
 pub fn install_global_catalog(
     ctx: &SessionContext,
-    transport: Option<Arc<dyn PeerQueryTransport>>,
+    service: Option<Arc<dyn FanoutService>>,
 ) -> Result<()> {
     let shared_ctx = Arc::new(ctx.clone());
     ctx.register_catalog(
         GLOBAL_CATALOG,
-        Arc::new(DynamicGlobalCatalog::new(shared_ctx, transport)),
+        Arc::new(DynamicGlobalCatalog::new(shared_ctx, service)),
     );
     Ok(())
 }
@@ -32,7 +32,7 @@ pub fn install_global_catalog(
 /// Read-only view over `probe` that exposes federated wrappers for every table.
 struct DynamicGlobalCatalog {
     ctx: Arc<SessionContext>,
-    transport: Option<Arc<dyn PeerQueryTransport>>,
+    service: Option<Arc<dyn FanoutService>>,
 }
 
 impl std::fmt::Debug for DynamicGlobalCatalog {
@@ -44,8 +44,8 @@ impl std::fmt::Debug for DynamicGlobalCatalog {
 }
 
 impl DynamicGlobalCatalog {
-    fn new(ctx: Arc<SessionContext>, transport: Option<Arc<dyn PeerQueryTransport>>) -> Self {
-        Self { ctx, transport }
+    fn new(ctx: Arc<SessionContext>, service: Option<Arc<dyn FanoutService>>) -> Self {
+        Self { ctx, service }
     }
 
     fn probe_catalog(&self) -> Option<Arc<dyn CatalogProvider>> {
@@ -74,7 +74,7 @@ impl CatalogProvider for DynamicGlobalCatalog {
         Some(Arc::new(GlobalSchemaProvider::new(
             name.to_string(),
             inner,
-            self.transport.clone(),
+            self.service.clone(),
         )))
     }
 }
@@ -84,19 +84,19 @@ impl CatalogProvider for DynamicGlobalCatalog {
 struct GlobalSchemaProvider {
     schema_name: String,
     inner: Arc<dyn SchemaProvider>,
-    transport: Option<Arc<dyn PeerQueryTransport>>,
+    service: Option<Arc<dyn FanoutService>>,
 }
 
 impl GlobalSchemaProvider {
     fn new(
         schema_name: String,
         inner: Arc<dyn SchemaProvider>,
-        transport: Option<Arc<dyn PeerQueryTransport>>,
+        service: Option<Arc<dyn FanoutService>>,
     ) -> Self {
         Self {
             schema_name,
             inner,
-            transport,
+            service,
         }
     }
 }
@@ -115,7 +115,7 @@ impl SchemaProvider for GlobalSchemaProvider {
             &self.schema_name,
             name,
             local,
-            self.transport.clone(),
+            self.service.clone(),
         ))))
     }
 

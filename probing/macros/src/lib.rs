@@ -99,6 +99,24 @@ fn impl_probe_extension(ast: &DeriveInput) -> TokenStream {
         }
     });
 
+    let config_specs = field_metadata.iter().map(|meta| {
+        let field_name = meta.name.to_string();
+        let aliases = &meta.aliases;
+        let desc = format!(
+            "{}.\nENV[PROBING_{}_{}]",
+            meta.description,
+            namespace.to_uppercase(),
+            field_name.to_uppercase().replace(".", "_")
+        );
+        quote! {
+            ExtensionConfigSpec {
+                key: #field_name,
+                aliases: &[#(#aliases),*],
+                help: #desc,
+            }
+        }
+    });
+
     // Generate option name constants for consistent usage
     let option_constants = field_metadata.iter().map(|meta| {
         let const_name = format_ident!("OPTION_{}", meta.field.to_uppercase());
@@ -114,7 +132,9 @@ fn impl_probe_extension(ast: &DeriveInput) -> TokenStream {
             fn name(&self) -> String {
                 #http_name.to_string()
             }
+        }
 
+        impl ProbeExtensionConfig for #name {
             fn get(&self, key: &str) -> Result<String, EngineError> {
                 match key {
                     #(#get_matches,)*
@@ -132,6 +152,12 @@ fn impl_probe_extension(ast: &DeriveInput) -> TokenStream {
             fn options(&self) -> Vec<ProbeExtensionOption> {
                 vec![
                     #(#options,)*
+                ]
+            }
+
+            fn config_specs(&self) -> &'static [ExtensionConfigSpec] {
+                &[
+                    #(#config_specs,)*
                 ]
             }
 

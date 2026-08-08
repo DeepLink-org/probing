@@ -22,7 +22,7 @@ impl SkillBackend for ServerBackend {
         })
         .await
         .map_err(|e| SkillRunError(e.to_string()))?;
-        match reply {
+        match reply.data {
             QueryDataFormat::DataFrame(df) => Ok(df),
             QueryDataFormat::Nil => Ok(DataFrame::default()),
             QueryDataFormat::Error(err) => {

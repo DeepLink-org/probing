@@ -3,6 +3,7 @@ use probing_core::core::Maybe;
 use probing_core::core::ProbeExtension;
 use probing_core::core::ProbeExtensionCall;
 use probing_core::core::ProbeExtensionOption;
+use probing_core::core::{ExtensionConfigSpec, ProbeExtensionConfig};
 
 use super::collector::start_cpu_sampling;
 

@@ -27,7 +27,7 @@ Probing 读取的全部 `PROBING_*` 环境变量参考（按子系统分组）�
 | `PROBING_CLUSTER_FANOUT_HIERARCHICAL` | `1` | 分层集群查询 fan-out；`0` = 扁平 fan-out 到所有 peer。 |
 | `PROBING_REMOTE_QUERY_TIMEOUT_SECS` | `30` | 远程联邦 / 集群查询的单 peer 超时（秒）。 |
 | `PROBING_FANOUT_CONCURRENCY` | `128` | 单次 cluster fan-out 的最大并发远程 HTTP 请求数。 |
-| `PROBING_STACK_FANOUT_CONCURRENCY` | `32` | Distributed stacks 同时采集的最大 peer 数。 |
+| `PROBING_FANOUT_WORKER_THREADS` | `4` | 分布式 SQL、Extension 采集、节点发现和心跳共用的独立异步 fan-out runtime 线程数。 |
 | `PROBING_STACK_FANOUT_DEADLINE_SEC` | `15` | Distributed stacks 的整体 fan-out 截止时间；超时后返回已完成 peer 的部分火焰图并列出失败 peer。 |
 | `PROBING_ADVERTISE_ADDR` | `MASTER_ADDR`，否则 hostname | wildcard bind 时向 peer 发布的地址；支持 `host`、`host:port`、IPv6 或 `{port}` 占位符。多网卡环境或 `MASTER_ADDR` 不是当前节点的 peer 可达地址时必须显式设置。 |
 | `PROBING_NODE_HOST` | 操作系统 hostname | cluster heartbeat 中上报的显式 host 标签。用于容器身份和本地逻辑节点 fixture；不会改变向 peer 发布的网络地址。 |
