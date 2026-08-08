@@ -7,6 +7,10 @@ use probing_core::core::ProbeExtension;
 use probing_core::core::ProbeExtensionCall;
 use probing_core::core::ProbeExtensionOption;
 use probing_core::core::ProbeExtensionResponse;
+use probing_core::core::{
+    ExtensionConfigSpec, ExtensionContentType, ExtensionHttpMethod, ExtensionRoute,
+    ProbeExtensionConfig,
+};
 use pyo3::prelude::*;
 
 #[derive(Debug, Default, ProbeExtension)]
@@ -18,6 +22,27 @@ pub struct TorchProbeExtension {
 
 #[async_trait]
 impl ProbeExtensionCall for TorchProbeExtension {
+    fn routes(&self) -> Vec<ExtensionRoute> {
+        vec![
+            ExtensionRoute::new(
+                "flamegraph",
+                ExtensionHttpMethod::Get,
+                ExtensionContentType::Html,
+            ),
+            ExtensionRoute::new(
+                "flamegraph/json",
+                ExtensionHttpMethod::Get,
+                ExtensionContentType::Json,
+            ),
+            ExtensionRoute::new(
+                "flamegraph/distributed/json",
+                ExtensionHttpMethod::Get,
+                ExtensionContentType::Json,
+            )
+            .requiring_engine(),
+        ]
+    }
+
     async fn call(
         &self,
         path: &str,

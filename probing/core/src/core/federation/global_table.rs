@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use super::cluster_executor::{reset_fanout_stats, PeerQueryTransport, ProbeClusterExecutor};
+use super::cluster_executor::{reset_fanout_stats, FanoutService, ProbeClusterExecutor};
 use super::convert::{
     cluster_rank_for_endpoint, extend_projection_with_probe_tags, federated_output_schema,
 };
@@ -59,7 +59,7 @@ pub struct GlobalFederatedTable {
     schema_name: String,
     table_name: String,
     local: Arc<dyn TableProvider>,
-    transport: Option<Arc<dyn PeerQueryTransport>>,
+    service: Option<Arc<dyn FanoutService>>,
 }
 
 impl GlobalFederatedTable {
@@ -67,13 +67,13 @@ impl GlobalFederatedTable {
         schema_name: impl Into<String>,
         table_name: impl Into<String>,
         local: Arc<dyn TableProvider>,
-        transport: Option<Arc<dyn PeerQueryTransport>>,
+        service: Option<Arc<dyn FanoutService>>,
     ) -> Self {
         Self {
             schema_name: schema_name.into(),
             table_name: table_name.into(),
             local,
-            transport,
+            service,
         }
     }
 }
@@ -142,7 +142,7 @@ impl TableProvider for GlobalFederatedTable {
             addr,
             local_rank,
             current_fanout_stats_handle(),
-            self.transport.clone(),
+            self.service.clone(),
         )?;
         Ok(Arc::new(exec))
     }

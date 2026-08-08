@@ -16,10 +16,7 @@ use probing_core::config;
 
 use crate::server::error::{ApiError, ApiResult};
 
-use probing_core::core::federation::{
-    fanout_stats_partial, reset_fanout_stats, take_fanout_stats, with_fanout_scope_async,
-    FanoutScope,
-};
+use probing_core::core::federation::{with_fanout_scope_async, FanoutScope};
 use probing_core::core::UnifiedMemtableProbeDataSource;
 pub use probing_core::ENGINE;
 use probing_python::extensions::python::PythonProbeDataSource;
@@ -29,12 +26,13 @@ use probing_python::extensions::python::PythonProbeDataSource;
 pub async fn initialize_engine() -> Result<()> {
     probing_hccl_shim::register_docs();
     probing_nccl_profiler::register_docs();
+    let fanout_service = crate::server::cluster_fanout::core_service()?;
     let builder = probing_core::create_engine()
-        .with_peer_query_transport(crate::server::cluster_fanout::core_transport())
+        .with_fanout_service(fanout_service.clone())
         .with_data_source(cc::ClusterProbeDataSource::create("cluster", "nodes"))
         .with_data_source(cc::EnvProbeDataSource::create("process", "envs"))
         .with_data_source(cc::FilesProbeDataSource::create("files"))
-        .with_extension(py::PprofProbeExtension::default())
+        .with_extension(py::PprofProbeExtension::with_fanout_service(fanout_service))
         .with_extension(py::TorchProbeExtension::default())
         .with_extension(se::ServerProbeExtension::default())
         .with_extension(py::PythonExt::default())
@@ -127,7 +125,7 @@ async fn execute_set_via_config(key: &str, value: &str) -> Result<()> {
     Ok(())
 }
 
-pub async fn handle_query(request: Query) -> Result<QueryDataFormat> {
+pub async fn handle_query(request: Query) -> Result<QueryOutcome<QueryDataFormat>> {
     if let Some(msg) = crate::engine_lifecycle::engine_not_ready_message() {
         return Err(anyhow::anyhow!(msg));
     }
@@ -143,15 +141,16 @@ pub async fn handle_query(request: Query) -> Result<QueryDataFormat> {
                 .with_context(|| format!("Failed SET for config key '{key}'"))?;
             log::debug!("Successfully executed SET for config key: {key}");
         }
-        return Ok(QueryDataFormat::Nil);
+        return Ok(QueryOutcome::complete(QueryDataFormat::Nil));
     }
 
-    reset_fanout_stats();
     let engine = ENGINE.read().await;
     log::debug!("Executing SELECT query: {expr}");
-    match engine.async_query(&expr).await {
-        Ok(Some(dataframe)) => Ok(QueryDataFormat::DataFrame(dataframe)),
-        Ok(None) => Ok(QueryDataFormat::Nil),
+    match engine.query_outcome(&expr).await {
+        Ok(outcome) => Ok(outcome.map(|data| match data {
+            Some(dataframe) => QueryDataFormat::DataFrame(dataframe),
+            None => QueryDataFormat::Nil,
+        })),
         Err(e) => {
             if is_missing_table_error(&e) {
                 log::debug!("Optional table missing for SELECT '{expr}': {e}");
@@ -171,22 +170,12 @@ fn is_missing_table_error(err: &impl std::fmt::Display) -> bool {
 
 fn fanout_meta_from_stats(
     stats: probing_core::core::federation::FanoutStats,
-) -> Option<serde_json::Value> {
-    if !fanout_stats_partial(&stats) {
-        return None;
-    }
-    Some(serde_json::json!({
-        "fanout": {
-            "partial": true,
-            "nodes_succeeded": stats.nodes_succeeded,
-            "nodes_failed": stats.nodes_failed,
-            "peer_batches_dropped": stats.peer_batches_dropped,
-        }
-    }))
+) -> Option<MessageMeta> {
+    MessageMeta::from_quality(stats)
 }
 
 fn query_response_partial(stats: &probing_core::core::federation::FanoutStats) -> bool {
-    fanout_stats_partial(stats)
+    stats.is_partial()
 }
 
 /// Serialized `/query` body plus whether federated fan-out was partial.
@@ -214,22 +203,22 @@ async fn query_in_fanout_context(req: String) -> ApiResult<QueryHttpEnvelope> {
     };
 
     // Await the async handle_query function
-    let reply_payload = match handle_query(request).await {
+    let reply_outcome = match handle_query(request).await {
         Ok(reply) => reply,
         Err(err) => {
             // Error already logged in handle_query if it originated there
-            QueryDataFormat::Error(QueryError {
+            QueryOutcome::complete(QueryDataFormat::Error(QueryError {
                 code: ErrorCode::Internal,
                 message: format!("{err:#}"),
                 details: None,
-            })
+            }))
         }
     };
 
-    let error = matches!(&reply_payload, QueryDataFormat::Error(_));
+    let error = matches!(&reply_outcome.data, QueryDataFormat::Error(_));
 
     // Wrap the payload in a Message
-    let stats = take_fanout_stats();
+    let stats = reply_outcome.quality;
     let partial = query_response_partial(&stats);
     if partial {
         log::warn!(
@@ -239,7 +228,7 @@ async fn query_in_fanout_context(req: String) -> ApiResult<QueryHttpEnvelope> {
             stats.peer_batches_dropped,
         );
     }
-    let mut reply_message = Message::new(reply_payload);
+    let mut reply_message = Message::new(reply_outcome.data);
     reply_message.meta = fanout_meta_from_stats(stats);
 
     // Serialize the response message
@@ -268,6 +257,6 @@ mod tests {
 
         assert!(query_response_partial(&stats));
         let meta = fanout_meta_from_stats(stats).expect("partial response metadata");
-        assert_eq!(meta["fanout"]["partial"], true);
+        assert!(meta.fanout.expect("fanout quality").partial);
     }
 }

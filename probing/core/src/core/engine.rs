@@ -10,6 +10,7 @@ use datafusion::error::DataFusionError;
 use datafusion::error::Result;
 use datafusion::execution::SessionState;
 use datafusion::prelude::{DataFrame, SessionConfig, SessionContext};
+use probing_proto::prelude::QueryOutcome;
 
 use super::arrow_convert::{arrow_array_to_seq, empty_seq_for_data_type};
 use super::probe_extension::ProbeExtension;
@@ -17,7 +18,7 @@ use super::probe_extension::ProbeExtensionManager;
 
 use super::data_source::{ProbeDataSource, ProbeDataSourceKind};
 use super::federation;
-use super::federation::PeerQueryTransport;
+use super::federation::FanoutService;
 use super::metadata_rewrite;
 use super::semantic_catalog;
 
@@ -54,7 +55,7 @@ pub struct Engine {
     pub context: SessionContext,
     /// Registry of enabled plugins, mapped by their fully qualified names
     data_sources: RwLock<HashMap<String, Arc<dyn ProbeDataSource + Sync + Send>>>,
-    peer_query_transport: Option<Arc<dyn PeerQueryTransport>>,
+    fanout_service: Option<Arc<dyn FanoutService>>,
 }
 
 impl Clone for Engine {
@@ -64,7 +65,7 @@ impl Clone for Engine {
         Self {
             context: self.context.clone(),
             data_sources: RwLock::new(plugins_clone),
-            peer_query_transport: self.peer_query_transport.clone(),
+            fanout_service: self.fanout_service.clone(),
         }
     }
 }
@@ -83,7 +84,7 @@ impl Default for Engine {
         Engine {
             context: SessionContext::new_with_config(config),
             data_sources: Default::default(),
-            peer_query_transport: None,
+            fanout_service: None,
         }
     }
 }
@@ -106,14 +107,49 @@ impl Engine {
         self.context.sql(query).await
     }
 
+    /// Execute SQL and return both data and distributed completeness.
+    ///
+    /// New callers should use this method so partial federated results cannot
+    /// be mistaken for complete data.
+    pub async fn query_outcome<T: Into<String>>(
+        &self,
+        query: T,
+    ) -> Result<QueryOutcome<Option<probing_proto::prelude::DataFrame>>> {
+        let query = query.into();
+        federation::with_fanout_scope_async(federation::current_fanout_scope(), async move {
+            federation::reset_fanout_stats();
+            let data = self.async_query_data(query).await?;
+            let quality = federation::take_fanout_stats();
+            federation::enforce_fanout_strict(&quality)?;
+            Ok(QueryOutcome::with_quality(data, quality))
+        })
+        .await
+    }
+
+    /// Compatibility data-only query API.
+    ///
+    /// Control-plane and diagnostic callers must prefer [`Self::query_outcome`].
     pub async fn async_query<T: Into<String>>(
+        &self,
+        query: T,
+    ) -> Result<Option<probing_proto::prelude::DataFrame>> {
+        let outcome = self.query_outcome(query).await?;
+        if outcome.quality.is_partial() {
+            return Err(DataFusionError::Execution(
+                "query returned partial data; use Engine::query_outcome to inspect completeness"
+                    .to_string(),
+            ));
+        }
+        Ok(outcome.data)
+    }
+
+    async fn async_query_data<T: Into<String>>(
         &self,
         query: T,
     ) -> Result<Option<probing_proto::prelude::DataFrame>> {
         let original: String = query.into();
         let capped = federation::ensure_global_scan_limit(&original);
         if let Some(df) = federation::try_execute_aggregate_pushdown(self, &capped).await? {
-            federation::check_fanout_strict()?;
             return Ok(Some(df));
         }
         let default_schema = self.default_namespace();
@@ -123,7 +159,6 @@ impl Engine {
         let df = self.sql(query.as_str()).await?;
         let schema = df.schema().clone();
         let batches = df.collect().await?;
-        federation::check_fanout_strict()?;
         if batches.is_empty() {
             let names = schema
                 .fields()
@@ -206,8 +241,8 @@ impl Engine {
         Ok(())
     }
 
-    pub fn peer_query_transport(&self) -> Option<Arc<dyn PeerQueryTransport>> {
-        self.peer_query_transport.clone()
+    pub fn fanout_service(&self) -> Option<Arc<dyn FanoutService>> {
+        self.fanout_service.clone()
     }
 }
 
@@ -216,8 +251,11 @@ pub struct EngineBuilder {
     config: SessionConfig,
     default_namespace: Option<String>,
     data_sources: Vec<Arc<dyn ProbeDataSource + Sync + Send>>,
-    probe_extensions: HashMap<String, Arc<tokio::sync::Mutex<dyn ProbeExtension + Send + Sync>>>,
-    peer_query_transport: Option<Arc<dyn PeerQueryTransport>>,
+    probe_extensions: Vec<(
+        String,
+        Arc<tokio::sync::Mutex<dyn ProbeExtension + Send + Sync>>,
+    )>,
+    fanout_service: Option<Arc<dyn FanoutService>>,
 }
 
 impl EngineBuilder {
@@ -228,7 +266,7 @@ impl EngineBuilder {
             default_namespace: None,
             data_sources: Vec::new(),
             probe_extensions: Default::default(),
-            peer_query_transport: None,
+            fanout_service: None,
         }
     }
 
@@ -251,20 +289,20 @@ impl EngineBuilder {
         let name = ext.name();
         let ext = Arc::new(tokio::sync::Mutex::new(ext));
 
-        self.probe_extensions.insert(name, ext);
+        self.probe_extensions.push((name, ext));
         self
     }
 
-    pub fn with_peer_query_transport(mut self, transport: Arc<dyn PeerQueryTransport>) -> Self {
-        self.peer_query_transport = Some(transport);
+    pub fn with_fanout_service(mut self, service: Arc<dyn FanoutService>) -> Self {
+        self.fanout_service = Some(service);
         self
     }
 
     // Build the Engine with the specified configurations
     pub async fn build(mut self) -> Result<Engine> {
         let mut eem = ProbeExtensionManager::default();
-        for (name, extension) in self.probe_extensions.iter() {
-            eem.register(name.clone(), extension.clone()).await;
+        for (name, extension) in &self.probe_extensions {
+            eem.register(name.clone(), extension.clone()).await?;
         }
         self.config.options_mut().extensions.insert(eem);
         if let Some(namespace) = self.default_namespace {
@@ -282,13 +320,13 @@ impl EngineBuilder {
         let engine = Engine {
             context,
             data_sources: Default::default(),
-            peer_query_transport: self.peer_query_transport,
+            fanout_service: self.fanout_service,
         };
         for data_source in self.data_sources {
             engine.enable(data_source).await?;
         }
         semantic_catalog::install_semantic_catalog(&engine.context)?;
-        federation::install_global_catalog(&engine.context, engine.peer_query_transport())?;
+        federation::install_global_catalog(&engine.context, engine.fanout_service())?;
 
         Ok(engine)
     }
@@ -302,7 +340,7 @@ impl Default for EngineBuilder {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::{ProbeExtension, ProbeExtensionCall};
+    use crate::core::{ProbeExtension, ProbeExtensionCall, ProbeExtensionConfig};
 
     use super::*;
     use arrow::array::{Int32Array, StringArray};
@@ -319,30 +357,39 @@ mod tests {
     use std::sync::Arc;
 
     #[derive(Debug)]
-    struct TestPeerTransport;
+    struct TestFanoutService;
 
-    impl PeerQueryTransport for TestPeerTransport {
-        fn query(
+    #[async_trait::async_trait]
+    impl federation::FanoutService for TestFanoutService {
+        async fn query_peer(
             &self,
             _addr: &str,
             _sql: &str,
             _scope: federation::FanoutScope,
         ) -> Result<federation::PeerQueryOutcome> {
-            unreachable!("transport isolation test does not execute queries")
+            unreachable!("fan-out service isolation test does not execute queries")
+        }
+
+        async fn request_peer(
+            &self,
+            _addr: &str,
+            _request: federation::FanoutHttpRequest,
+        ) -> Result<federation::FanoutHttpResponse> {
+            unreachable!("fan-out service isolation test does not execute requests")
         }
     }
 
     #[tokio::test]
-    async fn peer_transport_is_scoped_to_the_built_engine() {
+    async fn fanout_service_is_scoped_to_the_built_engine() {
         let configured = Engine::builder()
-            .with_peer_query_transport(Arc::new(TestPeerTransport))
+            .with_fanout_service(Arc::new(TestFanoutService))
             .build()
             .await
             .unwrap();
         let plain = Engine::builder().build().await.unwrap();
 
-        assert!(configured.peer_query_transport().is_some());
-        assert!(plain.peer_query_transport().is_none());
+        assert!(configured.fanout_service().is_some());
+        assert!(plain.fanout_service().is_none());
     }
 
     #[derive(Debug, Clone)]
@@ -493,6 +540,8 @@ mod tests {
             }
         }
 
+        impl ProbeExtensionConfig for TestExtension {}
+
         impl ProbeExtensionCall for TestExtension {}
 
         let engine = Engine::builder()
@@ -509,6 +558,30 @@ mod tests {
             .await;
         assert!(result.is_ok());
         assert!(result.unwrap().is_some());
+    }
+
+    #[tokio::test]
+    async fn duplicate_extension_registration_is_rejected() {
+        #[derive(Debug)]
+        struct DuplicateExtension;
+
+        impl ProbeExtension for DuplicateExtension {
+            fn name(&self) -> String {
+                "duplicate".into()
+            }
+        }
+
+        impl ProbeExtensionConfig for DuplicateExtension {}
+        impl ProbeExtensionCall for DuplicateExtension {}
+
+        let error = Engine::builder()
+            .with_extension(DuplicateExtension)
+            .with_extension(DuplicateExtension)
+            .build()
+            .await
+            .err()
+            .expect("duplicate extension must fail engine construction");
+        assert!(error.to_string().contains("duplicate extension name"));
     }
 
     #[tokio::test]

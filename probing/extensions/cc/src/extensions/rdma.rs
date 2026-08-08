@@ -2,6 +2,10 @@ use probing_core::core::EngineError;
 use probing_core::core::Maybe;
 use probing_core::core::ProbeExtension;
 use probing_core::core::ProbeExtensionOption;
+use probing_core::core::{
+    ExtensionConfigSpec, ExtensionContentType, ExtensionHttpMethod, ExtensionRoute,
+    ProbeExtensionConfig,
+};
 use probing_core::sync::lock_mutex;
 
 use datafusion::arrow::array::{GenericStringBuilder, RecordBatch};
@@ -134,6 +138,14 @@ pub struct RdmaProbeExtension {
 
 #[async_trait]
 impl ProbeExtensionCall for RdmaProbeExtension {
+    fn routes(&self) -> Vec<ExtensionRoute> {
+        vec![ExtensionRoute::new(
+            "",
+            ExtensionHttpMethod::Post,
+            ExtensionContentType::Text,
+        )]
+    }
+
     async fn call(
         &self,
         path: &str,

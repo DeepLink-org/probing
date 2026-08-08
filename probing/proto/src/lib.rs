@@ -9,6 +9,7 @@ pub mod prelude {
     };
     pub use crate::protocol::http::{ApiErrorResponse, ApiProblem};
     pub use crate::protocol::message::Message;
+    pub use crate::protocol::outcome::{MessageMeta, QueryOutcome, QueryQuality};
     pub use crate::protocol::process::{CallFrame, Process};
 
     pub use crate::protocol::query::{Data as QueryDataFormat, Options as QueryOptions, Query};

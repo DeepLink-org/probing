@@ -325,11 +325,13 @@ fn query_profiling_impl(query: &str) -> Result<probing_proto::types::DataFrame> 
     let query = query.to_owned();
     block_on(async move {
         let engine = probing_core::ENGINE.read().await;
-        let result = engine
-            .async_query(&query)
+        let outcome = engine
+            .query_outcome(&query)
             .await
             .context("Torch query failed")?;
-        result.ok_or_else(|| anyhow::anyhow!("engine returned no dataframe for torch query"))
+        outcome
+            .data
+            .ok_or_else(|| anyhow::anyhow!("engine returned no dataframe for torch query"))
     })
     .map_err(anyhow::Error::new)?
 }
@@ -357,7 +359,8 @@ fn run_torch_query(query: &str) -> Result<probing_proto::types::DataFrame> {
             .enable_all()
             .build()
             .context("failed to build tokio runtime")?;
-        rt.block_on(async { engine.async_query(&query).await })?
+        rt.block_on(async { engine.query_outcome(&query).await })?
+            .data
             .ok_or_else(|| anyhow::anyhow!("minimal engine returned no dataframe for torch query"))
     })
     .join()
@@ -963,18 +966,16 @@ pub async fn collect_distributed_flamegraph_json(
         "python.torch_trace"
     };
     let sql = distributed_torch_trace_sql(table, step);
-    probing_core::core::federation::reset_fanout_stats();
     let engine = probing_core::ENGINE.read().await;
-    let query_result = engine.async_query(&sql).await;
-    let stats = probing_core::core::federation::take_fanout_stats();
-    let dataframe = query_result?.ok_or_else(|| {
+    let outcome = engine.query_outcome(&sql).await?;
+    let dataframe = outcome.data.ok_or_else(|| {
         probing_core::core::EngineError::internal(
             "engine returned no dataframe for distributed torch query",
         )
     })?;
     Ok((
         distributed_flamegraph_json_from_df(&dataframe, metric),
-        probing_core::core::federation::fanout_stats_partial(&stats),
+        outcome.quality.is_partial(),
     ))
 }
 

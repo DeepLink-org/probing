@@ -6,6 +6,7 @@ use probing_core::core::EngineError;
 use probing_core::core::ProbeExtension;
 use probing_core::core::ProbeExtensionCall;
 use probing_core::core::ProbeExtensionOption;
+use probing_core::core::{ExtensionConfigSpec, ProbeExtensionConfig};
 
 #[derive(Debug)]
 enum Maybe<T> {
@@ -130,4 +131,10 @@ fn test_macro() {
     assert_eq!(opts[2].key, "test.managed_field_name3");
     assert_eq!(opts[2].value, Some("B".to_string()));
     // assert_eq!(opts[2].help, "describe managed_field_name3");
+
+    let specs = ext.config_specs();
+    assert_eq!(specs.len(), 3);
+    assert_eq!(specs[0].key, "managed_field_name1");
+    assert_eq!(specs[0].aliases, &["mfn1", "a"]);
+    assert_eq!(specs[1].key, "managed.field_name2");
 }

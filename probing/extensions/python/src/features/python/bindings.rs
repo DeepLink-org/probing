@@ -36,13 +36,32 @@ pub fn is_enabled() -> bool {
 #[pyfunction]
 pub fn query_json(_py: Python, sql: String) -> PyResult<String> {
     with_detached_native(move || {
-        let bridge = block_on(async move { ENGINE.read().await.async_query(sql.as_str()).await })
+        let bridge = block_on(async move { ENGINE.read().await.query_outcome(sql.as_str()).await })
             .map_err(|e| runtime_err(format!("probing runtime unavailable: {e}")))?;
         match bridge {
-            Ok(Some(df)) => serde_json::to_string(&df).map_err(runtime_err),
-            Ok(None) => Err(pyo3::exceptions::PyRuntimeError::new_err(
-                "query returned nil (no tabular result; e.g. SET or non-SELECT)",
-            )),
+            Ok(outcome) if outcome.quality.is_partial() => Err(runtime_err(format!(
+                "federated query returned partial data: {:?}",
+                outcome.quality
+            ))),
+            Ok(outcome) => match outcome.data {
+                Some(df) => serde_json::to_string(&df).map_err(runtime_err),
+                None => Err(pyo3::exceptions::PyRuntimeError::new_err(
+                    "query returned nil (no tabular result; e.g. SET or non-SELECT)",
+                )),
+            },
+            Err(e) => Err(runtime_err(format!("engine SQL failed: {e}"))),
+        }
+    })
+}
+
+/// Execute SQL and serialize the typed data + completeness contract.
+#[pyfunction]
+pub fn query_outcome_json(_py: Python, sql: String) -> PyResult<String> {
+    with_detached_native(move || {
+        let bridge = block_on(async move { ENGINE.read().await.query_outcome(sql.as_str()).await })
+            .map_err(|e| runtime_err(format!("probing runtime unavailable: {e}")))?;
+        match bridge {
+            Ok(outcome) => serde_json::to_string(&outcome).map_err(runtime_err),
             Err(e) => Err(runtime_err(format!("engine SQL failed: {e}"))),
         }
     })

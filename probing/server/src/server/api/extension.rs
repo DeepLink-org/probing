@@ -6,7 +6,7 @@ use axum::{
 };
 use http_body_util::BodyExt;
 
-use probing_core::core::{ProbeExtensionManager, ProbeExtensionResponse};
+use probing_core::core::{ExtensionRoute, ProbeExtensionManager, ProbeExtensionResponse};
 
 use crate::engine::ENGINE;
 use crate::server::api::response;
@@ -22,33 +22,6 @@ pub async fn handle(req: axum::extract::Request) -> ApiResult<Response> {
     if method == Method::OPTIONS {
         return Ok(cors_preflight().into_response());
     }
-
-    if let Some(route) = response::route_spec(path) {
-        if route.method != method.as_str() {
-            return Err(ApiError::method_not_allowed(format!(
-                "Method {method} not allowed for {path}; expected {}",
-                route.method
-            )));
-        }
-        if route.requires_engine_ready {
-            if let Some(message) = crate::engine_lifecycle::engine_not_ready_message() {
-                return Err(ApiError::service_unavailable(message));
-            }
-        }
-    }
-
-    let params: HashMap<String, String> = match parts.uri.query() {
-        Some(q) => serde_urlencoded::from_str(q)
-            .map_err(|e| ApiError::bad_request(format!("Invalid query string: {e}")))?,
-        None => HashMap::new(),
-    };
-
-    let body_bytes = body.collect().await?.to_bytes();
-
-    log::debug!(
-        "Extension API [{method} {path}]: params = {params:?}, body_size = {} bytes",
-        body_bytes.len()
-    );
 
     let eem = {
         let engine = ENGINE.read().await;
@@ -66,8 +39,38 @@ pub async fn handle(req: axum::extract::Request) -> ApiResult<Response> {
         return Ok((StatusCode::NOT_FOUND, "Extension manager not available").into_response());
     };
 
+    let Some(route) = eem.route(path).await else {
+        return Err(ApiError::not_found(format!(
+            "No extension route registered for {path}"
+        )));
+    };
+    if route.method.as_str() != method.as_str() {
+        return Err(ApiError::method_not_allowed(format!(
+            "Method {method} not allowed for {path}; expected {}",
+            route.method.as_str()
+        )));
+    }
+    if route.requires_engine_ready {
+        if let Some(message) = crate::engine_lifecycle::engine_not_ready_message() {
+            return Err(ApiError::service_unavailable(message));
+        }
+    }
+
+    let params: HashMap<String, String> = match parts.uri.query() {
+        Some(q) => serde_urlencoded::from_str(q)
+            .map_err(|e| ApiError::bad_request(format!("Invalid query string: {e}")))?,
+        None => HashMap::new(),
+    };
+
+    let body_bytes = body.collect().await?.to_bytes();
+
+    log::debug!(
+        "Extension API [{method} {path}]: params = {params:?}, body_size = {} bytes",
+        body_bytes.len()
+    );
+
     match eem.call_response(path, &params, &body_bytes).await {
-        Ok(extension) => Ok(extension_response(path, extension).into_response()),
+        Ok(extension) => Ok(extension_response(route, extension).into_response()),
         Err(e) => {
             log::error!("Extension call failed for path '{path}': {e}");
             Err(ApiError::from_engine(e))
@@ -81,10 +84,10 @@ pub fn api_path(full_path: &str) -> &str {
 }
 
 fn extension_response(
-    path: &str,
+    route: ExtensionRoute,
     response: ProbeExtensionResponse,
 ) -> (StatusCode, HeaderMap, Vec<u8>) {
-    let meta = response::lookup(path);
+    let meta = response::response_meta(route);
     let status = if response.partial {
         StatusCode::SERVICE_UNAVAILABLE
     } else {
@@ -108,11 +111,12 @@ fn cors_preflight() -> (StatusCode, HeaderMap, &'static str) {
 #[cfg(test)]
 mod tests {
     use super::{api_path, extension_response};
-    use crate::server::api::response::{
-        lookup, route_spec, status_for_extension_body, ResponseMeta,
-    };
+    use crate::server::api::response::status_for_extension_body;
     use axum::http::StatusCode;
-    use probing_core::core::ProbeExtensionResponse;
+    use probing_core::core::{
+        ExtensionContentType, ExtensionHttpMethod, ExtensionRoute, ProbeExtensionCall,
+        ProbeExtensionResponse,
+    };
 
     fn load_spec() -> serde_json::Value {
         let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -130,31 +134,6 @@ mod tests {
     }
 
     #[test]
-    fn eval_route_is_post_in_spec() {
-        let route = route_spec("/pythonext/eval").expect("eval route");
-        assert_eq!(route.method, "POST");
-        assert!(!route.requires_engine_ready);
-    }
-
-    #[test]
-    fn distributed_torch_route_requires_ready_engine() {
-        let route = route_spec("/torchextension/flamegraph/distributed/json")
-            .expect("distributed torch route");
-        assert!(route.requires_engine_ready);
-    }
-
-    #[test]
-    fn response_lookup_follows_spec_not_path_heuristics() {
-        assert_eq!(
-            lookup("/pythonext/callstack"),
-            ResponseMeta {
-                content_type: "application/json",
-                cors: false,
-            }
-        );
-    }
-
-    #[test]
     fn api_path_matches_pythonext_spec_urls() {
         let spec = load_spec();
         let ext = spec["routing"]["python_http_extension_name"]
@@ -164,6 +143,69 @@ mod tests {
             let local = handler["local_path"].as_str().unwrap();
             let full = format!("/apis/{ext}/{local}");
             assert_eq!(api_path(&full), format!("/{ext}/{local}"));
+        }
+    }
+
+    #[test]
+    fn registered_route_contracts_match_api_spec() {
+        let spec = load_spec();
+        #[allow(unused_mut)]
+        let mut contracts = vec![
+            (
+                "pythonext",
+                probing_python::extensions::PythonExt::default().routes(),
+            ),
+            (
+                "torchextension",
+                probing_python::extensions::TorchProbeExtension::default().routes(),
+            ),
+            (
+                "pprofextension",
+                probing_python::extensions::PprofProbeExtension::default().routes(),
+            ),
+        ];
+        #[cfg(target_os = "linux")]
+        contracts.push((
+            "rdmaextension",
+            probing_cc::extensions::RdmaProbeExtension::default().routes(),
+        ));
+
+        let expected = spec["pythonext_handlers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|entry| ("pythonext", entry))
+            .chain(
+                spec["other_extensions"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .filter(|entry| {
+                        cfg!(target_os = "linux") || entry["extension_name"] != "rdmaextension"
+                    })
+                    .map(|entry| (entry["extension_name"].as_str().unwrap(), entry)),
+            );
+
+        for (extension_name, entry) in expected {
+            let local_path = entry["local_path"].as_str().unwrap();
+            let route = contracts
+                .iter()
+                .find(|(name, _)| *name == extension_name)
+                .and_then(|(_, routes)| routes.iter().find(|route| route.path == local_path))
+                .unwrap_or_else(|| panic!("missing typed route {extension_name}/{local_path}"));
+            assert_eq!(route.method.as_str(), entry["method"].as_str().unwrap());
+            assert_eq!(
+                route.content_type.as_str(),
+                entry["response"]["content_type"].as_str().unwrap()
+            );
+            assert_eq!(
+                route.cors,
+                entry["response"]["cors"].as_bool().unwrap_or(false)
+            );
+            assert_eq!(
+                route.requires_engine_ready,
+                entry["requires_engine_ready"].as_bool().unwrap_or(false)
+            );
         }
     }
 
@@ -186,7 +228,15 @@ mod tests {
         };
 
         assert_eq!(
-            extension_response("/torchextension/flamegraph/distributed/json", response).0,
+            extension_response(
+                ExtensionRoute::new(
+                    "flamegraph/distributed/json",
+                    ExtensionHttpMethod::Get,
+                    ExtensionContentType::Json,
+                ),
+                response,
+            )
+            .0,
             StatusCode::SERVICE_UNAVAILABLE
         );
     }

@@ -8,9 +8,9 @@ use probing_core::core::cluster::{
     reset_cluster_for_tests, update_node, HIERARCHICAL_METADATA_UNAVAILABLE,
 };
 use probing_core::core::federation::{
-    set_remote_query_hook, take_fanout_stats, FanoutScope, FanoutStats, PeerQueryOutcome,
-    PeerQueryTransport, FEDERATION_TAG_COLUMNS, GLOBAL_CATALOG, PROBE_ADDR_COL, PROBE_HOST_COL,
-    PROBE_LOCAL_RANK_COL, PROBE_NODE_RANK_COL, PROBE_RANK_COL, PROBE_ROLE_COL,
+    set_remote_query_hook, FanoutHttpRequest, FanoutHttpResponse, FanoutScope, FanoutService,
+    FanoutStats, PeerQueryOutcome, FEDERATION_TAG_COLUMNS, GLOBAL_CATALOG, PROBE_ADDR_COL,
+    PROBE_HOST_COL, PROBE_LOCAL_RANK_COL, PROBE_NODE_RANK_COL, PROBE_RANK_COL, PROBE_ROLE_COL,
 };
 use probing_core::core::{Engine, ProbeDataSource};
 use probing_proto::prelude::{Node, Seq};
@@ -101,8 +101,9 @@ impl fmt::Debug for PartialSubtreeTransport {
     }
 }
 
-impl PeerQueryTransport for PartialSubtreeTransport {
-    fn query(
+#[async_trait::async_trait]
+impl FanoutService for PartialSubtreeTransport {
+    async fn query_peer(
         &self,
         addr: &str,
         sql: &str,
@@ -110,10 +111,9 @@ impl PeerQueryTransport for PartialSubtreeTransport {
     ) -> datafusion::error::Result<PeerQueryOutcome> {
         assert_eq!(addr, self.peer_addr);
         assert_eq!(scope, FanoutScope::Coordinator);
-        let dataframe = futures::executor::block_on(self.peer_engine.async_query(sql))?
-            .ok_or_else(|| {
-                datafusion::error::DataFusionError::Execution("missing peer data".into())
-            })?;
+        let dataframe = self.peer_engine.async_query(sql).await?.ok_or_else(|| {
+            datafusion::error::DataFusionError::Execution("missing peer data".into())
+        })?;
         Ok(PeerQueryOutcome::with_stats(
             dataframe,
             FanoutStats {
@@ -123,6 +123,14 @@ impl PeerQueryTransport for PartialSubtreeTransport {
                 partial: true,
             },
         ))
+    }
+
+    async fn request_peer(
+        &self,
+        _addr: &str,
+        _request: FanoutHttpRequest,
+    ) -> datafusion::error::Result<FanoutHttpResponse> {
+        unreachable!("this regression service only executes SQL")
     }
 }
 
@@ -225,7 +233,7 @@ async fn global_query_preserves_nested_partial_transport_stats() {
     let local_table =
         GenericTableProbeDataSource::single_column_table("metrics", "demo", "v", vec![0]);
     let engine = Engine::builder()
-        .with_peer_query_transport(Arc::new(PartialSubtreeTransport {
+        .with_fanout_service(Arc::new(PartialSubtreeTransport {
             peer_engine,
             peer_addr,
         }))
@@ -234,17 +242,25 @@ async fn global_query_preserves_nested_partial_transport_stats() {
         .await
         .expect("coordinator engine");
 
-    let dataframe = engine
-        .async_query("SELECT v FROM global.demo.metrics ORDER BY v")
+    let outcome = engine
+        .query_outcome("SELECT v FROM global.demo.metrics ORDER BY v")
         .await
-        .expect("global query")
-        .expect("global dataframe");
+        .expect("global query");
+    let dataframe = outcome.data.expect("global dataframe");
     assert_eq!(df_col_i32(&dataframe, "v"), vec![0, 2]);
 
-    let stats = take_fanout_stats();
+    let stats = outcome.quality;
     assert!(stats.partial);
     assert_eq!(stats.nodes_succeeded, 1);
     assert_eq!(stats.nodes_failed, vec!["remote-leaf: timeout"]);
+
+    let data_only_error = engine
+        .async_query("SELECT v FROM global.demo.metrics ORDER BY v")
+        .await
+        .expect_err("data-only API must not hide partial completeness");
+    assert!(data_only_error
+        .to_string()
+        .contains("query returned partial data"));
 
     for key in [
         "RANK",
@@ -670,15 +686,15 @@ async fn aggregate_pushdown_merges_local_and_peer_sums() {
     let _lock = federation_test_lock().await;
     let cluster = FederatedTestCluster::setup(vec![1, 2, 3], vec![4, 5]).await;
 
-    let df = cluster
+    let outcome = cluster
         .local_engine
-        .async_query("SELECT sum(v) AS total FROM global.demo.metrics")
+        .query_outcome("SELECT sum(v) AS total FROM global.demo.metrics")
         .await
-        .expect("query")
-        .expect("dataframe");
+        .expect("query");
+    let df = outcome.data.expect("dataframe");
 
     assert_eq!(df_col_i64(&df, "total"), vec![15]);
-    let stats = take_fanout_stats();
+    let stats = outcome.quality;
     assert_eq!(stats.nodes_succeeded, 1);
     assert!(stats.nodes_failed.is_empty());
 
@@ -713,19 +729,19 @@ async fn federated_scan_concatenates_local_and_peer_rows_with_tags() {
     let _lock = federation_test_lock().await;
     let cluster = FederatedTestCluster::setup(vec![1, 2], vec![3]).await;
 
-    let df = cluster
+    let outcome = cluster
         .local_engine
-        .async_query("SELECT v, _host FROM global.demo.metrics ORDER BY v")
+        .query_outcome("SELECT v, _host FROM global.demo.metrics ORDER BY v")
         .await
-        .expect("query")
-        .expect("dataframe");
+        .expect("query");
+    let df = outcome.data.expect("dataframe");
 
     assert_eq!(df_col_i32(&df, "v"), vec![1, 2, 3]);
     assert!(df.names.iter().any(|n| n == "_host"));
     let hosts = df_col_str(&df, "_host");
     assert_eq!(hosts, vec!["coord-host", "coord-host", "peer-host"]);
 
-    let stats = take_fanout_stats();
+    let stats = outcome.quality;
     assert_eq!(stats.nodes_succeeded, 1);
 
     cluster.teardown();

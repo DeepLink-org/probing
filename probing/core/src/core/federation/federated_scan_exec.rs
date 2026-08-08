@@ -28,7 +28,7 @@ use futures::StreamExt;
 use probing_proto::prelude::DataFrame;
 
 use super::cluster_executor::{
-    fanout_strict_enabled, FederatedScanTarget, PeerQueryTransport, ProbeClusterExecutor,
+    fanout_strict_enabled, FanoutService, FederatedScanTarget, ProbeClusterExecutor,
 };
 use super::convert::{align_batch_to_schema, dataframe_to_record_batch, tag_record_batch};
 use super::fanout_scope::FanoutStatsHandle;
@@ -61,7 +61,7 @@ pub struct FederatedScanExec {
     local_rank: Option<i32>,
     /// Request-owned sink; explicit because DataFusion may poll partitions in child tasks.
     fanout_stats: FanoutStatsHandle,
-    transport: Option<Arc<dyn PeerQueryTransport>>,
+    service: Option<Arc<dyn FanoutService>>,
     properties: Arc<PlanProperties>,
 }
 
@@ -77,7 +77,7 @@ impl FederatedScanExec {
         local_addr: String,
         local_rank: Option<i32>,
         fanout_stats: FanoutStatsHandle,
-        transport: Option<Arc<dyn PeerQueryTransport>>,
+        service: Option<Arc<dyn FanoutService>>,
     ) -> Result<Self> {
         let projected_schema = Arc::new(
             output_schema
@@ -102,7 +102,7 @@ impl FederatedScanExec {
             local_addr,
             local_rank,
             fanout_stats,
-            transport,
+            service,
             properties: Arc::new(properties),
         })
     }
@@ -146,23 +146,21 @@ impl FederatedScanExec {
         let projection = self.projection.clone();
         let projected_schema = self.projected_schema.clone();
         let fanout_stats = self.fanout_stats.clone();
-        let transport = self.transport.clone();
+        let service = self.service.clone();
 
         // Best-effort fetch: failures (network, conversion) drop the node from
         // the result set and are recorded in the fan-out stats rather than
         // failing the whole query, matching the legacy partial-result behavior.
         let fut = async move {
-            let joined = tokio::task::spawn_blocking(move || {
-                ProbeClusterExecutor::execute_remote_for_scope(
-                    transport.as_ref(),
-                    &addr_query,
-                    &sql,
-                    remote_scope,
-                )
-            })
+            let result = ProbeClusterExecutor::execute_remote_for_scope(
+                service.as_ref(),
+                &addr_query,
+                &sql,
+                remote_scope,
+            )
             .await;
-            match joined {
-                Ok(Ok(outcome)) => match finalize_remote_dataframe(
+            match result {
+                Ok(outcome) => match finalize_remote_dataframe(
                     &outcome.dataframe,
                     &host,
                     &addr_tag,
@@ -185,18 +183,9 @@ impl FederatedScanExec {
                         None
                     }
                 },
-                Ok(Err(err)) => {
-                    log_federated_peer_failure(
-                        "federated scan skipped",
-                        &addr_tag,
-                        &err.to_string(),
-                    );
-                    fanout_stats.record_failure(&addr_tag);
-                    None
-                }
                 Err(err) => {
                     log_federated_peer_failure(
-                        "federated scan join failed for",
+                        "federated scan skipped",
                         &addr_tag,
                         &err.to_string(),
                     );
@@ -291,7 +280,7 @@ impl ExecutionPlan for FederatedScanExec {
             local_addr: self.local_addr.clone(),
             local_rank: self.local_rank,
             fanout_stats: self.fanout_stats.clone(),
-            transport: self.transport.clone(),
+            service: self.service.clone(),
             properties: self.properties.clone(),
         }))
     }

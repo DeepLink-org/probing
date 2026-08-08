@@ -18,8 +18,8 @@ pub use cluster_executor::set_remote_query_hook;
 pub use cluster_executor::{
     check_fanout_strict, enforce_fanout_strict, fanout_stats_partial, fanout_strict_enabled,
     remote_fanout_concurrency, remote_query_timeout, reset_fanout_stats, set_fanout_stats,
-    take_fanout_stats, FanoutStats, PeerQueryOutcome, PeerQueryTransport, ProbeClusterExecutor,
-    RemoteFanoutResult,
+    take_fanout_stats, FanoutHttpMethod, FanoutHttpRequest, FanoutHttpResponse, FanoutService,
+    FanoutStats, FanoutTarget, PeerQueryOutcome, ProbeClusterExecutor, RemoteFanoutResult,
 };
 pub use convert::{
     cluster_local_rank_for_endpoint, cluster_node_rank_for_endpoint, cluster_rank_for_endpoint,

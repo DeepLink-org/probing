@@ -152,19 +152,14 @@ impl ProbeEndpoint {
         let q_str = serde_json::to_string(&request)?;
         let reply_str = self.send_request("/query", &q_str).await?; // Renamed reply variable
         let msg = serde_json::from_str::<Message<QueryDataFormat>>(&reply_str)?;
-        if let Some(meta) = &msg.meta {
-            if meta
-                .get("fanout")
-                .and_then(|f| f.get("partial"))
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false)
-            {
+        if let Some(quality) = msg.meta.as_ref().and_then(|meta| meta.fanout.as_ref()) {
+            if quality.is_partial() {
                 if fanout_strict_enabled() {
                     return Err(anyhow::anyhow!(
-                        "federated fan-out strict mode: query returned partial data: {meta}"
+                        "federated fan-out strict mode: query returned partial data: {quality:?}"
                     ));
                 }
-                eprintln!("warning: federated query returned partial data: {meta}");
+                eprintln!("warning: federated query returned partial data: {quality:?}");
             }
         }
         let reply = msg.payload;

@@ -1,5 +1,6 @@
 use probing_core::core::{
-    EngineError, Maybe, ProbeExtension, ProbeExtensionCall, ProbeExtensionOption,
+    EngineError, ExtensionConfigSpec, Maybe, ProbeExtension, ProbeExtensionCall,
+    ProbeExtensionConfig, ProbeExtensionOption,
 };
 
 use crate::{start_remote, start_report_worker};
@@ -171,7 +172,7 @@ impl ServerProbeExtension {
 
 #[cfg(test)]
 mod test {
-    use probing_core::core::ProbeExtension;
+    use probing_core::core::ProbeExtensionConfig;
 
     use crate::extensions::ServerProbeExtension;
 

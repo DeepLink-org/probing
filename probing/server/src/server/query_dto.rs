@@ -82,10 +82,8 @@ async fn convert_engine_response_to_dto(
             let meta_partial = message_response
                 .meta
                 .as_ref()
-                .and_then(|m| m.get("fanout"))
-                .and_then(|f| f.get("partial"))
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false);
+                .and_then(|meta| meta.fanout.as_ref())
+                .is_some_and(|quality| quality.is_partial());
             let partial = partial || meta_partial;
 
             let response_dto = probing_proto::dto::query::QueryResponseDto::success(

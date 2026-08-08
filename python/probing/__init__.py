@@ -47,7 +47,7 @@ else:
     _get_python_frames = _core._get_python_frames
     register_table_docs = _core.register_table_docs
 
-    from probing.core.engine import load_extension, query
+    from probing.core.engine import load_extension, query, query_outcome
     from probing.parallel import clear_role, current_role, set_role
     from probing.tracing import (
         attach_training_phases,
@@ -100,6 +100,7 @@ else:
         "disable_tracer",
         "is_enabled",
         "query",
+        "query_outcome",
         "load_extension",
         "span",
         "event",

@@ -12,8 +12,7 @@ mod types;
 use probing_core::core::cluster::{local_leaf_peers, node_aggregator_peers};
 use probing_core::core::federation::{
     can_fanout_via_global_catalog, cluster_rank_for_endpoint, is_local0_from_env,
-    reset_fanout_stats, rewrite_sql_for_global_fanout, take_fanout_stats, validate_global_query,
-    with_fanout_scope_async, FanoutScope,
+    rewrite_sql_for_global_fanout, validate_global_query, with_fanout_scope_async, FanoutScope,
 };
 use probing_proto::prelude::*;
 
@@ -24,8 +23,9 @@ use planner::{peers_for_scope, plan_fanout};
 use transport::HttpPeerQueryClient;
 use types::{finish_fanout, FanoutOutcome};
 
-pub(crate) use transport::core_transport;
+pub(crate) use transport::core_service;
 pub use transport::remote_query_df;
+pub(crate) use transport::request_peer_blocking;
 pub use types::{ClusterFanoutScope, FanoutMeta, FanoutQueryResponse};
 
 fn local_host_label() -> String {
@@ -33,21 +33,33 @@ fn local_host_label() -> String {
 }
 
 pub async fn query_local_df(sql: &str) -> anyhow::Result<DataFrame> {
-    match handle_query(Query {
+    Ok(query_local_outcome(sql).await?.data)
+}
+
+async fn query_local_outcome(sql: &str) -> anyhow::Result<QueryOutcome<DataFrame>> {
+    let outcome = handle_query(Query {
         expr: sql.to_string(),
         ..Default::default()
     })
-    .await?
-    {
-        QueryDataFormat::DataFrame(dataframe) => Ok(dataframe),
-        QueryDataFormat::Nil => Ok(DataFrame::default()),
+    .await?;
+    let dataframe = match outcome.data {
+        QueryDataFormat::DataFrame(dataframe) => dataframe,
+        QueryDataFormat::Nil => DataFrame::default(),
         QueryDataFormat::Error(error) => anyhow::bail!("query error: {}", error.message),
         QueryDataFormat::TimeSeries(_) => anyhow::bail!("unexpected timeseries"),
-    }
+    };
+    Ok(QueryOutcome::with_quality(dataframe, outcome.quality))
 }
 
 async fn query_local_df_in_scope(scope: FanoutScope, sql: &str) -> anyhow::Result<DataFrame> {
     with_fanout_scope_async(scope, query_local_df(sql)).await
+}
+
+async fn query_local_outcome_in_scope(
+    scope: FanoutScope,
+    sql: &str,
+) -> anyhow::Result<QueryOutcome<DataFrame>> {
+    with_fanout_scope_async(scope, query_local_outcome(sql)).await
 }
 
 /// Run `sql` locally, optionally fanning out to peer nodes in the cluster view.
@@ -117,7 +129,7 @@ async fn fanout_node_tier(sql: &str, hierarchical: bool) -> anyhow::Result<Fanou
     let leaves = local_leaf_peers();
     let mut meta = FanoutMeta::local(true, hierarchical, ClusterFanoutScope::Node);
     meta.local_ranks_queried = leaves.len();
-    let client = HttpPeerQueryClient;
+    let client = HttpPeerQueryClient::new(core_service()?);
     for (node, result) in query_leaf_peers(&client, leaves, sql).await {
         match result {
             Ok(dataframe) => {
@@ -163,11 +175,11 @@ async fn fanout_flat(sql: &str) -> anyhow::Result<FanoutOutcome> {
 }
 
 async fn fanout_via_global_catalog(sql: &str, scope: FanoutScope) -> anyhow::Result<FanoutOutcome> {
-    reset_fanout_stats();
     let global_sql = rewrite_sql_for_global_fanout(sql);
     log::debug!("cluster fan-out via global catalog ({scope:?}): {global_sql}");
-    let dataframe = query_local_df_in_scope(scope, &global_sql).await?;
-    let stats = take_fanout_stats();
+    let outcome = query_local_outcome_in_scope(scope, &global_sql).await?;
+    let dataframe = outcome.data;
+    let stats = outcome.quality;
     let nodes_queried = 1 + stats.nodes_succeeded + stats.nodes_failed.len();
     finish_fanout(
         dataframe,
@@ -214,7 +226,7 @@ async fn broadcast_from_coordinator(sql: &str) -> anyhow::Result<FanoutOutcome> 
 
     let node_aggregators = node_aggregator_peers();
     meta.node_aggregators_queried = node_aggregators.len();
-    let client = HttpPeerQueryClient;
+    let client = HttpPeerQueryClient::new(core_service()?);
     for (node, result) in query_node_peers(&client, node_aggregators, sql).await {
         match result {
             Ok(outcome) => {
@@ -254,7 +266,7 @@ async fn broadcast_from_current_rank(
     meta.scope = scope.as_str().into();
     let peers = peers_for_scope(scope);
     let peer_count = peers.len();
-    let client = HttpPeerQueryClient;
+    let client = HttpPeerQueryClient::new(core_service()?);
 
     if scope == FanoutScope::Coordinator {
         meta.node_aggregators_queried = peer_count;

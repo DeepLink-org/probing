@@ -10,10 +10,12 @@ in [AUTH.md](AUTH.md).
 | Layer | URL pattern | Registration |
 |-------|-------------|--------------|
 | **Server public** | `/apis/{resource}` | `server/api/mod.rs` (explicit Axum routes) |
-| **Extension** | `/apis/{ext.name()}/{local_path}` | `@ext_handler` (Python) or `ProbeExtensionCall` (Rust) |
+| **Extension** | `/apis/{ext.name()}/{local_path}` | `ProbeExtensionCall::routes` typed registration + `call` execution |
 | **SQL** | `POST /query` | DataFusion engine (not REST) |
 
 Extension HTTP name comes from `ProbeExtension::name()` (derived: struct lowercased, with `probeextension` → `extension`, e.g. `RdmaProbeExtension` → `rdmaextension`, `PythonExt` → `pythonext`).
+Route registration fails engine initialization on duplicate/invalid paths; method,
+content type, CORS, and engine-readiness requirements are part of `ExtensionRoute`.
 
 SQL catalog registration uses [`EngineBuilder::with_data_source`](super::engine::EngineBuilder::with_data_source) and is separate from extension HTTP/SET wiring.
 
@@ -120,6 +122,10 @@ Rust-backed endpoints (`callstack`, `eval`) are thin `@ext_handler` wrappers aro
 |--------|------|---------|
 | POST | `/query` | SQL (`Message<Query>` JSON) |
 | POST | `/query/dto` | SQL (JSON DTO, external clients) |
+
+Core SQL execution returns `QueryOutcome<DataFrame>` (`data` + `quality`). The
+common `/query` envelope serializes non-default quality as typed
+`meta.fanout` (`nodes_succeeded`, `nodes_failed`, `peer_batches_dropped`, `partial`).
 | GET | `/config/{config_key}` | Read config value |
 | GET | `/ws` | WebSocket REPL |
 | * | `/mcp` | MCP Streamable HTTP (agent tools + schema resources) |
@@ -218,7 +224,7 @@ envelope and these documented endpoint-specific formats.
 | Invalid `/query` JSON body | 400 |
 | SQL/config execution failure on `/query` | 500 (`QueryDataFormat::Error` payload preserved) |
 | `/query/dto` engine errors | Same HTTP status as underlying `ApiError` (e.g. 404, 503); DTO `code` mirrors status (`BAD_REQUEST`, `NOT_FOUND`, `SERVICE_UNAVAILABLE`, …) |
-| Partial cluster fan-out (`meta.partial` / `nodes_failed` non-empty) on `/query`, `/query/dto`, `POST /apis/cluster/query`, `GET /apis/training/step_matrix`, or a distributed Torch/pprof flamegraph | 503 (body still returned so clients can inspect partial data) |
+| Partial cluster fan-out (`meta.fanout.partial` / `nodes_failed` non-empty) on `/query`, `/query/dto`, `POST /apis/cluster/query`, `GET /apis/training/step_matrix`, or a distributed Torch/pprof flamegraph | 503 (body still returned so clients can inspect partial data) |
 | Invalid extension query parameter (`cluster`, `step`, `metric`, or `mode`) | 400 |
 | Invalid file path / missing param | 400 |
 | File too large | 413 |
@@ -226,15 +232,9 @@ envelope and these documented endpoint-specific formats.
 ## Extension response headers
 
 Extension fallback responses (`server/api/extension.rs`) take `Content-Type` and CORS
-from [`tests/regression/spec/api_spec.json`](../../tests/regression/spec/api_spec.json), not path substring
-heuristics. Each handler declares:
-
-```json
-"response": { "content_type": "application/json", "cors": true }
-```
-
-Defaults live in `extension_response_defaults`. Lookup is implemented in
-`server/api/response.rs` (compile-time embedded spec).
+from the registered typed `ExtensionRoute`, not path substring heuristics or a
+test artifact embedded in production. Regression tests compare those registered
+contracts with [`api_spec.json`](../../tests/regression/spec/api_spec.json).
 
 | Field | Meaning |
 |-------|---------|

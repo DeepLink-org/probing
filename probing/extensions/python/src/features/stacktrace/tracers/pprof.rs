@@ -791,60 +791,35 @@ fn unique_contributor_rank_count(sets: &[(Option<i32>, Vec<String>)]) -> usize {
     ranks.len() + unranked
 }
 
-fn remote_pprof_folded_lines_blocking(addr: &str) -> anyhow::Result<Vec<String>> {
-    let url = format!("http://{addr}/apis/pprofextension/flamegraph/folded/json");
-    let timeout = std::time::Duration::from_secs(
-        std::env::var("PROBING_CLUSTER_QUERY_TIMEOUT_SEC")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(10),
-    );
-    let text = ureq::get(&url)
-        .config()
-        .timeout_global(Some(timeout))
-        .build()
-        .call()?
-        .body_mut()
-        .read_to_string()?;
+fn decode_remote_folded(
+    response: probing_core::core::federation::FanoutHttpResponse,
+) -> anyhow::Result<Vec<String>> {
+    if response.status >= 400 {
+        anyhow::bail!(
+            "HTTP {}: {}",
+            response.status,
+            String::from_utf8_lossy(&response.body)
+        );
+    }
     #[derive(serde::Deserialize)]
     struct Payload {
         lines: Vec<String>,
     }
-    Ok(serde_json::from_str::<Payload>(&text)?.lines)
+    Ok(serde_json::from_slice::<Payload>(&response.body)?.lines)
 }
 
-fn remote_pprof_flamegraph_json_blocking(addr: &str) -> anyhow::Result<String> {
-    let url = format!("http://{addr}/apis/pprofextension/flamegraph/json");
-    let timeout = std::time::Duration::from_secs(
-        std::env::var("PROBING_CLUSTER_QUERY_TIMEOUT_SEC")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(10),
-    );
-    let text = ureq::get(&url)
-        .config()
-        .timeout_global(Some(timeout))
-        .build()
-        .call()?
-        .body_mut()
-        .read_to_string()?;
-    Ok(text)
-}
-
-fn remote_pprof_folded_lines_fallback(addr: &str) -> anyhow::Result<Vec<String>> {
-    remote_pprof_folded_lines_blocking(addr).or_else(|_| {
-        let json = remote_pprof_flamegraph_json_blocking(addr)?;
-        Ok(crate::features::flamegraph::folded_lines_from_flamegraph_json(&json))
-    })
-}
-
-fn stack_fanout_concurrency(peer_count: usize) -> usize {
-    std::env::var("PROBING_STACK_FANOUT_CONCURRENCY")
-        .ok()
-        .and_then(|value| value.trim().parse::<usize>().ok())
-        .filter(|value| *value > 0)
-        .unwrap_or(32)
-        .min(peer_count.max(1))
+fn decode_remote_flamegraph(
+    response: probing_core::core::federation::FanoutHttpResponse,
+) -> anyhow::Result<Vec<String>> {
+    if response.status >= 400 {
+        anyhow::bail!(
+            "HTTP {}: {}",
+            response.status,
+            String::from_utf8_lossy(&response.body)
+        );
+    }
+    let json = String::from_utf8(response.body)?;
+    Ok(crate::features::flamegraph::folded_lines_from_flamegraph_json(&json))
 }
 
 fn stack_fanout_deadline() -> std::time::Duration {
@@ -862,9 +837,11 @@ fn stack_fanout_deadline() -> std::time::Duration {
 ///
 /// Returns `(json_body, partial)` where `partial` is true when some peers failed.
 pub async fn collect_distributed_stack_flamegraph_json(
+    fanout_service: Option<std::sync::Arc<dyn probing_core::core::federation::FanoutService>>,
     cluster: bool,
     mode: &str,
 ) -> (String, bool) {
+    use probing_core::core::federation::{FanoutHttpMethod, FanoutHttpRequest};
     let mode = if mode == "py" { "py" } else { "mixed" };
     use probing_core::core::cluster::{get_nodes, is_node_alive, local_listen_addrs};
     use std::collections::BTreeSet;
@@ -903,67 +880,68 @@ pub async fn collect_distributed_stack_flamegraph_json(
                 true
             })
             .collect();
-        let concurrency = stack_fanout_concurrency(peers.len());
-        let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(concurrency));
-        let mut tasks = tokio::task::JoinSet::new();
-        let mut pending: BTreeSet<String> = peers.iter().map(|node| node.addr.clone()).collect();
-
-        for node in peers {
-            let semaphore = semaphore.clone();
-            tasks.spawn(async move {
-                let addr = node.addr.clone();
-                let result = match semaphore.acquire_owned().await {
-                    Ok(_permit) => {
-                        match tokio::task::spawn_blocking(move || {
-                            remote_pprof_folded_lines_fallback(&addr)
-                        })
-                        .await
-                        {
-                            Ok(result) => result,
-                            Err(error) => Err(anyhow::anyhow!("task join failed: {error}")),
+        if let Some(service) = fanout_service {
+            let folded_request = FanoutHttpRequest {
+                method: FanoutHttpMethod::Get,
+                path: "/apis/pprofextension/flamegraph/folded/json".into(),
+                content_type: None,
+                body: Vec::new(),
+                timeout: stack_fanout_deadline(),
+            };
+            let mut fallback = Vec::new();
+            for (node, result) in service.request_many(peers, folded_request).await {
+                match result
+                    .map_err(anyhow::Error::new)
+                    .and_then(decode_remote_folded)
+                {
+                    Ok(lines) => {
+                        if let Some(rank) = node.rank {
+                            seen_ranks.insert(rank);
                         }
+                        line_sets.push((node.rank, lines));
                     }
-                    Err(error) => Err(anyhow::anyhow!("fan-out semaphore closed: {error}")),
-                };
-                (node, result)
-            });
-        }
-
-        let timed_out = {
-            let collect = async {
-                while let Some(joined) = tasks.join_next().await {
-                    match joined {
-                        Ok((node, Ok(lines))) => {
-                            pending.remove(&node.addr);
-                            if let Some(rank) = node.rank {
-                                seen_ranks.insert(rank);
-                            }
-                            line_sets.push((node.rank, lines));
-                        }
-                        Ok((node, Err(error))) => {
-                            pending.remove(&node.addr);
-                            log::warn!(
-                                "distributed stack flamegraph fan-out {} failed: {error:#}",
-                                node.addr
-                            );
-                            nodes_failed.push(format!("{}: {error:#}", node.addr));
-                        }
-                        Err(error) => {
-                            log::warn!("distributed stack flamegraph fan-out task failed: {error}");
-                        }
+                    Err(error) => {
+                        log::debug!(
+                            "distributed stack folded endpoint {} failed, trying JSON: {error:#}",
+                            node.addr
+                        );
+                        fallback.push(node);
                     }
                 }
+            }
+
+            let json_request = FanoutHttpRequest {
+                method: FanoutHttpMethod::Get,
+                path: "/apis/pprofextension/flamegraph/json".into(),
+                content_type: None,
+                body: Vec::new(),
+                timeout: stack_fanout_deadline(),
             };
-            tokio::time::timeout(stack_fanout_deadline(), collect)
-                .await
-                .is_err()
-        };
-        if timed_out {
-            tasks.abort_all();
+            for (node, result) in service.request_many(fallback, json_request).await {
+                match result
+                    .map_err(anyhow::Error::new)
+                    .and_then(decode_remote_flamegraph)
+                {
+                    Ok(lines) => {
+                        if let Some(rank) = node.rank {
+                            seen_ranks.insert(rank);
+                        }
+                        line_sets.push((node.rank, lines));
+                    }
+                    Err(error) => {
+                        log::warn!(
+                            "distributed stack flamegraph fan-out {} failed: {error:#}",
+                            node.addr
+                        );
+                        nodes_failed.push(format!("{}: {error:#}", node.addr));
+                    }
+                }
+            }
+        } else {
             nodes_failed.extend(
-                pending
+                peers
                     .into_iter()
-                    .map(|addr| format!("{addr}: stack fan-out deadline exceeded")),
+                    .map(|node| format!("{}: fan-out service is not configured", node.addr)),
             );
         }
     }
@@ -1209,24 +1187,15 @@ mod tests {
     }
 
     #[test]
-    fn stack_fanout_limits_are_bounded_and_configurable() {
+    fn stack_fanout_deadline_is_configurable() {
         let _guard = FANOUT_ENV_TEST_LOCK
             .lock()
             .unwrap_or_else(|error| error.into_inner());
-        let previous_concurrency = std::env::var("PROBING_STACK_FANOUT_CONCURRENCY").ok();
         let previous_deadline = std::env::var("PROBING_STACK_FANOUT_DEADLINE_SEC").ok();
 
-        std::env::set_var("PROBING_STACK_FANOUT_CONCURRENCY", "8");
         std::env::set_var("PROBING_STACK_FANOUT_DEADLINE_SEC", "7");
-        assert_eq!(stack_fanout_concurrency(64), 8);
-        assert_eq!(stack_fanout_concurrency(3), 3);
         assert_eq!(stack_fanout_deadline(), Duration::from_secs(7));
 
-        if let Some(value) = previous_concurrency {
-            std::env::set_var("PROBING_STACK_FANOUT_CONCURRENCY", value);
-        } else {
-            std::env::remove_var("PROBING_STACK_FANOUT_CONCURRENCY");
-        }
         if let Some(value) = previous_deadline {
             std::env::set_var("PROBING_STACK_FANOUT_DEADLINE_SEC", value);
         } else {

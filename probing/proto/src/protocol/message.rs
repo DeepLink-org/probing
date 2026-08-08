@@ -1,3 +1,4 @@
+use super::outcome::MessageMeta;
 use super::version::ProtocolVersion;
 use serde::{Deserialize, Serialize};
 
@@ -20,7 +21,7 @@ pub struct Message<T> {
 
     /// Optional response metadata (e.g. federated fan-out quality on `/query`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub meta: Option<serde_json::Value>,
+    pub meta: Option<MessageMeta>,
 }
 
 impl<T> Message<T> {

@@ -1,9 +1,7 @@
-//! Extension HTTP routing metadata driven by `tests/regression/spec/api_spec.json`.
-
-use std::collections::HashMap;
+//! HTTP rendering for type-checked extension route contracts.
 
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
-use once_cell::sync::Lazy;
+use probing_core::core::ExtensionRoute;
 
 /// Per-endpoint response metadata from the API spec.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -21,153 +19,11 @@ impl Default for ResponseMeta {
     }
 }
 
-/// Method + response metadata for a spec-defined extension route.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ExtensionRouteSpec {
-    pub method: &'static str,
-    pub response: ResponseMeta,
-    pub requires_engine_ready: bool,
-}
-
-static ROUTE_MAP: Lazy<HashMap<String, ExtensionRouteSpec>> = Lazy::new(|| {
-    build_route_map().unwrap_or_else(|e| {
-        log::error!("failed to build extension route map: {e}; using empty map");
-        HashMap::new()
-    })
-});
-
-fn build_route_map() -> Result<HashMap<String, ExtensionRouteSpec>, String> {
-    let spec: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../tests/regression/spec/api_spec.json"
-    ))
-    .map_err(|e| format!("parse api_spec.json: {e}"))?;
-
-    let defaults = spec
-        .get("extension_response_defaults")
-        .cloned()
-        .unwrap_or_else(|| serde_json::json!({}));
-
-    let mut map = HashMap::new();
-
-    let ext = spec["routing"]["python_http_extension_name"]
-        .as_str()
-        .ok_or("missing python_http_extension_name")?;
-    let handlers = spec["pythonext_handlers"]
-        .as_array()
-        .ok_or("missing pythonext_handlers")?;
-    for handler in handlers {
-        let local = handler["local_path"]
-            .as_str()
-            .ok_or("missing local_path in pythonext_handlers entry")?;
-        let method = handler["method"]
-            .as_str()
-            .ok_or("missing method in pythonext_handlers entry")?;
-        let response = handler.get("response").unwrap_or(&defaults);
-        map.insert(
-            format!("{ext}/{local}"),
-            ExtensionRouteSpec {
-                method: parse_method(method),
-                response: parse_response_meta(response, &defaults),
-                requires_engine_ready: handler
-                    .get("requires_engine_ready")
-                    .and_then(|value| value.as_bool())
-                    .unwrap_or(false),
-            },
-        );
-    }
-
-    let other_extensions = spec["other_extensions"]
-        .as_array()
-        .ok_or("missing other_extensions")?;
-    for entry in other_extensions {
-        let name = entry["extension_name"]
-            .as_str()
-            .ok_or("missing extension_name in other_extensions entry")?;
-        let local = entry["local_path"].as_str().unwrap_or("");
-        let method = entry["method"]
-            .as_str()
-            .ok_or("missing method in other_extensions entry")?;
-        let response = entry.get("response").unwrap_or(&defaults);
-        let key = if local.is_empty() {
-            name.to_string()
-        } else {
-            format!("{name}/{local}")
-        };
-        map.insert(
-            key,
-            ExtensionRouteSpec {
-                method: parse_method(method),
-                response: parse_response_meta(response, &defaults),
-                requires_engine_ready: entry
-                    .get("requires_engine_ready")
-                    .and_then(|value| value.as_bool())
-                    .unwrap_or(false),
-            },
-        );
-    }
-
-    Ok(map)
-}
-
-fn parse_method(method: &str) -> &'static str {
-    match method {
-        "GET" => "GET",
-        "POST" => "POST",
-        "PUT" => "PUT",
-        "DELETE" => "DELETE",
-        other => {
-            log::error!("unsupported HTTP method in api_spec.json: {other}; defaulting to GET");
-            "GET"
-        }
-    }
-}
-
-fn parse_response_meta(response: &serde_json::Value, defaults: &serde_json::Value) -> ResponseMeta {
-    let content_type = response
-        .get("content_type")
-        .or_else(|| defaults.get("content_type"))
-        .and_then(|v| v.as_str())
-        .unwrap_or("text/plain");
-    let cors = response
-        .get("cors")
-        .or_else(|| defaults.get("cors"))
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-
+pub fn response_meta(route: ExtensionRoute) -> ResponseMeta {
     ResponseMeta {
-        content_type: match content_type {
-            "application/json" => "application/json",
-            "text/plain" => "text/plain",
-            "text/html" => "text/html",
-            other => {
-                log::error!(
-                    "unsupported extension response content_type in api_spec.json: {other}; \
-                     defaulting to text/plain"
-                );
-                "text/plain"
-            }
-        },
-        cors,
+        content_type: route.content_type.as_str(),
+        cors: route.cors,
     }
-}
-
-fn route_key(path: &str) -> String {
-    path.trim_start_matches('/')
-        .trim_end_matches('/')
-        .to_string()
-}
-
-/// Look up spec metadata for an extension path (e.g. `/pythonext/trace/list`).
-pub fn route_spec(path: &str) -> Option<&'static ExtensionRouteSpec> {
-    let key = route_key(path);
-    ROUTE_MAP.get(&key)
-}
-
-/// Look up response metadata; unknown paths use defaults.
-pub fn lookup(path: &str) -> ResponseMeta {
-    route_spec(path)
-        .map(|spec| spec.response)
-        .unwrap_or_default()
 }
 
 /// HTTP status for an extension response body (Python router JSON errors → 4xx).
@@ -220,31 +76,23 @@ pub fn append_cors(headers: &mut HeaderMap) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn load_spec() -> serde_json::Value {
-        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../tests/regression/spec/api_spec.json");
-        let text = std::fs::read_to_string(path).expect("read api_spec.json");
-        serde_json::from_str(&text).expect("parse api_spec.json")
-    }
+    use probing_core::core::{ExtensionContentType, ExtensionHttpMethod};
 
     #[test]
-    fn spec_paths_have_route_entries() {
-        let spec = load_spec();
-        let ext = spec["routing"]["python_http_extension_name"]
-            .as_str()
-            .unwrap();
-
-        for handler in spec["pythonext_handlers"].as_array().unwrap() {
-            let local = handler["local_path"].as_str().unwrap();
-            let path = format!("/{ext}/{local}");
-            let route = route_spec(&path).expect("route spec");
-            assert_eq!(route.method, handler["method"].as_str().unwrap());
-            assert_eq!(
-                route.response.content_type,
-                handler["response"]["content_type"].as_str().unwrap()
-            );
-        }
+    fn response_meta_comes_from_typed_route() {
+        let route = ExtensionRoute::new(
+            "trace/chrome-tracing",
+            ExtensionHttpMethod::Get,
+            ExtensionContentType::Json,
+        )
+        .with_cors();
+        assert_eq!(
+            response_meta(route),
+            ResponseMeta {
+                content_type: "application/json",
+                cors: true,
+            }
+        );
     }
 
     #[test]
@@ -271,12 +119,5 @@ mod tests {
             status_for_extension_body("text/plain", b"hello"),
             StatusCode::OK
         );
-    }
-
-    #[test]
-    fn lookup_unknown_path_uses_defaults_without_panic() {
-        let meta = lookup("/pythonext/does-not-exist");
-        assert_eq!(meta.content_type, "text/plain");
-        assert!(!meta.cors);
     }
 }

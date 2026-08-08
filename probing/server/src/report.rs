@@ -1,7 +1,7 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 
 use super::vars::read_probing_address;
-use crate::cluster_http::{get_i32_env, put_nodes_blocking};
+use crate::cluster_http::{get_i32_env, put_nodes};
 use crate::cluster_report_backoff::{classify_report_outcome, ReportBackoff, ReportOutcome};
 use probing_proto::prelude::{Node, NodeReportResponse};
 
@@ -123,15 +123,8 @@ pub(crate) fn build_local_node(local_addr: &str) -> Node {
 }
 
 async fn request_remote(url: &str, nodes: Vec<Node>) -> Result<NodeReportResponse> {
-    let url = url.to_string();
-    tokio::task::spawn_blocking(move || request_remote_blocking(&url, nodes))
-        .await
-        .context("cluster report spawn_blocking failed")?
-}
-
-fn request_remote_blocking(url: &str, nodes: Vec<Node>) -> Result<NodeReportResponse> {
     let base = url.strip_suffix("/apis/nodes").unwrap_or(url);
-    put_nodes_blocking(base, nodes, probing_core::core::cluster::cluster_version())
+    put_nodes(base, nodes, probing_core::core::cluster::cluster_version()).await
 }
 
 #[cfg(test)]

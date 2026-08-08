@@ -1,22 +1,63 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use async_trait::async_trait;
+use probing_core::core::federation::FanoutService;
 use probing_core::core::EngineError;
 use probing_core::core::Maybe;
 use probing_core::core::ProbeExtension;
 use probing_core::core::ProbeExtensionCall;
 use probing_core::core::ProbeExtensionOption;
 use probing_core::core::ProbeExtensionResponse;
+use probing_core::core::{
+    ExtensionConfigSpec, ExtensionContentType, ExtensionHttpMethod, ExtensionRoute,
+    ProbeExtensionConfig,
+};
 
-#[derive(Debug, Default, ProbeExtension)]
+#[derive(Debug, ProbeExtension)]
 pub struct PprofProbeExtension {
     /// CPU profiling sample frequency in Hz (higher values increase overhead)
     #[option(aliases=["sample.freq"])]
     sample_freq: Maybe<i32>,
+    fanout_service: Option<Arc<dyn FanoutService>>,
+}
+
+impl Default for PprofProbeExtension {
+    fn default() -> Self {
+        Self {
+            sample_freq: Maybe::Nothing,
+            fanout_service: None,
+        }
+    }
 }
 
 #[async_trait]
 impl ProbeExtensionCall for PprofProbeExtension {
+    fn routes(&self) -> Vec<ExtensionRoute> {
+        vec![
+            ExtensionRoute::new(
+                "flamegraph",
+                ExtensionHttpMethod::Get,
+                ExtensionContentType::Html,
+            ),
+            ExtensionRoute::new(
+                "flamegraph/json",
+                ExtensionHttpMethod::Get,
+                ExtensionContentType::Json,
+            ),
+            ExtensionRoute::new(
+                "flamegraph/folded/json",
+                ExtensionHttpMethod::Get,
+                ExtensionContentType::Json,
+            ),
+            ExtensionRoute::new(
+                "flamegraph/distributed/json",
+                ExtensionHttpMethod::Get,
+                ExtensionContentType::Json,
+            ),
+        ]
+    }
+
     async fn call(
         &self,
         path: &str,
@@ -55,6 +96,13 @@ impl ProbeExtensionCall for PprofProbeExtension {
 }
 
 impl PprofProbeExtension {
+    pub fn with_fanout_service(fanout_service: Arc<dyn FanoutService>) -> Self {
+        Self {
+            fanout_service: Some(fanout_service),
+            ..Self::default()
+        }
+    }
+
     async fn distributed_flamegraph_response(
         &self,
         params: &HashMap<String, String>,
@@ -63,7 +111,9 @@ impl PprofProbeExtension {
         let mode = super::one_of_param(params, "mode", "mixed", &["mixed", "py"])?;
         let (body, partial) =
             crate::features::stacktrace::tracers::pprof::collect_distributed_stack_flamegraph_json(
-                cluster, mode,
+                self.fanout_service.clone(),
+                cluster,
+                mode,
             )
             .await;
         Ok(ProbeExtensionResponse {

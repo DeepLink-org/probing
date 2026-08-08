@@ -4,13 +4,20 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use probing_core::core::{EngineError, ProbeExtension, ProbeExtensionCall, ProbeExtensionManager};
+use probing_core::core::{
+    EngineError, ExtensionRoute, ProbeExtension, ProbeExtensionCall, ProbeExtensionConfig,
+    ProbeExtensionManager,
+};
 
 #[derive(Debug)]
 struct PythonextStub;
 
 #[async_trait]
 impl ProbeExtensionCall for PythonextStub {
+    fn routes(&self) -> Vec<ExtensionRoute> {
+        probing_python::extensions::PythonExt::default().routes()
+    }
+
     async fn call(
         &self,
         path: &str,
@@ -27,6 +34,8 @@ impl ProbeExtension for PythonextStub {
     }
 }
 
+impl ProbeExtensionConfig for PythonextStub {}
+
 fn load_spec() -> serde_json::Value {
     let path = probing_rust_regression::api_spec_path();
     let text = std::fs::read_to_string(path).expect("read api_spec.json");
@@ -40,7 +49,8 @@ async fn register_pythonext_stub() -> ProbeExtensionManager {
             "pythonext".to_string(),
             Arc::new(tokio::sync::Mutex::new(PythonextStub)),
         )
-        .await;
+        .await
+        .unwrap();
     manager
 }
 
