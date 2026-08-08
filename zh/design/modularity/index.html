@@ -1197,7 +1197,7 @@
   <a href="#32-probeextension-http" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3.2 ProbeExtension — 配置 + 命令式 HTTP
+        3.2 ProbeExtension — 类型化配置与 HTTP 契约
       
     </span>
   </a>
@@ -2560,7 +2560,7 @@
   <a href="#32-probeextension-http" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3.2 ProbeExtension — 配置 + 命令式 HTTP
+        3.2 ProbeExtension — 类型化配置与 HTTP 契约
       
     </span>
   </a>
@@ -3058,7 +3058,7 @@
 </tbody>
 </table>
 <p><strong>规则：</strong> schema/scan 在采集 crate 内；跨信号用 SQL JOIN，不在 <code>scan()</code> 里调别的采集器。</p>
-<h3 id="32-probeextension-http">3.2 <code>ProbeExtension</code> — 配置 + 命令式 HTTP<a class="headerlink" href="#32-probeextension-http" title="Permanent link">&para;</a></h3>
+<h3 id="32-probeextension-http">3.2 <code>ProbeExtension</code> — 类型化配置与 HTTP 契约<a class="headerlink" href="#32-probeextension-http" title="Permanent link">&para;</a></h3>
 <p><strong>定义：</strong> <code>probing/core/src/core/probe_extension.rs</code></p>
 <table>
 <thead>
@@ -3069,8 +3069,12 @@
 </thead>
 <tbody>
 <tr>
+<td>身份</td>
+<td><code>ProbeExtension::name</code> 定义注册命名空间</td>
+</tr>
+<tr>
 <td>配置</td>
-<td><code>probing.&lt;ns&gt;.&lt;option&gt;</code></td>
+<td><code>ProbeExtensionConfig</code> 声明 key/alias 并实现 <code>set</code> / <code>get</code> / <code>options</code></td>
 </tr>
 <tr>
 <td>副作用</td>
@@ -3078,11 +3082,11 @@
 </tr>
 <tr>
 <td>HTTP</td>
-<td><code>/apis/&lt;name&gt;/...</code></td>
+<td><code>ProbeExtensionCall::routes</code> 声明 method/content-type/CORS/readiness，<code>call</code> 负责执行</td>
 </tr>
 </tbody>
 </table>
-<p><strong>规则：</strong> 数据走表，控制走 Extension；trait 默认实现禁止 <code>todo!()</code>。</p>
+<p><strong>规则：</strong> 注册阶段校验扩展名、重复 route、配置 key/alias 冲突；数据走表，控制走 Extension；trait 默认实现禁止 <code>todo!()</code>。</p>
 <h3 id="33-python-table">3.3 Python <code>@table</code> — 应用数据插件<a class="headerlink" href="#33-python-table" title="Permanent link">&para;</a></h3>
 <p>见 <a href="../extensibility/">扩展机制</a>。训练行应带 <code>local_step</code>、<code>global_step</code>、<code>rank</code>、<code>role</code>（见 <a href="../../guide/concepts/">核心概念</a>）。</p>
 <h3 id="34-skill">3.4 Skill 契约 — 诊断工作流<a class="headerlink" href="#34-skill" title="Permanent link">&para;</a></h3>

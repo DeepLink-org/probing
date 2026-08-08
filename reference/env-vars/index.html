@@ -3296,14 +3296,14 @@ These variables are read by PyTorch, not Probing, but should be set before
 <td>Max concurrent in-flight remote fan-out HTTP requests per query.</td>
 </tr>
 <tr>
+<td><code>PROBING_FANOUT_WORKER_THREADS</code></td>
+<td><code>4</code></td>
+<td>Worker threads in the isolated async fan-out runtime shared by distributed SQL, extension capture, discovery, and heartbeat requests.</td>
+</tr>
+<tr>
 <td><code>PROBING_FANOUT_STRICT</code></td>
 <td>unset</td>
 <td>When <code>1</code> or <code>true</code>, any federated peer failure or dropped batch fails the whole query instead of returning partial results.</td>
-</tr>
-<tr>
-<td><code>PROBING_STACK_FANOUT_CONCURRENCY</code></td>
-<td><code>32</code></td>
-<td>Max concurrent peer captures for Distributed stacks.</td>
 </tr>
 <tr>
 <td><code>PROBING_STACK_FANOUT_DEADLINE_SEC</code></td>

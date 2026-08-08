@@ -3063,7 +3063,7 @@
     RW --&gt; EX[各分片执行]
     EX --&gt; TG[注入联邦标签]
     TG --&gt; MG[合并 / 二次聚合]
-    MG --&gt; OUT[DataFrame + FanoutMeta]</code></pre>
+    MG --&gt; OUT[QueryOutcome DataFrame + QueryQuality]</code></pre>
 <p><strong>统一约定</strong></p>
 <table>
 <thead>
@@ -3074,7 +3074,11 @@
 </thead>
 <tbody>
 <tr>
-<td>响应体</td>
+<td>Core 返回值</td>
+<td><code>QueryOutcome&lt;T&gt;</code> 始终同时携带 <code>data</code> 与类型化 <code>QueryQuality</code>；partial 不再是 task-local 旁路状态</td>
+</tr>
+<tr>
+<td>HTTP 响应体</td>
 <td><code>dataframe</code> + <code>meta.nodes_queried</code> + <code>meta.nodes_failed</code></td>
 </tr>
 <tr>
@@ -3086,8 +3090,16 @@
 <td>永远 <code>probe.*</code>；禁止 peer 再 fan-out（防递归）</td>
 </tr>
 <tr>
+<td>统一执行</td>
+<td>SQL、Extension 采集、节点发现和心跳 HTTP 共用一个异步 <code>FanoutService</code></td>
+</tr>
+<tr>
+<td>资源隔离</td>
+<td>Peer 网络 I/O 使用独立 Tokio runtime（<code>PROBING_FANOUT_WORKER_THREADS</code>），不占用 Axum/DataFusion 调用线程</td>
+</tr>
+<tr>
 <td>并发</td>
-<td>各 peer 并行请求；总延迟 ≈ 最慢 peer + coordinator 合并</td>
+<td>共用有界并发；总延迟 ≈ 最慢 peer + coordinator 合并</td>
 </tr>
 <tr>
 <td>超时</td>

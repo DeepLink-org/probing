@@ -2369,9 +2369,9 @@
 <td>单次 cluster fan-out 的最大并发远程 HTTP 请求数。</td>
 </tr>
 <tr>
-<td><code>PROBING_STACK_FANOUT_CONCURRENCY</code></td>
-<td><code>32</code></td>
-<td>Distributed stacks 同时采集的最大 peer 数。</td>
+<td><code>PROBING_FANOUT_WORKER_THREADS</code></td>
+<td><code>4</code></td>
+<td>分布式 SQL、Extension 采集、节点发现和心跳共用的独立异步 fan-out runtime 线程数。</td>
 </tr>
 <tr>
 <td><code>PROBING_STACK_FANOUT_DEADLINE_SEC</code></td>

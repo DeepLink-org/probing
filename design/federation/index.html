@@ -3122,7 +3122,7 @@ SQL matches §4.2 conditions.</p>
     RW --&gt; EX[Execute shards]
     EX --&gt; TG[Inject federation tags]
     TG --&gt; MG[Merge / re-aggregate]
-    MG --&gt; OUT[DataFrame + FanoutMeta]</code></pre>
+    MG --&gt; OUT[QueryOutcome DataFrame + QueryQuality]</code></pre>
 <p><strong>Conventions</strong></p>
 <table>
 <thead>
@@ -3133,7 +3133,11 @@ SQL matches §4.2 conditions.</p>
 </thead>
 <tbody>
 <tr>
-<td>Response</td>
+<td>Core result</td>
+<td><code>QueryOutcome&lt;T&gt;</code> always carries <code>data</code> and typed <code>QueryQuality</code>; partialness is not a task-local side channel</td>
+</tr>
+<tr>
+<td>HTTP response</td>
 <td><code>dataframe</code> + <code>meta.nodes_queried</code> + <code>meta.nodes_failed</code></td>
 </tr>
 <tr>
@@ -3145,8 +3149,16 @@ SQL matches §4.2 conditions.</p>
 <td>Always <code>probe.*</code>; peers must not fan-out again</td>
 </tr>
 <tr>
+<td>Execution</td>
+<td>SQL, extension capture, node discovery, and heartbeat HTTP share one async <code>FanoutService</code></td>
+</tr>
+<tr>
+<td>Isolation</td>
+<td>Peer network I/O runs on a dedicated Tokio runtime (<code>PROBING_FANOUT_WORKER_THREADS</code>), separate from Axum/DataFusion caller workers</td>
+</tr>
+<tr>
 <td>Concurrency</td>
-<td>Parallel peer requests; latency ≈ slowest peer + coordinator merge</td>
+<td>Shared bounded peer requests; latency ≈ slowest peer + coordinator merge</td>
 </tr>
 <tr>
 <td>Timeout</td>

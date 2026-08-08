@@ -1192,10 +1192,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#32-probeextension-config-imperative-http" class="md-nav__link">
+  <a href="#32-probeextension-typed-config-http-contracts" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3.2 ProbeExtension — config + imperative HTTP
+        3.2 ProbeExtension — typed config + HTTP contracts
       
     </span>
   </a>
@@ -2555,10 +2555,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#32-probeextension-config-imperative-http" class="md-nav__link">
+  <a href="#32-probeextension-typed-config-http-contracts" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3.2 ProbeExtension — config + imperative HTTP
+        3.2 ProbeExtension — typed config + HTTP contracts
       
     </span>
   </a>
@@ -3068,7 +3068,7 @@ component state, logs, and readiness responses.</p>
   <code>global.&lt;schema&gt;.&lt;table&gt;</code>.</li>
 <li>Do <strong>not</strong> query other collectors from inside <code>scan()</code>; join at SQL layer.</li>
 </ul>
-<h3 id="32-probeextension-config-imperative-http">3.2 <code>ProbeExtension</code> — config + imperative HTTP<a class="headerlink" href="#32-probeextension-config-imperative-http" title="Permanent link">&para;</a></h3>
+<h3 id="32-probeextension-typed-config-http-contracts">3.2 <code>ProbeExtension</code> — typed config + HTTP contracts<a class="headerlink" href="#32-probeextension-typed-config-http-contracts" title="Permanent link">&para;</a></h3>
 <p><strong>Where:</strong> <code>probing/core/src/core/probe_extension.rs</code>
 <strong>Derive:</strong> <code>#[derive(ProbeExtension)]</code> in <code>probing-macros</code></p>
 <table>
@@ -3080,8 +3080,12 @@ component state, logs, and readiness responses.</p>
 </thead>
 <tbody>
 <tr>
+<td>Identity</td>
+<td><code>ProbeExtension::name</code> supplies the registration namespace</td>
+</tr>
+<tr>
 <td>Config keys</td>
-<td><code>probing.&lt;namespace&gt;.&lt;option&gt;</code> via <code>set</code> / <code>get</code> / <code>options</code></td>
+<td><code>ProbeExtensionConfig</code> publishes typed key/alias specs and implements <code>set</code> / <code>get</code> / <code>options</code></td>
 </tr>
 <tr>
 <td>Side effects</td>
@@ -3089,13 +3093,14 @@ component state, logs, and readiness responses.</p>
 </tr>
 <tr>
 <td>HTTP</td>
-<td><code>ProbeExtensionCall::call</code> → <code>/apis/&lt;name&gt;/...</code> fallback</td>
+<td><code>ProbeExtensionCall::routes</code> registers method/content-type/CORS/readiness contracts; <code>call</code> executes them</td>
 </tr>
 </tbody>
 </table>
 <p><strong>Rules:</strong></p>
 <ul>
 <li>Extension name = URL segment (<code>pythonext</code>, <code>rdmaextension</code>, …).</li>
+<li>Registration validates names, duplicate routes, and config key/alias collisions before engine publication.</li>
 <li>Prefer <strong>tables for data</strong>, extension for <strong>control</strong> (start/stop, eval, flamegraph render).</li>
 <li>Never <code>todo!()</code> in default trait methods — return <code>EngineError</code>.</li>
 </ul>
