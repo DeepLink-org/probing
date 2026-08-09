@@ -2,7 +2,8 @@
 
 本文定义 **核心模块 vs 功能模块**、公共接口、依赖规则与建议 ownership，目标是让并行开发**互不打扰**。
 
-配合阅读：[系统架构](architecture.zh.md)、[数据层](data-layer.zh.md)、[扩展机制](extensibility.zh.md)；术语见 [核心概念](../guide/concepts.zh.md)。
+配合阅读：[启用、注入与运行时控制](activation-injection.zh.md)、[数据层](data-layer.zh.md)、
+[扩展机制](extensibility.zh.md)；术语见[核心概念](../guide/concepts.zh.md)。
 
 ---
 
@@ -10,45 +11,7 @@
 
 Probing 分四层。**依赖只能向下**（上层可调用下层，反之禁止）。
 
-```mermaid
-flowchart TB
-    subgraph L4["L4 — 体验层（不含引擎逻辑）"]
-        WEB[web/ WASM UI]
-        SKILLS[skills/ 诊断工作流]
-        PYSDK[python/probing/ SDK 与 hooks]
-    end
-
-    subgraph L3["L3 — 控制面"]
-        CLI[probing-cli]
-        SERVER[probing-server]
-    end
-
-    subgraph L2["L2 — 采集器 / 扩展"]
-        PYEXT[probing-python]
-        CC[probing-cc]
-        GPU[probing-gpu]
-        NCCL[probing-nccl-profiler cdylib]
-    end
-
-    subgraph L1["L1 — 平台核心"]
-        CORE[probing-core]
-        MEM[probing-memtable]
-        PROTO[probing-proto]
-        MACROS[probing-macros]
-    end
-
-    WEB --> PROTO
-    CLI --> PROTO
-    SERVER --> CORE
-    SERVER --> L2
-    L2 --> CORE
-    L2 --> MEM
-    CORE --> MEM
-    CORE --> PROTO
-    SKILLS --> PYSDK
-    PYSDK --> PYEXT
-    NCCL --> MEM
-```
+![模块依赖方向与采集器隔离边界](../assets/architecture/probing-module-dependencies.svg)
 
 | 层 | 职责 | 典型变更 |
 |----|------|----------|
@@ -209,17 +172,7 @@ HTTP 契约：`probing/server/API.md` + `tests/regression/spec/api_spec.json`。
 
 ## 4. 依赖规则
 
-```text
-允许：L4→L3(HTTP) → L3→L2/L1 → L2→L1
-
-禁止：
-  L1 → 上层
-  L2 ↔ L2（采集器互调）
-  L2 → server
-  L2 → probing-cli  — 采集器不得依赖 CLI（wheel 的 `cli_main` 仅在根 `src/lib.rs` 组装；见 §4.1）
-  skills → Rust 内部
-  web → probing-core
-```
+![依赖只沿公开契约向下，采集器之间彼此隔离](../assets/architecture/probing-module-dependencies.svg)
 
 ### 依赖矩阵（目标态）
 
@@ -238,11 +191,7 @@ HTTP 契约：`probing/server/API.md` + `tests/regression/spec/api_spec.json`。
 Maturin 只构建 **一个 native 产物**（根 `Cargo.toml` 的 `probing._core` cdylib）。PyPI 上的
 `probing` 命令 **不是** 独立 Rust 二进制：
 
-```text
-pip install probing
-  → probing._core.so   （core + server + python ext + cli 链进同一 .so）
-  → probing.cli.__main__  →  _core.cli_main()  →  probing_cli::cli_main()
-```
+![Wheel 在根动态库中组装 CLI 入口，但不形成运行时反向依赖](../assets/architecture/probing-wheel-composition.svg)
 
 这是为适配 maturin wheel 工作流（`pyproject.toml` 的 `[tool.maturin]` +
 `[project.scripts]`）的 **可接受编译期耦合**，不是采集器在运行时反向调用控制面。
@@ -259,21 +208,7 @@ pip install probing
 
 ---
 
-```mermaid
-sequenceDiagram
-    participant C as 采集 L2
-    participant M as memtable L1
-    participant E as Engine L1
-    participant S as Server L3
-    participant X as CLI/Web/Skill L4
-
-    C->>M: push_row / mmap
-    X->>S: POST /query
-    S->>E: async_query
-    E->>M: TableProvider scan
-    E-->>S: DataFrame
-    S-->>X: JSON
-```
+![训练写入与查询读取通过表契约汇合](../assets/architecture/probing-data-query-contract.svg)
 
 **推论：** 新指标 → 新表；跨信号分析 → SQL 或 skill； retention 只动 memtable 配置。
 
@@ -340,34 +275,22 @@ sequenceDiagram
 | 组装集中 | 全在 server/engine.rs | 可选 extension manifest |
 | Skill 三份 loader | ~~Rust/Python/Web 编译期 embed~~ | **已完成** — `probing-skills` 为 loader/interpret/runner SSOT；Python 保留发现 entry point + PyO3 序列化桥；Web 从 API 反序列化为共享类型 |
 | kmsg 采集器 | 已注册（Linux/kmsg feature gate） | Done |
-| Architecture 文档 | 二层旧图 | 以本文 + [数据层](data-layer.zh.md) 为准 |
 
-### 集群成员：Torchrun 心跳 vs Pulsing
+### 集群成员与外部运行时表
 
-两条**互补**路径填充 `cluster.nodes` 并支撑 `global.*` 联邦，互不取代。
+`cluster.nodes` 的现行成员来源是 **Torchrun 集群心跳**：L3 `probing-server` 通过分层 HTTP PUT
+和 TCPStore 旁路键注册 rank，不写 torch rendezvous 键。Rust ctor 默认调用
+`maybe_start_torchrun_cluster()`；细节见 [分布式成员与控制面](distributed.zh.md#cluster-membership)。
 
-| 路径 | 层 | 适用场景 | 机制 |
-|------|-----|----------|------|
-| **Torchrun 集群心跳** | L3 `probing-server` | 默认：`torchrun`/elastic（`WORLD_SIZE > 1`，`PROBING=1/2`） | 分层 HTTP PUT + TCPStore 旁路键（`probing/torchrun/<run_id>/…`），**不**写 rendezvous 键。见 [Torchrun 集群心跳](torchrun-cluster.zh.md)。 |
-| **Pulsing 集成** | L4 被动 + 外部运行时 | 作业已跑 [Pulsing](cluster-pulsing.zh.md) 并写 `pulsing.*` memtable | Probing 发现 mmap 表；无 probing 自有心跳线程。 |
-
-**torchrun 用户默认**：Rust ctor 自动 `maybe_start_torchrun_cluster()`。
-**Pulsing**：作业以 Pulsing 为中心做成员/故障检测，或需要 Pulsing actor 与 probing 表并存时使用。
+`pulsing.*` 只是被 mmap catalog 发现的外部表，与其他厂商表遵守相同的数据源契约。Probing
+目前不会把 Pulsing gossip 成员自动合并进 `cluster.nodes`，也没有由 Probing 启动 Pulsing
+ActorSystem 的现行实现。
 
 ---
 
 ## 9. 新功能决策树
 
-```text
-要新原始信号？
-  └─ 是 → L2 采集
-        ├─ 系统/GPU/NCCL → Rust extension
-        └─ 训练语义 → Python @table + hook
-  └─ 否
-        要新分析流程？ → L4 skill（仅 SQL）
-        要新 UI？ → L4 web（仅 HTTP/SQL）
-        要新命令？ → L3 CLI + proto DTO
-```
+![新能力依据新增的事实和状态选择所属模块](../assets/architecture/probing-feature-placement.svg)
 
 **反模式：** 在 engine.rs 写业务；Web 查不存在的表；采集器在写路径里 query；Skill 内嵌 Rust 分支；在 `probing-skills` 之外执行 skill（Python/Web 重复 runner）。
 
@@ -377,12 +300,12 @@ sequenceDiagram
 
 | 文档 | 范围 |
 |------|------|
-| [系统架构](architecture.zh.md) | 历史概览（逐步与本页对齐） |
+| [启用、注入与运行时控制](activation-injection.zh.md) | 运行时进入目标进程和服务就绪 |
 | [数据层](data-layer.zh.md) | MEMT/MEMC 内部实现 |
 | [扩展机制](extensibility.zh.md) | 对外扩展路径（表 + skill + NCCL） |
 | [分布式](distributed.zh.md) | 联邦与集群 |
-| [Torchrun 集群心跳](torchrun-cluster.zh.md) | 分层 torchrun 成员注册 |
-| [基于 Pulsing 的集群](cluster-pulsing.zh.md) | 可选 Pulsing 成员发现 |
+| [分布式成员与控制面](distributed.zh.md) | 分层 torchrun 成员注册与健康状态 |
+| [分布式 Profiler 查询与可视化](distributed-profiler.zh.md) | 万 Rank Timeline 查询和可视化目标设计 |
 | [NCCL Profiler](nccl-profiler.zh.md) | NCCL 插件边界 |
 | [web/DESIGN.md](https://github.com/DeepLink-org/probing/blob/main/web/DESIGN.md) | 前端模块布局 |
 | [AGENTS.md](https://github.com/DeepLink-org/probing/blob/main/AGENTS.md) | Agent 使用 skill |

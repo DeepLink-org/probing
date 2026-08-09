@@ -10,7 +10,7 @@
 PROBING_CLUSTER_PRESET=fast ./examples/cluster/run_multinode.sh 2 2
 ```
 
-预设说明：`docs/src/design/torchrun-cluster.md`。
+预设说明：`docs/src/design/distributed.zh.md#cluster-membership`。
 
 ## 文件
 

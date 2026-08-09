@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
+  <title id="title">Multi-resolution timeline pyramid</title>
+  <desc id="desc">The same distributed timeline can be explored from a ten-thousand-rank overview through node and behavior groups to selected ranks and exact events.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+    <style>
+      .title { font-family: Arial, sans-serif; font-size: 30px; font-weight: 700; fill: #0f172a; }
+      .subtitle { font-family: Arial, sans-serif; font-size: 16px; fill: #475569; }
+      .head { font-family: Arial, sans-serif; font-size: 19px; font-weight: 700; fill: #0f172a; }
+      .body { font-family: Arial, sans-serif; font-size: 14px; fill: #334155; }
+      .small { font-family: Arial, sans-serif; font-size: 12px; fill: #475569; }
+      .axis { stroke: #64748b; stroke-width: 1.5; }
+      .grid { stroke: #cbd5e1; stroke-width: 1; }
+      .line { stroke: #475569; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="1440" height="900" fill="#f8fafc"/>
+  <text class="title" x="60" y="58">One Timeline, Four Resolutions</text>
+  <text class="subtitle" x="60" y="88">Resolution changes along both time and rank axes; selection and alignment remain stable.</text>
+
+  <rect x="60" y="125" width="1060" height="150" rx="16" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text class="head" x="84" y="157">1. Job overview — all 10,000 ranks participate</text>
+  <text class="body" x="84" y="184">Rows: all ranks / nodes   Time: coarse buckets   Values: P50 / P95 / max / outlier count</text>
+  <rect x="84" y="205" width="1012" height="44" rx="6" fill="#ffffff" stroke="#93c5fd"/>
+  <rect x="96" y="214" width="120" height="26" fill="#bfdbfe"/><rect x="218" y="214" width="90" height="26" fill="#93c5fd"/>
+  <rect x="310" y="214" width="145" height="26" fill="#60a5fa"/><rect x="457" y="214" width="65" height="26" fill="#fbbf24"/>
+  <rect x="524" y="214" width="210" height="26" fill="#3b82f6"/><rect x="736" y="214" width="75" height="26" fill="#fb7185"/>
+  <rect x="813" y="214" width="271" height="26" fill="#2563eb"/>
+
+  <rect x="150" y="325" width="970" height="150" rx="16" fill="#e0f2fe" stroke="#0284c7" stroke-width="2"/>
+  <text class="head" x="174" y="357">2. Node / role / behavior groups</text>
+  <text class="body" x="174" y="384">Rows: selected groups   Time: medium buckets   Result identifies spatial and behavioral patterns</text>
+  <g transform="translate(174 405)">
+    <rect width="922" height="44" rx="6" fill="#ffffff" stroke="#7dd3fc"/>
+    <rect x="12" y="8" width="140" height="12" fill="#67e8f9"/><rect x="156" y="8" width="205" height="12" fill="#22d3ee"/>
+    <rect x="365" y="8" width="98" height="12" fill="#fbbf24"/><rect x="467" y="8" width="210" height="12" fill="#06b6d4"/>
+    <rect x="681" y="8" width="229" height="12" fill="#0891b2"/>
+    <rect x="12" y="24" width="230" height="12" fill="#a5f3fc"/><rect x="246" y="24" width="160" height="12" fill="#67e8f9"/>
+    <rect x="410" y="24" width="164" height="12" fill="#fb7185"/><rect x="578" y="24" width="332" height="12" fill="#0e7490"/>
+  </g>
+
+  <rect x="240" y="525" width="880" height="150" rx="16" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text class="head" x="264" y="557">3. Selected ranks — compare candidates with peers</text>
+  <text class="body" x="264" y="584">Rows: a bounded rank set   Time: fine tiles or slices   Flows and counters become visible</text>
+  <g transform="translate(264 605)">
+    <rect width="832" height="44" rx="6" fill="#ffffff" stroke="#86efac"/>
+    <rect x="12" y="7" width="95" height="8" fill="#4ade80"/><rect x="112" y="7" width="188" height="8" fill="#22c55e"/>
+    <rect x="305" y="7" width="76" height="8" fill="#f59e0b"/><rect x="386" y="7" width="434" height="8" fill="#16a34a"/>
+    <rect x="12" y="18" width="130" height="8" fill="#4ade80"/><rect x="147" y="18" width="108" height="8" fill="#22c55e"/>
+    <rect x="260" y="18" width="230" height="8" fill="#fb7185"/><rect x="495" y="18" width="325" height="8" fill="#16a34a"/>
+    <rect x="12" y="29" width="195" height="8" fill="#86efac"/><rect x="212" y="29" width="208" height="8" fill="#4ade80"/>
+    <rect x="425" y="29" width="80" height="8" fill="#f59e0b"/><rect x="510" y="29" width="310" height="8" fill="#15803d"/>
+  </g>
+
+  <rect x="330" y="725" width="790" height="120" rx="16" fill="#fff7ed" stroke="#f97316" stroke-width="2"/>
+  <text class="head" x="354" y="757">4. Exact trace — a few ranks and a narrow window</text>
+  <text class="body" x="354" y="784">Raw slices + flows + counters; export a selected Perfetto trace when needed</text>
+  <line class="axis" x1="354" y1="816" x2="1088" y2="816"/>
+  <rect x="382" y="801" width="92" height="14" rx="3" fill="#fb923c"/><rect x="484" y="801" width="144" height="14" rx="3" fill="#fdba74"/>
+  <rect x="640" y="801" width="57" height="14" rx="3" fill="#f97316"/><rect x="713" y="801" width="260" height="14" rx="3" fill="#ea580c"/>
+  <rect x="985" y="801" width="68" height="14" rx="3" fill="#fb7185"/>
+
+  <path class="line" d="M1128 198 C1305 198 1305 397 1132 397"/>
+  <path class="line" d="M1128 397 C1305 397 1305 597 1132 597"/>
+  <path class="line" d="M1128 597 C1305 597 1305 785 1132 785"/>
+  <text class="head" x="1200" y="176">Zoom</text>
+  <text class="small" x="1212" y="202">narrow time</text>
+  <text class="small" x="1212" y="221">expand ranks</text>
+
+  <rect x="80" y="732" width="180" height="104" rx="12" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text class="head" x="100" y="764">Stable context</text>
+  <text class="small" x="100" y="790">alignment</text>
+  <text class="small" x="100" y="809">rank-set token</text>
+  <text class="small" x="100" y="828">time-window token</text>
+</svg>

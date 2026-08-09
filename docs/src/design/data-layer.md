@@ -26,22 +26,7 @@ A single SQL time predicate prunes and queries both tiers at once.
 
 ## Architecture
 
-```mermaid
-graph LR
-    APP[push_row / RowWriter] --> MEMT
-    subgraph HOT[Hot tier · probing-memtable]
-        MEMT[MEMT ring buffer] --> SEALED[sealed chunk\nmin/max ts + generation]
-    end
-    SEALED -->|transpose + Pco| ROLLER[Compactor / Roller]
-    ROLLER --> MEMC
-    subgraph COLD[Cold tier · MEMC segments]
-        MEMC[ColdStore\nimmutable segments]
-    end
-
-    SQL[SQL query] --> HCT[HotColdTable]
-    HCT -->|chunk pruning| MEMT
-    HCT -->|segment + page pruning| MEMC
-```
+![MEMT hot layer, MEMC cold layer, and unified query](../assets/architecture/probing-hot-cold-overview.svg)
 
 The hot tier is logically read-only at query time, but MEMT mappings are opened writable so
 readers can update per-chunk pin metadata. The cold tier is read via `SegmentReader`. The
@@ -165,20 +150,27 @@ monotonically increasing sequence the `ColdStore` recovers on open.
 
 ### Segment Format
 
-A segment is a sequence of 64-aligned blocks. All integrity checks use **xxh3-64 truncated to 32
-bits**.
+MEMC must do more than compress old rows to disk. Hot slots are recycled, the process can exit at
+any byte boundary, and readers must distinguish "not committed yet" from "committed but corrupt."
+The segment therefore carries its own commit protocol and source identity instead of relying on a
+separate transaction log.
+
+A segment is a sequence of 64-aligned blocks. `MCTB` declares a table and schema, `MCPG` stores one
+column page, and `MCFT` is the page directory written at seal time. Integrity checks use
+**xxh3-64 truncated to 32 bits**.
 
 **Segment header (64 bytes):** `magic` (`"MEMC"`), `version` (2), BOM, `flags` (bit 0 = sealed),
 `writer_pid`, `writer_start`, `created_unix_ms`, `footer_off` (0 until sealed), segment-wide
 `ts_min`/`ts_max`, `page_count`, header checksum.
 
-**Blocks** share a 64-byte header:
+![MEMC physical segment format, column encodings, and recovery paths](../assets/architecture/probing-memc-format.svg)
 
-| magic | meaning |
-|---|---|
-| `MCTB` | table-definition block — declares a `table_id`, name, column dtypes, ts column |
-| `MCPG` | page block — one columnar page for a `table_id` |
-| `MCFT` | footer — page directory written on seal |
+The writer appends the header, table definitions, and column pages first. It writes the footer only
+after every payload and checksum is complete, then rewrites the header as sealed. The sealed bit is
+therefore the segment commit point. Before commit, a reader accepts only complete blocks found by a
+forward scan. After commit, any footer, block, or payload validation failure is corruption. The
+asymmetry follows causality: an unsealed tail may simply be unfinished, while a sealed segment has
+already declared itself complete and cannot reinterpret corruption as normal truncation.
 
 The page/block header carries `table_id`, `row_count`, `col_count`, `ts_min`/`ts_max`,
 `payload_len`, `payload_xxh`, and — crucially for restart dedup — `source_instance`, `source_gen`,
@@ -193,26 +185,21 @@ that need their historical rows must archive or convert them before upgrading.
 A single segment holds pages from **multiple tables**, distinguished by `table_id`. This decouples
 file/directory count from table count: hundreds of tables share one set of segment files.
 
-### Column Encodings
+### Why encoding is columnar
 
-Each column is encoded independently (`ColEncoding`):
+Once off the hot path, the compactor transposes rows so each data class can use its own statistical
+structure. Numeric columns use Pco, which is especially effective for monotonic timestamps; `u8`
+remains `RawFixed` to avoid useless compression; strings and byte arrays use length-prefixed
+`RawVarLen`. The page header fixes the choice so readers never guess. Moving transpose and
+compression to the cold tier is what lets MEMT retain a simple, allocation-free row write path.
 
-- **`Pco`** — numeric columns (`i32/i64/f32/f64/u32/u64`), compressed with Pco (level 8). Monotonic
-  timestamp columns compress > 4×.
-- **`RawFixed`** — `u8` (Pco offers no benefit for byte columns).
-- **`RawVarLen`** — `Str`/`Bytes`, stored as concatenated `[u32 len][bytes]` entries (Pco has no
-  string support).
+### Recovery boundary
 
-### Crash Recovery
-
-- A **sealed** segment is read via its footer page directory — O(1) location of every page. Footer,
-  block, payload, and page integrity failures reject the segment and fail the SQL scan; queries
-  never return a successful but incomplete cold result.
-- An **unsealed or torn** segment is recovered by **forward scan**. Only an incomplete final
-  header/payload is dropped as a crash tail; corruption of a complete checksummed block is an
-  error. Table-definition blocks are always scanned (cheap, and they precede pages).
-
-There is no heuristic that tries to repair a half-written record.
+A sealed segment uses its footer to locate pages, and any integrity failure fails the SQL scan; a
+query never succeeds with silently missing cold pages. An unsealed segment has made no completeness
+claim, so a forward scan may drop the final incomplete header or payload. A fully written block
+with a bad checksum is still an error. Recovery neither stitches partial rows nor guesses writer
+intent from payload contents.
 
 !!! warning "Durability"
     Pages are not `fsync`'d individually (only `sync_data` on seal). A `SIGKILL` may lose
@@ -223,17 +210,20 @@ There is no heuristic that tries to repair a half-written record.
 
 The `Compactor` drains newly-sealed hot chunks into cold segments.
 
-- **Drain semantics.** Only `Sealed` chunks are drained (never the currently-writing chunk). Rows
-  are transposed to columns; the chunk's `generation` is re-checked before and after — if the ring
-  recycled it, the page is dropped and retried next pass. Draining is **idempotent**: a per-chunk
-  `drained_gen` high-water mark skips already-compacted chunk generations.
-- **Rolling.** The open segment is sealed and a new one started when it reaches
-  `target_segment_bytes` (default 64 MiB — the main fragmentation knob), or when it exceeds
-  `max_segment_age` (default 300 s, so low-rate tables still become queryable), or on explicit
-  flush.
-- **Eviction.** `enforce` deletes oldest sealed segments past a byte budget (`max_total_bytes`) or
-  TTL, always protecting the newest plus every unsealed/unreadable segment that another writer may
-  still have open.
+![Compaction validates the source generation, encodes columns, then advances the watermark](../assets/architecture/probing-memc-lifecycle.svg)
+
+The compactor cannot hold the hot tier while compressing; cold-storage jitter would otherwise feed
+back into collection. A transaction snapshots a sealed chunk identity and transposes and encodes
+outside the hot path, then rereads the generation before commit. If the ring recycled the slot in
+the meantime, the result is discarded. `drained_gen` advances only after a complete page append, so
+failure causes a retry rather than a false claim that data was retained.
+
+Segment rolling is constrained by both size and age. Size bounds fragmentation and scan
+granularity; age prevents low-rate tables from remaining indefinitely in an unsealed segment. An
+explicit flush uses the same seal protocol. Retention deletes only the oldest sealed segments past
+the capacity or TTL boundary and protects the newest and any segment another writer may still have
+open. Compaction, rolling, and eviction therefore share one rule: destructive decisions apply only
+to committed objects.
 
 ### Exactly-Once Across Restarts
 
@@ -246,12 +236,11 @@ confusing a same-name replacement whose generations restart from the beginning.
 
 ## Runtime Owner
 
-`ColdCompactor` is a process-global singleton (modeled on the task-stats worker) that gives the
-compactor a single lifecycle home:
-
-- a background thread **rediscovers** ring files under `<data_dir>/<pid>/` each pass (tables appear
-  over time), drains each into the shared `ColdStore`, rolls by age, and enforces the budget;
-- on startup it calls `prime_from_cold()`; on stop it flushes (seals the open segment).
+`ColdCompactor` is process-global because multiple background owners would compete for the same hot
+sources and advance duplicate watermarks. Each pass rediscovers tables that appear under
+`<data_dir>/<pid>/`, drains them into one `ColdStore`, then applies rolling and budget constraints.
+Startup reconstructs watermarks from cold segments; shutdown seals the open segment through the
+same commit protocol.
 
 Discovery, segment enumeration, write/roll, and retention I/O are fallible operations. The worker
 logs failures and records an observable `CompactorRuntimeStats` snapshot (`error_count` plus the
@@ -303,16 +292,9 @@ from; the hot side then **excludes** any chunk whose `(index, current generation
 Each row is counted exactly once, and the dedup is immune to ring recycling (the generation check
 re-validates).
 
-## Configuration Reference
-
-| `SET memtable.*` | env | meaning | default |
-|---|---|---|---|
-| `cold_compaction` | `PROBING_COLD` | run the background compactor (`on`/`off`) | off |
-| `cold_max_total_mb` | `PROBING_COLD_MAX_TOTAL_MB` | cold-store byte budget (MiB) | unlimited |
-| `cold_ttl_secs` | `PROBING_COLD_TTL_SECS` | evict cold segments older than this | none |
-| — | `PROBING_COLD_TARGET_MB` | segment roll size (MiB) | 64 |
-| — | `PROBING_COLD_POLL_MS` | drain-pass interval | 2000 |
-| — | `PROBING_COLD_MAX_AGE_SECS` | seal idle open segment after | 300 |
+Runtime switches and capacity values are configuration contracts and are centralized under
+[Environment variables — Data storage](../reference/env-vars.md#data-storage) rather than repeated
+inside the storage architecture.
 
 ## Guarantees & Known Limits
 

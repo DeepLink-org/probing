@@ -3,8 +3,8 @@
 This document defines **core vs feature modules**, public interfaces, dependency rules, and
 ownership boundaries. Goal: parallel development without cross-cutting churn.
 
-Read with [Architecture](architecture.md), [Data Layer](data-layer.md), and
-[Extensibility](extensibility.md). Shared vocabulary: [Core Concepts](../guide/concepts.md).
+Read with [Activation & runtime control](activation-injection.md), [Data Layer](data-layer.md),
+and [Extensibility](extensibility.md). Shared vocabulary: [Core Concepts](../guide/concepts.md).
 
 ---
 
@@ -13,45 +13,7 @@ Read with [Architecture](architecture.md), [Data Layer](data-layer.md), and
 Probing is organized in four layers. **Dependencies only flow downward** (higher layers may
 call lower; never the reverse).
 
-```mermaid
-flowchart TB
-    subgraph L4["L4 — Experience (no engine logic)"]
-        WEB[web/ WASM UI]
-        SKILLS[skills/ diagnostic workflows]
-        PYSDK[python/probing/ SDK & hooks]
-    end
-
-    subgraph L3["L3 — Control plane"]
-        CLI[probing-cli]
-        SERVER[probing-server]
-    end
-
-    subgraph L2["L2 — Collectors & extensions"]
-        PYEXT[probing-python]
-        CC[probing-cc]
-        GPU[probing-gpu]
-        NCCL[probing-nccl-profiler cdylib]
-    end
-
-    subgraph L1["L1 — Platform core"]
-        CORE[probing-core]
-        MEM[probing-memtable]
-        PROTO[probing-proto]
-        MACROS[probing-macros]
-    end
-
-    WEB --> PROTO
-    CLI --> PROTO
-    SERVER --> CORE
-    SERVER --> L2
-    L2 --> CORE
-    L2 --> MEM
-    CORE --> MEM
-    CORE --> PROTO
-    SKILLS --> PYSDK
-    PYSDK --> PYEXT
-    NCCL --> MEM
-```
+![Module dependency direction and collector isolation](../assets/architecture/probing-module-dependencies.svg)
 
 | Layer | Role | Changes when… |
 |-------|------|----------------|
@@ -250,21 +212,7 @@ Collectors must not invent alternate peer tags.
 
 ## 4. Dependency rules
 
-```text
-Allowed:
-  L4 → L3 (HTTP only)
-  L3 → L2, L1
-  L2 → L1
-  L1 internal: core → memtable, proto
-
-Forbidden (fix if found):
-  L1 → L2/L3/L4
-  L2 → L2 (collector cross-deps)
-  L2 → L3 (extensions must not import server)
-  L2 → probing-cli  — collectors must not depend on CLI (wheel `cli_main` is wired in root `src/lib.rs`; see §4.1)
-  skills → Rust internals
-  web → probing-core / pyo3
-```
+![Dependencies flow down through published contracts and collectors remain isolated](../assets/architecture/probing-module-dependencies.svg)
 
 ### Dependency matrix (target state)
 
@@ -283,11 +231,7 @@ Forbidden (fix if found):
 Maturin builds **one native artifact** (`probing._core` cdylib from root `Cargo.toml`). The
 `probing` console script is **not** a separate Rust binary on PyPI:
 
-```text
-pip install probing
-  → probing._core.so   (core + server + python ext + cli linked in)
-  → probing.cli.__main__  →  _core.cli_main()  →  probing_cli::cli_main()
-```
+![The wheel composes the CLI entry at the root without a runtime reverse dependency](../assets/architecture/probing-wheel-composition.svg)
 
 This is an **accepted compile-time coupling** for the wheel workflow (`pyproject.toml`
 `[tool.maturin]` + `[project.scripts]`). It is **not** the Python collector calling the CLI
@@ -308,22 +252,7 @@ commands, rather than letting collectors or the cdylib spread imports across the
 
 ---
 
-```mermaid
-sequenceDiagram
-    participant C as Collector L2
-    participant M as memtable L1
-    participant E as Engine L1
-    participant S as Server L3
-    participant X as CLI/Web/Skill L4
-
-    C->>M: push_row / mmap file
-    Note over M: MEMT ring (+ optional MEMC cold)
-    X->>S: POST /query
-    S->>E: async_query(SQL)
-    E->>M: scan via TableProvider
-    E-->>S: DataFrame
-    S-->>X: JSON / render
-```
+![Writes and reads meet at the table contract](../assets/architecture/probing-data-query-contract.svg)
 
 **Implications:**
 
@@ -399,38 +328,23 @@ Track and fix incrementally:
 | Composition sprawl | All wiring in `server/engine.rs` | Optional: manifest TOML listing enabled extensions |
 | Skills triple loader | ~~Rust + Python + Web compile-time embed~~ | **Done** — `probing-skills` is loader/interpret/runner SSOT; Python keeps discovery entry-points + PyO3 serialize bridge; Web deserializes API into shared types |
 | kmsg collector | Registered (Linux/kmsg feature gate) | Done |
-| Architecture doc | 2-layer diagram | Superseded by this doc + [Data Layer](data-layer.md) |
 
-### Cluster membership: Torchrun heartbeat vs Pulsing
+### Cluster membership and external runtime tables
 
-Two **complementary** paths populate `cluster.nodes` and power `global.*` federation.
-They do not replace each other.
+The current source for `cluster.nodes` membership is the **Torchrun cluster heartbeat**. L3
+`probing-server` uses hierarchical HTTP PUT plus TCPStore side-channel keys without modifying
+torch rendezvous keys. The Rust ctor starts `maybe_start_torchrun_cluster()` by default; see
+[Distributed membership and control plane](distributed.md#cluster-membership).
 
-| Path | Layer | When | Mechanism |
-|------|-------|------|-----------|
-| **Torchrun cluster heartbeat** | L3 `probing-server` | Default for `torchrun` / elastic jobs (`WORLD_SIZE > 1`, `PROBING=1/2`) | Hierarchical HTTP PUT + TCPStore side channel (`probing/torchrun/<run_id>/…`). Does **not** touch torch rendezvous keys. See [Torchrun cluster heartbeat](torchrun-cluster.md). |
-| **Pulsing integration** | L4 passive + external runtime | Another process already runs [Pulsing](cluster-pulsing.md) and writes `pulsing.*` memtables | Probing discovers `pulsing.*` mmap tables; no probing-owned heartbeat thread. Optional bootstrap via Pulsing APIs. |
-
-**Default for torchrun users:** heartbeat auto-starts from the Rust ctor (`maybe_start_torchrun_cluster()`).
-**Pulsing:** use when the job already centers on Pulsing for membership/failure detection, or you need Pulsing actors alongside probing tables.
+`pulsing.*` is an externally produced mmap schema discovered through the same table contract as
+other vendor data. Probing does not currently merge Pulsing gossip members into `cluster.nodes`
+or bootstrap a Pulsing ActorSystem.
 
 ---
 
 ## 9. Adding a new feature (decision tree)
 
-```text
-Need new raw signals?
-  └─ Yes → L2 collector
-        ├─ System/host/GPU/NCCL → Rust extension crate
-        └─ Training semantics → Python @table + hook in python/probing/
-  └─ No
-        Need new analysis workflow?
-          └─ Yes → L4 skill (steps.yaml) referencing existing tables
-        Need new UI?
-          └─ Yes → L4 web page calling existing HTTP/SQL
-        Need new transport/command?
-          └─ Yes → L3 CLI + server endpoint (proto DTO first)
-```
+![Place new capabilities according to the facts and state they introduce](../assets/architecture/probing-feature-placement.svg)
 
 **Anti-patterns:**
 
@@ -445,12 +359,12 @@ Need new raw signals?
 
 | Doc | Scope |
 |-----|-------|
-| [Architecture](architecture.md) | Historical overview (being aligned with this doc) |
+| [Activation & runtime control](activation-injection.md) | Process entry and service readiness |
 | [Data Layer](data-layer.md) | MEMT/MEMC internals |
 | [Extensibility](extensibility.md) | Public extension paths (table + skill) |
 | [Distributed](distributed.md) | Federation & cluster |
-| [Torchrun cluster heartbeat](torchrun-cluster.md) | Hierarchical torchrun membership |
-| [Cluster with Pulsing](cluster-pulsing.md) | Optional Pulsing-based membership |
+| [Distributed membership](distributed.md) | Hierarchical torchrun membership and health |
+| [Distributed Profiler](distributed-profiler.md) | Target 10K-rank timeline query and visualization |
 | [NCCL Profiler](nccl-profiler.md) | NCCL plugin boundary |
 | [web/DESIGN.md](https://github.com/DeepLink-org/probing/blob/main/web/DESIGN.md) | UI module layout |
 | [AGENTS.md](https://github.com/DeepLink-org/probing/blob/main/AGENTS.md) | Agent skill usage |

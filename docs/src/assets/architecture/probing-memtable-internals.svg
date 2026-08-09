@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs><marker id="b" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2563EB"/></marker><marker id="g" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#0F766E"/></marker></defs>
+  <rect width="1280" height="720" fill="#F8FAFC"/>
+  <text x="640" y="38" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="22" font-weight="700" fill="#17324D">MEMT：固定容量环如何同时服务写者与多个读者</text>
+  <text x="640" y="62" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="12" fill="#64748B">单写者发布已编码前缀；读者复核 generation；活跃 lease 阻止 chunk 被复用</text>
+
+  <g font-family="PingFang SC, Microsoft YaHei, Arial">
+    <rect x="42" y="90" width="392" height="506" rx="14" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2"/>
+    <text x="66" y="120" font-size="16" font-weight="700" fill="#17324D">文件布局</text>
+    <rect x="66" y="142" width="344" height="82" rx="9" fill="#17324D"/>
+    <text x="84" y="166" font-size="12" font-weight="700" fill="#93C5FD">128-byte header · 文件级元数据</text>
+    <text x="84" y="188" font-size="10" fill="#CBD5E1">只读：magic / version / num_cols / num_chunks / offsets</text>
+    <text x="84" y="208" font-size="10" fill="#CBD5E1">原子热区：write_chunk / refcount · 与只读区分离 cache line</text>
+    <rect x="66" y="236" width="344" height="54" rx="9" fill="#EFF6FF" stroke="#93C5FD"/>
+    <text x="84" y="258" font-size="11" font-weight="700" fill="#174EA6">column descriptors</text>
+    <text x="84" y="278" font-size="10" fill="#64748B">列类型、定长/变长布局、时间戳列</text>
+    <rect x="66" y="302" width="344" height="62" rx="9" fill="#FFF7ED" stroke="#FDBA74"/>
+    <text x="84" y="325" font-size="11" font-weight="700" fill="#C2410C">reader lease array · 默认 16 slots</text>
+    <text x="84" y="346" font-size="10" fill="#64748B">PID + process start time + local refcount，区分 PID 重用</text>
+    <text x="66" y="394" font-size="11" font-weight="700" fill="#17324D">固定大小 chunks，逻辑顺序为 oldest -> newest</text>
+    <g font-size="10" text-anchor="middle">
+      <rect x="66" y="410" width="104" height="128" rx="8" fill="#F0FDFA" stroke="#0D9488"/>
+      <text x="118" y="432" font-weight="700" fill="#0F766E">chunk 7</text><text x="118" y="454" fill="#64748B">generation 31</text><text x="118" y="475" fill="#64748B">sealed</text><text x="118" y="496" fill="#64748B">min/max ts</text><text x="118" y="517" fill="#64748B">column bytes</text>
+      <rect x="180" y="410" width="104" height="128" rx="8" fill="#F0FDFA" stroke="#0D9488"/>
+      <text x="232" y="432" font-weight="700" fill="#0F766E">chunk 0</text><text x="232" y="454" fill="#64748B">generation 32</text><text x="232" y="475" fill="#64748B">sealed</text><text x="232" y="496" fill="#64748B">min/max ts</text><text x="232" y="517" fill="#64748B">column bytes</text>
+      <rect x="294" y="410" width="116" height="128" rx="8" fill="#DBEAFE" stroke="#2563EB" stroke-width="2"/>
+      <text x="352" y="432" font-weight="700" fill="#174EA6">chunk 1</text><text x="352" y="454" fill="#64748B">generation 33</text><text x="352" y="475" fill="#2563EB">writing</text><text x="352" y="496" fill="#64748B">used / row_count</text><text x="352" y="517" fill="#64748B">column bytes</text>
+    </g>
+
+    <rect x="458" y="90" width="370" height="506" rx="14" fill="#F0FDFA" stroke="#0D9488" stroke-width="2"/>
+    <text x="482" y="120" font-size="16" font-weight="700" fill="#0F766E">写入与读取协议</text>
+    <rect x="482" y="142" width="322" height="90" rx="9" fill="#FFFFFF" stroke="#5EEAD4"/>
+    <text x="500" y="166" font-size="11" font-weight="700" fill="#17324D">写者：直接编码到当前 chunk</text>
+    <text x="500" y="188" font-size="10" fill="#64748B">RowWriter 流式写列，不为每行分配中间对象</text>
+    <text x="500" y="209" font-size="10" fill="#64748B">写完 payload 后，以 Release 发布 used / row_count</text>
+    <path d="M643 232 L643 256" stroke="#0F766E" stroke-width="2" marker-end="url(#g)"/>
+    <rect x="482" y="264" width="322" height="96" rx="9" fill="#FFFFFF" stroke="#5EEAD4"/>
+    <text x="500" y="288" font-size="11" font-weight="700" fill="#17324D">空间不足：封口并推进环</text>
+    <text x="500" y="310" font-size="10" fill="#64748B">记录 min/max ts -> seal -> write_chunk 前移</text>
+    <text x="500" y="331" font-size="10" fill="#64748B">回收旧 chunk 时 generation + 1；覆盖可计数</text>
+    <text x="500" y="352" font-size="10" fill="#C2410C">仍被活跃 reader lease 使用时，不覆盖该快照</text>
+    <path d="M643 360 L643 384" stroke="#2563EB" stroke-width="2" marker-end="url(#b)"/>
+    <rect x="482" y="392" width="322" height="146" rx="9" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="500" y="416" font-size="11" font-weight="700" fill="#17324D">读者：两次检查 generation</text>
+    <text x="500" y="439" font-size="10" fill="#64748B">1. 获取进程 lease，Acquire 读取 generation 与 used</text>
+    <text x="500" y="461" font-size="10" fill="#64748B">2. 按列读取稳定范围，物化 Arrow RecordBatch</text>
+    <text x="500" y="483" font-size="10" fill="#64748B">3. 再读 generation；若变化，丢弃本 chunk 结果</text>
+    <text x="500" y="505" font-size="10" fill="#64748B">4. 查询结束释放 lease；异常进程由 liveness 回收</text>
+    <text x="500" y="527" font-size="10" font-weight="700" fill="#174EA6">结果：宁可少读一个被回收的 chunk，也不返回 torn rows</text>
+
+    <rect x="852" y="90" width="386" height="506" rx="14" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="876" y="120" font-size="16" font-weight="700" fill="#174EA6">从 mmap 快照到 Arrow</text>
+    <rect x="876" y="142" width="338" height="64" rx="9" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="1045" y="166" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">目录定位 PID / schema / table</text>
+    <text x="1045" y="187" text-anchor="middle" font-size="10" fill="#64748B">RingMmapTable 打开同一张 MEMT 文件</text>
+    <path d="M1045 206 L1045 230" stroke="#2563EB" stroke-width="2" marker-end="url(#b)"/>
+    <rect x="876" y="238" width="338" height="82" rx="9" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="894" y="262" font-size="11" font-weight="700" fill="#17324D">按时间范围选择 chunk</text>
+    <text x="894" y="284" font-size="10" fill="#64748B">用 min_ts / max_ts 剪枝</text>
+    <text x="894" y="305" font-size="10" fill="#64748B">获取 lease，并记录 generation₀</text>
+    <path d="M1045 320 L1045 344" stroke="#2563EB" stroke-width="2" marker-end="url(#b)"/>
+    <rect x="876" y="352" width="338" height="82" rx="9" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="894" y="376" font-size="11" font-weight="700" fill="#17324D">解码投影列</text>
+    <text x="894" y="398" font-size="10" fill="#64748B">只遍历 Release 已发布的稳定前缀</text>
+    <text x="894" y="419" font-size="10" fill="#64748B">结束前复核 generation₁</text>
+    <path d="M1045 434 L1045 458" stroke="#2563EB" stroke-width="2" marker-end="url(#b)"/>
+    <rect x="876" y="466" width="338" height="72" rx="9" fill="#DBEAFE" stroke="#2563EB"/>
+    <text x="1045" y="491" text-anchor="middle" font-size="11" font-weight="700" fill="#174EA6">Arrow RecordBatch</text>
+    <text x="1045" y="512" text-anchor="middle" font-size="10" fill="#64748B">generation 未变化才返回</text>
+    <text x="1045" y="530" text-anchor="middle" font-size="9" fill="#64748B">变化时丢弃该 chunk 的临时结果</text>
+  </g>
+  <rect x="42" y="620" width="1196" height="62" rx="12" fill="#17324D"/>
+  <text x="640" y="646" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="12" font-weight="700" fill="#FFFFFF">热路径使用预分配空间追加写入；读者通过发布顺序、lease 和 generation 检测并发复用。</text>
+  <text x="640" y="668" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="10" fill="#CBD5E1">mmap 避免查询前复制整个文件，但实际 SQL 结果仍会物化为 Arrow 批次。</text>
+</svg>

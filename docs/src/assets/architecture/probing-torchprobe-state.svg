@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2563EB"/></marker></defs>
+  <rect width="1280" height="720" fill="#F8FAFC"/>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial">
+    <text x="640" y="38" text-anchor="middle" font-size="22" font-weight="700" fill="#17324D">TorchProbe 状态机：step 坐标驱动 hook，异步队列负责慢操作</text>
+    <text x="640" y="63" text-anchor="middle" font-size="12" fill="#64748B">主线程拥有 cycle 与 step snapshot；autograd worker 只消费快照，避免 backward 在线程局部状态中丢失 step</text>
+
+    <rect x="42" y="92" width="1196" height="62" rx="12" fill="#17324D"/>
+    <text x="70" y="120" font-size="14" font-weight="700" fill="#FFFFFF">训练主线程</text>
+    <text x="70" y="141" font-size="10" fill="#CBD5E1">optimizer/forward 识别 step 边界 -> 保存 snapshot -> 关闭 step 时严格按固定顺序推进 cycle</text>
+
+    <g text-anchor="middle">
+      <rect x="66" y="190" width="198" height="90" rx="12" fill="#F1F5F9" stroke="#94A3B8" stroke-width="2"/>
+      <text x="165" y="220" font-size="14" font-weight="700" fill="#475569">Discovery</text>
+      <text x="165" y="244" font-size="10" fill="#64748B">第一次完整 forward</text><text x="165" y="263" font-size="10" fill="#64748B">只登记模块，不写性能行</text>
+      <rect x="314" y="190" width="198" height="90" rx="12" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+      <text x="413" y="220" font-size="14" font-weight="700" fill="#174EA6">Dispatch</text>
+      <text x="413" y="244" font-size="10" fill="#64748B">hook 进入快速 gate</text><text x="413" y="263" font-size="10" fill="#64748B">不创建 CUDA event</text>
+      <rect x="562" y="190" width="198" height="90" rx="12" fill="#F0FDFA" stroke="#0D9488" stroke-width="2"/>
+      <text x="661" y="220" font-size="14" font-weight="700" fill="#0F766E">Shadow</text>
+      <text x="661" y="244" font-size="10" fill="#64748B">模块/optimizer hook 立即返回</text><text x="661" y="263" font-size="10" fill="#64748B">仍记录 step wall time</text>
+      <rect x="810" y="190" width="198" height="90" rx="12" fill="#FAF5FF" stroke="#7C3AED" stroke-width="2"/>
+      <text x="909" y="220" font-size="14" font-weight="700" fill="#7C3AED">Sampled</text>
+      <text x="909" y="244" font-size="10" fill="#64748B">step gate + layer gate 命中</text><text x="909" y="263" font-size="10" fill="#64748B">创建成对事件与 metadata</text>
+      <rect x="1058" y="190" width="156" height="90" rx="12" fill="#FFF7ED" stroke="#F97316" stroke-width="2"/>
+      <text x="1136" y="220" font-size="14" font-weight="700" fill="#C2410C">Close step</text>
+      <text x="1136" y="244" font-size="9" fill="#64748B">record timing</text><text x="1136" y="261" font-size="9" fill="#64748B">drain -> cycle++</text>
+    </g>
+    <path d="M264 235 L306 235" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/><path d="M512 235 L554 235" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/><path d="M760 235 L802 235" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/><path d="M1008 235 L1050 235" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <path d="M1136 280 C1136 324 413 324 413 288" stroke="#2563EB" stroke-width="2" fill="none" marker-end="url(#a)"/>
+    <text x="772" y="319" text-anchor="middle" font-size="9" fill="#64748B">下一 cycle 重新按 shadow 周期与 sample period 分类</text>
+
+    <rect x="42" y="358" width="570" height="226" rx="14" fill="#FFFFFF" stroke="#7C3AED" stroke-width="2"/>
+    <text x="68" y="389" font-size="15" font-weight="700" fill="#7C3AED">Autograd worker：只消费主线程快照</text>
+    <rect x="68" y="416" width="150" height="70" rx="10" fill="#FAF5FF" stroke="#C4B5FD"/>
+    <text x="143" y="445" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">forward pre</text><text x="143" y="467" text-anchor="middle" font-size="9" fill="#64748B">保存 sampled module</text>
+    <rect x="252" y="416" width="150" height="70" rx="10" fill="#FAF5FF" stroke="#C4B5FD"/>
+    <text x="327" y="445" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">forward post</text><text x="327" y="467" text-anchor="middle" font-size="9" fill="#64748B">封口同一对事件</text>
+    <rect x="436" y="416" width="150" height="70" rx="10" fill="#FAF5FF" stroke="#C4B5FD"/>
+    <text x="511" y="445" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">backward</text><text x="511" y="467" text-anchor="middle" font-size="9" fill="#64748B">仅跟踪已采样 forward</text>
+    <path d="M218 451 L244 451" stroke="#7C3AED" stroke-width="2" marker-end="url(#a)"/><path d="M402 451 L428 451" stroke="#7C3AED" stroke-width="2" marker-end="url(#a)"/>
+    <text x="68" y="530" font-size="10" fill="#64748B">snapshot 包含 global_step、micro_step、并行角色和 cycle；动态控制流只产生实际执行模块的记录。</text>
+    <text x="68" y="555" font-size="10" fill="#64748B">offset=0 的首个 pre 是强制锚点；所有命中的 pre 必须有 matching post。</text>
+
+    <rect x="636" y="358" width="602" height="226" rx="14" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="662" y="389" font-size="15" font-weight="700" fill="#174EA6">Deferred queue：把 CUDA elapsed 读取移出采样步</text>
+    <rect x="662" y="416" width="164" height="70" rx="10" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="744" y="445" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">enqueue</text><text x="744" y="467" text-anchor="middle" font-size="9" fill="#64748B">event + step/module</text>
+    <rect x="858" y="416" width="164" height="70" rx="10" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="940" y="445" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">settle / query</text><text x="940" y="467" text-anchor="middle" font-size="9" fill="#64748B">3+ step 非阻塞检查</text>
+    <rect x="1054" y="416" width="158" height="70" rx="10" fill="#ECFDF5" stroke="#10B981"/>
+    <text x="1133" y="445" text-anchor="middle" font-size="11" font-weight="700" fill="#047857">save MEMT</text><text x="1133" y="467" text-anchor="middle" font-size="9" fill="#64748B">ready / lag 16+</text>
+    <path d="M826 451 L850 451" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/><path d="M1022 451 L1046 451" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <text x="662" y="530" font-size="10" fill="#64748B">队列默认 4096；满时同步保存而不是丢样本；退出时 atexit flush。</text>
+    <text x="662" y="555" font-size="10" fill="#64748B">关键顺序：record_step_timing -> drain_deferred -> advance_cycle -> mark_next_start。</text>
+
+    <rect x="42" y="610" width="1196" height="70" rx="12" fill="#17324D"/>
+    <text x="68" y="640" font-size="11" font-weight="700" fill="#FFFFFF">状态归属</text>
+    <text x="68" y="662" font-size="10" fill="#CBD5E1">cycle、采样计划与 rolling window 由 TorchProbe 拥有；CUDA event 只经 bounded queue 传给保存线程；训练 hook 永远不发网络请求。</text>
+  </g>
+</svg>

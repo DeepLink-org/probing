@@ -33,6 +33,11 @@
 | Web Training 热力图 | `GET /apis/training/step_matrix?cluster=true` | 是 |
 | 进程内 | rank 0 上 `probing.query("… global.…")` | 视 SQL |
 
+![global catalog 的分层 fan-out 与协调器合并](../assets/architecture/probing-query-federation.svg)
+
+图中的 `global.*` 是逻辑视图：peer 永远执行 `probe.*`。可归并聚合在数据侧先收敛，协调器
+注入来源标签并完成全局合并；不能正确拆分的表达式不得伪装成全局语义。
+
 ---
 
 ## 2. 两个 Catalog 与联邦标签
@@ -231,17 +236,7 @@ WHERE func LIKE '%collective%' OR func LIKE '%nccl%';
 
 ### 4.1 处理流水线
 
-```mermaid
-flowchart LR
-    IN[用户 SQL] --> CF{cluster?}
-    CF -->|否| L0[本地 DataFusion / probe.*]
-    CF -->|是| RT[路径选型 A/B/C]
-    RT --> RW[Catalog 改写]
-    RW --> EX[各分片执行]
-    EX --> TG[注入联邦标签]
-    TG --> MG[合并 / 二次聚合]
-    MG --> OUT[QueryOutcome DataFrame + QueryQuality]
-```
+![联邦查询从 SQL 路由到全局合并的处理流水线](../assets/architecture/probing-federation-pipeline.svg)
 
 **统一约定**
 
@@ -259,7 +254,7 @@ flowchart LR
 | Partial HTTP | 集群/fan-out API 在 `meta.partial=true` 时返回 **503** 及 partial `dataframe`（非 strict 模式） |
 | Peer 503 接受 | 非 strict 模式下，分层 merge 可接受 peer HTTP 503 的 partial body |
 | 联邦 scan 日志 | 默认 peer 丢弃记 **debug**；`PROBING_FANOUT_STRICT=1` 时记 **warn** |
-| 分层 fan-out | 默认开启：`coordinator → 各机 local0 → 本机 leaf`；见 [分层集群查询](hierarchical-fanout.zh.md) |
+| 分层 fan-out | 默认开启：`coordinator → 各机 local0 → 本机 leaf`；见 [§4.11](#hierarchical-fan-out) |
 
 ### 4.2 路径选型
 
@@ -267,16 +262,7 @@ flowchart LR
 
 `cluster=true` 时按 **AST 解析**（非 substring）依次判断：
 
-```mermaid
-flowchart TD
-    Q[SQL] --> P{单语句 SELECT?}
-    P -->|否| C[路径 C]
-    P -->|是| M{单表且无 JOIN/CTE/UNION/子查询?}
-    M -->|否| C
-    M -->|是| A{单表 global.* + 可下推 GROUP BY/聚合?}
-    A -->|是| PA[路径 A]
-    A -->|否| PB[路径 B]
-```
+![联邦查询根据 AST 选择聚合下推、联邦扫描或广播路径](../assets/architecture/probing-federation-path-selection.svg)
 
 | 路径 | 进入条件 | §3 典型场景 |
 |------|----------|-------------|
@@ -413,6 +399,64 @@ merge 后再 `GROUP BY` 数据列 + 用户请求的标签列（若有）。
 | compute vs comm | C | `probe.comm JOIN probe.torch_trace`；再 `GROUP BY _rank` |
 | hang / backtrace | A 或 B | 单表 `GROUP BY _rank` 或 filter raw |
 
+### 4.11 分层 fan-out {#hierarchical-fan-out}
+
+路径 A/B/C 说明 SQL 在每个分片和协调器上如何计算；分层 fan-out 说明这些分片请求如何在
+网络上到达万卡 rank。扁平模式需要 coordinator 直接建立 `O(world_size)` 个连接，分层模式
+把 coordinator 连接数降为 `O(node_count)`。
+
+![coordinator 只连接各机代理 rank 的分层查询](../assets/architecture/probing-fanout-internals.svg)
+
+| 层级 | fan-out 目标 | 8 卡/机、1024 机时的典型规模 |
+|------|--------------|-------------------------------|
+| coordinator | 每个 `group_rank` 的 `local_rank=0` | 约 1023 个远端 node |
+| node/local0 | 同 `group_rank` 的 leaf rank | 每机约 7 个 |
+| leaf | 无，只执行本地 SQL | 1 |
+
+`POST /apis/cluster/query` 的控制字段：
+
+| 字段 | 默认 | 语义 |
+|------|------|------|
+| `cluster` | `false` | 是否跨 endpoint |
+| `hierarchical` | `true` | 是否使用 node 层 |
+| `scope` | `auto` | `auto` / `coordinator` / `node` / `local` |
+
+`auto` 在 local0 入口选择 coordinator，在 leaf 入口选择 local。`coordinator` 聚合本机和远端
+node；`node` 只聚合当前机器；`local` 禁止继续 fan-out。peer 始终执行本地 `probe.*`，因此
+scope 是防止递归放大的执行契约，不只是性能提示。
+
+分层执行依赖 `cluster.nodes` 中完整的 `group_rank`、`local_rank` 和 `addr`。默认分层模式下，
+任一活跃成员缺少拓扑字段都会返回 HTTP 503，而不是静默退回可能漏数的扁平查询。只有用户
+明确设置 `hierarchical=false`、CLI `--flat` 或 `PROBING_CLUSTER_FANOUT_HIERARCHICAL=0`
+时才使用扁平路径。
+
+每一层必须向上合并以下质量信息：
+
+```json
+{
+  "hierarchical": true,
+  "scope": "coordinator",
+  "nodes_queried": 4,
+  "nodes_failed": [],
+  "node_aggregators_queried": 1,
+  "local_ranks_queried": 1
+}
+```
+
+远端 local0 返回的 leaf 覆盖率不能被压成“一个成功 endpoint”。非 strict 模式可接收下层
+HTTP 503 中的 partial body，并继续携带 `nodes_failed`；`PROBING_FANOUT_STRICT=1` 时任一
+失败、batch 丢弃或覆盖不完整都使整查失败。
+
+| 联邦路径 | 分层执行 |
+|----------|----------|
+| A 聚合下推 | node 层合并本机可归并 partial，再由 coordinator 全局归并 |
+| B 联邦 scan | coordinator 只为各 node aggregator 建远程 lazy partition |
+| C broadcast | 每个 node 在本机 rank 上执行同一 SQL并拼接，再向上返回 |
+
+实现位于 `probing/server/src/server/cluster_fanout.rs`、`cluster_query.rs` 和
+`probing/core/src/core/federation/fanout_scope.rs`。成员层级来源见
+[分布式成员与控制面](distributed.zh.md#cluster-membership)。
+
 ---
 
 ## 5. 回归查询
@@ -437,7 +481,7 @@ merge 后再 `GROUP BY` 数据列 + 用户请求的标签列（若有）。
 
 | 文档 | 内容 |
 |------|------|
-| [分布式架构](distributed.zh.md) | `cluster query` 用法 |
+| [分布式成员与控制面](distributed.zh.md) | 成员发现、heartbeat 与拓扑元数据 |
 | [核心模型](../guide/concepts.zh.md) | Catalog、联邦标签 |
 | [SQL 表目录](../reference/sql-tables.zh.md) | 表列与 `cluster.nodes` |
 | [NCCL Profiler](nccl-profiler.zh.md) | §3.1 ⑤、`nccl.proxy_ops` |

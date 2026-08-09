@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs>
+    <marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2563EB"/></marker>
+    <marker id="b" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#7C3AED"/></marker>
+  </defs>
+  <rect width="1280" height="720" fill="#F8FAFC"/>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial">
+    <text x="640" y="37" text-anchor="middle" font-size="22" font-weight="700" fill="#17324D">Rust 单页面应用：一次加载应用壳，路由只切换工作区</text>
+    <text x="640" y="61" text-anchor="middle" font-size="12" fill="#64748B">Dioxus 组件编译为 WASM；浏览器通过公开 HTTP 契约访问 Probing，不链接查询内核</text>
+
+    <rect x="40" y="92" width="300" height="510" rx="16" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2"/>
+    <text x="190" y="124" text-anchor="middle" font-size="16" font-weight="700" fill="#17324D">Rust 源码</text>
+    <rect x="66" y="148" width="248" height="82" rx="10" fill="#EFF6FF" stroke="#93C5FD"/>
+    <text x="190" y="174" text-anchor="middle" font-size="12" font-weight="700" fill="#174EA6">Dioxus 0.7 组件树</text>
+    <text x="190" y="198" text-anchor="middle" font-size="10" fill="#64748B">NextShell · 页面组件 · 可视化</text>
+    <text x="190" y="215" text-anchor="middle" font-size="9" fill="#64748B">声明式 UI 与组件生命周期</text>
+    <rect x="66" y="246" width="248" height="72" rx="10" fill="#EFF6FF" stroke="#93C5FD"/>
+    <text x="190" y="272" text-anchor="middle" font-size="12" font-weight="700" fill="#174EA6">dioxus-router</text>
+    <text x="190" y="296" text-anchor="middle" font-size="10" fill="#64748B">History 路由 · Outlet · 不整页刷新</text>
+    <rect x="66" y="334" width="248" height="82" rx="10" fill="#F0FDFA" stroke="#5EEAD4"/>
+    <text x="190" y="360" text-anchor="middle" font-size="12" font-weight="700" fill="#0F766E">GlobalSignal 与异步任务</text>
+    <text x="190" y="384" text-anchor="middle" font-size="10" fill="#64748B">调查上下文 · 页面证据 · overlays</text>
+    <text x="190" y="401" text-anchor="middle" font-size="9" fill="#64748B">可取消任务 · 可见时轮询</text>
+    <rect x="66" y="432" width="248" height="82" rx="10" fill="#FFF7ED" stroke="#FDBA74"/>
+    <text x="190" y="458" text-anchor="middle" font-size="12" font-weight="700" fill="#C2410C">ApiClient + 公共类型</text>
+    <text x="190" y="482" text-anchor="middle" font-size="10" fill="#64748B">reqwest · probing-proto</text>
+    <text x="190" y="499" text-anchor="middle" font-size="9" fill="#64748B">query · cluster · skills · extension API</text>
+    <rect x="66" y="534" width="248" height="42" rx="9" fill="#17324D"/>
+    <text x="190" y="560" text-anchor="middle" font-size="10" font-weight="700" fill="#FFFFFF">cargo / dx bundle --release</text>
+
+    <path d="M340 350 L382 350" stroke="#2563EB" stroke-width="3" marker-end="url(#a)"/>
+    <text x="361" y="338" text-anchor="middle" font-size="9" fill="#2563EB">编译</text>
+
+    <rect x="390" y="92" width="430" height="510" rx="16" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="605" y="124" text-anchor="middle" font-size="16" font-weight="700" fill="#174EA6">浏览器中的单页面应用</text>
+    <rect x="418" y="148" width="374" height="56" rx="10" fill="#17324D"/>
+    <text x="605" y="171" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">一个 HTML 应用壳</text>
+    <text x="605" y="190" text-anchor="middle" font-size="9" fill="#BFDBFE">WASM + JS glue + Tailwind CSS</text>
+    <rect x="418" y="224" width="92" height="276" rx="10" fill="#DBEAFE" stroke="#93C5FD"/>
+    <text x="464" y="250" text-anchor="middle" font-size="11" font-weight="700" fill="#174EA6">侧栏</text>
+    <text x="464" y="282" text-anchor="middle" font-size="9" fill="#64748B">页面入口</text>
+    <text x="464" y="302" text-anchor="middle" font-size="9" fill="#64748B">当前状态</text>
+    <text x="464" y="322" text-anchor="middle" font-size="9" fill="#64748B">全局操作</text>
+    <rect x="526" y="224" width="266" height="276" rx="10" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="659" y="250" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">路由工作区 Outlet</text>
+    <rect x="548" y="272" width="222" height="54" rx="8" fill="#F8FAFC" stroke="#CBD5E1"/>
+    <text x="659" y="295" text-anchor="middle" font-size="10" font-weight="700" fill="#17324D">Dashboard / Training / Cluster</text>
+    <text x="659" y="313" text-anchor="middle" font-size="9" fill="#64748B">切换路由，只替换这里</text>
+    <rect x="548" y="342" width="222" height="54" rx="8" fill="#F8FAFC" stroke="#CBD5E1"/>
+    <text x="659" y="365" text-anchor="middle" font-size="10" font-weight="700" fill="#17324D">Stacks / Traces / Profiles</text>
+    <text x="659" y="383" text-anchor="middle" font-size="9" fill="#64748B">复用同一上下文与组件</text>
+    <rect x="548" y="412" width="222" height="54" rx="8" fill="#FAF5FF" stroke="#C4B5FD"/>
+    <text x="659" y="435" text-anchor="middle" font-size="10" font-weight="700" fill="#7C3AED">Investigate / Skills</text>
+    <text x="659" y="453" text-anchor="middle" font-size="9" fill="#64748B">全页或右侧面板</text>
+    <rect x="418" y="520" width="374" height="56" rx="10" fill="#DBEAFE" stroke="#93C5FD"/>
+    <text x="605" y="543" text-anchor="middle" font-size="11" font-weight="700" fill="#174EA6">常驻能力</text>
+    <text x="605" y="562" text-anchor="middle" font-size="9" fill="#64748B">URL 同步 · 命令面板 · overlays · task runtime</text>
+
+    <path d="M820 350 L862 350" stroke="#7C3AED" stroke-width="3" marker-end="url(#b)"/>
+    <text x="841" y="338" text-anchor="middle" font-size="9" fill="#7C3AED">HTTP</text>
+
+    <rect x="870" y="92" width="370" height="510" rx="16" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2"/>
+    <text x="1055" y="124" text-anchor="middle" font-size="16" font-weight="700" fill="#17324D">Probing 服务端</text>
+    <rect x="896" y="148" width="318" height="76" rx="10" fill="#17324D"/>
+    <text x="1055" y="175" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">内嵌静态资源</text>
+    <text x="1055" y="198" text-anchor="middle" font-size="9" fill="#BFDBFE">预压缩 wasm / js / css 随服务端发布</text>
+    <rect x="896" y="246" width="318" height="64" rx="10" fill="#FFF7ED" stroke="#FDBA74"/>
+    <text x="1055" y="272" text-anchor="middle" font-size="11" font-weight="700" fill="#C2410C">公开 HTTP 接口</text>
+    <text x="1055" y="294" text-anchor="middle" font-size="9" fill="#64748B">/query · /apis/cluster/query · /skills/*</text>
+    <path d="M1055 310 L1055 340" stroke="#2563EB" stroke-width="2.5" marker-end="url(#a)"/>
+    <rect x="896" y="346" width="318" height="128" rx="10" fill="#EFF6FF" stroke="#93C5FD"/>
+    <text x="1055" y="372" text-anchor="middle" font-size="11" font-weight="700" fill="#174EA6">查询与诊断能力</text>
+    <text x="1055" y="400" text-anchor="middle" font-size="10" fill="#64748B">DataFusion 查询 · 联邦查询</text>
+    <text x="1055" y="424" text-anchor="middle" font-size="10" fill="#64748B">Extension API · Skill discovery</text>
+    <text x="1055" y="448" text-anchor="middle" font-size="10" fill="#64748B">DataFrame + 覆盖率 + partial 元数据</text>
+    <rect x="896" y="496" width="318" height="80" rx="10" fill="#F0FDFA" stroke="#5EEAD4"/>
+    <text x="1055" y="523" text-anchor="middle" font-size="11" font-weight="700" fill="#0F766E">边界保持简单</text>
+    <text x="1055" y="547" text-anchor="middle" font-size="9" fill="#64748B">前端只消费公开契约</text>
+    <text x="1055" y="565" text-anchor="middle" font-size="9" fill="#64748B">升级 UI 不改变采集与查询写入路径</text>
+
+    <rect x="40" y="626" width="1200" height="52" rx="12" fill="#17324D"/>
+    <text x="640" y="657" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF">构建链：Rust / Dioxus -> dx bundle -> WASM + 静态资源 -> 嵌入 probing._core -> 浏览器一次加载并持续路由</text>
+  </g>
+</svg>

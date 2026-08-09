@@ -372,7 +372,7 @@ web/src/
 |------|------|
 | Skills 格式与 catalog | `skills/README.md`、`skills/catalog.yaml` |
 | Agent / MCP 集成 | 仓库根 `AGENTS.md` |
-| TorchProbe / overhead 不变量 | `docs/src/design/overhead-invariants.zh.md` |
+| TorchProbe / overhead 不变量 | `docs/src/design/overhead.zh.md#change-invariants` |
 | Profiling / TorchProbe | `docs/src/design/profiling.zh.md` |
 | 扩展与自定义表 | `docs/src/design/extensibility.zh.md` |
 | 训练调试示例 | `docs/src/examples/training-debugging.zh.md` |

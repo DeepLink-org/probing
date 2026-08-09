@@ -227,4 +227,4 @@ if dist.is_initialized():
 
 - [Memory Analysis](memory-analysis.md) - Debug memory issues
 - [Troubleshooting](troubleshooting.md) - Common problems and solutions
-- [Design Architecture](../design/architecture.md) - Understand internals
+- [Modularity & Boundaries](../design/modularity.md) - Understand internals and ownership

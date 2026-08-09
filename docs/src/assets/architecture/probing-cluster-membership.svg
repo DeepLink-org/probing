@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="650" viewBox="0 0 1200 650">
+  <defs>
+    <marker id="blue-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#2563EB"/></marker>
+    <marker id="teal-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#0D9488"/></marker>
+  </defs>
+  <rect width="1200" height="650" fill="#F8FAFC"/>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial, sans-serif">
+    <text x="600" y="42" text-anchor="middle" font-size="26" font-weight="700" fill="#17324D">分布式成员控制面：分层传播身份，采集数据始终留在 Rank</text>
+    <text x="600" y="70" text-anchor="middle" font-size="13" fill="#64748B">torchrun 坐标决定成员身份；heartbeat 建立查询路由，不搬运训练遥测</text>
+
+    <rect x="45" y="105" width="1110" height="70" rx="14" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="600" y="134" text-anchor="middle" font-size="16" font-weight="700" fill="#1D4ED8">torchrun / elastic environment</text>
+    <text x="600" y="158" text-anchor="middle" font-size="13" fill="#475569">WORLD_SIZE / RANK / GROUP_RANK / LOCAL_RANK / role</text>
+
+    <path d="M600 175 V212" stroke="#2563EB" stroke-width="3" marker-end="url(#blue-arrow)"/>
+    <rect x="45" y="218" width="520" height="260" rx="16" fill="#ECFDF5" stroke="#0D9488" stroke-width="2"/>
+    <text x="70" y="250" font-size="17" font-weight="700" fill="#0F766E">节点 A</text>
+    <rect x="72" y="274" width="190" height="82" rx="11" fill="#17324D"/>
+    <text x="167" y="304" text-anchor="middle" font-size="15" font-weight="700" fill="#FFFFFF">local0 / Rank 0</text>
+    <text x="167" y="327" text-anchor="middle" font-size="11" fill="#CBD5E1">本机代理 + 本地 SQL</text>
+    <rect x="330" y="274" width="190" height="82" rx="11" fill="#FFFFFF" stroke="#5EEAD4"/>
+    <text x="425" y="304" text-anchor="middle" font-size="15" font-weight="700" fill="#17324D">leaf ranks</text>
+    <text x="425" y="327" text-anchor="middle" font-size="11" fill="#64748B">各自写本地表</text>
+    <path d="M330 315 H270" stroke="#0D9488" stroke-width="3" marker-end="url(#teal-arrow)"/>
+    <rect x="72" y="384" width="448" height="62" rx="10" fill="#D1FAE5"/>
+    <text x="296" y="411" text-anchor="middle" font-size="14" font-weight="700" fill="#0F766E">本机成员快照</text>
+    <text x="296" y="432" text-anchor="middle" font-size="11" fill="#475569">endpoint / rank / local rank / role / health</text>
+
+    <rect x="635" y="218" width="520" height="260" rx="16" fill="#ECFDF5" stroke="#0D9488" stroke-width="2"/>
+    <text x="660" y="250" font-size="17" font-weight="700" fill="#0F766E">节点 B ... 节点 N</text>
+    <rect x="662" y="274" width="190" height="82" rx="11" fill="#17324D"/>
+    <text x="757" y="304" text-anchor="middle" font-size="15" font-weight="700" fill="#FFFFFF">local0 / proxy</text>
+    <text x="757" y="327" text-anchor="middle" font-size="11" fill="#CBD5E1">节点级 heartbeat</text>
+    <rect x="920" y="274" width="190" height="82" rx="11" fill="#FFFFFF" stroke="#5EEAD4"/>
+    <text x="1015" y="304" text-anchor="middle" font-size="15" font-weight="700" fill="#17324D">leaf ranks</text>
+    <text x="1015" y="327" text-anchor="middle" font-size="11" fill="#64748B">各自写本地表</text>
+    <path d="M920 315 H860" stroke="#0D9488" stroke-width="3" marker-end="url(#teal-arrow)"/>
+    <rect x="662" y="384" width="448" height="62" rx="10" fill="#D1FAE5"/>
+    <text x="886" y="411" text-anchor="middle" font-size="14" font-weight="700" fill="#0F766E">本机成员快照</text>
+    <text x="886" y="432" text-anchor="middle" font-size="11" fill="#475569">只汇总身份和健康，不汇总采集数据</text>
+
+    <path d="M296 478 V515 H535" fill="none" stroke="#2563EB" stroke-width="3" marker-end="url(#blue-arrow)"/>
+    <path d="M886 478 V515 H665" fill="none" stroke="#2563EB" stroke-width="3" marker-end="url(#blue-arrow)"/>
+    <rect x="535" y="495" width="130" height="66" rx="11" fill="#17324D"/>
+    <text x="600" y="521" text-anchor="middle" font-size="14" font-weight="700" fill="#FFFFFF">global rank 0</text>
+    <text x="600" y="542" text-anchor="middle" font-size="10" fill="#CBD5E1">job snapshot</text>
+
+    <path d="M665 528 H792" stroke="#2563EB" stroke-width="3" marker-end="url(#blue-arrow)"/>
+    <rect x="800" y="495" width="355" height="66" rx="11" fill="#FFF7ED" stroke="#EA580C" stroke-width="2"/>
+    <text x="978" y="521" text-anchor="middle" font-size="14" font-weight="700" fill="#C2410C">CLI / Web / MCP / global.*</text>
+    <text x="978" y="543" text-anchor="middle" font-size="11" fill="#64748B">查询发生时才沿成员快照 fan-out</text>
+
+    <rect x="45" y="590" width="1110" height="40" rx="10" fill="#17324D"/>
+    <text x="600" y="615" text-anchor="middle" font-size="12" fill="#FFFFFF">控制面只回答“谁存在、在哪里、是否可查询”；训练事实仍由每个 Rank 本地保存</text>
+  </g>
+</svg>

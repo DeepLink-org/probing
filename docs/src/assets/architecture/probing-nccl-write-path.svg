@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#EA580C"/></marker></defs>
+  <rect width="1280" height="720" fill="#F8FAFC"/>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial">
+    <text x="640" y="38" text-anchor="middle" font-size="22" font-weight="700" fill="#17324D">NCCL 回调链：固定状态池承接高频事件，锁外批量写表</text>
+    <text x="640" y="63" text-anchor="middle" font-size="12" fill="#64748B">回调更新固定状态池；父子事件结束后生成 collective、proxy 和等待记录</text>
+
+    <rect x="42" y="92" width="250" height="512" rx="14" fill="#FFF7ED" stroke="#F97316" stroke-width="2"/>
+    <text x="68" y="123" font-size="15" font-weight="700" fill="#C2410C">NCCL plugin v3 / v4</text>
+    <g text-anchor="middle" font-size="11" font-weight="700">
+      <rect x="68" y="154" width="198" height="52" rx="9" fill="#FFFFFF" stroke="#FDBA74"/><text x="167" y="186" fill="#17324D">Collective start / stop</text>
+      <rect x="68" y="224" width="198" height="52" rx="9" fill="#FFFFFF" stroke="#FDBA74"/><text x="167" y="256" fill="#17324D">ProxyOp start / stop</text>
+      <rect x="68" y="294" width="198" height="52" rx="9" fill="#FFFFFF" stroke="#FDBA74"/><text x="167" y="326" fill="#17324D">ProxyStep state change</text>
+      <rect x="68" y="364" width="198" height="52" rx="9" fill="#FFFFFF" stroke="#FDBA74"/><text x="167" y="396" fill="#17324D">KernelCh / globaltimer</text>
+      <rect x="68" y="434" width="198" height="52" rx="9" fill="#FFFFFF" stroke="#FDBA74"/><text x="167" y="466" fill="#17324D">NetPlugin / watchdog</text>
+    </g>
+    <text x="68" y="532" font-size="10" fill="#64748B">回调可能来自通信线程、proxy</text><text x="68" y="551" font-size="10" fill="#64748B">线程或 watchdog，不能共享大锁。</text>
+
+    <path d="M292 348 L324 348" stroke="#EA580C" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="332" y="92" width="410" height="512" rx="14" fill="#FFFFFF" stroke="#EA580C" stroke-width="2"/>
+    <text x="358" y="123" font-size="15" font-weight="700" fill="#C2410C">事件状态：按 communicator 分片</text>
+    <rect x="358" y="151" width="358" height="86" rx="11" fill="#FFF7ED" stroke="#FDBA74"/>
+    <text x="378" y="180" font-size="12" font-weight="700" fill="#17324D">handle = shard + slot + generation</text>
+    <text x="378" y="204" font-size="10" fill="#64748B">固定 slot pool；start 不做堆分配</text>
+    <text x="378" y="224" font-size="10" fill="#64748B">stop 校验类型、索引和 generation，拒绝陈旧句柄</text>
+    <rect x="358" y="258" width="358" height="104" rx="11" fill="#EFF6FF" stroke="#2563EB"/>
+    <text x="378" y="287" font-size="12" font-weight="700" fill="#174EA6">父子关系留在同一 shard 内</text>
+    <text x="378" y="311" font-size="10" fill="#64748B">Collective 持有 KernelCh 与 ProxyOp 子事件引用</text>
+    <text x="378" y="332" font-size="10" fill="#64748B">ProxyOp 累加 ProxyStep 状态停留和字节进度</text>
+    <text x="378" y="353" font-size="10" fill="#64748B">最后一个子事件关闭后，父行才具备完整窗口</text>
+    <rect x="358" y="383" width="358" height="94" rx="11" fill="#FAF5FF" stroke="#7C3AED"/>
+    <text x="378" y="412" font-size="12" font-weight="700" fill="#7C3AED">不同调用者使用不同锁策略</text>
+    <text x="378" y="436" font-size="10" fill="#64748B">普通回调：只锁对应 shard</text>
+    <text x="378" y="457" font-size="10" fill="#64748B">watchdog：try_lock；忙则跳过，不等待通信线程</text>
+    <rect x="358" y="500" width="358" height="77" rx="11" fill="#ECFDF5" stroke="#10B981"/>
+    <text x="537" y="529" text-anchor="middle" font-size="12" font-weight="700" fill="#047857">锁内只更新状态并生成 Row</text>
+    <text x="537" y="552" text-anchor="middle" font-size="10" fill="#64748B">释放 shard 后再批量 push_row</text>
+
+    <path d="M742 348 L774 348" stroke="#EA580C" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="782" y="92" width="456" height="512" rx="14" fill="#FFFFFF" stroke="#0D9488" stroke-width="2"/>
+    <text x="808" y="123" font-size="15" font-weight="700" fill="#0F766E">生成三类关联表</text>
+    <rect x="808" y="151" width="404" height="112" rx="11" fill="#F0FDFA" stroke="#0D9488"/>
+    <text x="828" y="181" font-size="12" font-weight="700" fill="#0F766E">nccl.coll_perf</text>
+    <text x="828" y="205" font-size="10" fill="#475569">comm · seq · op · bytes · algorithm · bandwidth</text>
+    <text x="828" y="226" font-size="10" fill="#475569">start/end/duration · timing_source</text>
+    <text x="828" y="247" font-size="10" fill="#64748B">时间源：kernel_gpu -&gt; kernel_ch -&gt; proxy -&gt; enqueue</text>
+    <rect x="808" y="283" width="404" height="112" rx="11" fill="#EFF6FF" stroke="#2563EB"/>
+    <text x="828" y="313" font-size="12" font-weight="700" fill="#174EA6">nccl.proxy_ops</text>
+    <text x="828" y="337" font-size="10" fill="#475569">peer · direction · channel · protocol · transferred bytes</text>
+    <text x="828" y="358" font-size="10" fill="#475569">send_gpu / send_peer / send / recv / flush wait</text>
+    <text x="828" y="379" font-size="10" fill="#64748B">回答“等在哪里”，不直接宣布责任方</text>
+    <rect x="808" y="415" width="404" height="92" rx="11" fill="#FFF7ED" stroke="#F97316"/>
+    <text x="828" y="445" font-size="12" font-weight="700" fill="#C2410C">nccl.inflight_ops + profiler_counters</text>
+    <text x="828" y="469" font-size="10" fill="#475569">只读快照；用于 hang 时查看尚未关闭的 collective</text>
+    <text x="828" y="490" font-size="10" fill="#64748B">忙、池满、句柄错误都显式计数</text>
+    <rect x="808" y="529" width="404" height="48" rx="9" fill="#17324D"/>
+    <text x="1010" y="559" text-anchor="middle" font-size="10" font-weight="700" fill="#FFFFFF">与 step 的关联发生在 SQL 时间窗，而非 NCCL 回调里</text>
+
+    <rect x="42" y="628" width="1196" height="54" rx="12" fill="#17324D"/>
+    <text x="640" y="661" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">watchdog 使用 try_lock；状态池忙时跳过本次快照，不等待通信回调。</text>
+  </g>
+</svg>

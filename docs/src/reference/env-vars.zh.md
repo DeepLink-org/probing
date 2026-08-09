@@ -9,9 +9,32 @@ Probing 读取的全部 `PROBING_*` 环境变量参考（按子系统分组）�
 | `PROBING` | `0`, `1`/`followed`, `2`/`nested`, `regex:PATTERN`, `SCRIPT.py` | 未设置（禁用） | 是否启用 probing。`1` 仅当前进程；`2` 当前及子进程；`regex:` 脚本名匹配时启用。 |
 | `PROBING_ORIGINAL` | （自动设置） | — | 备份原始 `PROBING` 值；由 site_hook 设置，勿手动设置。 |
 
+## 数据存储 {#data-storage}
+
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `PROBING_DATA_DIR` | 平台相关 | MEMT mmap 文件根目录；每个进程使用 PID 子目录。 |
+| `PROBING_TABLE_DEFAULT_MB` | `20` | Python `@table` 与未指定容量的 `ExternalTable` 默认 mmap 环形容量。 |
+| `PROBING_COLD` | 未设置 | 设为 `on` 启用 MEMT 到 MEMC 的后台整理。 |
+| `PROBING_COLD_TARGET_MB` | — | 冷段目标滚动大小。 |
+| `PROBING_COLD_MAX_TOTAL_MB` | — | 冷层总字节预算。 |
+| `PROBING_COLD_TTL_SECS` | — | 冷段保留时间。 |
+| `PROBING_COLD_POLL_MS` | — | Compactor 两轮扫描之间的间隔。 |
+| `PROBING_COLD_MAX_AGE_SECS` | — | 打开段达到该年龄后强制封存。 |
+| `PROBING_COLD_DIR` | `PROBING_DATA_DIR` 下 | 冷段目录。 |
+
+## Tracing 与 Span {#tracing-spans}
+
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `PROBING_SPAN_BACKENDS` | `memtable` | 逗号分隔的 backend：`memtable`、`logger`、`otel`、`none`。`none` 仅保留栈，不持久化。详见 [Tracing 与训练阶段](../design/profiling.zh.md#span-api)。 |
+| `PROBING_SPAN_LOG_LEVEL` | `INFO` | `logger` backend 的日志级别。 |
+| `PROBING_SPAN_LOCATION` | 未设置 | 为每个 span 通过 `inspect.stack()` 采集位置，开销较高。 |
+| `PROBING_TRACE_STDOUT` | 未设置 | `1`/`true` 时让 `probing.inspect.trace` 输出到 stdout，而不是 Python logger。 |
+
 ## 集群 {#集群}
 
-`WORLD_SIZE > 1` 时的分层 side-channel 注册。详见 [torchrun 集群心跳](../design/torchrun-cluster.zh.md) 与 [分层 fan-out](../design/hierarchical-fanout.zh.md)。
+`WORLD_SIZE > 1` 时的分层 side-channel 注册。详见 [分布式成员](../design/distributed.zh.md#cluster-membership) 与 [联邦查询 — 分层 fan-out](../design/federation.zh.md#hierarchical-fan-out)。
 
 | 变量 | 默认 | 说明 |
 |----------|---------|-------------|
@@ -40,6 +63,21 @@ Probing 读取的全部 `PROBING_*` 环境变量参考（按子系统分组）�
 | `PROBING_NCCL_MAX_NET_SLOTS` | `4096` | 每 rank 最大 net-plugin slot 数。 |
 | `PROBING_NCCL_POOL_SHARDS` | `8` | 按 comm hash 分片 slot pool（1–64）；总 slot 上限均分到各 shard。 |
 | `PROBING_NCCL_MIN_MSG_BYTES` | `0` | 低于此消息大小（字节）的事件不记录；`0` = 全记录。 |
+
+## Megatron 自动集成 {#megatron-autostart}
+
+检测到 Megatron 环境变量或模块后，集成以 best-effort 方式自动启用；除 `PROBING=2` 外，
+无需修改训练脚本。
+
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `PROBING_MEGATRON` | `auto` | `auto` 表示检测到 Megatron 环境或模块时启用；也可用 `on`/`off` 强制开关。 |
+| `PROBING_MEGATRON_STEP_SYNC` | `auto` | 包装 `train_step`，将 `probing.step` 与 Megatron iteration 对齐。 |
+| `probing.megatron.enable` | — | 通过 `probing.config.set` 覆盖自动集成开关。 |
+| `probing.megatron.step_sync` | — | 通过 `probing.config.set` 覆盖 iteration 同步开关。 |
+
+当 `megatron.core.parallel_state` 和 `megatron.training.training` 加载时，import hook
+把并行 rank 写入 `probing.set_role`，并让 `train_step` 产生可供 SQL 关联的统一 step 坐标。
 
 ## 其余变量
 

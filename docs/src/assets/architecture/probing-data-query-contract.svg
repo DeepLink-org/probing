@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="560" viewBox="0 0 1280 560">
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8Z" fill="#2563EB"/></marker></defs>
+  <rect width="1280" height="560" fill="#F8FAFC"/>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial">
+    <text x="640" y="42" text-anchor="middle" font-size="23" font-weight="700" fill="#17324D">数据写入与查询读取通过表契约汇合</text>
+    <text x="640" y="68" text-anchor="middle" font-size="12" fill="#64748B">训练热路径只写本地表；CLI、Web 与 Skill 只从服务端读取</text>
+
+    <rect x="54" y="104" width="480" height="350" rx="16" fill="#F0FDFA" stroke="#0D9488" stroke-width="2"/>
+    <text x="80" y="137" font-size="16" font-weight="700" fill="#0F766E">写入路径</text>
+    <rect x="92" y="174" width="172" height="62" rx="10" fill="#FFFFFF" stroke="#5EEAD4"/><text x="178" y="200" text-anchor="middle" font-size="12" font-weight="700" fill="#17324D">Collectors</text><text x="178" y="220" text-anchor="middle" font-size="9" fill="#64748B">Torch / GPU / NCCL</text>
+    <path d="M264 205H330" stroke="#0D9488" stroke-width="3" marker-end="url(#a)"/>
+    <rect x="342" y="174" width="154" height="62" rx="10" fill="#17324D"/><text x="419" y="200" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF">RowWriter</text><text x="419" y="220" text-anchor="middle" font-size="9" fill="#CBD5E1">push_row / mmap</text>
+    <path d="M419 236V288" stroke="#0D9488" stroke-width="3" marker-end="url(#a)"/>
+    <rect x="126" y="300" width="328" height="90" rx="12" fill="#CCFBF1" stroke="#0D9488"/>
+    <text x="290" y="333" text-anchor="middle" font-size="14" font-weight="700" fill="#0F766E">本地表：MEMT / MEMC</text>
+    <text x="290" y="359" text-anchor="middle" font-size="10" fill="#475569">采集器只拥有自己的 schema 与写入状态</text>
+    <text x="290" y="378" text-anchor="middle" font-size="9" fill="#64748B">无网络请求 · 无跨采集器 callback</text>
+
+    <rect x="746" y="104" width="480" height="350" rx="16" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="772" y="137" font-size="16" font-weight="700" fill="#174EA6">读取路径</text>
+    <rect x="784" y="174" width="172" height="62" rx="10" fill="#FFFFFF" stroke="#93C5FD"/><text x="870" y="200" text-anchor="middle" font-size="12" font-weight="700" fill="#17324D">CLI / Web / Skill</text><text x="870" y="220" text-anchor="middle" font-size="9" fill="#64748B">POST /query</text>
+    <path d="M956 205H1022" stroke="#2563EB" stroke-width="3" marker-end="url(#a)"/>
+    <rect x="1034" y="174" width="154" height="62" rx="10" fill="#17324D"/><text x="1111" y="200" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF">Server</text><text x="1111" y="220" text-anchor="middle" font-size="9" fill="#CBD5E1">public contract</text>
+    <path d="M1111 236V288" stroke="#2563EB" stroke-width="3" marker-end="url(#a)"/>
+    <rect x="820" y="300" width="328" height="90" rx="12" fill="#DBEAFE" stroke="#2563EB"/>
+    <text x="984" y="333" text-anchor="middle" font-size="14" font-weight="700" fill="#174EA6">Engine / TableProvider</text>
+    <text x="984" y="359" text-anchor="middle" font-size="10" fill="#475569">SQL 解析、表扫描、联邦合并</text>
+    <text x="984" y="378" text-anchor="middle" font-size="9" fill="#64748B">返回 DataFrame + QueryQuality</text>
+
+    <path d="M746 346H470" stroke="#2563EB" stroke-width="3" marker-end="url(#a)"/>
+    <text x="608" y="331" text-anchor="middle" font-size="10" font-weight="700" fill="#174EA6">TableProvider scan</text>
+    <rect x="54" y="482" width="1172" height="42" rx="10" fill="#17324D"/>
+    <text x="640" y="508" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">新增指标使用新表；跨信号分析使用 SQL 或 Skill；保留策略由数据层配置</text>
+  </g>
+</svg>

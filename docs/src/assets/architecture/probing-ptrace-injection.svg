@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#EA580C"/></marker></defs>
+  <rect width="1280" height="720" fill="#F8FAFC"/>
+  <text x="640" y="38" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="22" font-weight="700" fill="#17324D">ptrace 注入：用一个可回滚的函数调用跳板执行 dlopen</text>
+  <text x="640" y="62" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="12" fill="#64748B">tracer 控制寄存器和内存；shellcode 只负责间接 call 与 trap，不包含库加载逻辑</text>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial">
+    <rect x="42" y="92" width="1196" height="102" rx="14" fill="#17324D"/>
+    <text x="66" y="120" font-size="14" font-weight="700" fill="#FDBA74">0. 前置检查与停止世界</text>
+    <text x="66" y="146" font-size="10" fill="#FFFFFF">CLI 从 /proc/self/exe 定位同目录 libprobing.so；目标 maps 中需有 Python；ptrace attach 主 PID，再枚举 /proc/PID/task attach 全部 TID。</text>
+    <text x="66" y="169" font-size="10" fill="#CBD5E1">权限由内核决定：同 UID、Yama ptrace_scope、父子关系或 CAP_SYS_PTRACE；attach 失败即终止，不存在降级绕过。</text>
+
+    <rect x="42" y="216" width="360" height="340" rx="14" fill="#FFF7ED" stroke="#EA580C" stroke-width="2"/>
+    <text x="66" y="246" font-size="15" font-weight="700" fill="#C2410C">1. 准备可回滚跳板</text>
+    <rect x="66" y="268" width="312" height="70" rx="9" fill="#FFFFFF" stroke="#FDBA74"/>
+    <text x="84" y="292" font-size="11" font-weight="700" fill="#17324D">选择写入地址</text>
+    <text x="84" y="315" font-size="9" fill="#64748B">读取 /proc/PID/maps，取第一个带 EXECUTE 的 mapping 起始地址</text>
+    <path d="M222 338 L222 362" stroke="#EA580C" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="66" y="370" width="312" height="70" rx="9" fill="#FFFFFF" stroke="#FDBA74"/>
+    <text x="84" y="394" font-size="11" font-weight="700" fill="#17324D">保存现场</text>
+    <text x="84" y="417" font-size="9" fill="#64748B">read_memory 保存原代码字节；registers() 保存完整通用寄存器</text>
+    <path d="M222 440 L222 464" stroke="#EA580C" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="66" y="472" width="312" height="60" rx="9" fill="#FFEDD5" stroke="#EA580C"/>
+    <text x="222" y="496" text-anchor="middle" font-size="11" font-weight="700" fill="#C2410C">写入架构相关 shellcode</text>
+    <text x="222" y="517" text-anchor="middle" font-size="9" fill="#64748B">x86_64 6 B / AArch64 16 B</text>
+
+    <rect x="426" y="216" width="384" height="340" rx="14" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="450" y="246" font-size="15" font-weight="700" fill="#174EA6">2. 解析并调用目标 libc</text>
+    <rect x="450" y="268" width="336" height="82" rx="9" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="468" y="292" font-size="11" font-weight="700" fill="#17324D">ASLR 地址换算</text>
+    <text x="468" y="315" font-size="9" fill="#64748B">在 injector 进程 dlsym malloc/free/setenv/dlopen</text>
+    <text x="468" y="334" font-size="9" fill="#64748B">symbol - local libc base + target libc base；libdl 单独换基址</text>
+    <path d="M618 350 L618 374" stroke="#EA580C" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="450" y="382" width="336" height="150" rx="9" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="468" y="406" font-size="11" font-weight="700" fill="#17324D">每次函数调用都由 tracer 设置 ABI 寄存器</text>
+    <text x="468" y="430" font-size="9" fill="#64748B">x86_64：RIP=stub+2，R9=fn，RDI/RSI/RDX=args</text>
+    <text x="468" y="450" font-size="9" fill="#64748B">RSP 对齐 16 B；返回值从 RAX 读取；INT3 -> SIGTRAP</text>
+    <text x="468" y="474" font-size="9" fill="#64748B">AArch64：X8=fn，X0/X1/X2=args；BLR X8；BRK trap</text>
+    <text x="468" y="498" font-size="9" fill="#64748B">调用序列：setenv* -> malloc(path) -> write_memory(path)</text>
+    <text x="468" y="518" font-size="9" fill="#64748B">then dlopen(path, RTLD_LAZY) -> free(path)</text>
+
+    <rect x="834" y="216" width="404" height="340" rx="14" fill="#F0FDFA" stroke="#0D9488" stroke-width="2"/>
+    <text x="858" y="246" font-size="15" font-weight="700" fill="#0F766E">3. trap、校验与恢复</text>
+    <rect x="858" y="268" width="356" height="84" rx="9" fill="#FFFFFF" stroke="#5EEAD4"/>
+    <text x="876" y="292" font-size="11" font-weight="700" fill="#17324D">等待预期 trap</text>
+    <text x="876" y="315" font-size="9" fill="#64748B">restart Continue -> wait；只接受 SIGTRAP/BRK 对应 stop</text>
+    <text x="876" y="334" font-size="9" fill="#C2410C">其他 signal、tracee 退出或 dlopen 返回 NULL -> 显式失败</text>
+    <path d="M1036 352 L1036 376" stroke="#EA580C" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="858" y="384" width="356" height="76" rx="9" fill="#FFFFFF" stroke="#5EEAD4"/>
+    <text x="876" y="408" font-size="11" font-weight="700" fill="#17324D">恢复目标现场</text>
+    <text x="876" y="431" font-size="9" fill="#64748B">write_memory 原字节 -> set_registers 原寄存器</text>
+    <text x="876" y="450" font-size="9" fill="#64748B">Drop 兜底再次尝试 remove，避免错误路径留下跳板</text>
+    <path d="M1036 460 L1036 484" stroke="#EA580C" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="858" y="492" width="356" height="40" rx="9" fill="#CCFBF1" stroke="#0D9488"/>
+    <text x="1036" y="517" text-anchor="middle" font-size="10" font-weight="700" fill="#0F766E">Injector Drop：逐个 PTRACE_DETACH 全部已附着 TID</text>
+
+    <rect x="42" y="580" width="1196" height="102" rx="14" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2"/>
+    <text x="66" y="608" font-size="13" font-weight="700" fill="#17324D">成立条件与风险边界</text>
+    <text x="66" y="634" font-size="10" fill="#64748B">• injector 与 target 的 libc/libdl 符号布局必须兼容；地址通过相同 symbol offset 换算。  • 所有线程在 attach 窗口内暂停，因此注入不应成为频繁操作。</text>
+    <text x="66" y="657" font-size="10" fill="#64748B">• 恢复的是被覆盖的代码和选中 tracee 寄存器；dlopen 的库与其构造函数副作用会保留。  • inject 仅 Linux，支持 x86_64/AArch64。</text>
+  </g>
+</svg>

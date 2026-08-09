@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2563EB"/></marker><marker id="o" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#EA580C"/></marker></defs>
+  <rect width="1280" height="720" fill="#F8FAFC"/>
+  <text x="640" y="38" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="22" font-weight="700" fill="#17324D">两种执行入口，最终加载同一个 libprobing</text>
+  <text x="640" y="62" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="12" fill="#64748B">.pth 是解释器启动钩子；inject 是已获 ptrace 权限后的动态加载；两者都不是权限提升</text>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial">
+    <rect x="42" y="92" width="568" height="400" rx="14" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="66" y="122" font-size="16" font-weight="700" fill="#174EA6">启动时启用：PROBING=1 / 2</text>
+    <text x="66" y="145" font-size="10" fill="#64748B">适合可控制启动命令的训练；Linux / macOS / Windows 都可用</text>
+    <rect x="66" y="170" width="226" height="62" rx="9" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="179" y="194" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">CPython site 初始化</text>
+    <text x="179" y="214" text-anchor="middle" font-size="9" fill="#64748B">扫描 site-packages/*.pth</text>
+    <path d="M292 201 L324 201" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="332" y="170" width="254" height="62" rx="9" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="459" y="194" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">probing.pth</text>
+    <text x="459" y="214" text-anchor="middle" font-size="9" fill="#64748B">执行一行 import probing_hook</text>
+    <path d="M326 232 L326 260" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="66" y="268" width="520" height="88" rx="9" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="84" y="294" font-size="11" font-weight="700" fill="#17324D">probing_hook -> site_hook.run_site_hook()</text>
+    <text x="84" y="318" font-size="10" fill="#64748B">跳过 torchrun supervisor / probing CLI / lightweight helper；_RAN 阻止重复执行</text>
+    <text x="84" y="340" font-size="10" fill="#64748B">解析 followed / nested / regex / script / init:file，命中后 import probing</text>
+    <path d="M326 356 L326 382" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="66" y="390" width="520" height="74" rx="9" fill="#DBEAFE" stroke="#2563EB"/>
+    <text x="326" y="416" text-anchor="middle" font-size="11" font-weight="700" fill="#174EA6">Python import probing._core -> 动态加载扩展模块</text>
+    <text x="326" y="438" text-anchor="middle" font-size="10" fill="#64748B">注册 Python 主线程、tracer、ExternalTable 与 Python API</text>
+
+    <rect x="634" y="92" width="604" height="400" rx="14" fill="#FFF7ED" stroke="#EA580C" stroke-width="2"/>
+    <text x="658" y="122" font-size="16" font-weight="700" fill="#C2410C">运行时注入：probing -t PID inject</text>
+    <text x="658" y="145" font-size="10" fill="#64748B">仅 Linux；目标已运行；调用方必须先通过内核 ptrace 权限检查</text>
+    <rect x="658" y="170" width="254" height="62" rx="9" fill="#FFFFFF" stroke="#FDBA74"/>
+    <text x="785" y="194" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">attach PID 与全部 TID</text>
+    <text x="785" y="214" text-anchor="middle" font-size="9" fill="#64748B">pete::Ptracer / PTRACE_ATTACH</text>
+    <path d="M912 201 L944 201" stroke="#EA580C" stroke-width="2" marker-end="url(#o)"/>
+    <rect x="952" y="170" width="262" height="62" rx="9" fill="#FFFFFF" stroke="#FDBA74"/>
+    <text x="1083" y="194" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">保存寄存器与可执行区原字节</text>
+    <text x="1083" y="214" text-anchor="middle" font-size="9" fill="#64748B">为短跳板、原字节和寄存器恢复做准备</text>
+    <path d="M936 232 L936 260" stroke="#EA580C" stroke-width="2" marker-end="url(#o)"/>
+    <rect x="658" y="268" width="556" height="88" rx="9" fill="#FFFFFF" stroke="#FDBA74"/>
+    <text x="676" y="294" font-size="11" font-weight="700" fill="#17324D">写入 shellcode，借目标 libc 调用 setenv / malloc / dlopen / free</text>
+    <text x="676" y="318" font-size="10" fill="#64748B">x86_64：nop+nop+call r9+int3（6 B）；AArch64：nop+nop+blr x8+brk（16 B）</text>
+    <text x="676" y="340" font-size="10" fill="#64748B">canonical libprobing.so 路径写入目标内存；dlopen(..., RTLD_LAZY) 触发构造函数</text>
+    <path d="M936 356 L936 382" stroke="#EA580C" stroke-width="2" marker-end="url(#o)"/>
+    <rect x="658" y="390" width="556" height="74" rx="9" fill="#FFEDD5" stroke="#EA580C"/>
+    <text x="936" y="416" text-anchor="middle" font-size="11" font-weight="700" fill="#C2410C">恢复原字节与寄存器 -> detach 全部 TID</text>
+    <text x="936" y="438" text-anchor="middle" font-size="10" fill="#64748B">库继续留在目标进程；临时执行跳板不再存在</text>
+
+    <path d="M326 492 C326 538 500 534 558 548" fill="none" stroke="#2563EB" stroke-width="3" marker-end="url(#a)"/>
+    <path d="M936 492 C936 538 780 534 722 548" fill="none" stroke="#EA580C" stroke-width="3" marker-end="url(#o)"/>
+    <rect x="346" y="548" width="588" height="104" rx="14" fill="#17324D"/>
+    <text x="640" y="578" text-anchor="middle" font-size="15" font-weight="700" fill="#FFFFFF">libprobing.so / probing._core</text>
+    <text x="640" y="602" text-anchor="middle" font-size="10" fill="#CBD5E1">#[ctor] -> start_local -> initialize_engine -> Unix socket；按环境再启动 TCP、采样器与集群心跳</text>
+    <text x="640" y="625" text-anchor="middle" font-size="10" fill="#86EFAC">之后 CLI 通过 HTTP 查询；训练回调开始把事件写到本机 MEMT</text>
+  </g>
+  <text x="640" y="687" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="10" fill="#64748B">选择原则：能控制启动时优先 .pth；只有错过启动窗口且具备 ptrace 权限时才使用 inject。</text>
+</svg>

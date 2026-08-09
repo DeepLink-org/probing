@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#EA580C"/></marker></defs>
+  <rect width="1280" height="720" fill="#F8FAFC"/>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial">
+    <text x="640" y="38" text-anchor="middle" font-size="22" font-weight="700" fill="#17324D">HCCL 采集：用 MSProf shim 同时完成旁路记录与原调用转发</text>
+    <text x="640" y="63" text-anchor="middle" font-size="12" fill="#64748B">HCCL 仍按原方式 dlsym MSProf；Probing 的 libprofapi.so 只插在边界上解码事件并写表</text>
+
+    <rect x="42" y="102" width="212" height="442" rx="14" fill="#FFF7ED" stroke="#F97316" stroke-width="2"/>
+    <text x="68" y="135" font-size="15" font-weight="700" fill="#C2410C">HCCL runtime</text>
+    <rect x="68" y="164" width="160" height="78" rx="10" fill="#FFFFFF" stroke="#FDBA74"/>
+    <text x="148" y="195" text-anchor="middle" font-size="12" font-weight="700" fill="#17324D">dlopen</text>
+    <text x="148" y="218" text-anchor="middle" font-size="10" fill="#64748B">libprofapi.so</text>
+    <rect x="68" y="274" width="160" height="174" rx="10" fill="#FFFFFF" stroke="#FDBA74"/>
+    <text x="148" y="305" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">MSProf 上报</text>
+    <text x="88" y="335" font-size="9" fill="#64748B">ReportApi</text>
+    <text x="88" y="359" font-size="9" fill="#64748B">ReportCompactInfo</text>
+    <text x="88" y="383" font-size="9" fill="#64748B">ReportAdditionalInfo</text>
+    <text x="88" y="407" font-size="9" fill="#64748B">RegTypeInfo / GetHashId</text>
+    <text x="88" y="431" font-size="9" fill="#64748B">其他导出符号</text>
+
+    <path d="M254 324 L296 324" stroke="#EA580C" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="304" y="92" width="472" height="472" rx="14" fill="#FFFFFF" stroke="#EA580C" stroke-width="2"/>
+    <text x="330" y="125" font-size="15" font-weight="700" fill="#C2410C">Probing libprofapi.so shim</text>
+    <rect x="330" y="151" width="420" height="78" rx="11" fill="#FFF7ED" stroke="#FDBA74"/>
+    <text x="350" y="181" font-size="12" font-weight="700" fill="#17324D">1. 导出 HCCL 要找的同名 Msprof* 符号</text>
+    <text x="350" y="205" font-size="10" fill="#64748B">调用 ABI 不变；HCCL 无需链接 Probing 内部类型</text>
+    <rect x="330" y="248" width="420" height="116" rx="11" fill="#EFF6FF" stroke="#2563EB"/>
+    <text x="350" y="278" font-size="12" font-weight="700" fill="#174EA6">2. 分类并解码上报负载</text>
+    <text x="350" y="303" font-size="10" fill="#475569">hash 映射 op / task 名；type id 选择 AdditionalInfo 类型</text>
+    <text x="350" y="325" font-size="10" fill="#475569">Api 提供 host timing；CompactInfo 提供 collective 参数</text>
+    <text x="350" y="347" font-size="10" fill="#475569">AdditionalInfo 提供 task / MC2 stream / context id</text>
+    <rect x="330" y="383" width="420" height="72" rx="11" fill="#F0FDFA" stroke="#0D9488"/>
+    <text x="350" y="412" font-size="12" font-weight="700" fill="#0F766E">3. mmap 表按需打开并 push_row</text>
+    <text x="350" y="436" font-size="10" fill="#64748B">某张表打开失败只停用该表，并只记录一次警告</text>
+    <rect x="330" y="474" width="420" height="64" rx="11" fill="#FAF5FF" stroke="#7C3AED"/>
+    <text x="350" y="502" font-size="12" font-weight="700" fill="#7C3AED">4. 原参数转发给真实 CANN MSProf</text>
+    <text x="350" y="525" font-size="10" fill="#64748B">显式路径避免 shim 再次 dlopen 自己</text>
+
+    <path d="M776 214 L812 214" stroke="#EA580C" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="820" y="92" width="418" height="220" rx="14" fill="#FFFFFF" stroke="#0D9488" stroke-width="2"/>
+    <text x="846" y="125" font-size="15" font-weight="700" fill="#0F766E">本机 HCCL 采集表</text>
+    <text x="846" y="159" font-size="10" fill="#475569">hccl.host_ops　Host API 时间线与事件分类</text>
+    <text x="846" y="184" font-size="10" fill="#475569">hccl.collectives　op 耗时 + count / group / algorithm</text>
+    <text x="846" y="209" font-size="10" fill="#475569">hccl.tasks　local/remote rank、plane、bytes、transport</text>
+    <text x="846" y="234" font-size="10" fill="#475569">hccl.mc2_streams　通信 stream 拓扑</text>
+    <text x="846" y="259" font-size="10" fill="#475569">hccl.context_ids　FFTS context 范围</text>
+    <text x="846" y="286" font-size="9" fill="#64748B">通过 global.hccl.* 跨 rank 查询</text>
+    <path d="M776 446 L812 446" stroke="#7C3AED" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="820" y="340" width="418" height="224" rx="14" fill="#FAF5FF" stroke="#7C3AED" stroke-width="2"/>
+    <text x="846" y="373" font-size="15" font-weight="700" fill="#7C3AED">真实 CANN libprofapi.so</text>
+    <text x="846" y="409" font-size="10" fill="#475569">解析顺序：</text>
+    <text x="866" y="435" font-size="10" fill="#475569">PROBING_HCCL_PROFAPI_REAL</text>
+    <text x="866" y="459" font-size="10" fill="#475569">shim 同目录 libprofapi.so.real</text>
+    <text x="866" y="483" font-size="10" fill="#475569">ASCEND_HOME / ASCEND_INSTALL_PATH</text>
+    <text x="846" y="519" font-size="10" fill="#64748B">真实 profiler 是否启用仍由 CANN / HCCL 配置决定；</text>
+    <text x="846" y="540" font-size="10" fill="#64748B">shim 不伪造事件，也不改变原函数返回值。</text>
+
+    <rect x="42" y="592" width="1196" height="90" rx="12" fill="#17324D"/>
+    <text x="68" y="622" font-size="12" font-weight="700" fill="#FFFFFF">部署与版本边界</text>
+    <text x="68" y="647" font-size="10" fill="#CBD5E1">把 shim 目录放在 LD_LIBRARY_PATH 前面，并保存匹配当前 CANN 版本的真实 libprofapi.so；MSProf 结构体布局需要按部署版本验证。</text>
+    <text x="68" y="668" font-size="10" fill="#86EFAC">这一方案复用 HCCL 已有上报面，不修改训练代码，也不要求 HCCL 直接依赖 Probing。</text>
+  </g>
+</svg>

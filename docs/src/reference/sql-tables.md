@@ -242,7 +242,7 @@ Linux kernel ring buffer (dmesg) — OOM killer, GPU Xid, IB errors. **Linux onl
 
 ---
 
-## Cluster
+## Cluster {#cluster-nodes}
 
 ### `cluster.nodes`
 
@@ -296,6 +296,52 @@ Per-proxy-op wait decomposition (culprit vs victim).
 
 **Global:** `global.nccl.proxy_ops`
 **Federation columns:** `_host`, `_addr`, `_rank`, `_role`
+
+---
+
+### `nccl.coll_perf`
+
+One row per completed collective or P2P operation. `exec_time_ns` is reconstructed from child
+events and must be interpreted together with `timing_source`.
+
+| Column | Description |
+|--------|-------------|
+| `ts`, `rank`, `comm_hash`, `seq` | Completion time and operation identity |
+| `coll_func`, `is_p2p`, `peer` | Collective/P2P kind and peer |
+| `count`, `msg_size_bytes`, `dtype` | Message payload |
+| `algo`, `proto`, `n_channels`, `n_ranks` | NCCL execution choice and communicator size |
+| `exec_time_ns`, `enqueue_time_ns` | Reconstructed execution time and host enqueue time |
+| `timing_source` | `kernel_gpu`, `kernel_ch`, `proxy`, or `enqueue` |
+| `algobw_gbps` | Algorithm bandwidth based on `exec_time_ns` |
+| `pool_events_dropped` | Missing child events due to pool pressure; nonzero weakens timing evidence |
+
+**Global:** `global.nccl.coll_perf`
+
+---
+
+### `nccl.inflight_ops`
+
+Periodic watchdog snapshots of operations that started but have not stopped. They cover hangs that
+cannot produce a completed row.
+
+| Column | Description |
+|--------|-------------|
+| `ts`, `rank`, `comm_hash`, `seq` | Snapshot time and operation identity |
+| `coll_func`, `kind` | Operation and `coll` / `p2p` / `proxy_op` kind |
+| `channel_id`, `peer`, `is_send` | Proxy direction fields; sentinel values when not applicable |
+| `start_ns`, `age_ns` | Start time and age at the snapshot |
+
+**Global:** `global.nccl.inflight_ops`
+
+---
+
+### `nccl.profiler_counters`
+
+Evidence-integrity snapshots. `rows_written`, `pool_exhausted`, `write_errors`, `filtered`, live/
+capacity fields, and ring-overwrite counters determine whether an absence of events is trustworthy;
+they are not an overhead percentage.
+
+**Global:** `global.nccl.profiler_counters`
 
 ---
 

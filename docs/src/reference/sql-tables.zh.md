@@ -230,7 +230,7 @@ Linux 内核环缓冲（dmesg）。**仅 Linux。**
 
 ---
 
-## 集群
+## 集群 {#cluster-nodes}
 
 ### `cluster.nodes`
 
@@ -273,6 +273,44 @@ Proxy-op 等待分解（culprit / victim）。
 
 **Global：** `global.nccl.proxy_ops`
 **联邦列：** `_host`、`_addr`、`_rank`、`_role`
+
+### `nccl.coll_perf`
+
+每个已完成 collective/P2P 一行。`exec_time_ns` 由子事件窗口重建，必须结合
+`timing_source` 判断计时证据质量。
+
+| 列 | 说明 |
+|----|------|
+| `ts`, `rank`, `comm_hash`, `seq` | 完成时间与操作身份 |
+| `coll_func`, `is_p2p`, `peer` | collective/P2P 类型与对端 |
+| `count`, `msg_size_bytes`, `dtype` | 消息负载 |
+| `algo`, `proto`, `n_channels`, `n_ranks` | NCCL 执行选择与通信组规模 |
+| `exec_time_ns`, `enqueue_time_ns` | 重建执行时间与 host enqueue 时间 |
+| `timing_source` | `kernel_gpu`、`kernel_ch`、`proxy` 或 `enqueue` |
+| `algobw_gbps` | 基于 `exec_time_ns` 的算法带宽 |
+| `pool_events_dropped` | 子事件池耗尽造成的缺口；非零时谨慎解释执行时间 |
+
+**Global：** `global.nccl.coll_perf`
+
+### `nccl.inflight_ops`
+
+watchdog 对“已经 start、尚未 stop”的操作生成周期快照，用于补足挂死事件没有完成行的盲区。
+
+| 列 | 说明 |
+|----|------|
+| `ts`, `rank`, `comm_hash`, `seq` | 快照时间与操作身份 |
+| `coll_func`, `kind` | 操作名以及 `coll` / `p2p` / `proxy_op` 类型 |
+| `channel_id`, `peer`, `is_send` | proxy 方向信息；不适用时使用哨兵值 |
+| `start_ns`, `age_ns` | 开始时间与快照时的持续时间 |
+
+**Global：** `global.nccl.inflight_ops`
+
+### `nccl.profiler_counters`
+
+采集完整性快照。`rows_written`、`pool_exhausted`、`write_errors`、`filtered`、各类 live/capacity
+以及 ring 覆写计数用于判断“没有事件”是否可信，不属于性能开销百分比。
+
+**Global：** `global.nccl.profiler_counters`
 
 ### `nccl.net_qp`
 

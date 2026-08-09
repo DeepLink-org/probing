@@ -1,4 +1,4 @@
-"""Regression guards for TorchProbe overhead semantics (see docs/design/overhead-invariants.*)."""
+"""Regression guards for TorchProbe overhead semantics (see design/overhead.*)."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ def test_close_step_wall_source_order():
     mark_pos = src.index("_mark_step_wall_start")
     assert timing_pos < drain_pos < mark_pos, (
         "_close_step_wall must be: record → drain → advance → mark "
-        "(see docs/src/design/overhead-invariants.zh.md §I3)"
+        "(see docs/src/design/overhead.zh.md#change-invariants)"
     )
 
 
@@ -38,11 +38,11 @@ def test_deferred_drain_async_default_on(monkeypatch):
     assert dd.deferred_drain_async_enabled() is True
 
 
-def test_overhead_invariants_doc_exists():
+def test_overhead_change_contract_exists():
     """Design doc SSOT is present for agents."""
     repo = Path(__file__).resolve().parents[3]
-    zh = repo / "docs/src/design/overhead-invariants.zh.md"
-    en = repo / "docs/src/design/overhead-invariants.md"
+    zh = repo / "docs/src/design/overhead.zh.md"
+    en = repo / "docs/src/design/overhead.md"
     assert zh.is_file(), f"missing {zh}"
     assert en.is_file(), f"missing {en}"
     text = zh.read_text(encoding="utf-8")
@@ -52,7 +52,7 @@ def test_overhead_invariants_doc_exists():
         "_record_step_timing",
         "PROBING_TORCH_DEFER_ASYNC",
     ):
-        assert needle in text, f"overhead-invariants doc missing: {needle!r}"
+        assert needle in text, f"overhead change contract missing: {needle!r}"
 
 
 def test_defer_settle_constants_documented_range():

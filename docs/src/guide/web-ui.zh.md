@@ -4,6 +4,14 @@ Next Web UI 用于浏览运行中 Python 进程或分布式任务的诊断证据
 指标替用户下结论；每个页面都应说明数据的范围、新鲜度、覆盖率和来源，让用户决定
 下一步检查什么。
 
+## 技术架构
+
+![Rust 单页面应用通过公开 HTTP 接口连接 Probing 服务端](../assets/architecture/probing-web-spa-architecture.svg)
+
+Web 使用 Rust/Dioxus 构建并编译为 WASM，浏览器只在首次访问时加载应用壳，后续通过路由
+切换工作区。它通过公开 HTTP/proto 接口读取查询、采集和 Skill 结果，不链接
+`probing-core`，也不在浏览器中复制查询引擎语义。
+
 ## 启动与连接
 
 启用 Probing 启动任务，然后在浏览器中打开 HTTP 地址：

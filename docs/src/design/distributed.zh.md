@@ -1,266 +1,128 @@
-# 分布式架构
+# 分布式成员与控制面
 
-多节点 probing：各 rank 写本地 memtable；`cluster.nodes` 注册表；coordinator 通过
-`global.*` 与 `/apis/cluster/query` 做 SQL fan-out。
+本文说明 Probing 如何发现和维护一个分布式训练作业中的探针成员。每个 rank 仍只写本地
+表；跨 rank SQL 的 catalog、执行路径和结果正确性由[联邦查询引擎](federation.zh.md)定义。
 
-## 相关文档
+> 状态：当前实现。成员注册位于 `probing-server`，不会修改 torch rendezvous 数据，也不
+> 阻塞 `init_process_group`。
 
-| 文档 | 范围 |
-|------|------|
-| [torchrun 集群心跳](torchrun-cluster.zh.md) | TCPStore 旁路、分层 PUT、退避 |
-| [联邦查询引擎](federation.zh.md) | Catalog 改写、路径 A/B/C、标签注入 |
-| [分层集群查询](hierarchical-fanout.zh.md) | coordinator → local0 → leaf HTTP 拓扑 |
-| [基于 Pulsing 的集群](cluster-pulsing.zh.md) | 可选 `pulsing.*` memtable 成员 |
-| [NCCL Profiler](nccl-profiler.zh.md) | `nccl.proxy_ops` 插件 ABI |
+## 1. 总体结构
 
-依赖顺序：[核心模型](../guide/concepts.zh.md) → 本页 → torchrun 心跳 → 联邦 → 分层 fan-out。
+![分层成员控制面传播身份，训练数据仍保留在每个 Rank](../assets/architecture/probing-cluster-membership.svg)
 
-参考：[SQL 表目录](../reference/sql-tables.zh.md)（`cluster.nodes`、联邦标签）。
+| 角色 | 责任 | 不负责 |
+|------|------|--------|
+| leaf rank | 上报自身 endpoint、rank 与 role；执行本地 SQL | 维护全局成员或递归 fan-out |
+| local0 | 汇总本机 rank 心跳；作为分层查询的节点代理 | 改写训练 rendezvous |
+| global rank 0 | 提供作业成员快照和查询入口 | 集中保存训练采集数据 |
+| `cluster.nodes` | 当前 endpoint membership 与健康状态 | 代替 torch process group |
 
----
+成员控制面和数据面分离：heartbeat 只传播少量身份与健康元数据，训练采集结果保留在 rank
+本地，直到查询发生。
 
-## 拓扑
+## 2. 集群成员生命周期 {#cluster-membership}
 
-```mermaid
-graph TB
-    subgraph "节点 1"
-        P1[进程 Rank 0]
-        PROBE1[探针]
-    end
+### 2.1 启动条件
 
-    subgraph "节点 2"
-        P2[进程 Rank 1]
-        PROBE2[探针]
-    end
+| 条件 | 当前行为 |
+|------|----------|
+| `PROBING=1/2` | 当前进程已启用 Probing |
+| `WORLD_SIZE > 1` | 单进程不启动集群 worker |
+| `PROBING_TORCHRUN_CLUSTER != 0` | 默认开启 torchrun 集群初始化 |
+| `PROBING_CLUSTER_REPORT != 0` | 默认开启周期 heartbeat |
+| 非 elastic supervisor | supervisor 不绑定训练 rank 的 HTTP 端口 |
 
-    subgraph "控制平面"
-        CLI[CLI 客户端]
-        AGG[聚合器]
-    end
+Rust 动态库构造函数调用 `maybe_start_torchrun_cluster()`：绑定 HTTP、通过 job TCPStore
+发现 master/local0 地址，并启动异步 heartbeat worker。Python 不再 patch
+`torch.distributed.init_process_group`；`setup_torchrun_cluster()` 仅保留为显式入口和测试门面。
 
-    PROBE1 --> AGG
-    PROBE2 --> AGG
-    CLI --> AGG
-    CLI --> PROBE1
-    CLI --> PROBE2
+### 2.2 分层注册
+
+![leaf、local0 与 global rank 0 逐级合并 heartbeat](../assets/architecture/probing-cluster-heartbeat.svg)
+
+TCPStore 只使用 Probing 自己的 key 前缀：
+
+```text
+probing/torchrun/<run_id>/master
+probing/torchrun/<run_id>/node/<group_rank>/local0
 ```
 
-## 进程发现
+它与 torch rendezvous 共用 endpoint，但不读写 rendezvous key。`PUT /apis/nodes` 按 rank
+合并 heartbeat；`GET /apis/nodes` 和 `cluster.nodes` 返回排序后的当前快照。
 
-### 本地发现
+注册至少携带 `rank`、`world_size`、`group_rank`、`local_rank`、`host`、`addr` 和 `role`。
+其中 `addr` 必须是 peer 可访问的探针地址，而不是默认假设 rendezvous 地址就是当前节点地址。
 
-```bash
-# 列出本地机器上所有启用 probing 的进程
-probing list
-```
+### 2.3 收敛、退避与失效
 
-### 远程发现
+- 成员未凑齐时维持基础间隔，优先快速收敛；
+- 全员 alive 后按因子指数退避，降低长任务的控制面开销；
+- 一个 stale TTL 未收到 heartbeat 时标记 `dead`，第二个 TTL 后从视图移除；
+- 实际最大 heartbeat 间隔受 stale 安全窗口约束，不能大于
+  `STALE_SEC - STALE_SEC/4 - 1`。
 
-```bash
-# 连接到远程节点
-probing -t node1:8080 list
-probing -t node2:8080 list
-```
+默认 `STALE_SEC=25` 时，最大安全间隔约为 18 秒；若需要稳定后约 60 秒上报，应把 stale
+同时提高到至少约 90 秒。查询必须基于一次 `cluster.nodes` 快照，并在结果中报告成员失败，
+不能把训练中动态变化的视图伪装成静态全集。
 
-### 集群视图
+训练脚本调用 `probing.set_role(...)` 后，可通过 `refresh_node_role()` 立即补发 heartbeat，
+使 `_role` 联邦标签及时更新。
 
-```bash
-# 列出集群视图中已注册的节点（连接到 rank 0 / master 端点）
-probing -t rank0:8080 cluster nodes
-```
+## 3. 发现与控制入口
 
-## 跨节点查询
+| 需求 | 入口 | 范围 |
+|------|------|------|
+| 本机探针进程 | `probing list` | 本机 socket/process 发现 |
+| 远程探针状态 | `probing -t host:port list` | 单 endpoint |
+| 作业成员快照 | `probing -t rank0:port cluster nodes` | `cluster.nodes` |
+| 单 rank SQL | `probing -t endpoint query "..."` | 本地 `probe.*` |
+| 跨 rank SQL | `cluster query` 或 `global.*` | 交给 federation |
 
-### 查询单个节点
+HTTP 监听与 Engine readiness 是两个状态。成员可以先发现 endpoint，再由 readiness 判断该
+rank 是否已经能够执行查询；不能用“连接成功”替代“查询引擎已就绪”。
 
-```bash
-probing -t node1:8080 query "
-SELECT * FROM python.torch_trace
-WHERE step = (SELECT MAX(step) FROM python.torch_trace)"
-```
+## 4. 与联邦查询的边界
 
-### 联邦查询（`global.*`）
+![成员发现输出不可变快照，联邦查询据此选择 peer 并报告覆盖率](../assets/architecture/probing-membership-federation-boundary.svg)
 
-跨 rank SQL 使用 **`global` catalog**。Master 向已注册节点 fan-out，并为每行附加联邦标签
-**`_host`**、**`_addr`**、**`_rank`**、**`_role`**（并行角色 key，来自节点注册表，如 `dp=2,pp=1,tp=0`）。
+成员模块不解析 SQL，也不合并 DataFrame。联邦引擎不发现 torchrun 拓扑，只消费
+`cluster.nodes` 契约。万 rank 下的 coordinator → local0 → leaf 查询拓扑、失败传播和 API
+字段统一见[联邦查询引擎 — 分层 fan-out](federation.zh.md#hierarchical-fan-out)。
 
-**方式 A — SQL 引擎（分析推荐）：**
+## 5. 配置
 
-```bash
-probing -t rank0:8080 query "
-SELECT _role, _rank, avg(duration_ms) AS avg_ms
-FROM global.python.comm_collective
-WHERE global_step > 100
-GROUP BY _role, _rank
-ORDER BY avg_ms DESC"
-```
+| 变量 | 默认 | 作用 |
+|------|------|------|
+| `PROBING_TORCHRUN_CLUSTER` | `1` | 启用 torchrun 集群初始化 |
+| `PROBING_CLUSTER_REPORT` | `1` | 周期性 heartbeat |
+| `PROBING_CLUSTER_REPORT_BACKOFF` | `1` | 收敛后退避 |
+| `PROBING_CLUSTER_REPORT_INTERVAL_SEC` | `10` | 基础间隔 |
+| `PROBING_CLUSTER_REPORT_MAX_INTERVAL_SEC` | `120` | 配置上限，仍受 stale 钳制 |
+| `PROBING_CLUSTER_REPORT_BACKOFF_FACTOR` | `2` | 退避倍数 |
+| `PROBING_CLUSTER_STALE_SEC` | `25` | dead/移除 TTL 基准 |
+| `PROBING_CLUSTER_DISCOVER_TIMEOUT_SEC` | `2` | TCPStore 发现超时 |
+| `PROBING_CLUSTER_REPORT_TIMEOUT_SEC` | `5` | heartbeat PUT 超时 |
+| `PROBING_PORT` | rank0 常用 `18080` | global0 固定端口；其他 rank 通常绑定随机端口 |
+| `PROBING_ADVERTISE_ADDR` | 自动推断 | 对 peer 发布的可达地址 |
+| `PROBING_NODE_HOST` | 自动推断 | UI 与标签使用的主机身份 |
 
-**方式 B — cluster fan-out API：**
+完整列表见[环境变量](../reference/env-vars.zh.md#集群)。所有 peer 必须使用一致的
+`PROBING_AUTH_TOKEN`；内部发现、heartbeat 与查询请求都要携带凭据，健康检查端点可保持公开。
 
-```bash
-probing -t rank0:8080 cluster query "
-SELECT _role, _rank, avg(duration_ms) AS avg_ms
-FROM global.python.comm_collective
-GROUP BY _role, _rank
-ORDER BY avg_ms DESC"
-```
+## 6. 设计约束与实现位置
 
-通过 torchrun 注入后 Rust ctor **默认**启动分层集群心跳（见 [torchrun 集群心跳](torchrun-cluster.zh.md)），或手动 `setup_torchrun_cluster()` / `PUT /apis/nodes` 注册节点，`_rank` / `_role` 才能正确解析。训练脚本中可用 `probing.set_role(...)` 运行时覆盖 role。
+- heartbeat 失败不得终止宿主训练进程；按 debug/状态表暴露并重试。
+- 训练 callback 不发送 heartbeat；所有网络操作在服务端异步 worker 中执行。
+- `cluster.nodes` 是 endpoint membership，不保证等同于理想 torch rank 集合。
+- `pulsing.*` 等外部 mmap 表不会被隐式合并进 `cluster.nodes`。
+- 跨节点 wall-clock 需要 NTP/PTP；成员发现本身不提供时钟同步。
 
-引擎实现与正确性测试要求见 **[联邦查询引擎](federation.zh.md)**。
+| 关注点 | 位置 |
+|--------|------|
+| torchrun 初始化与 heartbeat | `probing/server/src/torchrun_cluster.rs` |
+| 节点注册与快照 | `probing/core/src/core/cluster.rs` |
+| HTTP 契约 | `probing/server/API.md`、`tests/regression/spec/api_spec.json` |
+| 多机示例 | `examples/cluster/run_multinode.sh` |
 
-万卡场景下 `cluster query` 默认走 **[分层 fan-out](hierarchical-fanout.zh.md)**（coordinator 仅联系各机 local0，local0 再聚合本机 leaf rank），可用 `PROBING_CLUSTER_FANOUT_HIERARCHICAL=0` 或 CLI `--flat` 恢复扁平 fan-out。
-
-普通 `global.*` 扫描采用同一拓扑：coordinator 读取自身分区、直接查询本机 leaf ranks，并向异机
-local0 发送节点聚合请求。层级执行要求每个存活注册节点都具有 `group_rank` 与 `local_rank`；元数据
-只要部分缺失就会明确报错，不再降级为可能漏数的 flat/partial 扫描。
-
-## 同步调试
-
-### 捕获所有堆栈
-
-```bash
-# 从所有 rank 捕获堆栈跟踪
-for node in node1 node2 node3; do
-    echo "=== $node ==="
-    probing -t $node:8080 backtrace
-done
-```
-
-### 检查分布式状态
-
-```bash
-probing -t $ENDPOINT eval "
-import torch.distributed as dist
-
-if dist.is_initialized():
-    print(f'Rank: {dist.get_rank()}')
-    print(f'World Size: {dist.get_world_size()}')
-    print(f'Backend: {dist.get_backend()}')"
-```
-
-## 通信分析
-
-### Collective 延迟（粗粒度，内置）
-
-`python.comm_collective` 记录 `torch.distributed` 调用墙钟时间，无需 NCCL 插件。
-
-```sql
-SELECT rank, op, avg(duration_ms) AS avg_ms, count(*) AS n
-FROM python.comm_collective
-WHERE global_step >= (SELECT max(global_step) - 20 FROM python.comm_collective)
-GROUP BY rank, op
-ORDER BY avg_ms DESC;
-```
-
-```bash
-probing -t $ENDPOINT skill run slow_rank
-probing -t $ENDPOINT skill run comm_bottleneck
-```
-
-### NCCL 等待分解（细粒度）
-
-要区分 **culprit / victim**（`send_gpu_wait_ns` / `recv_wait_ns`），需启用 NCCL profiler 插件并查询 `nccl.proxy_ops`：
-
-```bash
-export NCCL_PROFILER_PLUGIN=$(python -m probing.nccl --plugin-path)
-export NCCL_PROFILE_EVENT_MASK=$(python -m probing.nccl --event-mask)
-export PROBING=2
-# ... torchrun ...
-
-probing -t $ENDPOINT skill run nccl_culprit_victim
-probing -t $ENDPOINT query "
-SELECT rank, sum(send_gpu_wait_ns) AS gpu_wait, sum(recv_wait_ns) AS recv_wait
-FROM nccl.proxy_ops
-GROUP BY rank
-ORDER BY recv_wait DESC"
-```
-
-多机使用 `global.nccl.proxy_ops`。完整说明见 [NCCL profiler 插件](nccl-profiler.zh.md)。
-
-### RDMA 流分析
-
-```bash
-# RDMA 特定分析
-probing -t $ENDPOINT rdma
-```
-
-## 分布式问题排查
-
-### Rank 同步
-
-```bash
-# 检查各节点 step 坐标（使用 probing step_snapshot，而非 trainer 字段）
-for node in node1 node2 node3; do
-    probing -t $node:8080 eval "
-from probing.tracing import step_snapshot
-s = step_snapshot()
-print(f'rank={s.rank} local_step={s.local_step} global_step={s.global_step}')"
-done
-```
-
-### 死锁检测
-
-```bash
-# 检查挂起的集合操作
-probing -t $ENDPOINT query "
-SELECT func, file, lineno
-FROM python.backtrace
-WHERE func LIKE '%collective%' OR func LIKE '%allreduce%'"
-```
-
-### 内存不均衡
-
-```sql
--- 比较各 rank 的内存
-SELECT
-    rank,
-    AVG(allocated) as avg_memory,
-    MAX(allocated) as peak_memory
-FROM python.torch_trace
-GROUP BY rank;
-```
-
-## 配置
-
-### 启用远程访问
-
-```bash
-# 以 TCP 服务器启动
-PROBING_PORT=8080 python train.py
-
-# 或动态配置
-probing $ENDPOINT config probing.server.port=8080
-```
-
-### 安全
-
-```bash
-# 启用认证
-PROBING_AUTH_TOKEN=secret python train.py
-
-# 带令牌连接
-probing -t host:8080 --token secret query "..."
-```
-
-所有 peer 必须使用相同令牌。Probing 会把已配置的凭据附加到内部节点发现、心跳、
-普通联邦查询和层级 fan-out 请求；负载均衡器使用的健康检查端点仍保持公开。
-
-## 最佳实践
-
-### 一致的环境变量
-
-各 rank 使用相同配置（示例）：
-
-```bash
-export PROBING_PORT=8080
-export PROBING_TORCH_PROFILING=on
-```
-
-### 跨节点时间戳
-
-使用 NTP；memtable 的 `ts` 列为各进程 wall-clock 微秒。
-
-### 网络
-
-Probing HTTP 属控制面流量。大集群上应隔离或限制 fan-out 速率；见 [分层 fan-out](hierarchical-fanout.zh.md)。
+查询语义见[联邦查询引擎](federation.zh.md)，表列见
+[SQL 表目录](../reference/sql-tables.zh.md#cluster-nodes)。

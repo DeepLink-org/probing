@@ -230,7 +230,7 @@ Python 侧最精巧的实现（1,554 行），三个关键设计：
 #### 1.3.3 文档质量 — 评分：5.0/5.0
 
 - `modularity.md` 以表格追踪架构边界和技术债务，达到工程级别
-- `overhead-invariants.zh.md` 精确定义了开销不变性公式和测试要求
+- `overhead.zh.md#change-invariants` 精确定义了开销不变性公式和测试要求
 - `AGENTS.md` 为 AI 协作设计的编码规范
 - 13 个 skill 各有 `SKILL.md` 人类文档
 - API.md / CHANGELOG.md 维护良好

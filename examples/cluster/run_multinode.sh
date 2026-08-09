@@ -7,7 +7,7 @@
 #
 # 也可用环境变量：NNODES NPROC SLEEP_SEC MASTER_PORT
 # probing 高级开关（一般不用改）：PROBING_PORT PROBING_CLUSTER_REPORT=0
-# 心跳预设：PROBING_CLUSTER_PRESET=demo|fast|steady（见 docs/src/design/torchrun-cluster.zh.md）
+# 心跳预设：PROBING_CLUSTER_PRESET=demo|fast|steady（见 docs/src/design/distributed.zh.md#cluster-membership）
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."

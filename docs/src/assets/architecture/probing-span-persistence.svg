@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="510" viewBox="0 0 1200 510">
+  <defs><marker id="as" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#2563EB"/></marker></defs>
+  <rect width="1200" height="510" fill="#F8FAFC"/>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial, sans-serif">
+    <text x="600" y="42" text-anchor="middle" font-size="25" font-weight="700" fill="#17324D">Span 状态与持久化分离：栈拥有语义，Recorder 只负责输出</text>
+    <text x="600" y="70" text-anchor="middle" font-size="13" fill="#64748B">阶段状态不从存储反推；backend 失败也不能破坏线程内 span 栈</text>
+
+    <rect x="45" y="120" width="245" height="250" rx="16" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="68" y="151" font-size="17" font-weight="700" fill="#1D4ED8">用户入口</text>
+    <rect x="70" y="177" width="195" height="48" rx="9" fill="#FFFFFF" stroke="#93C5FD"/><text x="168" y="206" text-anchor="middle" font-size="13" fill="#17324D">probing.span</text>
+    <rect x="70" y="241" width="195" height="48" rx="9" fill="#FFFFFF" stroke="#93C5FD"/><text x="168" y="270" text-anchor="middle" font-size="13" fill="#17324D">probing.event</text>
+    <rect x="70" y="305" width="195" height="48" rx="9" fill="#FFFFFF" stroke="#93C5FD"/><text x="168" y="334" text-anchor="middle" font-size="13" fill="#17324D">record_span</text>
+
+    <path d="M290 245 H378" stroke="#2563EB" stroke-width="3" marker-end="url(#as)"/>
+    <rect x="384" y="120" width="300" height="250" rx="16" fill="#ECFDF5" stroke="#0D9488" stroke-width="2"/>
+    <text x="408" y="151" font-size="17" font-weight="700" fill="#0F766E">状态所有者</text>
+    <rect x="410" y="177" width="248" height="72" rx="10" fill="#17324D"/>
+    <text x="534" y="205" text-anchor="middle" font-size="14" font-weight="700" fill="#FFFFFF">Rust thread-local Span stack</text>
+    <text x="534" y="228" text-anchor="middle" font-size="11" fill="#CBD5E1">嵌套、phase、parent 关系</text>
+    <rect x="410" y="271" width="248" height="68" rx="10" fill="#D1FAE5"/>
+    <text x="534" y="297" text-anchor="middle" font-size="13" font-weight="700" fill="#0F766E">_RecordedSpan 编排提交</text>
+    <text x="534" y="319" text-anchor="middle" font-size="11" fill="#64748B">无 event：退出时提交闭区间</text>
+
+    <path d="M684 245 H772" stroke="#2563EB" stroke-width="3" marker-end="url(#as)"/>
+    <rect x="778" y="120" width="377" height="250" rx="16" fill="#FFF7ED" stroke="#EA580C" stroke-width="2"/>
+    <text x="802" y="151" font-size="17" font-weight="700" fill="#C2410C">输出边界</text>
+    <rect x="804" y="177" width="325" height="54" rx="9" fill="#FFFFFF" stroke="#FDBA74"/><text x="967" y="209" text-anchor="middle" font-size="14" font-weight="700" fill="#17324D">SpanRecorder</text>
+    <path d="M967 231 V261" stroke="#EA580C" stroke-width="2" marker-end="url(#as)"/>
+    <rect x="804" y="267" width="94" height="54" rx="9" fill="#FFFFFF" stroke="#FDBA74"/><text x="851" y="299" text-anchor="middle" font-size="12" fill="#17324D">MEMT</text>
+    <rect x="919" y="267" width="94" height="54" rx="9" fill="#FFFFFF" stroke="#FDBA74"/><text x="966" y="299" text-anchor="middle" font-size="12" fill="#17324D">logger</text>
+    <rect x="1034" y="267" width="95" height="54" rx="9" fill="#FFFFFF" stroke="#FDBA74"/><text x="1082" y="299" text-anchor="middle" font-size="12" fill="#17324D">OTEL</text>
+    <text x="967" y="348" text-anchor="middle" font-size="11" fill="#64748B">python.trace_event: start / end / event</text>
+
+    <rect x="45" y="410" width="1110" height="64" rx="12" fill="#17324D"/>
+    <text x="600" y="436" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">提交决策：没有 event 时只写一次闭区间；首次 event 才写 start，退出再写 end</text>
+    <text x="600" y="458" text-anchor="middle" font-size="11" fill="#86EFAC">结果：降低热路径写放大；代价：进行中的无 event span 暂不可由 SQL 看见</text>
+  </g>
+</svg>

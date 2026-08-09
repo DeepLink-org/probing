@@ -177,7 +177,7 @@ ORDER BY avg_ms DESC;
 set with `_rank` telling you which row came from where.
 
 Nodes register via torchrun (Rust ctor starts cluster heartbeat by default — see
-[torchrun cluster heartbeat](../design/torchrun-cluster.md)) or by PUTting to
+[distributed membership](../design/distributed.md#cluster-membership)) or by PUTting to
 `/apis/nodes`. Check current registration with `probing -t <master> cluster nodes`.
 
 The `_role` tag uses the value from the **node registry**, which is kept in sync
@@ -245,7 +245,7 @@ Probing has many configuration points. The most important ones:
 | `PROBING_AUTH_TOKEN` | Authentication token for remote mode |
 | `PROBING_CPU_SAMPLE_MS` | CPU sampling interval in milliseconds (0=off) |
 | `PROBING_GPU_SAMPLE_MS` | GPU sampling interval in milliseconds |
-| `PROBING_SPAN_BACKENDS` | Comma-separated: `memtable`, `logger`, `otel`, `none` (stack only). See [Span API](../design/tracing-spans.md). |
+| `PROBING_SPAN_BACKENDS` | Comma-separated: `memtable`, `logger`, `otel`, `none` (stack only). See [Tracing and training phases](../design/profiling.md#span-api). |
 | `PROBING_LOGLEVEL` | `trace`, `debug`, `info`, `warn`, `error` |
 
 The complete reference is at [Environment Variables](../reference/env-vars.md).
