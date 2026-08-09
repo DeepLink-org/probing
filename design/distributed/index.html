@@ -13,10 +13,10 @@
         <link rel="canonical" href="https://github.com/DeepLink-org/probing/design/distributed/">
       
       
-        <link rel="prev" href="../training-phase/">
+        <link rel="prev" href="../overhead/">
       
       
-        <link rel="next" href="../torchrun-cluster/">
+        <link rel="next" href="../federation/">
       
       
         
@@ -31,7 +31,7 @@
     
     
       
-        <title>Overview - Probing Documentation</title>
+        <title>Distributed Membership - Probing Documentation</title>
       
     
     
@@ -86,7 +86,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#distributed-architecture" class="md-skip">
+        <a href="#distributed-membership-and-control-plane" class="md-skip">
           Skip to content
         </a>
       
@@ -120,7 +120,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Overview
+              Distributed Membership
             
           </span>
         </div>
@@ -392,17 +392,20 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="../../contributing/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/" class="md-tabs__link">
+          
   
   
     
   
   Contributing
 
-      </a>
-    </li>
+        </a>
+      </li>
+    
   
 
       
@@ -904,8 +907,6 @@
       
         
       
-        
-      
     
     
     
@@ -1006,7 +1007,7 @@
   <span class="md-ellipsis">
     
   
-    Platform
+    Foundations
   
 
     
@@ -1022,7 +1023,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Platform
+    Foundations
   
 
           </label>
@@ -1043,6 +1044,34 @@
     
   
     Modularity & Boundaries
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../activation-injection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Activation & Runtime Control
   
 
     
@@ -1112,34 +1141,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CLI Command Tree
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -1156,14 +1157,6 @@
   
     
     
-      
-        
-      
-        
-      
-        
-      
-        
       
         
       
@@ -1233,91 +1226,7 @@
   <span class="md-ellipsis">
     
   
-    Profiling
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../torch-profiler-sql/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Torch Profiler SQL
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../overhead/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overhead
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../overhead-invariants/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overhead invariants
+    Profiling & Tracing
   
 
     
@@ -1366,42 +1275,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../debugging/" class="md-nav__link">
+      <a href="../overhead/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Debugging Engine
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../training-phase/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Training Phases
+    Overhead
   
 
     
@@ -1440,10 +1321,6 @@
       
         
       
-        
-      
-        
-      
     
     
     
@@ -1470,7 +1347,7 @@
   <span class="md-ellipsis">
     
   
-    Distributed
+    Distributed Query & Analysis
   
 
     
@@ -1486,7 +1363,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Distributed
+    Distributed Query & Analysis
   
 
           </label>
@@ -1515,7 +1392,7 @@
   <span class="md-ellipsis">
     
   
-    Overview
+    Distributed Membership
   
 
     
@@ -1533,7 +1410,7 @@
   <span class="md-ellipsis">
     
   
-    Overview
+    Distributed Membership
   
 
     
@@ -1559,10 +1436,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#related-documents" class="md-nav__link">
+  <a href="#overall-structure" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Related documents
+        Overall structure
       
     </span>
   </a>
@@ -1570,33 +1447,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#topology" class="md-nav__link">
+  <a href="#cluster-membership" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Topology
+        Cluster membership lifecycle
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#process-discovery" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Process Discovery
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Process Discovery">
+    <nav class="md-nav" aria-label="Cluster membership lifecycle">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#local-discovery" class="md-nav__link">
+  <a href="#startup" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Local Discovery
+        Startup
       
     </span>
   </a>
@@ -1604,10 +1470,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#remote-discovery" class="md-nav__link">
+  <a href="#hierarchical-registration" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Remote Discovery
+        Hierarchical registration
       
     </span>
   </a>
@@ -1615,10 +1481,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#cluster-view" class="md-nav__link">
+  <a href="#convergence-and-expiry" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Cluster View
+        Convergence and expiry
       
     </span>
   </a>
@@ -1631,180 +1497,24 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#cross-node-queries" class="md-nav__link">
+  <a href="#discovery-and-control-entry-points" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Cross-Node Queries
+        Discovery and control entry points
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Cross-Node Queries">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#query-single-node" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Query Single Node
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#federated-query-global" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Federated query (global.*)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#synchronized-debugging" class="md-nav__link">
+  <a href="#boundary-with-federation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Synchronized Debugging
+        Boundary with federation
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Synchronized Debugging">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#capture-all-stacks" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Capture All Stacks
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#check-distributed-state" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Check Distributed State
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#communication-analysis" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Communication Analysis
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Communication Analysis">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#collective-latency-coarse-built-in" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Collective latency (coarse, built-in)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#nccl-wait-decomposition-fine-grained" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        NCCL wait decomposition (fine-grained)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rdma-flow-analysis" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        RDMA Flow Analysis
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#troubleshooting-distributed-issues" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Troubleshooting Distributed Issues
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Troubleshooting Distributed Issues">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#rank-synchronization" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Rank Synchronization
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#deadlock-detection" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Deadlock Detection
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#memory-imbalance" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Memory Imbalance
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -1817,83 +1527,16 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Configuration">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#enable-remote-access" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Enable Remote Access
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#security" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Security
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
 </li>
       
         <li class="md-nav__item">
-  <a href="#best-practices" class="md-nav__link">
+  <a href="#constraints-and-implementation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Best Practices
+        Constraints and implementation
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Best Practices">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#consistent-environment" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Consistent environment
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#cross-node-timestamps" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Cross-node timestamps
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#network" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Network
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -1901,34 +1544,6 @@
   
 </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../torchrun-cluster/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Torchrun Cluster Heartbeat
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -1969,42 +1584,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../hierarchical-fanout/" class="md-nav__link">
+      <a href="../distributed-profiler/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Hierarchical Fan-out
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../cluster-pulsing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Cluster with Pulsing
+    Distributed Profiler
   
 
     
@@ -2021,34 +1608,6 @@
           </ul>
         </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    System Architecture (legacy)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -2485,9 +2044,31 @@
   
   
   
-    <li class="md-nav__item">
-      <a href="../../contributing/" class="md-nav__link">
+    
+    
+      
         
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
   
   
   <span class="md-ellipsis">
@@ -2501,7 +2082,79 @@
   
   
 
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing Guide
+  
+
+    
+  </span>
+  
+  
+
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../writing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation Style
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2533,10 +2186,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#related-documents" class="md-nav__link">
+  <a href="#overall-structure" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Related documents
+        Overall structure
       
     </span>
   </a>
@@ -2544,33 +2197,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#topology" class="md-nav__link">
+  <a href="#cluster-membership" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Topology
+        Cluster membership lifecycle
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#process-discovery" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Process Discovery
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Process Discovery">
+    <nav class="md-nav" aria-label="Cluster membership lifecycle">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#local-discovery" class="md-nav__link">
+  <a href="#startup" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Local Discovery
+        Startup
       
     </span>
   </a>
@@ -2578,10 +2220,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#remote-discovery" class="md-nav__link">
+  <a href="#hierarchical-registration" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Remote Discovery
+        Hierarchical registration
       
     </span>
   </a>
@@ -2589,10 +2231,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#cluster-view" class="md-nav__link">
+  <a href="#convergence-and-expiry" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Cluster View
+        Convergence and expiry
       
     </span>
   </a>
@@ -2605,180 +2247,24 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#cross-node-queries" class="md-nav__link">
+  <a href="#discovery-and-control-entry-points" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Cross-Node Queries
+        Discovery and control entry points
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Cross-Node Queries">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#query-single-node" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Query Single Node
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#federated-query-global" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Federated query (global.*)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#synchronized-debugging" class="md-nav__link">
+  <a href="#boundary-with-federation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Synchronized Debugging
+        Boundary with federation
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Synchronized Debugging">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#capture-all-stacks" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Capture All Stacks
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#check-distributed-state" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Check Distributed State
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#communication-analysis" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Communication Analysis
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Communication Analysis">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#collective-latency-coarse-built-in" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Collective latency (coarse, built-in)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#nccl-wait-decomposition-fine-grained" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        NCCL wait decomposition (fine-grained)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rdma-flow-analysis" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        RDMA Flow Analysis
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#troubleshooting-distributed-issues" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Troubleshooting Distributed Issues
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Troubleshooting Distributed Issues">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#rank-synchronization" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Rank Synchronization
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#deadlock-detection" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Deadlock Detection
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#memory-imbalance" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Memory Imbalance
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -2791,83 +2277,16 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Configuration">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#enable-remote-access" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Enable Remote Access
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#security" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Security
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
 </li>
       
         <li class="md-nav__item">
-  <a href="#best-practices" class="md-nav__link">
+  <a href="#constraints-and-implementation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Best Practices
+        Constraints and implementation
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Best Practices">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#consistent-environment" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Consistent environment
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#cross-node-timestamps" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Cross-node timestamps
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#network" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Network
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -2891,218 +2310,222 @@
   
 
 
-<h1 id="distributed-architecture">Distributed Architecture<a class="headerlink" href="#distributed-architecture" title="Permanent link">&para;</a></h1>
-<p>Multi-node probing: per-rank memtable writers, <code>cluster.nodes</code> registry, coordinator-side
-SQL fan-out via <code>global.*</code> and <code>/apis/cluster/query</code>.</p>
-<h2 id="related-documents">Related documents<a class="headerlink" href="#related-documents" title="Permanent link">&para;</a></h2>
+<h1 id="distributed-membership-and-control-plane">Distributed Membership and Control Plane<a class="headerlink" href="#distributed-membership-and-control-plane" title="Permanent link">&para;</a></h1>
+<p>This page defines how Probing discovers and maintains probe membership for a distributed training
+job. Every rank still writes local tables. Cross-rank catalogs, execution paths, and result
+correctness belong to the <a href="../federation/">Federated Query Engine</a>.</p>
+<blockquote>
+<p>Status: implemented. Membership registration lives in <code>probing-server</code>; it does not modify torch
+rendezvous data or block <code>init_process_group</code>.</p>
+</blockquote>
+<h2 id="overall-structure">Overall structure<a class="headerlink" href="#overall-structure" title="Permanent link">&para;</a></h2>
+<p><img alt="Hierarchical membership propagates identity while telemetry remains rank-local" src="../../assets/architecture/probing-cluster-membership.svg" /></p>
 <table>
 <thead>
 <tr>
-<th>Document</th>
+<th>Role</th>
+<th>Owns</th>
+<th>Does not own</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>leaf rank</td>
+<td>reports endpoint, rank, and role; executes local SQL</td>
+<td>global membership or recursive fan-out</td>
+</tr>
+<tr>
+<td>local0</td>
+<td>aggregates on-node heartbeats; node query proxy</td>
+<td>torch rendezvous mutation</td>
+</tr>
+<tr>
+<td>global rank 0</td>
+<td>job membership snapshot and query entry</td>
+<td>centralized training telemetry</td>
+</tr>
+<tr>
+<td><code>cluster.nodes</code></td>
+<td>endpoint membership and health</td>
+<td>torch process-group semantics</td>
+</tr>
+</tbody>
+</table>
+<p>Heartbeat carries only identity and health metadata. Collected evidence remains rank-local until a
+query requests it.</p>
+<h2 id="cluster-membership">Cluster membership lifecycle<a class="headerlink" href="#cluster-membership" title="Permanent link">&para;</a></h2>
+<h3 id="startup">Startup<a class="headerlink" href="#startup" title="Permanent link">&para;</a></h3>
+<p>The Rust constructor starts <code>maybe_start_torchrun_cluster()</code> when Probing is enabled,
+<code>WORLD_SIZE &gt; 1</code>, <code>PROBING_TORCHRUN_CLUSTER != 0</code>, and the process is not an elastic supervisor.
+It binds HTTP, discovers master/local0 addresses through the job TCPStore, and starts an async
+heartbeat worker. Python no longer patches <code>torch.distributed.init_process_group</code>;
+<code>setup_torchrun_cluster()</code> remains an explicit/test facade.</p>
+<h3 id="hierarchical-registration">Hierarchical registration<a class="headerlink" href="#hierarchical-registration" title="Permanent link">&para;</a></h3>
+<p><img alt="Leaf, local0, and global rank 0 merge heartbeat state hierarchically" src="../../assets/architecture/probing-cluster-heartbeat.svg" /></p>
+<p>TCPStore keys are isolated under:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>probing/torchrun/&lt;run_id&gt;/master
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>probing/torchrun/&lt;run_id&gt;/node/&lt;group_rank&gt;/local0
+</span></code></pre></div>
+<p>The store endpoint may be shared with torch rendezvous; rendezvous keys are untouched.
+<code>PUT /apis/nodes</code> merges heartbeats by rank; <code>GET /apis/nodes</code> and <code>cluster.nodes</code> expose the sorted
+snapshot. Registration carries rank/world size, group/local rank, host, reachable address, and role.</p>
+<h3 id="convergence-and-expiry">Convergence and expiry<a class="headerlink" href="#convergence-and-expiry" title="Permanent link">&para;</a></h3>
+<p>Before full membership, heartbeats stay at the base interval. Once stable, they back off
+exponentially. One stale TTL marks a member dead; a second removes it. The effective maximum interval
+is capped by <code>STALE_SEC - STALE_SEC/4 - 1</code>. With the default stale value 25 seconds, the safe maximum
+is about 18 seconds. Increase stale to roughly 90 seconds for a stable interval near 60 seconds.</p>
+<p><code>probing.set_role(...)</code> followed by <code>refresh_node_role()</code> sends an immediate update for <code>_role</code>.</p>
+<h2 id="discovery-and-control-entry-points">Discovery and control entry points<a class="headerlink" href="#discovery-and-control-entry-points" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Need</th>
+<th>Entry</th>
 <th>Scope</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><a href="../torchrun-cluster/">Torchrun cluster heartbeat</a></td>
-<td>TCPStore side channel, hierarchical PUT, backoff</td>
+<td>local probe processes</td>
+<td><code>probing list</code></td>
+<td>local sockets/processes</td>
 </tr>
 <tr>
-<td><a href="../federation/">Federated query engine</a></td>
-<td>Catalog rewrite, paths A/B/C, tag injection</td>
+<td>remote endpoint</td>
+<td><code>probing -t host:port list</code></td>
+<td>one endpoint</td>
 </tr>
 <tr>
-<td><a href="../hierarchical-fanout/">Hierarchical fan-out</a></td>
-<td>coordinator → local0 → leaf HTTP topology</td>
+<td>job snapshot</td>
+<td><code>probing -t rank0:port cluster nodes</code></td>
+<td><code>cluster.nodes</code></td>
 </tr>
 <tr>
-<td><a href="../cluster-pulsing/">Cluster with Pulsing</a></td>
-<td>Optional <code>pulsing.*</code> memtable membership</td>
+<td>local SQL</td>
+<td><code>probing -t endpoint query "..."</code></td>
+<td>local <code>probe.*</code></td>
 </tr>
 <tr>
-<td><a href="../nccl-profiler/">NCCL Profiler</a></td>
-<td><code>nccl.proxy_ops</code> plugin ABI</td>
+<td>cross-rank SQL</td>
+<td><code>cluster query</code> or <code>global.*</code></td>
+<td>federation</td>
 </tr>
 </tbody>
 </table>
-<p>Dependency order: <a href="../../guide/concepts/">Core model</a> → this page → torchrun heartbeat → federation → hierarchical fan-out.</p>
-<p>Reference: <a href="../../reference/sql-tables/">SQL Tables</a> (<code>cluster.nodes</code>, federation tags).</p>
-<hr />
-<h2 id="topology">Topology<a class="headerlink" href="#topology" title="Permanent link">&para;</a></h2>
-<pre class="mermaid"><code>graph TB
-    subgraph "Node 1"
-        P1[Process Rank 0]
-        PROBE1[Probe]
-    end
-
-    subgraph "Node 2"
-        P2[Process Rank 1]
-        PROBE2[Probe]
-    end
-
-    subgraph "Control Plane"
-        CLI[CLI Client]
-        AGG[Aggregator]
-    end
-
-    PROBE1 --&gt; AGG
-    PROBE2 --&gt; AGG
-    CLI --&gt; AGG
-    CLI --&gt; PROBE1
-    CLI --&gt; PROBE2</code></pre>
-<h2 id="process-discovery">Process Discovery<a class="headerlink" href="#process-discovery" title="Permanent link">&para;</a></h2>
-<h3 id="local-discovery">Local Discovery<a class="headerlink" href="#local-discovery" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># List all probing-enabled processes on local machine</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>probing<span class="w"> </span>list
-</span></code></pre></div>
-<h3 id="remote-discovery">Remote Discovery<a class="headerlink" href="#remote-discovery" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Connect to remote node</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>probing<span class="w"> </span>-t<span class="w"> </span>node1:8080<span class="w"> </span>list
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>probing<span class="w"> </span>-t<span class="w"> </span>node2:8080<span class="w"> </span>list
-</span></code></pre></div>
-<h3 id="cluster-view">Cluster View<a class="headerlink" href="#cluster-view" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># List registered peers in the cluster view (connect to rank-0 / master endpoint)</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>probing<span class="w"> </span>-t<span class="w"> </span>rank0:8080<span class="w"> </span>cluster<span class="w"> </span>nodes
-</span></code></pre></div>
-<h2 id="cross-node-queries">Cross-Node Queries<a class="headerlink" href="#cross-node-queries" title="Permanent link">&para;</a></h2>
-<h3 id="query-single-node">Query Single Node<a class="headerlink" href="#query-single-node" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>probing<span class="w"> </span>-t<span class="w"> </span>node1:8080<span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="s2">SELECT * FROM python.torch_trace</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="s2">WHERE step = (SELECT MAX(step) FROM python.torch_trace)&quot;</span>
-</span></code></pre></div>
-<h3 id="federated-query-global">Federated query (<code>global.*</code>)<a class="headerlink" href="#federated-query-global" title="Permanent link">&para;</a></h3>
-<p>Cross-rank SQL uses the <strong><code>global</code> catalog</strong>. The master fans out to registered peers and
-attaches federation tags <strong><code>_host</code></strong>, <strong><code>_addr</code></strong>, <strong><code>_rank</code></strong>, <strong><code>_role</code></strong> (parallel-role
-key from the node registry, e.g. <code>dp=2,pp=1,tp=0</code>).</p>
-<p><strong>Option A — SQL engine (preferred for analytics):</strong></p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>probing<span class="w"> </span>-t<span class="w"> </span>rank0:8080<span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="s2">SELECT _role, _rank, avg(duration_ms) AS avg_ms</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="s2">FROM global.python.comm_collective</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="s2">WHERE global_step &gt; 100</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="s2">GROUP BY _role, _rank</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="s2">ORDER BY avg_ms DESC&quot;</span>
-</span></code></pre></div>
-<p><strong>Option B — cluster fan-out API:</strong></p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>probing<span class="w"> </span>-t<span class="w"> </span>rank0:8080<span class="w"> </span>cluster<span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="s2">SELECT _role, _rank, avg(duration_ms) AS avg_ms</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="s2">FROM global.python.comm_collective</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="s2">GROUP BY _role, _rank</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="s2">ORDER BY avg_ms DESC&quot;</span>
-</span></code></pre></div>
-<p>Register peers via torchrun (Rust ctor starts hierarchical heartbeat by default — see
-<a href="../torchrun-cluster/">torchrun cluster heartbeat</a>), explicit <code>setup_torchrun_cluster()</code>, or
-<code>PUT /apis/nodes</code> so <code>_rank</code> and
-<code>_role</code> resolve correctly. Override role at runtime with <code>probing.set_role(...)</code> in training
-scripts.</p>
-<p>See <a href="../federation/">Federated query engine</a> for engine paths and acceptance tests.</p>
-<p>At wan scale, <strong><code>cluster query</code> defaults to <a href="../hierarchical-fanout/">hierarchical fan-out</a></strong> (coordinator → per-machine local0 → on-node leaves). Set <code>PROBING_CLUSTER_FANOUT_HIERARCHICAL=0</code> or use CLI <code>--flat</code> for legacy flat fan-out.</p>
-<p>Raw <code>global.*</code> scans use the same topology: the coordinator reads its own partition, queries its
-local leaf ranks directly, and sends node-aggregate requests to remote local0 peers. Hierarchical
-execution requires <code>group_rank</code> and <code>local_rank</code> on every live registry entry; partial metadata is
-reported as an error instead of falling back to a potentially incomplete flat/partial scan.</p>
-<h2 id="synchronized-debugging">Synchronized Debugging<a class="headerlink" href="#synchronized-debugging" title="Permanent link">&para;</a></h2>
-<h3 id="capture-all-stacks">Capture All Stacks<a class="headerlink" href="#capture-all-stacks" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Capture stack traces from all ranks</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="k">for</span><span class="w"> </span>node<span class="w"> </span><span class="k">in</span><span class="w"> </span>node1<span class="w"> </span>node2<span class="w"> </span>node3<span class="p">;</span><span class="w"> </span><span class="k">do</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;=== </span><span class="nv">$node</span><span class="s2"> ===&quot;</span>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$node</span>:8080<span class="w"> </span>backtrace
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="k">done</span>
-</span></code></pre></div>
-<h3 id="check-distributed-state">Check Distributed State<a class="headerlink" href="#check-distributed-state" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="s2">import torch.distributed as dist</span>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="s2">if dist.is_initialized():</span>
-</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="s2">    print(f&#39;Rank: {dist.get_rank()}&#39;)</span>
-</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="s2">    print(f&#39;World Size: {dist.get_world_size()}&#39;)</span>
-</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="s2">    print(f&#39;Backend: {dist.get_backend()}&#39;)&quot;</span>
-</span></code></pre></div>
-<h2 id="communication-analysis">Communication Analysis<a class="headerlink" href="#communication-analysis" title="Permanent link">&para;</a></h2>
-<h3 id="collective-latency-coarse-built-in">Collective latency (coarse, built-in)<a class="headerlink" href="#collective-latency-coarse-built-in" title="Permanent link">&para;</a></h3>
-<p><code>python.comm_collective</code> records <code>torch.distributed</code> calls with wall time. No NCCL plugin required.</p>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">rank</span><span class="p">,</span><span class="w"> </span><span class="n">op</span><span class="p">,</span><span class="w"> </span><span class="k">avg</span><span class="p">(</span><span class="n">duration_ms</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">avg_ms</span><span class="p">,</span><span class="w"> </span><span class="k">count</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">n</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span>
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">global_step</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="k">max</span><span class="p">(</span><span class="n">global_step</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">20</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span><span class="p">)</span>
-</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">rank</span><span class="p">,</span><span class="w"> </span><span class="n">op</span>
-</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">avg_ms</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
-</span></code></pre></div>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>skill<span class="w"> </span>run<span class="w"> </span>slow_rank
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>skill<span class="w"> </span>run<span class="w"> </span>comm_bottleneck
-</span></code></pre></div>
-<h3 id="nccl-wait-decomposition-fine-grained">NCCL wait decomposition (fine-grained)<a class="headerlink" href="#nccl-wait-decomposition-fine-grained" title="Permanent link">&para;</a></h3>
-<p>For <strong>culprit vs victim</strong> attribution (<code>send_gpu_wait_ns</code> / <code>recv_wait_ns</code>), enable the NCCL profiler plugin and query <code>nccl.proxy_ops</code>:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NCCL_PROFILER_PLUGIN</span><span class="o">=</span><span class="k">$(</span>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--plugin-path<span class="k">)</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NCCL_PROFILE_EVENT_MASK</span><span class="o">=</span><span class="k">$(</span>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--event-mask<span class="k">)</span>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PROBING</span><span class="o">=</span><span class="m">2</span>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1"># ... torchrun ...</span>
-</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>
-</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>skill<span class="w"> </span>run<span class="w"> </span>nccl_culprit_victim
-</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="s2">SELECT rank, sum(send_gpu_wait_ns) AS gpu_wait, sum(recv_wait_ns) AS recv_wait</span>
-</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="s2">FROM nccl.proxy_ops</span>
-</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="s2">GROUP BY rank</span>
-</span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="s2">ORDER BY recv_wait DESC&quot;</span>
-</span></code></pre></div>
-<p>Multi-node: <code>global.nccl.proxy_ops</code>. Full setup, schema, and mock workflow: <a href="../nccl-profiler/">NCCL profiler plugin</a>.</p>
-<h3 id="rdma-flow-analysis">RDMA Flow Analysis<a class="headerlink" href="#rdma-flow-analysis" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># RDMA-specific analysis</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>rdma
-</span></code></pre></div>
-<h2 id="troubleshooting-distributed-issues">Troubleshooting Distributed Issues<a class="headerlink" href="#troubleshooting-distributed-issues" title="Permanent link">&para;</a></h2>
-<h3 id="rank-synchronization">Rank Synchronization<a class="headerlink" href="#rank-synchronization" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># Check step coordinates on each node (uses probing&#39;s step_snapshot, not trainer fields)</span>
-</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="k">for</span><span class="w"> </span>node<span class="w"> </span><span class="k">in</span><span class="w"> </span>node1<span class="w"> </span>node2<span class="w"> </span>node3<span class="p">;</span><span class="w"> </span><span class="k">do</span>
-</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">    </span>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$node</span>:8080<span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="s2">from probing.tracing import step_snapshot</span>
-</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="s2">s = step_snapshot()</span>
-</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="s2">print(f&#39;rank={s.rank} local_step={s.local_step} global_step={s.global_step}&#39;)&quot;</span>
-</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="k">done</span>
-</span></code></pre></div>
-<h3 id="deadlock-detection">Deadlock Detection<a class="headerlink" href="#deadlock-detection" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># Check for hanging collective operations</span>
-</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="s2">SELECT func, file, lineno</span>
-</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="s2">FROM python.backtrace</span>
-</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="s2">WHERE func LIKE &#39;%collective%&#39; OR func LIKE &#39;%allreduce%&#39;&quot;</span>
-</span></code></pre></div>
-<h3 id="memory-imbalance">Memory Imbalance<a class="headerlink" href="#memory-imbalance" title="Permanent link">&para;</a></h3>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1">-- Compare memory across ranks</span>
-</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="k">SELECT</span>
-</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">    </span><span class="n">rank</span><span class="p">,</span>
-</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">    </span><span class="k">AVG</span><span class="p">(</span><span class="n">allocated</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">avg_memory</span><span class="p">,</span>
-</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="w">    </span><span class="k">MAX</span><span class="p">(</span><span class="n">allocated</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">peak_memory</span>
-</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span>
-</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">rank</span><span class="p">;</span>
-</span></code></pre></div>
+<p>HTTP reachability and Engine readiness are distinct states; connection success does not prove the
+rank is ready to execute a query.</p>
+<h2 id="boundary-with-federation">Boundary with federation<a class="headerlink" href="#boundary-with-federation" title="Permanent link">&para;</a></h2>
+<p><img alt="Membership freezes a peer snapshot that federation consumes" src="../../assets/architecture/probing-membership-federation-boundary.svg" /></p>
+<p>Membership supplies peer identity, liveness, and rank/node/role metadata. Federation consumes one
+snapshot to choose peers, inject source tags, and report coverage/partial failures. Membership does
+not parse SQL or merge DataFrames; federation does not discover torchrun topology.</p>
+<p>The coordinator → local0 → leaf execution topology is defined in
+<a href="../federation/#hierarchical-fan-out">Federated Query Engine — hierarchical fan-out</a>.</p>
 <h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
-<h3 id="enable-remote-access">Enable Remote Access<a class="headerlink" href="#enable-remote-access" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1"># Start with TCP server</span>
-</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="nv">PROBING_PORT</span><span class="o">=</span><span class="m">8080</span><span class="w"> </span>python<span class="w"> </span>train.py
-</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>
-</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="c1"># Or configure dynamically</span>
-</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>config<span class="w"> </span>probing.server.port<span class="o">=</span><span class="m">8080</span>
-</span></code></pre></div>
-<h3 id="security">Security<a class="headerlink" href="#security" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="c1"># Enable authentication</span>
-</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="nv">PROBING_AUTH_TOKEN</span><span class="o">=</span>secret<span class="w"> </span>python<span class="w"> </span>train.py
-</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>
-</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="c1"># Connect with token</span>
-</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>probing<span class="w"> </span>-t<span class="w"> </span>host:8080<span class="w"> </span>--token<span class="w"> </span>secret<span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;...&quot;</span>
-</span></code></pre></div>
-<p>Use the same token on every peer. Probing applies the configured credential to internal
-node discovery, heartbeat, flat federation queries, and hierarchical fan-out requests;
-load-balancer health endpoints remain public.</p>
-<h2 id="best-practices">Best Practices<a class="headerlink" href="#best-practices" title="Permanent link">&para;</a></h2>
-<h3 id="consistent-environment">Consistent environment<a class="headerlink" href="#consistent-environment" title="Permanent link">&para;</a></h3>
-<p>Same env on all ranks (example):</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PROBING_PORT</span><span class="o">=</span><span class="m">8080</span>
-</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span>on
-</span></code></pre></div>
-<h3 id="cross-node-timestamps">Cross-node timestamps<a class="headerlink" href="#cross-node-timestamps" title="Permanent link">&para;</a></h3>
-<p>Use NTP; memtable <code>ts</code> columns are wall-clock microseconds per process.</p>
-<h3 id="network">Network<a class="headerlink" href="#network" title="Permanent link">&para;</a></h3>
-<p>Probing HTTP is control-plane traffic. Isolate or rate-limit fan-out on large clusters;
-see <a href="../hierarchical-fanout/">Hierarchical fan-out</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PROBING_TORCHRUN_CLUSTER</code></td>
+<td><code>1</code></td>
+<td>initialize torchrun membership</td>
+</tr>
+<tr>
+<td><code>PROBING_CLUSTER_REPORT</code></td>
+<td><code>1</code></td>
+<td>periodic heartbeat</td>
+</tr>
+<tr>
+<td><code>PROBING_CLUSTER_REPORT_BACKOFF</code></td>
+<td><code>1</code></td>
+<td>back off after convergence</td>
+</tr>
+<tr>
+<td><code>PROBING_CLUSTER_REPORT_INTERVAL_SEC</code></td>
+<td><code>10</code></td>
+<td>base interval</td>
+</tr>
+<tr>
+<td><code>PROBING_CLUSTER_REPORT_MAX_INTERVAL_SEC</code></td>
+<td><code>120</code></td>
+<td>configured maximum, stale-capped</td>
+</tr>
+<tr>
+<td><code>PROBING_CLUSTER_REPORT_BACKOFF_FACTOR</code></td>
+<td><code>2</code></td>
+<td>backoff factor</td>
+</tr>
+<tr>
+<td><code>PROBING_CLUSTER_STALE_SEC</code></td>
+<td><code>25</code></td>
+<td>dead/removal TTL base</td>
+</tr>
+<tr>
+<td><code>PROBING_CLUSTER_DISCOVER_TIMEOUT_SEC</code></td>
+<td><code>2</code></td>
+<td>TCPStore discovery timeout</td>
+</tr>
+<tr>
+<td><code>PROBING_CLUSTER_REPORT_TIMEOUT_SEC</code></td>
+<td><code>5</code></td>
+<td>heartbeat PUT timeout</td>
+</tr>
+<tr>
+<td><code>PROBING_ADVERTISE_ADDR</code></td>
+<td>inferred</td>
+<td>peer-reachable address</td>
+</tr>
+<tr>
+<td><code>PROBING_NODE_HOST</code></td>
+<td>inferred</td>
+<td>host identity for grouping</td>
+</tr>
+</tbody>
+</table>
+<p>All peers must use the same <code>PROBING_AUTH_TOKEN</code>; internal discovery, heartbeat, and query calls
+carry credentials. See <a href="../../reference/env-vars/#cluster">Environment variables</a>.</p>
+<h2 id="constraints-and-implementation">Constraints and implementation<a class="headerlink" href="#constraints-and-implementation" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Heartbeat failure must not terminate the host training process.</li>
+<li>Training callbacks perform no heartbeat network I/O; server workers own it.</li>
+<li><code>cluster.nodes</code> is endpoint membership, not a proof of an ideal torch rank set.</li>
+<li>External mmap schemas such as <code>pulsing.*</code> are not implicitly merged into membership.</li>
+<li>NTP/PTP is still required for meaningful cross-node wall-clock alignment.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Concern</th>
+<th>Location</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>torchrun startup and heartbeat</td>
+<td><code>probing/server/src/torchrun_cluster.rs</code></td>
+</tr>
+<tr>
+<td>registry and snapshots</td>
+<td><code>probing/core/src/core/cluster.rs</code></td>
+</tr>
+<tr>
+<td>HTTP contract</td>
+<td><code>probing/server/API.md</code>, <code>tests/regression/spec/api_spec.json</code></td>
+</tr>
+<tr>
+<td>multinode example</td>
+<td><code>examples/cluster/run_multinode.sh</code></td>
+</tr>
+</tbody>
+</table>
+<p>See <a href="../federation/">Federated Query Engine</a> and
+<a href="../../reference/sql-tables/#cluster-nodes">SQL Tables</a>.</p>
 
 
 

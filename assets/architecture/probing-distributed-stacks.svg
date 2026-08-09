@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#7C3AED"/></marker></defs>
+  <rect width="1280" height="720" fill="#F8FAFC"/>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial">
+    <text x="640" y="38" text-anchor="middle" font-size="22" font-weight="700" fill="#17324D">Python / native 堆栈：先在每个 rank 折叠，再合并成分布式火焰图</text>
+    <text x="640" y="63" text-anchor="middle" font-size="12" fill="#64748B">同一调用路径跨 rank 累加样本；已返回样本和失败节点分别写入结果与 fan-out 元数据</text>
+
+    <rect x="42" y="92" width="356" height="486" rx="14" fill="#FFFFFF" stroke="#7C3AED" stroke-width="2"/>
+    <text x="68" y="124" font-size="15" font-weight="700" fill="#7C3AED">单进程采集：两套帧进入同一快照</text>
+    <rect x="68" y="151" width="304" height="84" rx="11" fill="#FAF5FF" stroke="#C4B5FD"/>
+    <text x="88" y="180" font-size="12" font-weight="700" fill="#17324D">持续采样</text>
+    <text x="88" y="204" font-size="10" fill="#64748B">SIGPROF -> native return address + Python code pointer</text>
+    <text x="88" y="224" font-size="10" fill="#64748B">固定 ring 聚合；信号路径只写 POD snapshot</text>
+    <rect x="68" y="254" width="304" height="84" rx="11" fill="#EFF6FF" stroke="#93C5FD"/>
+    <text x="88" y="283" font-size="12" font-weight="700" fill="#174EA6">按需快照</text>
+    <text x="88" y="307" font-size="10" fill="#64748B">SIGUSR2 / sync walk / PYSTACKS</text>
+    <text x="88" y="327" font-size="10" fill="#64748B">未启持续采样时，至少可拿主线程 Python 栈</text>
+    <rect x="68" y="357" width="304" height="104" rx="11" fill="#F0FDFA" stroke="#0D9488"/>
+    <text x="88" y="386" font-size="12" font-weight="700" fill="#0F766E">混合栈拼接</text>
+    <text x="88" y="410" font-size="10" fill="#475569">Python：outer -> inner　native：leaf -> root</text>
+    <text x="88" y="431" font-size="10" fill="#475569">以 CPython eval frame 为锚点替换解释器帧</text>
+    <text x="88" y="452" font-size="10" fill="#64748B">去掉解释器启动噪声，最终统一为 root -> leaf</text>
+    <rect x="68" y="480" width="304" height="70" rx="11" fill="#17324D"/>
+    <text x="220" y="510" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">folded line</text>
+    <text x="220" y="532" text-anchor="middle" font-size="9" fill="#CBD5E1">[py] train;[c++] nccl;kernel 37</text>
+
+    <path d="M398 330 L438 330" stroke="#7C3AED" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="446" y="92" width="384" height="486" rx="14" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="472" y="124" font-size="15" font-weight="700" fill="#174EA6">集群 fan-out：并发拉取各 rank folded lines</text>
+    <g text-anchor="middle">
+      <rect x="472" y="157" width="96" height="66" rx="10" fill="#FFFFFF" stroke="#93C5FD"/><text x="520" y="185" font-size="11" font-weight="700" fill="#17324D">rank 0</text><text x="520" y="205" font-size="9" fill="#64748B">local</text>
+      <rect x="582" y="157" width="96" height="66" rx="10" fill="#FFFFFF" stroke="#93C5FD"/><text x="630" y="185" font-size="11" font-weight="700" fill="#17324D">rank 1</text><text x="630" y="205" font-size="9" fill="#64748B">HTTP folded/json</text>
+      <rect x="692" y="157" width="112" height="66" rx="10" fill="#FFFFFF" stroke="#93C5FD"/><text x="748" y="185" font-size="11" font-weight="700" fill="#17324D">rank N</text><text x="748" y="205" font-size="9" fill="#64748B">bounded fan-out</text>
+    </g>
+    <path d="M520 223 L638 267" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/><path d="M630 223 L638 267" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/><path d="M748 223 L638 267" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="472" y="275" width="332" height="108" rx="11" fill="#FFFFFF" stroke="#2563EB"/>
+    <text x="492" y="305" font-size="12" font-weight="700" fill="#174EA6">归一化与合并</text>
+    <text x="492" y="329" font-size="10" fill="#475569">去掉 all / thread-* 前缀，规范符号与路径</text>
+    <text x="492" y="351" font-size="10" fill="#475569">相同 path：sum(count)，union(ranks)</text>
+    <text x="492" y="373" font-size="10" fill="#64748B">mode=py 时最后过滤 native / C 帧</text>
+    <rect x="472" y="405" width="332" height="92" rx="11" fill="#FFF7ED" stroke="#F97316"/>
+    <text x="492" y="435" font-size="12" font-weight="700" fill="#C2410C">部分结果策略</text>
+    <text x="492" y="459" font-size="10" fill="#475569">默认 deadline 15s；超时即中止剩余任务</text>
+    <text x="492" y="480" font-size="10" fill="#64748B">返回 completed ranks + nodesFailed + partial 标记</text>
+    <rect x="472" y="518" width="332" height="34" rx="8" fill="#DBEAFE"/>
+    <text x="638" y="540" text-anchor="middle" font-size="9" font-weight="700" fill="#174EA6">重复 rank 按 rank id 去重，避免贡献数膨胀</text>
+
+    <path d="M830 330 L870 330" stroke="#7C3AED" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="878" y="92" width="360" height="486" rx="14" fill="#FFFFFF" stroke="#0D9488" stroke-width="2"/>
+    <text x="904" y="124" font-size="15" font-weight="700" fill="#0F766E">分布式火焰图：宽度是样本，节点带 rank</text>
+    <rect x="904" y="157" width="308" height="226" rx="11" fill="#0F172A"/>
+    <rect x="924" y="334" width="268" height="30" rx="4" fill="#334155"/><text x="1058" y="354" text-anchor="middle" font-size="9" fill="#FFFFFF">all · ranks 0–7</text>
+    <rect x="924" y="300" width="200" height="30" rx="4" fill="#2563EB"/><text x="1024" y="320" text-anchor="middle" font-size="9" fill="#FFFFFF">[py] train_step · 0–7</text>
+    <rect x="1128" y="300" width="64" height="30" rx="4" fill="#7C3AED"/><text x="1160" y="320" text-anchor="middle" font-size="8" fill="#FFFFFF">loader</text>
+    <rect x="924" y="266" width="142" height="30" rx="4" fill="#0D9488"/><text x="995" y="286" text-anchor="middle" font-size="8" fill="#FFFFFF">[py] forward</text>
+    <rect x="1070" y="266" width="54" height="30" rx="4" fill="#F97316"/><text x="1097" y="286" text-anchor="middle" font-size="8" fill="#FFFFFF">sync</text>
+    <rect x="924" y="232" width="86" height="30" rx="4" fill="#16A34A"/><text x="967" y="252" text-anchor="middle" font-size="8" fill="#FFFFFF">[c++] gemm</text>
+    <rect x="1014" y="232" width="52" height="30" rx="4" fill="#EA580C"/><text x="1040" y="252" text-anchor="middle" font-size="8" fill="#FFFFFF">wait</text>
+    <text x="1058" y="184" text-anchor="middle" font-size="10" fill="#CBD5E1">点击下钻 · 搜索函数 · hover 查看 count / ranks</text>
+    <rect x="904" y="407" width="308" height="112" rx="11" fill="#F0FDFA" stroke="#0D9488"/>
+    <text x="924" y="437" font-size="12" font-weight="700" fill="#0F766E">它回答的不是“哪个栈最多”</text>
+    <text x="924" y="462" font-size="10" fill="#475569">而是：同一热点覆盖全部 rank，还是只在少数</text>
+    <text x="924" y="483" font-size="10" fill="#475569">rank 出现？Python 路径下方是否卡在 native 通信？</text>
+    <text x="924" y="504" font-size="10" fill="#64748B">rank 归属随 frame 一起返回给前端</text>
+    <rect x="904" y="532" width="308" height="20" rx="6" fill="#17324D"/>
+
+    <rect x="42" y="606" width="1196" height="76" rx="12" fill="#17324D"/>
+    <text x="68" y="635" font-size="11" font-weight="700" fill="#FFFFFF">两种展示模式</text>
+    <text x="68" y="659" font-size="10" fill="#CBD5E1">mixed 保留 Python + C/C++/Rust 调用链，用于定位跨语言阻塞；py 只保留 Python frame，用于比较训练代码路径。两者共享同一份 folded 合并结果。</text>
+  </g>
+</svg>

@@ -394,17 +394,20 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="../../contributing/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/" class="md-tabs__link">
+          
   
   
     
   
   贡献指南
 
-      </a>
-    </li>
+        </a>
+      </li>
+    
   
 
       
@@ -1044,8 +1047,6 @@
       
         
       
-        
-      
     
     
     
@@ -1140,7 +1141,7 @@
   <span class="md-ellipsis">
     
   
-    平台核心
+    基础架构
   
 
     
@@ -1156,7 +1157,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    平台核心
+    基础架构
   
 
           </label>
@@ -1177,6 +1178,34 @@
     
   
     模块化与边界
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/activation-injection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    启用、注入与运行时控制
   
 
     
@@ -1246,34 +1275,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CLI 命令树
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -1290,14 +1291,6 @@
   
     
     
-      
-        
-      
-        
-      
-        
-      
-        
       
         
       
@@ -1364,91 +1357,7 @@
   <span class="md-ellipsis">
     
   
-    性能分析
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/torch-profiler-sql/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Torch Profiler SQL（Kineto 虚拟表）
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/overhead/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    开销测量
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/overhead-invariants/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overhead invariants
+    性能分析与 Tracing
   
 
     
@@ -1497,42 +1406,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/debugging/" class="md-nav__link">
+      <a href="../../design/overhead/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    调试引擎
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/training-phase/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    训练阶段
+    开销测量
   
 
     
@@ -1569,10 +1450,6 @@
       
         
       
-        
-      
-        
-      
     
     
     
@@ -1596,7 +1473,7 @@
   <span class="md-ellipsis">
     
   
-    分布式
+    分布式查询与分析
   
 
     
@@ -1612,7 +1489,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    分布式
+    分布式查询与分析
   
 
           </label>
@@ -1632,35 +1509,7 @@
   <span class="md-ellipsis">
     
   
-    概览
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/torchrun-cluster/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    torchrun 集群心跳
+    分布式成员与控制面
   
 
     
@@ -1709,42 +1558,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/hierarchical-fanout/" class="md-nav__link">
+      <a href="../../design/distributed-profiler/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    分层集群查询
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/cluster-pulsing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    基于 Pulsing 的集群
+    分布式 Profiler 查询与可视化
   
 
     
@@ -1761,34 +1582,6 @@
           </ul>
         </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    系统架构（旧版）
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -2225,6 +2018,64 @@
   
   
   
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    贡献指南
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    贡献指南
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../../contributing/" class="md-nav__link">
         
@@ -2242,6 +2093,42 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../writing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    文档写作规范
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2398,13 +2285,9 @@
 引擎已经在同一进程中运行。</p>
 <p>启动时设置 <code>PROBING=1</code> 通过 <code>.pth</code> 钩子激活进程内服务器——无需 import、无需
 修改代码。在 Linux 上，<code>probing inject</code> 也可以通过 ptrace 附着到已运行的进程。</p>
-<p>概念上：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>CLI  ──(HTTP over Unix socket/TCP)──▶  probing server（目标进程内）
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>                                          │
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>                                          ├── Engine（DataFusion）
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>                                          ├── Config
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>                                          └── Extensions（CPU、GPU、Python、NCCL...）
-</span></code></pre></div>
+<p>CLI 与目标进程之间的边界如下图所示。CLI 只负责选择目标和发送 HTTP 请求；查询、配置与扩展状态
+都由目标进程内的 Server 通过公开接口交给 Engine 或 Extension 处理。</p>
+<p><img alt="CLI 通过 Unix socket 或 TCP 访问目标进程内的 Server、Engine 与 Extensions" src="../../../assets/architecture/probing-cli-control-surface.svg" /></p>
 <h2 id="_2">数据表：只追加、持续写入<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
 <p>Probing 将性能数据存储在 mmap 环形缓冲支持的<strong>只追加 SQL 表</strong>中。事件发生时
 写入——模块 hook 触发、collective 完成、span 结束。不存在轮询，不按需快照。
@@ -2437,15 +2320,15 @@ NCCL profiler 输出在 <code>nccl.*</code>。完整的列定义见 <a href="../
 <p><strong>micro_step</strong> —— 最细粒度计数器。每次调用 <code>probing.step()</code> 加一。
 <strong>local_step</strong> —— optimizer step。<code>micro_step // micro_batches</code>。
 <strong>global_step</strong> —— 集群范围的 step。rank 对齐时等同于 <code>local_step</code>。</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">probing</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">probing</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">micro_batches</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>   <span class="c1"># 10 个 micro-batch = 1 个 optimizer step</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">probing</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>                   <span class="c1"># micro_step += 1</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">probing</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>                 <span class="c1"># 直接设置 micro_step</span>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="nb">print</span><span class="p">(</span><span class="n">probing</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">micro_step</span><span class="p">)</span>   <span class="c1"># 原始计数器</span>
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="nb">print</span><span class="p">(</span><span class="n">probing</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">local_step</span><span class="p">)</span>   <span class="c1"># micro_step // 10</span>
-</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="nb">print</span><span class="p">(</span><span class="n">probing</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">global_step</span><span class="p">)</span>  <span class="c1"># 集群 step</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">probing</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">probing</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">micro_batches</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>   <span class="c1"># 10 个 micro-batch = 1 个 optimizer step</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">probing</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>                   <span class="c1"># micro_step += 1</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">probing</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>                 <span class="c1"># 直接设置 micro_step</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="nb">print</span><span class="p">(</span><span class="n">probing</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">micro_step</span><span class="p">)</span>   <span class="c1"># 原始计数器</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="nb">print</span><span class="p">(</span><span class="n">probing</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">local_step</span><span class="p">)</span>   <span class="c1"># micro_step // 10</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="nb">print</span><span class="p">(</span><span class="n">probing</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">global_step</span><span class="p">)</span>  <span class="c1"># 集群 step</span>
 </span></code></pre></div>
 <p>所有训练相关表都携带 step 列：<code>python.torch_trace</code> 有 <code>local_step</code> 和 <code>global_step</code>；
 <code>python.comm_collective</code> 同样具备，外加 <code>group_rank</code> 和 <code>group_size</code>。编写查询时，
@@ -2457,12 +2340,12 @@ parallel、expert parallel 或它们的组合。Probing 将其编码为一个紧
 <p>格式为排序的 <code>name=value</code> 对：<code>dp=2,pp=1,tp=0</code>。空字符串表示 role 未设置。</p>
 <p>可通过环境变量（Megatron 风格的 <code>*_PARALLEL_RANK</code> 或 <code>PROBING_ROLE_&lt;NAME&gt;=&lt;int&gt;</code>）
 或 Python 设置：</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">probing</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">probing</span><span class="o">.</span><span class="n">set_role</span><span class="p">(</span><span class="n">dp</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">pp</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">tp</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="c1"># 或: probing.set_role(&quot;dp=2,pp=1,tp=0&quot;)</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">probing</span><span class="o">.</span><span class="n">current_role</span><span class="p">())</span>   <span class="c1"># &quot;dp=2,pp=1,tp=0&quot;</span>
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="n">probing</span><span class="o">.</span><span class="n">clear_role</span><span class="p">()</span>            <span class="c1"># 恢复为环境变量默认值</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">probing</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">probing</span><span class="o">.</span><span class="n">set_role</span><span class="p">(</span><span class="n">dp</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">pp</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">tp</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># 或: probing.set_role(&quot;dp=2,pp=1,tp=0&quot;)</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">probing</span><span class="o">.</span><span class="n">current_role</span><span class="p">())</span>   <span class="c1"># &quot;dp=2,pp=1,tp=0&quot;</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">probing</span><span class="o">.</span><span class="n">clear_role</span><span class="p">()</span>            <span class="c1"># 恢复为环境变量默认值</span>
 </span></code></pre></div>
 <p><code>role</code> 被标记在所有 <code>python.torch_trace</code> 和 <code>python.comm_collective</code> 行上。
 这让你可以 GROUP BY role 来对比，比如跨所有 data-parallel 副本比较 TP rank 0
@@ -2499,8 +2382,8 @@ parallel、expert parallel 或它们的组合。Probing 将其编码为一个紧
 </table>
 <p>关闭写盘（仅保留栈，用于 benchmark）：<code>PROBING_SPAN_BACKENDS=none</code> 或
 <code>probing.tracing.configure_backends([])</code>。</p>
-<p>完整选型、deferred close 语义与性能说明见 <strong><a href="../../design/tracing-spans/">Span API 设计</a></strong>；
-phase 不变量见 <strong><a href="../../design/training-phase/">训练阶段</a></strong>。</p>
+<p>完整选型、deferred close 和 phase 不变量见
+<strong><a href="../../design/profiling/#tracing-training-phases">性能分析 — Tracing 与训练阶段</a></strong>。</p>
 <h2 id="_3">联邦查询：跨节点查询<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
 <p>当多个 rank 注册到集群时，<code>global.&lt;schema&gt;.&lt;table&gt;</code> 将查询 fan-out 到每个节点
 并合并结果。查询在每个节点上独立执行；master 收集并拼接。</p>
@@ -2516,13 +2399,13 @@ phase 不变量见 <strong><a href="../../design/training-phase/">训练阶段</
 <dd>来自节点注册的并行 role key（与 <code>set_role</code> 保持同步）。</dd>
 </dl>
 <p>典型的联邦查询：</p>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">_role</span><span class="p">,</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="n">op</span><span class="p">,</span><span class="w"> </span><span class="k">AVG</span><span class="p">(</span><span class="n">duration_ms</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">avg_ms</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">local_step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">100</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">_role</span><span class="p">,</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="n">op</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">avg_ms</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">_role</span><span class="p">,</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="n">op</span><span class="p">,</span><span class="w"> </span><span class="k">AVG</span><span class="p">(</span><span class="n">duration_ms</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">avg_ms</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">FROM</span><span class="w"> </span><span class="k">global</span><span class="p">.</span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">local_step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">100</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">_role</span><span class="p">,</span><span class="w"> </span><span class="n">_rank</span><span class="p">,</span><span class="w"> </span><span class="n">op</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">avg_ms</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
 </span></code></pre></div>
-<p>通过 torchrun 注入（Rust ctor 默认启动集群心跳，见 <a href="../../design/torchrun-cluster/">torchrun 集群心跳</a>）或 <code>PUT /apis/nodes</code> 注册节点。
+<p>通过 torchrun 注入（Rust ctor 默认启动集群心跳，见 <a href="../../design/distributed/#cluster-membership">分布式成员</a>）或 <code>PUT /apis/nodes</code> 注册节点。
 用 <code>probing -t &lt;master&gt; cluster nodes</code> 验证。详见 <a href="../../design/distributed/">分布式</a>。</p>
 <h2 id="vs-skill">表插件 vs 诊断 skill<a class="headerlink" href="#vs-skill" title="Permanent link">&para;</a></h2>
 <p>Probing 有两条扩展路径，选择哪条取决于你的目的：</p>
@@ -2560,7 +2443,7 @@ culprit/victim 等待分解。它是 Rust 扩展，而非 Python @table。见 <a
 </tr>
 <tr>
 <td>Span 与训练时间线</td>
-<td><a href="../../design/tracing-spans/">Span API</a></td>
+<td><a href="../../design/profiling/#tracing-training-phases">性能分析 — Tracing 与训练阶段</a></td>
 </tr>
 <tr>
 <td>CLI 命令和 Python API</td>

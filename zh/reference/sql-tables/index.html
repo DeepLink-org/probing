@@ -394,17 +394,20 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="../../contributing/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/" class="md-tabs__link">
+          
   
   
     
   
   贡献指南
 
-      </a>
-    </li>
+        </a>
+      </li>
+    
   
 
       
@@ -904,8 +907,6 @@
       
         
       
-        
-      
     
     
     
@@ -1000,7 +1001,7 @@
   <span class="md-ellipsis">
     
   
-    平台核心
+    基础架构
   
 
     
@@ -1016,7 +1017,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    平台核心
+    基础架构
   
 
           </label>
@@ -1037,6 +1038,34 @@
     
   
     模块化与边界
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/activation-injection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    启用、注入与运行时控制
   
 
     
@@ -1106,34 +1135,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CLI 命令树
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -1150,14 +1151,6 @@
   
     
     
-      
-        
-      
-        
-      
-        
-      
-        
       
         
       
@@ -1224,91 +1217,7 @@
   <span class="md-ellipsis">
     
   
-    性能分析
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/torch-profiler-sql/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Torch Profiler SQL（Kineto 虚拟表）
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/overhead/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    开销测量
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/overhead-invariants/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overhead invariants
+    性能分析与 Tracing
   
 
     
@@ -1357,42 +1266,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/debugging/" class="md-nav__link">
+      <a href="../../design/overhead/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    调试引擎
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/training-phase/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    训练阶段
+    开销测量
   
 
     
@@ -1429,10 +1310,6 @@
       
         
       
-        
-      
-        
-      
     
     
     
@@ -1456,7 +1333,7 @@
   <span class="md-ellipsis">
     
   
-    分布式
+    分布式查询与分析
   
 
     
@@ -1472,7 +1349,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    分布式
+    分布式查询与分析
   
 
           </label>
@@ -1492,35 +1369,7 @@
   <span class="md-ellipsis">
     
   
-    概览
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/torchrun-cluster/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    torchrun 集群心跳
+    分布式成员与控制面
   
 
     
@@ -1569,42 +1418,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/hierarchical-fanout/" class="md-nav__link">
+      <a href="../../design/distributed-profiler/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    分层集群查询
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/cluster-pulsing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    基于 Pulsing 的集群
+    分布式 Profiler 查询与可视化
   
 
     
@@ -1621,34 +1442,6 @@
           </ul>
         </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    系统架构（旧版）
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -2159,7 +1952,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_3" class="md-nav__link">
+  <a href="#cluster-nodes" class="md-nav__link">
     <span class="md-ellipsis">
       
         集群
@@ -2210,6 +2003,39 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#ncclcoll_perf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        nccl.coll_perf
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ncclinflight_ops" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        nccl.inflight_ops
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ncclprofiler_counters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        nccl.profiler_counters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#ncclnet_qp" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2226,7 +2052,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_4" class="md-nav__link">
+  <a href="#_3" class="md-nav__link">
     <span class="md-ellipsis">
       
         元数据
@@ -2254,7 +2080,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
+  <a href="#_4" class="md-nav__link">
     <span class="md-ellipsis">
       
         自定义表
@@ -2265,7 +2091,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_6" class="md-nav__link">
+  <a href="#_5" class="md-nav__link">
     <span class="md-ellipsis">
       
         相关文档
@@ -2409,6 +2235,64 @@
   
   
   
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    贡献指南
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    贡献指南
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../../contributing/" class="md-nav__link">
         
@@ -2426,6 +2310,42 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../writing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    文档写作规范
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2612,7 +2532,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_3" class="md-nav__link">
+  <a href="#cluster-nodes" class="md-nav__link">
     <span class="md-ellipsis">
       
         集群
@@ -2663,6 +2583,39 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#ncclcoll_perf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        nccl.coll_perf
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ncclinflight_ops" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        nccl.inflight_ops
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ncclprofiler_counters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        nccl.profiler_counters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#ncclnet_qp" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2679,7 +2632,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_4" class="md-nav__link">
+  <a href="#_3" class="md-nav__link">
     <span class="md-ellipsis">
       
         元数据
@@ -2707,7 +2660,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
+  <a href="#_4" class="md-nav__link">
     <span class="md-ellipsis">
       
         自定义表
@@ -2718,7 +2671,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_6" class="md-nav__link">
+  <a href="#_5" class="md-nav__link">
     <span class="md-ellipsis">
       
         相关文档
@@ -3251,7 +3204,7 @@ Master 合并各节点结果并可能附加：</p>
 </tbody>
 </table>
 <hr />
-<h2 id="_3">集群<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<h2 id="cluster-nodes">集群<a class="headerlink" href="#cluster-nodes" title="Permanent link">&para;</a></h2>
 <h3 id="clusternodes"><code>cluster.nodes</code><a class="headerlink" href="#clusternodes" title="Permanent link">&para;</a></h3>
 <p>已注册的分布式训练节点。</p>
 <table>
@@ -3343,11 +3296,90 @@ Master 合并各节点结果并可能附加：</p>
 </table>
 <p><strong>Global：</strong> <code>global.nccl.proxy_ops</code>
 <strong>联邦列：</strong> <code>_host</code>、<code>_addr</code>、<code>_rank</code>、<code>_role</code></p>
+<h3 id="ncclcoll_perf"><code>nccl.coll_perf</code><a class="headerlink" href="#ncclcoll_perf" title="Permanent link">&para;</a></h3>
+<p>每个已完成 collective/P2P 一行。<code>exec_time_ns</code> 由子事件窗口重建，必须结合
+<code>timing_source</code> 判断计时证据质量。</p>
+<table>
+<thead>
+<tr>
+<th>列</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ts</code>, <code>rank</code>, <code>comm_hash</code>, <code>seq</code></td>
+<td>完成时间与操作身份</td>
+</tr>
+<tr>
+<td><code>coll_func</code>, <code>is_p2p</code>, <code>peer</code></td>
+<td>collective/P2P 类型与对端</td>
+</tr>
+<tr>
+<td><code>count</code>, <code>msg_size_bytes</code>, <code>dtype</code></td>
+<td>消息负载</td>
+</tr>
+<tr>
+<td><code>algo</code>, <code>proto</code>, <code>n_channels</code>, <code>n_ranks</code></td>
+<td>NCCL 执行选择与通信组规模</td>
+</tr>
+<tr>
+<td><code>exec_time_ns</code>, <code>enqueue_time_ns</code></td>
+<td>重建执行时间与 host enqueue 时间</td>
+</tr>
+<tr>
+<td><code>timing_source</code></td>
+<td><code>kernel_gpu</code>、<code>kernel_ch</code>、<code>proxy</code> 或 <code>enqueue</code></td>
+</tr>
+<tr>
+<td><code>algobw_gbps</code></td>
+<td>基于 <code>exec_time_ns</code> 的算法带宽</td>
+</tr>
+<tr>
+<td><code>pool_events_dropped</code></td>
+<td>子事件池耗尽造成的缺口；非零时谨慎解释执行时间</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Global：</strong> <code>global.nccl.coll_perf</code></p>
+<h3 id="ncclinflight_ops"><code>nccl.inflight_ops</code><a class="headerlink" href="#ncclinflight_ops" title="Permanent link">&para;</a></h3>
+<p>watchdog 对“已经 start、尚未 stop”的操作生成周期快照，用于补足挂死事件没有完成行的盲区。</p>
+<table>
+<thead>
+<tr>
+<th>列</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ts</code>, <code>rank</code>, <code>comm_hash</code>, <code>seq</code></td>
+<td>快照时间与操作身份</td>
+</tr>
+<tr>
+<td><code>coll_func</code>, <code>kind</code></td>
+<td>操作名以及 <code>coll</code> / <code>p2p</code> / <code>proxy_op</code> 类型</td>
+</tr>
+<tr>
+<td><code>channel_id</code>, <code>peer</code>, <code>is_send</code></td>
+<td>proxy 方向信息；不适用时使用哨兵值</td>
+</tr>
+<tr>
+<td><code>start_ns</code>, <code>age_ns</code></td>
+<td>开始时间与快照时的持续时间</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Global：</strong> <code>global.nccl.inflight_ops</code></p>
+<h3 id="ncclprofiler_counters"><code>nccl.profiler_counters</code><a class="headerlink" href="#ncclprofiler_counters" title="Permanent link">&para;</a></h3>
+<p>采集完整性快照。<code>rows_written</code>、<code>pool_exhausted</code>、<code>write_errors</code>、<code>filtered</code>、各类 live/capacity
+以及 ring 覆写计数用于判断“没有事件”是否可信，不属于性能开销百分比。</p>
+<p><strong>Global：</strong> <code>global.nccl.profiler_counters</code></p>
 <h3 id="ncclnet_qp"><code>nccl.net_qp</code><a class="headerlink" href="#ncclnet_qp" title="Permanent link">&para;</a></h3>
 <p>NetPlugin IB QP 完成耗时（可选）。</p>
 <p><strong>Global：</strong> <code>global.nccl.net_qp</code></p>
 <hr />
-<h2 id="_4">元数据<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<h2 id="_3">元数据<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
 <h3 id="information_schemadf_settings"><code>information_schema.df_settings</code><a class="headerlink" href="#information_schemadf_settings" title="Permanent link">&para;</a></h3>
 <p>运行时配置（<code>probing.*</code>）。</p>
 <table>
@@ -3369,11 +3401,11 @@ Master 合并各节点结果并可能附加：</p>
 </tbody>
 </table>
 <hr />
-<h2 id="_5">自定义表<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<h2 id="_4">自定义表<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
 <p>插件通过 <code>@table</code> dataclass 注册 <code>python.&lt;name&gt;</code>，schema 由作者定义。见
 <a href="../../design/extensibility/">扩展机制</a>。</p>
 <hr />
-<h2 id="_6">相关文档<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
+<h2 id="_5">相关文档<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../guide/concepts/">核心概念</a></li>
 <li><a href="../../guide/sql-analytics/">SQL 分析</a></li>

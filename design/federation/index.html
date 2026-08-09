@@ -13,10 +13,10 @@
         <link rel="canonical" href="https://github.com/DeepLink-org/probing/design/federation/">
       
       
-        <link rel="prev" href="../torchrun-cluster/">
+        <link rel="prev" href="../distributed/">
       
       
-        <link rel="next" href="../hierarchical-fanout/">
+        <link rel="next" href="../distributed-profiler/">
       
       
         
@@ -392,17 +392,20 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="../../contributing/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/" class="md-tabs__link">
+          
   
   
     
   
   Contributing
 
-      </a>
-    </li>
+        </a>
+      </li>
+    
   
 
       
@@ -904,8 +907,6 @@
       
         
       
-        
-      
     
     
     
@@ -1006,7 +1007,7 @@
   <span class="md-ellipsis">
     
   
-    Platform
+    Foundations
   
 
     
@@ -1022,7 +1023,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Platform
+    Foundations
   
 
           </label>
@@ -1043,6 +1044,34 @@
     
   
     Modularity & Boundaries
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../activation-injection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Activation & Runtime Control
   
 
     
@@ -1112,34 +1141,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CLI Command Tree
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -1156,14 +1157,6 @@
   
     
     
-      
-        
-      
-        
-      
-        
-      
-        
       
         
       
@@ -1233,91 +1226,7 @@
   <span class="md-ellipsis">
     
   
-    Profiling
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../torch-profiler-sql/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Torch Profiler SQL
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../overhead/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overhead
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../overhead-invariants/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overhead invariants
+    Profiling & Tracing
   
 
     
@@ -1366,42 +1275,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../debugging/" class="md-nav__link">
+      <a href="../overhead/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Debugging Engine
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../training-phase/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Training Phases
+    Overhead
   
 
     
@@ -1440,10 +1321,6 @@
       
         
       
-        
-      
-        
-      
     
     
     
@@ -1470,7 +1347,7 @@
   <span class="md-ellipsis">
     
   
-    Distributed
+    Distributed Query & Analysis
   
 
     
@@ -1486,7 +1363,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Distributed
+    Distributed Query & Analysis
   
 
           </label>
@@ -1506,35 +1383,7 @@
   <span class="md-ellipsis">
     
   
-    Overview
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../torchrun-cluster/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Torchrun Cluster Heartbeat
+    Distributed Membership
   
 
     
@@ -1908,6 +1757,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#hierarchical-fan-out" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.11 Hierarchical fan-out
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1951,42 +1811,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../hierarchical-fanout/" class="md-nav__link">
+      <a href="../distributed-profiler/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Hierarchical Fan-out
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../cluster-pulsing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Cluster with Pulsing
+    Distributed Profiler
   
 
     
@@ -2003,34 +1835,6 @@
           </ul>
         </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    System Architecture (legacy)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -2467,9 +2271,31 @@
   
   
   
-    <li class="md-nav__item">
-      <a href="../../contributing/" class="md-nav__link">
+    
+    
+      
         
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
   
   
   <span class="md-ellipsis">
@@ -2483,7 +2309,79 @@
   
   
 
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing Guide
+  
+
+    
+  </span>
+  
+  
+
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../writing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation Style
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2808,6 +2706,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#hierarchical-fan-out" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.11 Hierarchical fan-out
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3114,15 +3023,7 @@ SQL matches §4.2 conditions.</p>
 <p>Implementation: <code>probing/core/src/core/federation/</code>; <code>cluster=true</code> routing:
 <code>probing/server/src/server/cluster_fanout.rs</code>.</p>
 <h3 id="41-pipeline">4.1 Pipeline<a class="headerlink" href="#41-pipeline" title="Permanent link">&para;</a></h3>
-<pre class="mermaid"><code>flowchart LR
-    IN[User SQL] --&gt; CF{cluster?}
-    CF --&gt;|no| L0[Local DataFusion / probe.*]
-    CF --&gt;|yes| RT[Path A/B/C]
-    RT --&gt; RW[Catalog rewrite]
-    RW --&gt; EX[Execute shards]
-    EX --&gt; TG[Inject federation tags]
-    TG --&gt; MG[Merge / re-aggregate]
-    MG --&gt; OUT[QueryOutcome DataFrame + QueryQuality]</code></pre>
+<p><img alt="Federated query pipeline from SQL routing to global merge" src="../../assets/architecture/probing-federation-pipeline.svg" /></p>
 <p><strong>Conventions</strong></p>
 <table>
 <thead>
@@ -3182,21 +3083,14 @@ SQL matches §4.2 conditions.</p>
 </tr>
 <tr>
 <td>Hierarchical fan-out</td>
-<td>Default on: coordinator → local0 → leaves; see <a href="../hierarchical-fanout/">Hierarchical fan-out</a></td>
+<td>Default on: coordinator → local0 → leaves; see <a href="#hierarchical-fan-out">§4.11</a></td>
 </tr>
 </tbody>
 </table>
 <h3 id="42-path-selection">4.2 Path selection<a class="headerlink" href="#42-path-selection" title="Permanent link">&para;</a></h3>
 <p><code>cluster=false</code> → local only.</p>
 <p><code>cluster=true</code> — <strong>AST-based</strong> (not substring):</p>
-<pre class="mermaid"><code>flowchart TD
-    Q[SQL] --&gt; P{Single SELECT?}
-    P --&gt;|no| C[Path C]
-    P --&gt;|yes| M{Single table, no JOIN/CTE/UNION/subquery?}
-    M --&gt;|no| C
-    M --&gt;|yes| A{global.* + pushdown-safe GROUP BY/agg?}
-    A --&gt;|yes| PA[Path A]
-    A --&gt;|no| PB[Path B]</code></pre>
+<p><img alt="AST-based selection of aggregate pushdown, federated scan, or broadcast" src="../../assets/architecture/probing-federation-path-selection.svg" /></p>
 <table>
 <thead>
 <tr>
@@ -3480,6 +3374,73 @@ SQL matches §4.2 conditions.</p>
 </tr>
 </tbody>
 </table>
+<h3 id="hierarchical-fan-out">4.11 Hierarchical fan-out<a class="headerlink" href="#hierarchical-fan-out" title="Permanent link">&para;</a></h3>
+<p>Paths A/B/C define relational work at shards and the coordinator. Hierarchical fan-out defines how
+those shard requests reach 10K ranks without requiring <code>O(world_size)</code> coordinator connections.</p>
+<p><img alt="Hierarchical query fan-out" src="../../assets/architecture/probing-fanout-internals.svg" /></p>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Fan-out targets</th>
+<th>Typical size at 8 ranks/node, 1024 nodes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>coordinator</td>
+<td>one <code>local_rank=0</code> per <code>group_rank</code></td>
+<td>about 1023 remote nodes</td>
+</tr>
+<tr>
+<td>node/local0</td>
+<td>leaves in the same <code>group_rank</code></td>
+<td>about 7 per node</td>
+</tr>
+<tr>
+<td>leaf</td>
+<td>none; local SQL only</td>
+<td>1</td>
+</tr>
+</tbody>
+</table>
+<p><code>POST /apis/cluster/query</code> carries <code>cluster</code>, <code>hierarchical</code> (default true), and <code>scope</code>:
+<code>auto</code>, <code>coordinator</code>, <code>node</code>, or <code>local</code>. Coordinator scope merges local and remote nodes; node
+scope merges one machine; local scope forbids further fan-out. Peers always execute <code>probe.*</code>, so
+scope prevents recursion rather than serving as a mere optimization hint.</p>
+<p>Hierarchical execution requires complete <code>group_rank</code>, <code>local_rank</code>, and <code>addr</code> metadata in
+<code>cluster.nodes</code>. Missing topology returns HTTP 503 instead of silently falling back to a potentially
+incomplete flat scan. Flat mode is explicit through <code>hierarchical=false</code>, CLI <code>--flat</code>, or
+<code>PROBING_CLUSTER_FANOUT_HIERARCHICAL=0</code>.</p>
+<p>Every tier propagates <code>nodes_queried</code>, <code>nodes_failed</code>, <code>node_aggregators_queried</code>, and
+<code>local_ranks_queried</code>. A remote local0 must include its leaf coverage rather than appearing as one
+opaque successful endpoint. Non-strict mode may merge a lower-tier HTTP 503 partial body;
+<code>PROBING_FANOUT_STRICT=1</code> fails on any missing peer or dropped batch.</p>
+<table>
+<thead>
+<tr>
+<th>Federation path</th>
+<th>Hierarchical behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A aggregate pushdown</td>
+<td>node merges on-node partials; coordinator performs global merge</td>
+</tr>
+<tr>
+<td>B federated scan</td>
+<td>coordinator creates remote lazy partitions only for node aggregators</td>
+</tr>
+<tr>
+<td>C broadcast</td>
+<td>each node runs the SQL on local ranks and concatenates before returning</td>
+</tr>
+</tbody>
+</table>
+<p>Implementation: <code>probing/server/src/server/cluster_fanout.rs</code>, <code>cluster_query.rs</code>, and
+<code>probing/core/src/core/federation/fanout_scope.rs</code>. Membership comes from
+<a href="../distributed/#cluster-membership">Distributed Membership and Control Plane</a>.</p>
 <hr />
 <h2 id="5-regression-queries">5. Regression queries<a class="headerlink" href="#5-regression-queries" title="Permanent link">&para;</a></h2>
 <p>Engine changes must pass these on mock multi-node and real clusters:</p>
@@ -3538,12 +3499,8 @@ SQL matches §4.2 conditions.</p>
 </thead>
 <tbody>
 <tr>
-<td><a href="../distributed/">Distributed overview</a></td>
-<td><code>cluster query</code> usage</td>
-</tr>
-<tr>
-<td><a href="../hierarchical-fanout/">Hierarchical fan-out</a></td>
-<td>Wan-scale HTTP topology</td>
+<td><a href="../distributed/">Distributed membership</a></td>
+<td>Discovery, heartbeat, and topology metadata</td>
 </tr>
 <tr>
 <td><a href="../../guide/concepts/">Core model</a></td>

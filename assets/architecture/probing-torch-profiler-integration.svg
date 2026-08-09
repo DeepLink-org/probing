@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2563EB"/></marker></defs>
+  <rect width="1280" height="720" fill="#F8FAFC"/>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial">
+    <text x="640" y="38" text-anchor="middle" font-size="22" font-weight="700" fill="#17324D">Torch Profiler：短窗口结束后生成 capture 与 hotspot 表</text>
+    <text x="640" y="63" text-anchor="middle" font-size="12" fill="#64748B">Kineto timeline 保留给交互浏览；SQL 默认面对 capture 与热点聚合，而不是 traceEvents 的逐事件镜像</text>
+
+    <rect x="42" y="92" width="236" height="488" rx="14" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="68" y="124" font-size="15" font-weight="700" fill="#174EA6">按需控制</text>
+    <rect x="68" y="153" width="184" height="70" rx="10" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="160" y="181" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">HTTP / UI / skill</text>
+    <text x="160" y="203" text-anchor="middle" font-size="9" fill="#64748B">start(steps, trigger)</text>
+    <path d="M160 223 L160 253" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="68" y="261" width="184" height="104" rx="10" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="160" y="290" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">ProfilerController</text>
+    <text x="88" y="315" font-size="9" fill="#64748B">单实例锁防止重复 capture</text>
+    <text x="88" y="336" font-size="9" fill="#64748B">目标步数、trigger、状态</text>
+    <text x="88" y="357" font-size="9" fill="#64748B">stop 可提前结束</text>
+    <path d="M160 365 L160 395" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="68" y="403" width="184" height="104" rx="10" fill="#FAF5FF" stroke="#7C3AED"/>
+    <text x="160" y="432" text-anchor="middle" font-size="11" font-weight="700" fill="#7C3AED">optimizer post hook</text>
+    <text x="88" y="457" font-size="9" fill="#64748B">首个 step 进入 profiler</text>
+    <text x="88" y="478" font-size="9" fill="#64748B">每步 profiler.step()</text>
+    <text x="88" y="499" font-size="9" fill="#64748B">达到 N 步自动 finalize</text>
+    <rect x="68" y="526" width="184" height="28" rx="7" fill="#DBEAFE"/>
+    <text x="160" y="545" text-anchor="middle" font-size="9" font-weight="700" fill="#174EA6">CPU + 可用时 CUDA</text>
+
+    <path d="M278 330 L318 330" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="326" y="92" width="382" height="488" rx="14" fill="#FFFFFF" stroke="#7C3AED" stroke-width="2"/>
+    <text x="352" y="124" font-size="15" font-weight="700" fill="#7C3AED">torch.profiler / Kineto 窗口</text>
+    <rect x="352" y="153" width="330" height="86" rx="11" fill="#FAF5FF" stroke="#C4B5FD"/>
+    <text x="372" y="182" font-size="12" font-weight="700" fill="#17324D">采集选项</text>
+    <text x="372" y="207" font-size="10" fill="#64748B">record_shapes · with_stack · with_flops</text>
+    <text x="372" y="227" font-size="10" fill="#64748B">短窗口内记录 op、kernel、runtime、memcpy</text>
+    <path d="M517 239 L517 267" stroke="#7C3AED" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="352" y="275" width="330" height="98" rx="11" fill="#FFF7ED" stroke="#F97316"/>
+    <text x="372" y="304" font-size="12" font-weight="700" fill="#C2410C">finalize</text>
+    <text x="372" y="329" font-size="10" fill="#475569">profiler.__exit__ then key_averages()</text>
+    <text x="372" y="350" font-size="10" fill="#475569">失败时退化到 profiler.events()</text>
+    <text x="372" y="368" font-size="9" fill="#64748B">超出 MAX_EVENTS 截断并保留 truncated 标记</text>
+    <path d="M517 373 L517 401" stroke="#7C3AED" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="352" y="409" width="330" height="116" rx="11" fill="#EFF6FF" stroke="#2563EB"/>
+    <text x="372" y="438" font-size="12" font-weight="700" fill="#174EA6">Adaptor：从诊断问题反推 bucket</text>
+    <text x="372" y="463" font-size="10" fill="#475569">kernel · cpu_op · cuda_runtime · memcpy</text>
+    <text x="372" y="484" font-size="10" fill="#475569">collective · other；按 kind+name 聚合 self/wall/calls</text>
+    <text x="372" y="505" font-size="10" fill="#64748B">补 capture_id、step、rank、role 与数据质量</text>
+    <rect x="352" y="544" width="330" height="10" rx="5" fill="#17324D"/>
+
+    <path d="M708 250 L748 250" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="756" y="92" width="482" height="300" rx="14" fill="#FFFFFF" stroke="#0D9488" stroke-width="2"/>
+    <text x="782" y="124" font-size="15" font-weight="700" fill="#0F766E">两张 SQL 表</text>
+    <rect x="782" y="153" width="430" height="92" rx="11" fill="#F0FDFA" stroke="#0D9488"/>
+    <text x="802" y="183" font-size="12" font-weight="700" fill="#0F766E">python.profile_capture：一次窗口一行</text>
+    <text x="802" y="207" font-size="10" fill="#475569">capture_id · step · rank · trigger · wall_us · status</text>
+    <text x="802" y="228" font-size="10" fill="#64748B">truncated · event_count · error 是结论前必须检查的数据质量</text>
+    <rect x="782" y="265" width="430" height="102" rx="11" fill="#EFF6FF" stroke="#2563EB"/>
+    <text x="802" y="295" font-size="12" font-weight="700" fill="#174EA6">python.profile_hotspot：每个时间桶一行</text>
+    <text x="802" y="319" font-size="10" fill="#475569">bucket_kind · bucket_name · self_us · wall_us · calls</text>
+    <text x="802" y="340" font-size="10" fill="#475569">pct_of_capture · local/global step · rank</text>
+    <text x="802" y="360" font-size="9" fill="#64748B">global.python.profile_hotspot 支持同 kernel 跨 rank 比较</text>
+
+    <path d="M708 480 L748 480" stroke="#7C3AED" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="756" y="418" width="482" height="162" rx="14" fill="#FAF5FF" stroke="#7C3AED" stroke-width="2"/>
+    <text x="782" y="450" font-size="15" font-weight="700" fill="#7C3AED">Kineto timeline 通过 HTTP / Web 读取</text>
+    <text x="782" y="481" font-size="10" fill="#475569">export_chrome_trace 生成 traceEvents JSON，交给时间线组件</text>
+    <text x="782" y="505" font-size="10" fill="#475569">用途：查看单次 capture 的细粒度顺序、重叠与调用栈</text>
+    <text x="782" y="529" font-size="10" fill="#64748B">SQL 用于跨 rank 排序、分组与 JOIN；timeline 用于单窗口下钻。</text>
+    <rect x="782" y="546" width="430" height="10" rx="5" fill="#7C3AED"/>
+
+    <rect x="42" y="608" width="1196" height="74" rx="12" fill="#17324D"/>
+    <text x="68" y="637" font-size="11" font-weight="700" fill="#FFFFFF">与 TorchProbe 独立运行</text>
+    <text x="68" y="661" font-size="10" fill="#CBD5E1">不复用 TorchProbe 的 hook、采样率、shadow 基线或 mmap 表；两者同时开启时开销相加，只通过 local_step / global_step / capture_id 在查询层关联。</text>
+  </g>
+</svg>

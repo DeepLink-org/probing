@@ -393,17 +393,20 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="contributing/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="contributing/" class="md-tabs__link">
+          
   
   
     
   
   贡献指南
 
-      </a>
-    </li>
+        </a>
+      </li>
+    
   
 
       
@@ -1691,8 +1694,6 @@ probing -t &lt;pid&gt; repl</code></pre>
       
         
       
-        
-      
     
     
     
@@ -1787,7 +1788,7 @@ probing -t &lt;pid&gt; repl</code></pre>
   <span class="md-ellipsis">
     
   
-    平台核心
+    基础架构
   
 
     
@@ -1803,7 +1804,7 @@ probing -t &lt;pid&gt; repl</code></pre>
             <span class="md-nav__icon md-icon"></span>
             
   
-    平台核心
+    基础架构
   
 
           </label>
@@ -1824,6 +1825,34 @@ probing -t &lt;pid&gt; repl</code></pre>
     
   
     模块化与边界
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="design/activation-injection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    启用、注入与运行时控制
   
 
     
@@ -1893,34 +1922,6 @@ probing -t &lt;pid&gt; repl</code></pre>
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="design/cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CLI 命令树
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -1937,14 +1938,6 @@ probing -t &lt;pid&gt; repl</code></pre>
   
     
     
-      
-        
-      
-        
-      
-        
-      
-        
       
         
       
@@ -2011,91 +2004,7 @@ probing -t &lt;pid&gt; repl</code></pre>
   <span class="md-ellipsis">
     
   
-    性能分析
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="design/torch-profiler-sql/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Torch Profiler SQL（Kineto 虚拟表）
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="design/overhead/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    开销测量
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="design/overhead-invariants/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overhead invariants
+    性能分析与 Tracing
   
 
     
@@ -2144,42 +2053,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="design/debugging/" class="md-nav__link">
+      <a href="design/overhead/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    调试引擎
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="design/training-phase/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    训练阶段
+    开销测量
   
 
     
@@ -2216,10 +2097,6 @@ probing -t &lt;pid&gt; repl</code></pre>
       
         
       
-        
-      
-        
-      
     
     
     
@@ -2243,7 +2120,7 @@ probing -t &lt;pid&gt; repl</code></pre>
   <span class="md-ellipsis">
     
   
-    分布式
+    分布式查询与分析
   
 
     
@@ -2259,7 +2136,7 @@ probing -t &lt;pid&gt; repl</code></pre>
             <span class="md-nav__icon md-icon"></span>
             
   
-    分布式
+    分布式查询与分析
   
 
           </label>
@@ -2279,35 +2156,7 @@ probing -t &lt;pid&gt; repl</code></pre>
   <span class="md-ellipsis">
     
   
-    概览
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="design/torchrun-cluster/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    torchrun 集群心跳
+    分布式成员与控制面
   
 
     
@@ -2356,42 +2205,14 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
     <li class="md-nav__item">
-      <a href="design/hierarchical-fanout/" class="md-nav__link">
+      <a href="design/distributed-profiler/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    分层集群查询
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="design/cluster-pulsing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    基于 Pulsing 的集群
+    分布式 Profiler 查询与可视化
   
 
     
@@ -2408,34 +2229,6 @@ probing -t &lt;pid&gt; repl</code></pre>
           </ul>
         </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="design/architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    系统架构（旧版）
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -2872,6 +2665,64 @@ probing -t &lt;pid&gt; repl</code></pre>
   
   
   
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    贡献指南
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    贡献指南
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="contributing/" class="md-nav__link">
         
@@ -2889,6 +2740,42 @@ probing -t &lt;pid&gt; repl</code></pre>
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="writing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    文档写作规范
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 

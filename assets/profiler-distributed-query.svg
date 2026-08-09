@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
+  <title id="title">Distributed profiler query architecture</title>
+  <desc id="desc">A typed query is compiled into coordinator, node, and rank plans. All ranks participate, while bounded multi-resolution results drive timeline, flamegraph, and analysis views.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+    <style>
+      .title { font-family: Arial, sans-serif; font-size: 30px; font-weight: 700; fill: #0f172a; }
+      .subtitle { font-family: Arial, sans-serif; font-size: 16px; fill: #475569; }
+      .head { font-family: Arial, sans-serif; font-size: 19px; font-weight: 700; fill: #0f172a; }
+      .body { font-family: Arial, sans-serif; font-size: 14px; fill: #334155; }
+      .small { font-family: Arial, sans-serif; font-size: 12px; fill: #475569; }
+      .label { font-family: Arial, sans-serif; font-size: 13px; font-weight: 700; fill: #1e3a8a; }
+      .line { stroke: #475569; stroke-width: 2.2; fill: none; marker-end: url(#arrow); }
+      .dash { stroke: #94a3b8; stroke-width: 1.7; fill: none; stroke-dasharray: 7 6; }
+    </style>
+  </defs>
+
+  <rect width="1440" height="900" fill="#f8fafc"/>
+  <text class="title" x="60" y="58">10K-Rank Profiler Query: Compute Everywhere, Return What Matters</text>
+  <text class="subtitle" x="60" y="88">All target ranks participate; data movement is bounded by the question, viewport, and query budget.</text>
+
+  <rect x="60" y="125" width="310" height="140" rx="16" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text class="head" x="86" y="158">TimelineQuery</text>
+  <text class="body" x="86" y="187">scope + alignment + rank selector</text>
+  <text class="body" x="86" y="211">tracks + event kinds + reductions</text>
+  <text class="body" x="86" y="235">viewport + max rows + output kind</text>
+
+  <rect x="565" y="125" width="310" height="140" rx="16" fill="#e0f2fe" stroke="#0284c7" stroke-width="2"/>
+  <text class="head" x="591" y="158">Query Coordinator</text>
+  <text class="body" x="591" y="187">validate global semantics</text>
+  <text class="body" x="591" y="211">compile explicit 3-stage plan</text>
+  <text class="body" x="591" y="235">apply budget, stream, and cancel</text>
+
+  <rect x="1070" y="125" width="310" height="140" rx="16" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text class="head" x="1096" y="158">Bounded Result</text>
+  <text class="body" x="1096" y="187">tiles / sketches / top-k / trees</text>
+  <text class="body" x="1096" y="211">rank-set and evidence tokens</text>
+  <text class="body" x="1096" y="235">coverage + error + failed parts</text>
+
+  <path class="line" d="M370 195 H555"/>
+  <text class="label" x="423" y="181">typed request</text>
+  <path class="line" d="M875 195 H1060"/>
+  <text class="label" x="916" y="181">Arrow stream</text>
+
+  <rect x="60" y="317" width="1320" height="345" rx="20" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text class="head" x="86" y="352">Hierarchical distributed execution</text>
+
+  <rect x="100" y="390" width="250" height="220" rx="14" fill="#eff6ff" stroke="#60a5fa" stroke-width="2"/>
+  <text class="head" x="124" y="424">CoordinatorPlan</text>
+  <text class="body" x="124" y="457">merge node states</text>
+  <text class="body" x="124" y="481">global quantiles and top-k</text>
+  <text class="body" x="124" y="505">behavior groups and outliers</text>
+  <text class="body" x="124" y="529">visual tiles and receipt</text>
+  <rect x="124" y="553" width="202" height="34" rx="8" fill="#bfdbfe"/>
+  <text class="small" x="145" y="575">global mergeable states</text>
+
+  <rect x="465" y="390" width="360" height="220" rx="14" fill="#ecfeff" stroke="#22d3ee" stroke-width="2"/>
+  <text class="head" x="489" y="424">NodePlan x N nodes</text>
+  <text class="body" x="489" y="457">merge local-rank partials</text>
+  <text class="body" x="489" y="481">node / role distributions</text>
+  <text class="body" x="489" y="505">GPU + NIC + topology join</text>
+  <text class="body" x="489" y="529">compress bitmap and sketches</text>
+  <rect x="489" y="553" width="312" height="34" rx="8" fill="#cffafe"/>
+  <text class="small" x="531" y="575">connections scale with node count</text>
+
+  <rect x="940" y="390" width="400" height="220" rx="14" fill="#f0fdf4" stroke="#4ade80" stroke-width="2"/>
+  <text class="head" x="964" y="424">RankPlan x 10,000 ranks</text>
+  <text class="body" x="964" y="457">filter capture, step, track, event</text>
+  <text class="body" x="964" y="481">merge time intervals locally</text>
+  <text class="body" x="964" y="505">build tiles, stacks, summaries</text>
+  <text class="body" x="964" y="529">read exact slices only on drill-down</text>
+  <rect x="964" y="553" width="352" height="34" rx="8" fill="#dcfce7"/>
+  <text class="small" x="1010" y="575">raw profiler events stay near the source</text>
+
+  <path class="line" d="M930 468 H835"/>
+  <text class="small" x="840" y="453">partial states</text>
+  <path class="line" d="M455 468 H360"/>
+  <text class="small" x="369" y="453">node states</text>
+  <path class="dash" d="M720 265 V316"/>
+  <path class="dash" d="M720 662 V705"/>
+
+  <rect x="60" y="708" width="405" height="132" rx="16" fill="#fff7ed" stroke="#f97316" stroke-width="2"/>
+  <text class="head" x="84" y="741">timeline.*</text>
+  <text class="body" x="84" y="771">rank-time tiles, quantile bands, exact slices</text>
+  <text class="body" x="84" y="797">same coordinates from overview to raw event</text>
+
+  <rect x="518" y="708" width="405" height="132" rx="16" fill="#fdf4ff" stroke="#c026d3" stroke-width="2"/>
+  <text class="head" x="542" y="741">flamegraph.*</text>
+  <text class="body" x="542" y="771">aggregate, differential, variance, coverage</text>
+  <text class="body" x="542" y="797">path distribution across cohorts and ranks</text>
+
+  <rect x="976" y="708" width="404" height="132" rx="16" fill="#f0fdfa" stroke="#0d9488" stroke-width="2"/>
+  <text class="head" x="1000" y="741">analysis.*</text>
+  <text class="body" x="1000" y="771">comparison, breakdown, findings, evidence</text>
+  <text class="body" x="1000" y="797">answers retain rank and time drill-down tokens</text>
+</svg>

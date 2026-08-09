@@ -394,17 +394,20 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="../../contributing/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/" class="md-tabs__link">
+          
   
   
     
   
   贡献指南
 
-      </a>
-    </li>
+        </a>
+      </li>
+    
   
 
       
@@ -785,7 +788,7 @@
   <a href="#_1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        启动与连接
+        技术架构
       
     </span>
   </a>
@@ -796,7 +799,7 @@
   <a href="#_2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        先读数据口径，再读图表
+        启动与连接
       
     </span>
   </a>
@@ -805,6 +808,17 @@
       
         <li class="md-nav__item">
   <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        先读数据口径，再读图表
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
     <span class="md-ellipsis">
       
         推荐调查路径
@@ -903,7 +917,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_4" class="md-nav__link">
+  <a href="#_5" class="md-nav__link">
     <span class="md-ellipsis">
       
         空、部分与不可用状态
@@ -914,7 +928,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
+  <a href="#_6" class="md-nav__link">
     <span class="md-ellipsis">
       
         截图来源
@@ -1099,8 +1113,6 @@
       
         
       
-        
-      
     
     
     
@@ -1195,7 +1207,7 @@
   <span class="md-ellipsis">
     
   
-    平台核心
+    基础架构
   
 
     
@@ -1211,7 +1223,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    平台核心
+    基础架构
   
 
           </label>
@@ -1232,6 +1244,34 @@
     
   
     模块化与边界
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/activation-injection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    启用、注入与运行时控制
   
 
     
@@ -1301,34 +1341,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CLI 命令树
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -1345,14 +1357,6 @@
   
     
     
-      
-        
-      
-        
-      
-        
-      
-        
       
         
       
@@ -1419,91 +1423,7 @@
   <span class="md-ellipsis">
     
   
-    性能分析
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/torch-profiler-sql/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Torch Profiler SQL（Kineto 虚拟表）
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/overhead/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    开销测量
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/overhead-invariants/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overhead invariants
+    性能分析与 Tracing
   
 
     
@@ -1552,42 +1472,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/debugging/" class="md-nav__link">
+      <a href="../../design/overhead/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    调试引擎
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/training-phase/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    训练阶段
+    开销测量
   
 
     
@@ -1624,10 +1516,6 @@
       
         
       
-        
-      
-        
-      
     
     
     
@@ -1651,7 +1539,7 @@
   <span class="md-ellipsis">
     
   
-    分布式
+    分布式查询与分析
   
 
     
@@ -1667,7 +1555,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    分布式
+    分布式查询与分析
   
 
           </label>
@@ -1687,35 +1575,7 @@
   <span class="md-ellipsis">
     
   
-    概览
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/torchrun-cluster/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    torchrun 集群心跳
+    分布式成员与控制面
   
 
     
@@ -1764,42 +1624,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/hierarchical-fanout/" class="md-nav__link">
+      <a href="../../design/distributed-profiler/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    分层集群查询
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/cluster-pulsing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    基于 Pulsing 的集群
+    分布式 Profiler 查询与可视化
   
 
     
@@ -1816,34 +1648,6 @@
           </ul>
         </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    系统架构（旧版）
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -2280,6 +2084,64 @@
   
   
   
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    贡献指南
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    贡献指南
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../../contributing/" class="md-nav__link">
         
@@ -2297,6 +2159,42 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../writing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    文档写作规范
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2331,7 +2229,7 @@
   <a href="#_1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        启动与连接
+        技术架构
       
     </span>
   </a>
@@ -2342,7 +2240,7 @@
   <a href="#_2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        先读数据口径，再读图表
+        启动与连接
       
     </span>
   </a>
@@ -2351,6 +2249,17 @@
       
         <li class="md-nav__item">
   <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        先读数据口径，再读图表
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
     <span class="md-ellipsis">
       
         推荐调查路径
@@ -2449,7 +2358,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_4" class="md-nav__link">
+  <a href="#_5" class="md-nav__link">
     <span class="md-ellipsis">
       
         空、部分与不可用状态
@@ -2460,7 +2369,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
+  <a href="#_6" class="md-nav__link">
     <span class="md-ellipsis">
       
         截图来源
@@ -2494,7 +2403,12 @@
 <p>Next Web UI 用于浏览运行中 Python 进程或分布式任务的诊断证据。它不会根据单个
 指标替用户下结论；每个页面都应说明数据的范围、新鲜度、覆盖率和来源，让用户决定
 下一步检查什么。</p>
-<h2 id="_1">启动与连接<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<h2 id="_1">技术架构<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p><img alt="Rust 单页面应用通过公开 HTTP 接口连接 Probing 服务端" src="../../../assets/architecture/probing-web-spa-architecture.svg" /></p>
+<p>Web 使用 Rust/Dioxus 构建并编译为 WASM，浏览器只在首次访问时加载应用壳，后续通过路由
+切换工作区。它通过公开 HTTP/proto 接口读取查询、采集和 Skill 结果，不链接
+<code>probing-core</code>，也不在浏览器中复制查询引擎语义。</p>
+<h2 id="_2">启动与连接<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
 <p>启用 Probing 启动任务，然后在浏览器中打开 HTTP 地址：</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">PROBING_PORT</span><span class="o">=</span><span class="m">18080</span><span class="w"> </span>python<span class="w"> </span>train.py
 </span></code></pre></div>
@@ -2516,7 +2430,7 @@
 <code>--dummy</code> 去掉数据集依赖，文件校验变量只负责隐藏 debugger 警告。如果环境没有
 <code>python</code> 命令，可以换成 <code>.venv/bin/python</code>。需要有限时长的演示时可以再加
 <code>--max-steps &lt;N&gt;</code>。</p>
-<h2 id="_2">先读数据口径，再读图表<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<h2 id="_3">先读数据口径，再读图表<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
 <p>左侧 rail 选择工作区，展开区只放当前页面的控制项。页面标题区和证据上下文说明：</p>
 <ul>
 <li><strong>Scope</strong>：本地进程、选中 rank，还是集群 fan-out。</li>
@@ -2527,7 +2441,7 @@
 </ul>
 <p>不要把本地指标当作集群聚合，也不要把缺失数据理解成健康的零值。部分结果仍然有用，
 但缺少哪些 peer 本身也是证据的一部分。</p>
-<h2 id="_3">推荐调查路径<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<h2 id="_4">推荐调查路径<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
 <ol>
 <li>在 <strong>Dashboard</strong> 确认口径，找到慢 rank 或资源压力。</li>
 <li>在 <strong>Cluster</strong> 检查成员、endpoint 和 rank 覆盖率。</li>
@@ -2650,7 +2564,7 @@ Tensor 可能显示为 <code>_ProbingTensor</code>，这是观察 tensor 变化�
 仍可能增加开销并暴露业务数据。UI 默认启动 silent watch，值会写入页面所读的数据源，
 不会打印到目标进程终端。Watch 只作用于当前进程；比较分布式行为时，需要在目标 rank
 上分别执行。</p>
-<h2 id="_4">空、部分与不可用状态<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<h2 id="_5">空、部分与不可用状态<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -2689,7 +2603,7 @@ Tensor 可能显示为 <code>_ProbingTensor</code>，这是观察 tensor 变化�
 </table>
 <p>集群刷新可能 fan-out 到大量进程，因此高成本页面使用显式刷新。错误与部分数据应同时
 保留：隐藏其中任何一个，都会改变用户能够得出的结论。</p>
-<h2 id="_5">截图来源<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<h2 id="_6">截图来源<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
 <p>本文截图由浏览器自动化从本地 Next Web UI 获取，分辨率为 1280x720。分布式示例由
 <code>examples/megatron/megatron_64_rank_mock.py</code> 生成；Profiling 和 Python Trace
 截图由上面的 ImageNet 命令生成。测试实际捕获了 29 个 AlexNet module 节点，以及

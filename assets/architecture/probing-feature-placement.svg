@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620">
+  <defs><marker id="af" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#2563EB"/></marker></defs>
+  <rect width="1200" height="620" fill="#F8FAFC"/>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial, sans-serif">
+    <text x="600" y="42" text-anchor="middle" font-size="25" font-weight="700" fill="#17324D">新能力放在哪里，由它新增的事实与状态决定</text>
+    <text x="600" y="70" text-anchor="middle" font-size="13" fill="#64748B">先判断是否缺少原始信号，再判断缺少分析、展示还是控制契约</text>
+
+    <rect x="440" y="105" width="320" height="64" rx="14" fill="#17324D"/>
+    <text x="600" y="132" text-anchor="middle" font-size="16" font-weight="700" fill="#FFFFFF">需求是否产生新的原始事实？</text>
+    <text x="600" y="153" text-anchor="middle" font-size="11" fill="#CBD5E1">新的事件、指标、堆栈或设备状态</text>
+
+    <path d="M440 137 H270 V214" fill="none" stroke="#0D9488" stroke-width="3" marker-end="url(#af)"/>
+    <text x="330" y="126" font-size="12" font-weight="700" fill="#0F766E">是</text>
+    <rect x="55" y="220" width="430" height="150" rx="16" fill="#ECFDF5" stroke="#0D9488" stroke-width="2"/>
+    <text x="80" y="252" font-size="17" font-weight="700" fill="#0F766E">Collector + Table contract</text>
+    <text x="80" y="283" font-size="13" fill="#475569">系统 / GPU / NCCL / HCCL：Rust extension</text>
+    <text x="80" y="310" font-size="13" fill="#475569">训练语义：Python hook + @table</text>
+    <text x="80" y="337" font-size="12" fill="#64748B">只发布 schema，不直接调用其他 collector</text>
+
+    <path d="M760 137 H930 V214" fill="none" stroke="#2563EB" stroke-width="3" marker-end="url(#af)"/>
+    <text x="858" y="126" font-size="12" font-weight="700" fill="#1D4ED8">否</text>
+    <rect x="715" y="220" width="430" height="64" rx="14" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="930" y="247" text-anchor="middle" font-size="15" font-weight="700" fill="#1D4ED8">现有事实能否通过 SQL 表达？</text>
+    <text x="930" y="267" text-anchor="middle" font-size="11" fill="#64748B">JOIN、聚合、阈值与解释规则</text>
+
+    <path d="M930 284 V325" stroke="#2563EB" stroke-width="3" marker-end="url(#af)"/>
+    <rect x="715" y="332" width="200" height="105" rx="13" fill="#F5F3FF" stroke="#7C3AED" stroke-width="2"/>
+    <text x="815" y="363" text-anchor="middle" font-size="15" font-weight="700" fill="#6D28D9">Diagnostic Skill</text>
+    <text x="815" y="388" text-anchor="middle" font-size="11" fill="#64748B">steps.yaml + SQL</text>
+    <text x="815" y="410" text-anchor="middle" font-size="11" fill="#64748B">多端共享执行语义</text>
+    <rect x="945" y="332" width="200" height="105" rx="13" fill="#FFF7ED" stroke="#EA580C" stroke-width="2"/>
+    <text x="1045" y="363" text-anchor="middle" font-size="15" font-weight="700" fill="#C2410C">Query view</text>
+    <text x="1045" y="388" text-anchor="middle" font-size="11" fill="#64748B">虚拟表 / SQL function</text>
+    <text x="1045" y="410" text-anchor="middle" font-size="11" fill="#64748B">可归并状态放查询层</text>
+
+    <path d="M600 169 V469" stroke="#94A3B8" stroke-width="2" stroke-dasharray="7 7"/>
+    <rect x="92" y="475" width="294" height="82" rx="13" fill="#FFFFFF" stroke="#C4B5FD" stroke-width="2"/>
+    <text x="239" y="507" text-anchor="middle" font-size="15" font-weight="700" fill="#6D28D9">只缺新的交互？</text>
+    <text x="239" y="532" text-anchor="middle" font-size="12" fill="#64748B">Web 使用现有 HTTP / SQL</text>
+    <rect x="453" y="475" width="294" height="82" rx="13" fill="#FFFFFF" stroke="#FDBA74" stroke-width="2"/>
+    <text x="600" y="507" text-anchor="middle" font-size="15" font-weight="700" fill="#C2410C">只缺新的控制入口？</text>
+    <text x="600" y="532" text-anchor="middle" font-size="12" fill="#64748B">server + proto，CLI 仅作客户端</text>
+    <rect x="814" y="475" width="294" height="82" rx="13" fill="#FFFFFF" stroke="#93C5FD" stroke-width="2"/>
+    <text x="961" y="507" text-anchor="middle" font-size="15" font-weight="700" fill="#1D4ED8">只缺新的分析流程？</text>
+    <text x="961" y="532" text-anchor="middle" font-size="12" fill="#64748B">Skill 组合已有表，不改 server</text>
+
+    <rect x="55" y="582" width="1090" height="28" rx="8" fill="#17324D"/>
+    <text x="600" y="601" text-anchor="middle" font-size="11" fill="#FFFFFF">禁止：collector 互调、Web 链接 core、server 为单个 skill 写分支、CLI 绕过公开协议</text>
+  </g>
+</svg>

@@ -13,10 +13,10 @@
         <link rel="canonical" href="https://github.com/DeepLink-org/probing/zh/design/federation/">
       
       
-        <link rel="prev" href="../torchrun-cluster/">
+        <link rel="prev" href="../distributed/">
       
       
-        <link rel="next" href="../hierarchical-fanout/">
+        <link rel="next" href="../distributed-profiler/">
       
       
         
@@ -394,17 +394,20 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="../../contributing/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/" class="md-tabs__link">
+          
   
   
     
   
   贡献指南
 
-      </a>
-    </li>
+        </a>
+      </li>
+    
   
 
       
@@ -906,8 +909,6 @@
       
         
       
-        
-      
     
     
     
@@ -1008,7 +1009,7 @@
   <span class="md-ellipsis">
     
   
-    平台核心
+    基础架构
   
 
     
@@ -1024,7 +1025,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    平台核心
+    基础架构
   
 
           </label>
@@ -1045,6 +1046,34 @@
     
   
     模块化与边界
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../activation-injection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    启用、注入与运行时控制
   
 
     
@@ -1114,34 +1143,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CLI 命令树
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -1158,14 +1159,6 @@
   
     
     
-      
-        
-      
-        
-      
-        
-      
-        
       
         
       
@@ -1235,91 +1228,7 @@
   <span class="md-ellipsis">
     
   
-    性能分析
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../torch-profiler-sql/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Torch Profiler SQL（Kineto 虚拟表）
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../overhead/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    开销测量
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../overhead-invariants/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overhead invariants
+    性能分析与 Tracing
   
 
     
@@ -1368,42 +1277,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../debugging/" class="md-nav__link">
+      <a href="../overhead/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    调试引擎
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../training-phase/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    训练阶段
+    开销测量
   
 
     
@@ -1442,10 +1323,6 @@
       
         
       
-        
-      
-        
-      
     
     
     
@@ -1472,7 +1349,7 @@
   <span class="md-ellipsis">
     
   
-    分布式
+    分布式查询与分析
   
 
     
@@ -1488,7 +1365,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    分布式
+    分布式查询与分析
   
 
           </label>
@@ -1508,35 +1385,7 @@
   <span class="md-ellipsis">
     
   
-    概览
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../torchrun-cluster/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    torchrun 集群心跳
+    分布式成员与控制面
   
 
     
@@ -1877,6 +1726,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#hierarchical-fan-out" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.11 分层 fan-out
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1920,42 +1780,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../hierarchical-fanout/" class="md-nav__link">
+      <a href="../distributed-profiler/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    分层集群查询
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../cluster-pulsing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    基于 Pulsing 的集群
+    分布式 Profiler 查询与可视化
   
 
     
@@ -1972,34 +1804,6 @@
           </ul>
         </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    系统架构（旧版）
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -2436,6 +2240,64 @@
   
   
   
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    贡献指南
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    贡献指南
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../../contributing/" class="md-nav__link">
         
@@ -2453,6 +2315,42 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../writing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    文档写作规范
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2744,6 +2642,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#hierarchical-fan-out" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.11 分层 fan-out
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2862,6 +2771,9 @@
 </tr>
 </tbody>
 </table>
+<p><img alt="global catalog 的分层 fan-out 与协调器合并" src="../../../assets/architecture/probing-query-federation.svg" /></p>
+<p>图中的 <code>global.*</code> 是逻辑视图：peer 永远执行 <code>probe.*</code>。可归并聚合在数据侧先收敛，协调器
+注入来源标签并完成全局合并；不能正确拆分的表达式不得伪装成全局语义。</p>
 <hr />
 <h2 id="2-catalog">2. 两个 Catalog 与联邦标签<a class="headerlink" href="#2-catalog" title="Permanent link">&para;</a></h2>
 <h3 id="21-probe-global">2.1 <code>probe</code> 与 <code>global</code><a class="headerlink" href="#21-probe-global" title="Permanent link">&para;</a></h3>
@@ -3055,15 +2967,7 @@
 <p>实现：<code>probing/core/src/core/federation/</code>；<code>cluster=true</code> 路由：
 <code>probing/server/src/server/cluster_fanout.rs</code>。</p>
 <h3 id="41">4.1 处理流水线<a class="headerlink" href="#41" title="Permanent link">&para;</a></h3>
-<pre class="mermaid"><code>flowchart LR
-    IN[用户 SQL] --&gt; CF{cluster?}
-    CF --&gt;|否| L0[本地 DataFusion / probe.*]
-    CF --&gt;|是| RT[路径选型 A/B/C]
-    RT --&gt; RW[Catalog 改写]
-    RW --&gt; EX[各分片执行]
-    EX --&gt; TG[注入联邦标签]
-    TG --&gt; MG[合并 / 二次聚合]
-    MG --&gt; OUT[QueryOutcome DataFrame + QueryQuality]</code></pre>
+<p><img alt="联邦查询从 SQL 路由到全局合并的处理流水线" src="../../../assets/architecture/probing-federation-pipeline.svg" /></p>
 <p><strong>统一约定</strong></p>
 <table>
 <thead>
@@ -3123,21 +3027,14 @@
 </tr>
 <tr>
 <td>分层 fan-out</td>
-<td>默认开启：<code>coordinator → 各机 local0 → 本机 leaf</code>；见 <a href="../hierarchical-fanout/">分层集群查询</a></td>
+<td>默认开启：<code>coordinator → 各机 local0 → 本机 leaf</code>；见 <a href="#hierarchical-fan-out">§4.11</a></td>
 </tr>
 </tbody>
 </table>
 <h3 id="42">4.2 路径选型<a class="headerlink" href="#42" title="Permanent link">&para;</a></h3>
 <p><code>cluster=false</code> → 仅本地，不走联邦。</p>
 <p><code>cluster=true</code> 时按 <strong>AST 解析</strong>（非 substring）依次判断：</p>
-<pre class="mermaid"><code>flowchart TD
-    Q[SQL] --&gt; P{单语句 SELECT?}
-    P --&gt;|否| C[路径 C]
-    P --&gt;|是| M{单表且无 JOIN/CTE/UNION/子查询?}
-    M --&gt;|否| C
-    M --&gt;|是| A{单表 global.* + 可下推 GROUP BY/聚合?}
-    A --&gt;|是| PA[路径 A]
-    A --&gt;|否| PB[路径 B]</code></pre>
+<p><img alt="联邦查询根据 AST 选择聚合下推、联邦扫描或广播路径" src="../../../assets/architecture/probing-federation-path-selection.svg" /></p>
 <table>
 <thead>
 <tr>
@@ -3465,6 +3362,109 @@
 </tr>
 </tbody>
 </table>
+<h3 id="hierarchical-fan-out">4.11 分层 fan-out<a class="headerlink" href="#hierarchical-fan-out" title="Permanent link">&para;</a></h3>
+<p>路径 A/B/C 说明 SQL 在每个分片和协调器上如何计算；分层 fan-out 说明这些分片请求如何在
+网络上到达万卡 rank。扁平模式需要 coordinator 直接建立 <code>O(world_size)</code> 个连接，分层模式
+把 coordinator 连接数降为 <code>O(node_count)</code>。</p>
+<p><img alt="coordinator 只连接各机代理 rank 的分层查询" src="../../../assets/architecture/probing-fanout-internals.svg" /></p>
+<table>
+<thead>
+<tr>
+<th>层级</th>
+<th>fan-out 目标</th>
+<th>8 卡/机、1024 机时的典型规模</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>coordinator</td>
+<td>每个 <code>group_rank</code> 的 <code>local_rank=0</code></td>
+<td>约 1023 个远端 node</td>
+</tr>
+<tr>
+<td>node/local0</td>
+<td>同 <code>group_rank</code> 的 leaf rank</td>
+<td>每机约 7 个</td>
+</tr>
+<tr>
+<td>leaf</td>
+<td>无，只执行本地 SQL</td>
+<td>1</td>
+</tr>
+</tbody>
+</table>
+<p><code>POST /apis/cluster/query</code> 的控制字段：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>默认</th>
+<th>语义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cluster</code></td>
+<td><code>false</code></td>
+<td>是否跨 endpoint</td>
+</tr>
+<tr>
+<td><code>hierarchical</code></td>
+<td><code>true</code></td>
+<td>是否使用 node 层</td>
+</tr>
+<tr>
+<td><code>scope</code></td>
+<td><code>auto</code></td>
+<td><code>auto</code> / <code>coordinator</code> / <code>node</code> / <code>local</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>auto</code> 在 local0 入口选择 coordinator，在 leaf 入口选择 local。<code>coordinator</code> 聚合本机和远端
+node；<code>node</code> 只聚合当前机器；<code>local</code> 禁止继续 fan-out。peer 始终执行本地 <code>probe.*</code>，因此
+scope 是防止递归放大的执行契约，不只是性能提示。</p>
+<p>分层执行依赖 <code>cluster.nodes</code> 中完整的 <code>group_rank</code>、<code>local_rank</code> 和 <code>addr</code>。默认分层模式下，
+任一活跃成员缺少拓扑字段都会返回 HTTP 503，而不是静默退回可能漏数的扁平查询。只有用户
+明确设置 <code>hierarchical=false</code>、CLI <code>--flat</code> 或 <code>PROBING_CLUSTER_FANOUT_HIERARCHICAL=0</code>
+时才使用扁平路径。</p>
+<p>每一层必须向上合并以下质量信息：</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="p">{</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">&quot;hierarchical&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span><span class="nt">&quot;scope&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;coordinator&quot;</span><span class="p">,</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span><span class="nt">&quot;nodes_queried&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">  </span><span class="nt">&quot;nodes_failed&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">  </span><span class="nt">&quot;node_aggregators_queried&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">  </span><span class="nt">&quot;local_ranks_queried&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span>
+</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>远端 local0 返回的 leaf 覆盖率不能被压成“一个成功 endpoint”。非 strict 模式可接收下层
+HTTP 503 中的 partial body，并继续携带 <code>nodes_failed</code>；<code>PROBING_FANOUT_STRICT=1</code> 时任一
+失败、batch 丢弃或覆盖不完整都使整查失败。</p>
+<table>
+<thead>
+<tr>
+<th>联邦路径</th>
+<th>分层执行</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A 聚合下推</td>
+<td>node 层合并本机可归并 partial，再由 coordinator 全局归并</td>
+</tr>
+<tr>
+<td>B 联邦 scan</td>
+<td>coordinator 只为各 node aggregator 建远程 lazy partition</td>
+</tr>
+<tr>
+<td>C broadcast</td>
+<td>每个 node 在本机 rank 上执行同一 SQL并拼接，再向上返回</td>
+</tr>
+</tbody>
+</table>
+<p>实现位于 <code>probing/server/src/server/cluster_fanout.rs</code>、<code>cluster_query.rs</code> 和
+<code>probing/core/src/core/federation/fanout_scope.rs</code>。成员层级来源见
+<a href="../distributed/#cluster-membership">分布式成员与控制面</a>。</p>
 <hr />
 <h2 id="5">5. 回归查询<a class="headerlink" href="#5" title="Permanent link">&para;</a></h2>
 <p>引擎变更须在 mock 多节点与真实集群上通过：</p>
@@ -3523,8 +3523,8 @@
 </thead>
 <tbody>
 <tr>
-<td><a href="../distributed/">分布式架构</a></td>
-<td><code>cluster query</code> 用法</td>
+<td><a href="../distributed/">分布式成员与控制面</a></td>
+<td>成员发现、heartbeat 与拓扑元数据</td>
 </tr>
 <tr>
 <td><a href="../../guide/concepts/">核心模型</a></td>

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2563EB"/></marker></defs>
+  <rect width="1280" height="720" fill="#F8FAFC"/>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial">
+    <text x="640" y="38" text-anchor="middle" font-size="22" font-weight="700" fill="#17324D">采集全景：不同数据源各自处理回调并写入本机表</text>
+    <text x="640" y="63" text-anchor="middle" font-size="12" fill="#64748B">训练、通信、堆栈与系统采样互不调用；step、rank、时间戳是查询阶段的关联坐标</text>
+
+    <rect x="42" y="92" width="258" height="512" rx="14" fill="#FFFFFF" stroke="#94A3B8" stroke-width="2"/>
+    <text x="68" y="123" font-size="15" font-weight="700" fill="#475569">数据从哪里来</text>
+    <g text-anchor="middle" font-size="11" font-weight="700">
+      <rect x="68" y="148" width="206" height="48" rx="9" fill="#F0FDFA" stroke="#0D9488"/><text x="171" y="178" fill="#0F766E">PyTorch module / optimizer</text>
+      <rect x="68" y="210" width="206" height="48" rx="9" fill="#FFF7ED" stroke="#F97316"/><text x="171" y="240" fill="#C2410C">NCCL profiler callbacks</text>
+      <rect x="68" y="272" width="206" height="48" rx="9" fill="#FFF7ED" stroke="#EA580C"/><text x="171" y="302" fill="#C2410C">HCCL MSProf callbacks</text>
+      <rect x="68" y="334" width="206" height="48" rx="9" fill="#FAF5FF" stroke="#7C3AED"/><text x="171" y="364" fill="#7C3AED">Python / native stacks</text>
+      <rect x="68" y="396" width="206" height="48" rx="9" fill="#EFF6FF" stroke="#2563EB"/><text x="171" y="426" fill="#174EA6">GPU · CPU · RDMA</text>
+      <rect x="68" y="458" width="206" height="48" rx="9" fill="#ECFDF5" stroke="#10B981"/><text x="171" y="488" fill="#047857">Megatron parallel state</text>
+      <rect x="68" y="520" width="206" height="48" rx="9" fill="#EFF6FF" stroke="#2563EB"/><text x="171" y="550" fill="#174EA6">短窗口 torch.profiler</text>
+    </g>
+
+    <rect x="336" y="92" width="286" height="512" rx="14" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="362" y="123" font-size="15" font-weight="700" fill="#174EA6">每个采集器自己决定</text>
+    <g font-size="11">
+      <rect x="362" y="151" width="234" height="76" rx="10" fill="#FFFFFF" stroke="#93C5FD"/><text x="382" y="178" font-weight="700" fill="#17324D">触发</text><text x="382" y="201" fill="#64748B">hook、callback、signal、timer 或 HTTP</text>
+      <rect x="362" y="244" width="234" height="76" rx="10" fill="#FFFFFF" stroke="#93C5FD"/><text x="382" y="271" font-weight="700" fill="#17324D">热路径预算</text><text x="382" y="294" fill="#64748B">采样、固定池、无阻塞或后台排水</text>
+      <rect x="362" y="337" width="234" height="76" rx="10" fill="#FFFFFF" stroke="#93C5FD"/><text x="382" y="364" font-weight="700" fill="#17324D">事件语义</text><text x="382" y="387" fill="#64748B">模块、collective、stack 或设备快照</text>
+      <rect x="362" y="430" width="234" height="76" rx="10" fill="#FFFFFF" stroke="#93C5FD"/><text x="382" y="457" font-weight="700" fill="#17324D">失败边界</text><text x="382" y="480" fill="#64748B">记录该数据源错误；不调用其他采集器</text>
+      <rect x="362" y="523" width="234" height="54" rx="10" fill="#DBEAFE" stroke="#2563EB"/><text x="479" y="556" text-anchor="middle" font-weight="700" fill="#174EA6">固定 schema 的行</text>
+    </g>
+
+    <path d="M300 348 L328 348" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <path d="M622 348 L650 348" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+
+    <rect x="658" y="92" width="580" height="512" rx="14" fill="#FFFFFF" stroke="#0D9488" stroke-width="2"/>
+    <text x="684" y="123" font-size="15" font-weight="700" fill="#0F766E">共同字段与写入合同</text>
+    <rect x="684" y="148" width="528" height="70" rx="11" fill="#17324D"/>
+    <text x="948" y="177" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">RowWriter / push_row / Python @table</text>
+    <text x="948" y="199" text-anchor="middle" font-size="10" fill="#CBD5E1">训练回调只写当前进程的 mmap；不发网络请求</text>
+    <path d="M948 218 L948 246" stroke="#0D9488" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="684" y="254" width="528" height="88" rx="11" fill="#F0FDFA" stroke="#0D9488"/>
+    <text x="704" y="281" font-size="12" font-weight="700" fill="#0F766E">本机采集表</text>
+    <text x="704" y="306" font-size="10" fill="#475569">python.torch_trace · nccl.* · hccl.* · stack folded lines</text>
+    <text x="704" y="327" font-size="10" fill="#475569">gpu.* · cpu.* · rdma.* · python.profile_capture / profile_hotspot</text>
+    <path d="M948 342 L948 370" stroke="#0D9488" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="684" y="378" width="528" height="104" rx="11" fill="#EFF6FF" stroke="#2563EB"/>
+    <text x="704" y="407" font-size="12" font-weight="700" fill="#174EA6">查询时再关联</text>
+    <text x="704" y="432" font-size="10" fill="#475569">同一步：local_step / global_step　同一进程：rank / role</text>
+    <text x="704" y="453" font-size="10" fill="#475569">同一时间窗：epoch ns　同一通信：comm / peer / seq</text>
+    <text x="704" y="474" font-size="10" fill="#64748B">跨 rank 通过 global.* 和 fan-out 形成一张逻辑表</text>
+    <rect x="684" y="510" width="528" height="67" rx="11" fill="#ECFDF5" stroke="#10B981"/>
+    <text x="948" y="538" text-anchor="middle" font-size="12" font-weight="700" fill="#047857">扩展新数据源：实现公开表合同，注册到组装根</text>
+    <text x="948" y="559" text-anchor="middle" font-size="10" fill="#64748B">不修改已有采集器，也不增加跨采集器回调</text>
+
+    <rect x="42" y="628" width="1196" height="54" rx="12" fill="#17324D"/>
+    <text x="640" y="661" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">采集器写入事件和指标；跨表关系在查询阶段用 step、rank、时间与角色字段建立。</text>
+  </g>
+</svg>

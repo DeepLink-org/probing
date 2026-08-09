@@ -13,10 +13,10 @@
         <link rel="canonical" href="https://github.com/DeepLink-org/probing/design/overhead/">
       
       
-        <link rel="prev" href="../torch-profiler-sql/">
+        <link rel="prev" href="../nccl-profiler/">
       
       
-        <link rel="next" href="../overhead-invariants/">
+        <link rel="next" href="../distributed/">
       
       
         
@@ -86,7 +86,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#overhead-measurement-and-formulas" class="md-skip">
+        <a href="#overhead-control-and-measurement-architecture" class="md-skip">
           Skip to content
         </a>
       
@@ -392,17 +392,20 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="../../contributing/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/" class="md-tabs__link">
+          
   
   
     
   
   Contributing
 
-      </a>
-    </li>
+        </a>
+      </li>
+    
   
 
       
@@ -904,8 +907,6 @@
       
         
       
-        
-      
     
     
     
@@ -1006,7 +1007,7 @@
   <span class="md-ellipsis">
     
   
-    Platform
+    Foundations
   
 
     
@@ -1022,7 +1023,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Platform
+    Foundations
   
 
           </label>
@@ -1043,6 +1044,34 @@
     
   
     Modularity & Boundaries
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../activation-injection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Activation & Runtime Control
   
 
     
@@ -1112,34 +1141,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CLI Command Tree
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -1158,14 +1159,6 @@
   
     
     
-      
-        
-      
-        
-      
-        
-      
-        
       
         
       
@@ -1235,7 +1228,7 @@
   <span class="md-ellipsis">
     
   
-    Profiling
+    Profiling & Tracing
   
 
     
@@ -1256,14 +1249,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../torch-profiler-sql/" class="md-nav__link">
+      <a href="../nccl-profiler/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Torch Profiler SQL
+    NCCL Profiler
   
 
     
@@ -1344,60 +1337,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#1-goals-and-scope" class="md-nav__link">
+  <a href="#1-how-cost-is-decomposed" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. Goals and scope
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="1. Goals and scope">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#questions-answered" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Questions answered
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#out-of-scope" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Out of scope
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#vs-probing-bench-cli" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        vs probing bench CLI
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#2-terminology" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2. Terminology
+        1. How cost is decomposed
       
     </span>
   </a>
@@ -1405,221 +1348,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#3-common-formulas" class="md-nav__link">
+  <a href="#2-why-the-control-path-is-organized-this-way" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3. Common formulas
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="3. Common formulas">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#31-relative-overhead-ratio" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.1 Relative overhead (ratio)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#32-relative-baseline-offline-ab" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.2 Relative baseline (offline A/B)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#33-paired-training-delta" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.3 Paired training delta
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#34-nccl-latency-delta" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.4 NCCL latency delta
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#4-in-run-measurement-torchprobe-shadow-step" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4. In-run measurement: TorchProbe shadow step
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="4. In-run measurement: TorchProbe shadow step">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#41-mechanism" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4.1 Mechanism
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#42-timing-window-step_duration_sec" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4.2 Timing window (step_duration_sec)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#43-hook-behavior-by-step-type" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4.3 Hook behavior by step type
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#5-metric-catalog" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        5. Metric catalog
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="5. Metric catalog">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#51-in-run-metrics" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        5.1 In-run metrics
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#52-sample-size" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        5.2 Sample size
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#53-auxiliary-metrics" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        5.3 Auxiliary metrics
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#6-offline-benchmark-make-bench" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6. Offline benchmark: make bench
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="6. Offline benchmark: make bench">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#61-parameters" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6.1 Parameters
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#62-three-layers" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6.2 Three layers
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#63-json-export" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6.3 JSON export
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#7-nccl-profiler-overhead-offline-only" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        7. NCCL profiler overhead (offline only)
+        2. Why the control path is organized this way
       
     </span>
   </a>
@@ -1627,10 +1359,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#8-other-subsystems" class="md-nav__link">
+  <a href="#3-timing-boundaries-and-statistical-semantics" class="md-nav__link">
     <span class="md-ellipsis">
       
-        8. Other subsystems
+        3. Timing boundaries and statistical semantics
       
     </span>
   </a>
@@ -1638,10 +1370,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#9-gates-current-repo" class="md-nav__link">
+  <a href="#4-when-the-measurement-is-trustworthy" class="md-nav__link">
     <span class="md-ellipsis">
       
-        9. Gates (current repo)
+        4. When the measurement is trustworthy
       
     </span>
   </a>
@@ -1649,10 +1381,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#10-known-biases" class="md-nav__link">
+  <a href="#5-why-offline-validation-remains-necessary" class="md-nav__link">
     <span class="md-ellipsis">
       
-        10. Known biases
+        5. Why offline validation remains necessary
       
     </span>
   </a>
@@ -1660,93 +1392,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#11-anti-noise-and-stability" class="md-nav__link">
+  <a href="#change-invariants" class="md-nav__link">
     <span class="md-ellipsis">
       
-        11. Anti-noise and stability
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="11. Anti-noise and stability">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#111-noise-sources" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11.1 Noise sources
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#1121-async-deferred-drain" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11.2.1 Async deferred drain
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#112-principles" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11.2 Principles
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#113-metric-pick-list" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11.3 Metric pick list
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#114-tuning" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11.4 Tuning
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#115-future-work" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11.5 Future work
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#12-operations" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        12. Operations
+        6. Invariants for changes
       
     </span>
   </a>
@@ -1754,21 +1403,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#13-implementation-index" class="md-nav__link">
+  <a href="#related-documentation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        13. Implementation index
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#related-docs" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Related docs
+        Related documentation
       
     </span>
   </a>
@@ -1779,118 +1417,6 @@
   
 </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../overhead-invariants/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overhead invariants
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../nccl-profiler/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    NCCL Profiler
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../debugging/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Debugging Engine
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../training-phase/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Training Phases
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -1912,10 +1438,6 @@
   
     
     
-      
-        
-      
-        
       
         
       
@@ -1949,7 +1471,7 @@
   <span class="md-ellipsis">
     
   
-    Distributed
+    Distributed Query & Analysis
   
 
     
@@ -1965,7 +1487,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Distributed
+    Distributed Query & Analysis
   
 
           </label>
@@ -1985,35 +1507,7 @@
   <span class="md-ellipsis">
     
   
-    Overview
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../torchrun-cluster/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Torchrun Cluster Heartbeat
+    Distributed Membership
   
 
     
@@ -2062,42 +1556,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../hierarchical-fanout/" class="md-nav__link">
+      <a href="../distributed-profiler/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Hierarchical Fan-out
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../cluster-pulsing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Cluster with Pulsing
+    Distributed Profiler
   
 
     
@@ -2114,34 +1580,6 @@
           </ul>
         </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    System Architecture (legacy)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -2578,9 +2016,31 @@
   
   
   
-    <li class="md-nav__item">
-      <a href="../../contributing/" class="md-nav__link">
+    
+    
+      
         
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
   
   
   <span class="md-ellipsis">
@@ -2594,7 +2054,79 @@
   
   
 
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing Guide
+  
+
+    
+  </span>
+  
+  
+
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../writing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation Style
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2626,60 +2158,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#1-goals-and-scope" class="md-nav__link">
+  <a href="#1-how-cost-is-decomposed" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. Goals and scope
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="1. Goals and scope">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#questions-answered" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Questions answered
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#out-of-scope" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Out of scope
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#vs-probing-bench-cli" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        vs probing bench CLI
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#2-terminology" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2. Terminology
+        1. How cost is decomposed
       
     </span>
   </a>
@@ -2687,221 +2169,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#3-common-formulas" class="md-nav__link">
+  <a href="#2-why-the-control-path-is-organized-this-way" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3. Common formulas
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="3. Common formulas">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#31-relative-overhead-ratio" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.1 Relative overhead (ratio)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#32-relative-baseline-offline-ab" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.2 Relative baseline (offline A/B)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#33-paired-training-delta" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.3 Paired training delta
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#34-nccl-latency-delta" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.4 NCCL latency delta
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#4-in-run-measurement-torchprobe-shadow-step" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4. In-run measurement: TorchProbe shadow step
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="4. In-run measurement: TorchProbe shadow step">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#41-mechanism" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4.1 Mechanism
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#42-timing-window-step_duration_sec" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4.2 Timing window (step_duration_sec)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#43-hook-behavior-by-step-type" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4.3 Hook behavior by step type
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#5-metric-catalog" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        5. Metric catalog
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="5. Metric catalog">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#51-in-run-metrics" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        5.1 In-run metrics
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#52-sample-size" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        5.2 Sample size
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#53-auxiliary-metrics" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        5.3 Auxiliary metrics
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#6-offline-benchmark-make-bench" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6. Offline benchmark: make bench
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="6. Offline benchmark: make bench">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#61-parameters" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6.1 Parameters
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#62-three-layers" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6.2 Three layers
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#63-json-export" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6.3 JSON export
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#7-nccl-profiler-overhead-offline-only" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        7. NCCL profiler overhead (offline only)
+        2. Why the control path is organized this way
       
     </span>
   </a>
@@ -2909,10 +2180,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#8-other-subsystems" class="md-nav__link">
+  <a href="#3-timing-boundaries-and-statistical-semantics" class="md-nav__link">
     <span class="md-ellipsis">
       
-        8. Other subsystems
+        3. Timing boundaries and statistical semantics
       
     </span>
   </a>
@@ -2920,10 +2191,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#9-gates-current-repo" class="md-nav__link">
+  <a href="#4-when-the-measurement-is-trustworthy" class="md-nav__link">
     <span class="md-ellipsis">
       
-        9. Gates (current repo)
+        4. When the measurement is trustworthy
       
     </span>
   </a>
@@ -2931,10 +2202,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#10-known-biases" class="md-nav__link">
+  <a href="#5-why-offline-validation-remains-necessary" class="md-nav__link">
     <span class="md-ellipsis">
       
-        10. Known biases
+        5. Why offline validation remains necessary
       
     </span>
   </a>
@@ -2942,93 +2213,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#11-anti-noise-and-stability" class="md-nav__link">
+  <a href="#change-invariants" class="md-nav__link">
     <span class="md-ellipsis">
       
-        11. Anti-noise and stability
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="11. Anti-noise and stability">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#111-noise-sources" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11.1 Noise sources
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#1121-async-deferred-drain" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11.2.1 Async deferred drain
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#112-principles" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11.2 Principles
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#113-metric-pick-list" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11.3 Metric pick list
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#114-tuning" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11.4 Tuning
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#115-future-work" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11.5 Future work
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#12-operations" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        12. Operations
+        6. Invariants for changes
       
     </span>
   </a>
@@ -3036,21 +2224,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#13-implementation-index" class="md-nav__link">
+  <a href="#related-documentation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        13. Implementation index
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#related-docs" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Related docs
+        Related documentation
       
     </span>
   </a>
@@ -3077,568 +2254,148 @@
   
 
 
-<h1 id="overhead-measurement-and-formulas">Overhead measurement and formulas<a class="headerlink" href="#overhead-measurement-and-formulas" title="Permanent link">&para;</a></h1>
-<p>Canonical design doc for <strong>instrumentation overhead</strong> in Probing: terminology, formulas, measurement boundaries, and offline vs in-run methods. Implementation details: <a href="../profiling/">Profiling</a>; table columns: <a href="../../reference/sql-tables/#python-torch_step_timing">SQL tables — torch_step_timing</a>.</p>
-<p><strong>Invariants and regression tests</strong> (read before changing formulas or hook order): <a href="../overhead-invariants/">overhead-invariants.md</a>.</p>
-<h2 id="1-goals-and-scope">1. Goals and scope<a class="headerlink" href="#1-goals-and-scope" title="Permanent link">&para;</a></h2>
-<h3 id="questions-answered">Questions answered<a class="headerlink" href="#questions-answered" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Question</th>
-<th>Typical consumer</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>How much slower is each training step with TorchProbe hooks?</td>
-<td>Production jobs, <code>health_overview</code>, Web Overhead panel</td>
-</tr>
-<tr>
-<td>What does span / memtable persistence cost?</td>
-<td><code>make bench</code> tracing layer, regression tests</td>
-</tr>
-<tr>
-<td>End-to-end delta on a real TinyNet loop?</td>
-<td><code>make bench</code> torch_train layer</td>
-</tr>
-<tr>
-<td>NCCL profiler impact on collective latency?</td>
-<td><code>run_nccl_profiler_bench.sh</code> (offline)</td>
-</tr>
-</tbody>
-</table>
-<h3 id="out-of-scope">Out of scope<a class="headerlink" href="#out-of-scope" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>Business throughput SLOs</strong> (tokens/s, time-to-convergence) — requires your own baseline job</li>
-<li><strong>NCCL collective execution time</strong> as “probe tax” — that is training work, not instrumentation</li>
-<li><strong>“Pure PyTorch” on shadow steps</strong> — other collectors (NCCL, CPU/GPU) still run on shadow steps</li>
-</ul>
-<h3 id="vs-probing-bench-cli">vs <code>probing bench</code> CLI<a class="headerlink" href="#vs-probing-bench-cli" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Entry</th>
-<th>Measures</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>make bench</code> → <code>examples/overhead/bench_instrumentation.py</code></td>
-<td>Python/Rust <strong>instrumentation</strong> wall time</td>
-</tr>
-<tr>
-<td><code>probing bench write</code> (hidden CLI)</td>
-<td>memtable <strong>write-path</strong> throughput/latency — not training hook tax</td>
-</tr>
-</tbody>
-</table>
-<p>These are not interchangeable.</p>
-<hr />
-<h2 id="2-terminology">2. Terminology<a class="headerlink" href="#2-terminology" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Term</th>
-<th>Definition</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>probed step</strong></td>
-<td><code>python.torch_step_timing.is_shadow = 0</code>; TorchProbe module hooks run per config</td>
-</tr>
-<tr>
-<td><strong>shadow step</strong></td>
-<td><code>is_shadow = 1</code>; module/optimizer hooks <strong>return immediately</strong>; no <code>python.torch_trace</code>, but a timing row is written</td>
-</tr>
-<tr>
-<td><strong>shadow cadence</strong></td>
-<td>Default <code>4:1</code> — 4 probed steps then 1 shadow step (<code>shadow=4:1</code>)</td>
-</tr>
-<tr>
-<td><strong>sampled step</strong></td>
-<td>probed with <code>sampled = 1</code> — module trace flush (may include GPU defer/sync)</td>
-</tr>
-<tr>
-<td><strong>hook tax</strong></td>
-<td>Median overhead %: all probed steps vs shadow</td>
-</tr>
-<tr>
-<td><strong>sampled overhead</strong></td>
-<td>Median overhead %: sampled probed steps only vs shadow</td>
-</tr>
-<tr>
-<td><strong>total overhead (amortized)</strong></td>
-<td>Weighted: <code>(1−rate)×dispatch_overhead + rate×sampled_overhead</code> (Web UI)</td>
-</tr>
-<tr>
-<td><strong>in-run</strong></td>
-<td>Continuous comparison via <code>python.torch_step_timing</code> during training</td>
-</tr>
-<tr>
-<td><strong>offline</strong></td>
-<td>Standalone benchmark scripts with A/B or paired comparison</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="3-common-formulas">3. Common formulas<a class="headerlink" href="#3-common-formulas" title="Permanent link">&para;</a></h2>
-<h3 id="31-relative-overhead-ratio">3.1 Relative overhead (ratio)<a class="headerlink" href="#31-relative-overhead-ratio" title="Permanent link">&para;</a></h3>
-<p>Used for TorchProbe in-run and many offline cases:</p>
+<h1 id="overhead-control-and-measurement-architecture">Overhead Control and Measurement Architecture<a class="headerlink" href="#overhead-control-and-measurement-architecture" title="Permanent link">&para;</a></h1>
+<p>Instrumentation overhead is not one counter for time spent inside a collector. Hook dispatch,
+sampled-step work, GPU timing reads, MEMT writes, and NCCL callbacks cross different execution
+boundaries. Combining them into one percentage cannot guide sampling or locate a regression.
+Probing first isolates cost architecturally, then defines what each measurement can explain.</p>
+<p>See <a href="../profiling/">Profiling architecture</a> for implementation and
+<a href="../../reference/sql-tables/#python-torch_step_timing">SQL tables — torch_step_timing</a> for the data
+contract.</p>
+<h2 id="1-how-cost-is-decomposed">1. How cost is decomposed<a class="headerlink" href="#1-how-cost-is-decomposed" title="Permanent link">&para;</a></h2>
+<p>Each TorchProbe optimizer step first enters either the probed or shadow path. A shadow step retains
+the complete training workload and all other collectors, but TorchProbe module and optimizer hooks
+return at entry. It is an interleaved baseline in the same job, not "pure training with no
+observation."</p>
+<p>A probed step then follows one of two paths. An unsampled step pays only hook dispatch and step
+timing. A sampled step also records module events, prepares results, and writes tables. The first is
+a fixed cost that long-running observation may pay every step; the second is an occasional heavy
+cost amortized by the sample rate. They must remain separate because lowering the rate reduces the
+heavy path but cannot remove dispatch through hooks already attached to the model tree.</p>
+<p>In-run shadow isolates TorchProbe only. Standalone instrumentation benchmarks measure Span/MEMT
+components, and paired end-to-end training benchmarks check their composition. The NCCL profiler
+has no in-run shadow because disabling NCCL callbacks would change the communication path being
+measured; it requires an offline A/B over the same collectives.</p>
+<h2 id="2-why-the-control-path-is-organized-this-way">2. Why the control path is organized this way<a class="headerlink" href="#2-why-the-control-path-is-organized-this-way" title="Permanent link">&para;</a></h2>
+<p><img alt="TorchProbe combines deterministic sampling, deferred GPU reads, shadow measurement, and optional adaptation" src="../../assets/architecture/probing-sampling-overhead.svg" /></p>
+<p>Step and layer gates control different dimensions: how often to inspect deeply and how much of one
+inspection to cover. The step gate depends only on step number, so ranks select the same steps. The
+layer gate hashes <code>(step, layer)</code> deterministically, reducing coverage while preserving cross-rank
+comparability. The default <code>rate=0.05</code>, <code>layer_rate=1.0</code> keeps complete module relationships for a
+small set of steps instead of producing unrelated fragments on every step.</p>
+<p>GPU event recording and reading are separated. A sampled step submits events; elapsed time is read
+after a settle window. The default asynchronous worker uses a bounded queue of 4096 items. A full
+queue falls back to synchronous save rather than growing memory without bound, and process exit
+flushes it. This makes the resource bound and the no-silent-loss behavior explicit.</p>
+<p>Shadow steps are interleaved at <code>4:1</code> by default so probed and baseline paths experience similar
+data, collective, and system noise. Adaptive sampling is off by default. When enabled, it may act
+only after <code>shadow_n ≥ 5</code> and <code>dispatch_n ≥ 16</code>, and it may never raise the rate above the user's
+initial value. The controller can reduce cost when evidence is sufficient; it cannot autonomously
+increase observation intensity.</p>
+<h2 id="3-timing-boundaries-and-statistical-semantics">3. Timing boundaries and statistical semantics<a class="headerlink" href="#3-timing-boundaries-and-statistical-semantics" title="Permanent link">&para;</a></h2>
+<p><img alt="TorchProbe step timing boundary and deferred-drain order" src="../../assets/architecture/probing-overhead-timing-window.svg" /></p>
+<p><code>step_duration_sec</code> starts at <code>_mark_step_wall_start()</code> at the end of the previous optimizer
+<code>post_step_hook</code> and ends at <code>_record_step_timing()</code> in the current one. Only then does
+<code>_drain_deferred()</code> run, followed by state advance and the next start marker. The current step thus
+contains its training work and hook teardown but is not charged for GPU-event recovery from earlier
+steps.</p>
+<p>The <code>train.step</code> span measures the user-wrapped compute interval and excludes hook dispatch and
+persistence. <code>step_duration_sec</code> intentionally includes those boundary costs. The two metrics
+answer different questions and cannot be subtracted or substituted for one another.</p>
+<p>Runtime aggregation uses medians to resist data-loading, collective, and scheduling spikes. Let
+$M_s$ be median shadow duration, $M_d$ median unsampled probed duration, and $M_p$ median sampled
+probed duration:</p>
 <p>$$
-\text{overhead_pct} = \left(\frac{M_{\text{probed}}}{M_{\text{shadow}}} - 1\right) \times 100
+\text{dispatch} = \left(\frac{M_d}{M_s}-1\right)\times100\%, \qquad
+\text{sampled} = \left(\frac{M_p}{M_s}-1\right)\times100\%
 $$</p>
-<p>$M$ is an aggregate (see §5). SQL uses <code>nullif(..., 0)</code> when the denominator is zero.</p>
-<h3 id="32-relative-baseline-offline-ab">3.2 Relative baseline (offline A/B)<a class="headerlink" href="#32-relative-baseline-offline-ab" title="Permanent link">&para;</a></h3>
+<p>For sample rate $r$, amortized effective overhead is:</p>
 <p>$$
-\text{vs_baseline_pct} = \left(\frac{T_{\text{measured}}}{T_{\text{baseline}}} - 1\right) \times 100
+\text{effective}=(1-r)\times\text{dispatch}+r\times\text{sampled}
 $$</p>
-<h3 id="33-paired-training-delta">3.3 Paired training delta<a class="headerlink" href="#33-paired-training-delta" title="Permanent link">&para;</a></h3>
-<p>$$
-\Delta T = T_{\text{instrumented}} - T_{\text{baseline}}, \quad T_{\text{inst_med}} = \text{median}(T_{\text{baseline}}) + \text{median}(\Delta T)
-$$</p>
-<h3 id="34-nccl-latency-delta">3.4 NCCL latency delta<a class="headerlink" href="#34-nccl-latency-delta" title="Permanent link">&para;</a></h3>
-<p>$$
-\text{pct_delta}(ref, x) = 100 \times \frac{x - ref}{ref}
-$$</p>
-<p>Positive means the profiled mode is slower.</p>
-<hr />
-<h2 id="4-in-run-measurement-torchprobe-shadow-step">4. In-run measurement: TorchProbe shadow step<a class="headerlink" href="#4-in-run-measurement-torchprobe-shadow-step" title="Permanent link">&para;</a></h2>
-<h3 id="41-mechanism">4.1 Mechanism<a class="headerlink" href="#41-mechanism" title="Permanent link">&para;</a></h3>
-<p>With <code>PROBING_TORCH_PROFILING=on</code> (default includes <code>shadow=4:1</code>), each optimizer step writes one row to <code>python.torch_step_timing</code>.</p>
-<p><strong>Shadow detection</strong> (<code>shadow_step_in_cycle</code>):</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>cycle_len = shadow_normal + shadow_baseline   # default 4 + 1 = 5
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>is_shadow = (cycle_index % cycle_len) &gt;= shadow_normal
-</span></code></pre></div>
-<p>Indices 0–3 are probed; index 4 is shadow (default cadence).</p>
-<h3 id="42-timing-window-step_duration_sec">4.2 Timing window (<code>step_duration_sec</code>)<a class="headerlink" href="#42-timing-window-step_duration_sec" title="Permanent link">&para;</a></h3>
-<p>Uses <code>time.perf_counter()</code> wall clock — <strong>not</strong> GPU kernel time.</p>
-<p><strong>Boundaries</strong>:</p>
-<ul>
-<li><strong>Start</strong>: <code>_mark_step_wall_start()</code> at the end of the previous step’s <code>post_step_hook</code></li>
-<li><strong>End</strong>: <code>_record_step_timing()</code> inside the current step’s <code>post_step_hook</code> (<strong>before</strong> <code>_drain_deferred()</code>)</li>
-</ul>
-<p>So <code>step_duration_sec</code> covers <strong>full step compute (forward/backward/opt) plus in-step hook teardown</strong> (including same-step trace flush on sampled steps). It <strong>excludes</strong> deferred GPU <code>elapsed_time</code> drain from earlier sampled steps (drain runs after timing, before the next <code>_mark_step_wall_start()</code>).</p>
-<p><strong>vs <code>train.step</code> span</strong>: from <code>python.trace_event</code>, measures the wrapped compute interval only — <strong>excludes</strong> hook dispatch and persistence. The Web UI shows both; do not compare numbers directly.</p>
-<h3 id="43-hook-behavior-by-step-type">4.3 Hook behavior by step type<a class="headerlink" href="#43-hook-behavior-by-step-type" title="Permanent link">&para;</a></h3>
+<p>This must not become <code>mean(probed)/mean(shadow)</code>: the probed set mixes light and heavy paths, while
+the smaller shadow set is sensitive to long-tail steps. Historical <code>hook_tax</code> uses all probed-step
+medians and remains only for compatibility and as a conservative upper bound.</p>
+<h2 id="4-when-the-measurement-is-trustworthy">4. When the measurement is trustworthy<a class="headerlink" href="#4-when-the-measurement-is-trustworthy" title="Permanent link">&para;</a></h2>
+<p>The Web UI and diagnostic skills use the latest 80 steps, covering several shadow cycles without
+retaining distant cold-start noise. With <code>shadow_n &lt; 5</code> or <code>dispatch_n &lt; 16</code>, the result remains a
+collecting or low-confidence estimate and cannot trigger a stable alert. With <code>shadow=off</code>, the
+denominator does not exist and in-run overhead percentage is undefined. Absolute values below
+<code>0.5%</code> render as <code>≈0%</code> rather than turning timer resolution and natural jitter into false precision.</p>
+<p>Noise is handled by source separation. Sampled heavy steps do not enter dispatch; rolling medians
+suppress step spikes; discovery, JIT, and cache warmup stay outside the stable window; deferred
+drain occurs after timing; and each rank computes its stratified metrics before cross-rank
+comparison rather than mixing different workloads into one mean.</p>
+<p><code>nccl.profiler_counters</code>, queue saturation, and write failures describe evidence integrity, not an
+overhead percentage. When events are absent, a diagnosis must exclude a collection gap before
+claiming there was no additional cost.</p>
+<h2 id="5-why-offline-validation-remains-necessary">5. Why offline validation remains necessary<a class="headerlink" href="#5-why-offline-validation-remains-necessary" title="Permanent link">&para;</a></h2>
+<p>In-run measurement matches production workload but sees only TorchProbe relative to shadow. The
+offline benchmark therefore has three layers: tracing isolates span-stack and persistence cost;
+synthetic TorchProbe validates hook and sampling state transitions; TinyNet uses back-to-back paired
+deltas to validate real forward/backward/optimizer composition. These are not three product
+metrics, but a chain of evidence that narrows a regression from end to end toward a component.</p>
+<p>NCCL follows a separate chain. Baseline and profiled runs use the same message size, warmup, and
+synchronization boundary and compare collective latency and throughput. Criterion measures only
+callback, slot-pool, and clock-read components and cannot replace collective E2E results.</p>
+<p>The repository's 5% diagnostic warning, 75% soak bound, and component ratio gates serve different
+layers. They are not one performance SLO and do not replace release calibration on the target model
+and hardware.</p>
+<h2 id="change-invariants">6. Invariants for changes<a class="headerlink" href="#change-invariants" title="Permanent link">&para;</a></h2>
+<p>This table is a change-safety contract, not a second overhead model.</p>
 <table>
 <thead>
 <tr>
-<th>Type</th>
-<th>Module hooks</th>
-<th>Writes torch_trace</th>
-<th>Timing row</th>
+<th>Invariant</th>
+<th>Required behavior</th>
+<th>Guard</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>discovery (first step)</td>
-<td>register modules</td>
-<td>no</td>
-<td>special path</td>
-</tr>
-<tr>
-<td>probed, not sampled</td>
-<td>short-circuit</td>
-<td>no</td>
-<td><code>is_shadow=0, sampled=0</code></td>
-</tr>
-<tr>
-<td>probed, sampled</td>
-<td>full path</td>
-<td>yes</td>
-<td><code>is_shadow=0, sampled=1</code></td>
-</tr>
-<tr>
-<td>shadow</td>
-<td>immediate return</td>
-<td>no</td>
-<td><code>is_shadow=1</code></td>
-</tr>
-</tbody>
-</table>
-<p><code>hook_tax</code> blends sampled and non-sampled probed steps. <strong><code>dispatch_overhead</code></strong> (<code>sampled=0</code> only) is the stable primary metric. <code>sampled_overhead</code> is the heavy path.</p>
-<hr />
-<h2 id="5-metric-catalog">5. Metric catalog<a class="headerlink" href="#5-metric-catalog" title="Permanent link">&para;</a></h2>
-<h3 id="51-in-run-metrics">5.1 In-run metrics<a class="headerlink" href="#51-in-run-metrics" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Metric</th>
-<th>Numerator</th>
-<th>Denominator</th>
-<th>Aggregate</th>
-<th>Window</th>
-<th>Consumer</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>dispatch_overhead_pct</strong></td>
-<td>probed &amp; <code>sampled=0</code></td>
-<td>shadow</td>
-<td><strong>median</strong></td>
-<td>rolling <strong>80</strong> steps</td>
-<td><strong>primary alert</strong></td>
-</tr>
-<tr>
-<td><strong>hook_tax_pct</strong></td>
-<td>all probed</td>
-<td>shadow</td>
-<td><strong>median</strong></td>
-<td>rolling <strong>80</strong> steps</td>
-<td>blended / soak</td>
-</tr>
-<tr>
-<td><strong>sampled_overhead_pct</strong></td>
-<td>probed &amp; <code>sampled=1</code></td>
-<td>shadow</td>
-<td><strong>median</strong></td>
-<td>rolling <strong>80</strong> steps</td>
-<td>Web</td>
-</tr>
-<tr>
-<td><strong>Dispatch (Web)</strong></td>
-<td><code>sampled=0</code> probed</td>
-<td>shadow</td>
-<td><strong>median</strong></td>
-<td>last <strong>80</strong> steps</td>
-<td>Web sidebar / panel</td>
-</tr>
-<tr>
-<td><strong>Total overhead (Web)</strong></td>
-<td>dispatch + sampled weighted by sample rate</td>
-<td>—</td>
-<td><strong>weighted %</strong></td>
-<td>last 80 steps</td>
-<td>amortized display</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Reference SQL</strong> (rolling window + stratified metrics):</p>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">WITH</span><span class="w"> </span><span class="n">bounds</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="k">SELECT</span><span class="w"> </span><span class="n">GREATEST</span><span class="p">(</span><span class="k">COALESCE</span><span class="p">(</span><span class="k">MAX</span><span class="p">(</span><span class="n">local_step</span><span class="p">),</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">80</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">win_start</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_step_timing</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="p">)</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">SELECT</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="n">round</span><span class="p">((</span><span class="n">median</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">sampled</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">step_duration_sec</span><span class="w"> </span><span class="k">END</span><span class="p">)</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">        </span><span class="o">/</span><span class="w"> </span><span class="k">nullif</span><span class="p">(</span><span class="n">median</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">step_duration_sec</span><span class="w"> </span><span class="k">END</span><span class="p">),</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="k">AS</span><span class="w"> </span><span class="n">dispatch_overhead_pct</span><span class="p">,</span>
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span><span class="n">round</span><span class="p">((</span><span class="n">median</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">step_duration_sec</span><span class="w"> </span><span class="k">END</span><span class="p">)</span>
-</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">        </span><span class="o">/</span><span class="w"> </span><span class="k">nullif</span><span class="p">(</span><span class="n">median</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">step_duration_sec</span><span class="w"> </span><span class="k">END</span><span class="p">),</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span>
-</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">    </span><span class="k">AS</span><span class="w"> </span><span class="n">hook_tax_pct</span><span class="p">,</span>
-</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">  </span><span class="k">sum</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">sampled</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">ELSE</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">END</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">dispatch_n</span><span class="p">,</span>
-</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">  </span><span class="k">sum</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">ELSE</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">END</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">shadow_n</span>
-</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_step_timing</span><span class="p">,</span><span class="w"> </span><span class="n">bounds</span>
-</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">local_step</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">bounds</span><span class="p">.</span><span class="n">win_start</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">local_step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
-</span></code></pre></div>
-<p><strong>Display</strong> (Web): $|\text{pct}| &lt; 0.5$ → <code>≈0%</code>; treat as stable when <code>shadow_n ≥ 5</code> and <code>dispatch_n ≥ 16</code> (§5.2, §11).</p>
-<h3 id="52-sample-size">5.2 Sample size<a class="headerlink" href="#52-sample-size" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Condition</th>
-<th>Behavior</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>shadow_baseline = 0</code> (<code>shadow=off</code>)</td>
-<td>overhead % undefined</td>
-</tr>
-<tr>
-<td><code>shadow_n &lt; 5</code></td>
-<td>low-sample hint; % is indicative only</td>
-</tr>
-<tr>
-<td><code>dispatch_n &lt; 16</code></td>
-<td>high variance on dispatch overhead</td>
-</tr>
-<tr>
-<td><code>probed_n = 0</code> or <code>shadow_n = 0</code></td>
-<td>soak skips ratio assertion</td>
-</tr>
-</tbody>
-</table>
-<h3 id="53-auxiliary-metrics">5.3 Auxiliary metrics<a class="headerlink" href="#53-auxiliary-metrics" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Metric</th>
-<th>Source</th>
-<th>Purpose</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>train_step_median_ms</code></td>
-<td><code>median(span_end - span_start)</code> for <code>train.step</code></td>
-<td>compute-only reference</td>
-</tr>
-<tr>
-<td><code>nccl.profiler_counters</code></td>
-<td>latest row</td>
-<td>data health, not overhead %</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="6-offline-benchmark-make-bench">6. Offline benchmark: <code>make bench</code><a class="headerlink" href="#6-offline-benchmark-make-bench" title="Permanent link">&para;</a></h2>
-<p>Script: <code>examples/overhead/bench_instrumentation.py</code>. Run inside a <strong>probing-injected</strong> process:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>bench
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>bench-quick
-</span></code></pre></div>
-<h3 id="61-parameters">6.1 Parameters<a class="headerlink" href="#61-parameters" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Parameter</th>
-<th>full</th>
-<th><code>--quick</code></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>span_iters</td>
-<td>300</td>
-<td>80</td>
-</tr>
-<tr>
-<td>probe_steps</td>
-<td>40</td>
-<td>12</td>
-</tr>
-<tr>
-<td>train batches</td>
-<td>30</td>
-<td>8</td>
-</tr>
-<tr>
-<td>warmup (outer rounds)</td>
-<td>2</td>
-<td>1</td>
-</tr>
-<tr>
-<td>runs (outer rounds)</td>
-<td>5</td>
-<td>3</td>
-</tr>
-</tbody>
-</table>
-<h3 id="62-three-layers">6.2 Three layers<a class="headerlink" href="#62-three-layers" title="Permanent link">&para;</a></h3>
-<p><strong>A — tracing</strong>: median total wall time per scenario; <code>vs_baseline_pct</code> vs <code>span (no backend)</code>.</p>
-<p><strong>B — torch_probe (synthetic)</strong>: fake single module; median per-step timing; <code>hook_tax_pct</code> on <code>shadow=4:1</code> uses §3.1. Not representative of large production models.</p>
-<p><strong>C — torch_train (TinyNet)</strong>: paired back-to-back baseline vs instrumented; reports <code>paired_delta_ms</code> and <code>inst_med</code>.</p>
-<h3 id="63-json-export">6.3 JSON export<a class="headerlink" href="#63-json-export" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>python<span class="w"> </span>examples/overhead/bench_instrumentation.py<span class="w"> </span>--json-out<span class="w"> </span>/tmp/bench.json
-</span></code></pre></div>
-<hr />
-<h2 id="7-nccl-profiler-overhead-offline-only">7. NCCL profiler overhead (offline only)<a class="headerlink" href="#7-nccl-profiler-overhead-offline-only" title="Permanent link">&para;</a></h2>
-<p>No in-run shadow. Runtime health: <code>nccl.profiler_counters</code>.</p>
-<p>E2E: <code>examples/overhead/nccl_profiler_overhead.py</code>, <code>examples/overhead/run_nccl_bench.sh</code>. Baseline vs plugin + <code>PROBING=2</code>. Compare with §3.4 on latency and throughput.</p>
-<p>Micro: <code>probing/extensions/nccl-profiler/benches/callback_path.rs</code> (Criterion) — component-level only.</p>
-<hr />
-<h2 id="8-other-subsystems">8. Other subsystems<a class="headerlink" href="#8-other-subsystems" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Subsystem</th>
-<th>Method</th>
-<th>Threshold</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Span + memtable</td>
-<td><code>tests/regression/profiling/test_span_overhead.py</code></td>
-<td><code>T_on &lt; T_off × 8 + 0.05s</code></td>
-</tr>
-<tr>
-<td>TorchProbe module spans</td>
-<td>same</td>
-<td><code>med_on &lt; med_off × 6 + 0.02s</code></td>
-</tr>
-<tr>
-<td>memtable writes</td>
-<td><code>probing bench write</code></td>
-<td>throughput / latency</td>
-</tr>
-<tr>
-<td>pprof</td>
-<td><code>probing.pprof.sample_freq</code></td>
-<td>qualitative</td>
-</tr>
-</tbody>
-</table>
-<p>Isolate stack cost: <code>PROBING_SPAN_BACKENDS=none</code>.</p>
-<hr />
-<h2 id="9-gates-current-repo">9. Gates (current repo)<a class="headerlink" href="#9-gates-current-repo" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Gate</th>
-<th>Condition</th>
-<th>Location</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>diagnostic warning</td>
-<td><code>dispatch_overhead_pct &gt; 5%</code></td>
-<td><code>health_overview</code></td>
-</tr>
-<tr>
-<td>soak failure</td>
-<td><code>hook_tax_pct &gt; 75%</code> default</td>
-<td><code>soak_assert.py</code></td>
-</tr>
-<tr>
-<td>CI regression</td>
-<td>span ratio bounds</td>
-<td><code>test_span_overhead.py</code></td>
-</tr>
-</tbody>
-</table>
-<p>5%, 75%, and 8× serve different purposes — not a single SLO.</p>
-<hr />
-<h2 id="10-known-biases">10. Known biases<a class="headerlink" href="#10-known-biases" title="Permanent link">&para;</a></h2>
-<ol>
-<li>Shadow is not vacuum — other collectors still run.</li>
-<li>Sampled steps may include GPU defer/sync in wall time.</li>
-<li>Web uses 80-step window; skills use full history.</li>
-<li>Synthetic bench ≠ production.</li>
-<li>Filter <code>local_step &gt; 1</code> to skip discovery.</li>
-</ol>
-<hr />
-<h2 id="11-anti-noise-and-stability">11. Anti-noise and stability<a class="headerlink" href="#11-anti-noise-and-stability" title="Permanent link">&para;</a></h2>
-<h3 id="111-noise-sources">11.1 Noise sources<a class="headerlink" href="#111-noise-sources" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Source</th>
-<th>Mitigation</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Sampled steps mixed into hook tax</td>
-<td>Use <strong><code>dispatch_overhead</code></strong> (<code>sampled=0</code>) as primary</td>
-</tr>
-<tr>
-<td>Step-time jitter (data, collectives)</td>
-<td><strong>median</strong> + 80-step rolling window</td>
-</tr>
-<tr>
-<td>Few shadow points</td>
-<td>Require <code>shadow_n ≥ 5</code>; prefer long runs</td>
-</tr>
-<tr>
-<td>Cold start / discovery</td>
-<td><code>local_step &gt; 1</code>; offline warmup</td>
-</tr>
-<tr>
-<td>Blended aggregation</td>
-<td>Report dispatch / sampled / blended separately</td>
-</tr>
-<tr>
-<td>Deferred drain blocks hook</td>
-<td>After timing: async worker (<code>PROBING_TORCH_DEFER_ASYNC=1</code>, default) + bounded queue; sync fallback when full</td>
-</tr>
-</tbody>
-</table>
-<h3 id="1121-async-deferred-drain">11.2.1 Async deferred drain<a class="headerlink" href="#1121-async-deferred-drain" title="Permanent link">&para;</a></h3>
-<p>Ready <code>DelayedRecord</code> items are enqueued after <code>_record_step_timing</code>; a daemon thread runs <code>elapsed_time</code> + <code>save()</code>. Set <code>PROBING_TORCH_DEFER_ASYNC=0</code> for synchronous drain (tests). Queue size: <code>PROBING_TORCH_DEFER_QUEUE_SIZE</code> (default 4096). <code>atexit</code> flushes the queue; tests may call <code>flush_deferred_drain()</code>.</p>
-<h3 id="112-principles">11.2 Principles<a class="headerlink" href="#112-principles" title="Permanent link">&para;</a></h3>
-<ol>
-<li><strong>Stratify</strong> light (dispatch) vs heavy (sampled) paths.</li>
-<li><strong>Robust aggregates</strong>: median for alerts; amortized uses sample-rate-weighted blend, not <code>mean(probed)/mean(shadow)</code>.</li>
-<li><strong>Aligned window</strong>: Web and <code>health_overview</code> use <strong>80 steps</strong>.</li>
-<li><strong>Paired offline bench</strong> for torch_train layer.</li>
-<li><strong>Explicit gates</strong>: no alert until <code>shadow_n ≥ 5</code> and <code>dispatch_n ≥ 16</code>.</li>
-</ol>
-<h3 id="113-metric-pick-list">11.3 Metric pick list<a class="headerlink" href="#113-metric-pick-list" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Goal</th>
-<th>Metric</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Daily alert / sidebar</td>
-<td><code>dispatch_overhead_pct</code></td>
-</tr>
-<tr>
-<td>Sampling cost</td>
-<td><code>sampled_overhead_pct</code></td>
-</tr>
-<tr>
-<td>Legacy / soak</td>
-<td><code>hook_tax_pct</code> (blended, conservative)</td>
-</tr>
-</tbody>
-</table>
-<h3 id="114-tuning">11.4 Tuning<a class="headerlink" href="#114-tuning" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span>on,shadow<span class="o">=</span><span class="m">8</span>:2,rate<span class="o">=</span><span class="m">0</span>.05<span class="w">   </span><span class="c1"># more shadow points per window</span>
-</span></code></pre></div>
-<h3 id="115-future-work">11.5 Future work<a class="headerlink" href="#115-future-work" title="Permanent link">&para;</a></h3>
-<p>Trimmed mean, per-cadence aggregation, EWMA sidebar, confidence bands, NCCL in-run shadow.</p>
-<hr />
-<h2 id="12-operations">12. Operations<a class="headerlink" href="#12-operations" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span>on<span class="w"> </span>python<span class="w"> </span>train.py
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>python<span class="w"> </span>examples/overhead/torch_probe_overhead_smoke.py
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>bench-quick
-</span></code></pre></div>
-<p>Reduce overhead: lower <code>rate</code> / <code>layer_rate</code>; disable <code>trace_spans</code>, <code>sync=on</code>, <code>backward=on</code>; use <code>shadow=off</code> only when in-run estimates are not needed.</p>
-<hr />
-<h2 id="13-implementation-index">13. Implementation index<a class="headerlink" href="#13-implementation-index" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Component</th>
-<th>Path</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Shadow + timing</td>
-<td><code>python/probing/profiling/torch_probe.py</code></td>
-</tr>
-<tr>
-<td>Offline bench</td>
-<td><code>examples/overhead/bench_instrumentation.py</code></td>
-</tr>
-<tr>
-<td>Web SQL</td>
-<td><code>web/src/overhead/sql.rs</code></td>
-</tr>
-<tr>
-<td>Web formatting</td>
+<td>Primary percentage</td>
+<td>median dispatch/shadow ratio; never <code>mean(probed)/mean(shadow)</code></td>
 <td><code>web/src/overhead/metrics.rs</code></td>
 </tr>
 <tr>
-<td>Skill SQL</td>
-<td><code>skills/health_overview/steps.yaml</code></td>
+<td>Amortized overhead</td>
+<td><code>(1-rate)×dispatch + rate×sampled</code></td>
+<td><code>amortized_blends_dispatch_and_sampled_by_rate</code></td>
 </tr>
 <tr>
-<td>soak</td>
-<td><code>examples/imagenet/soak_assert.py</code></td>
+<td>Hook order</td>
+<td><code>_record_step_timing()</code> → <code>_drain_deferred()</code> → advance → <code>_mark_step_wall_start()</code></td>
+<td>Python overhead/sampling regression tests</td>
 </tr>
 <tr>
-<td>NCCL E2E</td>
-<td><code>examples/overhead/nccl_profiler_overhead.py</code></td>
+<td>Async drain</td>
+<td><code>PROBING_TORCH_DEFER_ASYNC=1</code> default; bounded queue, sync fallback, exit flush</td>
+<td><code>test_deferred_drain_worker.py</code></td>
+</tr>
+<tr>
+<td>Stability</td>
+<td>stable only when <code>shadow_n ≥ 5</code> and <code>dispatch_n ≥ 16</code></td>
+<td>Web metrics and <code>health_overview</code></td>
+</tr>
+<tr>
+<td>UI meaning</td>
+<td>Typical=dispatch; Effective=rate-weighted; <code>abs(pct)&lt;0.5%</code> renders <code>≈0%</code></td>
+<td>Web formatting/copy tests</td>
 </tr>
 </tbody>
 </table>
-<hr />
-<h2 id="related-docs">Related docs<a class="headerlink" href="#related-docs" title="Permanent link">&para;</a></h2>
+<p>After changing formulas, hook order, or async-drain defaults, run:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">cd</span><span class="w"> </span>web<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>cargo<span class="w"> </span><span class="nb">test</span><span class="w"> </span>overhead
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">0</span><span class="w"> </span>pytest<span class="w"> </span>tests/regression/profiling/test_overhead_invariants.py<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span>tests/regression/profiling/test_torch_probe_sampling.py<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span>tests/regression/profiling/test_deferred_drain_worker.py<span class="w"> </span>-q
+</span></code></pre></div>
+<h2 id="related-documentation">Related documentation<a class="headerlink" href="#related-documentation" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../profiling/">Profiling</a></li>
-<li><a href="../tracing-spans/">Tracing spans</a></li>
-<li><a href="../nccl-profiler/">NCCL Profiler</a></li>
-<li><a href="../../guide/troubleshooting/">Troubleshooting — High Overhead</a></li>
+<li><a href="../profiling/">Profiling architecture</a></li>
+<li><a href="../data-layer/">Data layer</a></li>
+<li><a href="../nccl-profiler/">NCCL Profiler architecture</a></li>
+<li><a href="../../reference/sql-tables/">SQL table reference</a></li>
 </ul>
 
 

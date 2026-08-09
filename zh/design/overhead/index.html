@@ -13,10 +13,10 @@
         <link rel="canonical" href="https://github.com/DeepLink-org/probing/zh/design/overhead/">
       
       
-        <link rel="prev" href="../torch-profiler-sql/">
+        <link rel="prev" href="../nccl-profiler/">
       
       
-        <link rel="next" href="../overhead-invariants/">
+        <link rel="next" href="../distributed/">
       
       
         
@@ -88,7 +88,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#overhead" class="md-skip">
+        <a href="#_1" class="md-skip">
           跳转至
         </a>
       
@@ -394,17 +394,20 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="../../contributing/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/" class="md-tabs__link">
+          
   
   
     
   
   贡献指南
 
-      </a>
-    </li>
+        </a>
+      </li>
+    
   
 
       
@@ -906,8 +909,6 @@
       
         
       
-        
-      
     
     
     
@@ -1008,7 +1009,7 @@
   <span class="md-ellipsis">
     
   
-    平台核心
+    基础架构
   
 
     
@@ -1024,7 +1025,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    平台核心
+    基础架构
   
 
           </label>
@@ -1045,6 +1046,34 @@
     
   
     模块化与边界
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../activation-injection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    启用、注入与运行时控制
   
 
     
@@ -1114,34 +1143,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CLI 命令树
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -1160,14 +1161,6 @@
   
     
     
-      
-        
-      
-        
-      
-        
-      
-        
       
         
       
@@ -1237,7 +1230,7 @@
   <span class="md-ellipsis">
     
   
-    性能分析
+    性能分析与 Tracing
   
 
     
@@ -1258,14 +1251,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../torch-profiler-sql/" class="md-nav__link">
+      <a href="../nccl-profiler/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Torch Profiler SQL（Kineto 虚拟表）
+    NCCL Profiler
   
 
     
@@ -1349,49 +1342,10 @@
   <a href="#1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. 目标与范围
+        1. 成本如何被拆开
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="1. 目标与范围">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        要回答的问题
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_2" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        明确不衡量
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#probing-bench-cli" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        与 probing bench CLI 的区别
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -1399,7 +1353,7 @@
   <a href="#2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2. 术语表
+        2. 控制路径为什么这样组织
       
     </span>
   </a>
@@ -1410,110 +1364,21 @@
   <a href="#3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3. 通用公式
+        3. 计时边界与统计语义
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="3. 通用公式">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#31-overhead" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.1 相对 overhead（比值法）
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#32-baseline-ab" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.2 相对 baseline（离线 A/B）
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#33-paired" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.3 绝对增量（paired 训练基准）
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#34-nccl" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.4 NCCL 延迟增量
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#4-torchprobe-shadow-step" class="md-nav__link">
+  <a href="#4" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4. 运行时测量：TorchProbe Shadow Step
+        4. 什么时候测量可信
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="4. 运行时测量：TorchProbe Shadow Step">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#41" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4.1 机制
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#42-step_duration_sec" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4.2 计时窗口（step_duration_sec）
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#43-step-hook" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4.3 各 step 类型下 hook 行为
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -1521,185 +1386,7 @@
   <a href="#5" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5. 指标目录
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="5. 指标目录">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#51-in-run" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        5.1 In-run 指标
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#52" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        5.2 样本量与可信度
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#53" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        5.3 辅助指标
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#6-make-bench" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6. 离线基准：make bench
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="6. 离线基准：make bench">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#61" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6.1 参数
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#62" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6.2 三层测量
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="6.2 三层测量">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#a-tracing" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        层 A — tracing
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#b-torch_probe" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        层 B — torch_probe（合成）
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#c-torch_traintinynet" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        层 C — torch_train（TinyNet）
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#63-json" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6.3 JSON 导出
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#7-nccl-profiler-overhead" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        7. NCCL Profiler Overhead（仅离线）
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="7. NCCL Profiler Overhead（仅离线）">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#71-e2e-allreduce-allgather" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        7.1 E2E AllReduce / AllGather
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#72-rust-criterion" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        7.2 微基准（Rust Criterion）
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#8" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        8. 其他子系统
+        5. 离线验证为什么仍然必要
       
     </span>
   </a>
@@ -1707,10 +1394,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#9" class="md-nav__link">
+  <a href="#change-invariants" class="md-nav__link">
     <span class="md-ellipsis">
       
-        9. 阈值与门禁（当前仓库）
+        6. 修改时必须保持的不变量
       
     </span>
   </a>
@@ -1718,162 +1405,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#10" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        10. 已知偏差与解释
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#11" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11. 抗噪声与稳定性
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="11. 抗噪声与稳定性">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#111" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11.1 噪声来源
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#1121-deferred" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11.2.1 异步 deferred 回收（中期）
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#112" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11.2 稳定性设计原则
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#113" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11.3 指标选用指南
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#114" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11.4 调参建议（提高稳定性）
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#115" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11.5 未来增强（未实现）
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#12" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        12. 操作指南
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="12. 操作指南">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#in-run-overhead" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        启用 in-run overhead
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_3" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        降低开销（优先级）
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_4" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        快速冒烟
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#13" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        13. 实现索引
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
+  <a href="#_2" class="md-nav__link">
     <span class="md-ellipsis">
       
         相关文档
@@ -1887,118 +1419,6 @@
   
 </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../overhead-invariants/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overhead invariants
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../nccl-profiler/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    NCCL Profiler
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../debugging/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    调试引擎
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../training-phase/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    训练阶段
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -2020,10 +1440,6 @@
   
     
     
-      
-        
-      
-        
       
         
       
@@ -2057,7 +1473,7 @@
   <span class="md-ellipsis">
     
   
-    分布式
+    分布式查询与分析
   
 
     
@@ -2073,7 +1489,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    分布式
+    分布式查询与分析
   
 
           </label>
@@ -2093,35 +1509,7 @@
   <span class="md-ellipsis">
     
   
-    概览
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../torchrun-cluster/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    torchrun 集群心跳
+    分布式成员与控制面
   
 
     
@@ -2170,42 +1558,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../hierarchical-fanout/" class="md-nav__link">
+      <a href="../distributed-profiler/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    分层集群查询
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../cluster-pulsing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    基于 Pulsing 的集群
+    分布式 Profiler 查询与可视化
   
 
     
@@ -2222,34 +1582,6 @@
           </ul>
         </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    系统架构（旧版）
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -2686,6 +2018,64 @@
   
   
   
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    贡献指南
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    贡献指南
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../../contributing/" class="md-nav__link">
         
@@ -2703,6 +2093,42 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../writing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    文档写作规范
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2737,49 +2163,10 @@
   <a href="#1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. 目标与范围
+        1. 成本如何被拆开
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="1. 目标与范围">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        要回答的问题
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_2" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        明确不衡量
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#probing-bench-cli" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        与 probing bench CLI 的区别
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -2787,7 +2174,7 @@
   <a href="#2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2. 术语表
+        2. 控制路径为什么这样组织
       
     </span>
   </a>
@@ -2798,110 +2185,21 @@
   <a href="#3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3. 通用公式
+        3. 计时边界与统计语义
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="3. 通用公式">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#31-overhead" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.1 相对 overhead（比值法）
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#32-baseline-ab" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.2 相对 baseline（离线 A/B）
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#33-paired" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.3 绝对增量（paired 训练基准）
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#34-nccl" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3.4 NCCL 延迟增量
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#4-torchprobe-shadow-step" class="md-nav__link">
+  <a href="#4" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4. 运行时测量：TorchProbe Shadow Step
+        4. 什么时候测量可信
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="4. 运行时测量：TorchProbe Shadow Step">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#41" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4.1 机制
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#42-step_duration_sec" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4.2 计时窗口（step_duration_sec）
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#43-step-hook" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4.3 各 step 类型下 hook 行为
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -2909,185 +2207,7 @@
   <a href="#5" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5. 指标目录
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="5. 指标目录">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#51-in-run" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        5.1 In-run 指标
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#52" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        5.2 样本量与可信度
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#53" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        5.3 辅助指标
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#6-make-bench" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6. 离线基准：make bench
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="6. 离线基准：make bench">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#61" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6.1 参数
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#62" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6.2 三层测量
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="6.2 三层测量">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#a-tracing" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        层 A — tracing
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#b-torch_probe" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        层 B — torch_probe（合成）
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#c-torch_traintinynet" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        层 C — torch_train（TinyNet）
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#63-json" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6.3 JSON 导出
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#7-nccl-profiler-overhead" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        7. NCCL Profiler Overhead（仅离线）
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="7. NCCL Profiler Overhead（仅离线）">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#71-e2e-allreduce-allgather" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        7.1 E2E AllReduce / AllGather
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#72-rust-criterion" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        7.2 微基准（Rust Criterion）
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#8" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        8. 其他子系统
+        5. 离线验证为什么仍然必要
       
     </span>
   </a>
@@ -3095,10 +2215,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#9" class="md-nav__link">
+  <a href="#change-invariants" class="md-nav__link">
     <span class="md-ellipsis">
       
-        9. 阈值与门禁（当前仓库）
+        6. 修改时必须保持的不变量
       
     </span>
   </a>
@@ -3106,162 +2226,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#10" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        10. 已知偏差与解释
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#11" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11. 抗噪声与稳定性
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="11. 抗噪声与稳定性">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#111" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11.1 噪声来源
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#1121-deferred" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11.2.1 异步 deferred 回收（中期）
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#112" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11.2 稳定性设计原则
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#113" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11.3 指标选用指南
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#114" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11.4 调参建议（提高稳定性）
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#115" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11.5 未来增强（未实现）
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#12" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        12. 操作指南
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="12. 操作指南">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#in-run-overhead" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        启用 in-run overhead
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_3" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        降低开销（优先级）
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_4" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        快速冒烟
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#13" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        13. 实现索引
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
+  <a href="#_2" class="md-nav__link">
     <span class="md-ellipsis">
       
         相关文档
@@ -3291,772 +2256,129 @@
   
 
 
-<h1 id="overhead">Overhead 测量与公式定义<a class="headerlink" href="#overhead" title="Permanent link">&para;</a></h1>
-<p>本文是 Probing <strong>instrumentation overhead</strong> 的顶层设计文档：统一术语、公式、测量边界与离线/在线基准方法。实现细节见 <a href="../profiling/">性能分析</a>；表字段见 <a href="../../reference/sql-tables/#python-torch_step_timing">SQL 表 — torch_step_timing</a>。</p>
-<p><strong>不可变语义与回归测试</strong>（修改公式 / hook 顺序前必读）：<a href="../overhead-invariants/">overhead-invariants.zh.md</a>。</p>
-<h2 id="1">1. 目标与范围<a class="headerlink" href="#1" title="Permanent link">&para;</a></h2>
-<h3 id="_1">要回答的问题<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>问题</th>
-<th>典型场景</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>TorchProbe 模块 hook 让每步慢多少？</td>
-<td>生产训练、<code>health_overview</code>、Web Overhead 面板</td>
-</tr>
-<tr>
-<td>Span / memtable 持久化成本？</td>
-<td><code>make bench</code> tracing 层、回归测试</td>
-</tr>
-<tr>
-<td>真实 TinyNet 训练上的端到端增量？</td>
-<td><code>make bench</code> torch_train 层</td>
-</tr>
-<tr>
-<td>NCCL profiler 对 collective 延迟的影响？</td>
-<td><code>run_nccl_profiler_bench.sh</code>（离线）</td>
-</tr>
-</tbody>
-</table>
-<h3 id="_2">明确不衡量<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>业务吞吐 SLO</strong>（tokens/s、收敛速度）——需用户自有 baseline job 对比</li>
-<li><strong>NCCL collective 本身的执行时间</strong>（那是训练逻辑，不是探针税）</li>
-<li><strong>shadow step 上的「纯 PyTorch」</strong>——shadow 仍运行 NCCL/CPU/GPU 等其他采集器</li>
-</ul>
-<h3 id="probing-bench-cli">与 <code>probing bench</code> CLI 的区别<a class="headerlink" href="#probing-bench-cli" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>入口</th>
-<th>测量对象</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>make bench</code> → <code>examples/overhead/bench_instrumentation.py</code></td>
-<td>Python/Rust <strong>instrumentation</strong> 墙钟开销</td>
-</tr>
-<tr>
-<td><code>probing bench write</code>（隐藏 CLI）</td>
-<td>memtable <strong>写路径吞吐/延迟</strong>，不是训练 hook 税</td>
-</tr>
-</tbody>
-</table>
-<p>二者不可互换。</p>
-<hr />
-<h2 id="2">2. 术语表<a class="headerlink" href="#2" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>术语</th>
-<th>定义</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>probed step</strong></td>
-<td><code>python.torch_step_timing.is_shadow = 0</code> 的正常训练步；TorchProbe 模块 hook 按配置执行（shadow 步除外）</td>
-</tr>
-<tr>
-<td><strong>shadow step</strong></td>
-<td><code>is_shadow = 1</code> 的基线步；模块/optimizer hook <strong>立即返回</strong>，不写 <code>python.torch_trace</code>，但仍写 timing 行</td>
-</tr>
-<tr>
-<td><strong>shadow cadence</strong></td>
-<td>默认 <code>4:1</code>：每 5 个 optimizer step 中 4 个 probed、1 个 shadow（<code>shadow=4:1</code>）</td>
-</tr>
-<tr>
-<td><strong>sampled step</strong></td>
-<td>probed 且 <code>sampled = 1</code>：该步会 flush module 级 trace（可能含 GPU defer/sync）</td>
-</tr>
-<tr>
-<td><strong>hook tax（混合）</strong></td>
-<td>中位数口径：全部 probed step（含采样+非采样）相对 shadow</td>
-</tr>
-<tr>
-<td><strong>dispatch overhead</strong></td>
-<td>中位数口径：仅 <code>sampled=0</code> 的 probed step 相对 shadow</td>
-</tr>
-<tr>
-<td><strong>sampled overhead</strong></td>
-<td>中位数口径：仅 sampled probed step 相对 shadow</td>
-</tr>
-<tr>
-<td><strong>total overhead（摊销）</strong></td>
-<td>加权口径：<code>(1−rate)×dispatch_overhead + rate×sampled_overhead</code>（Web UI）</td>
-</tr>
-<tr>
-<td><strong>in-run</strong></td>
-<td>训练进程内，靠 <code>python.torch_step_timing</code> 持续对比</td>
-</tr>
-<tr>
-<td><strong>offline</strong></td>
-<td>独立基准脚本，A/B 或 paired 对比</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="3">3. 通用公式<a class="headerlink" href="#3" title="Permanent link">&para;</a></h2>
-<h3 id="31-overhead">3.1 相对 overhead（比值法）<a class="headerlink" href="#31-overhead" title="Permanent link">&para;</a></h3>
-<p>适用于 TorchProbe in-run 与多数离线场景：</p>
+<h1 id="_1">开销控制与测量架构<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
+<p>观测开销不是采集器运行时间的一个简单计数。hook 派发、被采样 step 的重路径、GPU 时间读取、MEMT
+写入和 NCCL 回调跨越不同执行边界。如果把它们混成一个百分比，既无法指导采样决策，也无法判断回归
+来自哪里。Probing 因而先在架构上隔离成本，再为每条路径定义可解释的测量方法。</p>
+<p>实现见<a href="../profiling/">性能采集架构</a>，字段契约见
+<a href="../../reference/sql-tables/#python-torch_step_timing">SQL 表 — torch_step_timing</a>。</p>
+<h2 id="1">1. 成本如何被拆开<a class="headerlink" href="#1" title="Permanent link">&para;</a></h2>
+<p>TorchProbe 的每个 optimizer step 先进入 probed 或 shadow 路径。shadow step 仍保留完整训练负载和
+其他采集器，但 TorchProbe module/optimizer hook 在入口短路；它因此是同一次作业内的交错基线，而
+不是“没有任何观测的纯训练”。</p>
+<p>probed step 再分成两条路径。未命中采样时只支付 hook dispatch 和 step timing，命中采样时还要记录
+module 事件、整理结果并写表。前者代表长期运行中每步都可能支付的固定成本，后者代表按采样率偶发的
+重路径成本。把两者分开，是因为降低采样率只能摊薄重路径，不能消除 hook 已经挂到模型树上的派发成本。</p>
+<p>运行中 shadow 只能隔离 TorchProbe。Span/MEMT 的组件成本通过独立 instrumentation benchmark 测量，
+完整训练路径通过成对端到端基准验证。NCCL profiler 没有运行中 shadow，因为关闭 NCCL 回调会改变
+被测通信路径本身；它必须用相同 collective 的离线 A/B 衡量。</p>
+<h2 id="2">2. 控制路径为什么这样组织<a class="headerlink" href="#2" title="Permanent link">&para;</a></h2>
+<p><img alt="TorchProbe 组合确定性采样、GPU 延后读取、shadow 测量和可选自适应" src="../../../assets/architecture/probing-sampling-overhead.svg" /></p>
+<p>step gate 与 layer gate 分别控制“多久深入一次”和“一次深入多少层”。step gate 只依赖 step 序号，
+所有 rank 因而命中同一批 step；layer gate 使用 <code>(step, layer)</code> 的确定性哈希，在保留跨 rank 可比性的
+同时降低单步覆盖面。默认 <code>rate=0.05</code>、<code>layer_rate=1.0</code>，意味着少量 step 保留完整 module 关系，
+而不是每步只得到彼此无法拼接的零散 layer。</p>
+<p>GPU event 的记录与读取被拆开。采样 step 只提交 event，经过 settle 窗口后再读取 elapsed time；默认
+异步 worker 使用容量 4096 的有界队列。队列满时同步回退而不是无限占用内存，进程退出时 flush，
+从而在资源有界和数据不静默丢失之间取得明确平衡。</p>
+<p>shadow 默认按 <code>4:1</code> 交错插入，使 probed 与 baseline 经历相近的数据、collective 和系统噪声。自适应
+采样默认关闭；显式开启后，只有 <code>shadow_n ≥ 5</code> 且 <code>dispatch_n ≥ 16</code> 才允许调整，并且不能超过用户
+设置的初始 rate。控制器因此只能在有足够证据时降低成本，不能自行扩大观测强度。</p>
+<h2 id="3">3. 计时边界与统计语义<a class="headerlink" href="#3" title="Permanent link">&para;</a></h2>
+<p><img alt="TorchProbe 的 Step 计时边界与 deferred drain 顺序" src="../../../assets/architecture/probing-overhead-timing-window.svg" /></p>
+<p><code>step_duration_sec</code> 从上一 optimizer <code>post_step_hook</code> 末尾的 <code>_mark_step_wall_start()</code> 开始，到当前
+<code>post_step_hook</code> 中的 <code>_record_step_timing()</code> 结束。随后才执行 <code>_drain_deferred()</code>，最后推进状态并
+开始下一步。这个顺序保证当前 step 包含本步训练计算和 hook 收尾，却不把前几步 GPU event 的回收
+成本错误归给当前 step。</p>
+<p><code>train.step</code> span 测量用户包裹的计算区间，不包含 hook 派发和持久化；<code>step_duration_sec</code> 则有意覆盖
+这些边界成本。两者回答的问题不同，不能直接相减或互相替代。</p>
+<p>运行时使用中位数抵抗数据加载、collective 和调度毛刺。设 $M_s$ 为 shadow step 时长中位数，
+$M_d$ 为未采样 probed step 中位数，$M_p$ 为采样 probed step 中位数，则：</p>
 <p>$$
-\text{overhead_pct} = \left(\frac{M_{\text{probed}}}{M_{\text{shadow}}} - 1\right) \times 100
+\text{dispatch} = \left(\frac{M_d}{M_s}-1\right)\times100\%, \qquad
+\text{sampled} = \left(\frac{M_p}{M_s}-1\right)\times100\%
 $$</p>
-<p>其中 $M$ 为聚合函数（见下表）。当 $M_{\text{shadow}} = 0$ 时结果无定义，SQL 用 <code>nullif(..., 0)</code> 处理。</p>
-<h3 id="32-baseline-ab">3.2 相对 baseline（离线 A/B）<a class="headerlink" href="#32-baseline-ab" title="Permanent link">&para;</a></h3>
+<p>采样率为 $r$ 时，摊销后的有效开销是：</p>
 <p>$$
-\text{vs_baseline_pct} = \left(\frac{T_{\text{measured}}}{T_{\text{beline}}} - 1\right) \times 100
+\text{effective}=(1-r)\times\text{dispatch}+r\times\text{sampled}
 $$</p>
-<h3 id="33-paired">3.3 绝对增量（paired 训练基准）<a class="headerlink" href="#33-paired" title="Permanent link">&para;</a></h3>
-<p>$$
-\Delta T = T_{\text{instrumented}} - T_{\text{baseline}}, \quad T_{\text{inst_med}} = \text{median}(T_{\text{baseline}}) + \text{median}(\Delta T)
-$$</p>
-<h3 id="34-nccl">3.4 NCCL 延迟增量<a class="headerlink" href="#34-nccl" title="Permanent link">&para;</a></h3>
-<p>$$
-\text{pct_delta}(ref, x) = 100 \times \frac{x - ref}{ref}
-$$</p>
-<p>正值表示 profiled 模式更慢（延迟更高或吞吐更低）。</p>
-<hr />
-<h2 id="4-torchprobe-shadow-step">4. 运行时测量：TorchProbe Shadow Step<a class="headerlink" href="#4-torchprobe-shadow-step" title="Permanent link">&para;</a></h2>
-<h3 id="41">4.1 机制<a class="headerlink" href="#41" title="Permanent link">&para;</a></h3>
-<p>启用 <code>PROBING_TORCH_PROFILING=on</code>（默认含 <code>shadow=4:1</code>）后，每个 optimizer step 在 <code>python.torch_step_timing</code> 写一行。</p>
-<p><strong>Shadow 判定</strong>（<code>shadow_step_in_cycle</code>）：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>cycle_len = shadow_normal + shadow_baseline   # 默认 4 + 1 = 5
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>is_shadow = (cycle_index % cycle_len) &gt;= shadow_normal
-</span></code></pre></div>
-<p>默认下 index 0–3 为 probed，index 4 为 shadow。</p>
-<h3 id="42-step_duration_sec">4.2 计时窗口（<code>step_duration_sec</code>）<a class="headerlink" href="#42-step_duration_sec" title="Permanent link">&para;</a></h3>
-<p>使用 <code>time.perf_counter()</code> 墙钟，<strong>非</strong> GPU kernel 时间。</p>
-<pre class="mermaid"><code>sequenceDiagram
-    participant Train as forward/backward/opt
-    participant Hook as post_step_hook
-    participant T as torch_step_timing
-
-    Note over Hook: 上一步结束时 _mark_step_wall_start()
-    Train-&gt;&gt;Hook: optimizer.step() 返回
-    Hook-&gt;&gt;Hook: drain / flush / save（记时之后、下一步起点之前）
-    Hook-&gt;&gt;T: _record_step_timing()
-    Hook-&gt;&gt;Hook: _mark_step_wall_start()（下一步起点）</code></pre>
-<p><strong>边界定义</strong>：</p>
-<ul>
-<li><strong>起点</strong>：上一 optimizer step 的 <code>post_step_hook</code> 末尾调用 <code>_mark_step_wall_start()</code></li>
-<li><strong>终点</strong>：当前 step 的 <code>post_step_hook</code> 内 <code>_record_step_timing()</code> 调用时刻（<strong>早于</strong> <code>_drain_deferred()</code>）</li>
-</ul>
-<p>因此 <code>step_duration_sec</code> 覆盖：<strong>整步训练计算 + 本步 hook 收尾</strong>（含 sampled 步当步的 trace flush），<strong>不含</strong>前几步 deferred GPU event 的 <code>elapsed_time</code> 回收（回收在记时之后、下一步起点之前执行）。</p>
-<p><strong>与 <code>train.step</code> span 的区别</strong>：后者来自 <code>python.trace_event</code>，度量 span 包裹的计算区间，<strong>不含</strong> hook 派发与落盘；Web UI 同时展示两者，不可直接对比数值。</p>
-<h3 id="43-step-hook">4.3 各 step 类型下 hook 行为<a class="headerlink" href="#43-step-hook" title="Permanent link">&para;</a></h3>
+<p>不能改成 <code>mean(probed)/mean(shadow)</code>：probed 集合混合了轻重路径，shadow 样本又更少，均值会同时受
+采样比例和长尾 step 支配。历史 <code>hook_tax</code> 使用全部 probed step 的中位数，只保留作兼容和保守上界。</p>
+<h2 id="4">4. 什么时候测量可信<a class="headerlink" href="#4" title="Permanent link">&para;</a></h2>
+<p>Web 与诊断 skill 使用最近 80 个 step，使窗口同时覆盖多个 shadow 周期又不被很早的冷启动污染。
+<code>shadow_n &lt; 5</code> 或 <code>dispatch_n &lt; 16</code> 时只展示正在收集或低置信提示，不用百分比触发稳定告警；
+<code>shadow=off</code> 时分母不存在，运行中开销百分比本身无定义。绝对值小于 <code>0.5%</code> 显示为 <code>≈0%</code>，避免把
+计时分辨率和自然抖动包装成精确差异。</p>
+<p>噪声处理服从来源分离。采样重路径不混入 dispatch；step 尖峰用滚动中位数抑制；discovery、JIT 和
+缓存预热从稳定窗口排除；deferred drain 在计时之后执行；跨 rank 先分别计算本 rank 的分层指标，
+不能把不同负载的 step 直接混成一个总体均值。</p>
+<p><code>nccl.profiler_counters</code>、队列满和写入失败描述数据完整性，不是 overhead 百分比。缺少事件时必须先
+排除采集缺口，再解释为“没有额外成本”。</p>
+<h2 id="5">5. 离线验证为什么仍然必要<a class="headerlink" href="#5" title="Permanent link">&para;</a></h2>
+<p>运行中测量贴近生产负载，但只能看到 TorchProbe 相对 shadow 的增量。离线 benchmark 因而分三层：
+tracing 层隔离 span 栈与持久化，合成 TorchProbe 层验证 hook 和采样状态机，TinyNet 层用背靠背 paired
+delta 验证真实 forward/backward/optimizer 组合。三层不是三个产品指标，而是从组件到端到端逐步定位
+回归的证据链。</p>
+<p>NCCL 采用另一条验证链：相同消息大小、warmup 和同步边界下运行 baseline 与 profiled collective，
+比较 latency 和 throughput；Criterion 只衡量 callback、slot pool 和时钟读取等组件成本，不能代替
+collective 端到端结果。</p>
+<p>仓库中的 5% 诊断 warning、75% soak 上界和组件倍数门禁服务于不同层次。它们不是统一性能 SLO，
+也不能替代目标模型与硬件上的发布前标定。</p>
+<h2 id="change-invariants">6. 修改时必须保持的不变量<a class="headerlink" href="#change-invariants" title="Permanent link">&para;</a></h2>
+<p>下面的表是变更安全契约，而不是另一套开销模型。</p>
 <table>
 <thead>
 <tr>
-<th>类型</th>
-<th>模块 hook</th>
-<th>写 torch_trace</th>
-<th>timing 行</th>
+<th>不变量</th>
+<th>必须保持</th>
+<th>守护位置</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>discovery（首步）</td>
-<td>注册模块</td>
-<td>否</td>
-<td>特殊路径</td>
-</tr>
-<tr>
-<td>probed + 非采样</td>
-<td>短路（无 module 记录）</td>
-<td>否</td>
-<td><code>is_shadow=0, sampled=0</code></td>
-</tr>
-<tr>
-<td>probed + 采样</td>
-<td>全量执行</td>
-<td>是</td>
-<td><code>is_shadow=0, sampled=1</code></td>
-</tr>
-<tr>
-<td>shadow</td>
-<td>立即 return</td>
-<td>否</td>
-<td><code>is_shadow=1</code></td>
-</tr>
-</tbody>
-</table>
-<p><strong>重要</strong>：<code>hook_tax</code> 比较的是 <strong>probed 步（含采样与非采样混合）</strong> vs <strong>shadow</strong> 的中位数。<code>sampled_overhead</code> 仅取 <code>sampled=1</code> 的 probed 子集，反映「重路径」开销。</p>
-<hr />
-<h2 id="5">5. 指标目录<a class="headerlink" href="#5" title="Permanent link">&para;</a></h2>
-<h3 id="51-in-run">5.1 In-run 指标<a class="headerlink" href="#51-in-run" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>指标</th>
-<th>分子 $M_{\text{probed}}$</th>
-<th>分母 $M_{\text{shadow}}$</th>
-<th>聚合</th>
-<th>窗口</th>
-<th>消费方</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>hook_tax_pct</strong></td>
-<td>全部 probed <code>step_duration_sec</code></td>
-<td>shadow</td>
-<td><strong>median</strong></td>
-<td>滚动 <strong>80</strong> 步</td>
-<td><code>health_overview</code>（混合，兼容）</td>
-</tr>
-<tr>
-<td><strong>dispatch_overhead_pct</strong></td>
-<td>probed 且 <code>sampled=0</code></td>
-<td>shadow</td>
-<td><strong>median</strong></td>
-<td>滚动 <strong>80</strong> 步</td>
-<td><strong>推荐告警口径</strong></td>
-</tr>
-<tr>
-<td><strong>sampled_overhead_pct</strong></td>
-<td>probed 且 <code>sampled=1</code></td>
-<td>shadow</td>
-<td><strong>median</strong></td>
-<td>滚动 <strong>80</strong> 步</td>
-<td><code>health_overview</code>、Web</td>
-</tr>
-<tr>
-<td><strong>Hook tax / Dispatch（Web）</strong></td>
-<td>dispatch（<code>sampled=0</code>）优先展示</td>
-<td>shadow</td>
-<td><strong>median</strong></td>
-<td>最近 <strong>80</strong> 步</td>
-<td>Web 侧栏 / 面板</td>
-</tr>
-<tr>
-<td><strong>Total overhead（Web 摊销）</strong></td>
-<td>dispatch + sampled 按采样率加权</td>
-<td>—</td>
-<td><strong>加权 %</strong></td>
-<td>最近 80 步</td>
-<td>Web 面板</td>
-</tr>
-<tr>
-<td><strong>Sampled overhead（Web）</strong></td>
-<td>probed 且 <code>sampled=1</code></td>
-<td>shadow</td>
-<td><strong>median</strong></td>
-<td>最近 80 步</td>
-<td>Web 面板</td>
-</tr>
-</tbody>
-</table>
-<p><strong>推荐 SQL（滚动窗口 + 分层指标）</strong>：</p>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">WITH</span><span class="w"> </span><span class="n">bounds</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="k">SELECT</span><span class="w"> </span><span class="n">GREATEST</span><span class="p">(</span><span class="k">COALESCE</span><span class="p">(</span><span class="k">MAX</span><span class="p">(</span><span class="n">local_step</span><span class="p">),</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">80</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">win_start</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_step_timing</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="p">)</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">SELECT</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="n">round</span><span class="p">((</span><span class="n">median</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">sampled</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">step_duration_sec</span><span class="w"> </span><span class="k">END</span><span class="p">)</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">        </span><span class="o">/</span><span class="w"> </span><span class="k">nullif</span><span class="p">(</span><span class="n">median</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">step_duration_sec</span><span class="w"> </span><span class="k">END</span><span class="p">),</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="k">AS</span><span class="w"> </span><span class="n">dispatch_overhead_pct</span><span class="p">,</span>
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span><span class="n">round</span><span class="p">((</span><span class="n">median</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">step_duration_sec</span><span class="w"> </span><span class="k">END</span><span class="p">)</span>
-</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">        </span><span class="o">/</span><span class="w"> </span><span class="k">nullif</span><span class="p">(</span><span class="n">median</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">step_duration_sec</span><span class="w"> </span><span class="k">END</span><span class="p">),</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span>
-</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">    </span><span class="k">AS</span><span class="w"> </span><span class="n">hook_tax_pct</span><span class="p">,</span>
-</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">  </span><span class="n">round</span><span class="p">((</span><span class="n">median</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">sampled</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">step_duration_sec</span><span class="w"> </span><span class="k">END</span><span class="p">)</span>
-</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">        </span><span class="o">/</span><span class="w"> </span><span class="k">nullif</span><span class="p">(</span><span class="n">median</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">step_duration_sec</span><span class="w"> </span><span class="k">END</span><span class="p">),</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span>
-</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">    </span><span class="k">AS</span><span class="w"> </span><span class="n">sampled_overhead_pct</span><span class="p">,</span>
-</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">  </span><span class="k">sum</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">sampled</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">ELSE</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">END</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">dispatch_n</span><span class="p">,</span>
-</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">  </span><span class="k">sum</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">ELSE</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">END</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">probed_n</span><span class="p">,</span>
-</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">  </span><span class="k">sum</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">ELSE</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">END</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">shadow_n</span>
-</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_step_timing</span><span class="p">,</span><span class="w"> </span><span class="n">bounds</span>
-</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">local_step</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">bounds</span><span class="p">.</span><span class="n">win_start</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">local_step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
-</span></code></pre></div>
-<p><strong>显示规则</strong>（Web）：$|\text{pct}| &lt; 0.5$ 显示为 <code>≈0%</code>；需 <code>shadow_n ≥ 5</code> 且 <code>dispatch_n ≥ 16</code> 才视为稳定估计（见 §5.2、§11）。</p>
-<h3 id="52">5.2 样本量与可信度<a class="headerlink" href="#52" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>条件</th>
-<th>行为</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>shadow_baseline = 0</code>（<code>shadow=off</code>）</td>
-<td>无法计算 overhead %</td>
-</tr>
-<tr>
-<td><code>shadow_n &lt; 5</code></td>
-<td>UI / 技能提示「样本不足」；百分比仅供参考</td>
-</tr>
-<tr>
-<td><code>dispatch_n &lt; 16</code>（默认 rate=0.05 时约需 320 步窗口）</td>
-<td><code>dispatch_overhead</code> 方差大，优先看趋势勿读单点</td>
-</tr>
-<tr>
-<td><code>probed_n = 0</code> 或 <code>shadow_n = 0</code></td>
-<td>跳过比率断言（soak）</td>
-</tr>
-<tr>
-<td>$|hook_tax - dispatch_overhead| &gt; 10\text{pp}$</td>
-<td>提示检查采样率 / GPU defer（混合指标被采样步拉高）</td>
-</tr>
-</tbody>
-</table>
-<h3 id="53">5.3 辅助指标<a class="headerlink" href="#53" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>指标</th>
-<th>公式 / 来源</th>
-<th>用途</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>train_step_median_ms</code></td>
-<td><code>median(span_end.time - span_start.time)</code>，<code>name='train.step'</code></td>
-<td>计算区间参考（非 hook 税）</td>
-</tr>
-<tr>
-<td><code>nccl.profiler_counters</code></td>
-<td>最新一行计数器</td>
-<td>数据完整性（非 overhead %）</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="6-make-bench">6. 离线基准：<code>make bench</code><a class="headerlink" href="#6-make-bench" title="Permanent link">&para;</a></h2>
-<p>脚本：<code>examples/overhead/bench_instrumentation.py</code>。须在 <strong>probing 注入进程</strong>内运行：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>bench<span class="w">          </span><span class="c1"># 完整</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>bench-quick<span class="w">    </span><span class="c1"># --quick</span>
-</span></code></pre></div>
-<h3 id="61">6.1 参数<a class="headerlink" href="#61" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>参数</th>
-<th>full（默认）</th>
-<th><code>--quick</code></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>span_iters</td>
-<td>300</td>
-<td>80</td>
-</tr>
-<tr>
-<td>probe_steps</td>
-<td>40</td>
-<td>12</td>
-</tr>
-<tr>
-<td>train batches</td>
-<td>30</td>
-<td>8</td>
-</tr>
-<tr>
-<td>warmup（外层轮次）</td>
-<td>2</td>
-<td>1</td>
-</tr>
-<tr>
-<td>runs（外层轮次）</td>
-<td>5</td>
-<td>3</td>
-</tr>
-</tbody>
-</table>
-<h3 id="62">6.2 三层测量<a class="headerlink" href="#62" title="Permanent link">&para;</a></h3>
-<h4 id="a-tracing">层 A — tracing<a class="headerlink" href="#a-tracing" title="Permanent link">&para;</a></h4>
-<p>对每个场景：</p>
-<ol>
-<li>内层 warmup <code>warmup</code> 次 + 计时 <code>runs</code> 次</li>
-<li>取 <strong>median(总墙钟秒)</strong></li>
-<li><code>vs_baseline_pct</code> 相对 <code>span (no backend)</code>（<code>PROBING_SPAN_BACKENDS</code> 空）</li>
-</ol>
-<table>
-<thead>
-<tr>
-<th>场景</th>
-<th>迭代内容</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>empty loop</td>
-<td>空循环基线</td>
-</tr>
-<tr>
-<td>span (no backend)</td>
-<td><code>probing.span</code>，无持久化</td>
-</tr>
-<tr>
-<td>span (memtable)</td>
-<td>span + memtable 落盘</td>
-</tr>
-<tr>
-<td>span + event</td>
-<td>span + event 行</td>
-</tr>
-<tr>
-<td>train.step span triple</td>
-<td>forward / backward / optimizer 三个 span + <code>probing.step()</code></td>
-</tr>
-</tbody>
-</table>
-<p><strong>每迭代微秒</strong>：</p>
-<p>$$
-\text{per_iter_us} = \frac{\text{median_sec}}{\text{iterations}} \times 10^6
-$$</p>
-<h4 id="b-torch_probe">层 B — torch_probe（合成）<a class="headerlink" href="#b-torch_probe" title="Permanent link">&para;</a></h4>
-<ul>
-<li>单假模块 <code>_FakeMod</code>，<code>DelayedRecord.save</code> 打桩</li>
-<li><strong>无</strong> 外层 warmup/runs；一次跑 <code>probe_steps</code> 步取 timing <strong>median</strong></li>
-<li>baseline：<code>hooks only (trace_spans=off, shadow=off)</code></li>
-<li><code>shadow=4:1</code> 场景额外输出 <code>hook_tax_pct</code>（与 §3.1 同公式，按 cycle index 分桶）</li>
-</ul>
-<blockquote>
-<p><strong>局限</strong>：无真实 backward/GPU；数值用于 <strong>回归对比</strong> 与配置敏感度，不能等同于生产大模型 overhead。</p>
-</blockquote>
-<h4 id="c-torch_traintinynet">层 C — torch_train（TinyNet）<a class="headerlink" href="#c-torch_traintinynet" title="Permanent link">&para;</a></h4>
-<ul>
-<li>设备：CUDA 可用则用 GPU，否则 CPU</li>
-<li>每轮 <strong>背靠背</strong>：先无 hook baseline，再带 phase/TorchProbe</li>
-<li>每场景内 2 步 warmup + <code>batches</code> 步计时</li>
-<li>报告 <code>paired_delta_ms</code> 与合成 <code>inst_med = median(base) + median(Δ)</code></li>
-</ul>
-<h3 id="63-json">6.3 JSON 导出<a class="headerlink" href="#63-json" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>python<span class="w"> </span>examples/overhead/bench_instrumentation.py<span class="w"> </span>--json-out<span class="w"> </span>/tmp/bench.json
-</span></code></pre></div>
-<hr />
-<h2 id="7-nccl-profiler-overhead">7. NCCL Profiler Overhead（仅离线）<a class="headerlink" href="#7-nccl-profiler-overhead" title="Permanent link">&para;</a></h2>
-<p><strong>无 in-run shadow</strong>。运行时只看 <code>nccl.profiler_counters</code> 健康度。</p>
-<h3 id="71-e2e-allreduce-allgather">7.1 E2E AllReduce / AllGather<a class="headerlink" href="#71-e2e-allreduce-allgather" title="Permanent link">&para;</a></h3>
-<p>脚本：<code>examples/overhead/nccl_profiler_overhead.py</code>；编排：<code>examples/overhead/run_nccl_bench.sh</code>。</p>
-<table>
-<thead>
-<tr>
-<th>模式</th>
-<th>环境</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>baseline</td>
-<td>无 <code>NCCL_PROFILER_PLUGIN</code>、无 <code>PROBING</code></td>
-</tr>
-<tr>
-<td>profiled</td>
-<td>插件 + <code>PROBING=2</code> + <code>PROBING_NCCL_INFLIGHT_THRESHOLD_SECS=0</code></td>
-</tr>
-</tbody>
-</table>
-<p><strong>流程</strong>：</p>
-<ol>
-<li><code>warmup_iters = 20</code></li>
-<li><code>bench_iters = 200</code>（默认 msg 1 MiB）</li>
-<li>每次 collective 前后 <code>cuda.synchronize()</code></li>
-<li>输出 <code>latency_us_{mean,p50,p99}</code>、<code>throughput_gbs</code></li>
-<li><code>--compare</code> 用 §3.4 算 <code>latency_*_pct</code>、<code>throughput_pct</code></li>
-</ol>
-<h3 id="72-rust-criterion">7.2 微基准（Rust Criterion）<a class="headerlink" href="#72-rust-criterion" title="Permanent link">&para;</a></h3>
-<p><code>probing/extensions/nccl-profiler/benches/callback_path.rs</code>：callback 路径、slot pool、<code>now_ns</code>——<strong>组件级</strong>，不与 E2E 数值直接对照。</p>
-<hr />
-<h2 id="8">8. 其他子系统<a class="headerlink" href="#8" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>子系统</th>
-<th>测量方法</th>
-<th>公式 / 阈值</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Span + memtable</strong></td>
-<td><code>tests/regression/profiling/test_span_overhead.py</code></td>
-<td><code>T_on &lt; T_off × 8 + 0.05s</code>（300 iter）</td>
-</tr>
-<tr>
-<td><strong>TorchProbe module spans</strong></td>
-<td>同上</td>
-<td><code>med_on &lt; med_off × 6 + 0.02s</code>（20 steps）</td>
-</tr>
-<tr>
-<td><strong>memtable 写路径</strong></td>
-<td><code>probing bench write</code></td>
-<td>吞吐 / 可选延迟 reservoir</td>
-</tr>
-<tr>
-<td><strong>pprof</strong></td>
-<td><code>probing.pprof.sample_freq</code></td>
-<td>定性：SIGPROF 频率越高开销越大</td>
-</tr>
-<tr>
-<td><strong>PROBING_SPAN_LOCATION</strong></td>
-<td>无自动化公式</td>
-<td>定性：<code>inspect.stack()</code> 显著增开销</td>
-</tr>
-</tbody>
-</table>
-<p><strong>隔离栈成本</strong>：<code>PROBING_SPAN_BACKENDS=none</code> 或 bench 中 <code>configure_backends([])</code>。</p>
-<hr />
-<h2 id="9">9. 阈值与门禁（当前仓库）<a class="headerlink" href="#9" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>门禁</th>
-<th>条件</th>
-<th>位置</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>诊断 warning</td>
-<td><code>dispatch_overhead_pct &gt; 5%</code>（稳定口径）</td>
-<td><code>health_overview</code></td>
-</tr>
-<tr>
-<td>诊断 info（混合偏高）</td>
-<td><code>hook_tax_pct &gt; 5%</code> 且 <code>dispatch_overhead_pct ≤ 5%</code></td>
-<td>可选：采样步导致</td>
-</tr>
-<tr>
-<td>soak 失败</td>
-<td><code>hook_tax_pct &gt; 75%</code>（默认 <code>--max-hook-tax-pct</code>）</td>
-<td><code>examples/imagenet/soak_assert.py</code></td>
-</tr>
-<tr>
-<td>CI 回归</td>
-<td>span 倍数上界（§8）</td>
-<td><code>test_span_overhead.py</code></td>
-</tr>
-</tbody>
-</table>
-<blockquote>
-<p><strong>注意</strong>：5%（告警）、75%（soak）、8×（回归）服务于不同目的，<strong>不是</strong>统一 SLO。发布前应结合目标硬件与模型自行标定。</p>
-</blockquote>
-<hr />
-<h2 id="10">10. 已知偏差与解释<a class="headerlink" href="#10" title="Permanent link">&para;</a></h2>
-<ol>
-<li><strong>Shadow 非真空基线</strong>：NCCL lite hook、CPU/GPU 周期性采集、span 等仍在 shadow 步运行；<code>hook_tax</code> 仅隔离 <strong>TorchProbe 模块 hook 路径</strong>。</li>
-<li><strong>采样步膨胀</strong>：sampled probed 步的 <code>step_duration_sec</code> 可能含 deferred GPU <code>elapsed_time</code> drain；用 <code>sampled_overhead</code> 看重路径，勿与非采样 probed 混读。</li>
-<li><strong>窗口已对齐</strong>：Web / <code>health_overview</code> 默认均为最近 80 步；全历史 SQL 方差更大。</li>
-<li><strong>合成 bench ≠ 生产</strong>：<code>bench_instrumentation</code> torch_probe 层无真实模型；torch_train 层仅 TinyNet。</li>
-<li><strong>多 rank</strong>：各 rank 独立写 <code>local_step</code>；联邦查询需注意 <code>rank</code> 切片。</li>
-<li><strong>discovery 步</strong>：<code>local_step = 1</code> 通常应过滤（<code>WHERE local_step &gt; 1</code>）。</li>
-</ol>
-<hr />
-<h2 id="11">11. 抗噪声与稳定性<a class="headerlink" href="#11" title="Permanent link">&para;</a></h2>
-<h3 id="111">11.1 噪声来源<a class="headerlink" href="#111" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>来源</th>
-<th>影响</th>
-<th>缓解</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>采样步混入</strong></td>
-<td><code>sampled=1</code> 步含 trace flush、GPU defer/sync，墙钟远高于非采样步</td>
-<td>用 <strong><code>dispatch_overhead</code></strong>（<code>sampled=0</code>）作 hook 税主指标</td>
-</tr>
-<tr>
-<td><strong>训练步本身抖动</strong></td>
-<td>数据加载、collective、checkpoint 等导致 step 时长尖峰</td>
-<td><strong>median</strong> 优于 mean；滚动窗口</td>
-</tr>
-<tr>
-<td><strong>窗口过短</strong></td>
-<td>全表或 &lt;20 步时 median 方差大</td>
-<td>默认 <strong>80 步</strong>滚动窗口（Web / health 对齐）</td>
-</tr>
-<tr>
-<td><strong>shadow 样本稀少</strong></td>
-<td>默认 4:1 下 80 步仅 ~16 个 shadow 点</td>
-<td>要求 <code>shadow_n ≥ 5</code>；长跑 job 更可信</td>
-</tr>
-<tr>
-<td><strong>冷启动 / discovery</strong></td>
-<td>首步注册模块、JIT、缓存预热</td>
-<td>过滤 <code>local_step &gt; 1</code>；离线 bench 用 warmup</td>
-</tr>
-<tr>
-<td><strong>混合 probed 聚合</strong></td>
-<td><code>hook_tax</code> 把轻/重路径平均</td>
-<td>分层报告 dispatch / sampled / blended</td>
-</tr>
-<tr>
-<td><strong>OS 调度 / 频率缩放</strong></td>
-<td>墙钟偶发毛刺</td>
-<td>离线 bench 多轮 median；in-run 看趋势勿盯单步</td>
-</tr>
-<tr>
-<td><strong>Deferred 回收阻塞 hook</strong></td>
-<td>GPU <code>elapsed_time</code> + memtable 写在 <code>post_step_hook</code> 内</td>
-<td>记时后再 drain；默认 <strong><code>PROBING_TORCH_DEFER_ASYNC=1</code></strong> 后台线程 + 有界队列</td>
-</tr>
-</tbody>
-</table>
-<h3 id="1121-deferred">11.2.1 异步 deferred 回收（中期）<a class="headerlink" href="#1121-deferred" title="Permanent link">&para;</a></h3>
-<p>默认开启（<code>PROBING_TORCH_DEFER_ASYNC=1</code>）。主线程在 <code>_record_step_timing</code> 之后只做非阻塞 <code>event.query()</code> 分区，将 ready 的 <code>DelayedRecord</code> 入队；后台 daemon 线程执行 <code>elapsed_time</code> + <code>save()</code>。队列满时回退到同步 <code>save()</code>。</p>
-<table>
-<thead>
-<tr>
-<th>环境变量</th>
-<th>默认</th>
-<th>含义</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>PROBING_TORCH_DEFER_ASYNC</code></td>
-<td><code>1</code></td>
-<td><code>0</code> 关闭后台线程（测试 / 调试）</td>
-</tr>
-<tr>
-<td><code>PROBING_TORCH_DEFER_QUEUE_SIZE</code></td>
-<td><code>4096</code></td>
-<td>有界队列深度</td>
-</tr>
-</tbody>
-</table>
-<p>进程退出时 <code>atexit</code> 会 <code>flush</code> 队列。测试可调用 <code>flush_deferred_drain()</code>。</p>
-<h3 id="112">11.2 稳定性设计原则<a class="headerlink" href="#112" title="Permanent link">&para;</a></h3>
-<ol>
-<li><strong>分层而非混合</strong>：dispatch（轻路径）与 sampled（重路径）分开；<code>hook_tax</code> 仅作兼容汇总。</li>
-<li><strong>稳健聚合</strong>：in-run 默认 <strong>median</strong>；摊销 overhead 用 <code>(1−rate)×dispatch + rate×sampled</code>，<strong>不用</strong> <code>mean(probed)/mean(shadow)</code>（步长抖动 + 小样本 shadow 会严重失真）。</li>
-<li><strong>滚动窗口</strong>：消费方统一 <code>WINDOW = 80</code>（约 16 个 shadow 周期 @ 4:1），避免冷启动与远古 outlier 污染。</li>
-<li><strong>成对对比</strong>：离线 torch_train 用 <strong>背靠背 paired Δ</strong>，抵消 run 间漂移。</li>
-<li><strong>周期对齐</strong>：shadow 按固定 cadence 插入，probed/shadow 经历相同 NCCL/GPU 背景采集。</li>
-<li><strong>显式可信度门控</strong>：样本不足时不报警，只提示 Collecting / 仅供参考。</li>
-</ol>
-<h3 id="113">11.3 指标选用指南<a class="headerlink" href="#113" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>目的</th>
-<th>推荐指标</th>
-<th>原因</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>日常告警 / 侧栏</td>
-<td><code>dispatch_overhead_pct</code></td>
-<td>与 shadow 路径最接近，抗采样噪声</td>
-</tr>
-<tr>
-<td>评估采样配置代价</td>
-<td><code>sampled_overhead_pct</code></td>
-<td>隔离重路径</td>
-</tr>
-<tr>
-<td>兼容旧面板 / soak</td>
-<td><code>hook_tax_pct</code>（混合）</td>
-<td>保守上界，易偏高</td>
-</tr>
-<tr>
-<td>发布前回归</td>
-<td><code>make bench</code> + CI 倍数上界</td>
-<td>可控环境、可重复</td>
-</tr>
-<tr>
-<td>长期趋势</td>
-<td>滚动 80 步 + 每 5min 采样一点</td>
-<td>避免逐步抖动</td>
-</tr>
-</tbody>
-</table>
-<h3 id="114">11.4 调参建议（提高稳定性）<a class="headerlink" href="#114" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># 更稳的 shadow 基线（更多 shadow 步，略增 cadence 开销）</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span>on,shadow<span class="o">=</span><span class="m">8</span>:2,rate<span class="o">=</span><span class="m">0</span>.05
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># 仅看轻路径时 temporarily 提高 rate 可增加 dispatch_n（更重）</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="c1"># 诊断 SQL 时务必加窗口：</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="c1"># WHERE local_step &gt;= (SELECT max(local_step) - 80 FROM python.torch_step_timing)</span>
-</span></code></pre></div>
-<h3 id="115">11.5 未来增强（未实现）<a class="headerlink" href="#115" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>Trimmed mean / winsorize</strong>：去掉 probed 时长 top/bottom 5% 后再算比值</li>
-<li><strong>按 cadence 周期聚合</strong>：每 5 步一组先算组内 median，再跨组 median</li>
-<li><strong>EWMA 平滑</strong>：Web 侧栏显示指数滑动平均，降低逐步跳动</li>
-<li><strong>置信区间</strong>：bootstrap 或 shadow 周期自助法给出 ± 区间</li>
-<li><strong>NCCL in-run shadow</strong>：与 TorchProbe 对称的 collective 基线</li>
-</ul>
-<hr />
-<h2 id="12">12. 操作指南<a class="headerlink" href="#12" title="Permanent link">&para;</a></h2>
-<h3 id="in-run-overhead">启用 in-run overhead<a class="headerlink" href="#in-run-overhead" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># 默认：rate=0.05, shadow=4:1</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span>on<span class="w"> </span>python<span class="w"> </span>train.py
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># 或运行时配置</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="c1"># SET probing.torch.profiling = &#39;on,shadow=4:1,rate=0.05&#39;;</span>
-</span></code></pre></div>
-<h3 id="_3">降低开销（优先级）<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
-<ol>
-<li>降低 <code>rate</code> / <code>layer_rate</code></li>
-<li>关闭 <code>trace_spans</code>、<code>sync=on</code>、<code>backward=on</code></li>
-<li><code>shadow=off</code> 仅当不需要 in-run 估计</li>
-<li>关闭 torch profiling，仅保留基础探针</li>
-</ol>
-<h3 id="_4">快速冒烟<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>python<span class="w"> </span>examples/overhead/torch_probe_overhead_smoke.py<span class="w">   </span><span class="c1"># 无 GPU</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>make<span class="w"> </span>bench-quick
-</span></code></pre></div>
-<hr />
-<h2 id="13">13. 实现索引<a class="headerlink" href="#13" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>组件</th>
-<th>路径</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Shadow 逻辑与计时</td>
-<td><code>python/probing/profiling/torch_probe.py</code></td>
-</tr>
-<tr>
-<td>离线基准</td>
-<td><code>examples/overhead/bench_instrumentation.py</code></td>
-</tr>
-<tr>
-<td>Web SQL</td>
-<td><code>web/src/overhead/sql.rs</code></td>
-</tr>
-<tr>
-<td>Web 格式化</td>
+<td>主百分比</td>
+<td><code>median(dispatch) / median(shadow) - 1</code>，不能换成 <code>mean(probed)/mean(shadow)</code></td>
 <td><code>web/src/overhead/metrics.rs</code></td>
 </tr>
 <tr>
-<td>技能 SQL</td>
-<td><code>skills/health_overview/steps.yaml</code></td>
+<td>摊销开销</td>
+<td><code>(1 − rate) × dispatch + rate × sampled</code></td>
+<td><code>amortized_blends_dispatch_and_sampled_by_rate</code></td>
 </tr>
 <tr>
-<td>soak 断言</td>
-<td><code>examples/imagenet/soak_assert.py</code></td>
+<td>hook 顺序</td>
+<td><code>_record_step_timing()</code> → <code>_drain_deferred()</code> → advance → <code>_mark_step_wall_start()</code></td>
+<td>Python overhead/sampling regression tests</td>
 </tr>
 <tr>
-<td>NCCL E2E</td>
-<td><code>examples/overhead/nccl_profiler_overhead.py</code></td>
+<td>异步回收</td>
+<td><code>PROBING_TORCH_DEFER_ASYNC=1</code> 为默认；有界队列、满时同步回退、退出 flush</td>
+<td><code>test_deferred_drain_worker.py</code></td>
+</tr>
+<tr>
+<td>稳定性门控</td>
+<td><code>shadow_n ≥ 5</code> 且 <code>dispatch_n ≥ 16</code> 才能解释为稳定百分比</td>
+<td>Web metrics 与 <code>health_overview</code></td>
+</tr>
+<tr>
+<td>UI 语义</td>
+<td>Typical=dispatch，Effective=采样率加权；<code>abs(pct)&lt;0.5%</code> 显示 <code>≈0%</code></td>
+<td>Web formatting/copy tests</td>
 </tr>
 </tbody>
 </table>
-<hr />
-<h2 id="_5">相关文档<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<p>修改公式、hook 顺序或异步回收默认值后运行：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">cd</span><span class="w"> </span>web<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>cargo<span class="w"> </span><span class="nb">test</span><span class="w"> </span>overhead
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">0</span><span class="w"> </span>pytest<span class="w"> </span>tests/regression/profiling/test_overhead_invariants.py<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span>tests/regression/profiling/test_torch_probe_sampling.py<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span>tests/regression/profiling/test_deferred_drain_worker.py<span class="w"> </span>-q
+</span></code></pre></div>
+<h2 id="_2">相关文档<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../profiling/">性能分析实现</a> — TorchProbe 采样、表结构</li>
-<li><a href="../tracing-spans/">Tracing Span</a> — span 分层与 bench 入口</li>
-<li><a href="../nccl-profiler/">NCCL Profiler</a> — 插件 ABI 与计数器</li>
-<li><a href="../../guide/troubleshooting/">常见问题 — High Overhead</a></li>
+<li><a href="../profiling/">性能采集架构</a></li>
+<li><a href="../data-layer/">数据层</a></li>
+<li><a href="../nccl-profiler/">NCCL Profiler 架构</a></li>
+<li><a href="../../reference/sql-tables/">SQL 表参考</a></li>
 </ul>
 
 

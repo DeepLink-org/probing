@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2563EB"/></marker><marker id="g" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#0F766E"/></marker></defs>
+  <rect width="1280" height="720" fill="#F8FAFC"/>
+  <text x="640" y="38" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="22" font-weight="700" fill="#17324D">MEMC 整理：验证热块身份，按列编码，落盘后再推进水位</text>
+  <text x="640" y="62" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="12" fill="#64748B">compactor 只处理 sealed chunk；任何中途失败都保留旧水位，下一轮可以重试</text>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial">
+    <rect x="42" y="104" width="214" height="460" rx="14" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="66" y="136" font-size="15" font-weight="700" fill="#174EA6">MEMT 热环</text>
+    <rect x="66" y="170" width="166" height="72" rx="10" fill="#DBEAFE" stroke="#2563EB"/><text x="149" y="198" text-anchor="middle" font-size="11" font-weight="700" fill="#174EA6">Writing</text><text x="149" y="220" text-anchor="middle" font-size="9" fill="#64748B">跳过</text>
+    <rect x="66" y="264" width="166" height="92" rx="10" fill="#CCFBF1" stroke="#0D9488"/><text x="149" y="292" text-anchor="middle" font-size="11" font-weight="700" fill="#0F766E">Sealed chunk</text><text x="149" y="314" text-anchor="middle" font-size="9" fill="#64748B">instance · chunk · generation</text><text x="149" y="334" text-anchor="middle" font-size="9" fill="#64748B">rows · min/max ts</text>
+    <rect x="66" y="382" width="166" height="112" rx="10" fill="#FFFFFF" stroke="#93C5FD"/><text x="149" y="410" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">drained_gen</text><text x="84" y="436" font-size="9" fill="#64748B">每个 source chunk 的</text><text x="84" y="456" font-size="9" fill="#64748B">最后成功 generation</text><text x="84" y="478" font-size="9" fill="#0F766E">启动时从冷页恢复</text>
+
+    <rect x="304" y="104" width="672" height="460" rx="14" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2"/>
+    <text x="328" y="136" font-size="15" font-weight="700" fill="#17324D">一次整理事务</text>
+    <rect x="328" y="174" width="196" height="76" rx="10" fill="#EFF6FF" stroke="#93C5FD"/><text x="426" y="200" text-anchor="middle" font-size="11" font-weight="700" fill="#174EA6">1. select</text><text x="426" y="222" text-anchor="middle" font-size="9" fill="#64748B">sealed &amp;&amp; gen &gt; watermark</text><text x="426" y="240" text-anchor="middle" font-size="9" fill="#64748B">记录 generation_before</text>
+    <rect x="550" y="174" width="196" height="76" rx="10" fill="#EFF6FF" stroke="#93C5FD"/><text x="648" y="200" text-anchor="middle" font-size="11" font-weight="700" fill="#174EA6">2. transpose</text><text x="648" y="222" text-anchor="middle" font-size="9" fill="#64748B">row cursor to column builders</text><text x="648" y="240" text-anchor="middle" font-size="9" fill="#64748B">再次检查 generation_after</text>
+    <rect x="772" y="174" width="180" height="76" rx="10" fill="#EFF6FF" stroke="#93C5FD"/><text x="862" y="200" text-anchor="middle" font-size="11" font-weight="700" fill="#174EA6">3. encode</text><text x="862" y="222" text-anchor="middle" font-size="9" fill="#64748B">numeric to Pco</text><text x="862" y="240" text-anchor="middle" font-size="9" fill="#64748B">varlen to offsets + bytes</text>
+    <path d="M524 212 L542 212" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/><path d="M746 212 L764 212" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="328" y="296" width="624" height="92" rx="10" fill="#F0FDFA" stroke="#0D9488" stroke-width="2"/>
+    <text x="640" y="324" text-anchor="middle" font-size="12" font-weight="700" fill="#0F766E">4. append complete page</text>
+    <text x="352" y="350" font-size="10" fill="#64748B">page header + source identity + encoded columns + payload checksum</text>
+    <text x="352" y="372" font-size="10" fill="#64748B">完整写入成功后：drained_gen[chunk] = generation</text>
+    <path d="M640 250 L640 288" stroke="#0F766E" stroke-width="2.5" marker-end="url(#g)"/>
+    <rect x="328" y="428" width="296" height="88" rx="10" fill="#FFF7ED" stroke="#EA580C"/>
+    <text x="476" y="455" text-anchor="middle" font-size="11" font-weight="700" fill="#C2410C">失败 / generation 变化</text>
+    <text x="476" y="479" text-anchor="middle" font-size="9" fill="#64748B">丢弃临时列页，不更新 watermark</text>
+    <text x="476" y="499" text-anchor="middle" font-size="9" fill="#64748B">下轮重新选择</text>
+    <rect x="656" y="428" width="296" height="88" rx="10" fill="#CCFBF1" stroke="#0D9488"/>
+    <text x="804" y="455" text-anchor="middle" font-size="11" font-weight="700" fill="#0F766E">segment roll</text>
+    <text x="804" y="479" text-anchor="middle" font-size="9" fill="#64748B">达到大小或时间阈值</text>
+    <text x="804" y="499" text-anchor="middle" font-size="9" fill="#64748B">footer directory then sealed header</text>
+
+    <rect x="1024" y="104" width="214" height="460" rx="14" fill="#F0FDFA" stroke="#0D9488" stroke-width="2"/>
+    <text x="1048" y="136" font-size="15" font-weight="700" fill="#0F766E">MEMC segment</text>
+    <rect x="1048" y="170" width="166" height="54" rx="9" fill="#17324D"/><text x="1131" y="202" text-anchor="middle" font-size="10" font-weight="700" fill="#FFFFFF">SegmentHeader</text>
+    <rect x="1048" y="242" width="166" height="54" rx="9" fill="#EFF6FF" stroke="#93C5FD"/><text x="1131" y="274" text-anchor="middle" font-size="10" fill="#174EA6">MCTB · table schema</text>
+    <rect x="1048" y="314" width="166" height="54" rx="9" fill="#CCFBF1" stroke="#0D9488"/><text x="1131" y="346" text-anchor="middle" font-size="10" fill="#0F766E">MCPG · column pages</text>
+    <rect x="1048" y="386" width="166" height="54" rx="9" fill="#CCFBF1" stroke="#0D9488"/><text x="1131" y="418" text-anchor="middle" font-size="10" fill="#0F766E">MCPG · column pages</text>
+    <rect x="1048" y="458" width="166" height="54" rx="9" fill="#FFF7ED" stroke="#EA580C"/><text x="1131" y="490" text-anchor="middle" font-size="10" font-weight="700" fill="#C2410C">Footer · page index</text>
+  </g>
+  <path d="M256 310 L296 310" stroke="#2563EB" stroke-width="2.5" marker-end="url(#a)"/><path d="M976 342 L1016 342" stroke="#0F766E" stroke-width="2.5" marker-end="url(#g)"/>
+  <rect x="42" y="616" width="1196" height="66" rx="12" fill="#17324D"/>
+  <text x="640" y="644" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="12" font-weight="700" fill="#FFFFFF">“落盘成功后再推进水位”让整理具备可重试语义；source identity 让重启后仍能识别已处理的热块。</text>
+  <text x="640" y="668" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="10" fill="#CBD5E1">压缩、checksum 和 segment 封口都在后台线程完成，不进入训练回调。</text>
+</svg>

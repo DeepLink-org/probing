@@ -394,17 +394,20 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="../contributing/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="../contributing/" class="md-tabs__link">
+          
   
   
     
   
   贡献指南
 
-      </a>
-    </li>
+        </a>
+      </li>
+    
   
 
       
@@ -906,8 +909,6 @@
       
         
       
-        
-      
     
     
     
@@ -1008,7 +1009,7 @@
   <span class="md-ellipsis">
     
   
-    平台核心
+    基础架构
   
 
     
@@ -1024,7 +1025,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    平台核心
+    基础架构
   
 
           </label>
@@ -1045,6 +1046,34 @@
     
   
     模块化与边界
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="activation-injection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    启用、注入与运行时控制
   
 
     
@@ -1114,34 +1143,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CLI 命令树
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -1158,14 +1159,6 @@
   
     
     
-      
-        
-      
-        
-      
-        
-      
-        
       
         
       
@@ -1235,91 +1228,7 @@
   <span class="md-ellipsis">
     
   
-    性能分析
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="torch-profiler-sql/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Torch Profiler SQL（Kineto 虚拟表）
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="overhead/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    开销测量
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="overhead-invariants/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overhead invariants
+    性能分析与 Tracing
   
 
     
@@ -1368,42 +1277,14 @@
   
   
     <li class="md-nav__item">
-      <a href="debugging/" class="md-nav__link">
+      <a href="overhead/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    调试引擎
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="training-phase/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    训练阶段
+    开销测量
   
 
     
@@ -1440,10 +1321,6 @@
       
         
       
-        
-      
-        
-      
     
     
     
@@ -1470,7 +1347,7 @@
   <span class="md-ellipsis">
     
   
-    分布式
+    分布式查询与分析
   
 
     
@@ -1486,7 +1363,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    分布式
+    分布式查询与分析
   
 
           </label>
@@ -1506,35 +1383,7 @@
   <span class="md-ellipsis">
     
   
-    概览
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="torchrun-cluster/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    torchrun 集群心跳
+    分布式成员与控制面
   
 
     
@@ -1583,42 +1432,14 @@
   
   
     <li class="md-nav__item">
-      <a href="hierarchical-fanout/" class="md-nav__link">
+      <a href="distributed-profiler/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    分层集群查询
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="cluster-pulsing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    基于 Pulsing 的集群
+    分布式 Profiler 查询与可视化
   
 
     
@@ -1635,34 +1456,6 @@
           </ul>
         </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    系统架构（旧版）
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -2099,6 +1892,64 @@
   
   
   
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    贡献指南
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    贡献指南
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../contributing/" class="md-nav__link">
         
@@ -2116,6 +1967,42 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../writing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    文档写作规范
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2150,7 +2037,7 @@
   <a href="#_2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        阅读顺序
+        总体架构
       
     </span>
   </a>
@@ -2161,7 +2048,18 @@
   <a href="#_3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        平台核心
+        阅读顺序
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        基础架构
       
     </span>
   </a>
@@ -2180,21 +2078,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_4" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        分布式
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#_5" class="md-nav__link">
     <span class="md-ellipsis">
       
-        旧版
+        分布式查询与分析
       
     </span>
   </a>
@@ -2224,36 +2111,51 @@
 <h1 id="_1">架构概览<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
 <p>贡献者向设计文档。操作员见 <strong><a href="../guide/">用户指南</a></strong>；契约见 <strong><a href="../reference/">参考手册</a></strong>。</p>
 <p>术语：<strong><a href="../guide/concepts/">核心模型</a></strong>。</p>
-<h2 id="_2">阅读顺序<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<h2 id="_2">总体架构<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<p><img alt="Probing 从使用入口到本地存储的整体架构" src="../../assets/architecture/probing-top-down-overview.svg" /></p>
+<p>图中的两条方向需要分开理解：训练回调只向本机表追加数据；CLI、Web、Skill 和 MCP 的
+读取请求则通过服务端进入查询引擎。采集器之间不直接调用，跨数据源关系在 SQL 层组合。</p>
+<h2 id="_3">阅读顺序<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
 <ol>
-<li><strong><a href="modularity/">模块化与边界</a></strong> — 四层模型、crate 地图、依赖规则（从这里开始）</li>
-<li><strong><a href="data-layer/">数据层</a></strong> — MEMT/MEMC、mmap、SQL 集成</li>
-<li><strong><a href="distributed/">分布式 → 概览</a></strong> — 多节点心智模型，再读下方子页</li>
+<li><strong><a href="modularity/">模块化与边界</a></strong> — 先建立模块归属和依赖方向。</li>
+<li><strong><a href="activation-injection/">启用、注入与运行时控制</a></strong> → <strong><a href="data-layer/">数据层</a></strong> —
+   理解 Probing 如何进入进程，以及数据如何被持续保存。</li>
+<li><strong><a href="profiling/">性能分析与 Tracing</a></strong> — 理解 TorchProbe、Span、训练阶段和堆栈采集。</li>
+<li><strong><a href="distributed/">分布式成员与控制面</a></strong> → <strong><a href="federation/">联邦查询</a></strong> —
+   理解成员发现、分层 fan-out 与跨 rank SQL。</li>
+<li><strong><a href="distributed-profiler/">分布式 Profiler 查询与可视化</a></strong> — 理解万 Rank Timeline
+   数据模型、分层执行和跨 Rank 下钻。</li>
 </ol>
-<h2 id="_3">平台核心<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<p>表中“当前”表示描述现有实现；“草案/目标设计”表示尚未全部落地，不能当作已发布能力。</p>
+<h2 id="_4">基础架构<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
 <th>文档</th>
+<th>状态</th>
 <th>说明</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><a href="modularity/">模块化与边界</a></td>
-<td>L1–L4 分层、公开契约、归属边界</td>
+<td>当前</td>
+<td>分层、公开契约、归属边界</td>
+</tr>
+<tr>
+<td><a href="activation-injection/">启用、注入与运行时控制</a></td>
+<td>当前</td>
+<td><code>.pth</code>、ptrace、shellcode 跳板与服务就绪</td>
 </tr>
 <tr>
 <td><a href="data-layer/">数据层</a></td>
-<td>热/冷列存与 SQL 集成</td>
+<td>当前</td>
+<td>MEMT/MEMC 热冷列存与 SQL 集成</td>
 </tr>
 <tr>
 <td><a href="extensibility/">扩展机制</a></td>
-<td><code>@table</code> 插件、skills、NCCL profiler</td>
-</tr>
-<tr>
-<td><a href="cli/">CLI 命令树</a></td>
-<td>命令分组、target 规则、迁移方案（草案）</td>
+<td>当前</td>
+<td><code>@table</code>、Rust collector、Skill 和公开服务契约</td>
 </tr>
 </tbody>
 </table>
@@ -2262,83 +2164,52 @@
 <thead>
 <tr>
 <th>文档</th>
+<th>状态</th>
 <th>说明</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><a href="profiling/">性能分析</a></td>
-<td>Torch hook、采样、落表路径</td>
-</tr>
-<tr>
-<td><a href="torch-profiler-sql/">Torch Profiler SQL</a></td>
-<td>按需 Kineto 采集 → 虚拟 SQL 表</td>
-</tr>
-<tr>
-<td><a href="overhead/">开销测量</a></td>
-<td>公式定义、shadow step、离线基准</td>
+<td><a href="profiling/">性能分析与 Tracing</a></td>
+<td>当前</td>
+<td>TorchProbe、Span/Phase、Python/Native 堆栈与系统采集</td>
 </tr>
 <tr>
 <td><a href="nccl-profiler/">NCCL Profiler</a></td>
-<td>插件 ABI、proxy 等待分解</td>
+<td>当前</td>
+<td>插件 ABI、事件层次和等待分解</td>
 </tr>
 <tr>
-<td><a href="debugging/">调试引擎</a></td>
-<td>eval / backtrace / REPL 实现</td>
-</tr>
-<tr>
-<td><a href="training-phase/">训练阶段</a></td>
-<td>阶段转换与 span 模型</td>
-</tr>
-<tr>
-<td><a href="tracing-spans/">Span API</a></td>
-<td><code>span</code> / <code>record_span</code> / backend / 性能与选型</td>
+<td><a href="overhead/">开销测量</a></td>
+<td>当前</td>
+<td>shadow step、统计口径、回归不变量和离线基准</td>
 </tr>
 </tbody>
 </table>
-<h2 id="_4">分布式<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<h2 id="_5">分布式查询与分析<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
 <th>文档</th>
+<th>状态</th>
 <th>说明</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><a href="distributed/">概览</a></td>
-<td>多节点拓扑、控制面、联邦入门</td>
-</tr>
-<tr>
-<td><a href="torchrun-cluster/">torchrun 集群心跳</a></td>
-<td>分层注册、退避、环境变量</td>
+<td><a href="distributed/">分布式成员与控制面</a></td>
+<td>当前</td>
+<td>torchrun 注册、heartbeat、TTL 与成员元数据</td>
 </tr>
 <tr>
 <td><a href="federation/">联邦查询引擎</a></td>
-<td>跨 rank SQL 路径 A/B/C、标签、回归查询</td>
+<td>当前</td>
+<td><code>global.*</code>、路径选择、分层 fan-out、标签和 partial 语义</td>
 </tr>
 <tr>
-<td><a href="hierarchical-fanout/">分层集群查询</a></td>
-<td>coordinator → local0 → leaf 聚合</td>
-</tr>
-<tr>
-<td><a href="cluster-pulsing/">基于 Pulsing 的集群</a></td>
-<td>可选 Pulsing 成员发现</td>
-</tr>
-</tbody>
-</table>
-<h2 id="_5">旧版<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>文档</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><a href="architecture/">系统架构（旧版）</a></td>
-<td>两层概览 — 已由 <a href="modularity/">模块化</a> 取代</td>
+<td><a href="distributed-profiler/">分布式 Profiler 查询与可视化</a></td>
+<td>目标设计</td>
+<td>万 Rank Timeline、分层查询、多分辨率视图和分布式火焰图</td>
 </tr>
 </tbody>
 </table>

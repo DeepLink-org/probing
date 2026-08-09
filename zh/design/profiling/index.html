@@ -13,10 +13,10 @@
         <link rel="canonical" href="https://github.com/DeepLink-org/probing/zh/design/profiling/">
       
       
-        <link rel="prev" href="../cli/">
+        <link rel="prev" href="../extensibility/">
       
       
-        <link rel="next" href="../torch-profiler-sql/">
+        <link rel="next" href="../nccl-profiler/">
       
       
         
@@ -31,7 +31,7 @@
     
     
       
-        <title>性能分析 - Probing 文档</title>
+        <title>性能分析与 Tracing - Probing 文档</title>
       
     
     
@@ -122,7 +122,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              性能分析
+              性能分析与 Tracing
             
           </span>
         </div>
@@ -394,17 +394,20 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="../../contributing/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/" class="md-tabs__link">
+          
   
   
     
   
   贡献指南
 
-      </a>
-    </li>
+        </a>
+      </li>
+    
   
 
       
@@ -906,8 +909,6 @@
       
         
       
-        
-      
     
     
     
@@ -1008,7 +1009,7 @@
   <span class="md-ellipsis">
     
   
-    平台核心
+    基础架构
   
 
     
@@ -1024,7 +1025,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    平台核心
+    基础架构
   
 
           </label>
@@ -1045,6 +1046,34 @@
     
   
     模块化与边界
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../activation-injection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    启用、注入与运行时控制
   
 
     
@@ -1114,34 +1143,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CLI 命令树
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -1160,14 +1161,6 @@
   
     
     
-      
-        
-      
-        
-      
-        
-      
-        
       
         
       
@@ -1246,7 +1239,7 @@
   <span class="md-ellipsis">
     
   
-    性能分析
+    性能分析与 Tracing
   
 
     
@@ -1264,7 +1257,7 @@
   <span class="md-ellipsis">
     
   
-    性能分析
+    性能分析与 Tracing
   
 
     
@@ -1293,7 +1286,7 @@
   <a href="#_2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        概览
+        整体分解
       
     </span>
   </a>
@@ -1304,41 +1297,19 @@
   <a href="#pytorch" class="md-nav__link">
     <span class="md-ellipsis">
       
-        两条独立的 PyTorch 性能采集路径
+        PyTorch 的两级观察路径
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#torchprobe" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        TorchProbe 数据收集架构
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#pytorch-torchprobe" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        PyTorch 分析（TorchProbe）
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="PyTorch 分析（TorchProbe）">
+    <nav class="md-nav" aria-label="PyTorch 的两级观察路径">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#_3" class="md-nav__link">
+  <a href="#torch-profiler" class="md-nav__link">
     <span class="md-ellipsis">
       
-        设计定位
+        Torch Profiler：一次有边界的采集事务
       
     </span>
   </a>
@@ -1346,10 +1317,60 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_4" class="md-nav__link">
+  <a href="#torchprobe-step" class="md-nav__link">
     <span class="md-ellipsis">
       
-        钩子
+        TorchProbe：可长期运行的 step 状态机
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#megatron" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Megatron 坐标集成
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#msprof-hccl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        通过 MSProf 边界采集 HCCL
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tracing-training-phases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tracing 与训练阶段
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tracing 与训练阶段">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#span-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        状态所有权与持久化
       
     </span>
   </a>
@@ -1357,54 +1378,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
+  <a href="#training-phase-semantics" class="md-nav__link">
     <span class="md-ellipsis">
       
-        采样策略
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#nccl-profiler" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        NCCL profiler 开销
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pythontorch_trace" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        采集字段（python.torch_trace）
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pythoncomm_collective" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        集合通信（python.comm_collective）
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pytorch_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        启用 PyTorch 分析
+        训练阶段不变量
       
     </span>
   </a>
@@ -1428,43 +1405,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_6" class="md-nav__link">
+  <a href="#_3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        系统指标
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_7" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        数据存储
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_8" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        查询示例
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_9" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        性能开销
+        与其他层的边界
       
     </span>
   </a>
@@ -1487,14 +1431,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../torch-profiler-sql/" class="md-nav__link">
+      <a href="../nccl-profiler/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Torch Profiler SQL（Kineto 虚拟表）
+    NCCL Profiler
   
 
     
@@ -1536,118 +1480,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../overhead-invariants/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overhead invariants
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../nccl-profiler/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    NCCL Profiler
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../debugging/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    调试引擎
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../training-phase/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    训练阶段
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -1664,10 +1496,6 @@
   
     
     
-      
-        
-      
-        
       
         
       
@@ -1701,7 +1529,7 @@
   <span class="md-ellipsis">
     
   
-    分布式
+    分布式查询与分析
   
 
     
@@ -1717,7 +1545,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    分布式
+    分布式查询与分析
   
 
           </label>
@@ -1737,35 +1565,7 @@
   <span class="md-ellipsis">
     
   
-    概览
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../torchrun-cluster/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    torchrun 集群心跳
+    分布式成员与控制面
   
 
     
@@ -1814,42 +1614,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../hierarchical-fanout/" class="md-nav__link">
+      <a href="../distributed-profiler/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    分层集群查询
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../cluster-pulsing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    基于 Pulsing 的集群
+    分布式 Profiler 查询与可视化
   
 
     
@@ -1866,34 +1638,6 @@
           </ul>
         </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    系统架构（旧版）
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -2330,6 +2074,64 @@
   
   
   
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    贡献指南
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    贡献指南
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../../contributing/" class="md-nav__link">
         
@@ -2347,6 +2149,42 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../writing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    文档写作规范
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2381,7 +2219,7 @@
   <a href="#_2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        概览
+        整体分解
       
     </span>
   </a>
@@ -2392,41 +2230,19 @@
   <a href="#pytorch" class="md-nav__link">
     <span class="md-ellipsis">
       
-        两条独立的 PyTorch 性能采集路径
+        PyTorch 的两级观察路径
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#torchprobe" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        TorchProbe 数据收集架构
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#pytorch-torchprobe" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        PyTorch 分析（TorchProbe）
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="PyTorch 分析（TorchProbe）">
+    <nav class="md-nav" aria-label="PyTorch 的两级观察路径">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#_3" class="md-nav__link">
+  <a href="#torch-profiler" class="md-nav__link">
     <span class="md-ellipsis">
       
-        设计定位
+        Torch Profiler：一次有边界的采集事务
       
     </span>
   </a>
@@ -2434,10 +2250,60 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_4" class="md-nav__link">
+  <a href="#torchprobe-step" class="md-nav__link">
     <span class="md-ellipsis">
       
-        钩子
+        TorchProbe：可长期运行的 step 状态机
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#megatron" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Megatron 坐标集成
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#msprof-hccl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        通过 MSProf 边界采集 HCCL
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tracing-training-phases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tracing 与训练阶段
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tracing 与训练阶段">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#span-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        状态所有权与持久化
       
     </span>
   </a>
@@ -2445,54 +2311,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
+  <a href="#training-phase-semantics" class="md-nav__link">
     <span class="md-ellipsis">
       
-        采样策略
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#nccl-profiler" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        NCCL profiler 开销
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pythontorch_trace" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        采集字段（python.torch_trace）
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pythoncomm_collective" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        集合通信（python.comm_collective）
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pytorch_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        启用 PyTorch 分析
+        训练阶段不变量
       
     </span>
   </a>
@@ -2516,43 +2338,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_6" class="md-nav__link">
+  <a href="#_3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        系统指标
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_7" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        数据存储
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_8" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        查询示例
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_9" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        性能开销
+        与其他层的边界
       
     </span>
   </a>
@@ -2579,402 +2368,138 @@
   
 
 
-<h1 id="_1">性能分析实现<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
-<p>Probing 为 AI 工作负载提供低开销、可 SQL 查询的性能数据采集能力。</p>
-<h2 id="_2">概览<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
-<p>性能分析系统通过以下方式收集数据：</p>
-<ul>
-<li>基于钩子与周期性的采集器</li>
-<li>统计采样（长期遥测，而非短时 trace 窗口）</li>
-<li>列式表存储（memtable / Arrow 表）</li>
-<li>SQL 查询接口</li>
-</ul>
-<h2 id="pytorch">两条独立的 PyTorch 性能采集路径<a class="headerlink" href="#pytorch" title="Permanent link">&para;</a></h2>
-<p>Probing 同时提供 <strong>TorchProbe</strong> 和 <strong>Torch Profiler</strong>。两者名字相近，但不是同一个
-collector 的不同配置，也不共享采集 session、事件缓冲或生命周期。</p>
-<table>
-<thead>
-<tr>
-<th>维度</th>
-<th>TorchProbe</th>
-<th>Torch Profiler（<code>torch.profiler</code> / Kineto）</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>定位</td>
-<td>训练期间长期运行的低开销遥测</td>
-<td>对已定位异常做短窗口深挖</td>
-</tr>
-<tr>
-<td>主要粒度</td>
-<td>step、<code>nn.Module</code>、optimizer、显存变化</td>
-<td>CPU op、CUDA kernel、runtime、memcpy</td>
-</tr>
-<tr>
-<td>启动方式</td>
-<td><code>PROBING_TORCH_PROFILING</code> / <code>configure()</code>，随训练 hook 运行</td>
-<td>HTTP 或 REPL 显式触发若干 optimizer step</td>
-</tr>
-<tr>
-<td>控制方式</td>
-<td>step 采样、layer 采样、shadow baseline、延迟 GPU event 读取</td>
-<td>一次 capture 的 <code>steps</code>，结束后 finalize Kineto 结果</td>
-</tr>
-<tr>
-<td>数据出口</td>
-<td>持续写 mmap memtable：<code>python.torch_trace</code>、<code>python.torch_step_timing</code></td>
-<td>有界进程内 session store，经虚拟表 <code>python.profile_capture</code>、<code>python.profile_hotspot</code> 查询</td>
-</tr>
-<tr>
-<td>典型开销</td>
-<td>低且可摊销，面向长期观测</td>
-<td>较高，尤其启用 CUDA、shape、stack、FLOPs 时</td>
-</tr>
-<tr>
-<td>典型问题</td>
-<td>哪个 step/rank/module 持续变慢？开销是多少？</td>
-<td>异常窗口里具体是哪个 op/kernel 慢？GPU 时间如何构成？</td>
-</tr>
-</tbody>
-</table>
-<p>“独立”有三个直接含义：</p>
+<h1 id="_1">性能采集架构<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
+<p>性能分析首先是一个成本分配问题：长期运行需要低开销和稳定坐标，深入定位则需要算子、内核和
+调用栈等高密度事件。单一采集器无法同时满足这两个目标。Probing 因而不追求“一次采全”，而是把
+持续观测与短窗口深挖拆成独立路径，再在查询阶段组合证据。</p>
+<h2 id="_2">整体分解<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<p><img alt="不同采集器独立回调并写入本机表" src="../../../assets/architecture/probing-collector-landscape.svg" /></p>
+<p>采集发生在数据所在进程，因为 module hook、通信回调和运行时栈只有本进程能以最低成本取得。
+每个采集器只维护自己的状态并写本机表，彼此不在热路径调用。这样，一个采集器的版本差异、锁竞争
+或失败不会扩散到训练主路径和其他采集器。</p>
+<p>独立采集带来的问题是数据如何重新关联。Probing 没有再引入一条同步总线，而是让所有事实携带
+step、rank、时间和并行角色坐标。协调成本从采集时移动到查询时：采集路径保持短小，查询引擎负责
+跨表、跨 rank 恢复完整上下文。这是后续 Torch、NCCL、HCCL、堆栈和系统指标能够独立扩展的基础。</p>
+<h2 id="pytorch">PyTorch 的两级观察路径<a class="headerlink" href="#pytorch" title="Permanent link">&para;</a></h2>
+<p>TorchProbe 与 Torch Profiler 并存，不是因为能力重复，而是因为观察尺度与成本不可兼得。
+TorchProbe 常驻训练过程，只保留 step、module、optimizer 和显存变化；它牺牲算子级细节，换取
+可采样、可测量并能长期运行的成本。Torch Profiler 依赖 Kineto，在一个已知异常窗口内采集 CPU op、
+CUDA kernel、runtime 和 memcpy；它提供更深证据，但不适合作为持续遥测。</p>
+<p>两条路径拥有不同的生命周期、缓冲和失败边界，因此不能合并成一个状态机。它们只通过相同的
+step/rank 坐标在 SQL 中相遇。由此形成明确的诊断递进：持续路径先缩小到异常 rank、step 和 module，
+短窗口路径再为该范围支付更高成本。两者同时开启时成本相加，TorchProbe 的 shadow 估计也只解释
+TorchProbe 自身，不能被误读为 Kineto 的成本。</p>
+<h3 id="torch-profiler">Torch Profiler：一次有边界的采集事务<a class="headerlink" href="#torch-profiler" title="Permanent link">&para;</a></h3>
+<p><img alt="按需 Torch Profiler 的控制、结束处理、SQL 视图与时间线输出" src="../../../assets/architecture/probing-torch-profiler-integration.svg" /></p>
+<p><code>ProfilerController</code> 同时只允许一个 capture，因为 Kineto 本身拥有进程级状态；并发 session 不仅
+难以归属事件，也会让停止和清理失去确定边界。capture 在 optimizer step 边界推进，使不同 rank 的
+窗口可以用训练坐标对齐，而不是依赖控制请求到达的瞬间。</p>
+<p>窗口关闭后才做聚合和格式转换，避免把 <code>key_averages()</code>、原始事件遍历和 JSON 生成放进训练热路径。
+结束处理优先产生 op/kernel 聚合；聚合不可用时保留有界原始事件，并显式记录 <code>truncated</code>，不把
+不完整结果伪装成完整结果。</p>
+<p>同一份 capture 派生出两种视图，是为了分离“机器分析”和“人工查看”。
+<code>python.profile_capture</code> 与 <code>python.profile_hotspot</code> 是有界 session store 上的虚拟表，供本机或
+<code>global.python.profile_hotspot</code> 做过滤、聚合和跨 rank 比较；完整 <code>traceEvents</code> 保持时间线结构，
+交给 Web 可视化。原始时间线不展开写入 MEMT，因为逐事件复制会放大写入成本，而 session 生命周期
+也不同于长期遥测数据。</p>
+<h3 id="torchprobe-step">TorchProbe：可长期运行的 step 状态机<a class="headerlink" href="#torchprobe-step" title="Permanent link">&para;</a></h3>
+<p><img alt="TorchProbe 的 step 状态机与异步队列" src="../../../assets/architecture/probing-torchprobe-state.svg" /></p>
+<p>optimizer hook 定义 step 边界，module hook 只记录本 step 内的局部事实。主线程推进状态机、执行采样
+判定并写入有界事件；CUDA elapsed 读取和批量整理进入延迟队列。关闭 step 时先固定本步墙钟，再排空
+旧事件，因此排空成本不会被记到刚结束的 step 上。</p>
+<p>hook 选择服从“最小侵入”原则。forward 使用 module pre/post hook；backward 不使用容易与 inplace
+激活冲突的 module backward hook，而是在前向输入、输出张量上注册 grad hook，以 grad_output ready
+到 grad_input ready 近似模块反向区间。无法形成这两个边界的模块不制造虚假的精确时长。</p>
+<p>采样分成两级，因为 step 密度和单步覆盖面是两个独立的成本旋钮。step gate 按 step 序号做等间距
+确定性采样，所有 rank 因而选择同一批 step；进入采样 step 后，再以 <code>(step, layer)</code> 的确定性哈希
+决定 module 命中。默认 <code>rate=0.05</code>、<code>layer_rate=1.0</code>，即用少量 step 的完整 module 快照保留层间关系。
+未采样 step 在 hook 入口短路，但仍写 step 墙钟，避免长期趋势出现空洞。</p>
+<p>shadow step 默认按 <code>4:1</code> 交错插入并绕过 TorchProbe hook。这个设计把基线放在同一次训练、同一份
+负载中，减少离线 A/B 的环境漂移；代价是它只能测量 TorchProbe 路径。详细计时边界、统计口径和
+稳定性门槛见<a href="../overhead/">开销模型</a>。</p>
+<p>持续路径最终只发布两个稳定契约：<code>python.torch_trace</code> 保存 module 级事实，
+<code>python.torch_step_timing</code> 保存 step 类型和墙钟。字段定义属于
+<a href="../../reference/sql-tables/#python-torch_trace">SQL 表参考</a>，而分布式时间线如何在这些本机事实之上
+构造，见<a href="../distributed-profiler/">分布式 Profiler 查询与可视化</a>。</p>
+<h2 id="megatron">Megatron 坐标集成<a class="headerlink" href="#megatron" title="Permanent link">&para;</a></h2>
+<p><img alt="Megatron import hook 将并行角色和 iteration 对齐到 Probing 公共坐标" src="../../../assets/architecture/probing-megatron-integration.svg" /></p>
+<p>Megatron 适配器只负责坐标转换，不是新的采集器。import hook 观察
+<code>megatron.core.parallel_state</code> 与 <code>megatron.training.training</code>；相关 API 就绪后，适配器把
+TP/PP/DP/EP/CP rank 写入 <code>probing.set_role(...)</code>，并以 best-effort 方式包装 <code>train_step</code>，
+将 Megatron iteration 与 micro-batch 数对齐到 <code>probing.step(...)</code>。</p>
+<p>版本敏感的 Megatron getter 因而集中在一个适配器内。TorchProbe、通信、堆栈、Profiler 与系统
+采集器仍然只依赖公共 step/role 状态，并在 SQL 中关联。模块不存在或 API 不兼容时只降级集成，
+不能阻塞训练循环。运行时开关见<a href="../../reference/env-vars/#megatron-autostart">环境变量 — Megatron 自动集成</a>。</p>
+<h2 id="msprof-hccl">通过 MSProf 边界采集 HCCL<a class="headerlink" href="#msprof-hccl" title="Permanent link">&para;</a></h2>
+<p><img alt="HCCL MSProf shim 写入本机表并把原调用转发给 CANN" src="../../../assets/architecture/probing-hccl-collector.svg" /></p>
+<p>在昇腾环境中，HCCL 已经通过 <code>libprofapi.so</code> 上报 profiling 事件。Probing 在该边界放置 ABI
+兼容的 shim：导出 HCCL 所需的 MSProf 符号，分类并解码 <code>ReportApi</code>、
+<code>ReportCompactInfo</code> 和 <code>ReportAdditionalInfo</code>，分别追加到 <code>hccl.host_ops</code>、
+<code>hccl.collectives</code>、<code>hccl.tasks</code>、<code>hccl.mc2_streams</code> 与 <code>hccl.context_ids</code>，随后把原参数和
+返回值转发给真实 CANN 库。</p>
+<p>真实库按 <code>PROBING_HCCL_PROFAPI_REAL</code>、shim 同目录的 <code>libprofapi.so.real</code>、Ascend 安装目录
+依次解析。某张表打开失败只停用该表，不影响原调用转发。MSProf 结构体布局跟随部署的 CANN 版本，
+因此安装时必须保存匹配版本的真实库并验证 ABI。shim 不按裸名称再次加载 <code>libprofapi.so</code>，避免递归
+加载自身。</p>
+<h2 id="tracing-training-phases">Tracing 与训练阶段<a class="headerlink" href="#tracing-training-phases" title="Permanent link">&para;</a></h2>
+<p>Tracing 负责粗粒度的训练时间线，TorchProbe 负责 module 级 timing 与显存事实。二者可以在
+同一 step 上关联，但不能重复拥有 forward/backward/optimizer 阶段。</p>
+<h3 id="span-api">状态所有权与持久化<a class="headerlink" href="#span-api" title="Permanent link">&para;</a></h3>
+<p><img alt="Span 栈拥有阶段状态，Recorder 只负责向不同后端提交" src="../../../assets/architecture/probing-span-persistence.svg" /></p>
+<p>Span 栈是阶段状态的唯一来源，持久化只是它的一个出口。<code>probing.span</code> 创建嵌套作用域，
+<code>probing.event</code> 在当前作用域内打点，<code>record_span</code> 则直接提交已经闭合的区间。三种入口最终都经过
+<code>SpanRecorder</code>，从而让 memtable、logger 和 OTEL 只承担输出职责，不反向影响阶段状态。</p>
+<p><code>probing.span</code> 默认延迟关闭：没有 event 的 span 退出时只写一个闭区间；出现 event 后才按需写
+<code>span_start</code>，退出再写 <code>span_end</code>。这个选择减少无事件作用域的写放大，代价是运行中的无 event span
+暂时不能被 SQL 看见。这是提交语义，不是数据丢失。</p>
+<p><code>PROBING_SPAN_BACKENDS</code> 默认为 <code>memtable</code>，也可选 <code>logger</code>、<code>otel</code> 或 <code>none</code>。<code>none</code> 仍维护
+线程内 span 栈，但跳过 attributes、JSON 和落盘，用于 benchmark 或只需 <code>phase()</code> 的场景。
+<code>PROBING_SPAN_LOCATION=1</code> 会调用 <code>inspect.stack()</code>，不应在生产训练热路径默认开启。</p>
+<h3 id="training-phase-semantics">训练阶段不变量<a class="headerlink" href="#training-phase-semantics" title="Permanent link">&para;</a></h3>
+<p>训练阶段没有第二份全局状态。<code>phase</code> 始终从 span 栈中最内层的
+<code>forward</code>、<code>backward</code> 或 <code>optimizer</code> 得到；栈中没有训练阶段时就是 <code>idle</code>。<code>train.step</code> 是一次
+logical iteration 的闭区间，不是第四种 phase。optimizer 退出时才推进 <code>micro_step</code>，再根据
+<code>micro_batches</code> 折算 <code>local_step</code>，因此梯度累积不会制造假的完整 step。</p>
+<p>必须保持以下不变量：</p>
 <ol>
-<li>开启 TorchProbe <strong>不会</strong>启动 Kineto；触发 Torch Profiler 也<strong>不会</strong>修改 TorchProbe
-   的采样率或 shadow 调度。</li>
-<li>两者可以观察到同一个 optimizer step，但只通过 step/capture 坐标在 SQL 层关联，
-   不在采集器内部互相调用。</li>
-<li>如果同时开启，两条路径的开销会叠加；TorchProbe 的 shadow baseline 只估算
-   TorchProbe module-hook 路径，不能代表 Torch Profiler/Kineto 的开销。</li>
+<li><code>phase()</code> 从 span 栈派生，不维护第二份全局阶段状态；一个 batch 之外显示 <code>idle</code> 是正常的。</li>
+<li><code>train.step</code> 从本 logical iteration 的第一次 forward 开始，到 optimizer hook 退出结束；
+   梯度累积中的中间 forward/backward 不重置它。</li>
+<li>每次 optimizer 退出最多写一条 <code>train.step</code>，且此前必须观察到 forward。</li>
+<li>同一 phase 同时只允许一个拥有者；手动 span、phase hook 或 TorchProbe 已打开该 phase 时，
+   其他 hook 不重复创建。</li>
+<li><code>micro_batches=k</code> 时，每 k 次 micro step 才推进一个 <code>local_step</code>。</li>
 </ol>
-<p>推荐诊断顺序是：先用 TorchProbe 长期发现异常的 step、rank 和 module，再只对目标
-窗口启动 Torch Profiler。仅在需要 op/kernel 细节时支付 Kineto 的较高成本。</p>
-<h2 id="torchprobe">TorchProbe 数据收集架构<a class="headerlink" href="#torchprobe" title="Permanent link">&para;</a></h2>
-<pre class="mermaid"><code>graph TB
-    subgraph "数据源"
-        TORCH[PyTorch 模块钩子]
-        PYTHON[Python / 原生栈]
-        SYSTEM[系统与 GPU 指标]
-    end
-
-    subgraph "收集层"
-        SAMPLER[TorchProbe 采样器]
-        PENDING[每步 pending 缓冲]
-    end
-
-    subgraph "存储层"
-        TABLES[python.* 表]
-        QUERY[查询引擎]
-    end
-
-    TORCH --&gt; SAMPLER
-    SAMPLER --&gt; PENDING
-    PENDING --&gt; TABLES
-    PYTHON --&gt; TABLES
-    SYSTEM --&gt; TABLES
-    TABLES --&gt; QUERY</code></pre>
-<h2 id="pytorch-torchprobe">PyTorch 分析（TorchProbe）<a class="headerlink" href="#pytorch-torchprobe" title="Permanent link">&para;</a></h2>
-<h3 id="_3">设计定位<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
-<p>TorchProbe 面向<strong>注入后长期开启的 module 级训练遥测</strong>（<code>PROBING_TORCH_PROFILING=on</code>）。
-它是上一节两条独立路径中的长期遥测路径，不是 <code>torch.profiler</code> 的轻量配置或前端。
-按需 Kineto 采集以<strong>虚拟 SQL 表</strong>暴露（不写 memtable）见
-<strong><a href="../torch-profiler-sql/">Torch Profiler SQL</a></strong>。</p>
-<p><strong>不提供 warmup schedule API</strong>。跳过冷启动步请在 SQL 中过滤：</p>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">local_step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
-</span></code></pre></div>
-<h3 id="_4">钩子<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
-<p>默认安装：</p>
-<ul>
-<li>模型树上每个 <code>nn.Module</code> 的 forward pre/post 钩子</li>
-<li>Optimizer 的 pre/post step 钩子</li>
-</ul>
-<p><strong>默认不启用 backward 计时。</strong> 开启 <code>backward=on</code> 时,对每个模块的 backward 计时取「grad_output 就绪(前向输出张量的 grad hook,在该模块反向<strong>开始前</strong>触发)」到「grad_input 就绪(前向输入张量的 grad hook,在反向<strong>结束后</strong>触发)」的区间。使用普通 tensor <code>register_hook</code> 回调,<code>inplace</code> 安全(不使用 module backward hook,避免 AlexNet/ResNet 等 <code>inplace</code> 激活导致 autograd 崩溃)。输入不需要梯度的模块(如首层)因无法测量区间,记为 ~0。生产环境请谨慎开启。</p>
-<h3 id="_5">采样策略<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
-<p>第一个完整训练 step 为 <strong>discovery</strong>：只注册模块,不写库。从后续 step 开始采样。</p>
-<p><code>rate</code> 为 <strong>step 级采样密度</strong>：每 <code>round(1/rate)</code> 个 step 采样 1 个,等间距、从首个 probed step 开始(stratified 分层采样,非 i.i.d.,低采样率也不会长时间无数据)。调度仅由 step 序号决定(不使用宿主 RNG、无进程种子),因此各 rank 采样<strong>相同</strong>的 step——分布式 trace 对齐、训练可复现。未采样的 step 短路:跳过 module/optimizer hook 与 GPU flush(仍写 <code>torch_step_timing</code> 的墙钟时间)。</p>
-<p>被采样的 step 内,每个 layer 以概率 <code>layer_rate</code>(可选第二段,默认 <code>1.0</code> = 全量快照)独立命中,判定为 (step, layer) 的确定性哈希——看起来随机、逐层变化,但可复现且跨 rank 一致。offset <code>0</code> 锚点(本 step 第一个钩子)始终记录,保证每个采样 step 都有时间基准。</p>
-<p>文法:<code>rate[:layer_rate]</code>。仍接受前缀 <code>random:</code>/<code>ordered:</code> 以兼容旧配置(一律按 <code>random</code> 处理;旧的逐 step 轮转模块的 <code>ordered</code> 模式已移除)。</p>
-<p>启用时的默认值(<code>PROBING_TORCH_PROFILING=on</code>)：<strong><code>rate=0.05</code>,<code>layer_rate=1.0</code></strong>(约 5% 的 step 做全量快照)。<code>1.0</code> 表示每步都采样,<code>0.05:0.1</code> 表示 5% 的 step、每步采 10% 的 layer。</p>
-<p><strong>Shadow 基线 step（默认 <code>shadow=4:1</code>）</strong>：每 4 个正常训练 step 之后插入 1 个完全跳过 TorchProbe hook 的 step（不写 module 级 <code>python.torch_trace</code>）。NCCL、CPU/GPU 等其它采集不变。每个 step 写一行 <code>python.torch_step_timing</code>（shadow step 的 <code>is_shadow=1</code>）。可用 <code>shadow=off</code> 关闭。</p>
-<p>估算开销（公式与测量方法见 <strong><a href="../overhead/">开销测量</a></strong>）：</p>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">SELECT</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="n">round</span><span class="p">(</span><span class="n">median</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">step_duration_sec</span><span class="w"> </span><span class="k">END</span><span class="p">)</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">        </span><span class="o">/</span><span class="w"> </span><span class="k">nullif</span><span class="p">(</span><span class="n">median</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">step_duration_sec</span><span class="w"> </span><span class="k">END</span><span class="p">),</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">100</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="k">AS</span><span class="w"> </span><span class="n">overhead_pct</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_step_timing</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">local_step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
-</span></code></pre></div>
-<p>采样降低记录开销；forward 钩子仍挂在全部子模块上（shadow step 上 hook 立即返回，零开销）。</p>
-<h3 id="nccl-profiler">NCCL profiler 开销<a class="headerlink" href="#nccl-profiler" title="Permanent link">&para;</a></h3>
-<p>Shadow step 仅衡量 <strong>TorchProbe 模块 hook</strong> 开销。NCCL profiler 插件目前没有 in-run shadow 基线，启用后会持续记录 collective 事件。NCCL AllReduce 与 probing 的开销对比请用离线 benchmark：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./examples/overhead/run_nccl_bench.sh
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1"># 或：python examples/overhead/torch_probe_overhead_smoke.py  # 仅 Torch 冒烟（无需 GPU）</span>
-</span></code></pre></div>
-<p>运行时健康度见 <code>nccl.profiler_counters</code>（<code>pool_exhausted</code>、<code>write_errors</code>、<code>rows_written</code>）。Web UI 开销面板在 NCCL 活跃时会提示离线 bench 入口。</p>
-<p>记录在每个 optimizer step 结束时批量落盘（可选 GPU <code>synchronize()</code>）。pre/post 成对产生两行；<strong>时长在 post 行</strong>（<code>post forward</code>、<code>post step</code> 等）上有效。</p>
-<h3 id="pythontorch_trace">采集字段（<code>python.torch_trace</code>）<a class="headerlink" href="#pythontorch_trace" title="Permanent link">&para;</a></h3>
-<p>完整列说明：<a href="../../reference/sql-tables/#python-torch_trace">SQL 表 — torch_trace</a>。</p>
-<table>
-<thead>
-<tr>
-<th>字段</th>
-<th>类型</th>
-<th>描述</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>step</td>
-<td>int</td>
-<td>本地训练步（每 rank）</td>
-</tr>
-<tr>
-<td>global_step</td>
-<td>int</td>
-<td>全局步（<code>step_snapshot</code>）</td>
-</tr>
-<tr>
-<td>rank</td>
-<td>int</td>
-<td><code>torch.distributed</code> rank</td>
-</tr>
-<tr>
-<td>world_size</td>
-<td>int</td>
-<td>world size</td>
-</tr>
-<tr>
-<td>role</td>
-<td>string</td>
-<td>并行角色 key，如 <code>dp=2,pp=1,tp=0</code></td>
-</tr>
-<tr>
-<td>seq</td>
-<td>int</td>
-<td>step 内钩子序号</td>
-</tr>
-<tr>
-<td>module</td>
-<td>string</td>
-<td>模块名</td>
-</tr>
-<tr>
-<td>stage</td>
-<td>string</td>
-<td><code>pre forward</code>、<code>post forward</code>、<code>pre step</code>、<code>post step</code>（默认不采 backward）</td>
-</tr>
-<tr>
-<td>allocated</td>
-<td>float</td>
-<td>GPU 已分配内存 (MB)，仅 CUDA</td>
-</tr>
-<tr>
-<td>max_allocated</td>
-<td>float</td>
-<td>GPU 峰值内存 (MB)</td>
-</tr>
-<tr>
-<td>cached</td>
-<td>float</td>
-<td>GPU 预留内存 (MB)</td>
-</tr>
-<tr>
-<td>max_cached</td>
-<td>float</td>
-<td>峰值预留 (MB)</td>
-</tr>
-<tr>
-<td>time_offset</td>
-<td>float</td>
-<td>相对本 step 锚点的秒数</td>
-</tr>
-<tr>
-<td>duration</td>
-<td>float</td>
-<td>阶段耗时（秒）；post 行有意义</td>
-</tr>
-</tbody>
-</table>
-<p>可用 <code>role</code> + <code>global_step</code> 与同 rank 的 <code>python.comm_collective</code> JOIN。</p>
-<h3 id="pythoncomm_collective">集合通信（<code>python.comm_collective</code>）<a class="headerlink" href="#pythoncomm_collective" title="Permanent link">&para;</a></h3>
-<p>对 <code>torch.distributed</code> 的 lite 模式钩子每条 collective 写一行，含 <code>duration_ms</code>、<code>bytes</code>、<code>op</code>
-及相同 step/role 坐标。<strong>默认关闭</strong>（含多 rank 作业）；需显式开启：
-<code>PROBING_TORCH_COLLECTIVE_ENABLE=1</code> 或 <code>SET probing.torch.collective.enable=1</code>。
-见 <a href="../../reference/sql-tables/#python-comm_collective">SQL 表</a> 与
-<a href="../../guide/sql-analytics/#python-comm_collective">SQL 分析</a>。</p>
-<h3 id="pytorch_1">启用 PyTorch 分析<a class="headerlink" href="#pytorch_1" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># 环境变量（同步为 probing.torch.profiling）</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span>on<span class="w"> </span>python<span class="w"> </span>train.py
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># 50% step，全量快照</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span><span class="m">0</span>.5<span class="w"> </span>python<span class="w"> </span>train.py
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># 10% step，每步采 30% 的 layer</span>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span><span class="m">0</span>.1:0.3,tracepy<span class="o">=</span>on<span class="w"> </span>python<span class="w"> </span>train.py
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
-</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="c1"># 开启 backward 模块计时（默认关闭，可能影响 autograd）</span>
-</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span><span class="m">1</span>.0,backward<span class="o">=</span>on<span class="w"> </span>python<span class="w"> </span>train.py
-</span></code></pre></div>
-<p>编程配置：</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">probing.profiling.torch_probe</span><span class="w"> </span><span class="kn">import</span> <span class="n">configure</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">configure</span><span class="p">(</span><span class="s2">&quot;on,rate=0.5,layer_rate=0.3&quot;</span><span class="p">)</span>
-</span></code></pre></div>
-<p>在 torch 导入后首次 <code>optimizer.step()</code> 时通过 optimizer post hook 启动。</p>
+<p>阶段所有权只交给 <code>attach_training_phases</code>：它关闭 forward/backward/optimizer，并提交
+<code>train.step</code> 墙钟。TorchProbe 发现已有 owner 时不重复创建阶段，只发布 module timing 与显存事实。
+这一所有权规则避免同一训练区间被两套 hook 重复解释。</p>
+<p>查询层通过 <code>probing.tracing.SPANS_SQL</code> 把 <code>python.trace_event</code> 的 start/end 行恢复成闭区间，
+采集器不额外维护第二份 duration 表。坐标与表语义见<a href="../../guide/concepts/">核心模型</a>，backend 环境变量见
+<a href="../../reference/env-vars/#tracing-spans">环境变量</a>。</p>
 <h2 id="python">Python 堆栈分析<a class="headerlink" href="#python" title="Permanent link">&para;</a></h2>
-<p><code>probing/extensions/python/src/features/</code> 按关注点分组：</p>
-<table>
-<thead>
-<tr>
-<th>目录</th>
-<th>职责</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>python/</code></td>
-<td>PyO3：<code>bridge</code> / <code>bindings</code> / <code>tracing</code></td>
-</tr>
-<tr>
-<td><code>stacktrace/</code></td>
-<td>堆栈捕获、merge、tracers</td>
-</tr>
-<tr>
-<td><code>torch/</code></td>
-<td>模块级 profiling（<code>python.torch_trace</code>）</td>
-</tr>
-<tr>
-<td><code>flamegraph/</code></td>
-<td>共享火焰图渲染 + 分布式 folded merge</td>
-</tr>
-<tr>
-<td><code>crash/</code></td>
-<td>致命信号回溯</td>
-</tr>
-</tbody>
-</table>
-<p><code>stacktrace/</code> 数据管线：<code>StackSnapshot</code> → <code>ParsedStacks</code> → <code>FoldedStacks</code>。</p>
-<table>
-<thead>
-<tr>
-<th>模块</th>
-<th>职责</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>snapshot</code></td>
-<td>采集单据 + <code>StackSource</code> / flags（信号路径唯一可写）</td>
-</tr>
-<tr>
-<td><code>compact</code></td>
-<td>采样桶堆上紧凑 payload（按实际帧长，避免整份 POD）</td>
-</tr>
-<tr>
-<td><code>fingerprint</code></td>
-<td>聚合键 = <code>tid</code> + flags + PCs + py keys（不 demangle）；pprof 另过滤仅主线程</td>
-</tr>
-<tr>
-<td><code>parse</code></td>
-<td>Snapshot → CallFrame（<code>(tid,seq)</code> 多槽 FIFO 视图缓存）</td>
-</tr>
-<tr>
-<td><code>fold</code></td>
-<td>Parsed/Snapshot → 火焰图 / 分布式聚合</td>
-</tr>
-<tr>
-<td><code>metrics</code></td>
-<td>JSON 分 <code>sampler</code>（drop / fingerprint / export-fold）与 <code>view</code>（parse / cache）</td>
-</tr>
-<tr>
-<td><code>merge</code></td>
-<td>Python ⊕ native splice + canonicalize</td>
-</tr>
-<tr>
-<td><code>capture</code></td>
-<td>线程注册、intern、信号 fill（不拥有 parse/fold）</td>
-</tr>
-<tr>
-<td><code>spy</code></td>
-<td>CPython ABI / TLS（py-spy 衍生）</td>
-</tr>
-<tr>
-<td><code>tracers/vm</code></td>
-<td>解释器 eval-frame 钩子（Python 帧唯一来源）</td>
-</tr>
-<tr>
-<td><code>tracers/pprof</code></td>
-<td><code>SIGPROF</code> 采样（SQL / 连续 profiling）</td>
-</tr>
-<tr>
-<td><code>tracers/dynamic</code></td>
-<td><code>SIGUSR2</code> + 命令/HTTP 按需采集（一律走 parse）</td>
-</tr>
-</tbody>
-</table>
-<p>按需栈与 CPU 采样共用同一套基础设施：</p>
-<ul>
-<li><strong>Python 帧</strong>：仅来自 <strong>vm tracer</strong>（<code>PYSTACKS</code>）；符号在 GIL 下 intern（完整路径供源码查看，火焰图展示 basename），signal 路径只拷贝指针。</li>
-<li><strong>C++/Rust 帧</strong>：Linux 上 <code>SIGPROF</code> / <code>SIGUSR2</code> 共用 <code>SA_ONSTACK</code> 安全 handler（每 Python 线程 <code>sigaltstack</code>，原地 <code>fill_raw_snapshot</code>）。<strong>macOS 默认不用 <code>ITIMER_PROF</code></strong>：异步 SIGPROF 打进 <code>_platform_strlen</code> 等 SIMD 例程后会固定 PC <code>SIGILL</code>；<code>sample_freq</code> 改为 eval-frame 节流协作采样（<strong>只记 <code>PYSTACKS</code>，不做 mid-hook SyncWalk</strong>，避免 <code>_PyInit__core</code> / vectorcall 把分布式火焰图打散；<code>PROBING_PPROF_SIGPROF=1</code> 可强制异步）。merge 丢弃 CPython call-protocol / 扩展 <code>PyInit_*</code> 噪声。symbolize / merge 在 signal 外完成。</li>
-<li><strong>metrics JSON</strong>：<code>sampler.*</code>（ring/publish drop / fingerprint / <strong>导出时</strong> fold）与 <code>view.*</code>（parse / <code>(tid,seq)</code> cache）分栏；<code>dropped_publish</code> 表示两个发布缓冲区都繁忙时跳过的快照数；不要把导出批次的 <code>parse_calls</code> 读成「每样本都在 demangle」。</li>
-<li><strong>获取路径</strong>：dynamic（命令/HTTP）或 pprof（SQL/<code>sample_freq</code>）；二者取 Python 信息时都读 vm tracer 已记录的帧。</li>
-<li><strong>复用</strong>：采样开启时，主线程 HTTP/火焰图优先复用该线程最近一次采样快照。</li>
-<li><strong>主线程 HTTP 路径</strong>：优先复用最新采样混合快照。macOS 没有 native 样本时，通过 Mach 短暂暂停目标线程并复制 PC/帧指针链，立即恢复后再做符号化，避免向训练线程投递信号。<strong><code>sample_freq</code> 开启时禁止对主线程 <code>SIGUSR2</code></strong>（含 Distributed）。Linux 在采样关闭时默认使用带备用信号栈和有边界帧指针遍历的按需 <code>SIGUSR2</code>；可用 <code>PROBING_STACK_SIGUSR2_MAIN=0</code> 禁用。跨线程按需仍可走 <code>SIGUSR2</code>。</li>
-<li><strong>分布式火焰图</strong>：<code>sample_freq</code> 开启后只聚合各 rank 采样桶（为空则空图，不回退 on-demand）；跨 rank merge 后每个 frame 携带 <code>ranks</code>。</li>
-<li><strong>canonicalize</strong>：剥 <code>_Py_RunMain</code> / importlib / <code>platform.py</code> 等 bootstrap；SIGPROF 仅统计已注册 Python 主线程样本。</li>
-</ul>
-<p>TorchProbe 模块钩子与上述栈采集相互独立。分布式 CPU 混合栈火焰图见 <code>GET /apis/pprofextension/flamegraph/distributed/json</code>（Web：<strong>Stacks → Distributed</strong>）。SPMD torch 模块级火焰图：<code>GET /apis/torchextension/flamegraph/distributed/json</code>。</p>
-<h2 id="_6">系统指标<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
-<p>通过 <code>PROBING_GPU_SAMPLE_MS</code> 等环境变量配置间隔，采集主机 CPU、内存、GPU 利用率等。</p>
-<p><strong>变量/张量 watch（<code>probing.inspect.trace</code>）：</strong> 默认写入 Python logger；设置 <code>PROBING_TRACE_STDOUT=1</code> 可改为 <strong>stdout</strong> 输出（本地调试方便，生产训练日志慎用）。</p>
-<h2 id="_7">数据存储<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h2>
-<p>探针数据存入<strong>列式探针表</strong>（如 <code>python.torch_trace</code>），由查询引擎访问。保留与联邦策略由 memtable / server 配置决定，而非进程内固定大小环形缓冲区。</p>
-<h2 id="_8">查询示例<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h2>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1">-- 跳过 discovery / 冷启动</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">module</span><span class="p">,</span><span class="w"> </span><span class="n">stage</span><span class="p">,</span><span class="w"> </span><span class="k">AVG</span><span class="p">(</span><span class="n">duration</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">avg_sec</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">local_step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">duration</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">module</span><span class="p">,</span><span class="w"> </span><span class="n">stage</span>
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">avg_sec</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
-</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="c1">-- 火焰图聚合（post 行上的 median duration）</span>
-</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">module</span><span class="p">,</span><span class="w"> </span><span class="n">stage</span><span class="p">,</span><span class="w"> </span><span class="n">median</span><span class="p">(</span><span class="k">CAST</span><span class="p">(</span><span class="n">duration</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">DOUBLE</span><span class="p">))</span>
-</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span>
-</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">module</span><span class="w"> </span><span class="o">&lt;&gt;</span><span class="w"> </span><span class="s1">&#39;None&#39;</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">stage</span><span class="w"> </span><span class="k">LIKE</span><span class="w"> </span><span class="s1">&#39;post %&#39;</span>
-</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">module</span><span class="p">,</span><span class="w"> </span><span class="n">stage</span><span class="p">;</span>
-</span></code></pre></div>
-<h2 id="_9">性能开销<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h2>
-<p>开销取决于模型规模（全树 forward 钩子）、采样模式/rate、以及 <code>sync</code>、<code>tracepy</code>、变量监视等选项。降低 <code>rate</code>、关闭 torch profiling、在 SQL 中过滤早期 step，而不是引入 warmup schedule。</p>
-<table>
-<thead>
-<tr>
-<th>场景</th>
-<th>典型影响</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>关闭 torch profiling</td>
-<td>仅基础探针开销</td>
-</tr>
-<tr>
-<td><code>on</code>（默认 <code>0.05</code>，全量快照）</td>
-<td>较低；约 5% step 被采样</td>
-</tr>
-<tr>
-<td><code>0.05:0.1</code></td>
-<td>极低；5% step、每步 10% 的 layer</td>
-</tr>
-<tr>
-<td><code>1.0</code></td>
-<td>较高；每步全量快照</td>
-</tr>
-<tr>
-<td><code>sync=on</code></td>
-<td>较高；每个钩子同步 GPU</td>
-</tr>
-</tbody>
-</table>
+<p><img alt="各 rank 折叠堆栈后合并为分布式火焰图" src="../../../assets/architecture/probing-distributed-stacks.svg" /></p>
+<p>跨 rank 时先在数据所在进程生成 folded lines，再由查询入口归一化并合并相同调用路径。
+结果同时保留路径权重、完成/失败节点以及路径覆盖的 rank，避免上传全部原始 stack sample。</p>
+<p>堆栈路径被切成 <code>StackSnapshot → ParsedStacks → FoldedStacks</code> 三个阶段，核心原因是异步信号环境
+不能做分配、符号化或复杂锁操作。capture 只把线程、来源标记、native PC 和已 intern 的 Python
+frame key 写入固定结构；parse 离开信号上下文后恢复符号与混合栈；fold 再做指纹聚合和火焰图输出。
+按需抓栈与连续采样因此可以共享后两段，而不会把各自的触发机制耦合进数据解释。</p>
+<p>Python frame 的唯一来源是 eval-frame VM tracer。符号在持有 GIL 时 intern，信号路径只复制 key。
+native frame 在 Linux 由运行在备用信号栈上的 <code>SIGPROF</code>/<code>SIGUSR2</code> handler 原地填充。macOS 的异步
+SIGPROF 可能落入系统 SIMD 例程并导致 <code>SIGILL</code>，所以默认改用 eval-frame 节流的协作式 Python
+采样；需要 native 栈的按需路径通过 Mach 短暂停线程、复制 PC/帧指针后立即恢复，再异步符号化。
+平台差异被限制在 capture 阶段，后续 parse、merge 和 fold 保持一致。</p>
+<p>连续采样使用有界 ring 和双发布缓冲；缓冲繁忙时丢弃快照并计数，而不是阻塞训练线程。查询或 Web
+请求优先复用最近快照，不再向已被持续采样的主线程追加一次信号。跨 rank 时，各进程先把重复调用路径
+折叠成带权 folded lines，再合并相同路径并附带 rank 覆盖范围。这把网络传输量从“原始样本数”降为
+“不同调用路径数”，同时允许部分 rank 失败时返回可解释的不完整结果。</p>
+<p>TorchProbe 的 module 火焰图与 CPU 混合栈使用相同的跨 rank 聚合思想，但采集状态彼此独立：前者
+来源于 module timing，后者来源于 VM/native snapshot，二者只在查询和展示层组合。</p>
+<h2 id="_3">与其他层的边界<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<p>系统指标按周期采样，Torch、通信和堆栈按各自事件触发；它们只共享坐标，不共享调度线程。
+所有长期事实进入列式探针表，保留、冷热分层和跨 rank 查询由数据层与查询引擎决定，采集器不自行
+实现第二套存储策略。字段和 SQL 示例见<a href="../../reference/sql-tables/">表参考</a>与
+<a href="../../guide/sql-analytics/">SQL 分析指南</a>；生产开销的测量方法和不变量见<a href="../overhead/">开销模型</a>。</p>
 
 
 

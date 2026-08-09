@@ -13,10 +13,10 @@
         <link rel="canonical" href="https://github.com/DeepLink-org/probing/zh/design/distributed/">
       
       
-        <link rel="prev" href="../training-phase/">
+        <link rel="prev" href="../overhead/">
       
       
-        <link rel="next" href="../torchrun-cluster/">
+        <link rel="next" href="../federation/">
       
       
         
@@ -31,7 +31,7 @@
     
     
       
-        <title>概览 - Probing 文档</title>
+        <title>分布式成员与控制面 - Probing 文档</title>
       
     
     
@@ -122,7 +122,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              概览
+              分布式成员与控制面
             
           </span>
         </div>
@@ -394,17 +394,20 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="../../contributing/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/" class="md-tabs__link">
+          
   
   
     
   
   贡献指南
 
-      </a>
-    </li>
+        </a>
+      </li>
+    
   
 
       
@@ -906,8 +909,6 @@
       
         
       
-        
-      
     
     
     
@@ -1008,7 +1009,7 @@
   <span class="md-ellipsis">
     
   
-    平台核心
+    基础架构
   
 
     
@@ -1024,7 +1025,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    平台核心
+    基础架构
   
 
           </label>
@@ -1045,6 +1046,34 @@
     
   
     模块化与边界
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../activation-injection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    启用、注入与运行时控制
   
 
     
@@ -1114,34 +1143,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CLI 命令树
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -1158,14 +1159,6 @@
   
     
     
-      
-        
-      
-        
-      
-        
-      
-        
       
         
       
@@ -1235,91 +1228,7 @@
   <span class="md-ellipsis">
     
   
-    性能分析
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../torch-profiler-sql/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Torch Profiler SQL（Kineto 虚拟表）
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../overhead/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    开销测量
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../overhead-invariants/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overhead invariants
+    性能分析与 Tracing
   
 
     
@@ -1368,42 +1277,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../debugging/" class="md-nav__link">
+      <a href="../overhead/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    调试引擎
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../training-phase/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    训练阶段
+    开销测量
   
 
     
@@ -1442,10 +1323,6 @@
       
         
       
-        
-      
-        
-      
     
     
     
@@ -1472,7 +1349,7 @@
   <span class="md-ellipsis">
     
   
-    分布式
+    分布式查询与分析
   
 
     
@@ -1488,7 +1365,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    分布式
+    分布式查询与分析
   
 
           </label>
@@ -1517,7 +1394,7 @@
   <span class="md-ellipsis">
     
   
-    概览
+    分布式成员与控制面
   
 
     
@@ -1535,7 +1412,7 @@
   <span class="md-ellipsis">
     
   
-    概览
+    分布式成员与控制面
   
 
     
@@ -1561,10 +1438,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#_2" class="md-nav__link">
+  <a href="#1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        相关文档
+        1. 总体结构
       
     </span>
   </a>
@@ -1572,33 +1449,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_3" class="md-nav__link">
+  <a href="#cluster-membership" class="md-nav__link">
     <span class="md-ellipsis">
       
-        拓扑
+        2. 集群成员生命周期
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_4" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        进程发现
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="进程发现">
+    <nav class="md-nav" aria-label="2. 集群成员生命周期">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
+  <a href="#21" class="md-nav__link">
     <span class="md-ellipsis">
       
-        本地发现
+        2.1 启动条件
       
     </span>
   </a>
@@ -1606,10 +1472,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_6" class="md-nav__link">
+  <a href="#22" class="md-nav__link">
     <span class="md-ellipsis">
       
-        远程发现
+        2.2 分层注册
       
     </span>
   </a>
@@ -1617,10 +1483,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_7" class="md-nav__link">
+  <a href="#23" class="md-nav__link">
     <span class="md-ellipsis">
       
-        集群视图
+        2.3 收敛、退避与失效
       
     </span>
   </a>
@@ -1633,269 +1499,46 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_8" class="md-nav__link">
+  <a href="#3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        跨节点查询
+        3. 发现与控制入口
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="跨节点查询">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_9" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        查询单个节点
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#global" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        联邦查询（global.*）
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#_10" class="md-nav__link">
+  <a href="#4" class="md-nav__link">
     <span class="md-ellipsis">
       
-        同步调试
+        4. 与联邦查询的边界
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="同步调试">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_11" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        捕获所有堆栈
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_12" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        检查分布式状态
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#_13" class="md-nav__link">
+  <a href="#5" class="md-nav__link">
     <span class="md-ellipsis">
       
-        通信分析
+        5. 配置
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="通信分析">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#collective" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Collective 延迟（粗粒度，内置）
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#nccl" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        NCCL 等待分解（细粒度）
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rdma" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        RDMA 流分析
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#_14" class="md-nav__link">
+  <a href="#6" class="md-nav__link">
     <span class="md-ellipsis">
       
-        分布式问题排查
+        6. 设计约束与实现位置
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="分布式问题排查">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#rank" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Rank 同步
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_15" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        死锁检测
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_16" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        内存不均衡
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_17" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        配置
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="配置">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_18" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        启用远程访问
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_19" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        安全
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_20" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        最佳实践
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="最佳实践">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_21" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        一致的环境变量
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_22" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        跨节点时间戳
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_23" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        网络
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -1903,34 +1546,6 @@
   
 </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../torchrun-cluster/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    torchrun 集群心跳
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -1971,42 +1586,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../hierarchical-fanout/" class="md-nav__link">
+      <a href="../distributed-profiler/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    分层集群查询
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../cluster-pulsing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    基于 Pulsing 的集群
+    分布式 Profiler 查询与可视化
   
 
     
@@ -2023,34 +1610,6 @@
           </ul>
         </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    系统架构（旧版）
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -2487,6 +2046,64 @@
   
   
   
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    贡献指南
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    贡献指南
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../../contributing/" class="md-nav__link">
         
@@ -2504,6 +2121,42 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../writing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    文档写作规范
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2535,10 +2188,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#_2" class="md-nav__link">
+  <a href="#1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        相关文档
+        1. 总体结构
       
     </span>
   </a>
@@ -2546,33 +2199,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_3" class="md-nav__link">
+  <a href="#cluster-membership" class="md-nav__link">
     <span class="md-ellipsis">
       
-        拓扑
+        2. 集群成员生命周期
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_4" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        进程发现
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="进程发现">
+    <nav class="md-nav" aria-label="2. 集群成员生命周期">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
+  <a href="#21" class="md-nav__link">
     <span class="md-ellipsis">
       
-        本地发现
+        2.1 启动条件
       
     </span>
   </a>
@@ -2580,10 +2222,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_6" class="md-nav__link">
+  <a href="#22" class="md-nav__link">
     <span class="md-ellipsis">
       
-        远程发现
+        2.2 分层注册
       
     </span>
   </a>
@@ -2591,10 +2233,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_7" class="md-nav__link">
+  <a href="#23" class="md-nav__link">
     <span class="md-ellipsis">
       
-        集群视图
+        2.3 收敛、退避与失效
       
     </span>
   </a>
@@ -2607,269 +2249,46 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_8" class="md-nav__link">
+  <a href="#3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        跨节点查询
+        3. 发现与控制入口
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="跨节点查询">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_9" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        查询单个节点
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#global" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        联邦查询（global.*）
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#_10" class="md-nav__link">
+  <a href="#4" class="md-nav__link">
     <span class="md-ellipsis">
       
-        同步调试
+        4. 与联邦查询的边界
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="同步调试">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_11" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        捕获所有堆栈
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_12" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        检查分布式状态
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#_13" class="md-nav__link">
+  <a href="#5" class="md-nav__link">
     <span class="md-ellipsis">
       
-        通信分析
+        5. 配置
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="通信分析">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#collective" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Collective 延迟（粗粒度，内置）
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#nccl" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        NCCL 等待分解（细粒度）
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rdma" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        RDMA 流分析
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#_14" class="md-nav__link">
+  <a href="#6" class="md-nav__link">
     <span class="md-ellipsis">
       
-        分布式问题排查
+        6. 设计约束与实现位置
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="分布式问题排查">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#rank" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Rank 同步
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_15" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        死锁检测
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_16" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        内存不均衡
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_17" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        配置
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="配置">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_18" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        启用远程访问
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_19" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        安全
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_20" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        最佳实践
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="最佳实践">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_21" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        一致的环境变量
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_22" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        跨节点时间戳
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_23" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        网络
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -2893,210 +2312,260 @@
   
 
 
-<h1 id="_1">分布式架构<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
-<p>多节点 probing：各 rank 写本地 memtable；<code>cluster.nodes</code> 注册表；coordinator 通过
-<code>global.*</code> 与 <code>/apis/cluster/query</code> 做 SQL fan-out。</p>
-<h2 id="_2">相关文档<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<h1 id="_1">分布式成员与控制面<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
+<p>本文说明 Probing 如何发现和维护一个分布式训练作业中的探针成员。每个 rank 仍只写本地
+表；跨 rank SQL 的 catalog、执行路径和结果正确性由<a href="../federation/">联邦查询引擎</a>定义。</p>
+<blockquote>
+<p>状态：当前实现。成员注册位于 <code>probing-server</code>，不会修改 torch rendezvous 数据，也不
+阻塞 <code>init_process_group</code>。</p>
+</blockquote>
+<h2 id="1">1. 总体结构<a class="headerlink" href="#1" title="Permanent link">&para;</a></h2>
+<p><img alt="分层成员控制面传播身份，训练数据仍保留在每个 Rank" src="../../../assets/architecture/probing-cluster-membership.svg" /></p>
 <table>
 <thead>
 <tr>
-<th>文档</th>
+<th>角色</th>
+<th>责任</th>
+<th>不负责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>leaf rank</td>
+<td>上报自身 endpoint、rank 与 role；执行本地 SQL</td>
+<td>维护全局成员或递归 fan-out</td>
+</tr>
+<tr>
+<td>local0</td>
+<td>汇总本机 rank 心跳；作为分层查询的节点代理</td>
+<td>改写训练 rendezvous</td>
+</tr>
+<tr>
+<td>global rank 0</td>
+<td>提供作业成员快照和查询入口</td>
+<td>集中保存训练采集数据</td>
+</tr>
+<tr>
+<td><code>cluster.nodes</code></td>
+<td>当前 endpoint membership 与健康状态</td>
+<td>代替 torch process group</td>
+</tr>
+</tbody>
+</table>
+<p>成员控制面和数据面分离：heartbeat 只传播少量身份与健康元数据，训练采集结果保留在 rank
+本地，直到查询发生。</p>
+<h2 id="cluster-membership">2. 集群成员生命周期<a class="headerlink" href="#cluster-membership" title="Permanent link">&para;</a></h2>
+<h3 id="21">2.1 启动条件<a class="headerlink" href="#21" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>条件</th>
+<th>当前行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PROBING=1/2</code></td>
+<td>当前进程已启用 Probing</td>
+</tr>
+<tr>
+<td><code>WORLD_SIZE &gt; 1</code></td>
+<td>单进程不启动集群 worker</td>
+</tr>
+<tr>
+<td><code>PROBING_TORCHRUN_CLUSTER != 0</code></td>
+<td>默认开启 torchrun 集群初始化</td>
+</tr>
+<tr>
+<td><code>PROBING_CLUSTER_REPORT != 0</code></td>
+<td>默认开启周期 heartbeat</td>
+</tr>
+<tr>
+<td>非 elastic supervisor</td>
+<td>supervisor 不绑定训练 rank 的 HTTP 端口</td>
+</tr>
+</tbody>
+</table>
+<p>Rust 动态库构造函数调用 <code>maybe_start_torchrun_cluster()</code>：绑定 HTTP、通过 job TCPStore
+发现 master/local0 地址，并启动异步 heartbeat worker。Python 不再 patch
+<code>torch.distributed.init_process_group</code>；<code>setup_torchrun_cluster()</code> 仅保留为显式入口和测试门面。</p>
+<h3 id="22">2.2 分层注册<a class="headerlink" href="#22" title="Permanent link">&para;</a></h3>
+<p><img alt="leaf、local0 与 global rank 0 逐级合并 heartbeat" src="../../../assets/architecture/probing-cluster-heartbeat.svg" /></p>
+<p>TCPStore 只使用 Probing 自己的 key 前缀：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>probing/torchrun/&lt;run_id&gt;/master
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>probing/torchrun/&lt;run_id&gt;/node/&lt;group_rank&gt;/local0
+</span></code></pre></div>
+<p>它与 torch rendezvous 共用 endpoint，但不读写 rendezvous key。<code>PUT /apis/nodes</code> 按 rank
+合并 heartbeat；<code>GET /apis/nodes</code> 和 <code>cluster.nodes</code> 返回排序后的当前快照。</p>
+<p>注册至少携带 <code>rank</code>、<code>world_size</code>、<code>group_rank</code>、<code>local_rank</code>、<code>host</code>、<code>addr</code> 和 <code>role</code>。
+其中 <code>addr</code> 必须是 peer 可访问的探针地址，而不是默认假设 rendezvous 地址就是当前节点地址。</p>
+<h3 id="23">2.3 收敛、退避与失效<a class="headerlink" href="#23" title="Permanent link">&para;</a></h3>
+<ul>
+<li>成员未凑齐时维持基础间隔，优先快速收敛；</li>
+<li>全员 alive 后按因子指数退避，降低长任务的控制面开销；</li>
+<li>一个 stale TTL 未收到 heartbeat 时标记 <code>dead</code>，第二个 TTL 后从视图移除；</li>
+<li>实际最大 heartbeat 间隔受 stale 安全窗口约束，不能大于
+  <code>STALE_SEC - STALE_SEC/4 - 1</code>。</li>
+</ul>
+<p>默认 <code>STALE_SEC=25</code> 时，最大安全间隔约为 18 秒；若需要稳定后约 60 秒上报，应把 stale
+同时提高到至少约 90 秒。查询必须基于一次 <code>cluster.nodes</code> 快照，并在结果中报告成员失败，
+不能把训练中动态变化的视图伪装成静态全集。</p>
+<p>训练脚本调用 <code>probing.set_role(...)</code> 后，可通过 <code>refresh_node_role()</code> 立即补发 heartbeat，
+使 <code>_role</code> 联邦标签及时更新。</p>
+<h2 id="3">3. 发现与控制入口<a class="headerlink" href="#3" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>需求</th>
+<th>入口</th>
 <th>范围</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><a href="../torchrun-cluster/">torchrun 集群心跳</a></td>
-<td>TCPStore 旁路、分层 PUT、退避</td>
+<td>本机探针进程</td>
+<td><code>probing list</code></td>
+<td>本机 socket/process 发现</td>
 </tr>
 <tr>
-<td><a href="../federation/">联邦查询引擎</a></td>
-<td>Catalog 改写、路径 A/B/C、标签注入</td>
+<td>远程探针状态</td>
+<td><code>probing -t host:port list</code></td>
+<td>单 endpoint</td>
 </tr>
 <tr>
-<td><a href="../hierarchical-fanout/">分层集群查询</a></td>
-<td>coordinator → local0 → leaf HTTP 拓扑</td>
+<td>作业成员快照</td>
+<td><code>probing -t rank0:port cluster nodes</code></td>
+<td><code>cluster.nodes</code></td>
 </tr>
 <tr>
-<td><a href="../cluster-pulsing/">基于 Pulsing 的集群</a></td>
-<td>可选 <code>pulsing.*</code> memtable 成员</td>
+<td>单 rank SQL</td>
+<td><code>probing -t endpoint query "..."</code></td>
+<td>本地 <code>probe.*</code></td>
 </tr>
 <tr>
-<td><a href="../nccl-profiler/">NCCL Profiler</a></td>
-<td><code>nccl.proxy_ops</code> 插件 ABI</td>
+<td>跨 rank SQL</td>
+<td><code>cluster query</code> 或 <code>global.*</code></td>
+<td>交给 federation</td>
 </tr>
 </tbody>
 </table>
-<p>依赖顺序：<a href="../../guide/concepts/">核心模型</a> → 本页 → torchrun 心跳 → 联邦 → 分层 fan-out。</p>
-<p>参考：<a href="../../reference/sql-tables/">SQL 表目录</a>（<code>cluster.nodes</code>、联邦标签）。</p>
-<hr />
-<h2 id="_3">拓扑<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
-<pre class="mermaid"><code>graph TB
-    subgraph "节点 1"
-        P1[进程 Rank 0]
-        PROBE1[探针]
-    end
-
-    subgraph "节点 2"
-        P2[进程 Rank 1]
-        PROBE2[探针]
-    end
-
-    subgraph "控制平面"
-        CLI[CLI 客户端]
-        AGG[聚合器]
-    end
-
-    PROBE1 --&gt; AGG
-    PROBE2 --&gt; AGG
-    CLI --&gt; AGG
-    CLI --&gt; PROBE1
-    CLI --&gt; PROBE2</code></pre>
-<h2 id="_4">进程发现<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
-<h3 id="_5">本地发现<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># 列出本地机器上所有启用 probing 的进程</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>probing<span class="w"> </span>list
-</span></code></pre></div>
-<h3 id="_6">远程发现<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># 连接到远程节点</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>probing<span class="w"> </span>-t<span class="w"> </span>node1:8080<span class="w"> </span>list
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>probing<span class="w"> </span>-t<span class="w"> </span>node2:8080<span class="w"> </span>list
-</span></code></pre></div>
-<h3 id="_7">集群视图<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># 列出集群视图中已注册的节点（连接到 rank 0 / master 端点）</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>probing<span class="w"> </span>-t<span class="w"> </span>rank0:8080<span class="w"> </span>cluster<span class="w"> </span>nodes
-</span></code></pre></div>
-<h2 id="_8">跨节点查询<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h2>
-<h3 id="_9">查询单个节点<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>probing<span class="w"> </span>-t<span class="w"> </span>node1:8080<span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="s2">SELECT * FROM python.torch_trace</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="s2">WHERE step = (SELECT MAX(step) FROM python.torch_trace)&quot;</span>
-</span></code></pre></div>
-<h3 id="global">联邦查询（<code>global.*</code>）<a class="headerlink" href="#global" title="Permanent link">&para;</a></h3>
-<p>跨 rank SQL 使用 <strong><code>global</code> catalog</strong>。Master 向已注册节点 fan-out，并为每行附加联邦标签
-<strong><code>_host</code></strong>、<strong><code>_addr</code></strong>、<strong><code>_rank</code></strong>、<strong><code>_role</code></strong>（并行角色 key，来自节点注册表，如 <code>dp=2,pp=1,tp=0</code>）。</p>
-<p><strong>方式 A — SQL 引擎（分析推荐）：</strong></p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>probing<span class="w"> </span>-t<span class="w"> </span>rank0:8080<span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="s2">SELECT _role, _rank, avg(duration_ms) AS avg_ms</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="s2">FROM global.python.comm_collective</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="s2">WHERE global_step &gt; 100</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="s2">GROUP BY _role, _rank</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="s2">ORDER BY avg_ms DESC&quot;</span>
-</span></code></pre></div>
-<p><strong>方式 B — cluster fan-out API：</strong></p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>probing<span class="w"> </span>-t<span class="w"> </span>rank0:8080<span class="w"> </span>cluster<span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="s2">SELECT _role, _rank, avg(duration_ms) AS avg_ms</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="s2">FROM global.python.comm_collective</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="s2">GROUP BY _role, _rank</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="s2">ORDER BY avg_ms DESC&quot;</span>
-</span></code></pre></div>
-<p>通过 torchrun 注入后 Rust ctor <strong>默认</strong>启动分层集群心跳（见 <a href="../torchrun-cluster/">torchrun 集群心跳</a>），或手动 <code>setup_torchrun_cluster()</code> / <code>PUT /apis/nodes</code> 注册节点，<code>_rank</code> / <code>_role</code> 才能正确解析。训练脚本中可用 <code>probing.set_role(...)</code> 运行时覆盖 role。</p>
-<p>引擎实现与正确性测试要求见 <strong><a href="../federation/">联邦查询引擎</a></strong>。</p>
-<p>万卡场景下 <code>cluster query</code> 默认走 <strong><a href="../hierarchical-fanout/">分层 fan-out</a></strong>（coordinator 仅联系各机 local0，local0 再聚合本机 leaf rank），可用 <code>PROBING_CLUSTER_FANOUT_HIERARCHICAL=0</code> 或 CLI <code>--flat</code> 恢复扁平 fan-out。</p>
-<p>普通 <code>global.*</code> 扫描采用同一拓扑：coordinator 读取自身分区、直接查询本机 leaf ranks，并向异机
-local0 发送节点聚合请求。层级执行要求每个存活注册节点都具有 <code>group_rank</code> 与 <code>local_rank</code>；元数据
-只要部分缺失就会明确报错，不再降级为可能漏数的 flat/partial 扫描。</p>
-<h2 id="_10">同步调试<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h2>
-<h3 id="_11">捕获所有堆栈<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># 从所有 rank 捕获堆栈跟踪</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="k">for</span><span class="w"> </span>node<span class="w"> </span><span class="k">in</span><span class="w"> </span>node1<span class="w"> </span>node2<span class="w"> </span>node3<span class="p">;</span><span class="w"> </span><span class="k">do</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;=== </span><span class="nv">$node</span><span class="s2"> ===&quot;</span>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$node</span>:8080<span class="w"> </span>backtrace
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="k">done</span>
-</span></code></pre></div>
-<h3 id="_12">检查分布式状态<a class="headerlink" href="#_12" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="s2">import torch.distributed as dist</span>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="s2">if dist.is_initialized():</span>
-</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="s2">    print(f&#39;Rank: {dist.get_rank()}&#39;)</span>
-</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="s2">    print(f&#39;World Size: {dist.get_world_size()}&#39;)</span>
-</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="s2">    print(f&#39;Backend: {dist.get_backend()}&#39;)&quot;</span>
-</span></code></pre></div>
-<h2 id="_13">通信分析<a class="headerlink" href="#_13" title="Permanent link">&para;</a></h2>
-<h3 id="collective">Collective 延迟（粗粒度，内置）<a class="headerlink" href="#collective" title="Permanent link">&para;</a></h3>
-<p><code>python.comm_collective</code> 记录 <code>torch.distributed</code> 调用墙钟时间，无需 NCCL 插件。</p>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">rank</span><span class="p">,</span><span class="w"> </span><span class="n">op</span><span class="p">,</span><span class="w"> </span><span class="k">avg</span><span class="p">(</span><span class="n">duration_ms</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">avg_ms</span><span class="p">,</span><span class="w"> </span><span class="k">count</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">n</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span>
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">global_step</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="p">(</span><span class="k">SELECT</span><span class="w"> </span><span class="k">max</span><span class="p">(</span><span class="n">global_step</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">20</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">comm_collective</span><span class="p">)</span>
-</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">rank</span><span class="p">,</span><span class="w"> </span><span class="n">op</span>
-</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">avg_ms</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
-</span></code></pre></div>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>skill<span class="w"> </span>run<span class="w"> </span>slow_rank
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>skill<span class="w"> </span>run<span class="w"> </span>comm_bottleneck
-</span></code></pre></div>
-<h3 id="nccl">NCCL 等待分解（细粒度）<a class="headerlink" href="#nccl" title="Permanent link">&para;</a></h3>
-<p>要区分 <strong>culprit / victim</strong>（<code>send_gpu_wait_ns</code> / <code>recv_wait_ns</code>），需启用 NCCL profiler 插件并查询 <code>nccl.proxy_ops</code>：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NCCL_PROFILER_PLUGIN</span><span class="o">=</span><span class="k">$(</span>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--plugin-path<span class="k">)</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NCCL_PROFILE_EVENT_MASK</span><span class="o">=</span><span class="k">$(</span>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--event-mask<span class="k">)</span>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PROBING</span><span class="o">=</span><span class="m">2</span>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1"># ... torchrun ...</span>
-</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>
-</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>skill<span class="w"> </span>run<span class="w"> </span>nccl_culprit_victim
-</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="s2">SELECT rank, sum(send_gpu_wait_ns) AS gpu_wait, sum(recv_wait_ns) AS recv_wait</span>
-</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="s2">FROM nccl.proxy_ops</span>
-</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="s2">GROUP BY rank</span>
-</span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="s2">ORDER BY recv_wait DESC&quot;</span>
-</span></code></pre></div>
-<p>多机使用 <code>global.nccl.proxy_ops</code>。完整说明见 <a href="../nccl-profiler/">NCCL profiler 插件</a>。</p>
-<h3 id="rdma">RDMA 流分析<a class="headerlink" href="#rdma" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># RDMA 特定分析</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>rdma
-</span></code></pre></div>
-<h2 id="_14">分布式问题排查<a class="headerlink" href="#_14" title="Permanent link">&para;</a></h2>
-<h3 id="rank">Rank 同步<a class="headerlink" href="#rank" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># 检查各节点 step 坐标（使用 probing step_snapshot，而非 trainer 字段）</span>
-</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="k">for</span><span class="w"> </span>node<span class="w"> </span><span class="k">in</span><span class="w"> </span>node1<span class="w"> </span>node2<span class="w"> </span>node3<span class="p">;</span><span class="w"> </span><span class="k">do</span>
-</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">    </span>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$node</span>:8080<span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="s2">from probing.tracing import step_snapshot</span>
-</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="s2">s = step_snapshot()</span>
-</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="s2">print(f&#39;rank={s.rank} local_step={s.local_step} global_step={s.global_step}&#39;)&quot;</span>
-</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="k">done</span>
-</span></code></pre></div>
-<h3 id="_15">死锁检测<a class="headerlink" href="#_15" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># 检查挂起的集合操作</span>
-</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="s2">SELECT func, file, lineno</span>
-</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="s2">FROM python.backtrace</span>
-</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="s2">WHERE func LIKE &#39;%collective%&#39; OR func LIKE &#39;%allreduce%&#39;&quot;</span>
-</span></code></pre></div>
-<h3 id="_16">内存不均衡<a class="headerlink" href="#_16" title="Permanent link">&para;</a></h3>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1">-- 比较各 rank 的内存</span>
-</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="k">SELECT</span>
-</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">    </span><span class="n">rank</span><span class="p">,</span>
-</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">    </span><span class="k">AVG</span><span class="p">(</span><span class="n">allocated</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">avg_memory</span><span class="p">,</span>
-</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="w">    </span><span class="k">MAX</span><span class="p">(</span><span class="n">allocated</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">peak_memory</span>
-</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span>
-</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">rank</span><span class="p">;</span>
-</span></code></pre></div>
-<h2 id="_17">配置<a class="headerlink" href="#_17" title="Permanent link">&para;</a></h2>
-<h3 id="_18">启用远程访问<a class="headerlink" href="#_18" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1"># 以 TCP 服务器启动</span>
-</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="nv">PROBING_PORT</span><span class="o">=</span><span class="m">8080</span><span class="w"> </span>python<span class="w"> </span>train.py
-</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>
-</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="c1"># 或动态配置</span>
-</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>config<span class="w"> </span>probing.server.port<span class="o">=</span><span class="m">8080</span>
-</span></code></pre></div>
-<h3 id="_19">安全<a class="headerlink" href="#_19" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="c1"># 启用认证</span>
-</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="nv">PROBING_AUTH_TOKEN</span><span class="o">=</span>secret<span class="w"> </span>python<span class="w"> </span>train.py
-</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>
-</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="c1"># 带令牌连接</span>
-</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>probing<span class="w"> </span>-t<span class="w"> </span>host:8080<span class="w"> </span>--token<span class="w"> </span>secret<span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;...&quot;</span>
-</span></code></pre></div>
-<p>所有 peer 必须使用相同令牌。Probing 会把已配置的凭据附加到内部节点发现、心跳、
-普通联邦查询和层级 fan-out 请求；负载均衡器使用的健康检查端点仍保持公开。</p>
-<h2 id="_20">最佳实践<a class="headerlink" href="#_20" title="Permanent link">&para;</a></h2>
-<h3 id="_21">一致的环境变量<a class="headerlink" href="#_21" title="Permanent link">&para;</a></h3>
-<p>各 rank 使用相同配置（示例）：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PROBING_PORT</span><span class="o">=</span><span class="m">8080</span>
-</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span>on
-</span></code></pre></div>
-<h3 id="_22">跨节点时间戳<a class="headerlink" href="#_22" title="Permanent link">&para;</a></h3>
-<p>使用 NTP；memtable 的 <code>ts</code> 列为各进程 wall-clock 微秒。</p>
-<h3 id="_23">网络<a class="headerlink" href="#_23" title="Permanent link">&para;</a></h3>
-<p>Probing HTTP 属控制面流量。大集群上应隔离或限制 fan-out 速率；见 <a href="../hierarchical-fanout/">分层 fan-out</a>。</p>
+<p>HTTP 监听与 Engine readiness 是两个状态。成员可以先发现 endpoint，再由 readiness 判断该
+rank 是否已经能够执行查询；不能用“连接成功”替代“查询引擎已就绪”。</p>
+<h2 id="4">4. 与联邦查询的边界<a class="headerlink" href="#4" title="Permanent link">&para;</a></h2>
+<p><img alt="成员发现输出不可变快照，联邦查询据此选择 peer 并报告覆盖率" src="../../../assets/architecture/probing-membership-federation-boundary.svg" /></p>
+<p>成员模块不解析 SQL，也不合并 DataFrame。联邦引擎不发现 torchrun 拓扑，只消费
+<code>cluster.nodes</code> 契约。万 rank 下的 coordinator → local0 → leaf 查询拓扑、失败传播和 API
+字段统一见<a href="../federation/#hierarchical-fan-out">联邦查询引擎 — 分层 fan-out</a>。</p>
+<h2 id="5">5. 配置<a class="headerlink" href="#5" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PROBING_TORCHRUN_CLUSTER</code></td>
+<td><code>1</code></td>
+<td>启用 torchrun 集群初始化</td>
+</tr>
+<tr>
+<td><code>PROBING_CLUSTER_REPORT</code></td>
+<td><code>1</code></td>
+<td>周期性 heartbeat</td>
+</tr>
+<tr>
+<td><code>PROBING_CLUSTER_REPORT_BACKOFF</code></td>
+<td><code>1</code></td>
+<td>收敛后退避</td>
+</tr>
+<tr>
+<td><code>PROBING_CLUSTER_REPORT_INTERVAL_SEC</code></td>
+<td><code>10</code></td>
+<td>基础间隔</td>
+</tr>
+<tr>
+<td><code>PROBING_CLUSTER_REPORT_MAX_INTERVAL_SEC</code></td>
+<td><code>120</code></td>
+<td>配置上限，仍受 stale 钳制</td>
+</tr>
+<tr>
+<td><code>PROBING_CLUSTER_REPORT_BACKOFF_FACTOR</code></td>
+<td><code>2</code></td>
+<td>退避倍数</td>
+</tr>
+<tr>
+<td><code>PROBING_CLUSTER_STALE_SEC</code></td>
+<td><code>25</code></td>
+<td>dead/移除 TTL 基准</td>
+</tr>
+<tr>
+<td><code>PROBING_CLUSTER_DISCOVER_TIMEOUT_SEC</code></td>
+<td><code>2</code></td>
+<td>TCPStore 发现超时</td>
+</tr>
+<tr>
+<td><code>PROBING_CLUSTER_REPORT_TIMEOUT_SEC</code></td>
+<td><code>5</code></td>
+<td>heartbeat PUT 超时</td>
+</tr>
+<tr>
+<td><code>PROBING_PORT</code></td>
+<td>rank0 常用 <code>18080</code></td>
+<td>global0 固定端口；其他 rank 通常绑定随机端口</td>
+</tr>
+<tr>
+<td><code>PROBING_ADVERTISE_ADDR</code></td>
+<td>自动推断</td>
+<td>对 peer 发布的可达地址</td>
+</tr>
+<tr>
+<td><code>PROBING_NODE_HOST</code></td>
+<td>自动推断</td>
+<td>UI 与标签使用的主机身份</td>
+</tr>
+</tbody>
+</table>
+<p>完整列表见<a href="../../reference/env-vars/#集群">环境变量</a>。所有 peer 必须使用一致的
+<code>PROBING_AUTH_TOKEN</code>；内部发现、heartbeat 与查询请求都要携带凭据，健康检查端点可保持公开。</p>
+<h2 id="6">6. 设计约束与实现位置<a class="headerlink" href="#6" title="Permanent link">&para;</a></h2>
+<ul>
+<li>heartbeat 失败不得终止宿主训练进程；按 debug/状态表暴露并重试。</li>
+<li>训练 callback 不发送 heartbeat；所有网络操作在服务端异步 worker 中执行。</li>
+<li><code>cluster.nodes</code> 是 endpoint membership，不保证等同于理想 torch rank 集合。</li>
+<li><code>pulsing.*</code> 等外部 mmap 表不会被隐式合并进 <code>cluster.nodes</code>。</li>
+<li>跨节点 wall-clock 需要 NTP/PTP；成员发现本身不提供时钟同步。</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>关注点</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>torchrun 初始化与 heartbeat</td>
+<td><code>probing/server/src/torchrun_cluster.rs</code></td>
+</tr>
+<tr>
+<td>节点注册与快照</td>
+<td><code>probing/core/src/core/cluster.rs</code></td>
+</tr>
+<tr>
+<td>HTTP 契约</td>
+<td><code>probing/server/API.md</code>、<code>tests/regression/spec/api_spec.json</code></td>
+</tr>
+<tr>
+<td>多机示例</td>
+<td><code>examples/cluster/run_multinode.sh</code></td>
+</tr>
+</tbody>
+</table>
+<p>查询语义见<a href="../federation/">联邦查询引擎</a>，表列见
+<a href="../../reference/sql-tables/#cluster-nodes">SQL 表目录</a>。</p>
 
 
 

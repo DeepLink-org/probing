@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#7C3AED"/></marker></defs>
+  <rect width="1280" height="720" fill="#F8FAFC"/>
+  <text x="640" y="38" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="22" font-weight="700" fill="#17324D">TorchProbe 使用采样、延后读取和 shadow 估算自身开销</text>
+  <text x="640" y="62" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="12" fill="#64748B">step 采样控制频率，layer 采样控制单次覆盖面，shadow step 提供同作业基线，deferred drain 移出计时窗口</text>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial">
+    <rect x="42" y="92" width="1196" height="138" rx="14" fill="#17324D"/>
+    <text x="66" y="120" font-size="14" font-weight="700" fill="#C4B5FD">默认 20-step 采样周期（rate=0.05）与 4:1 shadow 周期叠加</text>
+    <g font-size="9" text-anchor="middle">
+      <rect x="66" y="146" width="52" height="46" rx="6" fill="#7C3AED"/><text x="92" y="165" fill="#FFFFFF" font-weight="700">0</text><text x="92" y="182" fill="#EDE9FE">sampled</text>
+      <rect x="124" y="146" width="52" height="46" rx="6" fill="#1E3A5F"/><text x="150" y="165" fill="#FFFFFF">1</text><text x="150" y="182" fill="#CBD5E1">dispatch</text>
+      <rect x="182" y="146" width="52" height="46" rx="6" fill="#1E3A5F"/><text x="208" y="165" fill="#FFFFFF">2</text><text x="208" y="182" fill="#CBD5E1">dispatch</text>
+      <rect x="240" y="146" width="52" height="46" rx="6" fill="#1E3A5F"/><text x="266" y="165" fill="#FFFFFF">3</text><text x="266" y="182" fill="#CBD5E1">dispatch</text>
+      <rect x="298" y="146" width="52" height="46" rx="6" fill="#0D9488"/><text x="324" y="165" fill="#FFFFFF">4</text><text x="324" y="182" fill="#CCFBF1">shadow</text>
+      <rect x="356" y="146" width="52" height="46" rx="6" fill="#1E3A5F"/><text x="382" y="165" fill="#FFFFFF">5</text><text x="382" y="182" fill="#CBD5E1">dispatch</text>
+      <rect x="414" y="146" width="52" height="46" rx="6" fill="#1E3A5F"/><text x="440" y="165" fill="#FFFFFF">6</text><text x="440" y="182" fill="#CBD5E1">dispatch</text>
+      <rect x="472" y="146" width="52" height="46" rx="6" fill="#1E3A5F"/><text x="498" y="165" fill="#FFFFFF">7</text><text x="498" y="182" fill="#CBD5E1">dispatch</text>
+      <rect x="530" y="146" width="52" height="46" rx="6" fill="#1E3A5F"/><text x="556" y="165" fill="#FFFFFF">8</text><text x="556" y="182" fill="#CBD5E1">dispatch</text>
+      <rect x="588" y="146" width="52" height="46" rx="6" fill="#0D9488"/><text x="614" y="165" fill="#FFFFFF">9</text><text x="614" y="182" fill="#CCFBF1">shadow</text>
+      <text x="661" y="174" fill="#CBD5E1" font-size="18">...</text>
+      <rect x="690" y="146" width="66" height="46" rx="6" fill="#0D9488"/><text x="723" y="165" fill="#FFFFFF">19</text><text x="723" y="182" fill="#CCFBF1">shadow</text>
+      <rect x="762" y="146" width="66" height="46" rx="6" fill="#7C3AED"/><text x="795" y="165" fill="#FFFFFF" font-weight="700">20</text><text x="795" y="182" fill="#EDE9FE">sampled</text>
+    </g>
+    <text x="854" y="157" font-size="10" fill="#FFFFFF">sampled：module hook + event</text>
+    <text x="854" y="178" font-size="10" fill="#CBD5E1">dispatch：只经过快速 gate</text>
+    <text x="854" y="199" font-size="10" fill="#86EFAC">shadow：module/optimizer hook 立即 return</text>
+
+    <rect x="42" y="254" width="376" height="320" rx="14" fill="#FAF5FF" stroke="#7C3AED" stroke-width="2"/>
+    <text x="66" y="284" font-size="15" font-weight="700" fill="#7C3AED">step 与 layer 两级采样</text>
+    <rect x="66" y="308" width="328" height="74" rx="9" fill="#FFFFFF" stroke="#C4B5FD"/>
+    <text x="84" y="332" font-size="11" font-weight="700" fill="#17324D">step gate</text>
+    <text x="84" y="354" font-size="9" fill="#64748B">period=max(1, round(1/rate))</text>
+    <text x="84" y="372" font-size="9" fill="#64748B">sampled = (cycle % period == 0)</text>
+    <path d="M230 382 L230 406" stroke="#7C3AED" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="66" y="414" width="328" height="94" rx="9" fill="#FFFFFF" stroke="#C4B5FD"/>
+    <text x="84" y="438" font-size="11" font-weight="700" fill="#17324D">layer gate</text>
+    <text x="84" y="460" font-size="9" fill="#64748B">stable_hash("hook", cycle, module_name) &lt; layer_rate</text>
+    <text x="84" y="480" font-size="9" fill="#64748B">不读取 host RNG；各 rank 相同；每层随 step 变化</text>
+    <text x="84" y="500" font-size="9" fill="#64748B">offset=0 anchor 必采；命中的 pre 必有 matching post</text>
+    <text x="66" y="546" font-size="9" fill="#64748B">首个完整 step 只发现模块，不写 trace；后续 step 按 gate 规则采样。</text>
+
+    <rect x="442" y="254" width="392" height="320" rx="14" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="466" y="284" font-size="15" font-weight="700" fill="#174EA6">GPU event 延后读取</text>
+    <rect x="466" y="308" width="344" height="62" rx="9" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="638" y="333" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">采样步：只 record start / end CUDA event</text>
+    <text x="638" y="353" text-anchor="middle" font-size="9" fill="#64748B">不在 live stream 上 synchronize</text>
+    <path d="M638 370 L638 394" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="466" y="402" width="344" height="72" rx="9" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="484" y="426" font-size="11" font-weight="700" fill="#17324D">后续 step：settle &gt;= 3 后非阻塞检查</text>
+    <text x="484" y="448" font-size="9" fill="#64748B">ready 才进入 drain；lag &gt;= 16 时 force complete，限制内存</text>
+    <text x="484" y="466" font-size="9" fill="#64748B">先记录本步 wall time，再 drain，避免污染估计窗口</text>
+    <path d="M638 474 L638 498" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="466" y="506" width="344" height="46" rx="9" fill="#DBEAFE" stroke="#2563EB"/>
+    <text x="638" y="534" text-anchor="middle" font-size="10" font-weight="700" fill="#174EA6">bounded queue 4096，daemon save；满则同步回退</text>
+
+    <rect x="858" y="254" width="380" height="320" rx="14" fill="#F0FDFA" stroke="#0D9488" stroke-width="2"/>
+    <text x="882" y="284" font-size="15" font-weight="700" fill="#0F766E">同作业估计与可选自适应</text>
+    <rect x="882" y="308" width="332" height="94" rx="9" fill="#FFFFFF" stroke="#5EEAD4"/>
+    <text x="900" y="332" font-size="11" font-weight="700" fill="#17324D">rolling window = 80 steps</text>
+    <text x="900" y="354" font-size="9" fill="#64748B">dispatch = non-shadow &amp;&amp; !sampled</text>
+    <text x="900" y="374" font-size="9" fill="#64748B">baseline = shadow；都用 median step_duration</text>
+    <text x="900" y="394" font-size="9" fill="#64748B">shadow_n &gt;= 5 且 dispatch_n &gt;= 16 才认为稳定</text>
+    <path d="M1048 402 L1048 426" stroke="#0F766E" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="882" y="434" width="332" height="92" rx="9" fill="#FFFFFF" stroke="#5EEAD4"/>
+    <text x="900" y="458" font-size="11" font-weight="700" fill="#17324D">adaptive rate controller（默认关闭）</text>
+    <text x="900" y="480" font-size="9" fill="#64748B">dispatch overhead &gt; high(10%)：rate x 0.5</text>
+    <text x="900" y="500" font-size="9" fill="#64748B">低于 target(5%) 且曾降级：rate x 1.25</text>
+    <text x="900" y="518" font-size="9" fill="#64748B">范围：[rate_floor 1%, initial rate 5%]</text>
+    <text x="882" y="554" font-size="9" fill="#64748B">shadow 仍包含 NCCL/CPU/GPU 采集器，因此只估算 TorchProbe hook 成本。</text>
+  </g>
+  <rect x="42" y="598" width="1196" height="84" rx="12" fill="#17324D"/>
+  <text x="66" y="626" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="12" font-weight="700" fill="#FFFFFF">摊销模型</text>
+  <text x="66" y="651" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="10" fill="#CBD5E1">dispatch_overhead = median(dispatch) / median(shadow) - 1；sampled_overhead 同理</text>
+  <text x="66" y="672" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="10" fill="#86EFAC">effective = (1 - rate) x dispatch_overhead + rate x sampled_overhead；不能用 mean(probed) / mean(shadow) 替代</text>
+</svg>

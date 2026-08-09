@@ -13,10 +13,10 @@
         <link rel="canonical" href="https://github.com/DeepLink-org/probing/design/nccl-profiler/">
       
       
-        <link rel="prev" href="../overhead-invariants/">
+        <link rel="prev" href="../profiling/">
       
       
-        <link rel="next" href="../debugging/">
+        <link rel="next" href="../overhead/">
       
       
         
@@ -86,7 +86,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#nccl-profiler-plugin" class="md-skip">
+        <a href="#nccl-profiler-architecture" class="md-skip">
           Skip to content
         </a>
       
@@ -392,17 +392,20 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="../../contributing/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/" class="md-tabs__link">
+          
   
   
     
   
   Contributing
 
-      </a>
-    </li>
+        </a>
+      </li>
+    
   
 
       
@@ -904,8 +907,6 @@
       
         
       
-        
-      
     
     
     
@@ -1006,7 +1007,7 @@
   <span class="md-ellipsis">
     
   
-    Platform
+    Foundations
   
 
     
@@ -1022,7 +1023,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Platform
+    Foundations
   
 
           </label>
@@ -1043,6 +1044,34 @@
     
   
     Modularity & Boundaries
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../activation-injection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Activation & Runtime Control
   
 
     
@@ -1112,34 +1141,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CLI Command Tree
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -1158,14 +1159,6 @@
   
     
     
-      
-        
-      
-        
-      
-        
-      
-        
       
         
       
@@ -1235,91 +1228,7 @@
   <span class="md-ellipsis">
     
   
-    Profiling
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../torch-profiler-sql/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Torch Profiler SQL
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../overhead/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overhead
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../overhead-invariants/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overhead invariants
+    Profiling & Tracing
   
 
     
@@ -1400,10 +1309,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#when-to-use" class="md-nav__link">
+  <a href="#observation-boundary-why-the-collector-lives-inside-nccl" class="md-nav__link">
     <span class="md-ellipsis">
       
-        When to use
+        Observation boundary: why the collector lives inside NCCL
       
     </span>
   </a>
@@ -1411,10 +1320,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#three-collective-data-sources-keep-them-apart" class="md-nav__link">
+  <a href="#event-lifetime-completion-comes-from-child-events" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Three collective data sources — keep them apart
+        Event lifetime: completion comes from child events
       
     </span>
   </a>
@@ -1422,38 +1331,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#quick-start-linux-training" class="md-nav__link">
+  <a href="#callback-concurrency-communication-threads-never-yield-to-diagnostics" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Quick start (Linux training)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Quick start (Linux training)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#optional-netplugin-ib-qp-timing" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Optional: NetPlugin (IB QP timing)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#macos-dev-without-nccl" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        macOS / dev without NCCL
+        Callback concurrency: communication threads never yield to diagnostics
       
     </span>
   </a>
@@ -1461,71 +1342,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#tables" class="md-nav__link">
+  <a href="#publication-model-tables-are-projections-of-lifecycle-state" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Tables
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Tables">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#ncclproxy_ops" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        nccl.proxy_ops
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#ncclcoll_perf" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        nccl.coll_perf
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#ncclinflight_ops" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        nccl.inflight_ops
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#ncclnet_qp" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        nccl.net_qp
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#culprit-vs-victim" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Culprit vs victim
+        Publication model: tables are projections of lifecycle state
       
     </span>
   </a>
@@ -1533,54 +1353,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#diagnostic-skill-nccl_culprit_victim" class="md-nav__link">
+  <a href="#failure-boundary-and-implementation-constraints" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Diagnostic skill: nccl_culprit_victim
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#environment-variables" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Environment variables
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#build-from-source" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Build from source
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#smoke-test-checklist-p0" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Smoke test checklist (P0)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#see-also" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        See also
+        Failure boundary and implementation constraints
       
     </span>
   </a>
@@ -1603,42 +1379,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../debugging/" class="md-nav__link">
+      <a href="../overhead/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Debugging Engine
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../training-phase/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Training Phases
+    Overhead
   
 
     
@@ -1675,10 +1423,6 @@
       
         
       
-        
-      
-        
-      
     
     
     
@@ -1705,7 +1449,7 @@
   <span class="md-ellipsis">
     
   
-    Distributed
+    Distributed Query & Analysis
   
 
     
@@ -1721,7 +1465,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Distributed
+    Distributed Query & Analysis
   
 
           </label>
@@ -1741,35 +1485,7 @@
   <span class="md-ellipsis">
     
   
-    Overview
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../torchrun-cluster/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Torchrun Cluster Heartbeat
+    Distributed Membership
   
 
     
@@ -1818,42 +1534,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../hierarchical-fanout/" class="md-nav__link">
+      <a href="../distributed-profiler/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Hierarchical Fan-out
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../cluster-pulsing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Cluster with Pulsing
+    Distributed Profiler
   
 
     
@@ -1870,34 +1558,6 @@
           </ul>
         </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    System Architecture (legacy)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -2334,9 +1994,31 @@
   
   
   
-    <li class="md-nav__item">
-      <a href="../../contributing/" class="md-nav__link">
+    
+    
+      
         
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
   
   
   <span class="md-ellipsis">
@@ -2350,7 +2032,79 @@
   
   
 
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing Guide
+  
+
+    
+  </span>
+  
+  
+
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../writing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation Style
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2382,10 +2136,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#when-to-use" class="md-nav__link">
+  <a href="#observation-boundary-why-the-collector-lives-inside-nccl" class="md-nav__link">
     <span class="md-ellipsis">
       
-        When to use
+        Observation boundary: why the collector lives inside NCCL
       
     </span>
   </a>
@@ -2393,10 +2147,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#three-collective-data-sources-keep-them-apart" class="md-nav__link">
+  <a href="#event-lifetime-completion-comes-from-child-events" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Three collective data sources — keep them apart
+        Event lifetime: completion comes from child events
       
     </span>
   </a>
@@ -2404,38 +2158,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#quick-start-linux-training" class="md-nav__link">
+  <a href="#callback-concurrency-communication-threads-never-yield-to-diagnostics" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Quick start (Linux training)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Quick start (Linux training)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#optional-netplugin-ib-qp-timing" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Optional: NetPlugin (IB QP timing)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#macos-dev-without-nccl" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        macOS / dev without NCCL
+        Callback concurrency: communication threads never yield to diagnostics
       
     </span>
   </a>
@@ -2443,71 +2169,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#tables" class="md-nav__link">
+  <a href="#publication-model-tables-are-projections-of-lifecycle-state" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Tables
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Tables">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#ncclproxy_ops" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        nccl.proxy_ops
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#ncclcoll_perf" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        nccl.coll_perf
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#ncclinflight_ops" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        nccl.inflight_ops
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#ncclnet_qp" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        nccl.net_qp
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#culprit-vs-victim" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Culprit vs victim
+        Publication model: tables are projections of lifecycle state
       
     </span>
   </a>
@@ -2515,54 +2180,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#diagnostic-skill-nccl_culprit_victim" class="md-nav__link">
+  <a href="#failure-boundary-and-implementation-constraints" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Diagnostic skill: nccl_culprit_victim
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#environment-variables" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Environment variables
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#build-from-source" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Build from source
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#smoke-test-checklist-p0" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Smoke test checklist (P0)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#see-also" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        See also
+        Failure boundary and implementation constraints
       
     </span>
   </a>
@@ -2589,402 +2210,83 @@
   
 
 
-<h1 id="nccl-profiler-plugin">NCCL profiler plugin<a class="headerlink" href="#nccl-profiler-plugin" title="Permanent link">&para;</a></h1>
-<p>Fine-grained <strong>NCCL wait decomposition</strong> for distributed training: distinguish a <strong>culprit</strong> rank (local GPU slow to produce data) from a <strong>victim</strong> rank (waiting on peers or the network).</p>
-<p>This is <strong>Path 3</strong> in <a href="../extensibility/">Extensibility</a>—a Rust <code>cdylib</code> loaded by NCCL, not a Python table plugin.</p>
-<h2 id="when-to-use">When to use<a class="headerlink" href="#when-to-use" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Signal</th>
-<th>Tool</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Step time high, unsure if comm or compute</td>
-<td><code>python.comm_collective</code> + skill <code>comm_bottleneck</code></td>
-</tr>
-<tr>
-<td>Which rank is the straggler?</td>
-<td>skill <code>slow_rank</code></td>
-</tr>
-<tr>
-<td>Straggler identified — <strong>why</strong> (GPU vs network wait)?</td>
-<td><code>nccl.proxy_ops</code> + skill <code>nccl_culprit_victim</code></td>
-</tr>
-<tr>
-<td>Suspect RoCE / IB congestion</td>
-<td><code>nccl.net_qp</code> + <code>rdma.mlx_hca</code></td>
-</tr>
-</tbody>
-</table>
-<p>Coarse collective tracing (<code>python.comm_collective</code>) is <strong>off by default</strong>; enable with
-<code>PROBING_TORCH_COLLECTIVE_ENABLE=1</code> or <code>SET probing.torch.collective.enable=1</code>
-(in addition to <code>PROBING=1</code>). The NCCL profiler plugin requires <strong>NCCL ≥ 2.26</strong> (PyTorch <strong>2.8+</strong> recommended); it exports both <strong><code>ncclProfiler_v4</code></strong> (NCCL ≥ 2.27, preferred) and <strong><code>ncclProfiler_v3</code></strong> (NCCL 2.26) — NCCL negotiates the highest version automatically.</p>
-<h2 id="three-collective-data-sources-keep-them-apart">Three collective data sources — keep them apart<a class="headerlink" href="#three-collective-data-sources-keep-them-apart" title="Permanent link">&para;</a></h2>
-<p>probing has three independent collective-communication collectors. They have
-<strong>different timing semantics</strong> and must not be conflated:</p>
-<table>
-<thead>
-<tr>
-<th>Source</th>
-<th>Tables</th>
-<th>What it measures</th>
-<th>Role</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>NCCL profiler plugin</strong> (this doc)</td>
-<td><code>nccl.coll_perf</code>, <code>nccl.proxy_ops</code>, <code>nccl.inflight_ops</code>, <code>nccl.net_qp</code></td>
-<td>NCCL-native events: reconstructed execution time, wait decomposition, bandwidth</td>
-<td><strong>Precise source of truth</strong></td>
-</tr>
-<tr>
-<td>Torch-API tracer (legacy, <code>probing/profiling/collective/</code>)</td>
-<td><code>python.comm_collective</code></td>
-<td>Python wall-clock around the <code>torch.distributed</code> API call (launch layer)</td>
-<td>Coarse fallback; carries <code>global_step</code> context</td>
-</tr>
-<tr>
-<td>PyTorch Flight Recorder bridge</td>
-<td><code>python.torch_nccl_flight_record</code>, <code>python.torch_nccl_pg_status</code></td>
-<td>torch's internal watchdog ring buffer</td>
-<td>Watchdog-timeout / desync forensics</td>
-</tr>
-</tbody>
-</table>
-<p>Rules of engagement:</p>
-<ul>
-<li>The Torch-API tracer is <strong>disabled by default</strong> (including multi-rank jobs) to
-  avoid silent overhead. Enable with <code>PROBING_TORCH_COLLECTIVE_ENABLE=1</code> or
-  <code>SET probing.torch.collective.enable=1</code> (e.g. when you need per-step
-  <code>global_step</code> alignment alongside precise NCCL timing).</li>
-<li>For execution time, bandwidth, and wait attribution, always query <code>nccl.*</code>.
-  <code>python.comm_collective.duration_ms</code> is <strong>not</strong> NCCL execution time — for
-  <code>async_op</code> calls it closes at <code>work.wait()</code>, otherwise at API return.</li>
-<li>Joining the layers: <code>nccl.*</code> rows carry no training step; correlate by
-  epoch-ns time window against <code>python.comm_collective.global_step</code> if needed.</li>
-</ul>
-<h2 id="quick-start-linux-training">Quick start (Linux training)<a class="headerlink" href="#quick-start-linux-training" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>probing<span class="w">   </span><span class="c1"># wheel bundles libprobing_nccl_profiler.so on Linux</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NCCL_PROFILER_PLUGIN</span><span class="o">=</span><span class="k">$(</span>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--plugin-path<span class="k">)</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NCCL_PROFILE_EVENT_MASK</span><span class="o">=</span><span class="k">$(</span>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--event-mask<span class="k">)</span><span class="w">   </span><span class="c1"># default 94</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PROBING</span><span class="o">=</span><span class="m">2</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>torchrun<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">8</span><span class="w"> </span>train.py
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="c1"># Same process or after inject:</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>probing<span class="w"> </span>-t<span class="w"> </span>&lt;pid&gt;<span class="w"> </span>skill<span class="w"> </span>run<span class="w"> </span>nccl_culprit_victim
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>probing<span class="w"> </span>-t<span class="w"> </span>&lt;pid&gt;<span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="s2">  SELECT rank, sum(send_gpu_wait_ns) AS gpu_wait, sum(recv_wait_ns) AS recv_wait</span>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="s2">  FROM nccl.proxy_ops</span>
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="s2">  GROUP BY rank</span>
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="s2">  ORDER BY recv_wait DESC&quot;</span>
-</span></code></pre></div>
-<h3 id="optional-netplugin-ib-qp-timing">Optional: NetPlugin (IB QP timing)<a class="headerlink" href="#optional-netplugin-ib-qp-timing" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NCCL_PROFILE_EVENT_MASK</span><span class="o">=</span><span class="m">222</span><span class="w">   </span><span class="c1"># 94 + NetPlugin bit 128</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>probing<span class="w"> </span>-t<span class="w"> </span>&lt;pid&gt;<span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;SELECT * FROM nccl.net_qp LIMIT 20&quot;</span>
-</span></code></pre></div>
-<h2 id="macos-dev-without-nccl">macOS / dev without NCCL<a class="headerlink" href="#macos-dev-without-nccl" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nv">PROBING</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">PROBING_NCCL_MOCK</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--seed-mock
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>probing<span class="w"> </span>-t<span class="w"> </span>&lt;pid&gt;<span class="w"> </span>skill<span class="w"> </span>run<span class="w"> </span>nccl_culprit_victim
-</span></code></pre></div>
-<p>On macOS, <code>PROBING_NCCL_MOCK=auto</code> (default) seeds mock tables when <code>PROBING=1</code> and no plugin <code>.so</code> is present.</p>
-<p>Mock scenario:</p>
-<ul>
-<li><strong>rank 2</strong> — culprit (<code>send_gpu_wait_ns</code> high)</li>
-<li><strong>rank 5</strong> — victim (<code>recv_wait_ns</code> high)</li>
-</ul>
-<h2 id="tables">Tables<a class="headerlink" href="#tables" title="Permanent link">&para;</a></h2>
-<h3 id="ncclproxy_ops"><code>nccl.proxy_ops</code><a class="headerlink" href="#ncclproxy_ops" title="Permanent link">&para;</a></h3>
-<p>Per NCCL proxy operation, with ProxyStep waits aggregated at op stop.</p>
-<table>
-<thead>
-<tr>
-<th>Column</th>
-<th>Meaning</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>ts</code></td>
-<td>Event timestamp (ns)</td>
-</tr>
-<tr>
-<td><code>rank</code></td>
-<td><code>torch.distributed</code> rank</td>
-</tr>
-<tr>
-<td><code>tp_rank</code>, <code>pp_rank</code>, <code>dp_rank</code></td>
-<td>Parallel roles from env (<code>TP_RANK</code>, <code>PP_RANK</code>, <code>DP_RANK</code>, Megatron names); <code>-1</code> if unset</td>
-</tr>
-<tr>
-<td><code>comm_hash</code></td>
-<td>NCCL communicator hash</td>
-</tr>
-<tr>
-<td><code>coll_func</code></td>
-<td>Collective name (<code>AllReduce</code>, …)</td>
-</tr>
-<tr>
-<td><code>seq</code></td>
-<td>Collective sequence number</td>
-</tr>
-<tr>
-<td><code>channel_id</code></td>
-<td>NCCL channel</td>
-</tr>
-<tr>
-<td><code>peer</code></td>
-<td>Peer rank for this proxy op</td>
-</tr>
-<tr>
-<td><code>is_send</code></td>
-<td><code>1</code> = send proxy, <code>0</code> = recv</td>
-</tr>
-<tr>
-<td><code>n_steps</code></td>
-<td>ProxyStep count aggregated</td>
-</tr>
-<tr>
-<td><code>trans_bytes</code></td>
-<td>Bytes transferred (v4: summed from per-step <code>transSize</code> updates)</td>
-</tr>
-<tr>
-<td><code>send_gpu_wait_ns</code></td>
-<td><strong>Culprit signal</strong> — local GPU not ready to send</td>
-</tr>
-<tr>
-<td><code>send_peer_wait_ns</code></td>
-<td>Waiting for receiver clear-to-send credits (<strong>v4 ABI only</strong>, 0 on v3) — receiver-congestion signal</td>
-</tr>
-<tr>
-<td><code>send_wait_ns</code></td>
-<td>Send-side network wait</td>
-</tr>
-<tr>
-<td><code>recv_wait_ns</code></td>
-<td><strong>Victim signal</strong> — waiting on peer data</td>
-</tr>
-<tr>
-<td><code>recv_flush_wait_ns</code></td>
-<td>Recv flush wait</td>
-</tr>
-</tbody>
-</table>
-<p>Multi-node: <code>global.nccl.proxy_ops</code> with <code>_host</code>, <code>_addr</code>, <code>_rank</code> federation columns.</p>
-<blockquote>
-<p><code>ts</code> columns in all <code>nccl.*</code> tables are <strong>UNIX-epoch nanoseconds</strong>, so
-timestamps are comparable across ranks/hosts in <code>global.nccl.*</code> queries.</p>
-</blockquote>
-<h3 id="ncclcoll_perf"><code>nccl.coll_perf</code><a class="headerlink" href="#ncclcoll_perf" title="Permanent link">&para;</a></h3>
-<p>Per collective / P2P operation.</p>
-<p><strong>Timing model.</strong> NCCL's own docs state that a collective's <code>stopEvent</code> only
-marks the end of the <strong>host-side enqueue</strong> — the kernel and proxy threads keep
-working after it. Following the official ext-profiler recommendation, the
-plugin reference-counts child events (<code>ProxyOp</code>, <code>KernelCh</code>) and reconstructs
-the real execution window from them. The <code>timing_source</code> column records which
-signal was available:</p>
-<table>
-<thead>
-<tr>
-<th><code>timing_source</code></th>
-<th>Window</th>
-<th>Quality</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>kernel_gpu</code></td>
-<td>GPU <strong>globaltimer</strong> window: <code>kernelCh.pTimer</code> (start) + <code>KernelChStop</code> state (stop)</td>
-<td>Best — device clock, <strong>v4 ABI only</strong></td>
-</tr>
-<tr>
-<td><code>kernel_ch</code></td>
-<td>Kernel-channel activity observed by the proxy thread (<code>ncclProfileKernelCh</code>)</td>
-<td>NCCL's own kernel-activity signal, host clock</td>
-</tr>
-<tr>
-<td><code>proxy</code></td>
-<td>Proxy-op start→stop envelope</td>
-<td>Good for inter-node ops</td>
-</tr>
-<tr>
-<td><code>enqueue</code></td>
-<td>Coll start→stop (launch only)</td>
-<td>Fallback — intra-node ops without proxy/kernel events</td>
-</tr>
-</tbody>
-</table>
-<table>
-<thead>
-<tr>
-<th>Column</th>
-<th>Meaning</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>ts</code></td>
-<td>Op completion timestamp (epoch ns)</td>
-</tr>
-<tr>
-<td><code>rank</code>, <code>tp_rank</code>, <code>pp_rank</code>, <code>dp_rank</code></td>
-<td>Same as <code>nccl.proxy_ops</code></td>
-</tr>
-<tr>
-<td><code>comm_hash</code>, <code>coll_func</code>, <code>seq</code></td>
-<td>Collective identity (<code>seq</code> = 0 for P2P)</td>
-</tr>
-<tr>
-<td><code>n_ranks</code></td>
-<td>Communicator size (v4 per-comm <code>init</code> metadata; <code>-1</code> on v3)</td>
-</tr>
-<tr>
-<td><code>is_p2p</code></td>
-<td><code>1</code> = Send/Recv, <code>0</code> = collective</td>
-</tr>
-<tr>
-<td><code>peer</code></td>
-<td>P2P peer rank (<code>-1</code> for collectives)</td>
-</tr>
-<tr>
-<td><code>count</code>, <code>msg_size_bytes</code>, <code>dtype</code></td>
-<td>Payload: element count × dtype size</td>
-</tr>
-<tr>
-<td><code>algo</code>, <code>proto</code>, <code>n_channels</code></td>
-<td>NCCL algorithm (Ring/Tree…), protocol (LL/LL128/Simple), channels (v4: P2P too)</td>
-</tr>
-<tr>
-<td><code>exec_time_ns</code></td>
-<td>Reconstructed execution duration (see <code>timing_source</code>)</td>
-</tr>
-<tr>
-<td><code>enqueue_time_ns</code></td>
-<td>Host-side enqueue duration (NCCL coll start→stop)</td>
-</tr>
-<tr>
-<td><code>timing_source</code></td>
-<td><code>kernel_gpu</code> / <code>kernel_ch</code> / <code>proxy</code> / <code>enqueue</code></td>
-</tr>
-<tr>
-<td><code>algobw_gbps</code></td>
-<td>Algorithm bandwidth <code>msg_size / exec_time</code> (GB/s). <strong>Bus bandwidth</strong>: multiply by the collective factor using <code>n_ranks</code>, e.g. AllReduce <code>2(n_ranks-1)/n_ranks</code>, in SQL</td>
-</tr>
-</tbody>
-</table>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1">-- Slowest AllReduce buckets by bandwidth</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">coll_func</span><span class="p">,</span><span class="w"> </span><span class="n">msg_size_bytes</span><span class="p">,</span><span class="w"> </span><span class="k">AVG</span><span class="p">(</span><span class="n">algobw_gbps</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">gbps</span><span class="p">,</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">n</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="k">FROM</span><span class="w"> </span><span class="n">nccl</span><span class="p">.</span><span class="n">coll_perf</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">coll_func</span><span class="p">,</span><span class="w"> </span><span class="n">msg_size_bytes</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">gbps</span><span class="w"> </span><span class="k">ASC</span><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">10</span>
-</span></code></pre></div>
-<h3 id="ncclinflight_ops"><code>nccl.inflight_ops</code><a class="headerlink" href="#ncclinflight_ops" title="Permanent link">&para;</a></h3>
-<p>Periodic watchdog snapshot of operations that <strong>started but never stopped</strong> —
-the hang signal that <code>nccl.proxy_ops</code> cannot capture (a hung op never reaches
-<code>stop_event</code>). Columns: <code>ts</code>, <code>rank</code>, <code>comm_hash</code>, <code>coll_func</code>, <code>seq</code>, <code>kind</code>
-(<code>coll</code>/<code>p2p</code>/<code>proxy_op</code>), <code>channel_id</code>, <code>peer</code>, <code>is_send</code>, <code>start_ns</code>, <code>age_ns</code>.</p>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1">-- Which rank is stuck, and in what?</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">rank</span><span class="p">,</span><span class="w"> </span><span class="n">coll_func</span><span class="p">,</span><span class="w"> </span><span class="n">seq</span><span class="p">,</span><span class="w"> </span><span class="n">kind</span><span class="p">,</span><span class="w"> </span><span class="k">MAX</span><span class="p">(</span><span class="n">age_ns</span><span class="p">)</span><span class="o">/</span><span class="mi">1</span><span class="n">e9</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">stuck_secs</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="k">FROM</span><span class="w"> </span><span class="n">nccl</span><span class="p">.</span><span class="n">inflight_ops</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">rank</span><span class="p">,</span><span class="w"> </span><span class="n">coll_func</span><span class="p">,</span><span class="w"> </span><span class="n">seq</span><span class="p">,</span><span class="w"> </span><span class="n">kind</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">stuck_secs</span><span class="w"> </span><span class="k">DESC</span>
-</span></code></pre></div>
-<h3 id="ncclnet_qp"><code>nccl.net_qp</code><a class="headerlink" href="#ncclnet_qp" title="Permanent link">&para;</a></h3>
-<p>IB queue-pair completion timing (NetPlugin mask). Columns: <code>ts</code>, <code>rank</code>, <code>device</code>, <code>qp_num</code>, <code>wr_id</code>, <code>opcode</code>, <code>length</code>, <code>duration_ns</code>.</p>
-<h2 id="culprit-vs-victim">Culprit vs victim<a class="headerlink" href="#culprit-vs-victim" title="Permanent link">&para;</a></h2>
-<p>From NCCL ProxyStep state transitions (paper mapping):</p>
-<ul>
-<li><strong>Culprit</strong> — dominant <code>send_gpu_wait_ns</code> on a rank: that GPU is slow to produce tensors for the collective.</li>
-<li><strong>Victim</strong> — dominant <code>recv_wait_ns</code>: the rank spends time waiting for peers or the network.</li>
-</ul>
-<p>A single rank can appear as culprit for one collective and victim for another. Compare both columns per rank; use <code>tp_rank</code>/<code>pp_rank</code>/<code>dp_rank</code> to align with Megatron-style topology.</p>
-<h2 id="diagnostic-skill-nccl_culprit_victim">Diagnostic skill: <code>nccl_culprit_victim</code><a class="headerlink" href="#diagnostic-skill-nccl_culprit_victim" title="Permanent link">&para;</a></h2>
-<p>Bundled under <code>skills/nccl_culprit_victim/</code> (wheel: <code>python/probing/_skills/</code>).</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>probing<span class="w"> </span>skill<span class="w"> </span>list
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>probing<span class="w"> </span>-t<span class="w"> </span>&lt;pid&gt;<span class="w"> </span>skill<span class="w"> </span>run<span class="w"> </span>nccl_culprit_victim
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>probing<span class="w"> </span>-t<span class="w"> </span>&lt;pid&gt;<span class="w"> </span>skill<span class="w"> </span>run<span class="w"> </span>nccl_culprit_victim<span class="w"> </span>--set<span class="w"> </span><span class="nv">seq_window</span><span class="o">=</span><span class="m">50</span><span class="w"> </span>--global
-</span></code></pre></div>
-<p>Steps include:</p>
-<ol>
-<li>Per-rank wait summary (<code>send_gpu_wait_ns</code> / <code>recv_wait_ns</code>)</li>
-<li>Culprit ranking (by <code>send_gpu_wait_ns</code>)</li>
-<li>Victim ranking (by <code>recv_wait_ns</code>)</li>
-<li>Role-aligned view (<code>tp</code> / <code>pp</code> / <code>dp</code>)</li>
-<li>Optional <code>global.nccl.proxy_ops</code> fan-out</li>
-<li>Optional <code>nccl.net_qp</code> hint</li>
-</ol>
-<p>Related skills: <code>slow_rank</code>, <code>comm_bottleneck</code> (coarse layer; optionally join <code>nccl.proxy_ops</code> when present).</p>
-<h2 id="environment-variables">Environment variables<a class="headerlink" href="#environment-variables" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Variable</th>
-<th>Purpose</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>NCCL_PROFILER_PLUGIN</code></td>
-<td>Path to <code>libprobing_nccl_profiler.so</code></td>
-</tr>
-<tr>
-<td><code>NCCL_PROFILE_EVENT_MASK</code></td>
-<td>Event mask; default <code>94</code> = Coll | P2P | ProxyOp | ProxyStep | KernelCh</td>
-</tr>
-<tr>
-<td><code>PROBING_DATA_DIR</code></td>
-<td>Memtable directory (default <code>/dev/shm/probing</code>)</td>
-</tr>
-<tr>
-<td><code>PROBING_NCCL_MIN_MSG_BYTES</code></td>
-<td>Skip ops smaller than this (bytes); default <code>0</code> = record all. Same idea as NCCL Inspector's <code>DUMP_MIN_SIZE_BYTES</code></td>
-</tr>
-<tr>
-<td><code>PROBING_NCCL_INFLIGHT_THRESHOLD_SECS</code></td>
-<td>Watchdog: snapshot in-flight ops older than this into <code>nccl.inflight_ops</code>; default <code>10</code>, <code>0</code> disables</td>
-</tr>
-<tr>
-<td><code>PROBING_NCCL_POOL_SHARDS</code></td>
-<td>Shard slot pools by comm hash (default <code>8</code>, range 1–64); reduces callback lock contention on multi-comm jobs</td>
-</tr>
-<tr>
-<td><code>PROBING_NCCL_MOCK</code></td>
-<td><code>auto</code> / <code>1</code> / <code>0</code> — mock tables for dev</td>
-</tr>
-<tr>
-<td><code>TP_RANK</code>, <code>PP_RANK</code>, <code>DP_RANK</code></td>
-<td>Written into <code>nccl.proxy_ops</code> role columns</td>
-</tr>
-</tbody>
-</table>
-<p>CLI helpers:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--plugin-path
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--event-mask
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--seed-mock<span class="w"> </span>--ranks<span class="w"> </span><span class="m">8</span><span class="w"> </span>--ops<span class="w"> </span><span class="m">5</span>
-</span></code></pre></div>
-<h2 id="build-from-source">Build from source<a class="headerlink" href="#build-from-source" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>make<span class="w"> </span>nccl-profiler-lib<span class="w">    </span><span class="c1"># Linux .so → python/probing/libs/</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>cargo<span class="w"> </span><span class="nb">test</span><span class="w"> </span>-p<span class="w"> </span>probing-nccl-profiler
-</span></code></pre></div>
-<p>Crate: <code>probing/extensions/nccl-profiler/</code>. See crate <a href="https://github.com/DeepLink-org/probing/blob/main/probing/extensions/nccl-profiler/README.md">README</a> for architecture (slot pools, Coll→ProxyOp→ProxyStep hierarchy, batch flush).</p>
-<h2 id="smoke-test-checklist-p0">Smoke test checklist (P0)<a class="headerlink" href="#smoke-test-checklist-p0" title="Permanent link">&para;</a></h2>
-<ol>
-<li><code>python -c "import torch; print(torch.__version__, torch.cuda.nccl.version())"</code> — NCCL ≥ 2.26</li>
-<li><code>NCCL_PROFILER_PLUGIN</code> set before <code>torchrun</code></li>
-<li>After a few collectives: <code>SELECT count(*) FROM nccl.proxy_ops</code> &gt; 0</li>
-<li><code>probing skill run nccl_culprit_victim</code> returns rank breakdown</li>
-</ol>
-<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
-<ul>
-<li><a href="../distributed/">Distributed training</a> — cluster fan-out, <code>global.*</code></li>
-<li><a href="../extensibility/">Extensibility</a> — Path 1 (table plugin), Path 2 (skills), Path 3 (this plugin)</li>
-<li><a href="https://github.com/DeepLink-org/probing/blob/main/AGENTS.md">AGENTS.md</a> — agent skill install and routing</li>
-</ul>
+<h1 id="nccl-profiler-architecture">NCCL Profiler Architecture<a class="headerlink" href="#nccl-profiler-architecture" title="Permanent link">&para;</a></h1>
+<p>The NCCL Profiler is not designed merely to persist callbacks. It must answer a distributed causal
+question: when a collective slows down, is time spent waiting for this rank to produce data, for a
+peer, for the network, or for device execution? A single timestamp cannot answer that question.
+The architecture therefore preserves event lifetimes and lets the query layer align evidence
+across ranks.</p>
+<h2 id="observation-boundary-why-the-collector-lives-inside-nccl">Observation boundary: why the collector lives inside NCCL<a class="headerlink" href="#observation-boundary-why-the-collector-lives-inside-nccl" title="Permanent link">&para;</a></h2>
+<p>The PyTorch API layer knows <code>global_step</code> and parallel roles, but the return of a synchronous call
+or an asynchronous <code>work.wait()</code> is a host boundary, not proof that device and proxy work completed.
+PyTorch Flight Recorder preserves watchdog ring records and is useful for post-timeout collective
+alignment, but it does not continuously decompose waits in normal communication. Only the NCCL
+profiler plugin observes Collective, KernelCh, ProxyOp, ProxyStep, and NetPlugin callbacks directly.</p>
+<p>The evidence planes remain separate. Python supplies training coordinates, NCCL reconstructs
+runtime execution and waits, and Flight Recorder preserves timeout state. They do not call one
+another on callback paths; queries correlate them by communicator, sequence, rank, and epoch-ns
+windows. This preserves each layer's time semantics and avoids pulling Python state into NCCL
+communication threads merely to simplify a later join.</p>
+<p>The plugin exports both <code>ncclProfiler_v4</code> and <code>ncclProfiler_v3</code>, allowing NCCL to negotiate the ABI.
+V4 provides GPU globaltimer, per-communicator metadata, and fuller peer-wait evidence. Missing v3
+signals degrade explicitly through <code>timing_source</code> and sentinel values rather than pretending to
+have equal precision.</p>
+<h2 id="event-lifetime-completion-comes-from-child-events">Event lifetime: completion comes from child events<a class="headerlink" href="#event-lifetime-completion-comes-from-child-events" title="Permanent link">&para;</a></h2>
+<p><img alt="NCCL child events reconstruct the execution window and decompose waits" src="../../assets/architecture/probing-nccl-event-model.svg" /></p>
+<p>A collective <code>stopEvent</code> closes host enqueue while kernels and proxy work may still be running.
+Publishing at that point would label launch time as execution time. The plugin therefore keeps the
+Collective as a parent of active KernelCh and ProxyOp events; each ProxyOp, in turn, owns ProxyStep
+progress. Only the final child close gives the parent a complete window and makes it publishable.</p>
+<p>Timing degrades through an evidence hierarchy: GPU globaltimer first, then the KernelCh activity
+window, then the ProxyOp envelope, and finally host enqueue. The selected source is stored in
+<code>timing_source</code>. This is not presentation metadata; it is part of query semantics. Two
+<code>exec_time_ns</code> values should be compared directly only when their evidence quality is comparable.</p>
+<p>ProxyStep is not published as an unbounded detail table. Its transitions accumulate within a
+ProxyOp into send-side GPU wait, peer-credit wait, network send, receive, and flush wait. This
+trades bounded state for the decomposition needed by diagnosis and prevents message fragmentation
+from multiplying storage volume. The waits remain evidence rather than conclusions: high
+<code>send_gpu_wait_ns</code> implicates local production, while high <code>recv_wait_ns</code> implicates a peer or the
+network. Culprit/victim attribution still requires the same sequence on other ranks, parallel
+topology, and system state.</p>
+<h2 id="callback-concurrency-communication-threads-never-yield-to-diagnostics">Callback concurrency: communication threads never yield to diagnostics<a class="headerlink" href="#callback-concurrency-communication-threads-never-yield-to-diagnostics" title="Permanent link">&para;</a></h2>
+<p><img alt="NCCL callbacks update sharded fixed pools and write completed rows outside the lock" src="../../assets/architecture/probing-nccl-write-path.svg" /></p>
+<p>Callbacks arrive from host, proxy, NetPlugin, and watchdog threads. A global lock or dynamic growth
+inside those callbacks could make the profiler alter communication timing. The plugin uses
+fixed-capacity slot pools sharded by communicator hash. A callback normally touches one shard, and
+capacity plus worst-case allocation cost are fixed at startup.</p>
+<p>A handle contains shard, slot, and generation. Reuse changes the generation, so a late stop cannot
+close a newer event that occupies the same slot. Under the shard lock the callback updates parent/
+child state and counters and materializes a completed row. MEMT append happens only after releasing
+the lock, preventing storage jitter from widening the NCCL critical section.</p>
+<p>The watchdog uses <code>try_lock</code>. If a shard is busy, it skips and counts that snapshot instead of
+waiting for the communication thread. This is an explicit priority decision: an observable data
+gap is acceptable; creating a new hang while trying to diagnose one is not.</p>
+<h2 id="publication-model-tables-are-projections-of-lifecycle-state">Publication model: tables are projections of lifecycle state<a class="headerlink" href="#publication-model-tables-are-projections-of-lifecycle-state" title="Permanent link">&para;</a></h2>
+<p>Completed communication is published to <code>nccl.coll_perf</code> with its reconstructed window,
+algorithm, protocol, message size, and <code>timing_source</code>. Proxy wait decomposition for the same work
+goes to <code>nccl.proxy_ops</code>. An operation that never completes cannot produce either completed row, so
+the watchdog writes read-only snapshots to <code>nccl.inflight_ops</code>. With NetPlugin enabled, QP
+completion latency enters <code>nccl.net_qp</code> independently rather than being attached to a collective
+whose relationship has not been proven.</p>
+<p>These are not four competing answers; they are four projections of the event lifecycle. A query
+starts with <code>coll_perf</code> to locate an anomalous window and uses <code>proxy_ops</code> to explain its waits. If
+no completion exists it turns to <code>inflight_ops</code>; only network-wait evidence justifies joining
+<code>net_qp</code> and RDMA metrics. Cross-rank queries use <code>global.nccl.*</code> to filter locally before merging,
+while epoch-ns windows connect NCCL evidence to Python training-step coordinates. Aggregation and
+causal inference belong to the query layer and never feed back into the collector.</p>
+<p><code>nccl.profiler_counters</code> defines the integrity boundary for all four projections. Pool exhaustion,
+stale handles, write failures, and watchdog skips are counted. A diagnosis must inspect these
+signals before interpreting an absence of events as an absence of anomalies.</p>
+<h2 id="failure-boundary-and-implementation-constraints">Failure boundary and implementation constraints<a class="headerlink" href="#failure-boundary-and-implementation-constraints" title="Permanent link">&para;</a></h2>
+<p>The callback path never waits for a remote node, calls another collector, or changes NCCL control
+flow because diagnostics failed. A full pool drops and counts an event, MEMT failures are recorded
+outside the shard lock, and watchdog contention skips a snapshot. The evidence can therefore have
+an explicit gap while training communication retains its original control flow.</p>
+<p>Exact schemas are in the <a href="../../reference/sql-tables/">SQL table reference</a>, capacity and runtime
+controls in <a href="../../reference/env-vars/">Environment variables</a>, deployment and query examples in
+<a href="../../examples/performance-analysis/">Performance analysis</a>, and cross-rank diagnostic orchestration
+in <a href="../../guide/skills/">Diagnostic skills</a>. The implementation lives under
+<code>probing/extensions/nccl-profiler/</code>.</p>
 
 
 

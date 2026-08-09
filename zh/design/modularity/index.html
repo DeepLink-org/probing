@@ -16,7 +16,7 @@
         <link rel="prev" href="../">
       
       
-        <link rel="next" href="../data-layer/">
+        <link rel="next" href="../activation-injection/">
       
       
         
@@ -394,17 +394,20 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="../../contributing/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/" class="md-tabs__link">
+          
   
   
     
   
   贡献指南
 
-      </a>
-    </li>
+        </a>
+      </li>
+    
   
 
       
@@ -906,8 +909,6 @@
       
         
       
-        
-      
     
     
     
@@ -1010,7 +1011,7 @@
   <span class="md-ellipsis">
     
   
-    平台核心
+    基础架构
   
 
     
@@ -1026,7 +1027,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    平台核心
+    基础架构
   
 
           </label>
@@ -1327,10 +1328,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#torchrun-vs-pulsing" class="md-nav__link">
+  <a href="#_3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        集群成员：Torchrun 心跳 vs Pulsing
+        集群成员与外部运行时表
       
     </span>
   </a>
@@ -1368,6 +1369,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../activation-injection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    启用、注入与运行时控制
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1429,34 +1458,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CLI 命令树
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -1473,14 +1474,6 @@
   
     
     
-      
-        
-      
-        
-      
-        
-      
-        
       
         
       
@@ -1550,91 +1543,7 @@
   <span class="md-ellipsis">
     
   
-    性能分析
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../torch-profiler-sql/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Torch Profiler SQL（Kineto 虚拟表）
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../overhead/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    开销测量
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../overhead-invariants/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overhead invariants
+    性能分析与 Tracing
   
 
     
@@ -1683,42 +1592,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../debugging/" class="md-nav__link">
+      <a href="../overhead/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    调试引擎
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../training-phase/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    训练阶段
+    开销测量
   
 
     
@@ -1755,10 +1636,6 @@
       
         
       
-        
-      
-        
-      
     
     
     
@@ -1785,7 +1662,7 @@
   <span class="md-ellipsis">
     
   
-    分布式
+    分布式查询与分析
   
 
     
@@ -1801,7 +1678,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    分布式
+    分布式查询与分析
   
 
           </label>
@@ -1821,35 +1698,7 @@
   <span class="md-ellipsis">
     
   
-    概览
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../torchrun-cluster/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    torchrun 集群心跳
+    分布式成员与控制面
   
 
     
@@ -1898,42 +1747,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../hierarchical-fanout/" class="md-nav__link">
+      <a href="../distributed-profiler/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    分层集群查询
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../cluster-pulsing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    基于 Pulsing 的集群
+    分布式 Profiler 查询与可视化
   
 
     
@@ -1950,34 +1771,6 @@
           </ul>
         </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    系统架构（旧版）
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -2414,6 +2207,64 @@
   
   
   
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    贡献指南
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    贡献指南
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../../contributing/" class="md-nav__link">
         
@@ -2431,6 +2282,42 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../writing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    文档写作规范
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2690,10 +2577,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#torchrun-vs-pulsing" class="md-nav__link">
+  <a href="#_3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        集群成员：Torchrun 心跳 vs Pulsing
+        集群成员与外部运行时表
       
     </span>
   </a>
@@ -2749,47 +2636,12 @@
 
 <h1 id="_1">模块化与边界<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
 <p>本文定义 <strong>核心模块 vs 功能模块</strong>、公共接口、依赖规则与建议 ownership，目标是让并行开发<strong>互不打扰</strong>。</p>
-<p>配合阅读：<a href="../architecture/">系统架构</a>、<a href="../data-layer/">数据层</a>、<a href="../extensibility/">扩展机制</a>；术语见 <a href="../../guide/concepts/">核心概念</a>。</p>
+<p>配合阅读：<a href="../activation-injection/">启用、注入与运行时控制</a>、<a href="../data-layer/">数据层</a>、
+<a href="../extensibility/">扩展机制</a>；术语见<a href="../../guide/concepts/">核心概念</a>。</p>
 <hr />
 <h2 id="1">1. 分层模型<a class="headerlink" href="#1" title="Permanent link">&para;</a></h2>
 <p>Probing 分四层。<strong>依赖只能向下</strong>（上层可调用下层，反之禁止）。</p>
-<pre class="mermaid"><code>flowchart TB
-    subgraph L4["L4 — 体验层（不含引擎逻辑）"]
-        WEB[web/ WASM UI]
-        SKILLS[skills/ 诊断工作流]
-        PYSDK[python/probing/ SDK 与 hooks]
-    end
-
-    subgraph L3["L3 — 控制面"]
-        CLI[probing-cli]
-        SERVER[probing-server]
-    end
-
-    subgraph L2["L2 — 采集器 / 扩展"]
-        PYEXT[probing-python]
-        CC[probing-cc]
-        GPU[probing-gpu]
-        NCCL[probing-nccl-profiler cdylib]
-    end
-
-    subgraph L1["L1 — 平台核心"]
-        CORE[probing-core]
-        MEM[probing-memtable]
-        PROTO[probing-proto]
-        MACROS[probing-macros]
-    end
-
-    WEB --&gt; PROTO
-    CLI --&gt; PROTO
-    SERVER --&gt; CORE
-    SERVER --&gt; L2
-    L2 --&gt; CORE
-    L2 --&gt; MEM
-    CORE --&gt; MEM
-    CORE --&gt; PROTO
-    SKILLS --&gt; PYSDK
-    PYSDK --&gt; PYEXT
-    NCCL --&gt; MEM</code></pre>
+<p><img alt="模块依赖方向与采集器隔离边界" src="../../../assets/architecture/probing-module-dependencies.svg" /></p>
 <table>
 <thead>
 <tr>
@@ -3191,16 +3043,7 @@
 </table>
 <hr />
 <h2 id="4">4. 依赖规则<a class="headerlink" href="#4" title="Permanent link">&para;</a></h2>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>允许：L4→L3(HTTP) → L3→L2/L1 → L2→L1
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>禁止：
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>  L1 → 上层
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>  L2 ↔ L2（采集器互调）
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>  L2 → server
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>  L2 → probing-cli  — 采集器不得依赖 CLI（wheel 的 `cli_main` 仅在根 `src/lib.rs` 组装；见 §4.1）
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>  skills → Rust 内部
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>  web → probing-core
-</span></code></pre></div>
+<p><img alt="依赖只沿公开契约向下，采集器之间彼此隔离" src="../../../assets/architecture/probing-module-dependencies.svg" /></p>
 <h3 id="_2">依赖矩阵（目标态）<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -3283,10 +3126,7 @@
 <h3 id="41-pypi-cdylib-probing-cli">4.1 PyPI 打包耦合（cdylib → <code>probing-cli</code>）<a class="headerlink" href="#41-pypi-cdylib-probing-cli" title="Permanent link">&para;</a></h3>
 <p>Maturin 只构建 <strong>一个 native 产物</strong>（根 <code>Cargo.toml</code> 的 <code>probing._core</code> cdylib）。PyPI 上的
 <code>probing</code> 命令 <strong>不是</strong> 独立 Rust 二进制：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip install probing
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  → probing._core.so   （core + server + python ext + cli 链进同一 .so）
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  → probing.cli.__main__  →  _core.cli_main()  →  probing_cli::cli_main()
-</span></code></pre></div>
+<p><img alt="Wheel 在根动态库中组装 CLI 入口，但不形成运行时反向依赖" src="../../../assets/architecture/probing-wheel-composition.svg" /></p>
 <p>这是为适配 maturin wheel 工作流（<code>pyproject.toml</code> 的 <code>[tool.maturin]</code> +
 <code>[project.scripts]</code>）的 <strong>可接受编译期耦合</strong>，不是采集器在运行时反向调用控制面。</p>
 <p><strong>契约（保持边界薄）：</strong></p>
@@ -3299,19 +3139,7 @@
 <p>若 CLI 继续膨胀，可拆 <strong><code>probing-cli-lib</code></strong>（共享 <code>cli_main</code> + HTTP 客户端），而不是让
 采集器或 cdylib 扩散 import cli crate 内部。</p>
 <hr />
-<pre class="mermaid"><code>sequenceDiagram
-    participant C as 采集 L2
-    participant M as memtable L1
-    participant E as Engine L1
-    participant S as Server L3
-    participant X as CLI/Web/Skill L4
-
-    C-&gt;&gt;M: push_row / mmap
-    X-&gt;&gt;S: POST /query
-    S-&gt;&gt;E: async_query
-    E-&gt;&gt;M: TableProvider scan
-    E--&gt;&gt;S: DataFrame
-    S--&gt;&gt;X: JSON</code></pre>
+<p><img alt="训练写入与查询读取通过表契约汇合" src="../../../assets/architecture/probing-data-query-contract.svg" /></p>
 <p><strong>推论：</strong> 新指标 → 新表；跨信号分析 → SQL 或 skill； retention 只动 memtable 配置。</p>
 <hr />
 <h2 id="6">6. 按关注点划界<a class="headerlink" href="#6" title="Permanent link">&para;</a></h2>
@@ -3533,52 +3361,18 @@
 <td>已注册（Linux/kmsg feature gate）</td>
 <td>Done</td>
 </tr>
-<tr>
-<td>Architecture 文档</td>
-<td>二层旧图</td>
-<td>以本文 + <a href="../data-layer/">数据层</a> 为准</td>
-</tr>
 </tbody>
 </table>
-<h3 id="torchrun-vs-pulsing">集群成员：Torchrun 心跳 vs Pulsing<a class="headerlink" href="#torchrun-vs-pulsing" title="Permanent link">&para;</a></h3>
-<p>两条<strong>互补</strong>路径填充 <code>cluster.nodes</code> 并支撑 <code>global.*</code> 联邦，互不取代。</p>
-<table>
-<thead>
-<tr>
-<th>路径</th>
-<th>层</th>
-<th>适用场景</th>
-<th>机制</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Torchrun 集群心跳</strong></td>
-<td>L3 <code>probing-server</code></td>
-<td>默认：<code>torchrun</code>/elastic（<code>WORLD_SIZE &gt; 1</code>，<code>PROBING=1/2</code>）</td>
-<td>分层 HTTP PUT + TCPStore 旁路键（<code>probing/torchrun/&lt;run_id&gt;/…</code>），<strong>不</strong>写 rendezvous 键。见 <a href="../torchrun-cluster/">Torchrun 集群心跳</a>。</td>
-</tr>
-<tr>
-<td><strong>Pulsing 集成</strong></td>
-<td>L4 被动 + 外部运行时</td>
-<td>作业已跑 <a href="../cluster-pulsing/">Pulsing</a> 并写 <code>pulsing.*</code> memtable</td>
-<td>Probing 发现 mmap 表；无 probing 自有心跳线程。</td>
-</tr>
-</tbody>
-</table>
-<p><strong>torchrun 用户默认</strong>：Rust ctor 自动 <code>maybe_start_torchrun_cluster()</code>。
-<strong>Pulsing</strong>：作业以 Pulsing 为中心做成员/故障检测，或需要 Pulsing actor 与 probing 表并存时使用。</p>
+<h3 id="_3">集群成员与外部运行时表<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
+<p><code>cluster.nodes</code> 的现行成员来源是 <strong>Torchrun 集群心跳</strong>：L3 <code>probing-server</code> 通过分层 HTTP PUT
+和 TCPStore 旁路键注册 rank，不写 torch rendezvous 键。Rust ctor 默认调用
+<code>maybe_start_torchrun_cluster()</code>；细节见 <a href="../distributed/#cluster-membership">分布式成员与控制面</a>。</p>
+<p><code>pulsing.*</code> 只是被 mmap catalog 发现的外部表，与其他厂商表遵守相同的数据源契约。Probing
+目前不会把 Pulsing gossip 成员自动合并进 <code>cluster.nodes</code>，也没有由 Probing 启动 Pulsing
+ActorSystem 的现行实现。</p>
 <hr />
 <h2 id="9">9. 新功能决策树<a class="headerlink" href="#9" title="Permanent link">&para;</a></h2>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>要新原始信号？
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>  └─ 是 → L2 采集
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>        ├─ 系统/GPU/NCCL → Rust extension
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>        └─ 训练语义 → Python @table + hook
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>  └─ 否
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>        要新分析流程？ → L4 skill（仅 SQL）
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>        要新 UI？ → L4 web（仅 HTTP/SQL）
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>        要新命令？ → L3 CLI + proto DTO
-</span></code></pre></div>
+<p><img alt="新能力依据新增的事实和状态选择所属模块" src="../../../assets/architecture/probing-feature-placement.svg" /></p>
 <p><strong>反模式：</strong> 在 engine.rs 写业务；Web 查不存在的表；采集器在写路径里 query；Skill 内嵌 Rust 分支；在 <code>probing-skills</code> 之外执行 skill（Python/Web 重复 runner）。</p>
 <hr />
 <h2 id="10">10. 相关文档<a class="headerlink" href="#10" title="Permanent link">&para;</a></h2>
@@ -3591,8 +3385,8 @@
 </thead>
 <tbody>
 <tr>
-<td><a href="../architecture/">系统架构</a></td>
-<td>历史概览（逐步与本页对齐）</td>
+<td><a href="../activation-injection/">启用、注入与运行时控制</a></td>
+<td>运行时进入目标进程和服务就绪</td>
 </tr>
 <tr>
 <td><a href="../data-layer/">数据层</a></td>
@@ -3607,12 +3401,12 @@
 <td>联邦与集群</td>
 </tr>
 <tr>
-<td><a href="../torchrun-cluster/">Torchrun 集群心跳</a></td>
-<td>分层 torchrun 成员注册</td>
+<td><a href="../distributed/">分布式成员与控制面</a></td>
+<td>分层 torchrun 成员注册与健康状态</td>
 </tr>
 <tr>
-<td><a href="../cluster-pulsing/">基于 Pulsing 的集群</a></td>
-<td>可选 Pulsing 成员发现</td>
+<td><a href="../distributed-profiler/">分布式 Profiler 查询与可视化</a></td>
+<td>万 Rank Timeline 查询和可视化目标设计</td>
 </tr>
 <tr>
 <td><a href="../nccl-profiler/">NCCL Profiler</a></td>

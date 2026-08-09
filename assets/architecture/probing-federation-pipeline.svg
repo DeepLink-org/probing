@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="500" viewBox="0 0 1280 500">
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8Z" fill="#2563EB"/></marker></defs>
+  <rect width="1280" height="500" fill="#F8FAFC"/>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial">
+    <text x="640" y="42" text-anchor="middle" font-size="23" font-weight="700" fill="#17324D">联邦查询处理流水线</text>
+    <text x="640" y="68" text-anchor="middle" font-size="12" fill="#64748B">cluster=false 直接本地执行；cluster=true 才进入分片计划</text>
+
+    <g text-anchor="middle">
+      <rect x="54" y="178" width="130" height="66" rx="10" fill="#17324D"/><text x="119" y="205" font-size="12" font-weight="700" fill="#FFFFFF">用户 SQL</text><text x="119" y="226" font-size="9" fill="#CBD5E1">query request</text>
+      <path d="M184 211H236" stroke="#2563EB" stroke-width="3" marker-end="url(#a)"/>
+      <rect x="248" y="178" width="130" height="66" rx="10" fill="#FFF7ED" stroke="#EA580C"/><text x="313" y="205" font-size="12" font-weight="700" fill="#C2410C">Cluster?</text><text x="313" y="226" font-size="9" fill="#64748B">scope decision</text>
+      <path d="M378 211H430" stroke="#2563EB" stroke-width="3" marker-end="url(#a)"/>
+      <rect x="442" y="178" width="150" height="66" rx="10" fill="#EFF6FF" stroke="#2563EB"/><text x="517" y="205" font-size="12" font-weight="700" fill="#174EA6">路径选择</text><text x="517" y="226" font-size="9" fill="#64748B">A / B / C</text>
+      <path d="M592 211H644" stroke="#2563EB" stroke-width="3" marker-end="url(#a)"/>
+      <rect x="656" y="178" width="150" height="66" rx="10" fill="#EFF6FF" stroke="#2563EB"/><text x="731" y="205" font-size="12" font-weight="700" fill="#174EA6">Catalog 改写</text><text x="731" y="226" font-size="9" fill="#64748B">global.* -&gt; probe.*</text>
+      <path d="M806 211H858" stroke="#2563EB" stroke-width="3" marker-end="url(#a)"/>
+      <rect x="870" y="178" width="150" height="66" rx="10" fill="#F0FDFA" stroke="#0D9488"/><text x="945" y="205" font-size="12" font-weight="700" fill="#0F766E">分片执行</text><text x="945" y="226" font-size="9" fill="#64748B">Rank / Node</text>
+      <path d="M1020 211H1072" stroke="#2563EB" stroke-width="3" marker-end="url(#a)"/>
+      <rect x="1084" y="178" width="142" height="66" rx="10" fill="#FAF5FF" stroke="#7C3AED"/><text x="1155" y="205" font-size="12" font-weight="700" fill="#6D28D9">全局合并</text><text x="1155" y="226" font-size="9" fill="#64748B">tags + quality</text>
+    </g>
+
+    <path d="M313 244V320H548" fill="none" stroke="#0D9488" stroke-width="3" marker-end="url(#a)"/>
+    <text x="330" y="284" font-size="10" font-weight="700" fill="#0F766E">否：本地执行</text>
+    <rect x="560" y="288" width="236" height="64" rx="10" fill="#CCFBF1" stroke="#0D9488"/><text x="678" y="315" text-anchor="middle" font-size="12" font-weight="700" fill="#0F766E">Local DataFusion / probe.*</text><text x="678" y="336" text-anchor="middle" font-size="9" fill="#64748B">不进入 fan-out</text>
+
+    <rect x="54" y="390" width="1172" height="54" rx="12" fill="#17324D"/>
+    <text x="640" y="414" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">统一结果：QueryOutcome&lt;DataFrame&gt; + QueryQuality</text>
+    <text x="640" y="434" text-anchor="middle" font-size="9" fill="#CBD5E1">来源标签、覆盖率、nodes_failed、partial 与 strict 语义随结果一起返回</text>
+  </g>
+</svg>

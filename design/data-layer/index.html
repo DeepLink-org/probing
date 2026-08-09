@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://github.com/DeepLink-org/probing/design/data-layer/">
       
       
-        <link rel="prev" href="../modularity/">
+        <link rel="prev" href="../activation-injection/">
       
       
         <link rel="next" href="../extensibility/">
@@ -392,17 +392,20 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="../../contributing/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/" class="md-tabs__link">
+          
   
   
     
   
   Contributing
 
-      </a>
-    </li>
+        </a>
+      </li>
+    
   
 
       
@@ -904,8 +907,6 @@
       
         
       
-        
-      
     
     
     
@@ -1008,7 +1009,7 @@
   <span class="md-ellipsis">
     
   
-    Platform
+    Foundations
   
 
     
@@ -1024,7 +1025,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Platform
+    Foundations
   
 
           </label>
@@ -1045,6 +1046,34 @@
     
   
     Modularity & Boundaries
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../activation-injection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Activation & Runtime Control
   
 
     
@@ -1264,10 +1293,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#column-encodings" class="md-nav__link">
+  <a href="#why-encoding-is-columnar" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Column Encodings
+        Why encoding is columnar
       
     </span>
   </a>
@@ -1275,10 +1304,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#crash-recovery" class="md-nav__link">
+  <a href="#recovery-boundary" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Crash Recovery
+        Recovery boundary
       
     </span>
   </a>
@@ -1391,17 +1420,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#configuration-reference" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Configuration Reference
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#guarantees-known-limits" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1460,34 +1478,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CLI Command Tree
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -1504,14 +1494,6 @@
   
     
     
-      
-        
-      
-        
-      
-        
-      
-        
       
         
       
@@ -1581,91 +1563,7 @@
   <span class="md-ellipsis">
     
   
-    Profiling
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../torch-profiler-sql/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Torch Profiler SQL
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../overhead/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overhead
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../overhead-invariants/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overhead invariants
+    Profiling & Tracing
   
 
     
@@ -1714,42 +1612,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../debugging/" class="md-nav__link">
+      <a href="../overhead/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Debugging Engine
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../training-phase/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Training Phases
+    Overhead
   
 
     
@@ -1786,10 +1656,6 @@
       
         
       
-        
-      
-        
-      
     
     
     
@@ -1816,7 +1682,7 @@
   <span class="md-ellipsis">
     
   
-    Distributed
+    Distributed Query & Analysis
   
 
     
@@ -1832,7 +1698,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Distributed
+    Distributed Query & Analysis
   
 
           </label>
@@ -1852,35 +1718,7 @@
   <span class="md-ellipsis">
     
   
-    Overview
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../torchrun-cluster/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Torchrun Cluster Heartbeat
+    Distributed Membership
   
 
     
@@ -1929,42 +1767,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../hierarchical-fanout/" class="md-nav__link">
+      <a href="../distributed-profiler/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Hierarchical Fan-out
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../cluster-pulsing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Cluster with Pulsing
+    Distributed Profiler
   
 
     
@@ -1981,34 +1791,6 @@
           </ul>
         </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    System Architecture (legacy)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -2445,9 +2227,31 @@
   
   
   
-    <li class="md-nav__item">
-      <a href="../../contributing/" class="md-nav__link">
+    
+    
+      
         
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
   
   
   <span class="md-ellipsis">
@@ -2461,7 +2265,79 @@
   
   
 
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing Guide
+  
+
+    
+  </span>
+  
+  
+
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../writing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation Style
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2632,10 +2508,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#column-encodings" class="md-nav__link">
+  <a href="#why-encoding-is-columnar" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Column Encodings
+        Why encoding is columnar
       
     </span>
   </a>
@@ -2643,10 +2519,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#crash-recovery" class="md-nav__link">
+  <a href="#recovery-boundary" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Crash Recovery
+        Recovery boundary
       
     </span>
   </a>
@@ -2759,17 +2635,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#configuration-reference" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Configuration Reference
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#guarantees-known-limits" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2836,20 +2701,7 @@ consumer queries it through SQL (DataFusion). It is built as <strong>two tiers</
 <li><strong>Fork safety.</strong> Correct under fork-heavy workloads (PyTorch DataLoader workers).</li>
 </ul>
 <h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h2>
-<pre class="mermaid"><code>graph LR
-    APP[push_row / RowWriter] --&gt; MEMT
-    subgraph HOT[Hot tier · probing-memtable]
-        MEMT[MEMT ring buffer] --&gt; SEALED[sealed chunk\nmin/max ts + generation]
-    end
-    SEALED --&gt;|transpose + Pco| ROLLER[Compactor / Roller]
-    ROLLER --&gt; MEMC
-    subgraph COLD[Cold tier · MEMC segments]
-        MEMC[ColdStore\nimmutable segments]
-    end
-
-    SQL[SQL query] --&gt; HCT[HotColdTable]
-    HCT --&gt;|chunk pruning| MEMT
-    HCT --&gt;|segment + page pruning| MEMC</code></pre>
+<p><img alt="MEMT hot layer, MEMC cold layer, and unified query" src="../../assets/architecture/probing-hot-cold-overview.svg" /></p>
 <p>The hot tier is logically read-only at query time, but MEMT mappings are opened writable so
 readers can update per-chunk pin metadata. The cold tier is read via <code>SegmentReader</code>. The
 <code>HotColdTable</code> provider unions them into one scan, deduplicating chunks that exist in both tiers.</p>
@@ -3057,34 +2909,23 @@ files, so cold data never mixes across processes. Each segment is named
 <code>&lt;writer_id&gt;-&lt;seq&gt;.memc</code>, where <code>writer_id</code> is a hash of <code>(pid, start_time)</code> and <code>seq</code> is a
 monotonically increasing sequence the <code>ColdStore</code> recovers on open.</p>
 <h3 id="segment-format">Segment Format<a class="headerlink" href="#segment-format" title="Permanent link">&para;</a></h3>
-<p>A segment is a sequence of 64-aligned blocks. All integrity checks use <strong>xxh3-64 truncated to 32
-bits</strong>.</p>
+<p>MEMC must do more than compress old rows to disk. Hot slots are recycled, the process can exit at
+any byte boundary, and readers must distinguish "not committed yet" from "committed but corrupt."
+The segment therefore carries its own commit protocol and source identity instead of relying on a
+separate transaction log.</p>
+<p>A segment is a sequence of 64-aligned blocks. <code>MCTB</code> declares a table and schema, <code>MCPG</code> stores one
+column page, and <code>MCFT</code> is the page directory written at seal time. Integrity checks use
+<strong>xxh3-64 truncated to 32 bits</strong>.</p>
 <p><strong>Segment header (64 bytes):</strong> <code>magic</code> (<code>"MEMC"</code>), <code>version</code> (2), BOM, <code>flags</code> (bit 0 = sealed),
 <code>writer_pid</code>, <code>writer_start</code>, <code>created_unix_ms</code>, <code>footer_off</code> (0 until sealed), segment-wide
 <code>ts_min</code>/<code>ts_max</code>, <code>page_count</code>, header checksum.</p>
-<p><strong>Blocks</strong> share a 64-byte header:</p>
-<table>
-<thead>
-<tr>
-<th>magic</th>
-<th>meaning</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>MCTB</code></td>
-<td>table-definition block — declares a <code>table_id</code>, name, column dtypes, ts column</td>
-</tr>
-<tr>
-<td><code>MCPG</code></td>
-<td>page block — one columnar page for a <code>table_id</code></td>
-</tr>
-<tr>
-<td><code>MCFT</code></td>
-<td>footer — page directory written on seal</td>
-</tr>
-</tbody>
-</table>
+<p><img alt="MEMC physical segment format, column encodings, and recovery paths" src="../../assets/architecture/probing-memc-format.svg" /></p>
+<p>The writer appends the header, table definitions, and column pages first. It writes the footer only
+after every payload and checksum is complete, then rewrites the header as sealed. The sealed bit is
+therefore the segment commit point. Before commit, a reader accepts only complete blocks found by a
+forward scan. After commit, any footer, block, or payload validation failure is corruption. The
+asymmetry follows causality: an unsealed tail may simply be unfinished, while a sealed segment has
+already declared itself complete and cannot reinterpret corruption as normal truncation.</p>
 <p>The page/block header carries <code>table_id</code>, <code>row_count</code>, <code>col_count</code>, <code>ts_min</code>/<code>ts_max</code>,
 <code>payload_len</code>, <code>payload_xxh</code>, and — crucially for restart dedup — <code>source_instance</code>, <code>source_gen</code>,
 and <code>source_chunk</code> (the hot MEMT identity plus chunk generation/index this page was drained from;
@@ -3095,25 +2936,18 @@ participate in restart dedup. Sealed v1 files remain eligible for retention evic
 that need their historical rows must archive or convert them before upgrading.</p>
 <p>A single segment holds pages from <strong>multiple tables</strong>, distinguished by <code>table_id</code>. This decouples
 file/directory count from table count: hundreds of tables share one set of segment files.</p>
-<h3 id="column-encodings">Column Encodings<a class="headerlink" href="#column-encodings" title="Permanent link">&para;</a></h3>
-<p>Each column is encoded independently (<code>ColEncoding</code>):</p>
-<ul>
-<li><strong><code>Pco</code></strong> — numeric columns (<code>i32/i64/f32/f64/u32/u64</code>), compressed with Pco (level 8). Monotonic
-  timestamp columns compress &gt; 4×.</li>
-<li><strong><code>RawFixed</code></strong> — <code>u8</code> (Pco offers no benefit for byte columns).</li>
-<li><strong><code>RawVarLen</code></strong> — <code>Str</code>/<code>Bytes</code>, stored as concatenated <code>[u32 len][bytes]</code> entries (Pco has no
-  string support).</li>
-</ul>
-<h3 id="crash-recovery">Crash Recovery<a class="headerlink" href="#crash-recovery" title="Permanent link">&para;</a></h3>
-<ul>
-<li>A <strong>sealed</strong> segment is read via its footer page directory — O(1) location of every page. Footer,
-  block, payload, and page integrity failures reject the segment and fail the SQL scan; queries
-  never return a successful but incomplete cold result.</li>
-<li>An <strong>unsealed or torn</strong> segment is recovered by <strong>forward scan</strong>. Only an incomplete final
-  header/payload is dropped as a crash tail; corruption of a complete checksummed block is an
-  error. Table-definition blocks are always scanned (cheap, and they precede pages).</li>
-</ul>
-<p>There is no heuristic that tries to repair a half-written record.</p>
+<h3 id="why-encoding-is-columnar">Why encoding is columnar<a class="headerlink" href="#why-encoding-is-columnar" title="Permanent link">&para;</a></h3>
+<p>Once off the hot path, the compactor transposes rows so each data class can use its own statistical
+structure. Numeric columns use Pco, which is especially effective for monotonic timestamps; <code>u8</code>
+remains <code>RawFixed</code> to avoid useless compression; strings and byte arrays use length-prefixed
+<code>RawVarLen</code>. The page header fixes the choice so readers never guess. Moving transpose and
+compression to the cold tier is what lets MEMT retain a simple, allocation-free row write path.</p>
+<h3 id="recovery-boundary">Recovery boundary<a class="headerlink" href="#recovery-boundary" title="Permanent link">&para;</a></h3>
+<p>A sealed segment uses its footer to locate pages, and any integrity failure fails the SQL scan; a
+query never succeeds with silently missing cold pages. An unsealed segment has made no completeness
+claim, so a forward scan may drop the final incomplete header or payload. A fully written block
+with a bad checksum is still an error. Recovery neither stitches partial rows nor guesses writer
+intent from payload contents.</p>
 <div class="admonition warning">
 <p class="admonition-title">Durability</p>
 <p>Pages are not <code>fsync</code>'d individually (only <code>sync_data</code> on seal). A <code>SIGKILL</code> may lose
@@ -3122,19 +2956,18 @@ is an explicit trade-off.</p>
 </div>
 <h2 id="compactor-roller">Compactor (Roller)<a class="headerlink" href="#compactor-roller" title="Permanent link">&para;</a></h2>
 <p>The <code>Compactor</code> drains newly-sealed hot chunks into cold segments.</p>
-<ul>
-<li><strong>Drain semantics.</strong> Only <code>Sealed</code> chunks are drained (never the currently-writing chunk). Rows
-  are transposed to columns; the chunk's <code>generation</code> is re-checked before and after — if the ring
-  recycled it, the page is dropped and retried next pass. Draining is <strong>idempotent</strong>: a per-chunk
-  <code>drained_gen</code> high-water mark skips already-compacted chunk generations.</li>
-<li><strong>Rolling.</strong> The open segment is sealed and a new one started when it reaches
-  <code>target_segment_bytes</code> (default 64 MiB — the main fragmentation knob), or when it exceeds
-  <code>max_segment_age</code> (default 300 s, so low-rate tables still become queryable), or on explicit
-  flush.</li>
-<li><strong>Eviction.</strong> <code>enforce</code> deletes oldest sealed segments past a byte budget (<code>max_total_bytes</code>) or
-  TTL, always protecting the newest plus every unsealed/unreadable segment that another writer may
-  still have open.</li>
-</ul>
+<p><img alt="Compaction validates the source generation, encodes columns, then advances the watermark" src="../../assets/architecture/probing-memc-lifecycle.svg" /></p>
+<p>The compactor cannot hold the hot tier while compressing; cold-storage jitter would otherwise feed
+back into collection. A transaction snapshots a sealed chunk identity and transposes and encodes
+outside the hot path, then rereads the generation before commit. If the ring recycled the slot in
+the meantime, the result is discarded. <code>drained_gen</code> advances only after a complete page append, so
+failure causes a retry rather than a false claim that data was retained.</p>
+<p>Segment rolling is constrained by both size and age. Size bounds fragmentation and scan
+granularity; age prevents low-rate tables from remaining indefinitely in an unsealed segment. An
+explicit flush uses the same seal protocol. Retention deletes only the oldest sealed segments past
+the capacity or TTL boundary and protects the newest and any segment another writer may still have
+open. Compaction, rolling, and eviction therefore share one rule: destructive decisions apply only
+to committed objects.</p>
 <h3 id="exactly-once-across-restarts">Exactly-Once Across Restarts<a class="headerlink" href="#exactly-once-across-restarts" title="Permanent link">&para;</a></h3>
 <p><code>drained_gen</code> is in-memory, so a naive restart over a persistent cold dir would re-compact
 chunks still resident in the hot ring, producing duplicate rows. <code>prime_from_cold()</code> rebuilds the
@@ -3143,13 +2976,11 @@ watermark on startup: it scans existing cold segments and, per
 the first time a table instance is seen. The result is <strong>exactly-once</strong> across restarts without
 confusing a same-name replacement whose generations restart from the beginning.</p>
 <h2 id="runtime-owner">Runtime Owner<a class="headerlink" href="#runtime-owner" title="Permanent link">&para;</a></h2>
-<p><code>ColdCompactor</code> is a process-global singleton (modeled on the task-stats worker) that gives the
-compactor a single lifecycle home:</p>
-<ul>
-<li>a background thread <strong>rediscovers</strong> ring files under <code>&lt;data_dir&gt;/&lt;pid&gt;/</code> each pass (tables appear
-  over time), drains each into the shared <code>ColdStore</code>, rolls by age, and enforces the budget;</li>
-<li>on startup it calls <code>prime_from_cold()</code>; on stop it flushes (seals the open segment).</li>
-</ul>
+<p><code>ColdCompactor</code> is process-global because multiple background owners would compete for the same hot
+sources and advance duplicate watermarks. Each pass rediscovers tables that appear under
+<code>&lt;data_dir&gt;/&lt;pid&gt;/</code>, drains them into one <code>ColdStore</code>, then applies rolling and budget constraints.
+Startup reconstructs watermarks from cold segments; shutdown seals the open segment through the
+same commit protocol.</p>
 <p>Discovery, segment enumeration, write/roll, and retention I/O are fallible operations. The worker
 logs failures and records an observable <code>CompactorRuntimeStats</code> snapshot (<code>error_count</code> plus the
 operation-qualified <code>last_error</code>). Startup priming fails closed, because continuing without recovered
@@ -3191,55 +3022,9 @@ double-count it. <code>cold_scan</code> returns the set of <code>(source_chunk, 
 from; the hot side then <strong>excludes</strong> any chunk whose <code>(index, current generation)</code> is in that set.
 Each row is counted exactly once, and the dedup is immune to ring recycling (the generation check
 re-validates).</p>
-<h2 id="configuration-reference">Configuration Reference<a class="headerlink" href="#configuration-reference" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th><code>SET memtable.*</code></th>
-<th>env</th>
-<th>meaning</th>
-<th>default</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>cold_compaction</code></td>
-<td><code>PROBING_COLD</code></td>
-<td>run the background compactor (<code>on</code>/<code>off</code>)</td>
-<td>off</td>
-</tr>
-<tr>
-<td><code>cold_max_total_mb</code></td>
-<td><code>PROBING_COLD_MAX_TOTAL_MB</code></td>
-<td>cold-store byte budget (MiB)</td>
-<td>unlimited</td>
-</tr>
-<tr>
-<td><code>cold_ttl_secs</code></td>
-<td><code>PROBING_COLD_TTL_SECS</code></td>
-<td>evict cold segments older than this</td>
-<td>none</td>
-</tr>
-<tr>
-<td>—</td>
-<td><code>PROBING_COLD_TARGET_MB</code></td>
-<td>segment roll size (MiB)</td>
-<td>64</td>
-</tr>
-<tr>
-<td>—</td>
-<td><code>PROBING_COLD_POLL_MS</code></td>
-<td>drain-pass interval</td>
-<td>2000</td>
-</tr>
-<tr>
-<td>—</td>
-<td><code>PROBING_COLD_MAX_AGE_SECS</code></td>
-<td>seal idle open segment after</td>
-<td>300</td>
-</tr>
-</tbody>
-</table>
+<p>Runtime switches and capacity values are configuration contracts and are centralized under
+<a href="../../reference/env-vars/#data-storage">Environment variables — Data storage</a> rather than repeated
+inside the storage architecture.</p>
 <h2 id="guarantees-known-limits">Guarantees &amp; Known Limits<a class="headerlink" href="#guarantees-known-limits" title="Permanent link">&para;</a></h2>
 <p><strong>Guaranteed:</strong></p>
 <ul>

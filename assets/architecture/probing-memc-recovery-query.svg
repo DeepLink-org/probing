@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2563EB"/></marker><marker id="g" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#0F766E"/></marker></defs>
+  <rect width="1280" height="720" fill="#F8FAFC"/>
+  <text x="640" y="38" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="22" font-weight="700" fill="#17324D">MEMC：恢复、保留和冷热查询共享同一份不可变段</text>
+  <text x="640" y="62" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="12" fill="#64748B">恢复只容忍写入中断造成的尾部不完整；完整块损坏必须报错</text>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial">
+    <rect x="42" y="100" width="378" height="478" rx="14" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="66" y="132" font-size="16" font-weight="700" fill="#174EA6">打开 segment</text>
+    <rect x="66" y="164" width="330" height="50" rx="9" fill="#17324D"/><text x="231" y="195" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">Header 指向有效 footer？</text>
+    <path d="M154 214 L154 246" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/><path d="M308 214 L308 246" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <text x="132" y="238" font-size="9" fill="#0F766E">是</text><text x="316" y="238" font-size="9" fill="#C2410C">否</text>
+    <rect x="66" y="254" width="154" height="126" rx="10" fill="#F0FDFA" stroke="#0D9488"/>
+    <text x="143" y="282" text-anchor="middle" font-size="11" font-weight="700" fill="#0F766E">Sealed</text>
+    <text x="84" y="308" font-size="9" fill="#64748B">验证 footer directory</text><text x="84" y="330" font-size="9" fill="#64748B">验证 range / checksum</text><text x="84" y="352" font-size="9" fill="#64748B">直接建立 page index</text>
+    <rect x="242" y="254" width="154" height="126" rx="10" fill="#FFF7ED" stroke="#EA580C"/>
+    <text x="319" y="282" text-anchor="middle" font-size="11" font-weight="700" fill="#C2410C">Unsealed</text>
+    <text x="260" y="308" font-size="9" fill="#64748B">从 header 后向前扫描</text><text x="260" y="330" font-size="9" fill="#64748B">保留完整 MCTB/MCPG</text><text x="260" y="352" font-size="9" fill="#64748B">忽略不完整最后一块</text>
+    <rect x="66" y="412" width="330" height="90" rx="10" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="231" y="440" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">共同校验</text>
+    <text x="84" y="466" font-size="9" fill="#64748B">完整 block 的 magic / length / checksum 错 -> corruption</text>
+    <text x="84" y="488" font-size="9" fill="#64748B">不把损坏解释成“没有数据”</text>
+    <rect x="66" y="524" width="330" height="32" rx="8" fill="#DBEAFE"/><text x="231" y="545" text-anchor="middle" font-size="10" font-weight="700" fill="#174EA6">恢复 source identity -> drained_gen</text>
+
+    <rect x="450" y="100" width="300" height="478" rx="14" fill="#FFF7ED" stroke="#EA580C" stroke-width="2"/>
+    <text x="474" y="132" font-size="16" font-weight="700" fill="#C2410C">后台保留策略</text>
+    <rect x="474" y="164" width="252" height="86" rx="10" fill="#FFFFFF" stroke="#FDBA74"/><text x="600" y="192" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">候选文件</text><text x="492" y="216" font-size="9" fill="#64748B">只考虑结构可确认的 sealed segment</text><text x="492" y="236" font-size="9" fill="#64748B">按年龄与大小排序</text>
+    <path d="M600 250 L600 280" stroke="#EA580C" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="474" y="288" width="252" height="110" rx="10" fill="#FFEDD5" stroke="#EA580C"/>
+    <text x="600" y="316" text-anchor="middle" font-size="11" font-weight="700" fill="#C2410C">TTL / 空间预算</text>
+    <text x="492" y="342" font-size="9" fill="#64748B">整段删除，不改写页</text><text x="492" y="364" font-size="9" fill="#64748B">永不删除 unsealed / unreadable</text><text x="492" y="386" font-size="9" fill="#64748B">始终保留最新 sealed segment</text>
+    <path d="M600 398 L600 428" stroke="#EA580C" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="474" y="436" width="252" height="96" rx="10" fill="#FFFFFF" stroke="#FDBA74"/>
+    <text x="600" y="464" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">POSIX unlink</text>
+    <text x="492" y="490" font-size="9" fill="#64748B">目录不再发现旧段</text><text x="492" y="512" font-size="9" fill="#64748B">已 mmap 的 reader 继续读完</text>
+
+    <rect x="780" y="100" width="458" height="478" rx="14" fill="#F0FDFA" stroke="#0D9488" stroke-width="2"/>
+    <text x="804" y="132" font-size="16" font-weight="700" fill="#0F766E">HotColdTable 查询</text>
+    <rect x="804" y="164" width="410" height="56" rx="9" fill="#17324D"/><text x="1009" y="190" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">SQL：时间范围 + projection</text><text x="1009" y="208" text-anchor="middle" font-size="9" fill="#CBD5E1">调用方不区分热行与冷页</text>
+    <path d="M920 220 L920 256" stroke="#0F766E" stroke-width="2" marker-end="url(#g)"/><path d="M1098 220 L1098 256" stroke="#0F766E" stroke-width="2" marker-end="url(#g)"/>
+    <rect x="804" y="264" width="196" height="116" rx="10" fill="#DBEAFE" stroke="#2563EB"/>
+    <text x="902" y="292" text-anchor="middle" font-size="11" font-weight="700" fill="#174EA6">MEMT hot</text>
+    <text x="822" y="318" font-size="9" fill="#64748B">chunk min/max 剪枝</text><text x="822" y="340" font-size="9" fill="#64748B">generation 复核</text><text x="822" y="362" font-size="9" fill="#64748B">行解码 -> Arrow</text>
+    <rect x="1018" y="264" width="196" height="116" rx="10" fill="#CCFBF1" stroke="#0D9488"/>
+    <text x="1116" y="292" text-anchor="middle" font-size="11" font-weight="700" fill="#0F766E">MEMC cold</text>
+    <text x="1036" y="318" font-size="9" fill="#64748B">segment / page min/max</text><text x="1036" y="340" font-size="9" fill="#64748B">只解码 projection</text><text x="1036" y="362" font-size="9" fill="#64748B">column page -> Arrow</text>
+    <path d="M902 380 L902 416 L1009 416" fill="none" stroke="#0F766E" stroke-width="2"/><path d="M1116 380 L1116 416 L1009 416 L1009 438" fill="none" stroke="#0F766E" stroke-width="2" marker-end="url(#g)"/>
+    <rect x="804" y="446" width="410" height="76" rx="10" fill="#FFFFFF" stroke="#5EEAD4"/>
+    <text x="1009" y="474" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">合并 Arrow batches</text>
+    <text x="1009" y="498" text-anchor="middle" font-size="9" fill="#64748B">按 source_instance / chunk / generation 消除整理窗口交叠</text>
+  </g>
+  <rect x="42" y="616" width="1196" height="66" rx="12" fill="#17324D"/>
+  <text x="640" y="644" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="12" font-weight="700" fill="#FFFFFF">恢复、淘汰和查询都以 segment 不可变为前提；任何完整损坏都显式暴露。</text>
+  <text x="640" y="668" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="10" fill="#CBD5E1">冷热合并隐藏在 TableProvider 内，SQL 只看到一张逻辑表。</text>
+</svg>

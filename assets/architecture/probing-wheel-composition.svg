@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="430" viewBox="0 0 1200 430">
+  <defs><marker id="aw" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#2563EB"/></marker></defs>
+  <rect width="1200" height="430" fill="#F8FAFC"/>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial, sans-serif">
+    <text x="600" y="42" text-anchor="middle" font-size="25" font-weight="700" fill="#17324D">Wheel 只有一个 Native 产物，CLI 入口在组装根连接</text>
+    <text x="600" y="70" text-anchor="middle" font-size="13" fill="#64748B">这是打包期组合，不是采集器在运行时反向依赖 CLI</text>
+
+    <rect x="48" y="135" width="205" height="90" rx="14" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="151" y="170" text-anchor="middle" font-size="16" font-weight="700" fill="#1D4ED8">pip install probing</text>
+    <text x="151" y="197" text-anchor="middle" font-size="12" fill="#64748B">maturin wheel</text>
+    <path d="M253 180 H336" stroke="#2563EB" stroke-width="3" marker-end="url(#aw)"/>
+
+    <rect x="342" y="105" width="516" height="150" rx="16" fill="#ECFDF5" stroke="#0D9488" stroke-width="2"/>
+    <text x="600" y="137" text-anchor="middle" font-size="18" font-weight="700" fill="#0F766E">probing._core.so</text>
+    <rect x="370" y="158" width="105" height="58" rx="9" fill="#FFFFFF" stroke="#5EEAD4"/><text x="423" y="191" text-anchor="middle" font-size="12" fill="#17324D">core</text>
+    <rect x="489" y="158" width="105" height="58" rx="9" fill="#FFFFFF" stroke="#5EEAD4"/><text x="542" y="191" text-anchor="middle" font-size="12" fill="#17324D">server</text>
+    <rect x="608" y="158" width="105" height="58" rx="9" fill="#FFFFFF" stroke="#5EEAD4"/><text x="661" y="191" text-anchor="middle" font-size="12" fill="#17324D">Python ext</text>
+    <rect x="727" y="158" width="103" height="58" rx="9" fill="#FFFFFF" stroke="#5EEAD4"/><text x="779" y="181" text-anchor="middle" font-size="12" fill="#17324D">CLI adapter</text><text x="779" y="199" text-anchor="middle" font-size="10" fill="#64748B">cli_main only</text>
+
+    <path d="M858 180 H941" stroke="#2563EB" stroke-width="3" marker-end="url(#aw)"/>
+    <rect x="947" y="120" width="205" height="120" rx="14" fill="#FFF7ED" stroke="#EA580C" stroke-width="2"/>
+    <text x="1050" y="154" text-anchor="middle" font-size="15" font-weight="700" fill="#C2410C">Python console script</text>
+    <text x="1050" y="184" text-anchor="middle" font-size="12" fill="#475569">probing.cli.__main__</text>
+    <text x="1050" y="207" text-anchor="middle" font-size="12" fill="#475569">_core.cli_main()</text>
+
+    <rect x="48" y="300" width="1104" height="86" rx="14" fill="#17324D"/>
+    <text x="75" y="331" font-size="14" font-weight="700" fill="#FFFFFF">允许的耦合</text>
+    <text x="75" y="356" font-size="12" fill="#CBD5E1">根 src/lib.rs 负责组装并导出 cli_main；独立 Rust binary 仍可使用同一 CLI library。</text>
+    <text x="654" y="331" font-size="14" font-weight="700" fill="#86EFAC">禁止的扩散</text>
+    <text x="654" y="356" font-size="12" fill="#CBD5E1">collector、server 与 Python extension 不得引用 CLI 内部命令实现。</text>
+  </g>
+</svg>

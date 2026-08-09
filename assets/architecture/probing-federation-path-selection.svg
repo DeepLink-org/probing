@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="620" viewBox="0 0 1280 620">
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8Z" fill="#2563EB"/></marker></defs>
+  <rect width="1280" height="620" fill="#F8FAFC"/>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial">
+    <text x="640" y="42" text-anchor="middle" font-size="23" font-weight="700" fill="#17324D">联邦 SQL 路径选择</text>
+    <text x="640" y="68" text-anchor="middle" font-size="12" fill="#64748B">基于 AST 保守路由；无法证明可拆分时进入本地广播路径</text>
+
+    <rect x="500" y="98" width="280" height="62" rx="12" fill="#17324D"/><text x="640" y="124" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">单条 SELECT？</text><text x="640" y="145" text-anchor="middle" font-size="9" fill="#CBD5E1">解析失败也按“否”处理</text>
+    <path d="M640 160V210" stroke="#2563EB" stroke-width="3" marker-end="url(#a)"/>
+    <text x="654" y="190" font-size="10" font-weight="700" fill="#0F766E">是</text>
+    <path d="M500 129H290V420" fill="none" stroke="#EA580C" stroke-width="3" marker-end="url(#a)"/>
+    <text x="374" y="116" font-size="10" font-weight="700" fill="#C2410C">否</text>
+
+    <rect x="450" y="222" width="380" height="70" rx="12" fill="#EFF6FF" stroke="#2563EB"/><text x="640" y="249" text-anchor="middle" font-size="13" font-weight="700" fill="#174EA6">单表且无 JOIN / CTE / UNION / 子查询？</text><text x="640" y="272" text-anchor="middle" font-size="9" fill="#64748B">关系运算能否在单表分片上保持语义</text>
+    <path d="M640 292V342" stroke="#2563EB" stroke-width="3" marker-end="url(#a)"/>
+    <text x="654" y="322" font-size="10" font-weight="700" fill="#0F766E">是</text>
+    <path d="M450 257H290V420" fill="none" stroke="#EA580C" stroke-width="3" marker-end="url(#a)"/>
+    <text x="360" y="244" font-size="10" font-weight="700" fill="#C2410C">否</text>
+
+    <rect x="450" y="354" width="380" height="70" rx="12" fill="#F0FDFA" stroke="#0D9488"/><text x="640" y="381" text-anchor="middle" font-size="13" font-weight="700" fill="#0F766E">可分解 GROUP BY / 聚合？</text><text x="640" y="404" text-anchor="middle" font-size="9" fill="#64748B">count / sum / min / max 等可归并状态</text>
+    <path d="M540 424V474" stroke="#0D9488" stroke-width="3" marker-end="url(#a)"/>
+    <path d="M740 424V474" stroke="#2563EB" stroke-width="3" marker-end="url(#a)"/>
+    <text x="554" y="454" font-size="10" font-weight="700" fill="#0F766E">是</text><text x="754" y="454" font-size="10" font-weight="700" fill="#174EA6">否</text>
+
+    <rect x="430" y="486" width="220" height="78" rx="12" fill="#CCFBF1" stroke="#0D9488" stroke-width="2"/><text x="540" y="516" text-anchor="middle" font-size="15" font-weight="700" fill="#0F766E">路径 A</text><text x="540" y="540" text-anchor="middle" font-size="10" fill="#475569">聚合下推 + 全局归并</text>
+    <rect x="670" y="486" width="220" height="78" rx="12" fill="#DBEAFE" stroke="#2563EB" stroke-width="2"/><text x="780" y="516" text-anchor="middle" font-size="15" font-weight="700" fill="#174EA6">路径 B</text><text x="780" y="540" text-anchor="middle" font-size="10" fill="#475569">联邦 Lazy Scan</text>
+    <rect x="180" y="432" width="220" height="132" rx="12" fill="#FFF7ED" stroke="#EA580C" stroke-width="2"/><text x="290" y="464" text-anchor="middle" font-size="15" font-weight="700" fill="#C2410C">路径 C</text><text x="290" y="490" text-anchor="middle" font-size="10" fill="#475569">每个进程本地执行</text><text x="290" y="512" text-anchor="middle" font-size="10" fill="#475569">结果按分片拼接</text><text x="290" y="540" text-anchor="middle" font-size="9" fill="#64748B">不声称完成跨 Rank JOIN</text>
+
+    <rect x="930" y="222" width="286" height="202" rx="14" fill="#FFFFFF" stroke="#CBD5E1"/>
+    <text x="954" y="254" font-size="13" font-weight="700" fill="#17324D">正确性优先</text>
+    <text x="954" y="284" font-size="10" fill="#475569">- avg / count distinct 需可证明归并</text>
+    <text x="954" y="310" font-size="10" fill="#475569">- ORDER BY / LIMIT 在全局合并后执行</text>
+    <text x="954" y="336" font-size="10" fill="#475569">- Filter 只下推精确可翻译谓词</text>
+    <text x="954" y="362" font-size="10" fill="#475569">- Peer 永远执行 probe.*</text>
+    <text x="954" y="388" font-size="10" fill="#C2410C">- 不确定时不做激进优化</text>
+  </g>
+</svg>

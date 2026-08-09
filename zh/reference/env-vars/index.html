@@ -394,17 +394,20 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="../../contributing/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/" class="md-tabs__link">
+          
   
   
     
   
   贡献指南
 
-      </a>
-    </li>
+        </a>
+      </li>
+    
   
 
       
@@ -904,8 +907,6 @@
       
         
       
-        
-      
     
     
     
@@ -1000,7 +1001,7 @@
   <span class="md-ellipsis">
     
   
-    平台核心
+    基础架构
   
 
     
@@ -1016,7 +1017,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    平台核心
+    基础架构
   
 
           </label>
@@ -1037,6 +1038,34 @@
     
   
     模块化与边界
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/activation-injection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    启用、注入与运行时控制
   
 
     
@@ -1106,34 +1135,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CLI 命令树
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -1150,14 +1151,6 @@
   
     
     
-      
-        
-      
-        
-      
-        
-      
-        
       
         
       
@@ -1224,91 +1217,7 @@
   <span class="md-ellipsis">
     
   
-    性能分析
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/torch-profiler-sql/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Torch Profiler SQL（Kineto 虚拟表）
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/overhead/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    开销测量
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/overhead-invariants/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overhead invariants
+    性能分析与 Tracing
   
 
     
@@ -1357,42 +1266,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/debugging/" class="md-nav__link">
+      <a href="../../design/overhead/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    调试引擎
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/training-phase/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    训练阶段
+    开销测量
   
 
     
@@ -1429,10 +1310,6 @@
       
         
       
-        
-      
-        
-      
     
     
     
@@ -1456,7 +1333,7 @@
   <span class="md-ellipsis">
     
   
-    分布式
+    分布式查询与分析
   
 
     
@@ -1472,7 +1349,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    分布式
+    分布式查询与分析
   
 
           </label>
@@ -1492,35 +1369,7 @@
   <span class="md-ellipsis">
     
   
-    概览
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/torchrun-cluster/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    torchrun 集群心跳
+    分布式成员与控制面
   
 
     
@@ -1569,42 +1418,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design/hierarchical-fanout/" class="md-nav__link">
+      <a href="../../design/distributed-profiler/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    分层集群查询
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/cluster-pulsing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    基于 Pulsing 的集群
+    分布式 Profiler 查询与可视化
   
 
     
@@ -1621,34 +1442,6 @@
           </ul>
         </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../design/architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    系统架构（旧版）
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -2071,10 +1864,43 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#data-storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        数据存储
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tracing-spans" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tracing 与 Span
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#集群" class="md-nav__link">
     <span class="md-ellipsis">
       
         集群
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#megatron-autostart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Megatron 自动集成
       
     </span>
   </a>
@@ -2170,6 +1996,64 @@
   
   
   
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    贡献指南
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    贡献指南
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../../contributing/" class="md-nav__link">
         
@@ -2187,6 +2071,42 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../writing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    文档写作规范
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2229,10 +2149,43 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#data-storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        数据存储
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tracing-spans" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tracing 与 Span
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#集群" class="md-nav__link">
     <span class="md-ellipsis">
       
         集群
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#megatron-autostart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Megatron 自动集成
       
     </span>
   </a>
@@ -2297,8 +2250,97 @@
 </tr>
 </tbody>
 </table>
+<h2 id="data-storage">数据存储<a class="headerlink" href="#data-storage" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PROBING_DATA_DIR</code></td>
+<td>平台相关</td>
+<td>MEMT mmap 文件根目录；每个进程使用 PID 子目录。</td>
+</tr>
+<tr>
+<td><code>PROBING_TABLE_DEFAULT_MB</code></td>
+<td><code>20</code></td>
+<td>Python <code>@table</code> 与未指定容量的 <code>ExternalTable</code> 默认 mmap 环形容量。</td>
+</tr>
+<tr>
+<td><code>PROBING_COLD</code></td>
+<td>未设置</td>
+<td>设为 <code>on</code> 启用 MEMT 到 MEMC 的后台整理。</td>
+</tr>
+<tr>
+<td><code>PROBING_COLD_TARGET_MB</code></td>
+<td>—</td>
+<td>冷段目标滚动大小。</td>
+</tr>
+<tr>
+<td><code>PROBING_COLD_MAX_TOTAL_MB</code></td>
+<td>—</td>
+<td>冷层总字节预算。</td>
+</tr>
+<tr>
+<td><code>PROBING_COLD_TTL_SECS</code></td>
+<td>—</td>
+<td>冷段保留时间。</td>
+</tr>
+<tr>
+<td><code>PROBING_COLD_POLL_MS</code></td>
+<td>—</td>
+<td>Compactor 两轮扫描之间的间隔。</td>
+</tr>
+<tr>
+<td><code>PROBING_COLD_MAX_AGE_SECS</code></td>
+<td>—</td>
+<td>打开段达到该年龄后强制封存。</td>
+</tr>
+<tr>
+<td><code>PROBING_COLD_DIR</code></td>
+<td><code>PROBING_DATA_DIR</code> 下</td>
+<td>冷段目录。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="tracing-spans">Tracing 与 Span<a class="headerlink" href="#tracing-spans" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PROBING_SPAN_BACKENDS</code></td>
+<td><code>memtable</code></td>
+<td>逗号分隔的 backend：<code>memtable</code>、<code>logger</code>、<code>otel</code>、<code>none</code>。<code>none</code> 仅保留栈，不持久化。详见 <a href="../../design/profiling/#span-api">Tracing 与训练阶段</a>。</td>
+</tr>
+<tr>
+<td><code>PROBING_SPAN_LOG_LEVEL</code></td>
+<td><code>INFO</code></td>
+<td><code>logger</code> backend 的日志级别。</td>
+</tr>
+<tr>
+<td><code>PROBING_SPAN_LOCATION</code></td>
+<td>未设置</td>
+<td>为每个 span 通过 <code>inspect.stack()</code> 采集位置，开销较高。</td>
+</tr>
+<tr>
+<td><code>PROBING_TRACE_STDOUT</code></td>
+<td>未设置</td>
+<td><code>1</code>/<code>true</code> 时让 <code>probing.inspect.trace</code> 输出到 stdout，而不是 Python logger。</td>
+</tr>
+</tbody>
+</table>
 <h2 id="集群">集群<a class="headerlink" href="#集群" title="Permanent link">&para;</a></h2>
-<p><code>WORLD_SIZE &gt; 1</code> 时的分层 side-channel 注册。详见 <a href="../../design/torchrun-cluster/">torchrun 集群心跳</a> 与 <a href="../../design/hierarchical-fanout/">分层 fan-out</a>。</p>
+<p><code>WORLD_SIZE &gt; 1</code> 时的分层 side-channel 注册。详见 <a href="../../design/distributed/#cluster-membership">分布式成员</a> 与 <a href="../../design/federation/#hierarchical-fan-out">联邦查询 — 分层 fan-out</a>。</p>
 <table>
 <thead>
 <tr>
@@ -2435,6 +2477,42 @@
 </tr>
 </tbody>
 </table>
+<h2 id="megatron-autostart">Megatron 自动集成<a class="headerlink" href="#megatron-autostart" title="Permanent link">&para;</a></h2>
+<p>检测到 Megatron 环境变量或模块后，集成以 best-effort 方式自动启用；除 <code>PROBING=2</code> 外，
+无需修改训练脚本。</p>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PROBING_MEGATRON</code></td>
+<td><code>auto</code></td>
+<td><code>auto</code> 表示检测到 Megatron 环境或模块时启用；也可用 <code>on</code>/<code>off</code> 强制开关。</td>
+</tr>
+<tr>
+<td><code>PROBING_MEGATRON_STEP_SYNC</code></td>
+<td><code>auto</code></td>
+<td>包装 <code>train_step</code>，将 <code>probing.step</code> 与 Megatron iteration 对齐。</td>
+</tr>
+<tr>
+<td><code>probing.megatron.enable</code></td>
+<td>—</td>
+<td>通过 <code>probing.config.set</code> 覆盖自动集成开关。</td>
+</tr>
+<tr>
+<td><code>probing.megatron.step_sync</code></td>
+<td>—</td>
+<td>通过 <code>probing.config.set</code> 覆盖 iteration 同步开关。</td>
+</tr>
+</tbody>
+</table>
+<p>当 <code>megatron.core.parallel_state</code> 和 <code>megatron.training.training</code> 加载时，import hook
+把并行 rank 写入 <code>probing.set_role</code>，并让 <code>train_step</code> 产生可供 SQL 关联的统一 step 坐标。</p>
 <h2 id="_3">其余变量<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
 <p>激活、存储、Server、认证、Tracing、采样、NCCL、RDMA、PyTorch、调试等章节与 <a href="./">英文 env-vars</a> 同步；尚未单独翻译。</p>
 <p><code>PROBING_TCPSTORE_INSPECT</code> 默认为 <code>0</code>。设为 <code>1</code> 后，

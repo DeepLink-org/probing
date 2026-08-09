@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8Z" fill="#2563EB"/></marker>
+  </defs>
+  <rect width="1280" height="720" fill="#F8FAFC"/>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial">
+    <text x="640" y="42" text-anchor="middle" font-size="23" font-weight="700" fill="#17324D">模块依赖：体验与控制依赖平台契约，采集器彼此隔离</text>
+    <text x="640" y="68" text-anchor="middle" font-size="12" fill="#64748B">箭头表示允许的运行时或编译期依赖方向</text>
+
+    <rect x="70" y="94" width="1140" height="112" rx="16" fill="#FAF5FF" stroke="#7C3AED" stroke-width="2"/>
+    <text x="96" y="124" font-size="15" font-weight="700" fill="#6D28D9">使用体验</text>
+    <rect x="230" y="124" width="240" height="54" rx="10" fill="#FFFFFF" stroke="#C4B5FD"/><text x="350" y="157" text-anchor="middle" font-size="12" font-weight="700" fill="#4C1D95">Web / WASM UI</text>
+    <rect x="520" y="124" width="240" height="54" rx="10" fill="#FFFFFF" stroke="#C4B5FD"/><text x="640" y="157" text-anchor="middle" font-size="12" font-weight="700" fill="#4C1D95">Diagnostic Skills</text>
+    <rect x="810" y="124" width="240" height="54" rx="10" fill="#FFFFFF" stroke="#C4B5FD"/><text x="930" y="149" text-anchor="middle" font-size="12" font-weight="700" fill="#4C1D95">Python SDK</text><text x="930" y="167" text-anchor="middle" font-size="9" fill="#64748B">hooks / integrations</text>
+
+    <rect x="70" y="232" width="1140" height="106" rx="16" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="96" y="262" font-size="15" font-weight="700" fill="#174EA6">运行时控制</text>
+    <rect x="350" y="260" width="250" height="54" rx="10" fill="#FFFFFF" stroke="#93C5FD"/><text x="475" y="293" text-anchor="middle" font-size="12" font-weight="700" fill="#17324D">probing-cli</text>
+    <rect x="680" y="260" width="250" height="54" rx="10" fill="#FFFFFF" stroke="#93C5FD"/><text x="805" y="293" text-anchor="middle" font-size="12" font-weight="700" fill="#17324D">probing-server</text>
+
+    <rect x="70" y="364" width="1140" height="114" rx="16" fill="#F0FDFA" stroke="#0D9488" stroke-width="2"/>
+    <text x="96" y="394" font-size="15" font-weight="700" fill="#0F766E">数据采集</text>
+    <g font-size="11" font-weight="700" fill="#0F766E" text-anchor="middle">
+      <rect x="190" y="402" width="190" height="50" rx="10" fill="#FFFFFF" stroke="#5EEAD4"/><text x="285" y="433">Python / Torch</text>
+      <rect x="430" y="402" width="190" height="50" rx="10" fill="#FFFFFF" stroke="#5EEAD4"/><text x="525" y="433">CPU / RDMA</text>
+      <rect x="670" y="402" width="190" height="50" rx="10" fill="#FFFFFF" stroke="#5EEAD4"/><text x="765" y="433">GPU</text>
+      <rect x="910" y="402" width="190" height="50" rx="10" fill="#FFFFFF" stroke="#5EEAD4"/><text x="1005" y="433">NCCL / HCCL</text>
+    </g>
+
+    <rect x="70" y="504" width="1140" height="126" rx="16" fill="#FFF7ED" stroke="#EA580C" stroke-width="2"/>
+    <text x="96" y="534" font-size="15" font-weight="700" fill="#C2410C">平台契约</text>
+    <g font-size="11" font-weight="700" fill="#9A3412" text-anchor="middle">
+      <rect x="170" y="548" width="210" height="54" rx="10" fill="#FFFFFF" stroke="#FDBA74"/><text x="275" y="580">SQL / Federation</text>
+      <rect x="430" y="548" width="210" height="54" rx="10" fill="#FFFFFF" stroke="#FDBA74"/><text x="535" y="580">MEMT / MEMC</text>
+      <rect x="690" y="548" width="210" height="54" rx="10" fill="#FFFFFF" stroke="#FDBA74"/><text x="795" y="580">Proto / DTO</text>
+      <rect x="950" y="548" width="160" height="54" rx="10" fill="#FFFFFF" stroke="#FDBA74"/><text x="1030" y="580">Macros</text>
+    </g>
+
+    <path d="M640 206V232" stroke="#2563EB" stroke-width="2" marker-end="url(#arrow)"/>
+    <path d="M805 338V364" stroke="#2563EB" stroke-width="2" marker-end="url(#arrow)"/>
+    <path d="M640 478V504" stroke="#2563EB" stroke-width="2" marker-end="url(#arrow)"/>
+    <rect x="70" y="654" width="1140" height="40" rx="10" fill="#17324D"/>
+    <text x="640" y="679" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">采集器之间不直连；跨信号关系通过 SQL JOIN，所有组装集中在 server/engine.rs</text>
+  </g>
+</svg>

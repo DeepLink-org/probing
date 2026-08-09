@@ -13,10 +13,10 @@
         <link rel="canonical" href="https://github.com/DeepLink-org/probing/design/profiling/">
       
       
-        <link rel="prev" href="../cli/">
+        <link rel="prev" href="../extensibility/">
       
       
-        <link rel="next" href="../torch-profiler-sql/">
+        <link rel="next" href="../nccl-profiler/">
       
       
         
@@ -31,7 +31,7 @@
     
     
       
-        <title>Profiling - Probing Documentation</title>
+        <title>Profiling & Tracing - Probing Documentation</title>
       
     
     
@@ -86,7 +86,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#profiling-implementation" class="md-skip">
+        <a href="#profiling-architecture" class="md-skip">
           Skip to content
         </a>
       
@@ -120,7 +120,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Profiling
+              Profiling & Tracing
             
           </span>
         </div>
@@ -392,17 +392,20 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="../../contributing/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/" class="md-tabs__link">
+          
   
   
     
   
   Contributing
 
-      </a>
-    </li>
+        </a>
+      </li>
+    
   
 
       
@@ -904,8 +907,6 @@
       
         
       
-        
-      
     
     
     
@@ -1006,7 +1007,7 @@
   <span class="md-ellipsis">
     
   
-    Platform
+    Foundations
   
 
     
@@ -1022,7 +1023,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Platform
+    Foundations
   
 
           </label>
@@ -1043,6 +1044,34 @@
     
   
     Modularity & Boundaries
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../activation-injection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Activation & Runtime Control
   
 
     
@@ -1112,34 +1141,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CLI Command Tree
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -1158,14 +1159,6 @@
   
     
     
-      
-        
-      
-        
-      
-        
-      
-        
       
         
       
@@ -1244,7 +1237,7 @@
   <span class="md-ellipsis">
     
   
-    Profiling
+    Profiling & Tracing
   
 
     
@@ -1262,7 +1255,7 @@
   <span class="md-ellipsis">
     
   
-    Profiling
+    Profiling & Tracing
   
 
     
@@ -1288,10 +1281,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#overview" class="md-nav__link">
+  <a href="#system-decomposition" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Overview
+        System decomposition
       
     </span>
   </a>
@@ -1299,44 +1292,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#two-independent-pytorch-collection-paths" class="md-nav__link">
+  <a href="#two-observation-levels-for-pytorch" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Two independent PyTorch collection paths
+        Two observation levels for PyTorch
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#torchprobe-data-collection-architecture" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        TorchProbe Data Collection Architecture
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#pytorch-profiling-torchprobe" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        PyTorch Profiling (TorchProbe)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="PyTorch Profiling (TorchProbe)">
+    <nav class="md-nav" aria-label="Two observation levels for PyTorch">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#design" class="md-nav__link">
+  <a href="#torch-profiler-as-a-bounded-capture-transaction" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Design
+        Torch Profiler as a bounded capture transaction
       
     </span>
   </a>
@@ -1344,10 +1315,60 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#hooks" class="md-nav__link">
+  <a href="#torchprobe-as-a-long-running-step-state-machine" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Hooks
+        TorchProbe as a long-running step state machine
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#megatron-coordinate-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Megatron coordinate integration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hccl-collection-through-the-msprof-boundary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HCCL collection through the MSProf boundary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tracing-training-phases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tracing and training phases
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tracing and training phases">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#span-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State ownership and persistence
       
     </span>
   </a>
@@ -1355,54 +1376,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#sampling" class="md-nav__link">
+  <a href="#training-phase-semantics" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Sampling
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#nccl-profiler-overhead" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        NCCL profiler overhead
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#collected-data-pythontorch_trace" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Collected Data (python.torch_trace)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#collective-rows-pythoncomm_collective" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Collective rows (python.comm_collective)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#enable-pytorch-profiling" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Enable PyTorch Profiling
+        Training-phase invariants
       
     </span>
   </a>
@@ -1423,63 +1400,13 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Python Stack Profiling">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#backtrace-collection" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Backtrace Collection
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
 </li>
       
         <li class="md-nav__item">
-  <a href="#system-metrics" class="md-nav__link">
+  <a href="#boundary-with-the-other-layers" class="md-nav__link">
     <span class="md-ellipsis">
       
-        System Metrics
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#data-storage" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Data Storage
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#query-interface" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Query Interface
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#performance-overhead" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Performance Overhead
+        Boundary with the other layers
       
     </span>
   </a>
@@ -1502,14 +1429,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../torch-profiler-sql/" class="md-nav__link">
+      <a href="../nccl-profiler/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Torch Profiler SQL
+    NCCL Profiler
   
 
     
@@ -1551,118 +1478,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../overhead-invariants/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overhead invariants
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../nccl-profiler/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    NCCL Profiler
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../debugging/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Debugging Engine
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../training-phase/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Training Phases
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -1679,10 +1494,6 @@
   
     
     
-      
-        
-      
-        
       
         
       
@@ -1716,7 +1527,7 @@
   <span class="md-ellipsis">
     
   
-    Distributed
+    Distributed Query & Analysis
   
 
     
@@ -1732,7 +1543,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Distributed
+    Distributed Query & Analysis
   
 
           </label>
@@ -1752,35 +1563,7 @@
   <span class="md-ellipsis">
     
   
-    Overview
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../torchrun-cluster/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Torchrun Cluster Heartbeat
+    Distributed Membership
   
 
     
@@ -1829,42 +1612,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../hierarchical-fanout/" class="md-nav__link">
+      <a href="../distributed-profiler/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Hierarchical Fan-out
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../cluster-pulsing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Cluster with Pulsing
+    Distributed Profiler
   
 
     
@@ -1881,34 +1636,6 @@
           </ul>
         </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    System Architecture (legacy)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -2345,9 +2072,31 @@
   
   
   
-    <li class="md-nav__item">
-      <a href="../../contributing/" class="md-nav__link">
+    
+    
+      
         
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
   
   
   <span class="md-ellipsis">
@@ -2361,7 +2110,79 @@
   
   
 
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing Guide
+  
+
+    
+  </span>
+  
+  
+
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../writing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation Style
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2393,10 +2214,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#overview" class="md-nav__link">
+  <a href="#system-decomposition" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Overview
+        System decomposition
       
     </span>
   </a>
@@ -2404,44 +2225,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#two-independent-pytorch-collection-paths" class="md-nav__link">
+  <a href="#two-observation-levels-for-pytorch" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Two independent PyTorch collection paths
+        Two observation levels for PyTorch
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#torchprobe-data-collection-architecture" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        TorchProbe Data Collection Architecture
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#pytorch-profiling-torchprobe" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        PyTorch Profiling (TorchProbe)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="PyTorch Profiling (TorchProbe)">
+    <nav class="md-nav" aria-label="Two observation levels for PyTorch">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#design" class="md-nav__link">
+  <a href="#torch-profiler-as-a-bounded-capture-transaction" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Design
+        Torch Profiler as a bounded capture transaction
       
     </span>
   </a>
@@ -2449,10 +2248,60 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#hooks" class="md-nav__link">
+  <a href="#torchprobe-as-a-long-running-step-state-machine" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Hooks
+        TorchProbe as a long-running step state machine
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#megatron-coordinate-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Megatron coordinate integration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hccl-collection-through-the-msprof-boundary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HCCL collection through the MSProf boundary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tracing-training-phases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tracing and training phases
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tracing and training phases">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#span-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State ownership and persistence
       
     </span>
   </a>
@@ -2460,54 +2309,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#sampling" class="md-nav__link">
+  <a href="#training-phase-semantics" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Sampling
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#nccl-profiler-overhead" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        NCCL profiler overhead
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#collected-data-pythontorch_trace" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Collected Data (python.torch_trace)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#collective-rows-pythoncomm_collective" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Collective rows (python.comm_collective)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#enable-pytorch-profiling" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Enable PyTorch Profiling
+        Training-phase invariants
       
     </span>
   </a>
@@ -2528,63 +2333,13 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Python Stack Profiling">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#backtrace-collection" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Backtrace Collection
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
 </li>
       
         <li class="md-nav__item">
-  <a href="#system-metrics" class="md-nav__link">
+  <a href="#boundary-with-the-other-layers" class="md-nav__link">
     <span class="md-ellipsis">
       
-        System Metrics
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#data-storage" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Data Storage
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#query-interface" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Query Interface
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#performance-overhead" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Performance Overhead
+        Boundary with the other layers
       
     </span>
   </a>
@@ -2611,398 +2366,161 @@
   
 
 
-<h1 id="profiling-implementation">Profiling Implementation<a class="headerlink" href="#profiling-implementation" title="Permanent link">&para;</a></h1>
-<p>Probing provides profiling capabilities for AI workloads with minimal overhead and SQL-queryable storage.</p>
-<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
-<p>The profiling system collects performance data through:</p>
-<ul>
-<li>Hook-based and periodic collectors</li>
-<li>Statistical sampling (long-running telemetry, not episodic trace windows)</li>
-<li>Columnar table storage (memtable / Arrow-backed tables)</li>
-<li>SQL query interface</li>
-</ul>
-<h2 id="two-independent-pytorch-collection-paths">Two independent PyTorch collection paths<a class="headerlink" href="#two-independent-pytorch-collection-paths" title="Permanent link">&para;</a></h2>
-<p>Probing provides both <strong>TorchProbe</strong> and <strong>Torch Profiler</strong>. Their names are similar, but they
-are not configurations of one collector and do not share sessions, event buffers, or lifecycle.</p>
-<table>
-<thead>
-<tr>
-<th>Dimension</th>
-<th>TorchProbe</th>
-<th>Torch Profiler (<code>torch.profiler</code> / Kineto)</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Role</td>
-<td>Low-overhead telemetry throughout training</td>
-<td>Short-window drill-down after an anomaly is located</td>
-</tr>
-<tr>
-<td>Primary granularity</td>
-<td>Step, <code>nn.Module</code>, optimizer, memory deltas</td>
-<td>CPU op, CUDA kernel, runtime, memcpy</td>
-</tr>
-<tr>
-<td>Start</td>
-<td><code>PROBING_TORCH_PROFILING</code> / <code>configure()</code>; training hooks</td>
-<td>Explicit HTTP or REPL capture for N optimizer steps</td>
-</tr>
-<tr>
-<td>Control</td>
-<td>Step/layer sampling, shadow baseline, deferred GPU-event reads</td>
-<td>Capture <code>steps</code>, then finalize Kineto output</td>
-</tr>
-<tr>
-<td>Data</td>
-<td>mmap memtables: <code>python.torch_trace</code>, <code>python.torch_step_timing</code></td>
-<td>Bounded in-process session store exposed as <code>python.profile_capture</code> and <code>python.profile_hotspot</code></td>
-</tr>
-<tr>
-<td>Typical overhead</td>
-<td>Low and amortized for long-running observation</td>
-<td>Higher, especially with CUDA, shapes, stacks, and FLOPs</td>
-</tr>
-<tr>
-<td>Answers</td>
-<td>Which step/rank/module is persistently slow? What is hook overhead?</td>
-<td>Which op/kernel is slow in the target window? Where does GPU time go?</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Independent</strong> has three operational consequences:</p>
+<h1 id="profiling-architecture">Profiling Architecture<a class="headerlink" href="#profiling-architecture" title="Permanent link">&para;</a></h1>
+<p>Performance analysis is first a cost-allocation problem. Long-running observation requires low,
+predictable overhead and stable coordinates; deep diagnosis needs dense operator, kernel, and
+stack events. A single collector cannot optimize for both. Probing therefore separates continuous
+observation from short-window drill-down and composes their evidence at query time.</p>
+<h2 id="system-decomposition">System decomposition<a class="headerlink" href="#system-decomposition" title="Permanent link">&para;</a></h2>
+<p><img alt="Independent collectors write local tables" src="../../assets/architecture/probing-collector-landscape.svg" /></p>
+<p>Collection runs inside the process that owns the data because module hooks, communication
+callbacks, and runtime stacks are cheapest to observe there. Each collector owns only its state
+and local tables; collectors do not call one another on hot paths. Version skew, contention, or a
+failure in one collector therefore does not spread into the training path or another collector.</p>
+<p>Independence creates a correlation problem. Probing solves it without a synchronous event bus:
+facts carry step, rank, time, and parallel-role coordinates, and the query engine reconstructs
+context across tables and ranks. Coordination cost moves from collection time to query time. This
+decision is what allows Torch, NCCL, HCCL, stack, and system collectors to evolve independently.</p>
+<h2 id="two-observation-levels-for-pytorch">Two observation levels for PyTorch<a class="headerlink" href="#two-observation-levels-for-pytorch" title="Permanent link">&para;</a></h2>
+<p>TorchProbe and Torch Profiler coexist because observation depth and sustainable cost conflict.
+TorchProbe remains active through training and retains step, module, optimizer, and memory facts.
+It gives up operator detail so its cost can be sampled, measured, and sustained. Torch Profiler
+uses Kineto over a known anomalous window to collect CPU op, CUDA kernel, runtime, and memcpy
+events. It yields deeper evidence, but is not a continuous telemetry path.</p>
+<p>The paths have incompatible lifetimes, buffers, and failure boundaries, so they are not merged
+into one state machine. They meet only through shared step/rank coordinates in SQL. The resulting
+diagnostic progression is deliberate: continuous data narrows the search to a rank, step, and
+module; a targeted capture then pays for operator and kernel detail. If both run together their
+costs add, and TorchProbe shadow measurements must not be interpreted as Kineto overhead.</p>
+<h3 id="torch-profiler-as-a-bounded-capture-transaction">Torch Profiler as a bounded capture transaction<a class="headerlink" href="#torch-profiler-as-a-bounded-capture-transaction" title="Permanent link">&para;</a></h3>
+<p><img alt="On-demand Torch Profiler control, finalization, SQL views, and timeline output" src="../../assets/architecture/probing-torch-profiler-integration.svg" /></p>
+<p><code>ProfilerController</code> permits one capture at a time because Kineto owns process-wide state.
+Concurrent sessions would make event ownership, stop, and cleanup ambiguous. The capture advances
+at optimizer-step boundaries so windows across ranks can be aligned by training coordinates rather
+than by the instant at which a control request arrived.</p>
+<p>Aggregation and format conversion happen only after the window closes. This keeps
+<code>key_averages()</code>, raw-event traversal, and JSON generation off the training hot path. Finalization
+prefers op/kernel aggregates; when aggregation is unavailable it preserves a bounded raw-event
+fallback and records <code>truncated</code> explicitly instead of presenting partial data as complete.</p>
+<p>One capture produces two representations because machine analysis and human inspection need
+different shapes. <code>python.profile_capture</code> and <code>python.profile_hotspot</code> are virtual tables over a
+bounded session store, suitable for filtering, aggregation, and cross-rank comparison through
+<code>global.python.profile_hotspot</code>. The complete <code>traceEvents</code> structure remains a timeline for the
+Web UI. It is not expanded into MEMT rows: copying every event would amplify hot-path writes, while
+capture lifetime is fundamentally different from continuous telemetry.</p>
+<h3 id="torchprobe-as-a-long-running-step-state-machine">TorchProbe as a long-running step state machine<a class="headerlink" href="#torchprobe-as-a-long-running-step-state-machine" title="Permanent link">&para;</a></h3>
+<p><img alt="TorchProbe step state and async queues" src="../../assets/architecture/probing-torchprobe-state.svg" /></p>
+<p>Optimizer hooks define step boundaries, while module hooks record facts within the current step.
+The main thread advances the state machine, evaluates sampling gates, and records bounded events;
+CUDA elapsed-time reads and batch preparation move to a deferred queue. Step wall time is fixed
+before old events are drained, so drain cost is not charged to the step that just ended.</p>
+<p>Hook selection follows a minimum-intrusion rule. Forward timing uses module pre/post hooks.
+Backward timing avoids module backward hooks, which interact poorly with inplace activations, and
+instead registers tensor grad hooks on forward inputs and outputs. The interval from grad-output
+ready to grad-input ready approximates the module backward window; when both boundaries cannot be
+formed, the system does not claim a precise duration.</p>
+<p>Sampling has two stages because step density and per-step coverage are independent cost controls.
+The step gate is a deterministic, evenly spaced function of the step number, so every rank selects
+the same steps. Within a sampled step, a deterministic hash of <code>(step, layer)</code> selects modules.
+The default <code>rate=0.05</code>, <code>layer_rate=1.0</code> retains full module relationships for a small fraction of
+steps. Unsampled steps short-circuit at hook entry but still write step wall time, preserving a
+continuous trend.</p>
+<p>Shadow steps are interleaved at <code>4:1</code> by default and bypass TorchProbe hooks. This places the
+baseline inside the same training run and workload, reducing environment drift from offline A/B
+measurement. The consequence is equally important: it measures only the TorchProbe path. Timing
+boundaries, statistical semantics, and confidence gates are defined in the
+<a href="../overhead/">overhead model</a>.</p>
+<p>The continuous path publishes two stable contracts: <code>python.torch_trace</code> for module facts and
+<code>python.torch_step_timing</code> for step class and wall time. Column definitions belong in the
+<a href="../../reference/sql-tables/#python-torch_trace">SQL table reference</a>; distributed timeline
+construction over these local facts is described in
+<a href="../distributed-profiler/">Distributed Profiler query and visualization</a>.</p>
+<h2 id="megatron-coordinate-integration">Megatron coordinate integration<a class="headerlink" href="#megatron-coordinate-integration" title="Permanent link">&para;</a></h2>
+<p><img alt="Megatron import hooks align parallel roles and iterations with Probing coordinates" src="../../assets/architecture/probing-megatron-integration.svg" /></p>
+<p>The Megatron adapter is a coordinate bridge, not another collector. Import hooks watch
+<code>megatron.core.parallel_state</code> and <code>megatron.training.training</code>. Once their APIs are available,
+the adapter reads TP/PP/DP/EP/CP ranks into <code>probing.set_role(...)</code> and wraps <code>train_step</code> on a
+best-effort basis to align Megatron's iteration and micro-batch count with <code>probing.step(...)</code>.</p>
+<p>This boundary keeps version-sensitive Megatron getters in one adapter. TorchProbe, collective,
+stack, profiler, and system collectors continue to depend only on the common step/role state and
+join through SQL. Missing modules or an incompatible Megatron API degrade without blocking the
+training loop. Runtime controls are documented under
+<a href="../../reference/env-vars/#megatron-autostart">Megatron autostart</a>.</p>
+<h2 id="hccl-collection-through-the-msprof-boundary">HCCL collection through the MSProf boundary<a class="headerlink" href="#hccl-collection-through-the-msprof-boundary" title="Permanent link">&para;</a></h2>
+<p><img alt="HCCL MSProf shim records local tables and forwards the original calls to CANN" src="../../assets/architecture/probing-hccl-collector.svg" /></p>
+<p>On Ascend, HCCL already reports profiling events through <code>libprofapi.so</code>. Probing places an
+ABI-compatible shim at that boundary: it exports the expected MSProf symbols, classifies and
+decodes <code>ReportApi</code>, <code>ReportCompactInfo</code>, and <code>ReportAdditionalInfo</code> payloads, appends rows to
+<code>hccl.host_ops</code>, <code>hccl.collectives</code>, <code>hccl.tasks</code>, <code>hccl.mc2_streams</code>, and
+<code>hccl.context_ids</code>, then forwards the original arguments and return value to the real CANN
+library.</p>
+<p>The real library is resolved from <code>PROBING_HCCL_PROFAPI_REAL</code>, a sibling
+<code>libprofapi.so.real</code>, or the configured Ascend installation. A table-open failure disables only
+that table; it does not disable forwarding. Because MSProf structure layouts follow the deployed
+CANN version, installation must preserve the matching real library and validate the ABI. The
+shim never resolves bare <code>libprofapi.so</code>, which would recursively load itself.</p>
+<h2 id="tracing-training-phases">Tracing and training phases<a class="headerlink" href="#tracing-training-phases" title="Permanent link">&para;</a></h2>
+<p>Tracing owns the coarse training timeline; TorchProbe owns module timing and memory facts. They may
+correlate on a step, but must not both own forward/backward/optimizer phase spans.</p>
+<h3 id="span-api">State ownership and persistence<a class="headerlink" href="#span-api" title="Permanent link">&para;</a></h3>
+<p><img alt="The span stack owns phase state while the Recorder only commits to backends" src="../../assets/architecture/probing-span-persistence.svg" /></p>
+<p>The span stack is the sole owner of phase state; persistence is only an output. <code>probing.span</code>
+creates a nested scope, <code>probing.event</code> marks the current scope, and <code>record_span</code> submits an
+already-closed interval. All three converge on <code>SpanRecorder</code>, keeping memtable, logger, and OTEL
+as sinks that cannot feed state back into phase tracking.</p>
+<p><code>probing.span</code> uses deferred close. A span without events becomes one closed interval on exit; the
+first event causes a lazy <code>span_start</code>, followed by <code>span_end</code> on exit. This reduces write
+amplification for quiet scopes. The tradeoff is explicit: an active span without events is not yet
+visible to SQL. That is commit semantics, not missing data.</p>
+<h3 id="training-phase-semantics">Training-phase invariants<a class="headerlink" href="#training-phase-semantics" title="Permanent link">&para;</a></h3>
+<p>Training has no second global phase variable. <code>phase</code> is always the innermost <code>forward</code>,
+<code>backward</code>, or <code>optimizer</code> span; an empty training stack means <code>idle</code>. <code>train.step</code> is the closed
+interval for one logical iteration, not a fourth phase. Optimizer exit advances <code>micro_step</code>, and
+<code>micro_batches</code> then maps it to <code>local_step</code>, so gradient accumulation does not create false
+complete steps.</p>
+<p>The resulting invariants are:</p>
 <ol>
-<li>Enabling TorchProbe does <strong>not</strong> start Kineto; starting Torch Profiler does <strong>not</strong> change
-   TorchProbe sampling or shadow scheduling.</li>
-<li>They may observe the same optimizer step, but correlate only through step/capture coordinates
-   in SQL; neither collector calls the other.</li>
-<li>If both run together, their overheads add. TorchProbe shadow steps estimate only the
-   TorchProbe module-hook path, not Torch Profiler/Kineto overhead.</li>
+<li>phase state comes from the span stack, not a second global variable;</li>
+<li><code>train.step</code> starts at the first forward and ends at optimizer exit across gradient accumulation;</li>
+<li>an optimizer exit writes at most one <code>train.step</code>, and only after a forward;</li>
+<li>manual spans, phase hooks, and TorchProbe never duplicate an already-active phase;</li>
+<li>with <code>micro_batches=k</code>, each k micro steps advance one <code>local_step</code>.</li>
 </ol>
-<p>The intended diagnostic ladder is TorchProbe first to locate the anomalous step, rank, and
-module, followed by a targeted Torch Profiler window only when op/kernel detail is needed.</p>
-<h2 id="torchprobe-data-collection-architecture">TorchProbe Data Collection Architecture<a class="headerlink" href="#torchprobe-data-collection-architecture" title="Permanent link">&para;</a></h2>
-<pre class="mermaid"><code>graph TB
-    subgraph "Data Sources"
-        TORCH[PyTorch module hooks]
-        PYTHON[Python / native stacks]
-        SYSTEM[System &amp; GPU metrics]
-    end
-
-    subgraph "Collection Layer"
-        SAMPLER[TorchProbe sampler]
-        PENDING[Per-step pending buffer]
-    end
-
-    subgraph "Storage Layer"
-        TABLES[python.* tables]
-        QUERY[Query engine]
-    end
-
-    TORCH --&gt; SAMPLER
-    SAMPLER --&gt; PENDING
-    PENDING --&gt; TABLES
-    PYTHON --&gt; TABLES
-    SYSTEM --&gt; TABLES
-    TABLES --&gt; QUERY</code></pre>
-<h2 id="pytorch-profiling-torchprobe">PyTorch Profiling (TorchProbe)<a class="headerlink" href="#pytorch-profiling-torchprobe" title="Permanent link">&para;</a></h2>
-<h3 id="design">Design<a class="headerlink" href="#design" title="Permanent link">&para;</a></h3>
-<p>TorchProbe targets <strong>always-on, module-level training telemetry</strong> after probe injection or
-<code>PROBING_TORCH_PROFILING=on</code>. It is the long-running path described above, not a lightweight
-configuration or frontend for <code>torch.profiler</code>. For on-demand Kineto capture exposed as
-<strong>virtual SQL tables</strong> (not memtable), see <strong><a href="../torch-profiler-sql/">Torch Profiler SQL</a></strong>.</p>
-<p>There is <strong>no warmup schedule API</strong>. Skip cold-start steps in SQL when needed:</p>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">local_step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
-</span></code></pre></div>
-<h3 id="hooks">Hooks<a class="headerlink" href="#hooks" title="Permanent link">&para;</a></h3>
-<p>By default, Probing installs:</p>
-<ul>
-<li>Forward pre/post hooks on every <code>nn.Module</code> in the model tree</li>
-<li>Optimizer pre/post step hooks</li>
-</ul>
-<p><strong>Backward timing is off by default.</strong> With <code>backward=on</code>, probing times each module's <em>own</em> backward as the interval between <strong>grad_output ready</strong> (a hook on the forward output tensor — fires just before the module's backward) and <strong>grad_input ready</strong> (a hook on the forward input tensor — fires just after). Plain tensor <code>register_hook</code> callbacks are inplace-safe, unlike module backward hooks, which crash when downstream layers use inplace activations (AlexNet/ResNet ReLU). Modules whose input does not require grad (e.g. the first layer) record ~0 backward since the interval cannot be measured. Enable via <code>PROBING_TORCH_PROFILING=on,backward=on</code> only when needed.</p>
-<h3 id="sampling">Sampling<a class="headerlink" href="#sampling" title="Permanent link">&para;</a></h3>
-<p>The first complete training step is <strong>discovery</strong>: modules are registered, no rows are written. Sampling begins on subsequent steps.</p>
-<p><code>rate</code> sets the <strong>step sampling density</strong>: exactly one step out of every <code>round(1/rate)</code> is sampled, evenly spaced and starting at the first probed step. This is <em>stratified</em> (not i.i.d.), so a low rate never leaves long gaps — data appears immediately and at a steady cadence (e.g. <code>rate=0.01</code> samples every 100th step, <code>rate=0.05</code> every 20th). The schedule is derived from the step index (no host RNG, no per-process seed), so every rank samples the <em>same</em> steps — distributed traces stay aligned and training stays reproducible. Non-sampled steps short-circuit: module/optimizer hooks and the GPU flush are skipped (wall timing in <code>torch_step_timing</code> is still written).</p>
-<p>On a sampled step, each layer is recorded independently with probability <code>layer_rate</code> (the optional second field, e.g. <code>0.1:0.3</code> = sample every 10th step, and within it hit each layer with 30% chance). Default <code>layer_rate=1.0</code> = full snapshot. The per-layer decision is a deterministic hash of <em>(step, layer)</em> — it looks random and varies per layer, yet is reproducible and identical across ranks. The offset-<code>0</code> anchor (first hook in the step) is always recorded so every sampled step has a time reference.</p>
-<p>Grammar: <code>rate[:layer_rate]</code> — <code>rate</code> is the step density, <code>layer_rate</code> the per-layer hit probability. A leading <code>random:</code> / <code>ordered:</code> mode token is still accepted for back-compat and treated as <code>random</code> (the legacy per-step rotating-module <code>ordered</code> mode has been removed).</p>
-<p>Default when enabled (<code>PROBING_TORCH_PROFILING=on</code>): <strong><code>rate=0.05</code>, <code>layer_rate=1.0</code></strong> (full snapshot on 5% of steps). Use <code>1.0</code> for every step, <code>0.05:0.1</code> for 5% of steps sampling 10% of layers.</p>
-<p><strong>Shadow baseline steps (default <code>shadow=4:1</code>):</strong> every 4 probed training steps are followed by 1 step where TorchProbe hooks are fully bypassed (no module-level <code>python.torch_trace</code> rows). NCCL, CPU/GPU sampling, and other collectors are unchanged. Each step writes one row to <code>python.torch_step_timing</code> (<code>is_shadow=1</code> for baseline steps). Disable with <code>shadow=off</code>.</p>
-<p>Estimate overhead (formulas and methodology: <strong><a href="../overhead/">Overhead measurement</a></strong>):</p>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">SELECT</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="n">round</span><span class="p">(</span><span class="n">median</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">step_duration_sec</span><span class="w"> </span><span class="k">END</span><span class="p">)</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">        </span><span class="o">/</span><span class="w"> </span><span class="k">nullif</span><span class="p">(</span><span class="n">median</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">is_shadow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">step_duration_sec</span><span class="w"> </span><span class="k">END</span><span class="p">),</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">100</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="k">AS</span><span class="w"> </span><span class="n">overhead_pct</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_step_timing</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">local_step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
-</span></code></pre></div>
-<p>Hook overhead is reduced by sampling; forward hooks remain registered on all modules (except on shadow steps, where hooks return immediately).</p>
-<h3 id="nccl-profiler-overhead">NCCL profiler overhead<a class="headerlink" href="#nccl-profiler-overhead" title="Permanent link">&para;</a></h3>
-<p>TorchProbe shadow steps measure <strong>module-hook</strong> overhead only. The NCCL profiler plugin has no in-run shadow baseline today — it always records collective events when enabled. For NCCL AllReduce overhead vs probing, use the offline benchmark:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./examples/overhead/run_nccl_bench.sh
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1"># or: python examples/overhead/torch_probe_overhead_smoke.py  # Torch-only smoke (no GPU)</span>
-</span></code></pre></div>
-<p>Monitor runtime health via <code>nccl.profiler_counters</code> (<code>pool_exhausted</code>, <code>write_errors</code>, <code>rows_written</code>). The Web UI overhead panel links to the offline NCCL bench when the profiler is active.</p>
-<p>Records are flushed at the end of each optimizer step (after optional GPU <code>synchronize()</code>). Pre/post hook pairs produce two rows; <strong>duration is set on the post row</strong> (<code>post forward</code>, <code>post step</code>, etc.).</p>
-<h3 id="collected-data-pythontorch_trace">Collected Data (<code>python.torch_trace</code>)<a class="headerlink" href="#collected-data-pythontorch_trace" title="Permanent link">&para;</a></h3>
-<p>Full column list: <a href="../../reference/sql-tables/#python-torch_trace">SQL Tables — torch_trace</a>.</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>local_step</code></td>
-<td>int</td>
-<td>Local training step (per rank)</td>
-</tr>
-<tr>
-<td>global_step</td>
-<td>int</td>
-<td>Global step (<code>step_snapshot</code>)</td>
-</tr>
-<tr>
-<td>rank</td>
-<td>int</td>
-<td><code>torch.distributed</code> rank</td>
-</tr>
-<tr>
-<td>world_size</td>
-<td>int</td>
-<td>World size</td>
-</tr>
-<tr>
-<td>role</td>
-<td>string</td>
-<td>Parallel role key, e.g. <code>dp=2,pp=1,tp=0</code></td>
-</tr>
-<tr>
-<td>seq</td>
-<td>int</td>
-<td>Hook sequence within step</td>
-</tr>
-<tr>
-<td>module</td>
-<td>string</td>
-<td>Module name</td>
-</tr>
-<tr>
-<td>stage</td>
-<td>string</td>
-<td><code>pre forward</code>, <code>post forward</code>, <code>pre step</code>, <code>post step</code> (backward not collected by default)</td>
-</tr>
-<tr>
-<td>allocated</td>
-<td>float</td>
-<td>GPU memory allocated (MB); CUDA only</td>
-</tr>
-<tr>
-<td>max_allocated</td>
-<td>float</td>
-<td>Peak GPU memory (MB)</td>
-</tr>
-<tr>
-<td>cached</td>
-<td>float</td>
-<td>GPU memory reserved (MB)</td>
-</tr>
-<tr>
-<td>max_cached</td>
-<td>float</td>
-<td>Peak reserved (MB)</td>
-</tr>
-<tr>
-<td>time_offset</td>
-<td>float</td>
-<td>Seconds since step anchor</td>
-</tr>
-<tr>
-<td>duration</td>
-<td>float</td>
-<td>Stage duration (seconds); meaningful on post rows</td>
-</tr>
-</tbody>
-</table>
-<p>Use <code>role</code> + <code>global_step</code> to join with <code>python.comm_collective</code> on the same rank.</p>
-<h3 id="collective-rows-pythoncomm_collective">Collective rows (<code>python.comm_collective</code>)<a class="headerlink" href="#collective-rows-pythoncomm_collective" title="Permanent link">&para;</a></h3>
-<p>Lite-mode hooks on <code>torch.distributed</code> write one row per collective with <code>duration_ms</code>,
-<code>bytes</code>, <code>op</code>, and the same step/role coordinates. <strong>Off by default</strong> (including
-multi-rank jobs); enable with <code>PROBING_TORCH_COLLECTIVE_ENABLE=1</code> or
-<code>SET probing.torch.collective.enable=1</code>. See <a href="../../reference/sql-tables/#python-comm_collective">SQL Tables</a> and <a href="../../guide/sql-analytics/#python-comm_collective">SQL Analytics</a>.</p>
-<h3 id="enable-pytorch-profiling">Enable PyTorch Profiling<a class="headerlink" href="#enable-pytorch-profiling" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Environment variable (synced to probing.torch.profiling)</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span>on<span class="w"> </span>python<span class="w"> </span>train.py
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Full snapshot on 50% of steps</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span><span class="m">0</span>.5<span class="w"> </span>python<span class="w"> </span>train.py
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># 10% of steps, and within each hit 30% of layers</span>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="nv">PROBING_TORCH_PROFILING</span><span class="o">=</span><span class="m">0</span>.1:0.3,tracepy<span class="o">=</span>on<span class="w"> </span>python<span class="w"> </span>train.py
-</span></code></pre></div>
-<p>Programmatic configuration:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">probing.profiling.torch_probe</span><span class="w"> </span><span class="kn">import</span> <span class="n">configure</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">configure</span><span class="p">(</span><span class="s2">&quot;on,rate=0.5,layer_rate=0.3&quot;</span><span class="p">)</span>
-</span></code></pre></div>
-<p>Profiling starts on the first <code>optimizer.step()</code> after torch is imported (optimizer post hook).</p>
+<p>Phase ownership belongs to <code>attach_training_phases</code>: it closes forward/backward/optimizer and
+submits <code>train.step</code> wall time. TorchProbe detects an existing owner and does not duplicate phase
+spans; it publishes only module timing and memory facts. This ownership rule prevents two hook
+systems from assigning different meanings to the same training interval.</p>
+<p><code>probing.tracing.SPANS_SQL</code> joins start/end rows into <code>duration_us</code> for querying. See
+<a href="../../guide/concepts/">Core model</a> and <a href="../../reference/env-vars/#tracing-spans">Environment variables</a>.</p>
 <h2 id="python-stack-profiling">Python Stack Profiling<a class="headerlink" href="#python-stack-profiling" title="Permanent link">&para;</a></h2>
-<h3 id="backtrace-collection">Backtrace Collection<a class="headerlink" href="#backtrace-collection" title="Permanent link">&para;</a></h3>
-<p>Feature layout under <code>probing/extensions/python/src/features/</code>:</p>
-<table>
-<thead>
-<tr>
-<th>Dir</th>
-<th>Role</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>python/</code></td>
-<td>PyO3: <code>bridge</code> / <code>bindings</code> / <code>tracing</code></td>
-</tr>
-<tr>
-<td><code>stacktrace/</code></td>
-<td>Stack capture, merge, tracers</td>
-</tr>
-<tr>
-<td><code>torch/</code></td>
-<td>Module profiling (<code>python.torch_trace</code>)</td>
-</tr>
-<tr>
-<td><code>flamegraph/</code></td>
-<td>Shared flamegraph render + distributed folded merge</td>
-</tr>
-<tr>
-<td><code>crash/</code></td>
-<td>Fatal-signal backtrace</td>
-</tr>
-</tbody>
-</table>
-<p><code>stacktrace/</code> pipeline: <code>StackSnapshot</code> → <code>ParsedStacks</code> → <code>FoldedStacks</code>.</p>
-<table>
-<thead>
-<tr>
-<th>Module</th>
-<th>Role</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>snapshot</code></td>
-<td>Capture document + <code>StackSource</code> / flags (only signal-writable form)</td>
-</tr>
-<tr>
-<td><code>compact</code></td>
-<td>Heap-sized sampler bucket payload (used frame lengths only)</td>
-</tr>
-<tr>
-<td><code>fingerprint</code></td>
-<td>Aggregation key = <code>tid</code> + flags + PCs + py keys (no demangle); pprof also filters to main tid</td>
-</tr>
-<tr>
-<td><code>parse</code></td>
-<td>Snapshot → CallFrames (multi-slot <code>(tid,seq)</code> FIFO view cache)</td>
-</tr>
-<tr>
-<td><code>fold</code></td>
-<td>Parsed/Snapshot → flamegraph / distributed aggregation</td>
-</tr>
-<tr>
-<td><code>metrics</code></td>
-<td>JSON groups <code>sampler</code> (drop / fingerprint / export-fold) vs <code>view</code> (parse / cache)</td>
-</tr>
-<tr>
-<td><code>merge</code></td>
-<td>Python ⊕ native splice + canonicalize</td>
-</tr>
-<tr>
-<td><code>capture</code></td>
-<td>Thread registry, intern, signal fill (does not own parse/fold)</td>
-</tr>
-<tr>
-<td><code>spy</code></td>
-<td>CPython ABI / TLS (py-spy-derived)</td>
-</tr>
-<tr>
-<td><code>tracers/vm</code></td>
-<td>Eval-frame hook (sole Python frame source)</td>
-</tr>
-<tr>
-<td><code>tracers/pprof</code></td>
-<td><code>SIGPROF</code> sampling (SQL / continuous profiling)</td>
-</tr>
-<tr>
-<td><code>tracers/dynamic</code></td>
-<td><code>SIGUSR2</code> + command/HTTP on-demand (always via parse)</td>
-</tr>
-</tbody>
-</table>
-<p>On-demand and CPU sampling share one pipeline:</p>
-<ul>
-<li><strong>Python frames:</strong> only from the <strong>vm tracer</strong> (<code>PYSTACKS</code>); symbols are interned under the GIL (full path for source view, basename in flamegraph labels); signal handlers copy pointer keys only.</li>
-<li><strong>Native frames (Linux):</strong> <code>SIGPROF</code> / <code>SIGUSR2</code> fill a POD via <code>fill_raw_snapshot</code> on a per-thread <code>SA_ONSTACK</code> alt stack (in-place into the ring / slot). <strong>macOS:</strong> async <code>ITIMER_PROF</code> into Apple libc SIMD (<code>_platform_strlen</code>) has caused fixed-PC <code>SIGILL</code>; <code>sample_freq</code> defaults to rate-limited eval-frame cooperative capture of <strong><code>PYSTACKS</code> only</strong> (no mid-hook SyncWalk — that used to paste <code>_PyInit__core</code> / vectorcall under every <code>[py]</code> frame). <code>PROBING_PPROF_SIGPROF=1</code> forces async SIGPROF. Merge drops CPython call-protocol / extension <code>PyInit_*</code> noise. Symbolize/merge run off-signal.</li>
-<li><strong>metrics JSON:</strong> <code>sampler.*</code> (ring/publish drop / fingerprint / fold-on-<strong>export</strong>) vs <code>view.*</code> (parse / <code>(tid,seq)</code> cache)—<code>dropped_publish</code> counts snapshots skipped when both publication buffers are busy; do not read a burst of export <code>parse_calls</code> as per-sample demangle cost.</li>
-<li><strong>Fetch paths:</strong> dynamic (command/HTTP) or pprof (SQL / <code>sample_freq</code>); both read Python frames recorded by the vm tracer.</li>
-<li><strong>Reuse:</strong> when sampling is active, the main-thread HTTP/flamegraph path reuses the latest per-thread snapshot when available.</li>
-<li><strong>Main-thread HTTP path:</strong> prefer the latest mixed snapshot. On macOS, when no native sample exists, briefly suspend the target through Mach, copy its PC/frame-pointer chain, resume it, and only then symbolize; this avoids delivering a signal to the training thread. <strong>Never <code>SIGUSR2</code> the main tid while <code>sample_freq</code> is active</strong> (Distributed included). Linux defaults to on-demand <code>SIGUSR2</code> with an alternate signal stack and bounded frame-pointer walk when sampling is off; <code>PROBING_STACK_SIGUSR2_MAIN=0</code> disables it. Cross-thread on-demand still uses <code>SIGUSR2</code>.</li>
-<li><strong>Distributed flamegraph:</strong> with sampling on, export only aggregated sampler buckets per rank (empty buckets → empty graph; no on-demand fallback).</li>
-</ul>
-<p>TorchProbe module hooks are independent. Distributed CPU mixed-mode flamegraphs: <code>GET /apis/pprofextension/flamegraph/distributed/json</code> (Web: <strong>Stacks → Distributed</strong>). SPMD torch module flamegraph: <code>GET /apis/torchextension/flamegraph/distributed/json</code>.</p>
-<h2 id="system-metrics">System Metrics<a class="headerlink" href="#system-metrics" title="Permanent link">&para;</a></h2>
-<p>Host CPU, memory, GPU utilization, and related metrics are collected on configurable intervals via environment variables such as <code>PROBING_GPU_SAMPLE_MS</code>.</p>
-<p><strong>Variable / tensor watch (<code>probing.inspect.trace</code>):</strong> logs go to the Python logger by default. Set <code>PROBING_TRACE_STDOUT=1</code> to emit updates on <strong>stdout</strong> instead (useful for quick local debugging; avoid in production training logs).</p>
-<h2 id="data-storage">Data Storage<a class="headerlink" href="#data-storage" title="Permanent link">&para;</a></h2>
-<p>Torch traces and other probe data are stored in <strong>columnar probe tables</strong> (e.g. <code>python.torch_trace</code>), queryable through the engine. Retention and federation follow memtable / server configuration—not a fixed-size in-process ring buffer.</p>
-<h2 id="query-interface">Query Interface<a class="headerlink" href="#query-interface" title="Permanent link">&para;</a></h2>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1">-- Skip discovery / warm-up steps</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">module</span><span class="p">,</span><span class="w"> </span><span class="n">stage</span><span class="p">,</span><span class="w"> </span><span class="k">AVG</span><span class="p">(</span><span class="n">duration</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">avg_sec</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">local_step</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">duration</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">module</span><span class="p">,</span><span class="w"> </span><span class="n">stage</span>
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">avg_sec</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
-</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="c1">-- Per-module flamegraph input uses median(duration) on post rows</span>
-</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">module</span><span class="p">,</span><span class="w"> </span><span class="n">stage</span><span class="p">,</span><span class="w"> </span><span class="n">median</span><span class="p">(</span><span class="k">CAST</span><span class="p">(</span><span class="n">duration</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">DOUBLE</span><span class="p">))</span>
-</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="k">FROM</span><span class="w"> </span><span class="n">python</span><span class="p">.</span><span class="n">torch_trace</span>
-</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">module</span><span class="w"> </span><span class="o">&lt;&gt;</span><span class="w"> </span><span class="s1">&#39;None&#39;</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">stage</span><span class="w"> </span><span class="k">LIKE</span><span class="w"> </span><span class="s1">&#39;post %&#39;</span>
-</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">module</span><span class="p">,</span><span class="w"> </span><span class="n">stage</span><span class="p">;</span>
-</span></code></pre></div>
-<h2 id="performance-overhead">Performance Overhead<a class="headerlink" href="#performance-overhead" title="Permanent link">&para;</a></h2>
-<p>Overhead depends on model size (all modules carry forward hooks), sampling mode/rate, and optional features (<code>sync</code>, <code>tracepy</code>, variable watch). Use lower <code>rate</code>, disable torch profiling when not needed, and filter early steps in SQL rather than adding a warmup schedule.</p>
-<table>
-<thead>
-<tr>
-<th>Scenario</th>
-<th>Typical impact</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Torch profiling off</td>
-<td>Baseline probe overhead only</td>
-</tr>
-<tr>
-<td><code>on</code> (default <code>0.05</code>, full snapshot)</td>
-<td>Low; ~5% of steps sampled</td>
-</tr>
-<tr>
-<td><code>0.05:0.1</code></td>
-<td>Very low; 5% of steps, 10% of layers</td>
-</tr>
-<tr>
-<td><code>1.0</code></td>
-<td>Higher; full snapshot every step</td>
-</tr>
-<tr>
-<td><code>sync=on</code></td>
-<td>Higher; synchronizes GPU each hook</td>
-</tr>
-</tbody>
-</table>
+<p>The stack path is divided into <code>StackSnapshot → ParsedStacks → FoldedStacks</code> because asynchronous
+signal context cannot allocate, symbolize, or take complex locks. Capture writes only thread/source
+flags, native PCs, and pre-interned Python frame keys into fixed storage. Parse reconstructs symbols
+and mixed stacks outside signal context; fold then performs fingerprint aggregation and flamegraph
+output. On-demand capture and continuous sampling can share the latter stages without coupling their
+trigger mechanisms to interpretation.</p>
+<p>The eval-frame VM tracer is the only source of Python frames. It interns symbols while holding the
+GIL, leaving the signal path to copy keys. On Linux, native frames are filled in place by
+<code>SIGPROF</code>/<code>SIGUSR2</code> handlers running on alternate stacks. On macOS, asynchronous SIGPROF can land in
+system SIMD routines and cause <code>SIGILL</code>, so the default is cooperative, rate-limited Python capture
+from eval-frame. When an on-demand native stack is required, Mach briefly suspends the target,
+copies the PC/frame-pointer chain, resumes it immediately, and symbolizes later. Platform-specific
+behavior is therefore confined to capture; parse, merge, and fold stay common.</p>
+<p>Continuous sampling uses a bounded ring and two publication buffers. Contention drops and counts a
+snapshot instead of blocking the training thread. Query and Web paths reuse the latest snapshot
+rather than signaling a main thread that is already being sampled. Across ranks, each process folds
+duplicate paths before transfer; the coordinator merges equal paths and records rank coverage. This
+changes network cost from proportional to raw samples to proportional to distinct call paths, while
+still allowing a partial, explicitly incomplete result when some ranks fail.</p>
+<p>TorchProbe module flamegraphs use the same distributed aggregation idea but retain independent
+collection state. Module timing and mixed CPU stacks meet only in the query and presentation layers.</p>
+<h2 id="boundary-with-the-other-layers">Boundary with the other layers<a class="headerlink" href="#boundary-with-the-other-layers" title="Permanent link">&para;</a></h2>
+<p>System metrics are periodic; Torch, communication, and stack collectors are event-driven. They
+share coordinates but not scheduler threads. Long-running facts enter columnar probe tables, while
+retention, hot/cold placement, and cross-rank querying belong to the data and query layers. A
+collector does not grow a second storage policy. See the <a href="../../reference/sql-tables/">table reference</a>
+and <a href="../../guide/sql-analytics/">SQL analytics guide</a> for fields and examples, and the
+<a href="../overhead/">overhead model</a> for measurement semantics and invariants.</p>
 
 
 
