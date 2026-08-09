@@ -1,266 +1,200 @@
-# Profiling Implementation
+# Profiling Architecture
 
-Probing provides profiling capabilities for AI workloads with minimal overhead and SQL-queryable storage.
+Performance analysis is first a cost-allocation problem. Long-running observation requires low,
+predictable overhead and stable coordinates; deep diagnosis needs dense operator, kernel, and
+stack events. A single collector cannot optimize for both. Probing therefore separates continuous
+observation from short-window drill-down and composes their evidence at query time.
 
-## Overview
+## System decomposition
 
-The profiling system collects performance data through:
+![Independent collectors write local tables](../assets/architecture/probing-collector-landscape.svg)
 
-- Hook-based and periodic collectors
-- Statistical sampling (long-running telemetry, not episodic trace windows)
-- Columnar table storage (memtable / Arrow-backed tables)
-- SQL query interface
+Collection runs inside the process that owns the data because module hooks, communication
+callbacks, and runtime stacks are cheapest to observe there. Each collector owns only its state
+and local tables; collectors do not call one another on hot paths. Version skew, contention, or a
+failure in one collector therefore does not spread into the training path or another collector.
 
-## Two independent PyTorch collection paths
+Independence creates a correlation problem. Probing solves it without a synchronous event bus:
+facts carry step, rank, time, and parallel-role coordinates, and the query engine reconstructs
+context across tables and ranks. Coordination cost moves from collection time to query time. This
+decision is what allows Torch, NCCL, HCCL, stack, and system collectors to evolve independently.
 
-Probing provides both **TorchProbe** and **Torch Profiler**. Their names are similar, but they
-are not configurations of one collector and do not share sessions, event buffers, or lifecycle.
+## Two observation levels for PyTorch
 
-| Dimension | TorchProbe | Torch Profiler (`torch.profiler` / Kineto) |
-|-----------|------------|---------------------------------------------|
-| Role | Low-overhead telemetry throughout training | Short-window drill-down after an anomaly is located |
-| Primary granularity | Step, `nn.Module`, optimizer, memory deltas | CPU op, CUDA kernel, runtime, memcpy |
-| Start | `PROBING_TORCH_PROFILING` / `configure()`; training hooks | Explicit HTTP or REPL capture for N optimizer steps |
-| Control | Step/layer sampling, shadow baseline, deferred GPU-event reads | Capture `steps`, then finalize Kineto output |
-| Data | mmap memtables: `python.torch_trace`, `python.torch_step_timing` | Bounded in-process session store exposed as `python.profile_capture` and `python.profile_hotspot` |
-| Typical overhead | Low and amortized for long-running observation | Higher, especially with CUDA, shapes, stacks, and FLOPs |
-| Answers | Which step/rank/module is persistently slow? What is hook overhead? | Which op/kernel is slow in the target window? Where does GPU time go? |
+TorchProbe and Torch Profiler coexist because observation depth and sustainable cost conflict.
+TorchProbe remains active through training and retains step, module, optimizer, and memory facts.
+It gives up operator detail so its cost can be sampled, measured, and sustained. Torch Profiler
+uses Kineto over a known anomalous window to collect CPU op, CUDA kernel, runtime, and memcpy
+events. It yields deeper evidence, but is not a continuous telemetry path.
 
-**Independent** has three operational consequences:
+The paths have incompatible lifetimes, buffers, and failure boundaries, so they are not merged
+into one state machine. They meet only through shared step/rank coordinates in SQL. The resulting
+diagnostic progression is deliberate: continuous data narrows the search to a rank, step, and
+module; a targeted capture then pays for operator and kernel detail. If both run together their
+costs add, and TorchProbe shadow measurements must not be interpreted as Kineto overhead.
 
-1. Enabling TorchProbe does **not** start Kineto; starting Torch Profiler does **not** change
-   TorchProbe sampling or shadow scheduling.
-2. They may observe the same optimizer step, but correlate only through step/capture coordinates
-   in SQL; neither collector calls the other.
-3. If both run together, their overheads add. TorchProbe shadow steps estimate only the
-   TorchProbe module-hook path, not Torch Profiler/Kineto overhead.
+### Torch Profiler as a bounded capture transaction
 
-The intended diagnostic ladder is TorchProbe first to locate the anomalous step, rank, and
-module, followed by a targeted Torch Profiler window only when op/kernel detail is needed.
+![On-demand Torch Profiler control, finalization, SQL views, and timeline output](../assets/architecture/probing-torch-profiler-integration.svg)
 
-## TorchProbe Data Collection Architecture
+`ProfilerController` permits one capture at a time because Kineto owns process-wide state.
+Concurrent sessions would make event ownership, stop, and cleanup ambiguous. The capture advances
+at optimizer-step boundaries so windows across ranks can be aligned by training coordinates rather
+than by the instant at which a control request arrived.
 
-```mermaid
-graph TB
-    subgraph "Data Sources"
-        TORCH[PyTorch module hooks]
-        PYTHON[Python / native stacks]
-        SYSTEM[System & GPU metrics]
-    end
+Aggregation and format conversion happen only after the window closes. This keeps
+`key_averages()`, raw-event traversal, and JSON generation off the training hot path. Finalization
+prefers op/kernel aggregates; when aggregation is unavailable it preserves a bounded raw-event
+fallback and records `truncated` explicitly instead of presenting partial data as complete.
 
-    subgraph "Collection Layer"
-        SAMPLER[TorchProbe sampler]
-        PENDING[Per-step pending buffer]
-    end
+One capture produces two representations because machine analysis and human inspection need
+different shapes. `python.profile_capture` and `python.profile_hotspot` are virtual tables over a
+bounded session store, suitable for filtering, aggregation, and cross-rank comparison through
+`global.python.profile_hotspot`. The complete `traceEvents` structure remains a timeline for the
+Web UI. It is not expanded into MEMT rows: copying every event would amplify hot-path writes, while
+capture lifetime is fundamentally different from continuous telemetry.
 
-    subgraph "Storage Layer"
-        TABLES[python.* tables]
-        QUERY[Query engine]
-    end
+### TorchProbe as a long-running step state machine
 
-    TORCH --> SAMPLER
-    SAMPLER --> PENDING
-    PENDING --> TABLES
-    PYTHON --> TABLES
-    SYSTEM --> TABLES
-    TABLES --> QUERY
-```
+![TorchProbe step state and async queues](../assets/architecture/probing-torchprobe-state.svg)
 
-## PyTorch Profiling (TorchProbe)
+Optimizer hooks define step boundaries, while module hooks record facts within the current step.
+The main thread advances the state machine, evaluates sampling gates, and records bounded events;
+CUDA elapsed-time reads and batch preparation move to a deferred queue. Step wall time is fixed
+before old events are drained, so drain cost is not charged to the step that just ended.
 
-### Design
+Hook selection follows a minimum-intrusion rule. Forward timing uses module pre/post hooks.
+Backward timing avoids module backward hooks, which interact poorly with inplace activations, and
+instead registers tensor grad hooks on forward inputs and outputs. The interval from grad-output
+ready to grad-input ready approximates the module backward window; when both boundaries cannot be
+formed, the system does not claim a precise duration.
 
-TorchProbe targets **always-on, module-level training telemetry** after probe injection or
-`PROBING_TORCH_PROFILING=on`. It is the long-running path described above, not a lightweight
-configuration or frontend for `torch.profiler`. For on-demand Kineto capture exposed as
-**virtual SQL tables** (not memtable), see **[Torch Profiler SQL](torch-profiler-sql.md)**.
+Sampling has two stages because step density and per-step coverage are independent cost controls.
+The step gate is a deterministic, evenly spaced function of the step number, so every rank selects
+the same steps. Within a sampled step, a deterministic hash of `(step, layer)` selects modules.
+The default `rate=0.05`, `layer_rate=1.0` retains full module relationships for a small fraction of
+steps. Unsampled steps short-circuit at hook entry but still write step wall time, preserving a
+continuous trend.
 
-There is **no warmup schedule API**. Skip cold-start steps in SQL when needed:
+Shadow steps are interleaved at `4:1` by default and bypass TorchProbe hooks. This places the
+baseline inside the same training run and workload, reducing environment drift from offline A/B
+measurement. The consequence is equally important: it measures only the TorchProbe path. Timing
+boundaries, statistical semantics, and confidence gates are defined in the
+[overhead model](overhead.md).
 
-```sql
-SELECT * FROM python.torch_trace WHERE local_step > 10;
-```
+The continuous path publishes two stable contracts: `python.torch_trace` for module facts and
+`python.torch_step_timing` for step class and wall time. Column definitions belong in the
+[SQL table reference](../reference/sql-tables.md#python-torch_trace); distributed timeline
+construction over these local facts is described in
+[Distributed Profiler query and visualization](distributed-profiler.md).
 
-### Hooks
+## Megatron coordinate integration
 
-By default, Probing installs:
+![Megatron import hooks align parallel roles and iterations with Probing coordinates](../assets/architecture/probing-megatron-integration.svg)
 
-- Forward pre/post hooks on every `nn.Module` in the model tree
-- Optimizer pre/post step hooks
+The Megatron adapter is a coordinate bridge, not another collector. Import hooks watch
+`megatron.core.parallel_state` and `megatron.training.training`. Once their APIs are available,
+the adapter reads TP/PP/DP/EP/CP ranks into `probing.set_role(...)` and wraps `train_step` on a
+best-effort basis to align Megatron's iteration and micro-batch count with `probing.step(...)`.
 
-**Backward timing is off by default.** With `backward=on`, probing times each module's *own* backward as the interval between **grad_output ready** (a hook on the forward output tensor — fires just before the module's backward) and **grad_input ready** (a hook on the forward input tensor — fires just after). Plain tensor `register_hook` callbacks are inplace-safe, unlike module backward hooks, which crash when downstream layers use inplace activations (AlexNet/ResNet ReLU). Modules whose input does not require grad (e.g. the first layer) record ~0 backward since the interval cannot be measured. Enable via `PROBING_TORCH_PROFILING=on,backward=on` only when needed.
+This boundary keeps version-sensitive Megatron getters in one adapter. TorchProbe, collective,
+stack, profiler, and system collectors continue to depend only on the common step/role state and
+join through SQL. Missing modules or an incompatible Megatron API degrade without blocking the
+training loop. Runtime controls are documented under
+[Megatron autostart](../reference/env-vars.md#megatron-autostart).
 
-### Sampling
+## HCCL collection through the MSProf boundary
 
-The first complete training step is **discovery**: modules are registered, no rows are written. Sampling begins on subsequent steps.
+![HCCL MSProf shim records local tables and forwards the original calls to CANN](../assets/architecture/probing-hccl-collector.svg)
 
-`rate` sets the **step sampling density**: exactly one step out of every `round(1/rate)` is sampled, evenly spaced and starting at the first probed step. This is *stratified* (not i.i.d.), so a low rate never leaves long gaps — data appears immediately and at a steady cadence (e.g. `rate=0.01` samples every 100th step, `rate=0.05` every 20th). The schedule is derived from the step index (no host RNG, no per-process seed), so every rank samples the *same* steps — distributed traces stay aligned and training stays reproducible. Non-sampled steps short-circuit: module/optimizer hooks and the GPU flush are skipped (wall timing in `torch_step_timing` is still written).
+On Ascend, HCCL already reports profiling events through `libprofapi.so`. Probing places an
+ABI-compatible shim at that boundary: it exports the expected MSProf symbols, classifies and
+decodes `ReportApi`, `ReportCompactInfo`, and `ReportAdditionalInfo` payloads, appends rows to
+`hccl.host_ops`, `hccl.collectives`, `hccl.tasks`, `hccl.mc2_streams`, and
+`hccl.context_ids`, then forwards the original arguments and return value to the real CANN
+library.
 
-On a sampled step, each layer is recorded independently with probability `layer_rate` (the optional second field, e.g. `0.1:0.3` = sample every 10th step, and within it hit each layer with 30% chance). Default `layer_rate=1.0` = full snapshot. The per-layer decision is a deterministic hash of *(step, layer)* — it looks random and varies per layer, yet is reproducible and identical across ranks. The offset-`0` anchor (first hook in the step) is always recorded so every sampled step has a time reference.
+The real library is resolved from `PROBING_HCCL_PROFAPI_REAL`, a sibling
+`libprofapi.so.real`, or the configured Ascend installation. A table-open failure disables only
+that table; it does not disable forwarding. Because MSProf structure layouts follow the deployed
+CANN version, installation must preserve the matching real library and validate the ABI. The
+shim never resolves bare `libprofapi.so`, which would recursively load itself.
 
-Grammar: `rate[:layer_rate]` — `rate` is the step density, `layer_rate` the per-layer hit probability. A leading `random:` / `ordered:` mode token is still accepted for back-compat and treated as `random` (the legacy per-step rotating-module `ordered` mode has been removed).
+## Tracing and training phases {#tracing-training-phases}
 
-Default when enabled (`PROBING_TORCH_PROFILING=on`): **`rate=0.05`, `layer_rate=1.0`** (full snapshot on 5% of steps). Use `1.0` for every step, `0.05:0.1` for 5% of steps sampling 10% of layers.
+Tracing owns the coarse training timeline; TorchProbe owns module timing and memory facts. They may
+correlate on a step, but must not both own forward/backward/optimizer phase spans.
 
-**Shadow baseline steps (default `shadow=4:1`):** every 4 probed training steps are followed by 1 step where TorchProbe hooks are fully bypassed (no module-level `python.torch_trace` rows). NCCL, CPU/GPU sampling, and other collectors are unchanged. Each step writes one row to `python.torch_step_timing` (`is_shadow=1` for baseline steps). Disable with `shadow=off`.
+### State ownership and persistence {#span-api}
 
-Estimate overhead (formulas and methodology: **[Overhead measurement](overhead.md)**):
+![The span stack owns phase state while the Recorder only commits to backends](../assets/architecture/probing-span-persistence.svg)
 
-```sql
-SELECT
-  round(median(CASE WHEN is_shadow = 0 THEN step_duration_sec END)
-        / nullif(median(CASE WHEN is_shadow = 1 THEN step_duration_sec END), 0) - 1, 4) * 100
-    AS overhead_pct
-FROM python.torch_step_timing
-WHERE local_step > 1;
-```
+The span stack is the sole owner of phase state; persistence is only an output. `probing.span`
+creates a nested scope, `probing.event` marks the current scope, and `record_span` submits an
+already-closed interval. All three converge on `SpanRecorder`, keeping memtable, logger, and OTEL
+as sinks that cannot feed state back into phase tracking.
 
-Hook overhead is reduced by sampling; forward hooks remain registered on all modules (except on shadow steps, where hooks return immediately).
+`probing.span` uses deferred close. A span without events becomes one closed interval on exit; the
+first event causes a lazy `span_start`, followed by `span_end` on exit. This reduces write
+amplification for quiet scopes. The tradeoff is explicit: an active span without events is not yet
+visible to SQL. That is commit semantics, not missing data.
 
-### NCCL profiler overhead
+### Training-phase invariants {#training-phase-semantics}
 
-TorchProbe shadow steps measure **module-hook** overhead only. The NCCL profiler plugin has no in-run shadow baseline today — it always records collective events when enabled. For NCCL AllReduce overhead vs probing, use the offline benchmark:
+Training has no second global phase variable. `phase` is always the innermost `forward`,
+`backward`, or `optimizer` span; an empty training stack means `idle`. `train.step` is the closed
+interval for one logical iteration, not a fourth phase. Optimizer exit advances `micro_step`, and
+`micro_batches` then maps it to `local_step`, so gradient accumulation does not create false
+complete steps.
 
-```bash
-./examples/overhead/run_nccl_bench.sh
-# or: python examples/overhead/torch_probe_overhead_smoke.py  # Torch-only smoke (no GPU)
-```
+The resulting invariants are:
 
-Monitor runtime health via `nccl.profiler_counters` (`pool_exhausted`, `write_errors`, `rows_written`). The Web UI overhead panel links to the offline NCCL bench when the profiler is active.
+1. phase state comes from the span stack, not a second global variable;
+2. `train.step` starts at the first forward and ends at optimizer exit across gradient accumulation;
+3. an optimizer exit writes at most one `train.step`, and only after a forward;
+4. manual spans, phase hooks, and TorchProbe never duplicate an already-active phase;
+5. with `micro_batches=k`, each k micro steps advance one `local_step`.
 
-Records are flushed at the end of each optimizer step (after optional GPU `synchronize()`). Pre/post hook pairs produce two rows; **duration is set on the post row** (`post forward`, `post step`, etc.).
+Phase ownership belongs to `attach_training_phases`: it closes forward/backward/optimizer and
+submits `train.step` wall time. TorchProbe detects an existing owner and does not duplicate phase
+spans; it publishes only module timing and memory facts. This ownership rule prevents two hook
+systems from assigning different meanings to the same training interval.
 
-### Collected Data (`python.torch_trace`)
-
-Full column list: [SQL Tables — torch_trace](../reference/sql-tables.md#python-torch_trace).
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `local_step` | int | Local training step (per rank) |
-| global_step | int | Global step (`step_snapshot`) |
-| rank | int | `torch.distributed` rank |
-| world_size | int | World size |
-| role | string | Parallel role key, e.g. `dp=2,pp=1,tp=0` |
-| seq | int | Hook sequence within step |
-| module | string | Module name |
-| stage | string | `pre forward`, `post forward`, `pre step`, `post step` (backward not collected by default) |
-| allocated | float | GPU memory allocated (MB); CUDA only |
-| max_allocated | float | Peak GPU memory (MB) |
-| cached | float | GPU memory reserved (MB) |
-| max_cached | float | Peak reserved (MB) |
-| time_offset | float | Seconds since step anchor |
-| duration | float | Stage duration (seconds); meaningful on post rows |
-
-Use `role` + `global_step` to join with `python.comm_collective` on the same rank.
-
-### Collective rows (`python.comm_collective`)
-
-Lite-mode hooks on `torch.distributed` write one row per collective with `duration_ms`,
-`bytes`, `op`, and the same step/role coordinates. **Off by default** (including
-multi-rank jobs); enable with `PROBING_TORCH_COLLECTIVE_ENABLE=1` or
-`SET probing.torch.collective.enable=1`. See [SQL Tables](../reference/sql-tables.md#python-comm_collective) and [SQL Analytics](../guide/sql-analytics.md#python-comm_collective).
-
-### Enable PyTorch Profiling
-
-```bash
-# Environment variable (synced to probing.torch.profiling)
-PROBING_TORCH_PROFILING=on python train.py
-
-# Full snapshot on 50% of steps
-PROBING_TORCH_PROFILING=0.5 python train.py
-
-# 10% of steps, and within each hit 30% of layers
-PROBING_TORCH_PROFILING=0.1:0.3,tracepy=on python train.py
-```
-
-Programmatic configuration:
-
-```python
-from probing.profiling.torch_probe import configure
-
-configure("on,rate=0.5,layer_rate=0.3")
-```
-
-Profiling starts on the first `optimizer.step()` after torch is imported (optimizer post hook).
+`probing.tracing.SPANS_SQL` joins start/end rows into `duration_us` for querying. See
+[Core model](../guide/concepts.md) and [Environment variables](../reference/env-vars.md#tracing-spans).
 
 ## Python Stack Profiling
 
-### Backtrace Collection
+The stack path is divided into `StackSnapshot → ParsedStacks → FoldedStacks` because asynchronous
+signal context cannot allocate, symbolize, or take complex locks. Capture writes only thread/source
+flags, native PCs, and pre-interned Python frame keys into fixed storage. Parse reconstructs symbols
+and mixed stacks outside signal context; fold then performs fingerprint aggregation and flamegraph
+output. On-demand capture and continuous sampling can share the latter stages without coupling their
+trigger mechanisms to interpretation.
 
-Feature layout under `probing/extensions/python/src/features/`:
+The eval-frame VM tracer is the only source of Python frames. It interns symbols while holding the
+GIL, leaving the signal path to copy keys. On Linux, native frames are filled in place by
+`SIGPROF`/`SIGUSR2` handlers running on alternate stacks. On macOS, asynchronous SIGPROF can land in
+system SIMD routines and cause `SIGILL`, so the default is cooperative, rate-limited Python capture
+from eval-frame. When an on-demand native stack is required, Mach briefly suspends the target,
+copies the PC/frame-pointer chain, resumes it immediately, and symbolizes later. Platform-specific
+behavior is therefore confined to capture; parse, merge, and fold stay common.
 
-| Dir | Role |
-|-----|------|
-| `python/` | PyO3: `bridge` / `bindings` / `tracing` |
-| `stacktrace/` | Stack capture, merge, tracers |
-| `torch/` | Module profiling (`python.torch_trace`) |
-| `flamegraph/` | Shared flamegraph render + distributed folded merge |
-| `crash/` | Fatal-signal backtrace |
+Continuous sampling uses a bounded ring and two publication buffers. Contention drops and counts a
+snapshot instead of blocking the training thread. Query and Web paths reuse the latest snapshot
+rather than signaling a main thread that is already being sampled. Across ranks, each process folds
+duplicate paths before transfer; the coordinator merges equal paths and records rank coverage. This
+changes network cost from proportional to raw samples to proportional to distinct call paths, while
+still allowing a partial, explicitly incomplete result when some ranks fail.
 
-`stacktrace/` pipeline: `StackSnapshot` → `ParsedStacks` → `FoldedStacks`.
+TorchProbe module flamegraphs use the same distributed aggregation idea but retain independent
+collection state. Module timing and mixed CPU stacks meet only in the query and presentation layers.
 
-| Module | Role |
-|--------|------|
-| `snapshot` | Capture document + `StackSource` / flags (only signal-writable form) |
-| `compact` | Heap-sized sampler bucket payload (used frame lengths only) |
-| `fingerprint` | Aggregation key = `tid` + flags + PCs + py keys (no demangle); pprof also filters to main tid |
-| `parse` | Snapshot → CallFrames (multi-slot `(tid,seq)` FIFO view cache) |
-| `fold` | Parsed/Snapshot → flamegraph / distributed aggregation |
-| `metrics` | JSON groups `sampler` (drop / fingerprint / export-fold) vs `view` (parse / cache) |
-| `merge` | Python ⊕ native splice + canonicalize |
-| `capture` | Thread registry, intern, signal fill (does not own parse/fold) |
-| `spy` | CPython ABI / TLS (py-spy-derived) |
-| `tracers/vm` | Eval-frame hook (sole Python frame source) |
-| `tracers/pprof` | `SIGPROF` sampling (SQL / continuous profiling) |
-| `tracers/dynamic` | `SIGUSR2` + command/HTTP on-demand (always via parse) |
+## Boundary with the other layers
 
-On-demand and CPU sampling share one pipeline:
-
-- **Python frames:** only from the **vm tracer** (`PYSTACKS`); symbols are interned under the GIL (full path for source view, basename in flamegraph labels); signal handlers copy pointer keys only.
-- **Native frames (Linux):** `SIGPROF` / `SIGUSR2` fill a POD via `fill_raw_snapshot` on a per-thread `SA_ONSTACK` alt stack (in-place into the ring / slot). **macOS:** async `ITIMER_PROF` into Apple libc SIMD (`_platform_strlen`) has caused fixed-PC `SIGILL`; `sample_freq` defaults to rate-limited eval-frame cooperative capture of **`PYSTACKS` only** (no mid-hook SyncWalk — that used to paste `_PyInit__core` / vectorcall under every `[py]` frame). `PROBING_PPROF_SIGPROF=1` forces async SIGPROF. Merge drops CPython call-protocol / extension `PyInit_*` noise. Symbolize/merge run off-signal.
-- **metrics JSON:** `sampler.*` (ring/publish drop / fingerprint / fold-on-**export**) vs `view.*` (parse / `(tid,seq)` cache)—`dropped_publish` counts snapshots skipped when both publication buffers are busy; do not read a burst of export `parse_calls` as per-sample demangle cost.
-- **Fetch paths:** dynamic (command/HTTP) or pprof (SQL / `sample_freq`); both read Python frames recorded by the vm tracer.
-- **Reuse:** when sampling is active, the main-thread HTTP/flamegraph path reuses the latest per-thread snapshot when available.
-- **Main-thread HTTP path:** prefer the latest mixed snapshot. On macOS, when no native sample exists, briefly suspend the target through Mach, copy its PC/frame-pointer chain, resume it, and only then symbolize; this avoids delivering a signal to the training thread. **Never `SIGUSR2` the main tid while `sample_freq` is active** (Distributed included). Linux defaults to on-demand `SIGUSR2` with an alternate signal stack and bounded frame-pointer walk when sampling is off; `PROBING_STACK_SIGUSR2_MAIN=0` disables it. Cross-thread on-demand still uses `SIGUSR2`.
-- **Distributed flamegraph:** with sampling on, export only aggregated sampler buckets per rank (empty buckets → empty graph; no on-demand fallback).
-
-TorchProbe module hooks are independent. Distributed CPU mixed-mode flamegraphs: `GET /apis/pprofextension/flamegraph/distributed/json` (Web: **Stacks → Distributed**). SPMD torch module flamegraph: `GET /apis/torchextension/flamegraph/distributed/json`.
-
-## System Metrics
-
-Host CPU, memory, GPU utilization, and related metrics are collected on configurable intervals via environment variables such as `PROBING_GPU_SAMPLE_MS`.
-
-**Variable / tensor watch (`probing.inspect.trace`):** logs go to the Python logger by default. Set `PROBING_TRACE_STDOUT=1` to emit updates on **stdout** instead (useful for quick local debugging; avoid in production training logs).
-
-## Data Storage
-
-Torch traces and other probe data are stored in **columnar probe tables** (e.g. `python.torch_trace`), queryable through the engine. Retention and federation follow memtable / server configuration—not a fixed-size in-process ring buffer.
-
-## Query Interface
-
-```sql
--- Skip discovery / warm-up steps
-SELECT module, stage, AVG(duration) AS avg_sec
-FROM python.torch_trace
-WHERE local_step > 1 AND duration > 0
-GROUP BY module, stage
-ORDER BY avg_sec DESC;
-
--- Per-module flamegraph input uses median(duration) on post rows
-SELECT module, stage, median(CAST(duration AS DOUBLE))
-FROM python.torch_trace
-WHERE module <> 'None' AND stage LIKE 'post %'
-GROUP BY module, stage;
-```
-
-## Performance Overhead
-
-Overhead depends on model size (all modules carry forward hooks), sampling mode/rate, and optional features (`sync`, `tracepy`, variable watch). Use lower `rate`, disable torch profiling when not needed, and filter early steps in SQL rather than adding a warmup schedule.
-
-| Scenario | Typical impact |
-|----------|----------------|
-| Torch profiling off | Baseline probe overhead only |
-| `on` (default `0.05`, full snapshot) | Low; ~5% of steps sampled |
-| `0.05:0.1` | Very low; 5% of steps, 10% of layers |
-| `1.0` | Higher; full snapshot every step |
-| `sync=on` | Higher; synchronizes GPU each hook |
+System metrics are periodic; Torch, communication, and stack collectors are event-driven. They
+share coordinates but not scheduler threads. Long-running facts enter columnar probe tables, while
+retention, hot/cold placement, and cross-rank querying belong to the data and query layers. A
+collector does not grow a second storage policy. See the [table reference](../reference/sql-tables.md)
+and [SQL analytics guide](../guide/sql-analytics.md) for fields and examples, and the
+[overhead model](overhead.md) for measurement semantics and invariants.

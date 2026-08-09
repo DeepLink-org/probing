@@ -92,25 +92,19 @@ plugins:
             Live Debugging: 现场调试
             Troubleshooting: 常见问题
             Architecture: 架构
-            Platform: 平台核心
+            Foundations: 基础架构
             Collectors & Profiling: 采集与 Profiling
-            Distributed: 分布式
+            Distributed Query & Analysis: 分布式查询与分析
             Modularity & Boundaries: 模块化与边界
+            Activation & Runtime Control: 启用、注入与运行时控制
             Data Layer: 数据层
             Extensibility: 扩展机制
-            CLI Command Tree: CLI 命令树
-            Profiling: 性能分析
-            Torch Profiler SQL: Torch Profiler SQL（Kineto 虚拟表）
+            Profiling & Tracing: 性能分析与 Tracing
             Overhead: 开销测量
             NCCL Profiler: NCCL Profiler
-            Debugging Engine: 调试引擎
-            Training Phases: 训练阶段
-            Overview: 概览
-            Torchrun Cluster Heartbeat: torchrun 集群心跳
+            Distributed Membership: 分布式成员与控制面
             Federated Query Engine: 联邦查询引擎
-            Hierarchical Fan-out: 分层集群查询
-            Cluster with Pulsing: 基于 Pulsing 的集群
-            System Architecture (legacy): 系统架构（旧版）
+            Distributed Profiler: 分布式 Profiler 查询与可视化
             Examples: 示例
             Training Debugging: 训练调试
             Memory Leak: 内存泄漏
@@ -122,6 +116,8 @@ plugins:
             Skill Format: Skill 格式规范
             Versions: 版本兼容性
             Contributing: 贡献指南
+            Contributing Guide: 贡献指南
+            Documentation Style: 文档写作规范
             Development Setup: 开发环境
             Welcome Contributors: 欢迎参与开发
             Welcome: 欢迎参与
@@ -152,26 +148,19 @@ nav:
     - Troubleshooting: guide/troubleshooting.md
   - Architecture:
     - design/index.md
-    - Platform:
+    - Foundations:
       - Modularity & Boundaries: design/modularity.md
+      - Activation & Runtime Control: design/activation-injection.md
       - Data Layer: design/data-layer.md
       - Extensibility: design/extensibility.md
-      - CLI Command Tree: design/cli.md
     - Collectors & Profiling:
-      - Profiling: design/profiling.md
-      - Torch Profiler SQL: design/torch-profiler-sql.md
-      - Overhead: design/overhead.md
-      - Overhead invariants: design/overhead-invariants.md
+      - Profiling & Tracing: design/profiling.md
       - NCCL Profiler: design/nccl-profiler.md
-      - Debugging Engine: design/debugging.md
-      - Training Phases: design/training-phase.md
-    - Distributed:
-      - Overview: design/distributed.md
-      - Torchrun Cluster Heartbeat: design/torchrun-cluster.md
+      - Overhead: design/overhead.md
+    - Distributed Query & Analysis:
+      - Distributed Membership: design/distributed.md
       - Federated Query Engine: design/federation.md
-      - Hierarchical Fan-out: design/hierarchical-fanout.md
-      - Cluster with Pulsing: design/cluster-pulsing.md
-    - System Architecture (legacy): design/architecture.md
+      - Distributed Profiler: design/distributed-profiler.md
   - Examples:
     - examples/index.md
     - Training Debugging: examples/training-debugging.md
@@ -185,7 +174,9 @@ nav:
     - Environment Variables: reference/env-vars.md
     - Skill Format: reference/skill-format.md
     - Versions: versions.md
-  - Contributing: contributing.md
+  - Contributing:
+    - Contributing Guide: contributing.md
+    - Documentation Style: writing.md
 
 extra:
   generator: false

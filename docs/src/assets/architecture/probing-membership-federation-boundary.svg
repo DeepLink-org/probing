@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="470" viewBox="0 0 1200 470">
+  <defs><marker id="ab" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#2563EB"/></marker></defs>
+  <rect width="1200" height="470" fill="#F8FAFC"/>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial, sans-serif">
+    <text x="600" y="42" text-anchor="middle" font-size="25" font-weight="700" fill="#17324D">成员发现与联邦查询通过一次不可变快照衔接</text>
+    <text x="600" y="70" text-anchor="middle" font-size="13" fill="#64748B">成员模块不解析 SQL；联邦引擎不发现 torchrun 拓扑</text>
+
+    <rect x="48" y="112" width="390" height="272" rx="16" fill="#ECFDF5" stroke="#0D9488" stroke-width="2"/>
+    <text x="74" y="146" font-size="18" font-weight="700" fill="#0F766E">Cluster membership</text>
+    <text x="74" y="181" font-size="14" font-weight="700" fill="#17324D">持续维护的事实</text>
+    <text x="90" y="212" font-size="13" fill="#475569">endpoint 与可达地址</text>
+    <text x="90" y="239" font-size="13" fill="#475569">rank / node / local rank / role</text>
+    <text x="90" y="266" font-size="13" fill="#475569">alive / dead / stale 与 membership epoch</text>
+    <rect x="74" y="302" width="338" height="54" rx="9" fill="#D1FAE5"/>
+    <text x="243" y="325" text-anchor="middle" font-size="13" font-weight="700" fill="#0F766E">输出 cluster.nodes snapshot</text>
+    <text x="243" y="344" text-anchor="middle" font-size="11" fill="#64748B">小而稳定的控制面契约</text>
+
+    <path d="M438 248 H535" stroke="#2563EB" stroke-width="3" marker-end="url(#ab)"/>
+    <rect x="540" y="176" width="122" height="144" rx="14" fill="#17324D"/>
+    <text x="601" y="220" text-anchor="middle" font-size="14" font-weight="700" fill="#FFFFFF">查询开始</text>
+    <text x="601" y="250" text-anchor="middle" font-size="12" fill="#CBD5E1">冻结一次</text>
+    <text x="601" y="271" text-anchor="middle" font-size="12" fill="#CBD5E1">peer snapshot</text>
+    <text x="601" y="296" text-anchor="middle" font-size="11" fill="#86EFAC">不随 heartbeat 漂移</text>
+    <path d="M662 248 H759" stroke="#2563EB" stroke-width="3" marker-end="url(#ab)"/>
+
+    <rect x="764" y="112" width="388" height="272" rx="16" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="790" y="146" font-size="18" font-weight="700" fill="#1D4ED8">Federation</text>
+    <text x="790" y="181" font-size="14" font-weight="700" fill="#17324D">基于快照执行的决策</text>
+    <text x="806" y="212" font-size="13" fill="#475569">选择 coordinator / local0 / leaf 路径</text>
+    <text x="806" y="239" font-size="13" fill="#475569">为每行注入固定来源标签</text>
+    <text x="806" y="266" font-size="13" fill="#475569">合并 partial 并执行全局关系运算</text>
+    <rect x="790" y="302" width="336" height="54" rx="9" fill="#DBEAFE"/>
+    <text x="958" y="325" text-anchor="middle" font-size="13" font-weight="700" fill="#1D4ED8">输出 DataFrame + FanoutMeta</text>
+    <text x="958" y="344" text-anchor="middle" font-size="11" fill="#64748B">coverage / partial / failed nodes</text>
+
+    <rect x="48" y="410" width="1104" height="40" rx="10" fill="#17324D"/>
+    <text x="600" y="435" text-anchor="middle" font-size="12" fill="#FFFFFF">因果边界：heartbeat 改变下一次查询的成员集合，不改变正在执行查询的 peer 集合</text>
+  </g>
+</svg>

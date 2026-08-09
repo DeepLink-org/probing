@@ -11,7 +11,8 @@ probing tracing 入门
      训练循环里 **不需要** ``with probing.span("forward")``。
 
      梯度累积：先 ``probing.step(micro_batches=N)``，``train.step`` 覆盖
-     N 个 micro-batch 的 wall time；详见 ``docs/src/design/training-phase.zh.md``。
+     N 个 micro-batch 的 wall time；详见
+     ``docs/src/design/profiling.zh.md#training-phase-semantics``。
 
   ② ``probing.span`` / ``probing.event`` — **可选，粗粒度时间线**
      包住模型初始化、epoch 等；与 ① 的 phase span 互不冲突。

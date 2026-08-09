@@ -175,7 +175,7 @@ configure_backends(["memtable", "logger"])  # 终端 + memtable
 configure_backends(["memtable", "my_sink"])
 ```
 
-### @table（dataclass 插件）
+### @table（dataclass 插件） {#table-dataclass-plugins}
 
 ```python
 from dataclasses import dataclass

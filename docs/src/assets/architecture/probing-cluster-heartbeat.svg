@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="470" viewBox="0 0 1200 470">
+  <defs><marker id="a" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#2563EB"/></marker></defs>
+  <rect width="1200" height="470" fill="#F8FAFC"/>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial, sans-serif">
+    <text x="600" y="42" text-anchor="middle" font-size="25" font-weight="700" fill="#17324D">Heartbeat 分层收敛：连接数按节点规模增长</text>
+    <text x="600" y="70" text-anchor="middle" font-size="13" fill="#64748B">leaf 只连接本机 local0，local0 再向 global rank 0 汇报合并后的成员状态</text>
+
+    <rect x="42" y="118" width="260" height="230" rx="16" fill="#ECFDF5" stroke="#0D9488" stroke-width="2"/>
+    <text x="172" y="150" text-anchor="middle" font-size="17" font-weight="700" fill="#0F766E">节点内 leaf</text>
+    <rect x="70" y="178" width="204" height="48" rx="9" fill="#FFFFFF" stroke="#5EEAD4"/><text x="172" y="207" text-anchor="middle" font-size="13" fill="#17324D">rank 1 / 2 / 3 ...</text>
+    <rect x="70" y="246" width="204" height="68" rx="9" fill="#FFFFFF" stroke="#5EEAD4"/><text x="172" y="273" text-anchor="middle" font-size="13" font-weight="700" fill="#17324D">PUT /apis/nodes</text><text x="172" y="295" text-anchor="middle" font-size="11" fill="#64748B">仅自身 endpoint 与健康</text>
+
+    <path d="M302 233 H410" stroke="#2563EB" stroke-width="3" marker-end="url(#a)"/>
+    <rect x="420" y="118" width="330" height="230" rx="16" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="585" y="150" text-anchor="middle" font-size="17" font-weight="700" fill="#1D4ED8">local0</text>
+    <rect x="452" y="178" width="266" height="58" rx="9" fill="#FFFFFF" stroke="#93C5FD"/><text x="585" y="203" text-anchor="middle" font-size="13" font-weight="700" fill="#17324D">按 rank 合并本机 heartbeat</text><text x="585" y="222" text-anchor="middle" font-size="11" fill="#64748B">保留 dead / stale 状态</text>
+    <rect x="452" y="258" width="266" height="58" rx="9" fill="#DBEAFE"/><text x="585" y="283" text-anchor="middle" font-size="13" font-weight="700" fill="#1D4ED8">生成节点成员快照</text><text x="585" y="302" text-anchor="middle" font-size="11" fill="#64748B">自身也执行本地 SQL</text>
+
+    <path d="M750 233 H858" stroke="#2563EB" stroke-width="3" marker-end="url(#a)"/>
+    <rect x="868" y="118" width="290" height="230" rx="16" fill="#FFF7ED" stroke="#EA580C" stroke-width="2"/>
+    <text x="1013" y="150" text-anchor="middle" font-size="17" font-weight="700" fill="#C2410C">global rank 0</text>
+    <rect x="900" y="178" width="226" height="58" rx="9" fill="#FFFFFF" stroke="#FDBA74"/><text x="1013" y="203" text-anchor="middle" font-size="13" font-weight="700" fill="#17324D">合并各节点快照</text><text x="1013" y="222" text-anchor="middle" font-size="11" fill="#64748B">形成 membership epoch</text>
+    <rect x="900" y="258" width="226" height="58" rx="9" fill="#FFEDD5"/><text x="1013" y="283" text-anchor="middle" font-size="13" font-weight="700" fill="#C2410C">提供查询路由</text><text x="1013" y="302" text-anchor="middle" font-size="11" fill="#64748B">不集中保存训练数据</text>
+
+    <rect x="42" y="382" width="1116" height="58" rx="12" fill="#17324D"/>
+    <text x="600" y="406" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">收敛前保持短间隔；稳定后退避；一个 TTL 标 dead，第二个 TTL 移除</text>
+    <text x="600" y="428" text-anchor="middle" font-size="11" fill="#CBD5E1">网络失败只改变成员质量与 coverage，不阻塞训练，也不修改 torch rendezvous</text>
+  </g>
+</svg>

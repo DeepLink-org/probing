@@ -173,4 +173,4 @@ LIMIT 10;
 
 - [内存分析](memory-analysis.zh.md) - 调试内存问题
 - [常见问题](troubleshooting.zh.md) - 常见问题和解决方案
-- [系统架构](../design/architecture.md) - 了解内部实现
+- [模块化与边界](../design/modularity.zh.md) - 了解内部实现与模块归属

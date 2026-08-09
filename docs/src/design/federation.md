@@ -224,17 +224,7 @@ Implementation: `probing/core/src/core/federation/`; `cluster=true` routing:
 
 ### 4.1 Pipeline
 
-```mermaid
-flowchart LR
-    IN[User SQL] --> CF{cluster?}
-    CF -->|no| L0[Local DataFusion / probe.*]
-    CF -->|yes| RT[Path A/B/C]
-    RT --> RW[Catalog rewrite]
-    RW --> EX[Execute shards]
-    EX --> TG[Inject federation tags]
-    TG --> MG[Merge / re-aggregate]
-    MG --> OUT[QueryOutcome DataFrame + QueryQuality]
-```
+![Federated query pipeline from SQL routing to global merge](../assets/architecture/probing-federation-pipeline.svg)
 
 **Conventions**
 
@@ -252,7 +242,7 @@ flowchart LR
 | Partial HTTP | Cluster/fan-out APIs return **503** with partial `dataframe` when `meta.partial=true` (non-strict only) |
 | Peer 503 accept | Non-strict mode may accept peer HTTP 503 bodies with partial data during hierarchical merge |
 | Federated scan logs | Peer drops log at **debug** by default; **warn** when `PROBING_FANOUT_STRICT=1` |
-| Hierarchical fan-out | Default on: coordinator → local0 → leaves; see [Hierarchical fan-out](hierarchical-fanout.md) |
+| Hierarchical fan-out | Default on: coordinator → local0 → leaves; see [§4.11](#hierarchical-fan-out) |
 
 ### 4.2 Path selection
 
@@ -260,16 +250,7 @@ flowchart LR
 
 `cluster=true` — **AST-based** (not substring):
 
-```mermaid
-flowchart TD
-    Q[SQL] --> P{Single SELECT?}
-    P -->|no| C[Path C]
-    P -->|yes| M{Single table, no JOIN/CTE/UNION/subquery?}
-    M -->|no| C
-    M -->|yes| A{global.* + pushdown-safe GROUP BY/agg?}
-    A -->|yes| PA[Path A]
-    A -->|no| PB[Path B]
-```
+![AST-based selection of aggregate pushdown, federated scan, or broadcast](../assets/architecture/probing-federation-path-selection.svg)
 
 | Path | When | §3 examples |
 |------|------|-------------|
@@ -385,6 +366,44 @@ At large `world_size`, prefer path A partials plus coordinator re-aggregation ov
 | Compute vs comm | C | `probe.comm JOIN probe.torch_trace`; then `GROUP BY _rank` |
 | Hang / backtrace | A or B | Single-table `GROUP BY _rank` or filtered raw |
 
+### 4.11 Hierarchical fan-out {#hierarchical-fan-out}
+
+Paths A/B/C define relational work at shards and the coordinator. Hierarchical fan-out defines how
+those shard requests reach 10K ranks without requiring `O(world_size)` coordinator connections.
+
+![Hierarchical query fan-out](../assets/architecture/probing-fanout-internals.svg)
+
+| Tier | Fan-out targets | Typical size at 8 ranks/node, 1024 nodes |
+|------|-----------------|------------------------------------------|
+| coordinator | one `local_rank=0` per `group_rank` | about 1023 remote nodes |
+| node/local0 | leaves in the same `group_rank` | about 7 per node |
+| leaf | none; local SQL only | 1 |
+
+`POST /apis/cluster/query` carries `cluster`, `hierarchical` (default true), and `scope`:
+`auto`, `coordinator`, `node`, or `local`. Coordinator scope merges local and remote nodes; node
+scope merges one machine; local scope forbids further fan-out. Peers always execute `probe.*`, so
+scope prevents recursion rather than serving as a mere optimization hint.
+
+Hierarchical execution requires complete `group_rank`, `local_rank`, and `addr` metadata in
+`cluster.nodes`. Missing topology returns HTTP 503 instead of silently falling back to a potentially
+incomplete flat scan. Flat mode is explicit through `hierarchical=false`, CLI `--flat`, or
+`PROBING_CLUSTER_FANOUT_HIERARCHICAL=0`.
+
+Every tier propagates `nodes_queried`, `nodes_failed`, `node_aggregators_queried`, and
+`local_ranks_queried`. A remote local0 must include its leaf coverage rather than appearing as one
+opaque successful endpoint. Non-strict mode may merge a lower-tier HTTP 503 partial body;
+`PROBING_FANOUT_STRICT=1` fails on any missing peer or dropped batch.
+
+| Federation path | Hierarchical behavior |
+|-----------------|-----------------------|
+| A aggregate pushdown | node merges on-node partials; coordinator performs global merge |
+| B federated scan | coordinator creates remote lazy partitions only for node aggregators |
+| C broadcast | each node runs the SQL on local ranks and concatenates before returning |
+
+Implementation: `probing/server/src/server/cluster_fanout.rs`, `cluster_query.rs`, and
+`probing/core/src/core/federation/fanout_scope.rs`. Membership comes from
+[Distributed Membership and Control Plane](distributed.md#cluster-membership).
+
 ---
 
 ## 5. Regression queries
@@ -409,8 +428,7 @@ Engine changes must pass these on mock multi-node and real clusters:
 
 | Document | Content |
 |----------|---------|
-| [Distributed overview](distributed.md) | `cluster query` usage |
-| [Hierarchical fan-out](hierarchical-fanout.md) | Wan-scale HTTP topology |
+| [Distributed membership](distributed.md) | Discovery, heartbeat, and topology metadata |
 | [Core model](../guide/concepts.md) | Catalogs, federation tags |
 | [SQL Tables](../reference/sql-tables.md) | Columns and `cluster.nodes` |
 | [NCCL Profiler](nccl-profiler.md) | §3.1 ⑤, `nccl.proxy_ops` |

@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2563EB"/></marker></defs>
+  <rect width="1280" height="720" fill="#F8FAFC"/>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial">
+    <text x="640" y="38" text-anchor="middle" font-size="22" font-weight="700" fill="#17324D">NCCL 事件模型：父子引用维持生命周期，时间源按可信度逐级退化</text>
+    <text x="640" y="63" text-anchor="middle" font-size="12" fill="#64748B">host enqueue 不是设备执行结束；collective 的真实窗口由 KernelCh 或 ProxyOp 子事件重建</text>
+
+    <rect x="42" y="92" width="570" height="454" rx="14" fill="#FFFFFF" stroke="#0D9488" stroke-width="2"/>
+    <text x="68" y="123" font-size="15" font-weight="700" fill="#0F766E">事件层级与并发边界</text>
+    <rect x="90" y="154" width="474" height="70" rx="12" fill="#17324D"/>
+    <text x="327" y="182" text-anchor="middle" font-size="14" font-weight="700" fill="#FFFFFF">Collective</text>
+    <text x="327" y="204" text-anchor="middle" font-size="10" fill="#CBD5E1">comm_hash · seq · op · bytes · host start/stop</text>
+    <path d="M327 224 L327 262" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="90" y="270" width="210" height="78" rx="12" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="195" y="300" text-anchor="middle" font-size="13" font-weight="700" fill="#174EA6">KernelCh events</text>
+    <text x="195" y="323" text-anchor="middle" font-size="9" fill="#64748B">GPU globaltimer / channel window</text>
+    <rect x="354" y="270" width="210" height="78" rx="12" fill="#FAF5FF" stroke="#7C3AED" stroke-width="2"/>
+    <text x="459" y="300" text-anchor="middle" font-size="13" font-weight="700" fill="#7C3AED">ProxyOp events</text>
+    <text x="459" y="323" text-anchor="middle" font-size="9" fill="#64748B">peer · direction · proxy start/stop</text>
+    <path d="M459 348 L459 386" stroke="#7C3AED" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="354" y="394" width="210" height="80" rx="12" fill="#FFF7ED" stroke="#F97316" stroke-width="2"/>
+    <text x="459" y="424" text-anchor="middle" font-size="13" font-weight="700" fill="#C2410C">ProxyStep events</text>
+    <text x="459" y="447" text-anchor="middle" font-size="9" fill="#64748B">wait reason · bytes · channel · peer</text>
+    <text x="90" y="505" font-size="10" fill="#64748B">固定 slot pool 避免回调时分配；句柄携带 shard + slot。</text>
+    <text x="90" y="526" font-size="10" fill="#64748B">按 communicator hash 分片加锁；锁内生成行，锁外批量写 MEMT。</text>
+
+    <rect x="636" y="92" width="602" height="454" rx="14" fill="#F8FAFC" stroke="#2563EB" stroke-width="2"/>
+    <text x="662" y="123" font-size="15" font-weight="700" fill="#174EA6">执行窗口重建与等待归因</text>
+    <g text-anchor="middle">
+      <rect x="668" y="154" width="132" height="72" rx="10" fill="#ECFDF5" stroke="#10B981"/>
+      <text x="734" y="182" font-size="12" font-weight="700" fill="#047857">kernel_gpu</text><text x="734" y="205" font-size="9" fill="#64748B">GPU globaltimer</text>
+      <rect x="812" y="154" width="132" height="72" rx="10" fill="#EFF6FF" stroke="#2563EB"/>
+      <text x="878" y="182" font-size="12" font-weight="700" fill="#174EA6">kernel_ch</text><text x="878" y="205" font-size="9" fill="#64748B">channel active</text>
+      <rect x="956" y="154" width="116" height="72" rx="10" fill="#FAF5FF" stroke="#7C3AED"/>
+      <text x="1014" y="182" font-size="12" font-weight="700" fill="#7C3AED">proxy</text><text x="1014" y="205" font-size="9" fill="#64748B">min/max ProxyOp</text>
+      <rect x="1084" y="154" width="122" height="72" rx="10" fill="#FFF7ED" stroke="#F97316"/>
+      <text x="1145" y="182" font-size="12" font-weight="700" fill="#C2410C">enqueue</text><text x="1145" y="205" font-size="9" fill="#64748B">host launch</text>
+    </g>
+    <path d="M800 190 L804 190" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/><path d="M944 190 L948 190" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/><path d="M1072 190 L1076 190" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <text x="937" y="245" text-anchor="middle" font-size="10" fill="#64748B">从左到右逐级退化；只在更可信时间源缺失时使用下一项</text>
+
+    <rect x="668" y="278" width="246" height="94" rx="11" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="686" y="306" font-size="12" font-weight="700" fill="#174EA6">发送侧</text>
+    <text x="686" y="330" font-size="9" fill="#64748B">send_gpu_wait：等本地 GPU 产出</text>
+    <text x="686" y="350" font-size="9" fill="#64748B">send_peer_wait：等接收方 credit</text>
+    <rect x="936" y="278" width="270" height="94" rx="11" fill="#FFFFFF" stroke="#C4B5FD"/>
+    <text x="954" y="306" font-size="12" font-weight="700" fill="#7C3AED">网络与接收侧</text>
+    <text x="954" y="330" font-size="9" fill="#64748B">send_wait / recv_wait：等网络或对端</text>
+    <text x="954" y="350" font-size="9" fill="#64748B">recv_flush_wait：等接收刷新完成</text>
+    <path d="M914 325 L928 325" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="668" y="402" width="538" height="98" rx="11" fill="#17324D"/>
+    <text x="690" y="430" font-size="12" font-weight="700" fill="#FFFFFF">输出表</text>
+    <text x="690" y="454" font-size="10" fill="#CBD5E1">nccl.coll_perf：重建窗口、timing_source、算法与带宽</text>
+    <text x="690" y="476" font-size="10" fill="#CBD5E1">nccl.proxy_ops：peer、方向、channel 与等待分解</text>
+
+    <rect x="42" y="578" width="1196" height="96" rx="12" fill="#17324D"/>
+    <text x="68" y="607" font-size="12" font-weight="700" fill="#FFFFFF">解释边界</text>
+    <text x="68" y="632" font-size="10" fill="#CBD5E1">等待时间描述“在哪里等待”，不是自动根因。watchdog 使用 try_lock，不允许为了采集而等待通信线程；忙时记录 debug 并跳过本次快照。</text>
+    <text x="68" y="653" font-size="10" fill="#86EFAC">需要训练 step 时，用统一的 UNIX epoch ns 与 python.comm_collective 时间窗口关联；host API duration 不能替代设备执行窗口。</text>
+  </g>
+</svg>

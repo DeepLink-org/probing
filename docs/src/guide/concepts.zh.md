@@ -25,15 +25,10 @@ CLI 从不直接与引擎交互。它通过 Unix socket（本地）或 TCP（远
 启动时设置 `PROBING=1` 通过 `.pth` 钩子激活进程内服务器——无需 import、无需
 修改代码。在 Linux 上，`probing inject` 也可以通过 ptrace 附着到已运行的进程。
 
-概念上：
+CLI 与目标进程之间的边界如下图所示。CLI 只负责选择目标和发送 HTTP 请求；查询、配置与扩展状态
+都由目标进程内的 Server 通过公开接口交给 Engine 或 Extension 处理。
 
-```
-CLI  ──(HTTP over Unix socket/TCP)──▶  probing server（目标进程内）
-                                          │
-                                          ├── Engine（DataFusion）
-                                          ├── Config
-                                          └── Extensions（CPU、GPU、Python、NCCL...）
-```
+![CLI 通过 Unix socket 或 TCP 访问目标进程内的 Server、Engine 与 Extensions](../assets/architecture/probing-cli-control-surface.svg)
 
 ## 数据表：只追加、持续写入
 
@@ -135,8 +130,8 @@ probing.clear_role()            # 恢复为环境变量默认值
 关闭写盘（仅保留栈，用于 benchmark）：`PROBING_SPAN_BACKENDS=none` 或
 `probing.tracing.configure_backends([])`。
 
-完整选型、deferred close 语义与性能说明见 **[Span API 设计](../design/tracing-spans.zh.md)**；
-phase 不变量见 **[训练阶段](../design/training-phase.zh.md)**。
+完整选型、deferred close 和 phase 不变量见
+**[性能分析 — Tracing 与训练阶段](../design/profiling.zh.md#tracing-training-phases)**。
 
 ## 联邦查询：跨节点查询
 
@@ -167,7 +162,7 @@ GROUP BY _role, _rank, op
 ORDER BY avg_ms DESC;
 ```
 
-通过 torchrun 注入（Rust ctor 默认启动集群心跳，见 [torchrun 集群心跳](../design/torchrun-cluster.zh.md)）或 `PUT /apis/nodes` 注册节点。
+通过 torchrun 注入（Rust ctor 默认启动集群心跳，见 [分布式成员](../design/distributed.zh.md#cluster-membership)）或 `PUT /apis/nodes` 注册节点。
 用 `probing -t <master> cluster nodes` 验证。详见 [分布式](../design/distributed.zh.md)。
 
 ## 表插件 vs 诊断 skill
@@ -192,5 +187,5 @@ culprit/victim 等待分解。它是 Rust 扩展，而非 Python @table。见 [N
 | 每张表的列定义 | [SQL 表目录](../reference/sql-tables.zh.md) |
 | 多节点配置和 torchrun | [分布式](../design/distributed.zh.md) |
 | 编写自定义表或 skill | [扩展机制](../design/extensibility.zh.md) |
-| Span 与训练时间线 | [Span API](../design/tracing-spans.zh.md) |
+| Span 与训练时间线 | [性能分析 — Tracing 与训练阶段](../design/profiling.zh.md#tracing-training-phases) |
 | CLI 命令和 Python API | [API 参考](../api-reference.zh.md) |

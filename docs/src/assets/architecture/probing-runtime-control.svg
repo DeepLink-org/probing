@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs>
+    <marker id="blue-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2563EB"/></marker>
+    <marker id="orange-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#EA580C"/></marker>
+    <marker id="teal-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#0F766E"/></marker>
+  </defs>
+  <rect width="1280" height="720" fill="#F8FAFC"/>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial">
+    <text x="640" y="38" text-anchor="middle" font-size="22" font-weight="700" fill="#17324D">运行时控制：动态库构造函数先启动入口，再异步准备 Engine</text>
+    <text x="640" y="62" text-anchor="middle" font-size="12" fill="#64748B">.pth import 与 ptrace dlopen 在这里汇合；监听状态、查询就绪和训练采集分别记录</text>
+
+    <rect x="40" y="88" width="1200" height="92" rx="14" fill="#17324D"/>
+    <rect x="64" y="112" width="244" height="44" rx="9" fill="#1E3A5F"/>
+    <text x="186" y="130" text-anchor="middle" font-size="10" font-weight="700" fill="#FFFFFF">`.pth` import probing._core</text>
+    <text x="186" y="146" text-anchor="middle" font-size="8.5" fill="#CBD5E1">Python module 额外注册 bindings</text>
+    <rect x="332" y="112" width="244" height="44" rx="9" fill="#1E3A5F"/>
+    <text x="454" y="130" text-anchor="middle" font-size="10" font-weight="700" fill="#FFFFFF">ptrace dlopen libprobing.so</text>
+    <text x="454" y="146" text-anchor="middle" font-size="8.5" fill="#CBD5E1">仅触发动态库构造函数</text>
+    <path d="M308 134 L324 134" stroke="#93C5FD" stroke-width="2" marker-end="url(#blue-arrow)"/>
+    <path d="M576 134 L624 134" stroke="#93C5FD" stroke-width="2" marker-end="url(#blue-arrow)"/>
+    <rect x="632" y="104" width="584" height="60" rx="10" fill="#312E81" stroke="#A78BFA"/>
+    <text x="924" y="126" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF">root #[ctor] setup()</text>
+    <text x="924" y="146" text-anchor="middle" font-size="9" fill="#DDD6FE">若不是 CLI mode：初始化日志与 panic hook，调用 probing_server::start_local()</text>
+
+    <path d="M924 164 L924 198" stroke="#7C3AED" stroke-width="2.5" marker-end="url(#blue-arrow)"/>
+
+    <rect x="40" y="206" width="526" height="232" rx="14" fill="#FFF7ED" stroke="#EA580C" stroke-width="2"/>
+    <text x="64" y="236" font-size="15" font-weight="700" fill="#C2410C">1. 控制入口先建立</text>
+    <rect x="64" y="258" width="222" height="62" rx="9" fill="#FFFFFF" stroke="#FDBA74"/>
+    <text x="175" y="281" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">本机 Unix socket</text>
+    <text x="175" y="302" text-anchor="middle" font-size="9" fill="#0F766E">按目标 PID 连接 · same UID</text>
+    <rect x="306" y="258" width="236" height="62" rx="9" fill="#FFFFFF" stroke="#FDBA74"/>
+    <text x="424" y="281" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">跨机 TCP</text>
+    <text x="424" y="302" text-anchor="middle" font-size="9" fill="#C2410C">token · 网络隔离 · heartbeat</text>
+    <rect x="64" y="338" width="478" height="72" rx="9" fill="#FFEDD5" stroke="#EA580C"/>
+    <text x="303" y="362" text-anchor="middle" font-size="11" font-weight="700" fill="#C2410C">listener 已存在，不等于查询已经 ready</text>
+    <text x="303" y="383" text-anchor="middle" font-size="9" fill="#64748B">/health 说明进程可达；/ready 读取 Engine 状态并给出原因</text>
+    <text x="303" y="401" text-anchor="middle" font-size="9" fill="#64748B">初始化失败时入口仍保留，便于外部观察和重试</text>
+
+    <rect x="590" y="206" width="650" height="232" rx="14" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="614" y="236" font-size="15" font-weight="700" fill="#174EA6">2. Engine 在后台完成组装</text>
+    <rect x="614" y="258" width="174" height="62" rx="9" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="701" y="281" text-anchor="middle" font-size="10.5" font-weight="700" fill="#17324D">EngineInitClaim</text>
+    <text x="701" y="302" text-anchor="middle" font-size="8.5" fill="#64748B">Claimed / InProgress</text>
+    <path d="M788 289 L816 289" stroke="#2563EB" stroke-width="2" marker-end="url(#blue-arrow)"/>
+    <rect x="824" y="258" width="188" height="62" rx="9" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="918" y="281" text-anchor="middle" font-size="10.5" font-weight="700" fill="#17324D">注册查询能力</text>
+    <text x="918" y="302" text-anchor="middle" font-size="8.5" fill="#64748B">表 · 扩展 · peer transport</text>
+    <path d="M1012 289 L1040 289" stroke="#2563EB" stroke-width="2" marker-end="url(#blue-arrow)"/>
+    <rect x="1048" y="258" width="168" height="62" rx="9" fill="#DBEAFE" stroke="#2563EB"/>
+    <text x="1132" y="281" text-anchor="middle" font-size="10.5" font-weight="700" fill="#174EA6">Ready</text>
+    <text x="1132" y="302" text-anchor="middle" font-size="8.5" fill="#64748B">查询可以进入 Engine</text>
+    <rect x="614" y="338" width="602" height="72" rx="9" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="915" y="361" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">成功后才启动后台工作</text>
+    <text x="915" y="383" text-anchor="middle" font-size="9" fill="#64748B">cold compactor · CPU/GPU sampler · cluster heartbeat</text>
+    <text x="915" y="401" text-anchor="middle" font-size="9" fill="#C2410C">构建错误进入 failure state，不伪造空 Engine</text>
+
+    <path d="M303 438 L303 470" stroke="#EA580C" stroke-width="2.5" marker-end="url(#orange-arrow)"/>
+    <path d="M915 438 L915 470" stroke="#2563EB" stroke-width="2.5" marker-end="url(#blue-arrow)"/>
+
+    <rect x="40" y="478" width="1200" height="140" rx="14" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2"/>
+    <text x="64" y="508" font-size="15" font-weight="700" fill="#17324D">3. 外部控制请求只通过公开接口进入</text>
+    <rect x="64" y="530" width="192" height="58" rx="9" fill="#FAF5FF" stroke="#C4B5FD"/>
+    <text x="160" y="552" text-anchor="middle" font-size="10.5" font-weight="700" fill="#7C3AED">CLI · Web · MCP</text>
+    <text x="160" y="572" text-anchor="middle" font-size="8.5" fill="#64748B">选择 PID / endpoint</text>
+    <path d="M256 559 L286 559" stroke="#7C3AED" stroke-width="2" marker-end="url(#blue-arrow)"/>
+    <rect x="294" y="530" width="208" height="58" rx="9" fill="#FFF7ED" stroke="#FDBA74"/>
+    <text x="398" y="552" text-anchor="middle" font-size="10.5" font-weight="700" fill="#C2410C">middleware</text>
+    <text x="398" y="572" text-anchor="middle" font-size="8.5" fill="#64748B">鉴权 · 超时 · 大小 · 连接数</text>
+    <path d="M502 559 L532 559" stroke="#EA580C" stroke-width="2" marker-end="url(#orange-arrow)"/>
+    <rect x="540" y="530" width="214" height="58" rx="9" fill="#EFF6FF" stroke="#93C5FD"/>
+    <text x="647" y="552" text-anchor="middle" font-size="10.5" font-weight="700" fill="#174EA6">/query</text>
+    <text x="647" y="572" text-anchor="middle" font-size="8.5" fill="#64748B">SELECT -> Engine · SET -> config</text>
+    <rect x="772" y="530" width="196" height="58" rx="9" fill="#F0FDFA" stroke="#5EEAD4"/>
+    <text x="870" y="552" text-anchor="middle" font-size="10.5" font-weight="700" fill="#0F766E">/apis</text>
+    <text x="870" y="572" text-anchor="middle" font-size="8.5" fill="#64748B">状态 · 扩展 · profiling</text>
+    <rect x="986" y="530" width="230" height="58" rx="9" fill="#FAF5FF" stroke="#C4B5FD"/>
+    <text x="1101" y="552" text-anchor="middle" font-size="10.5" font-weight="700" fill="#7C3AED">/mcp</text>
+    <text x="1101" y="572" text-anchor="middle" font-size="8.5" fill="#64748B">query · skills · cluster tools</text>
+
+    <rect x="40" y="642" width="1200" height="48" rx="11" fill="#17324D"/>
+    <text x="640" y="663" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">训练 hook -> MEMT 的写入路径不经过 listener 或远端；控制面失败、超时或断连都不能反向阻塞训练回调。</text>
+    <text x="640" y="680" text-anchor="middle" font-size="9" fill="#86EFAC">响应保留 not ready、partial metadata 与 cause chain；cleanup dtor 停止运行时并清理 socket。</text>
+  </g>
+</svg>

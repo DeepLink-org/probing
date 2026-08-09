@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs>
+    <marker id="arrow-blue" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2563EB"/></marker>
+    <marker id="arrow-green" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#0F766E"/></marker>
+  </defs>
+  <rect width="1280" height="720" fill="#F8FAFC"/>
+  <text x="640" y="34" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="22" font-weight="700" fill="#17324D">入口、服务端、查询引擎、采集与本地存储</text>
+  <text x="640" y="57" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="12" fill="#64748B">训练回调追加本机表；服务端和跨机查询通过 HTTP/proto 与 SQL 读取</text>
+
+  <!-- left lane labels -->
+  <rect x="28" y="82" width="84" height="114" rx="12" fill="#7C3AED"/>
+  <text x="70" y="130" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="14" font-weight="700" fill="#FFFFFF">使用入口</text>
+  <text x="70" y="154" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="11" font-weight="700" fill="#FFFFFF">提问与展示</text>
+  <text x="70" y="177" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="9" fill="#EDE9FE">CLI / Web</text>
+
+  <rect x="28" y="208" width="84" height="132" rx="12" fill="#EA580C"/>
+  <text x="70" y="262" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="14" font-weight="700" fill="#FFFFFF">服务端</text>
+  <text x="70" y="286" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="11" font-weight="700" fill="#FFFFFF">接收与协调</text>
+  <text x="70" y="310" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="9" fill="#FFEDD5">路由 / 鉴权</text>
+
+  <rect x="28" y="352" width="84" height="130" rx="12" fill="#2563EB"/>
+  <text x="70" y="405" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="14" font-weight="700" fill="#FFFFFF">查询引擎</text>
+  <text x="70" y="429" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="11" font-weight="700" fill="#FFFFFF">SQL 与汇总</text>
+  <text x="70" y="453" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="9" fill="#DBEAFE">本机 / 跨 rank</text>
+
+  <rect x="28" y="494" width="84" height="112" rx="12" fill="#0D9488"/>
+  <text x="70" y="540" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="14" font-weight="700" fill="#FFFFFF">数据采集</text>
+  <text x="70" y="564" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="10" font-weight="700" fill="#FFFFFF">训练 / 系统</text>
+  <text x="70" y="586" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="9" fill="#CCFBF1">各自写表</text>
+
+  <rect x="28" y="618" width="84" height="72" rx="12" fill="#17324D"/>
+  <text x="70" y="649" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="12" font-weight="700" fill="#FFFFFF">本地存储</text>
+  <text x="70" y="670" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="9" fill="#CBD5E1">mmap 文件</text>
+
+  <!-- user-facing entry points -->
+  <rect x="132" y="82" width="1118" height="114" rx="14" fill="#FAF5FF" stroke="#7C3AED" stroke-width="2"/>
+  <text x="156" y="108" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="15" font-weight="700" fill="#7C3AED">调用入口：CLI、Web、Skills 和 MCP 使用公开接口</text>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial" font-size="12" text-anchor="middle">
+    <rect x="156" y="124" width="184" height="48" rx="9" fill="#FFFFFF" stroke="#C4B5FD"/><text x="248" y="145" font-weight="700" fill="#17324D">CLI</text><text x="248" y="162" font-size="10" fill="#64748B">inject / query / skill run</text>
+    <rect x="356" y="124" width="184" height="48" rx="9" fill="#FFFFFF" stroke="#C4B5FD"/><text x="448" y="145" font-weight="700" fill="#17324D">Web</text><text x="448" y="162" font-size="10" fill="#64748B">Explore / Investigate</text>
+    <rect x="556" y="124" width="184" height="48" rx="9" fill="#FFFFFF" stroke="#C4B5FD"/><text x="648" y="145" font-weight="700" fill="#17324D">Skills</text><text x="648" y="162" font-size="10" fill="#64748B">SKILL.md + steps.yaml</text>
+    <rect x="756" y="124" width="184" height="48" rx="9" fill="#FFFFFF" stroke="#C4B5FD"/><text x="848" y="145" font-weight="700" fill="#17324D">MCP</text><text x="848" y="162" font-size="10" fill="#64748B">query / plan / run_skill</text>
+    <rect x="956" y="124" width="270" height="48" rx="9" fill="#FFFFFF" stroke="#C4B5FD"/><text x="1091" y="145" font-weight="700" fill="#17324D">Python hooks / @table</text><text x="1091" y="162" font-size="10" fill="#64748B">扩展数据与训练侧接入</text>
+  </g>
+
+  <!-- server -->
+  <rect x="132" y="208" width="1118" height="132" rx="14" fill="#FFF7ED" stroke="#EA580C" stroke-width="2"/>
+  <text x="156" y="234" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="15" font-weight="700" fill="#C2410C">服务端：接收请求、检查权限、组织跨机查询</text>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial">
+    <rect x="156" y="252" width="238" height="62" rx="9" fill="#FFFFFF" stroke="#FDBA74"/><text x="275" y="275" text-anchor="middle" font-size="12" font-weight="700" fill="#17324D">连接与访问检查</text><text x="275" y="295" text-anchor="middle" font-size="10" fill="#64748B">本地同用户 / 跨机 token / 资源限制</text>
+    <rect x="414" y="252" width="238" height="62" rx="9" fill="#FFFFFF" stroke="#FDBA74"/><text x="533" y="275" text-anchor="middle" font-size="12" font-weight="700" fill="#17324D">请求分发</text><text x="533" y="295" text-anchor="middle" font-size="10" fill="#64748B">/query · /apis · /mcp · /config</text>
+    <rect x="672" y="252" width="262" height="62" rx="9" fill="#FFFFFF" stroke="#FDBA74"/><text x="803" y="275" text-anchor="middle" font-size="12" font-weight="700" fill="#17324D">模块注册与就绪状态</text><text x="803" y="295" text-anchor="middle" font-size="10" fill="#64748B">server/engine.rs</text>
+    <rect x="954" y="252" width="272" height="62" rx="9" fill="#FFFFFF" stroke="#FDBA74"/><text x="1090" y="275" text-anchor="middle" font-size="12" font-weight="700" fill="#17324D">跨机查询协调</text><text x="1090" y="295" text-anchor="middle" font-size="10" fill="#64748B">心跳 · 每机代理 · 分层查询</text>
+  </g>
+
+  <!-- query engine -->
+  <rect x="132" y="352" width="1118" height="130" rx="14" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+  <text x="156" y="378" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="15" font-weight="700" fill="#174EA6">查询引擎：采集模块之间只通过 SQL 关联</text>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial">
+    <rect x="156" y="396" width="222" height="60" rx="9" fill="#FFFFFF" stroke="#93C5FD"/><text x="267" y="419" text-anchor="middle" font-size="12" font-weight="700" fill="#17324D">SQL 引擎（DataFusion）</text><text x="267" y="439" text-anchor="middle" font-size="10" fill="#64748B">解析 · 优化 · 执行</text>
+    <rect x="398" y="396" width="222" height="60" rx="9" fill="#FFFFFF" stroke="#93C5FD"/><text x="509" y="419" text-anchor="middle" font-size="12" font-weight="700" fill="#17324D">表目录</text><text x="509" y="439" text-anchor="middle" font-size="10" fill="#64748B">probe.* 本机 / global.* 集群</text>
+    <rect x="640" y="396" width="270" height="60" rx="9" fill="#FFFFFF" stroke="#93C5FD"/><text x="775" y="419" text-anchor="middle" font-size="12" font-weight="700" fill="#17324D">选择跨 rank 执行方式</text><text x="775" y="439" text-anchor="middle" font-size="10" fill="#64748B">先汇总 / 按行读取 / 分别执行</text>
+    <rect x="930" y="396" width="296" height="60" rx="9" fill="#FFFFFF" stroke="#93C5FD"/><text x="1078" y="419" text-anchor="middle" font-size="12" font-weight="700" fill="#17324D">公共接口与返回格式</text><text x="1078" y="439" text-anchor="middle" font-size="10" fill="#64748B">数据表注册 · proto 结果 · 表说明</text>
+  </g>
+
+  <!-- data collection -->
+  <rect x="132" y="494" width="1118" height="112" rx="14" fill="#F0FDFA" stroke="#0D9488" stroke-width="2"/>
+  <text x="156" y="520" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="15" font-weight="700" fill="#0F766E">数据采集：各自决定采什么，不互相调用</text>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial" font-size="11" text-anchor="middle" font-weight="700" fill="#17324D">
+    <rect x="156" y="539" width="196" height="42" rx="8" fill="#FFFFFF" stroke="#5EEAD4"/><text x="254" y="564">Python / Torch</text>
+    <rect x="370" y="539" width="196" height="42" rx="8" fill="#FFFFFF" stroke="#5EEAD4"/><text x="468" y="564">NCCL Profiler</text>
+    <rect x="584" y="539" width="196" height="42" rx="8" fill="#FFFFFF" stroke="#5EEAD4"/><text x="682" y="564">GPU</text>
+    <rect x="798" y="539" width="196" height="42" rx="8" fill="#FFFFFF" stroke="#5EEAD4"/><text x="896" y="564">CPU / RDMA / Process</text>
+    <rect x="1012" y="539" width="214" height="42" rx="8" fill="#FFFFFF" stroke="#5EEAD4"/><text x="1119" y="564">User @table</text>
+  </g>
+
+  <!-- data plane -->
+  <rect x="132" y="618" width="1118" height="72" rx="14" fill="#17324D"/>
+  <text x="156" y="647" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="15" font-weight="700" fill="#FFFFFF">本地存储</text>
+  <rect x="286" y="632" width="280" height="40" rx="8" fill="#1E3A5F"/><text x="426" y="649" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="12" font-weight="700" fill="#93C5FD">本地环形存储（MEMT）</text><text x="426" y="665" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="9" fill="#CBD5E1">mmap · 固定容量 · 单写者</text>
+  <rect x="590" y="632" width="280" height="40" rx="8" fill="#1E3A5F"/><text x="730" y="649" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="12" font-weight="700" fill="#86EFAC">可选冷数据（MEMC）</text><text x="730" y="665" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="9" fill="#CBD5E1">压缩只读段 · 默认关闭整理</text>
+  <rect x="894" y="632" width="332" height="40" rx="8" fill="#1E3A5F"/><text x="1060" y="649" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="12" font-weight="700" fill="#5EEAD4">每 PID 本地文件</text><text x="1060" y="665" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="9" fill="#CBD5E1">训练退出不依赖远端 control plane</text>
+
+  <!-- flows -->
+  <path d="M1220 186 L1220 241" fill="none" stroke="#2563EB" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+  <path d="M1220 330 L1220 383" fill="none" stroke="#2563EB" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+  <text x="1197" y="220" text-anchor="end" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="9" fill="#2563EB">请求 ↓</text>
+  <path d="M145 618 L145 591" fill="none" stroke="#0F766E" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+  <path d="M145 494 L145 466" fill="none" stroke="#0F766E" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+  <text x="164" y="611" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="9" fill="#0F766E">查询结果 ↑</text>
+</svg>

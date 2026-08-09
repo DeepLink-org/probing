@@ -20,25 +20,15 @@ Probing 的数据层是一个面向观测数据（指标、采样、trace）的*
 
 ## 总体架构
 
-```mermaid
-graph LR
-    APP[push_row / RowWriter] --> MEMT
-    subgraph HOT[热层 · probing-memtable]
-        MEMT[MEMT 环形缓冲] --> SEALED[已封存 chunk\nmin/max ts + generation]
-    end
-    SEALED -->|转置 + Pco| ROLLER[Compactor / Roller]
-    ROLLER --> MEMC
-    subgraph COLD[冷层 · MEMC 段]
-        MEMC[ColdStore\n不可变段]
-    end
-
-    SQL[SQL 查询] --> HCT[HotColdTable]
-    HCT -->|chunk 剪枝| MEMT
-    HCT -->|段 + page 剪枝| MEMC
-```
+![MEMT 热层、MEMC 冷层与统一查询路径](../assets/architecture/probing-hot-cold-overview.svg)
 
 查询时热层以只读方式 mmap，冷层通过 `SegmentReader` 读取。`HotColdTable` provider 将两者合并为
 一次扫描，并对同时存在于两层的 chunk 做去重。
+
+![MEMT 写入、generation 校验与 Arrow 读取](../assets/architecture/probing-memtable-internals.svg)
+
+MEMT 的核心并发关系是单写者对多个 mmap 读者：写者用 generation 和 release/acquire 顺序
+发布完整行；读者获取 lease 后复核 chunk 身份，发现环形槽位已被复用时丢弃该批次并重试。
 
 ## 热层（MEMT）
 
@@ -146,19 +136,23 @@ chunk 的 `min_ts`/`max_ts`。这是查询时 chunk 级时间剪枝的基础，�
 
 ### 段格式
 
-一个段是一系列 64 对齐的 block。所有完整性校验都使用 **xxh3-64 截断为 32 位**。
+MEMC 要解决的不只是把旧行压缩到磁盘。热层 slot 会被循环复用，进程可能在任意字节处退出，读者又
+必须区分“尚未提交”和“已经提交但损坏”。因此 segment 自身承担提交协议和来源身份，而不依赖额外
+事务日志。
+
+一个段是一系列 64 对齐的 block。`MCTB` 声明表与 schema，`MCPG` 保存某张表的一列 page，
+`MCFT` 是封存时生成的 page 目录。所有完整性校验都使用 **xxh3-64 截断为 32 位**。
 
 **段头部（64 字节）：** `magic`（`"MEMC"`）、`version`（2）、BOM、`flags`（bit 0 = 已封存）、
 `writer_pid`、`writer_start`、`created_unix_ms`、`footer_off`（封存前为 0）、段级
 `ts_min`/`ts_max`、`page_count`、头部校验和。
 
-**Block** 共享 64 字节头部：
+![MEMC 的物理段格式、列编码与恢复路径](../assets/architecture/probing-memc-format.svg)
 
-| magic | 含义 |
-|---|---|
-| `MCTB` | 表定义 block——声明一个 `table_id`、表名、列 dtype、时间戳列 |
-| `MCPG` | page（数据）block——某个 `table_id` 的一列页 |
-| `MCFT` | footer——封存时写入的 page 目录 |
+写者依次追加段头、表定义和列 page；所有 payload 与 checksum 完成后才写 footer，最后回写 sealed
+header。sealed 位因而是段级提交点。提交前崩溃，读者只承认前向扫描得到的完整 block；提交后读取，
+footer、block 或 payload 任一校验失败都视为损坏。这个非对称策略来自因果区别：未封存尾部可能只是
+写者尚未完成，已封存段则已经声明自己完整，不能再把损坏解释成正常截断。
 
 page/block 头部携带 `table_id`、`row_count`、`col_count`、`ts_min`/`ts_max`、`payload_len`、
 `payload_xxh`，以及对重启去重至关重要的 `source_instance`、`source_gen` 与 `source_chunk`
@@ -171,38 +165,43 @@ MEMC v2 reader 会明确拒绝 v1 段，因为 v1 缺少实例身份，无法安
 单个段可容纳**多张表**的 page，以 `table_id` 区分。这让文件/目录数量与表数量解耦：成百上千张表
 共享同一组段文件。
 
-### 列编码
+### 为什么按列编码
 
-每列独立编码（`ColEncoding`）：
+Compactor 在离开热路径后把行转置为列，使每类数据按自己的统计特征编码。数值列使用 Pco，尤其适合
+单调时间戳；`u8` 保持 `RawFixed`，避免无收益的压缩；字符串和字节串使用带长度的 `RawVarLen`。
+编码类型固定在 page header 中，读者不需要猜测。把转置和压缩留给冷层，换来的是 MEMT 仍能保持
+逐行、无分配的简单写路径。
 
-- **`Pco`**——数值列（`i32/i64/f32/f64/u32/u64`），用 Pco（level 8）压缩。单调时间戳列压缩比 > 4×；
-- **`RawFixed`**——`u8`（Pco 对字节列无收益）；
-- **`RawVarLen`**——`Str`/`Bytes`，以连续的 `[u32 len][bytes]` 条目存储（Pco 不支持字符串）。
+### 恢复边界
 
-### 崩溃恢复
-
-- **已封存**段通过 footer 的 page 目录读取——O(1) 定位每个 page。footer、block、payload 或 page
-  的完整性校验一旦失败，整个段及 SQL 扫描都会报错，查询不会再成功返回不完整的冷层结果；
-- **未封存或撕裂**的段通过**前向扫描**恢复。只有不完整的最后一个头部或 payload 会被当作崩溃尾部
-  丢弃；完整 block 的校验和损坏仍会报错。表定义 block 总会被扫描（开销小，且位于 page 之前）。
-
-不存在任何试图修复半行记录的启发式逻辑。
+已封存段通过 footer 直接定位 page，任何完整性失败都会让 SQL 扫描报错；查询不会成功返回一个静默
+缺页的冷层结果。未封存段没有作出完整性承诺，因此允许前向扫描并丢弃最后一个不完整 header 或
+payload，但一个已经完整写出的 block 若 checksum 错误仍然报错。恢复不尝试拼接半行，也不根据内容
+猜测写者意图。
 
 !!! warning "持久性"
     page 不会逐个 `fsync`（仅在封存时 `sync_data`）。`SIGKILL` 可能丢失当前打开段尚未刷盘的尾部
     page。对观测数据可接受，但这是一个明确的取舍。
 
+![MEMC 恢复、保留策略与冷热查询](../assets/architecture/probing-memc-recovery-query.svg)
+
+恢复、TTL/容量保留和 SQL 读取共享同一 segment 格式。已封存段必须通过 footer 与 checksum
+校验；未封存段只允许丢弃不完整尾部，不能把中间损坏静默解释成没有数据。
+
 ## Compactor（Roller）
 
 `Compactor` 将新封存的热层 chunk 徕出（drain）到冷段。
 
-- **徕出语义。** 只徕出 `Sealed` 状态的 chunk（绝不动正在写入的 chunk）。行被转置为列；徕出前后
-  复核该 chunk 的 `generation`——若环形已回收它，丢弃该 page 并在下一轮重试。徕出是**幂等**的：
-  逐 chunk 的 `drained_gen` 高水位跳过已压缩的 chunk generation。
-- **滚动。** 当打开的段达到 `target_segment_bytes`（默认 64 MiB——主要的碎片化调节旋钮）、超过
-  `max_segment_age`（默认 300 s，让低速率表也能及时可查），或显式 flush 时，封存当前段并新开一个。
-- **淘汰。** `enforce` 在超出字节预算（`max_total_bytes`）或 TTL 时删除最旧的已封存段，并始终保护
-  最新段，以及任何可能仍由其他 writer 打开的未封存/暂不可读段。
+![Compactor 复核来源 generation、按列编码并在落盘后推进水位](../assets/architecture/probing-memc-lifecycle.svg)
+
+Compactor 不能锁住热层等待压缩，否则冷存储抖动会反向阻塞采集。一次事务先快照 sealed chunk 的
+来源身份，再在锁外转置和编码；提交前重新读取 generation。若环形在此期间复用了 slot，当前结果
+直接作废。page 完整追加后才推进 `drained_gen`，因此失败只会导致重试，不会错误声称数据已经持久化。
+
+段滚动同时受大小和年龄约束。大小上限控制文件碎片和扫描粒度，年龄上限保证低速率表不会长期停留
+在未封存段；显式 flush 使用同一个封存协议。保留策略只删除越过容量或 TTL 的最旧已封存段，始终
+保护最新段和可能仍被其他 writer 打开的段。整理、滚动和淘汰由此共享“只对已提交对象做破坏性
+决定”的边界。
 
 ### 跨重启的精确一次
 
@@ -213,11 +212,9 @@ MEMC v2 reader 会明确拒绝 v1 段，因为 v1 缺少实例身份，无法安
 
 ## 运行时 Owner
 
-`ColdCompactor` 是进程级全局单例（仿照 task-stats worker），为 compactor 提供唯一的生命周期归宿：
-
-- 后台线程每轮**重新发现** `<data_dir>/<pid>/` 下的环形文件（表会随时间出现），将每个徕出到共享的
-  `ColdStore`，按时长滚动，并执行预算约束；
-- 启动时调用 `prime_from_cold()`；停止时 flush（封存打开的段）。
+`ColdCompactor` 是进程级单例，因为多个后台 owner 会竞争同一热层来源并重复推进水位。后台线程每轮
+重新发现 `<data_dir>/<pid>/` 中随运行出现的表，将它们徕出到共享 `ColdStore`，再执行滚动和预算
+约束。启动先从冷段重建 watermark，停止时用相同提交协议封存打开段。
 
 发现、段枚举、写入/滚动与 retention I/O 都是可失败操作。worker 会记录 warning，并通过
 `CompactorRuntimeStats` 暴露 `error_count` 和带操作上下文的 `last_error`。启动时的 watermark
@@ -263,16 +260,8 @@ MEMC v2 reader 会明确拒绝 v1 段，因为 v1 缺少实例身份，无法安
 `(source_chunk, source_gen)` 集合；热侧据此**排除**任何 `(索引, 当前 generation)` 落在该集合中的
 chunk。每行恰好计数一次，且去重对环形回收免疫（generation 复核会重新验证）。
 
-## 配置参考
-
-| `SET memtable.*` | 环境变量 | 含义 | 默认 |
-|---|---|---|---|
-| `cold_compaction` | `PROBING_COLD` | 运行后台 compactor（`on`/`off`） | 关闭 |
-| `cold_max_total_mb` | `PROBING_COLD_MAX_TOTAL_MB` | 冷层字节预算（MiB） | 无限 |
-| `cold_ttl_secs` | `PROBING_COLD_TTL_SECS` | 淘汰早于此时长的冷段 | 无 |
-| — | `PROBING_COLD_TARGET_MB` | 段滚动大小（MiB） | 64 |
-| — | `PROBING_COLD_POLL_MS` | 排空轮询间隔 | 2000 |
-| — | `PROBING_COLD_MAX_AGE_SECS` | 空闲打开段多久后封存 | 300 |
+运行时开关与容量参数属于配置契约，集中在[环境变量 — 数据存储](../reference/env-vars.zh.md#data-storage)，
+不在存储架构中重复定义。
 
 ## 保证与已知边界
 

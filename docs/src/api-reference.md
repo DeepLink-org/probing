@@ -179,7 +179,7 @@ configure_backends(["memtable", "logger"])  # terminal + memtable
 configure_backends(["memtable", "my_sink"])
 ```
 
-### @table (dataclass plugins)
+### @table (dataclass plugins) {#table-dataclass-plugins}
 
 ```python
 from dataclasses import dataclass

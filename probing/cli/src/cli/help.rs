@@ -21,7 +21,8 @@ struct HelpSection {
     commands: &'static [&'static str],
 }
 
-/// Help grouping — not argv paths. See `docs/src/design/cli.md` § Help sections.
+/// Help grouping — not argv paths. See `docs/src/design/activation-injection.md`
+/// § Control entry points and CLI structure.
 #[cfg(target_os = "linux")]
 const SECTIONS: &[HelpSection] = &[
     HelpSection {

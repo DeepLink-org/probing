@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="620" viewBox="0 0 1280 620">
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8Z" fill="#2563EB"/></marker><marker id="g" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8Z" fill="#0D9488"/></marker><marker id="p" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8Z" fill="#7C3AED"/></marker></defs>
+  <rect width="1280" height="620" fill="#F8FAFC"/>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial">
+    <text x="640" y="42" text-anchor="middle" font-size="23" font-weight="700" fill="#17324D">冷热数据层：单一写路径，统一 SQL 视图</text>
+    <text x="640" y="68" text-anchor="middle" font-size="12" fill="#64748B">MEMT 提供有界实时窗口，MEMC 提供不可变压缩保留</text>
+
+    <rect x="58" y="106" width="1164" height="210" rx="16" fill="#FFFFFF" stroke="#CBD5E1"/>
+    <text x="82" y="137" font-size="15" font-weight="700" fill="#17324D">写入与整理</text>
+    <rect x="92" y="174" width="178" height="64" rx="10" fill="#EFF6FF" stroke="#2563EB"/><text x="181" y="200" text-anchor="middle" font-size="12" font-weight="700" fill="#174EA6">push_row</text><text x="181" y="220" text-anchor="middle" font-size="9" fill="#64748B">RowWriter</text>
+    <path d="M270 206H354" stroke="#2563EB" stroke-width="3" marker-end="url(#a)"/>
+    <rect x="366" y="156" width="228" height="100" rx="12" fill="#DBEAFE" stroke="#2563EB" stroke-width="2"/><text x="480" y="190" text-anchor="middle" font-size="15" font-weight="700" fill="#174EA6">MEMT 热层</text><text x="480" y="216" text-anchor="middle" font-size="10" fill="#475569">环形 Chunk · 固定容量</text><text x="480" y="237" text-anchor="middle" font-size="9" fill="#64748B">generation + min/max timestamp</text>
+    <path d="M594 206H674" stroke="#0D9488" stroke-width="3" marker-end="url(#g)"/>
+    <rect x="686" y="174" width="194" height="64" rx="10" fill="#F0FDFA" stroke="#0D9488"/><text x="783" y="199" text-anchor="middle" font-size="12" font-weight="700" fill="#0F766E">Compactor / Roller</text><text x="783" y="220" text-anchor="middle" font-size="9" fill="#64748B">转置 · 压缩 · exactly-once</text>
+    <path d="M880 206H960" stroke="#0D9488" stroke-width="3" marker-end="url(#g)"/>
+    <rect x="972" y="156" width="216" height="100" rx="12" fill="#CCFBF1" stroke="#0D9488" stroke-width="2"/><text x="1080" y="190" text-anchor="middle" font-size="15" font-weight="700" fill="#0F766E">MEMC 冷层</text><text x="1080" y="216" text-anchor="middle" font-size="10" fill="#475569">不可变 Segment</text><text x="1080" y="237" text-anchor="middle" font-size="9" fill="#64748B">Page 索引 · TTL / 字节预算</text>
+
+    <rect x="58" y="342" width="1164" height="210" rx="16" fill="#FFFFFF" stroke="#CBD5E1"/>
+    <text x="82" y="373" font-size="15" font-weight="700" fill="#17324D">查询</text>
+    <rect x="92" y="410" width="194" height="64" rx="10" fill="#17324D"/><text x="189" y="436" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF">SQL + 时间谓词</text><text x="189" y="456" text-anchor="middle" font-size="9" fill="#CBD5E1">projection / filter</text>
+    <path d="M286 442H380" stroke="#2563EB" stroke-width="3" marker-end="url(#a)"/>
+    <rect x="392" y="392" width="242" height="100" rx="12" fill="#FFF7ED" stroke="#EA580C" stroke-width="2"/><text x="513" y="425" text-anchor="middle" font-size="15" font-weight="700" fill="#C2410C">HotColdTable</text><text x="513" y="451" text-anchor="middle" font-size="10" fill="#475569">统一剪枝与扫描计划</text><text x="513" y="472" text-anchor="middle" font-size="9" fill="#64748B">调用方不区分冷热</text>
+    <path d="M470 392V286H480V264" fill="none" stroke="#2563EB" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#a)"/>
+    <path d="M634 420H654V302H1080V264" fill="none" stroke="#0D9488" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#g)"/>
+    <rect x="812" y="410" width="376" height="64" rx="10" fill="#FAF5FF" stroke="#7C3AED"/><text x="1000" y="436" text-anchor="middle" font-size="12" font-weight="700" fill="#6D28D9">Arrow Batches</text><text x="1000" y="456" text-anchor="middle" font-size="9" fill="#64748B">按 source/chunk/generation 去重后合并</text>
+    <path d="M634 442H800" stroke="#7C3AED" stroke-width="3" marker-end="url(#p)"/>
+    <rect x="58" y="572" width="1164" height="32" rx="8" fill="#17324D"/><text x="640" y="593" text-anchor="middle" font-size="10" font-weight="700" fill="#FFFFFF">同一时间谓词同时裁剪热 Chunk 与冷 Segment；半行和损坏不会伪装成空数据</text>
+  </g>
+</svg>

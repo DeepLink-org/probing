@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2563EB"/></marker></defs>
+  <rect width="1280" height="720" fill="#F8FAFC"/>
+  <text x="640" y="38" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="22" font-weight="700" fill="#17324D">分层查询：发起方只连接每台机器的代理 rank</text>
+  <text x="640" y="62" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="12" fill="#64748B">连接数从 O(rank 数) 变成 O(机器数)；代理 rank 再查询本机其他训练进程</text>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial">
+    <rect x="42" y="90" width="270" height="490" rx="14" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="66" y="120" font-size="15" font-weight="700" fill="#174EA6">发起方 / coordinator</text>
+    <rect x="66" y="144" width="222" height="72" rx="10" fill="#17324D"/>
+    <text x="177" y="169" text-anchor="middle" font-size="12" font-weight="700" fill="#FFFFFF">解析 global.* SQL</text>
+    <text x="177" y="190" text-anchor="middle" font-size="10" fill="#CBD5E1">选择先汇总 / 扫描 / 分别执行</text>
+    <path d="M177 216 L177 240" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="66" y="248" width="222" height="88" rx="10" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="84" y="273" font-size="11" font-weight="700" fill="#17324D">读取 cluster.nodes 元数据</text>
+    <text x="84" y="296" font-size="10" fill="#64748B">group_rank / local_rank / addr</text>
+    <text x="84" y="318" font-size="10" fill="#C2410C">缺失分组信息时返回 503，不静默退化</text>
+    <path d="M177 336 L177 360" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="66" y="368" width="222" height="88" rx="10" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="84" y="393" font-size="11" font-weight="700" fill="#17324D">并行请求每机 local_rank=0</text>
+    <text x="84" y="416" font-size="10" fill="#64748B">peer SQL 一律查询 probe.*</text>
+    <text x="84" y="438" font-size="10" fill="#64748B">默认总超时 30 s；有连接与行数限制</text>
+    <path d="M177 456 L177 480" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="66" y="488" width="222" height="68" rx="10" fill="#DBEAFE" stroke="#2563EB"/>
+    <text x="177" y="513" text-anchor="middle" font-size="11" font-weight="700" fill="#174EA6">合并 / 再汇总 / 全局 LIMIT</text>
+    <text x="177" y="535" text-anchor="middle" font-size="10" fill="#64748B">补来源列并生成 FanoutMeta</text>
+
+    <rect x="342" y="90" width="896" height="490" rx="14" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2"/>
+    <text x="366" y="120" font-size="15" font-weight="700" fill="#17324D">训练集群</text>
+    <path d="M312 408 C330 408, 326 198, 390 198" fill="none" stroke="#2563EB" stroke-width="2.5" marker-end="url(#a)"/>
+    <path d="M312 408 C330 408, 326 438, 390 438" fill="none" stroke="#2563EB" stroke-width="2.5" marker-end="url(#a)"/>
+
+    <rect x="390" y="144" width="378" height="182" rx="12" fill="#F0FDFA" stroke="#0D9488" stroke-width="2"/>
+    <text x="414" y="170" font-size="13" font-weight="700" fill="#0F766E">机器 A · local proxy rank 0</text>
+    <rect x="414" y="188" width="146" height="54" rx="8" fill="#17324D"/>
+    <text x="487" y="210" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">rank 0 server</text>
+    <text x="487" y="228" text-anchor="middle" font-size="9" fill="#CBD5E1">接收 node scope</text>
+    <path d="M560 215 L590 215" stroke="#0F766E" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="598" y="188" width="146" height="54" rx="8" fill="#FFFFFF" stroke="#5EEAD4"/>
+    <text x="671" y="210" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">本机 fan-out</text>
+    <text x="671" y="228" text-anchor="middle" font-size="9" fill="#64748B">rank 1 / 2 / 3</text>
+    <rect x="414" y="258" width="330" height="46" rx="8" fill="#CCFBF1"/>
+    <text x="579" y="278" text-anchor="middle" font-size="10" font-weight="700" fill="#0F766E">合并本机批次与失败信息，再回传 coordinator</text>
+    <text x="579" y="295" text-anchor="middle" font-size="9" fill="#64748B">local0 自身也执行 probe.*，不会遗漏 rank 0</text>
+
+    <rect x="390" y="384" width="378" height="172" rx="12" fill="#F0FDFA" stroke="#0D9488" stroke-width="2"/>
+    <text x="414" y="410" font-size="13" font-weight="700" fill="#0F766E">机器 B · local proxy rank 4</text>
+    <rect x="414" y="428" width="146" height="54" rx="8" fill="#17324D"/>
+    <text x="487" y="450" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">rank 4 server</text>
+    <text x="487" y="468" text-anchor="middle" font-size="9" fill="#CBD5E1">接收 node scope</text>
+    <path d="M560 455 L590 455" stroke="#0F766E" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="598" y="428" width="146" height="54" rx="8" fill="#FFFFFF" stroke="#5EEAD4"/>
+    <text x="671" y="450" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">本机 fan-out</text>
+    <text x="671" y="468" text-anchor="middle" font-size="9" fill="#64748B">rank 5 / 6 / 7</text>
+    <rect x="414" y="498" width="330" height="38" rx="8" fill="#CCFBF1"/>
+    <text x="579" y="522" text-anchor="middle" font-size="10" font-weight="700" fill="#0F766E">本机结果与 FanoutMeta 一起向上归并</text>
+
+    <rect x="798" y="144" width="416" height="188" rx="12" fill="#FFF7ED" stroke="#EA580C" stroke-width="2"/>
+    <text x="822" y="172" font-size="14" font-weight="700" fill="#C2410C">每一行都在发起方补充固定来源列</text>
+    <text x="822" y="202" font-size="11" fill="#17324D">_host · _addr · _rank</text>
+    <text x="822" y="228" font-size="11" fill="#17324D">_node_rank · _local_rank · _role</text>
+    <text x="822" y="260" font-size="10" fill="#64748B">来源列不写入采集表，避免每行重复存储节点元数据。</text>
+    <text x="822" y="284" font-size="10" fill="#64748B">peer 返回 DataFrame；发起方负责列对齐、合并与最终关系运算。</text>
+    <text x="822" y="308" font-size="10" font-weight="700" fill="#C2410C">复杂查询的“分别执行”不是跨 rank JOIN。</text>
+
+    <rect x="798" y="356" width="416" height="200" rx="12" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="822" y="384" font-size="14" font-weight="700" fill="#174EA6">失败语义也分层归并</text>
+    <text x="822" y="416" font-size="11" font-weight="700" fill="#17324D">普通模式</text>
+    <text x="822" y="438" font-size="10" fill="#64748B">保留成功 rank 的数据；partial=true；记录失败地址与原因；HTTP 503。</text>
+    <text x="822" y="472" font-size="11" font-weight="700" fill="#17324D">严格模式</text>
+    <text x="822" y="494" font-size="10" fill="#64748B">任一 rank 失败即整次查询失败，不返回不完整表。</text>
+    <text x="822" y="528" font-size="10" fill="#64748B">代理 rank 与发起方分别 absorb，将两处失败记录合并进 FanoutMeta。</text>
+  </g>
+  <rect x="42" y="608" width="1196" height="74" rx="12" fill="#17324D"/>
+  <text x="640" y="636" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="12" font-weight="700" fill="#FFFFFF">coordinator scope -> node scope -> local scope；每一层只负责连接下一层、合并数据、传播完整性元数据。</text>
+  <text x="640" y="660" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="10" fill="#CBD5E1">自动模式需要完整的分组元数据；这样规模优化是可验证的配置，而不是不可见的运行时猜测。</text>
+</svg>

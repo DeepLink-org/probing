@@ -24,8 +24,8 @@ install:
 # Live preview server
 serve:
 	@echo "Starting live preview server..."
-	@echo "Open http://127.0.0.1:8000 in your browser"
-	mkdocs serve --dev-addr 0.0.0.0:8000
+	@echo "Open http://127.0.0.1:8001 in your browser"
+	$(PYTHON) -m mkdocs serve --dev-addr 127.0.0.1:8001
 
 # Build static site
 build:

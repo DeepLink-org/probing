@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2563EB"/></marker></defs>
+  <rect width="1280" height="720" fill="#F8FAFC"/>
+  <text x="640" y="38" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="22" font-weight="700" fill="#17324D">MEMC：追加写 block，最后用 footer 把 segment 封口</text>
+  <text x="640" y="62" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="12" fill="#64748B">所有 header、block 和 footer entry 都是 64 B；block 按 64 B 对齐；完整块带 xxh32 校验</text>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial">
+    <rect x="42" y="92" width="450" height="520" rx="14" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2"/>
+    <text x="66" y="122" font-size="16" font-weight="700" fill="#17324D">物理文件布局</text>
+    <rect x="66" y="146" width="402" height="82" rx="9" fill="#17324D"/>
+    <text x="84" y="171" font-size="12" font-weight="700" fill="#93C5FD">SegmentHeader · 64 B · magic MEMC</text>
+    <text x="84" y="193" font-size="9" fill="#CBD5E1">flags / writer_pid / writer_start / created_unix_ms / footer_off</text>
+    <text x="84" y="212" font-size="9" fill="#CBD5E1">ts_min / ts_max / page_count / header_xxh；seal 前 footer_off=0</text>
+    <rect x="66" y="240" width="402" height="74" rx="9" fill="#EFF6FF" stroke="#93C5FD"/>
+    <text x="84" y="264" font-size="11" font-weight="700" fill="#174EA6">MCTB table-definition block</text>
+    <text x="84" y="286" font-size="9" fill="#64748B">BlockHeader 64 B + table payload：table name、column name、dtype</text>
+    <text x="84" y="302" font-size="9" fill="#64748B">table_id 只在当前 segment 内有效</text>
+    <rect x="66" y="326" width="402" height="122" rx="9" fill="#F0FDFA" stroke="#0D9488"/>
+    <text x="84" y="350" font-size="11" font-weight="700" fill="#0F766E">MCPG page block x N</text>
+    <text x="84" y="372" font-size="9" fill="#64748B">BlockHeader：row/col count、ts_min/max、payload_len/xxh</text>
+    <text x="84" y="392" font-size="9" fill="#64748B">来源身份：source_instance + source_chunk + source_gen</text>
+    <text x="84" y="412" font-size="9" fill="#64748B">payload：逐列编码；数值 Pco(level 8)，变长 RawVarLen</text>
+    <text x="84" y="432" font-size="9" fill="#64748B">payload 后补零到下一个 64 B 边界，padding 不参与 checksum</text>
+    <rect x="66" y="460" width="402" height="126" rx="9" fill="#FFF7ED" stroke="#EA580C"/>
+    <text x="84" y="484" font-size="11" font-weight="700" fill="#C2410C">MCFT footer：一次性写 page directory</text>
+    <text x="84" y="506" font-size="9" fill="#64748B">footer header：magic / count / entries_len / checksum</text>
+    <text x="84" y="526" font-size="9" fill="#64748B">每个 64 B entry 重复 page 的范围、offset、长度与来源身份</text>
+    <text x="84" y="546" font-size="9" fill="#64748B">写完 footer 后回写 SegmentHeader：SEALED、footer_off、时间范围</text>
+    <text x="84" y="566" font-size="9" font-weight="700" fill="#C2410C">封口后文件不可变；查询可直接用 footer 索引 page</text>
+
+    <rect x="516" y="92" width="722" height="520" rx="14" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="540" y="122" font-size="16" font-weight="700" fill="#174EA6">一页数据如何编码与读取</text>
+    <rect x="540" y="148" width="190" height="70" rx="9" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="635" y="173" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">MEMT row cursor</text>
+    <text x="635" y="195" text-anchor="middle" font-size="9" fill="#64748B">按行解码稳定 chunk</text>
+    <path d="M730 183 L766 183" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="774" y="148" width="190" height="70" rx="9" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="869" y="173" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">ColumnBuilder x cols</text>
+    <text x="869" y="195" text-anchor="middle" font-size="9" fill="#64748B">row-to-column transpose</text>
+    <path d="M964 183 L1000 183" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="1008" y="148" width="206" height="70" rx="9" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="1111" y="173" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">encode_column</text>
+    <text x="1111" y="195" text-anchor="middle" font-size="9" fill="#64748B">per-column sub-header + bytes</text>
+
+    <text x="540" y="258" font-size="13" font-weight="700" fill="#17324D">列编码</text>
+    <rect x="540" y="276" width="206" height="94" rx="9" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="558" y="300" font-size="11" font-weight="700" fill="#174EA6">Pco = 1</text>
+    <text x="558" y="323" font-size="9" fill="#64748B">I8/I16/I32/I64/U*/F* 数值列</text>
+    <text x="558" y="343" font-size="9" fill="#64748B">压缩 level 8；解码恢复 typed vector</text>
+    <text x="558" y="361" font-size="9" fill="#64748B">失败返回 InvalidData，不生成空列</text>
+    <rect x="760" y="276" width="206" height="94" rx="9" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="778" y="300" font-size="11" font-weight="700" fill="#174EA6">RawFixed = 0</text>
+    <text x="778" y="323" font-size="9" fill="#64748B">固定宽度原始 little-endian array</text>
+    <text x="778" y="343" font-size="9" fill="#64748B">用于无需/无法 Pco 的固定类型</text>
+    <text x="778" y="361" font-size="9" fill="#64748B">长度必须与 row_count x width 一致</text>
+    <rect x="980" y="276" width="234" height="94" rx="9" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="998" y="300" font-size="11" font-weight="700" fill="#174EA6">RawVarLen = 2</text>
+    <text x="998" y="323" font-size="9" fill="#64748B">Str / Bytes：[u32 len][bytes] 连续拼接</text>
+    <text x="998" y="343" font-size="9" fill="#64748B">读取时逐个校验长度与 payload 边界</text>
+    <text x="998" y="361" font-size="9" fill="#64748B">UTF-8 只在 Str materialize 时验证</text>
+
+    <text x="540" y="410" font-size="13" font-weight="700" fill="#17324D">读路径与崩溃恢复</text>
+    <rect x="540" y="428" width="674" height="72" rx="9" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="558" y="452" font-size="11" font-weight="700" fill="#17324D">SEALED segment</text>
+    <text x="558" y="474" font-size="9" fill="#64748B">校验 SegmentHeader、footer checksum、page count 和 block range；扫描 MCTB 后按 page directory 读取</text>
+    <rect x="540" y="512" width="674" height="74" rx="9" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="558" y="536" font-size="11" font-weight="700" fill="#17324D">UNSEALED segment</text>
+    <text x="558" y="558" font-size="9" fill="#64748B">从 offset 64 前向扫描 MCTB/MCPG；完整 block checksum 错误立即报错；只有越过 EOF 的未完成尾块可丢弃</text>
+    <text x="558" y="576" font-size="9" fill="#64748B">恢复得到的 page 可读，但 segment 时间范围只有 seal 后才可作为整体剪枝索引</text>
+  </g>
+  <rect x="42" y="632" width="1196" height="50" rx="12" fill="#17324D"/>
+  <text x="640" y="662" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="11" font-weight="700" fill="#FFFFFF">block 先写长度、payload 与 checksum，footer 后写；尾部写入中断时，恢复逻辑扫描到最后一个通过校验的 block。</text>
+</svg>

@@ -59,7 +59,7 @@ Prefix syntax: `init:SCRIPT+<mode>` runs `exec(open(SCRIPT).read())` after activ
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PROBING_SPAN_BACKENDS` | `memtable` | Comma-separated span backends. Built-in: `memtable` (`python.trace_event`), `logger` (stderr), `otel` (OpenTelemetry), `none` (stack only, no persistence). `configure_backends([])` also disables until `reset_backends()`. Unknown names fall back to `memtable` only. Custom backends: `probing.span_backends` entry point. See [Span API](../design/tracing-spans.md). |
+| `PROBING_SPAN_BACKENDS` | `memtable` | Comma-separated span backends. Built-in: `memtable` (`python.trace_event`), `logger` (stderr), `otel` (OpenTelemetry), `none` (stack only, no persistence). `configure_backends([])` also disables until `reset_backends()`. Unknown names fall back to `memtable` only. Custom backends: `probing.span_backends` entry point. See [Tracing and training phases](../design/profiling.md#span-api). |
 | `PROBING_SPAN_LOG_LEVEL` | `INFO` | Log level for the `logger` span backend. |
 | `PROBING_SPAN_LOCATION` | unset | Enable automatic location capture via `inspect.stack()` for every span. Adds overhead; use sparingly. |
 | `PROBING_TRACE_STDOUT` | unset | When `1`/`true`, `probing.inspect.trace` emits variable/tensor updates to **stdout** instead of the Python logger. |
@@ -197,9 +197,9 @@ These variables are read by PyTorch, not Probing, but should be set before
 | `TORCH_NCCL_ENABLE_TIMING` | `false` | Add CUDA timing events for collectives; may add overhead. |
 | `TORCH_SYMBOLIZE_MODE` | PyTorch default | C++ stack symbolization mode (`dladdr`, `addr2line`, `fast`). |
 
-## Cluster heartbeat (torchrun)
+## Cluster heartbeat (torchrun) {#cluster}
 
-Hierarchical side-channel registration when `WORLD_SIZE > 1`. See [torchrun cluster heartbeat](../design/torchrun-cluster.md).
+Hierarchical side-channel registration when `WORLD_SIZE > 1`. See [Distributed membership](../design/distributed.md#cluster-membership).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -212,7 +212,7 @@ Hierarchical side-channel registration when `WORLD_SIZE > 1`. See [torchrun clus
 | `PROBING_CLUSTER_DISCOVER_TIMEOUT_SEC` | `2` | Timeout per master/local0 discovery attempt. |
 | `PROBING_CLUSTER_REPORT_TIMEOUT_SEC` | `5` | HTTP PUT timeout for cluster report. |
 | `PROBING_CLUSTER_PRESET` | — | Used by `examples/cluster/run_multinode.sh`: `demo`, `fast`, or `steady`. |
-| `PROBING_CLUSTER_FANOUT_HIERARCHICAL` | `1` | Hierarchical cluster query fan-out (coordinator → local0 → leaves). `0` = flat fan-out to every peer. See [Hierarchical fan-out](../design/hierarchical-fanout.md). |
+| `PROBING_CLUSTER_FANOUT_HIERARCHICAL` | `1` | Hierarchical cluster query fan-out (coordinator → local0 → leaves). `0` = flat fan-out to every peer. See [Federation — hierarchical fan-out](../design/federation.md#hierarchical-fan-out). |
 | `PROBING_REMOTE_QUERY_TIMEOUT_SECS` | `30` | Per-peer timeout for remote federated / cluster queries (seconds). |
 | `PROBING_FANOUT_CONCURRENCY` | `128` | Max concurrent in-flight remote fan-out HTTP requests per query. |
 | `PROBING_FANOUT_WORKER_THREADS` | `4` | Worker threads in the isolated async fan-out runtime shared by distributed SQL, extension capture, discovery, and heartbeat requests. |

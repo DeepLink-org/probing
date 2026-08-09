@@ -102,7 +102,7 @@ Reviewers should **block on boundary violations** before nitpicking style: wrong
 
 ### TorchProbe overhead (do not regress)
 
-Changing overhead **formulas**, **`_close_step_wall` hook order**, or **deferred drain defaults** requires reading **`docs/src/design/overhead-invariants.zh.md`** and updating the tests listed there.
+Changing overhead **formulas**, **`_close_step_wall` hook order**, or **deferred drain defaults** requires reading **`docs/src/design/overhead.zh.md#change-invariants`** and updating the tests listed there.
 
 | Invariant | Do not |
 |-----------|--------|

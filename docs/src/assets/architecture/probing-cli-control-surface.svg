@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#2563EB"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="620" fill="#F8FAFC"/>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial, sans-serif">
+    <text x="600" y="42" text-anchor="middle" font-size="26" font-weight="700" fill="#17324D">CLI 是公开控制协议的客户端，不拥有第二套运行时</text>
+    <text x="600" y="70" text-anchor="middle" font-size="13" fill="#64748B">命令只表达意图；状态、查询与诊断能力由目标进程中的 server 和 extension 提供</text>
+
+    <rect x="38" y="105" width="330" height="410" rx="16" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="64" y="138" font-size="17" font-weight="700" fill="#1D4ED8">probing CLI</text>
+    <g font-size="14" fill="#17324D">
+      <rect x="64" y="160" width="278" height="54" rx="10" fill="#FFFFFF" stroke="#93C5FD"/>
+      <text x="82" y="184" font-weight="700">进程入口</text><text x="82" y="202" font-size="12" fill="#64748B">inject / launch / list</text>
+      <rect x="64" y="228" width="278" height="54" rx="10" fill="#FFFFFF" stroke="#93C5FD"/>
+      <text x="82" y="252" font-weight="700">查询入口</text><text x="82" y="270" font-size="12" fill="#64748B">query / tables / cluster</text>
+      <rect x="64" y="296" width="278" height="54" rx="10" fill="#FFFFFF" stroke="#93C5FD"/>
+      <text x="82" y="320" font-weight="700">现场诊断</text><text x="82" y="338" font-size="12" fill="#64748B">eval / repl / backtrace</text>
+      <rect x="64" y="364" width="278" height="54" rx="10" fill="#FFFFFF" stroke="#93C5FD"/>
+      <text x="82" y="388" font-weight="700">运行时状态</text><text x="82" y="406" font-size="12" fill="#64748B">memory / config / flamegraph</text>
+      <rect x="64" y="432" width="278" height="54" rx="10" fill="#FFFFFF" stroke="#93C5FD"/>
+      <text x="82" y="456" font-weight="700">Agent 工作流</text><text x="82" y="474" font-size="12" fill="#64748B">skill / mcp</text>
+    </g>
+
+    <path d="M368 310 H455" fill="none" stroke="#2563EB" stroke-width="3" marker-end="url(#arrow)"/>
+    <rect x="460" y="176" width="264" height="265" rx="16" fill="#ECFDF5" stroke="#0D9488" stroke-width="2"/>
+    <text x="592" y="211" text-anchor="middle" font-size="17" font-weight="700" fill="#0F766E">公开传输与契约</text>
+    <rect x="488" y="238" width="208" height="54" rx="10" fill="#FFFFFF" stroke="#5EEAD4"/>
+    <text x="592" y="270" text-anchor="middle" font-size="14" fill="#17324D">本机 Unix socket</text>
+    <rect x="488" y="308" width="208" height="54" rx="10" fill="#FFFFFF" stroke="#5EEAD4"/>
+    <text x="592" y="340" text-anchor="middle" font-size="14" fill="#17324D">HTTP / WebSocket</text>
+    <text x="592" y="397" text-anchor="middle" font-size="12" fill="#64748B">认证、超时、DTO、readiness</text>
+
+    <path d="M724 310 H811" fill="none" stroke="#2563EB" stroke-width="3" marker-end="url(#arrow)"/>
+    <rect x="816" y="128" width="346" height="366" rx="16" fill="#FFF7ED" stroke="#EA580C" stroke-width="2"/>
+    <text x="842" y="162" font-size="17" font-weight="700" fill="#C2410C">目标进程</text>
+    <rect x="842" y="185" width="294" height="62" rx="10" fill="#17324D"/>
+    <text x="989" y="212" text-anchor="middle" font-size="15" font-weight="700" fill="#FFFFFF">probing-server</text>
+    <text x="989" y="232" text-anchor="middle" font-size="11" fill="#CBD5E1">路由、鉴权、生命周期</text>
+    <path d="M989 247 V275" stroke="#EA580C" stroke-width="2" marker-end="url(#arrow)"/>
+    <rect x="842" y="280" width="294" height="62" rx="10" fill="#FFFFFF" stroke="#FDBA74"/>
+    <text x="989" y="307" text-anchor="middle" font-size="15" font-weight="700" fill="#17324D">Query Engine</text>
+    <text x="989" y="327" text-anchor="middle" font-size="11" fill="#64748B">SQL、catalog、federation</text>
+    <path d="M989 342 V370" stroke="#EA580C" stroke-width="2" marker-end="url(#arrow)"/>
+    <rect x="842" y="375" width="294" height="82" rx="10" fill="#FFFFFF" stroke="#FDBA74"/>
+    <text x="989" y="402" text-anchor="middle" font-size="15" font-weight="700" fill="#17324D">Extensions</text>
+    <text x="989" y="425" text-anchor="middle" font-size="11" fill="#64748B">Torch / Stack / NCCL / HCCL / System</text>
+    <text x="989" y="444" text-anchor="middle" font-size="11" fill="#64748B">每个采集器只拥有自己的状态</text>
+
+    <rect x="38" y="548" width="1124" height="48" rx="12" fill="#17324D"/>
+    <text x="600" y="577" text-anchor="middle" font-size="13" fill="#FFFFFF">边界：CLI、Web 与 Agent 可以失败或重试，但不能进入采集器内部，也不能阻塞训练回调</text>
+  </g>
+</svg>

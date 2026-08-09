@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2563EB"/></marker></defs>
+  <rect width="1280" height="720" fill="#F8FAFC"/>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial">
+    <text x="640" y="38" text-anchor="middle" font-size="22" font-weight="700" fill="#17324D">联邦查询：global.* 把各进程的 probe.* 合成一张逻辑表</text>
+    <text x="640" y="63" text-anchor="middle" font-size="12" fill="#64748B">查询按 AST 判断可下推范围；远端不再 fan-out，协调端负责来源标注、全局排序和失败语义</text>
+
+    <rect x="42" y="92" width="360" height="488" rx="14" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="68" y="124" font-size="15" font-weight="700" fill="#174EA6">协调端：理解 SQL 并选择执行方式</text>
+    <rect x="68" y="151" width="308" height="70" rx="10" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="88" y="180" font-size="12" font-weight="700" fill="#17324D">用户 SQL</text>
+    <text x="88" y="204" font-size="10" fill="#64748B">python.t + cluster=true -> global.python.t</text>
+    <path d="M222 221 L222 249" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="68" y="257" width="308" height="120" rx="10" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="88" y="286" font-size="12" font-weight="700" fill="#174EA6">按查询结构选择</text>
+    <text x="88" y="312" font-size="10" fill="#475569">单表可分解聚合 -> 每个节点先 GROUP BY</text>
+    <text x="88" y="334" font-size="10" fill="#475569">单表明细 -> global table lazy scan</text>
+    <text x="88" y="356" font-size="10" fill="#475569">JOIN / CTE / UNION -> 每个进程本地执行后拼接</text>
+    <path d="M222 377 L222 405" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="68" y="413" width="308" height="80" rx="10" fill="#F0FDFA" stroke="#0D9488"/>
+    <text x="88" y="442" font-size="12" font-weight="700" fill="#0F766E">生成远端 probe.* SQL</text>
+    <text x="88" y="466" font-size="10" fill="#64748B">只下推能证明等价的投影、谓词和聚合</text>
+    <text x="88" y="485" font-size="9" fill="#64748B">解析失败或不可合并时走保守执行</text>
+    <rect x="68" y="514" width="308" height="38" rx="8" fill="#17324D"/>
+    <text x="222" y="538" text-anchor="middle" font-size="9" font-weight="700" fill="#FFFFFF">Peer 永远执行 probe.*，防止递归联邦</text>
+
+    <path d="M402 330 L442 330" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="450" y="92" width="384" height="488" rx="14" fill="#FFFFFF" stroke="#0D9488" stroke-width="2"/>
+    <text x="476" y="124" font-size="15" font-weight="700" fill="#0F766E">分层 fan-out：协调端只连接每台机器的 local0</text>
+    <rect x="580" y="151" width="124" height="58" rx="10" fill="#17324D"/>
+    <text x="642" y="176" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">coordinator</text>
+    <text x="642" y="196" text-anchor="middle" font-size="8" fill="#CBD5E1">global.*</text>
+    <path d="M642 209 L534 263" stroke="#0D9488" stroke-width="2" marker-end="url(#a)"/><path d="M642 209 L750 263" stroke="#0D9488" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="480" y="271" width="108" height="58" rx="10" fill="#EFF6FF" stroke="#2563EB"/>
+    <text x="534" y="296" text-anchor="middle" font-size="10" font-weight="700" fill="#174EA6">host A local0</text><text x="534" y="316" text-anchor="middle" font-size="8" fill="#64748B">node scope</text>
+    <rect x="696" y="271" width="108" height="58" rx="10" fill="#EFF6FF" stroke="#2563EB"/>
+    <text x="750" y="296" text-anchor="middle" font-size="10" font-weight="700" fill="#174EA6">host B local0</text><text x="750" y="316" text-anchor="middle" font-size="8" fill="#64748B">node scope</text>
+    <path d="M534 329 L495 383" stroke="#0D9488" stroke-width="2" marker-end="url(#a)"/><path d="M534 329 L573 383" stroke="#0D9488" stroke-width="2" marker-end="url(#a)"/>
+    <path d="M750 329 L711 383" stroke="#0D9488" stroke-width="2" marker-end="url(#a)"/><path d="M750 329 L789 383" stroke="#0D9488" stroke-width="2" marker-end="url(#a)"/>
+    <g text-anchor="middle" font-size="9" font-weight="700">
+      <rect x="458" y="391" width="74" height="48" rx="8" fill="#F0FDFA" stroke="#0D9488"/><text x="495" y="420" fill="#0F766E">rank 0</text>
+      <rect x="536" y="391" width="74" height="48" rx="8" fill="#F0FDFA" stroke="#0D9488"/><text x="573" y="420" fill="#0F766E">rank 1</text>
+      <rect x="674" y="391" width="74" height="48" rx="8" fill="#F0FDFA" stroke="#0D9488"/><text x="711" y="420" fill="#0F766E">rank 2</text>
+      <rect x="752" y="391" width="74" height="48" rx="8" fill="#F0FDFA" stroke="#0D9488"/><text x="789" y="420" fill="#0F766E">rank 3</text>
+    </g>
+    <rect x="476" y="468" width="332" height="84" rx="10" fill="#17324D"/>
+    <text x="496" y="496" font-size="11" font-weight="700" fill="#FFFFFF">每层只做三件事</text>
+    <text x="496" y="519" font-size="9" fill="#CBD5E1">连接下一层 · 合并成功分片 · 传播 nodes_failed</text>
+    <text x="496" y="540" font-size="9" fill="#86EFAC">连接数随机器数增长，而不是由 coordinator 直连全部 rank</text>
+
+    <path d="M834 330 L874 330" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="882" y="92" width="356" height="488" rx="14" fill="#FFFFFF" stroke="#7C3AED" stroke-width="2"/>
+    <text x="908" y="124" font-size="15" font-weight="700" fill="#7C3AED">协调端合并：数据与来源一起返回</text>
+    <rect x="908" y="151" width="304" height="102" rx="10" fill="#FAF5FF" stroke="#7C3AED"/>
+    <text x="928" y="180" font-size="12" font-weight="700" fill="#7C3AED">为每个分片注入六列</text>
+    <text x="928" y="205" font-size="10" fill="#475569">_host · _addr · _rank</text>
+    <text x="928" y="226" font-size="10" fill="#475569">_node_rank · _local_rank · _role</text>
+    <text x="928" y="245" font-size="9" fill="#64748B">标签描述 endpoint，不写回本地 MEMT</text>
+    <rect x="908" y="273" width="304" height="102" rx="10" fill="#EFF6FF" stroke="#2563EB"/>
+    <text x="928" y="302" font-size="12" font-weight="700" fill="#174EA6">完成全局关系运算</text>
+    <text x="928" y="327" font-size="10" fill="#475569">合并 partial aggregate · 再 GROUP BY 标签</text>
+    <text x="928" y="348" font-size="10" fill="#475569">ORDER BY / LIMIT 在 merge 后执行</text>
+    <text x="928" y="367" font-size="9" fill="#64748B">协调端在合并后执行全局 top-K</text>
+    <rect x="908" y="395" width="304" height="98" rx="10" fill="#FFF7ED" stroke="#F97316"/>
+    <text x="928" y="424" font-size="12" font-weight="700" fill="#C2410C">显式报告完整性</text>
+    <text x="928" y="449" font-size="10" fill="#475569">默认：成功分片继续合并，partial=true</text>
+    <text x="928" y="470" font-size="10" fill="#475569">strict：任一节点失败则整查失败</text>
+    <text x="928" y="489" font-size="9" fill="#64748B">集群 API 对 partial 返回 503 + 可用 dataframe</text>
+    <rect x="908" y="514" width="304" height="38" rx="8" fill="#17324D"/>
+    <text x="1060" y="538" text-anchor="middle" font-size="9" font-weight="700" fill="#FFFFFF">结果 = DataFrame + FanoutMeta</text>
+
+    <rect x="42" y="608" width="1196" height="74" rx="12" fill="#17324D"/>
+    <text x="68" y="637" font-size="11" font-weight="700" fill="#FFFFFF">语义边界</text>
+    <text x="68" y="661" font-size="10" fill="#CBD5E1">跨表 JOIN 必须先在同一进程的 probe.* 内完成，再把结果跨 rank 拼接；不支持把两张 global 表直接做跨节点 JOIN。</text>
+  </g>
+</svg>

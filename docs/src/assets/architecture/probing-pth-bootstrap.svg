@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2563EB"/></marker></defs>
+  <rect width="1280" height="720" fill="#F8FAFC"/>
+  <text x="640" y="38" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="22" font-weight="700" fill="#17324D">.pth 启动链：解释器导入钩子先于训练脚本执行</text>
+  <text x="640" y="62" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="12" fill="#64748B">wheel 与 develop 的路径略有不同，但都收敛到 probing_hook.py -> site_hook.py</text>
+  <g font-family="PingFang SC, Microsoft YaHei, Arial">
+    <rect x="42" y="92" width="250" height="500" rx="14" fill="#17324D"/>
+    <text x="66" y="122" font-size="15" font-weight="700" fill="#93C5FD">CPython startup</text>
+    <rect x="66" y="150" width="202" height="62" rx="9" fill="#1E3A5F"/>
+    <text x="167" y="174" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">初始化 site 模块</text>
+    <text x="167" y="194" text-anchor="middle" font-size="9" fill="#CBD5E1">构建 sys.path</text>
+    <path d="M167 212 L167 238" stroke="#93C5FD" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="66" y="246" width="202" height="82" rx="9" fill="#1E3A5F"/>
+    <text x="167" y="270" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">扫描 *.pth</text>
+    <text x="84" y="293" font-size="9" fill="#CBD5E1">路径行：加入 sys.path</text>
+    <text x="84" y="312" font-size="9" fill="#CBD5E1">import 行：作为 Python 执行</text>
+    <path d="M167 328 L167 354" stroke="#93C5FD" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="66" y="362" width="202" height="90" rx="9" fill="#312E81"/>
+    <text x="167" y="386" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">安装 wheel</text>
+    <text x="84" y="409" font-size="9" fill="#DDD6FE">probing.pth:</text>
+    <text x="84" y="430" font-family="Menlo, monospace" font-size="9" fill="#DDD6FE">import probing_hook</text>
+    <rect x="66" y="466" width="202" height="100" rx="9" fill="#312E81"/>
+    <text x="167" y="490" text-anchor="middle" font-size="11" font-weight="700" fill="#FFFFFF">develop 模式</text>
+    <text x="84" y="513" font-size="9" fill="#DDD6FE">probing.pth：repo/python 路径</text>
+    <text x="84" y="534" font-size="9" fill="#DDD6FE">probing_hook.pth：</text>
+    <text x="84" y="553" font-size="8" fill="#DDD6FE">insert repo path; import hook</text>
+
+    <path d="M292 286 L330 286" stroke="#2563EB" stroke-width="2.5" marker-end="url(#a)"/>
+    <rect x="338" y="92" width="414" height="500" rx="14" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+    <text x="362" y="122" font-size="15" font-weight="700" fill="#174EA6">probing_hook.py / site_hook.py</text>
+    <rect x="362" y="148" width="366" height="74" rx="9" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="545" y="173" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">先识别不应启动 engine 的进程</text>
+    <text x="545" y="195" text-anchor="middle" font-size="9" fill="#64748B">elastic supervisor · probing CLI · nccl/skills/dev_pth helper</text>
+    <path d="M545 222 L545 246" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="362" y="254" width="366" height="88" rx="9" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="380" y="279" font-size="11" font-weight="700" fill="#17324D">解析 PROBING，并保存 PROBING_ORIGINAL</text>
+    <text x="380" y="302" font-size="9" fill="#64748B">1/followed：仅当前进程；2/nested：对子进程继续保留</text>
+    <text x="380" y="322" font-size="9" fill="#64748B">regex / SCRIPT.py：按 argv 与 __main__.__file__ 匹配</text>
+    <path d="M545 342 L545 366" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="362" y="374" width="366" height="92" rx="9" fill="#FFFFFF" stroke="#93C5FD"/>
+    <text x="380" y="399" font-size="11" font-weight="700" fill="#17324D">命中后 import probing</text>
+    <text x="380" y="422" font-size="9" fill="#64748B">导入前删除当前 PROBING，避免 import 链再次触发</text>
+    <text x="380" y="443" font-size="9" fill="#64748B">nested / regex 在导入后按规则恢复给子进程</text>
+    <path d="M545 466 L545 490" stroke="#2563EB" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="362" y="498" width="366" height="68" rx="9" fill="#DBEAFE" stroke="#2563EB"/>
+    <text x="545" y="523" text-anchor="middle" font-size="11" font-weight="700" fill="#174EA6">可选执行 init:file；安装 crash handler</text>
+    <text x="545" y="545" text-anchor="middle" font-size="9" fill="#64748B">异常写 stderr，不让 site 初始化失败中止训练脚本</text>
+
+    <path d="M752 286 L790 286" stroke="#2563EB" stroke-width="2.5" marker-end="url(#a)"/>
+    <rect x="798" y="92" width="440" height="500" rx="14" fill="#F0FDFA" stroke="#0D9488" stroke-width="2"/>
+    <text x="822" y="122" font-size="15" font-weight="700" fill="#0F766E">加载 Rust 扩展并进入训练运行时</text>
+    <rect x="822" y="148" width="392" height="82" rx="9" fill="#FFFFFF" stroke="#5EEAD4"/>
+    <text x="1018" y="173" text-anchor="middle" font-size="11" font-weight="700" fill="#17324D">动态加载 probing._core / libprobing</text>
+    <text x="840" y="196" font-size="9" fill="#64748B">root #[ctor]：若 PROBING_CLI_MODE 未设置，立即 start_local()</text>
+    <text x="840" y="215" font-size="9" fill="#64748B">python crate #[ctor]：panic/crash/signal handler；按 ORIGINAL 置 enabled</text>
+    <path d="M1018 230 L1018 254" stroke="#0F766E" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="822" y="262" width="392" height="94" rx="9" fill="#FFFFFF" stroke="#5EEAD4"/>
+    <text x="840" y="287" font-size="11" font-weight="700" fill="#17324D">_core Python module 初始化</text>
+    <text x="840" y="310" font-size="9" fill="#64748B">记录 Python 主线程与 OS TID；初始化栈追踪全局状态</text>
+    <text x="840" y="331" font-size="9" fill="#64748B">注册 ExternalTable、query、tracer、CLI、skill bindings</text>
+    <path d="M1018 356 L1018 380" stroke="#0F766E" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="822" y="388" width="392" height="90" rx="9" fill="#FFFFFF" stroke="#5EEAD4"/>
+    <text x="840" y="413" font-size="11" font-weight="700" fill="#17324D">probing/__init__.py 组装 Python API</text>
+    <text x="840" y="436" font-size="9" fill="#64748B">导出 query / span / step / @table；安装 import hooks</text>
+    <text x="840" y="457" font-size="9" fill="#64748B">按已加载 framework 触发 Torch / Megatron / vLLM 接入</text>
+    <path d="M1018 478 L1018 502" stroke="#0F766E" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="822" y="510" width="392" height="56" rx="9" fill="#CCFBF1" stroke="#0D9488"/>
+    <text x="1018" y="533" text-anchor="middle" font-size="11" font-weight="700" fill="#0F766E">随后才执行用户 train.py</text>
+    <text x="1018" y="552" text-anchor="middle" font-size="9" fill="#64748B">此时本机 server、表目录和框架 import hook 已就绪</text>
+  </g>
+  <rect x="42" y="616" width="1196" height="66" rx="12" fill="#17324D"/>
+  <text x="640" y="643" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="12" font-weight="700" fill="#FFFFFF">.pth 获得的是“解释器启动时的代码执行入口”，权限与训练进程完全相同；它不会绕过操作系统权限。</text>
+  <text x="640" y="666" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="10" fill="#CBD5E1">失败策略是 best-effort：hook 异常输出到 stderr，避免因为诊断组件无法加载而阻止业务脚本启动。</text>
+</svg>
