@@ -6,6 +6,12 @@ import os
 import sys
 
 
+def _probing_requests_activation() -> bool:
+    """Avoid loading the native runtime in warmup and helper processes."""
+    token = os.environ.get("PROBING", "0").strip().lower()
+    return token not in ("", "0", "off", "false", "no")
+
+
 def _is_elastic_supervisor() -> bool:
     """Match Rust ``is_elastic_supervisor`` without importing ``probing``."""
     if os.environ.get("LOCAL_RANK") is not None or os.environ.get("RANK") is not None:
@@ -34,7 +40,7 @@ def _is_elastic_supervisor() -> bool:
 
 
 _sup = _is_elastic_supervisor()
-if not _sup:
+if _probing_requests_activation() and not _sup:
     from probing.site_hook import run_site_hook
 
     run_site_hook()

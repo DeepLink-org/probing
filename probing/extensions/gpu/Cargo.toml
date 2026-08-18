@@ -1,6 +1,6 @@
 [package]
 name = "probing-gpu"
-description = "GPU diagnostics for probing (CUDA + Apple Silicon, multi-backend)"
+description = "GPU/NPU diagnostics for probing (CUDA, Ascend, and Apple Silicon)"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -29,6 +29,9 @@ cudarc = { version = "0.19.7", default-features = false, features = [
     "driver",
     "cuda-12080",
 ], optional = true }
+
+[target.'cfg(all(not(target_os = "macos"), not(target_os = "windows")))'.dependencies]
+libloading = "0.8"
 
 # macOS-only: Metal + sysctl + ioreg. Not resolved when building for Linux.
 [target.'cfg(target_os = "macos")'.dependencies]

@@ -132,6 +132,10 @@ impl GpuBackend for AppleSiliconBackend {
             renderer_util_pct: perf.as_ref().and_then(|p| p.renderer_util_pct),
             tiler_util_pct: perf.as_ref().and_then(|p| p.tiler_util_pct),
             driver_mem_bytes,
+            vector_util_pct: None,
+            mem_bandwidth_util_pct: None,
+            temperature_c: None,
+            power_w: None,
         })
     }
 }

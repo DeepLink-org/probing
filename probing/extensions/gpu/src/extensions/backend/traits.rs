@@ -5,6 +5,8 @@ use std::fmt;
 pub enum GpuBackendKind {
     /// NVIDIA CUDA (discrete or datacenter GPU).
     Cuda,
+    /// Huawei Ascend NPU (via DCMI / npu-smi).
+    Npu,
     /// AMD ROCm / HIP (reserved).
     Rocm,
     /// Apple Metal / AGX (M1–M4 integrated GPU).
@@ -15,6 +17,7 @@ impl GpuBackendKind {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Cuda => "cuda",
+            Self::Npu => "npu",
             Self::Rocm => "rocm",
             Self::Metal => "metal",
         }
@@ -23,6 +26,7 @@ impl GpuBackendKind {
     pub fn parse(s: &str) -> Option<Self> {
         match s.trim().to_ascii_lowercase().as_str() {
             "cuda" | "nvidia" => Some(Self::Cuda),
+            "npu" | "ascend" | "huawei" | "hccl" => Some(Self::Npu),
             "rocm" | "hip" | "amd" => Some(Self::Rocm),
             "metal" | "mps" | "apple" | "agx" | "apple-silicon" => Some(Self::Metal),
             _ => None,
@@ -87,6 +91,14 @@ pub struct GpuMemorySample {
     pub tiler_util_pct: Option<f32>,
     /// Unified-memory only: bytes attributed to GPU driver (IORegistry).
     pub driver_mem_bytes: Option<u64>,
+    /// Backend-specific vector/tensor execution utilization.
+    pub vector_util_pct: Option<f32>,
+    /// Device-memory bandwidth utilization.
+    pub mem_bandwidth_util_pct: Option<f32>,
+    /// Device temperature in degrees Celsius.
+    pub temperature_c: Option<f32>,
+    /// Device power draw in watts.
+    pub power_w: Option<f32>,
 }
 
 impl GpuMemorySample {

@@ -105,7 +105,9 @@ Non-PROBING-prefixed aliases are also recognized for Megatron compatibility:
 |----------|---------|-------------|
 | `PROBING_GPU` | enabled | Set to `0`, `off`, `false`, or `no` to disable GPU sampling. |
 | `PROBING_GPU_SAMPLE_MS` | — | GPU sampling interval in milliseconds. |
-| `PROBING_GPU_BACKEND` | `auto` | GPU backend filter: `auto`, `cuda`, `rocm`, `metal`. |
+| `PROBING_GPU_BACKEND` | `auto` | GPU backend filter: `auto`, `cuda`, `npu`/`ascend`, `rocm`, `metal`. |
+| `PROBING_NPU_SOURCE` | `auto` | Ascend metrics source: `auto` prefers DCMI and falls back to `npu-smi`; use `smi` to force the CLI path. |
+| `PROBING_DCMI_LIB` | — | Explicit path to Ascend `libdcmi.so`. |
 
 ## NCCL & HCCL
 
