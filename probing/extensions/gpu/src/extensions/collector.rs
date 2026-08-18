@@ -180,6 +180,13 @@ fn opt_f32(v: Option<f32>) -> f32 {
     v.unwrap_or(-1.0)
 }
 
+#[cfg_attr(
+    not(any(
+        feature = "cuda",
+        all(not(target_os = "macos"), not(target_os = "windows"))
+    )),
+    allow(unused_mut)
+)]
 fn sample_all(backends: &[Box<dyn GpuBackend>]) -> Vec<GpuMemorySample> {
     #[cfg(feature = "cuda")]
     let nvidia_utils = read_utilization_by_index();
