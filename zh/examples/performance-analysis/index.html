@@ -2797,7 +2797,7 @@
 <p>识别和修复 AI 工作负载中的性能瓶颈。</p>
 <h2 id="_2">查找瓶颈<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
 <h3 id="_3">整体性能概况<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">"</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="s2">SELECT</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="s2">    module,</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="s2">    stage,</span>
@@ -2809,35 +2809,35 @@
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="s2">WHERE step &gt; (SELECT MAX(step) - 10 FROM python.torch_trace)</span>
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="s2">GROUP BY module, stage</span>
 </span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="s2">ORDER BY total_time_sec DESC</span>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="s2">LIMIT 15&quot;</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="s2">LIMIT 15"</span>
 </span></code></pre></div>
 <h3 id="_4">每步分解<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">"</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="s2">SELECT</span>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="s2">    step,</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="s2">    SUM(CASE WHEN stage = &#39;post forward&#39; THEN duration ELSE 0 END) as forward_time,</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="s2">    SUM(CASE WHEN stage = &#39;post step&#39; THEN duration ELSE 0 END) as optimizer_time</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="s2">    SUM(CASE WHEN stage = 'post forward' THEN duration ELSE 0 END) as forward_time,</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="s2">    SUM(CASE WHEN stage = 'post step' THEN duration ELSE 0 END) as optimizer_time</span>
 </span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="s2">FROM python.torch_trace</span>
 </span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="s2">WHERE step &gt; (SELECT MAX(step) - 5 FROM python.torch_trace)</span>
 </span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="s2">GROUP BY step</span>
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="s2">ORDER BY step&quot;</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="s2">ORDER BY step"</span>
 </span></code></pre></div>
 <p>默认不采集 backward（未安装 backward 钩子）。backward/kernel 细节请用 tracing span 或 <code>torch.profiler</code>。</p>
 <h2 id="gpu">GPU 利用率<a class="headerlink" href="#gpu" title="Permanent link">&para;</a></h2>
 <h3 id="_5">检查当前利用率<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="s2">import subprocess</span>
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="s2">result = subprocess.run(</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="s2">    [&#39;nvidia-smi&#39;, &#39;--query-gpu=utilization.gpu,utilization.memory,temperature.gpu&#39;,</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="s2">     &#39;--format=csv,noheader,nounits&#39;],</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="s2">    ['nvidia-smi', '--query-gpu=utilization.gpu,utilization.memory,temperature.gpu',</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="s2">     '--format=csv,noheader,nounits'],</span>
 </span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="s2">    capture_output=True, text=True</span>
 </span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="s2">)</span>
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="s2">for i, line in enumerate(result.stdout.strip().split(&#39;\\n&#39;)):</span>
-</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="s2">    gpu_util, mem_util, temp = line.split(&#39;, &#39;)</span>
-</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="s2">    print(f&#39;GPU {i}: 利用率={gpu_util}%, 内存={mem_util}%, 温度={temp}°C&#39;)&quot;</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="s2">for i, line in enumerate(result.stdout.strip().split('\\n')):</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="s2">    gpu_util, mem_util, temp = line.split(', ')</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="s2">    print(f'GPU {i}: 利用率={gpu_util}%, 内存={mem_util}%, 温度={temp}°C')"</span>
 </span></code></pre></div>
 <h3 id="cuda">CUDA 同步开销<a class="headerlink" href="#cuda" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="s2">import torch</span>
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="s2">import time</span>
 </span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
@@ -2845,11 +2845,11 @@
 </span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="s2">start = time.perf_counter()</span>
 </span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="s2">torch.cuda.synchronize()</span>
 </span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="s2">sync_time = time.perf_counter() - start</span>
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="s2">print(f&#39;CUDA 同步时间: {sync_time*1000:.2f} ms&#39;)&quot;</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="s2">print(f'CUDA 同步时间: {sync_time*1000:.2f} ms')"</span>
 </span></code></pre></div>
 <h2 id="_6">内存带宽<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
 <h3 id="_7">内存受限操作<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">"</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="s2">SELECT</span>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="s2">    module,</span>
 </span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="s2">    AVG(allocated) as avg_memory_mb,</span>
@@ -2859,28 +2859,28 @@
 </span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="s2">WHERE duration &gt; 0.001</span>
 </span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="s2">GROUP BY module</span>
 </span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="s2">ORDER BY memory_bandwidth_mb_per_sec DESC</span>
-</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="s2">LIMIT 10&quot;</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="s2">LIMIT 10"</span>
 </span></code></pre></div>
 <h2 id="_8">数据加载性能<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h2>
 <h3 id="_9">数据加载器计时<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span>
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="s2">import time</span>
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
 </span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="s2"># 计时一个批次加载</span>
 </span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="s2">start = time.perf_counter()</span>
 </span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="s2">batch = next(iter(train_loader))</span>
 </span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="s2">load_time = time.perf_counter() - start</span>
-</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="s2">print(f&#39;批次加载时间: {load_time*1000:.2f} ms&#39;)&quot;</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="s2">print(f'批次加载时间: {load_time*1000:.2f} ms')"</span>
 </span></code></pre></div>
 <h3 id="worker">Worker 分析<a class="headerlink" href="#worker" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="s2">print(f&#39;Num workers: {train_loader.num_workers}&#39;)</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="s2">print(f&#39;Pin memory: {train_loader.pin_memory}&#39;)</span>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="s2">print(f&#39;Prefetch factor: {getattr(train_loader, \&quot;prefetch_factor\&quot;, 2)}&#39;)&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="s2">print(f'Num workers: {train_loader.num_workers}')</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="s2">print(f'Pin memory: {train_loader.pin_memory}')</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="s2">print(f'Prefetch factor: {getattr(train_loader, \"prefetch_factor\", 2)}')"</span>
 </span></code></pre></div>
 <h2 id="_10">通信开销（分布式）<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h2>
 <h3 id="pythoncomm_collective">粗粒度：<code>python.comm_collective</code><a class="headerlink" href="#pythoncomm_collective" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">"</span>
 </span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="s2">SELECT</span>
 </span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="s2">    op,</span>
 </span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="s2">    COUNT(*) AS calls,</span>
@@ -2888,7 +2888,7 @@
 </span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="s2">    MAX(duration_ms) AS max_ms</span>
 </span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="s2">FROM python.comm_collective</span>
 </span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="s2">GROUP BY op</span>
-</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="s2">ORDER BY avg_ms DESC&quot;</span>
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="s2">ORDER BY avg_ms DESC"</span>
 </span></code></pre></div>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>skill<span class="w"> </span>run<span class="w"> </span>comm_bottleneck
 </span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>skill<span class="w"> </span>run<span class="w"> </span>slow_rank<span class="w"> </span>--global
@@ -2898,46 +2898,46 @@
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NCCL_PROFILER_PLUGIN</span><span class="o">=</span><span class="k">$(</span>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--plugin-path<span class="k">)</span>
 </span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NCCL_PROFILE_EVENT_MASK</span><span class="o">=</span><span class="k">$(</span>python<span class="w"> </span>-m<span class="w"> </span>probing.nccl<span class="w"> </span>--event-mask<span class="k">)</span>
 </span></code></pre></div>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">"</span>
 </span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="s2">SELECT</span>
 </span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="s2">    rank,</span>
 </span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="s2">    sum(send_gpu_wait_ns) AS gpu_wait_ns,</span>
 </span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="s2">    sum(recv_wait_ns) AS recv_wait_ns</span>
 </span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="s2">FROM nccl.proxy_ops</span>
 </span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="s2">GROUP BY rank</span>
-</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="s2">ORDER BY recv_wait_ns DESC&quot;</span>
+</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="s2">ORDER BY recv_wait_ns DESC"</span>
 </span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>
 </span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>skill<span class="w"> </span>run<span class="w"> </span>nccl_culprit_victim
 </span></code></pre></div>
 <h3 id="all-reduce">All-Reduce 扩展<a class="headerlink" href="#all-reduce" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span>
 </span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="s2">import torch.distributed as dist</span>
 </span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="s2">import time</span>
 </span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>
 </span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="s2">if dist.is_initialized():</span>
-</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="s2">    tensor = torch.randn(1000000, device=&#39;cuda&#39;)</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="s2">    tensor = torch.randn(1000000, device='cuda')</span>
 </span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>
 </span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="s2">    start = time.perf_counter()</span>
 </span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="s2">    dist.all_reduce(tensor)</span>
 </span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="s2">    torch.cuda.synchronize()</span>
 </span><span id="__span-11-11"><a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="s2">    allreduce_time = time.perf_counter() - start</span>
 </span><span id="__span-11-12"><a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>
-</span><span id="__span-11-13"><a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="s2">    print(f&#39;4MB All-reduce 时间: {allreduce_time*1000:.2f} ms&#39;)&quot;</span>
+</span><span id="__span-11-13"><a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="s2">    print(f'4MB All-reduce 时间: {allreduce_time*1000:.2f} ms')"</span>
 </span></code></pre></div>
 <h2 id="attention">Attention 瓶颈<a class="headerlink" href="#attention" title="Permanent link">&para;</a></h2>
 <h3 id="self-attention">Self-Attention 分析<a class="headerlink" href="#self-attention" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">"</span>
 </span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="s2">SELECT</span>
 </span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="s2">    module,</span>
 </span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="s2">    AVG(duration) as avg_time,</span>
 </span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="s2">    AVG(allocated) as avg_memory</span>
 </span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="s2">FROM python.torch_trace</span>
-</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="s2">WHERE module LIKE &#39;%attention%&#39; OR module LIKE &#39;%attn%&#39;</span>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="s2">WHERE module LIKE '%attention%' OR module LIKE '%attn%'</span>
 </span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="s2">GROUP BY module</span>
-</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="s2">ORDER BY avg_time DESC&quot;</span>
+</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="s2">ORDER BY avg_time DESC"</span>
 </span></code></pre></div>
 <h3 id="_11">每序列长度的内存<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span>
 </span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="s2">import torch</span>
 </span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
 </span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="s2"># 检查 attention 内存扩展</span>
@@ -2947,47 +2947,47 @@
 </span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>
 </span><span id="__span-13-9"><a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="s2"># Attention 分数内存: O(seq_len^2)</span>
 </span><span id="__span-13-10"><a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="s2">attention_memory = seq_len * seq_len * num_heads * 4 / 1024**3  # GB</span>
-</span><span id="__span-13-11"><a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="s2">print(f&#39;估计 attention 内存: {attention_memory:.2f} GB&#39;)&quot;</span>
+</span><span id="__span-13-11"><a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="s2">print(f'估计 attention 内存: {attention_memory:.2f} GB')"</span>
 </span></code></pre></div>
 <h2 id="_12">优化建议<a class="headerlink" href="#_12" title="Permanent link">&para;</a></h2>
 <h3 id="_13">基于分析的优化<a class="headerlink" href="#_13" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1"># 1. 识别最慢模块</span>
-</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">"</span>
 </span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="s2">SELECT module, AVG(duration) as avg_time</span>
 </span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="s2">FROM python.torch_trace</span>
 </span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="s2">GROUP BY module</span>
 </span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="s2">ORDER BY avg_time DESC</span>
-</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="s2">LIMIT 5&quot;</span>
+</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="s2">LIMIT 5"</span>
 </span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>
 </span><span id="__span-14-9"><a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="c1"># 2. 检查是计算受限还是内存受限</span>
-</span><span id="__span-14-10"><a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
+</span><span id="__span-14-10"><a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span>
 </span><span id="__span-14-11"><a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a><span class="s2">import torch</span>
 </span><span id="__span-14-12"><a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a><span class="s2"># 高计算利用率 + 低内存带宽 = 计算受限</span>
-</span><span id="__span-14-13"><a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a><span class="s2"># 低计算利用率 + 高内存利用率 = 内存受限&quot;</span>
+</span><span id="__span-14-13"><a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a><span class="s2"># 低计算利用率 + 高内存利用率 = 内存受限"</span>
 </span></code></pre></div>
 <h3 id="_14">常见优化<a class="headerlink" href="#_14" title="Permanent link">&para;</a></h3>
 <h4 id="torch-compile">启用 Torch Compile<a class="headerlink" href="#torch-compile" title="Permanent link">&para;</a></h4>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span>
 </span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="s2">import torch</span>
-</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="s2">if hasattr(torch, &#39;compile&#39;):</span>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="s2">if hasattr(torch, 'compile'):</span>
 </span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="s2">    model = torch.compile(model)</span>
-</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="s2">    print(&#39;模型已用 torch.compile 编译&#39;)&quot;</span>
+</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="s2">    print('模型已用 torch.compile 编译')"</span>
 </span></code></pre></div>
 <h4 id="_15">启用混合精度<a class="headerlink" href="#_15" title="Permanent link">&para;</a></h4>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span>
 </span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="s2">from torch.cuda.amp import autocast</span>
-</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="s2">print(f&#39;AMP 已启用: {torch.cuda.amp.autocast_mode.is_autocast_enabled()}&#39;)&quot;</span>
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="s2">print(f'AMP 已启用: {torch.cuda.amp.autocast_mode.is_autocast_enabled()}')"</span>
 </span></code></pre></div>
 <h4 id="_16">检查梯度检查点<a class="headerlink" href="#_16" title="Permanent link">&para;</a></h4>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span>
 </span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="s2"># 检查是否启用梯度检查点</span>
 </span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="s2">for name, module in model.named_modules():</span>
-</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="s2">    if hasattr(module, &#39;gradient_checkpointing&#39;):</span>
-</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="s2">        print(f&#39;{name}: checkpoint={module.gradient_checkpointing}&#39;)&quot;</span>
+</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="s2">    if hasattr(module, 'gradient_checkpointing'):</span>
+</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="s2">        print(f'{name}: checkpoint={module.gradient_checkpointing}')"</span>
 </span></code></pre></div>
 <h2 id="_17">基准测试<a class="headerlink" href="#_17" title="Permanent link">&para;</a></h2>
 <h3 id="_18">吞吐量测量<a class="headerlink" href="#_18" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span>
 </span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="s2">import time</span>
 </span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>
 </span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="s2"># 测量 10 步的吞吐量</span>
@@ -2998,20 +2998,20 @@
 </span><span id="__span-18-9"><a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="s2">elapsed = time.perf_counter() - start</span>
 </span><span id="__span-18-10"><a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a>
 </span><span id="__span-18-11"><a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a><span class="s2">samples_per_sec = (steps * batch_size) / elapsed</span>
-</span><span id="__span-18-12"><a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a><span class="s2">print(f&#39;吞吐量: {samples_per_sec:.1f} samples/sec&#39;)&quot;</span>
+</span><span id="__span-18-12"><a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a><span class="s2">print(f'吞吐量: {samples_per_sec:.1f} samples/sec')"</span>
 </span></code></pre></div>
 <h3 id="_19">优化前后对比<a class="headerlink" href="#_19" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="c1"># 优化前</span>
-</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
+</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">"</span>
 </span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="s2">SELECT AVG(duration) as before_avg</span>
 </span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="s2">FROM python.torch_trace</span>
-</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="s2">WHERE step BETWEEN 100 AND 110&quot;</span>
+</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="s2">WHERE step BETWEEN 100 AND 110"</span>
 </span><span id="__span-19-6"><a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>
 </span><span id="__span-19-7"><a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a><span class="c1"># 优化后</span>
-</span><span id="__span-19-8"><a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
+</span><span id="__span-19-8"><a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">"</span>
 </span><span id="__span-19-9"><a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a><span class="s2">SELECT AVG(duration) as after_avg</span>
 </span><span id="__span-19-10"><a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a><span class="s2">FROM python.torch_trace</span>
-</span><span id="__span-19-11"><a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a><span class="s2">WHERE step BETWEEN 200 AND 210&quot;</span>
+</span><span id="__span-19-11"><a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a><span class="s2">WHERE step BETWEEN 200 AND 210"</span>
 </span></code></pre></div>
 
 

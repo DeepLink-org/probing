@@ -2285,7 +2285,7 @@
 <h2 id="_2">找到并附着到进程<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
 <p>首先找到你想检查的 Python 进程：</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># 查找训练进程</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pgrep<span class="w"> </span>-f<span class="w"> </span><span class="s2">&quot;python.*train&quot;</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pgrep<span class="w"> </span>-f<span class="w"> </span><span class="s2">"python.*train"</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># → 27891</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># 或者带更多上下文</span>
@@ -2306,23 +2306,23 @@ backtrace、skill）在服务器运行后全平台通用。</p>
 </span></code></pre></div>
 <p>backtrace 会填充 <code>python.backtrace</code>——主线程当前调用栈的瞬时视图，混合 Python
 和原生帧。用 SQL 查询它：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">"</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="s2">  SELECT func, file, lineno, depth, frame_type</span>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="s2">  FROM python.backtrace</span>
 </span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="s2">  ORDER BY depth LIMIT 10</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="s2">&quot;</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="s2">"</span>
 </span></code></pre></div>
 <p>你会看到函数名、源文件路径，以及每帧是 Python 还是原生代码。深度 0 是最内层帧
 （当前正在执行的位置）。</p>
 <p>如需查看调用栈之外的实时状态，用 <code>eval</code> 在目标进程中执行任意 Python：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;import torch; print(f&#39;CUDA 可用: {torch.cuda.is_available()}&#39;)&quot;</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"import torch; print(f'CUDA 可用: {torch.cuda.is_available()}')"</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span>
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="s2">  import gc, torch</span>
 </span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="s2">  gc.collect()</span>
 </span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="s2">  alloc = torch.cuda.memory_allocated() / 1024**2</span>
 </span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="s2">  reserved = torch.cuda.memory_reserved() / 1024**2</span>
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="s2">  print(f&#39;GPU: 已分配 {alloc:.0f}MB, 已预留 {reserved:.0f}MB&#39;)</span>
-</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="s2">&quot;</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="s2">  print(f'GPU: 已分配 {alloc:.0f}MB, 已预留 {reserved:.0f}MB')</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="s2">"</span>
 </span></code></pre></div>
 <h2 id="_4">三个常见工作流<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
 <p>以下是你会经常用到的真实场景。</p>
@@ -2330,16 +2330,16 @@ backtrace、skill）在服务器运行后全平台通用。</p>
 <p>最常见的场景：训练突然停止进展。进程还活着但什么也不做。</p>
 <p>先用 backtrace 看主线程状况：</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>backtrace
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;SELECT func, file, lineno FROM python.backtrace ORDER BY depth LIMIT 5&quot;</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">"SELECT func, file, lineno FROM python.backtrace ORDER BY depth LIMIT 5"</span>
 </span></code></pre></div>
 <p>最内层帧（depth 0）精确显示卡在哪里。如果调用栈显示 <code>ncclAllReduce</code> 或
 <code>torch.distributed</code> 调用，这是通信 hang。如果是模型 Python 代码，则是计算瓶颈。</p>
 <p>接着检查线程状态——collective 可能卡住了但其他线程正常：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span>
 </span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="s2">  import threading</span>
 </span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="s2">  for t in threading.enumerate():</span>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="s2">      print(f&#39;{t.name}: alive={t.is_alive()}, daemon={t.daemon}&#39;)</span>
-</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="s2">&quot;</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="s2">      print(f'{t.name}: alive={t.is_alive()}, daemon={t.daemon}')</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="s2">"</span>
 </span></code></pre></div>
 <h3 id="gpu">GPU 内存在增长<a class="headerlink" href="#gpu" title="Permanent link">&para;</a></h3>
 <p>内存随 step 不断增长——泄漏或累积。查询 torch_trace 表看每步分配趋势：</p>
@@ -2350,41 +2350,41 @@ Training placement 使用同一份“当前值 / 容量”数据控制每张卡�
 PP 仍由带文字的虚线边框表达，避免两种语义共用一种颜色。
 只有采集到 <code>python.torch_trace</code> 时，页面才展示 PyTorch allocator 和模块分配证据；
 空白数据不能被解释为“没有显存问题”。</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">"</span>
 </span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="s2">  SELECT local_step, AVG(allocated) as avg_mb, MAX(allocated_delta) as max_delta_mb</span>
 </span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="s2">  FROM python.torch_trace</span>
 </span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="s2">  GROUP BY local_step</span>
 </span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="s2">  ORDER BY local_step</span>
-</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="s2">&quot;</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="s2">"</span>
 </span></code></pre></div>
 <p>关注 <code>allocated_delta</code> 值不会在 step 间归零——说明迭代之间内存未被释放。
 配合 <code>eval</code> 强制 GC 并检查当前状态：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;import gc, torch; gc.collect(); torch.cuda.empty_cache()&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"import gc, torch; gc.collect(); torch.cuda.empty_cache()"</span>
 </span></code></pre></div>
 <p>如果 GC 和 cache 清理后内存回落，问题是 Python 侧引用环。否则是 CUDA 侧
 泄漏或不断增长的 workspace。</p>
 <h3 id="_6">找出最慢的模块和操作<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h3>
 <p>定位模型中哪个部分最耗时：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>probing<span class="w"> </span><span class="nv">$ENDPOINT</span><span class="w"> </span>query<span class="w"> </span><span class="s2">"</span>
 </span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="s2">  SELECT module, stage, AVG(duration) as avg_duration, COUNT(*) as calls</span>
 </span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="s2">  FROM python.torch_trace</span>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="s2">  WHERE stage IN (&#39;post forward&#39;, &#39;post step&#39;)</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="s2">  WHERE stage IN ('post forward', 'post step')</span>
 </span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="s2">  GROUP BY module, stage</span>
 </span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="s2">  ORDER BY avg_duration DESC</span>
 </span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="s2">  LIMIT 10</span>
-</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="s2">&quot;</span>
+</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="s2">"</span>
 </span></code></pre></div>
 <p>过滤到 <code>post forward</code> 和 <code>post step</code> stage 可获得执行耗时（<code>pre</code> 行携带时间锚点，
 <code>post</code> 行携带实际 duration）。结果告诉你哪个模块、哪个方向最耗时。</p>
 <p>分布式训练时，加 <code>global.</code> 前缀跨 rank 对比：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>probing<span class="w"> </span>-t<span class="w"> </span>&lt;master&gt;<span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>probing<span class="w"> </span>-t<span class="w"> </span>&lt;master&gt;<span class="w"> </span>query<span class="w"> </span><span class="s2">"</span>
 </span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="s2">  SELECT _rank, module, stage, AVG(duration) as avg_duration</span>
 </span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="s2">  FROM global.python.torch_trace</span>
-</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="s2">  WHERE stage IN (&#39;post forward&#39;, &#39;post step&#39;)</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="s2">  WHERE stage IN ('post forward', 'post step')</span>
 </span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="s2">  GROUP BY _rank, module, stage</span>
 </span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="s2">  ORDER BY avg_duration DESC</span>
 </span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="s2">  LIMIT 20</span>
-</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="s2">&quot;</span>
+</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="s2">"</span>
 </span></code></pre></div>
 <p><code>_rank</code> 是查询时附加的联邦标签——工作原理见<a href="../guide/concepts/">核心概念</a>。</p>
 <h2 id="skill">诊断 skill<a class="headerlink" href="#skill" title="Permanent link">&para;</a></h2>

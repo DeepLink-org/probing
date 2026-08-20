@@ -2843,7 +2843,17 @@ them into a <code>role</code> string like <code>dp=2,pp=1,tp=0</code>.</p>
 <tr>
 <td><code>PROBING_GPU_BACKEND</code></td>
 <td><code>auto</code></td>
-<td>GPU backend filter: <code>auto</code>, <code>cuda</code>, <code>rocm</code>, <code>metal</code>.</td>
+<td>GPU backend filter: <code>auto</code>, <code>cuda</code>, <code>npu</code>/<code>ascend</code>, <code>rocm</code>, <code>metal</code>.</td>
+</tr>
+<tr>
+<td><code>PROBING_NPU_SOURCE</code></td>
+<td><code>auto</code></td>
+<td>Ascend metrics source: <code>auto</code> prefers DCMI and falls back to <code>npu-smi</code>; use <code>smi</code> to force the CLI path.</td>
+</tr>
+<tr>
+<td><code>PROBING_DCMI_LIB</code></td>
+<td>—</td>
+<td>Explicit path to Ascend <code>libdcmi.so</code>.</td>
 </tr>
 </tbody>
 </table>

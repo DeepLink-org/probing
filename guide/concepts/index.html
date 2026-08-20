@@ -2305,7 +2305,7 @@ uses ptrace to load the probing shared library into an already-running process. 
 process never restarted; it never imported probing. After injection, the same
 in-process server starts inside the target.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="k">$(</span>pgrep<span class="w"> </span>-f<span class="w"> </span>train.py<span class="k">)</span><span class="w"> </span>inject
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="k">$(</span>pgrep<span class="w"> </span>-f<span class="w"> </span>train.py<span class="k">)</span><span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;SELECT 1&quot;</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="k">$(</span>pgrep<span class="w"> </span>-f<span class="w"> </span>train.py<span class="k">)</span><span class="w"> </span>query<span class="w"> </span><span class="s2">"SELECT 1"</span>
 </span></code></pre></div>
 <p>In both cases, the end result is the same: a running probing server inside the target
 process. The CLI always talks to that server over HTTP (Unix socket for local PIDs,
@@ -2419,7 +2419,7 @@ parallelism dimensions:</p>
 <p>Set it from environment variables (<code>PROBING_TP_RANK</code>, <code>PROBING_TP_SIZE</code>, etc., or
 Megatron-style <code>TP_RANK</code>/<code>PP_RANK</code>/<code>DP_RANK</code>) or from Python:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">probing</span><span class="o">.</span><span class="n">set_role</span><span class="p">(</span><span class="n">dp</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">pp</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">tp</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="c1"># or: probing.set_role(&quot;dp=2,pp=1,tp=0&quot;)</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="c1"># or: probing.set_role("dp=2,pp=1,tp=0")</span>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">probing</span><span class="o">.</span><span class="n">clear_role</span><span class="p">()</span>  <span class="c1"># fall back to environment-derived role</span>
 </span></code></pre></div>
 <p>Note: <code>cluster.nodes</code> has <code>role_name</code> and <code>role_rank</code> — those are torchrun/Elastic

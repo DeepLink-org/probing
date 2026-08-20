@@ -2273,10 +2273,10 @@
 <p>每个启用 probing 的进程都运行一个嵌入式 HTTP 服务器。从外部与其通信需要一个
 <strong>endpoint</strong>——可以是本地 PID 或 <code>host:port</code> 对。</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># 本地进程——probing 从 PID 解析 Unix socket</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="m">12345</span><span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;SELECT 1&quot;</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>probing<span class="w"> </span>-t<span class="w"> </span><span class="m">12345</span><span class="w"> </span>query<span class="w"> </span><span class="s2">"SELECT 1"</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># 远程进程——TCP 连接到已知地址</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>probing<span class="w"> </span>-t<span class="w"> </span>node-a:8080<span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;SELECT 1&quot;</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>probing<span class="w"> </span>-t<span class="w"> </span>node-a:8080<span class="w"> </span>query<span class="w"> </span><span class="s2">"SELECT 1"</span>
 </span></code></pre></div>
 <p>CLI 从不直接与引擎交互。它通过 Unix socket（本地）或 TCP（远程）向目标进程
 中嵌入的服务器发送 HTTP 请求。不存在 <code>probing.connect()</code> Python API——
@@ -2342,9 +2342,9 @@ parallel、expert parallel 或它们的组合。Probing 将其编码为一个紧
 或 Python 设置：</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">probing</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">probing</span><span class="o">.</span><span class="n">set_role</span><span class="p">(</span><span class="n">dp</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">pp</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">tp</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># 或: probing.set_role(&quot;dp=2,pp=1,tp=0&quot;)</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># 或: probing.set_role("dp=2,pp=1,tp=0")</span>
 </span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">probing</span><span class="o">.</span><span class="n">current_role</span><span class="p">())</span>   <span class="c1"># &quot;dp=2,pp=1,tp=0&quot;</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">probing</span><span class="o">.</span><span class="n">current_role</span><span class="p">())</span>   <span class="c1"># "dp=2,pp=1,tp=0"</span>
 </span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">probing</span><span class="o">.</span><span class="n">clear_role</span><span class="p">()</span>            <span class="c1"># 恢复为环境变量默认值</span>
 </span></code></pre></div>
 <p><code>role</code> 被标记在所有 <code>python.torch_trace</code> 和 <code>python.comm_collective</code> 行上。
