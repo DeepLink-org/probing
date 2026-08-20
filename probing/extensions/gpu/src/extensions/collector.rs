@@ -17,6 +17,9 @@ use super::backend::{discover_backends, selected_backends, GpuBackend, GpuMemory
 #[cfg(feature = "cuda")]
 use super::backend::read_utilization_by_index;
 
+#[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+use super::backend::read_npu_utilization_by_index;
+
 const CHUNK_SIZE: u32 = 4096;
 const NUM_CHUNKS: u32 = 8;
 const DEFAULT_SAMPLE_INTERVAL_MS: u64 = 1000;
@@ -55,7 +58,7 @@ pub fn autostart_interval_ms() -> Option<u64> {
         return Some(DEFAULT_SAMPLE_INTERVAL_MS);
     }
 
-    if discover_backends().is_empty() {
+    if selected_backends().is_empty() {
         return None;
     }
 
@@ -114,6 +117,10 @@ fn utilization_schema() -> Schema {
         .col("tiler_util_pct", DType::F32)
         .col("driver_mem_bytes", DType::I64)
         .col("wall_ns", DType::I64)
+        .col("vector_util_pct", DType::F32)
+        .col("mem_bandwidth_util_pct", DType::F32)
+        .col("temperature_c", DType::F32)
+        .col("power_w", DType::F32)
 }
 
 #[derive(Debug, Clone)]
@@ -160,6 +167,10 @@ fn push_utilization_row(table: &mut ExposedTable, ts: i64, wall_ns: u64, sample:
         Value::F32(opt_f32(sample.tiler_util_pct)),
         Value::I64(sample.driver_mem_bytes.unwrap_or(0) as i64),
         Value::I64(wall_ns as i64),
+        Value::F32(opt_f32(sample.vector_util_pct)),
+        Value::F32(opt_f32(sample.mem_bandwidth_util_pct)),
+        Value::F32(opt_f32(sample.temperature_c)),
+        Value::F32(opt_f32(sample.power_w)),
     ]) {
         log::warn!("gpu collector: push_row failed for gpu.utilization");
     }
@@ -169,31 +180,49 @@ fn opt_f32(v: Option<f32>) -> f32 {
     v.unwrap_or(-1.0)
 }
 
+#[cfg_attr(
+    not(any(
+        feature = "cuda",
+        all(not(target_os = "macos"), not(target_os = "windows"))
+    )),
+    allow(unused_mut)
+)]
 fn sample_all(backends: &[Box<dyn GpuBackend>]) -> Vec<GpuMemorySample> {
     #[cfg(feature = "cuda")]
     let nvidia_utils = read_utilization_by_index();
 
+    #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+    let npu_utils = if backends
+        .iter()
+        .any(|backend| backend.kind() == super::backend::GpuBackendKind::Npu)
+    {
+        read_npu_utilization_by_index()
+    } else {
+        Default::default()
+    };
+
     let mut samples = Vec::new();
     for backend in backends {
         for device in backend.probe_devices() {
-            if let Some(sample) = backend.sample_memory(device.ordinal) {
-                let sample = {
-                    #[cfg(feature = "cuda")]
-                    {
-                        let mut s = sample;
-                        if s.backend == super::backend::GpuBackendKind::Cuda {
-                            if let Some(u) = nvidia_utils.get(&s.ordinal) {
-                                s.gpu_util_pct = Some(u.gpu_util_pct);
-                                s.mem_controller_util_pct = Some(u.mem_controller_util_pct);
-                            }
-                        }
-                        s
+            if let Some(mut sample) = backend.sample_memory(device.ordinal) {
+                #[cfg(feature = "cuda")]
+                if sample.backend == super::backend::GpuBackendKind::Cuda {
+                    if let Some(u) = nvidia_utils.get(&sample.ordinal) {
+                        sample.gpu_util_pct = Some(u.gpu_util_pct);
+                        sample.mem_controller_util_pct = Some(u.mem_controller_util_pct);
                     }
-                    #[cfg(not(feature = "cuda"))]
-                    {
-                        sample
+                }
+
+                #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+                if sample.backend == super::backend::GpuBackendKind::Npu {
+                    if let Some(u) = npu_utils.get(&sample.ordinal) {
+                        sample.gpu_util_pct = Some(u.ai_core_util_pct);
+                        sample.mem_controller_util_pct = Some(u.hbm_util_pct);
+                        sample.renderer_util_pct = u.aivector_util_pct;
+                        sample.tiler_util_pct = u.hbm_bw_util_pct;
                     }
-                };
+                }
+
                 samples.push(sample);
             }
         }
@@ -325,6 +354,7 @@ mod tests {
     fn clear_gpu_env() {
         std::env::remove_var("PROBING_GPU");
         std::env::remove_var("PROBING_GPU_SAMPLE_MS");
+        std::env::remove_var("PROBING_GPU_BACKEND");
     }
 
     #[test]
@@ -355,6 +385,15 @@ mod tests {
     }
 
     #[test]
+    fn autostart_respects_backend_filter() {
+        let _guard = ENV_TEST_LOCK.lock().unwrap();
+        clear_gpu_env();
+        std::env::set_var("PROBING_GPU_BACKEND", "unsupported");
+        assert!(autostart_interval_ms().is_none());
+        clear_gpu_env();
+    }
+
+    #[test]
     #[cfg(target_os = "macos")]
     fn autostart_auto_when_backend_present() {
         let _guard = ENV_TEST_LOCK.lock().unwrap();
@@ -368,10 +407,14 @@ mod tests {
 
     #[test]
     #[cfg(all(not(target_os = "macos"), not(feature = "cuda")))]
-    fn autostart_auto_off_without_backend() {
+    fn autostart_auto_matches_native_backend_discovery() {
         let _guard = ENV_TEST_LOCK.lock().unwrap();
         clear_gpu_env();
-        assert!(autostart_interval_ms().is_none());
+        let has_backend = !discover_backends().is_empty();
+        assert_eq!(
+            autostart_interval_ms(),
+            has_backend.then_some(DEFAULT_SAMPLE_INTERVAL_MS)
+        );
     }
 
     #[test]

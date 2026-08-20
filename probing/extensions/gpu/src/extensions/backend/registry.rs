@@ -11,6 +11,9 @@ use super::apple::AppleSiliconBackend;
 #[cfg(feature = "cuda")]
 use super::cuda::CudaBackend;
 
+#[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+use super::npu::NpuBackend;
+
 static BACKEND_FILTER: Lazy<Mutex<Option<Vec<GpuBackendKind>>>> = Lazy::new(|| Mutex::new(None));
 
 /// Restrict which backends are active (`None` = auto-discover all available).
@@ -18,7 +21,14 @@ pub fn set_backend_filter(kinds: Option<Vec<GpuBackendKind>>) {
     *lock_mutex(&BACKEND_FILTER, "GPU backend filter") = kinds;
 }
 
-#[cfg_attr(not(any(feature = "cuda", target_os = "macos")), allow(dead_code))]
+#[cfg_attr(
+    not(any(
+        feature = "cuda",
+        target_os = "macos",
+        all(not(target_os = "macos"), not(target_os = "windows"))
+    )),
+    allow(dead_code)
+)]
 fn filter_allows(kind: GpuBackendKind) -> bool {
     match lock_mutex(&BACKEND_FILTER, "GPU backend filter").as_ref() {
         None => true,
@@ -78,10 +88,40 @@ pub fn discover_backends() -> Vec<Box<dyn GpuBackend>> {
         }
     };
 
-    #[cfg(not(any(feature = "cuda", target_os = "macos")))]
+    let npu: Option<Box<dyn GpuBackend>> = {
+        #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+        {
+            if filter_allows(GpuBackendKind::Npu) {
+                let npu =
+                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(NpuBackend::try_load))
+                        .ok()
+                        .flatten();
+                if let Some(npu) = npu {
+                    let count = npu.device_count();
+                    log::info!("GPU backend loaded: ascend/npu ({count} device(s))");
+                    Some(Box::new(npu))
+                } else {
+                    log::debug!("Ascend NPU backend unavailable (DCMI/npu-smi missing)");
+                    None
+                }
+            } else {
+                None
+            }
+        }
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        {
+            None
+        }
+    };
+
+    #[cfg(not(any(
+        feature = "cuda",
+        target_os = "macos",
+        all(not(target_os = "macos"), not(target_os = "windows"))
+    )))]
     log::debug!("probing-gpu: no GPU backends available for this target");
 
-    [cuda, apple].into_iter().flatten().collect()
+    [cuda, apple, npu].into_iter().flatten().collect()
 }
 
 /// Backends selected by env `PROBING_GPU_BACKEND` (default: auto = all discovered).
@@ -116,11 +156,13 @@ mod platform_tests {
         assert_eq!(first.len(), second.len());
     }
 
-    /// Linux/Windows CI: crate must compile with zero GPU backends when cuda is off.
+    /// A no-CUDA build must not discover CUDA; platform-native backends may remain.
     #[test]
     #[cfg(all(not(target_os = "macos"), not(feature = "cuda")))]
-    fn non_mac_build_has_no_backends_without_cuda() {
-        assert!(discover_backends().is_empty());
+    fn non_mac_build_has_no_cuda_backend_without_cuda() {
+        assert!(!discover_backends()
+            .iter()
+            .any(|backend| backend.kind() == GpuBackendKind::Cuda));
     }
 
     /// macOS: Apple backend module is linked; discovery may return devices.

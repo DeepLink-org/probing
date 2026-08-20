@@ -93,6 +93,10 @@ impl GpuBackend for CudaBackend {
             renderer_util_pct: None,
             tiler_util_pct: None,
             driver_mem_bytes: None,
+            vector_util_pct: None,
+            mem_bandwidth_util_pct: None,
+            temperature_c: None,
+            power_w: None,
         })
     }
 }
@@ -103,10 +107,9 @@ fn probe_cuda_backend() -> Option<CudaBackend> {
         return None;
     }
 
-    let count =
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| CudaContext::device_count()))
-            .ok()
-            .and_then(|r| r.ok())?;
+    let count = std::panic::catch_unwind(std::panic::AssertUnwindSafe(CudaContext::device_count))
+        .ok()
+        .and_then(|r| r.ok())?;
 
     if count <= 0 {
         log::debug!("CUDA backend unavailable (zero devices)");

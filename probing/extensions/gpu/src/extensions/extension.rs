@@ -13,7 +13,7 @@ pub struct GpuProbeExtension {
     #[option(aliases = ["sample_interval", "interval", "gpu.interval"])]
     gpu_sample_interval_ms: Maybe<i64>,
 
-    /// Backend filter: `auto`, `cuda`, `rocm`, `metal`, or comma-separated list.
+    /// Backend filter: `auto`, `cuda`, `npu`, `rocm`, `metal`, or comma-separated list.
     #[option(aliases = ["backend", "gpu.backend"])]
     gpu_backend: Maybe<String>,
 }
