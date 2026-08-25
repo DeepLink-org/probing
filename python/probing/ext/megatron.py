@@ -86,6 +86,7 @@ class MegatronModuleCatalog:
     device: str
     is_leaf: int
 
+
 # Megatron-style env vars that indicate a Megatron job even before import.
 _MEGATRON_ENV_MARKERS = (
     "TENSOR_MODEL_PARALLEL_RANK",
