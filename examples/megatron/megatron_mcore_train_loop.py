@@ -19,6 +19,7 @@ from typing import Any, Callable, Dict, Iterator, Tuple
 
 import probing
 import torch
+from probing.profiling.torch_probe import flush_torch_probes
 from torch.optim import Adam
 from torch.utils.data import DataLoader
 
@@ -319,7 +320,12 @@ def main() -> None:
         if args.max_duration_sec > 0 and (time.monotonic() - started) >= args.max_duration_sec:
             break
 
-        with probing.span("train_iter"):
+        sync_step_from_iteration(
+            iteration + 1,
+            micro_batches=args.num_microbatches,
+            force=True,
+        )
+        with probing.span("train.step"):
             optim.zero_grad()
             losses_reduced = forward_backward_func(
                 forward_step_func=forward_step_func,
@@ -333,11 +339,6 @@ def main() -> None:
             )
             finalize_model_grads([gpt_model])
             optim.step()
-            sync_step_from_iteration(
-                iteration + 1,
-                micro_batches=args.num_microbatches,
-                force=True,
-            )
             sync_role_from_parallel_state()
 
         if rank == 0 and (iteration + 1) % args.print_freq == 0:
@@ -351,6 +352,10 @@ def main() -> None:
         iteration += 1
         if args.step_sleep_ms > 0:
             time.sleep(args.step_sleep_ms / 1000.0)
+
+    # GPU-event rows intentionally trail the live step by a few iterations.
+    # Flush them once training becomes idle so the final steps remain queryable.
+    flush_torch_probes()
 
     if rank == 0 and not args.skip_checkpoint:
         ckpt_path = os.path.join(os.getcwd(), "ckpt")

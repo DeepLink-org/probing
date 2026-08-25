@@ -191,6 +191,23 @@ def test_post_step_hook_drains_deferred_after_step_timing(monkeypatch):
     assert order[-4:] == ["timing", "drain", "advance", "mark"]
 
 
+def test_graceful_flush_forces_all_deferred_records(monkeypatch):
+    tracer, _, _ = _ready_tracer()
+    records = [object(), object()]
+    persisted = []
+    tracer._deferred = records.copy()
+    monkeypatch.setattr(
+        tracer,
+        "_persist_deferred_records",
+        lambda ready: persisted.extend(ready),
+    )
+
+    tracer.flush_deferred()
+
+    assert tracer._deferred == []
+    assert persisted == [(records[0], True), (records[1], True)]
+
+
 def test_anchor_pre_always_pairs_post_even_when_layer_not_sampled():
     # layer_rate=0 → nothing sampled except the offset-0 time anchor.
     tracer, root, other = _ready_tracer(layer_rate=0.0)
@@ -299,6 +316,34 @@ def test_optimizer_step_recorded_every_sampled_step():
         BaseTracer.post_step_hook(tracer, opt, (), {})
         stages = {p.record.stage for p in tracer.pending}
         assert "post step" in stages
+
+
+def test_optimizer_post_uses_coordinate_captured_at_pre_hook(monkeypatch):
+    from probing.profiling import torch_probe as tp
+
+    tracer, _, _ = _ready_tracer()
+    optimizer = _FakeMod()
+    snapshot = object()
+    stamped_with = []
+    tracer._optimizer_step_snapshot = snapshot
+    tracer._open_spans[(id(optimizer), "step")] = (
+        None,
+        optimizer,
+        "pre step",
+        0.0,
+        0.0,
+    )
+    monkeypatch.setattr(tp, "mem_stats", lambda: tp.TorchTrace())
+    monkeypatch.setattr(
+        tracer,
+        "_stamp_step_role",
+        lambda record, snapshot=None: stamped_with.append(snapshot),
+    )
+    monkeypatch.setattr(tracer, "end_timing", lambda mod, stage: (0.0, None))
+
+    tracer._complete_post_stage(optimizer, "post step")
+
+    assert stamped_with == [snapshot]
 
 
 def test_sampled_step_defers_gpu_event_reads(monkeypatch):

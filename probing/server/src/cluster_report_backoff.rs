@@ -68,12 +68,16 @@ fn backoff_factor() -> f64 {
         .max(1.0_f64)
 }
 
-/// Cap interval below stale TTL so nodes are not marked dead between beats.
+/// Keep two heartbeat opportunities inside the stale TTL.
+///
+/// A single margin below the TTL is not enough when a report overlaps a busy
+/// training step or briefly retries its parent. Capping at half the threshold
+/// lets one report be delayed or lost without evicting a live rank.
 pub fn max_report_interval_secs() -> u64 {
     let base = base_report_interval_secs();
     let configured = configured_max_interval_secs();
     let stale = stale_threshold_secs();
-    let safe = stale.saturating_sub(stale / 4 + 1).max(base);
+    let safe = (stale / 2).max(base);
     configured.min(safe).max(base)
 }
 
@@ -258,7 +262,7 @@ mod tests {
                 ("PROBING_CLUSTER_REPORT_MAX_INTERVAL_SEC", "120"),
             ],
             || {
-                assert!(max_report_interval_secs() <= 25);
+                assert_eq!(max_report_interval_secs(), 12);
             },
         );
     }

@@ -1068,6 +1068,7 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
         self.pending = []
         self._open_spans = {}
         self._train_step_cm = None
+        self._optimizer_step_snapshot = None
         self._step_cycle = 0
         self.shadow_step = False
         self._step_wall_started_at: Optional[float] = None
@@ -1190,6 +1191,9 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
     def pre_step_hook(self, optimizer, args, kwargs):
         if self.shadow_step:
             return
+        # Preserve the optimizer-entry coordinate. Another hook may close the
+        # enclosing train-step span before our post hook runs.
+        self._optimizer_step_snapshot = step.snapshot()
         if self.enabled and self.finalized:
             self._begin_train_step_span(optimizer=optimizer)
         if not self._hooks_dispatch_active():
@@ -1347,7 +1351,8 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
         span_key = (id(mod), mapped_stage)
 
         record = mem_stats()
-        self._stamp_step_role(record)
+        snapshot = self._optimizer_step_snapshot if post_stage == "post step" else None
+        self._stamp_step_role(record, snapshot=snapshot)
         record.seq = self.offset()
         module_name_str = self._module_display_name(mod)
         record.module = module_name_str
@@ -1619,6 +1624,12 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
         ready = self._collect_ready_deferred()
         self._persist_deferred_records(ready)
 
+    def flush_deferred(self) -> None:
+        """Force all outstanding GPU-event records into the persistence queue."""
+        ready = [(record, True) for record in self._deferred]
+        self._deferred.clear()
+        self._persist_deferred_records(ready)
+
     def _close_step_wall(self, *, is_shadow: bool) -> None:
         """Record step wall time, then schedule deferred GPU trace persistence."""
         self._record_step_timing(is_shadow=is_shadow)
@@ -1630,6 +1641,7 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
 
     def post_step_hook(self, opt, args, kwargs):
         if not self.enabled:
+            self._optimizer_step_snapshot = None
             return
         if not self.finalized:
             self.finalize_discovery()
@@ -1638,6 +1650,7 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
             self.curr_step = step.micro_step
             self._mark_step_wall_start()
             self._begin_train_step_span(optimizer=opt)
+            self._optimizer_step_snapshot = None
             return
 
         if self.shadow_step:
@@ -1646,6 +1659,7 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
             self._cleanup_step_resources()
             self.step_start = None
             self._close_step_wall(is_shadow=True)
+            self._optimizer_step_snapshot = None
             return
 
         self._end_train_step_span()
@@ -1659,9 +1673,11 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
             self.step_start = None
             self.pending.clear()
             self._close_step_wall(is_shadow=False)
+            self._optimizer_step_snapshot = None
             return
 
         super().post_step_hook(opt, args, kwargs)
+        self._optimizer_step_snapshot = None
 
         self._finish_open_stages()
 
@@ -1690,6 +1706,18 @@ class TorchProbe(BaseTracer, Timer, Sampler, PythonTracer, VariableTracer):
         self._cleanup_step_resources()
         self.step_start = None
         self._close_step_wall(is_shadow=False)
+
+
+def flush_torch_probes(timeout: float = 10.0) -> None:
+    """Persist delayed TorchProbe rows during graceful training shutdown."""
+    tracers = _live_torch_probes()
+    if not tracers:
+        return
+    for tracer in tracers:
+        tracer.flush_deferred()
+    from probing.profiling.deferred_drain import flush_deferred_drain
+
+    flush_deferred_drain(timeout=timeout)
 
 
 def set_sampling_mode(mode):

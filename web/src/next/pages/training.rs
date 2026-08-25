@@ -70,6 +70,16 @@ const DEVICE_MEMORY_SQL: &str = "WITH samples AS ( \
          AND (local_rank < 0 OR device_id = local_rank) \
        ORDER BY device_id LIMIT 16";
 
+// Keep these dynamic Python tables behind a CTE so cluster fan-out uses the
+// current heartbeat registry rather than a startup-time global-catalog snapshot.
+const MEGATRON_RANK_LAYOUT_SQL: &str = "WITH layout AS ( \
+     SELECT * FROM python.megatron_rank_layout \
+     ) SELECT recorded_at_ns, rank, role, \
+     tp_rank, tp_size, pp_rank, pp_size, dp_rank, dp_size, cp_rank, cp_size, \
+     ep_rank, ep_size, vp_rank, vp_size, model_chunk, layer_start, layer_end, \
+     module_count, layout_key FROM layout \
+     ORDER BY recorded_at_ns DESC, rank, model_chunk LIMIT 512";
+
 #[component]
 pub fn TrainingPage() -> Element {
     let visible = use_page_visible();
@@ -188,7 +198,73 @@ pub fn TrainingPage() -> Element {
     });
     let device_memory = use_resource(move || {
         let request = evidence_request();
-        async move { training_query("gpu.utilization memory", DEVICE_MEMORY_SQL, &request).await }
+        let available = capability_status(
+            "gpu",
+            "utilization",
+            &["device_id", "used_bytes", "total_bytes"],
+        );
+        async move {
+            if available.allows_query() {
+                training_query("gpu.utilization memory", DEVICE_MEMORY_SQL, &request).await
+            } else {
+                Ok(empty_dataframe_payload("gpu.utilization memory", &request))
+            }
+        }
+    });
+    let megatron_rank_layout = use_resource(move || {
+        let request = evidence_request().for_scope(EvidenceScope::ClusterFanout, None);
+        let available = capability_status(
+            "python",
+            "megatron_rank_layout",
+            &["rank", "tp_rank", "pp_rank", "dp_rank"],
+        );
+        async move {
+            if available.allows_query() {
+                training_query(
+                    "python.megatron_rank_layout",
+                    MEGATRON_RANK_LAYOUT_SQL,
+                    &request,
+                )
+                .await
+            } else {
+                Ok(empty_dataframe_payload(
+                    "python.megatron_rank_layout",
+                    &request,
+                ))
+            }
+        }
+    });
+    let megatron_module_catalog = use_resource(move || {
+        let request = evidence_request().for_scope(EvidenceScope::ClusterFanout, None);
+        let rank = request.context.rank;
+        let available = capability_status(
+            "python",
+            "megatron_module_catalog",
+            &["rank", "module_path", "module_type"],
+        );
+        async move {
+            let Some(rank) = rank.filter(|rank| *rank >= 0) else {
+                return Ok(empty_dataframe_payload(
+                    "python.megatron_module_catalog",
+                    &request,
+                ));
+            };
+            if !available.allows_query() {
+                return Ok(empty_dataframe_payload(
+                    "python.megatron_module_catalog",
+                    &request,
+                ));
+            }
+            let sql = format!(
+                "WITH catalog AS (SELECT * FROM python.megatron_module_catalog) \
+                 SELECT rank, layout_key, model_chunk, module_path, parent_path, \
+                 module_type, depth, local_layer_index, global_layer_index, \
+                 parameter_count, trainable_parameter_count, dtype, device, is_leaf \
+                 FROM catalog WHERE rank = {rank} \
+                 ORDER BY model_chunk, module_path LIMIT 2048"
+            );
+            training_query("python.megatron_module_catalog", &sql, &request).await
+        }
     });
 
     let step_state = steps.read().clone();
@@ -198,6 +274,8 @@ pub fn TrainingPage() -> Element {
     let group_communication_state = group_communication.read().clone();
     let rank_memory_state = rank_memory.read().clone();
     let device_memory_state = device_memory.read().clone();
+    let megatron_rank_layout_state = megatron_rank_layout.read().clone();
+    let megatron_module_catalog_state = megatron_module_catalog.read().clone();
     let step_health = step_state
         .as_ref()
         .and_then(|result| result.as_ref().ok())
@@ -238,6 +316,8 @@ pub fn TrainingPage() -> Element {
     let group_view_state = payload_value_state(&group_communication_state);
     let rank_memory_view_state = payload_value_state(&rank_memory_state);
     let device_memory_view_state = payload_value_state(&device_memory_state);
+    let megatron_rank_layout_view_state = payload_value_state(&megatron_rank_layout_state);
+    let megatron_module_catalog_view_state = payload_value_state(&megatron_module_catalog_state);
     let placement_partial_sources = [
         partial_source("communication groups", &group_communication_state),
         partial_source("allocator", &rank_memory_state),
@@ -247,7 +327,19 @@ pub fn TrainingPage() -> Element {
     .flatten()
     .collect::<Vec<_>>();
     let placement_partial_label = placement_partial_sources.join(" · ");
-    let scope = evidence_request().scope.label();
+    let current_request = evidence_request();
+    let scope = current_request.scope.label();
+    let known_ranks = node_state
+        .as_ref()
+        .and_then(|state| state.as_ref().ok())
+        .map(|payload| {
+            payload
+                .value
+                .iter()
+                .filter(|node| node.rank.is_some())
+                .count()
+        })
+        .unwrap_or_default();
     let step_source = capability_status(
         "python",
         "trace_event",
@@ -280,6 +372,14 @@ pub fn TrainingPage() -> Element {
             subtitle: "Step timing, physical rank placement, module hooks, and collective measurements.".to_string(),
             actions: rsx! { span { class: "text-xs text-gray-500", "{scope} · {POLL_MS / 1000}s" } },
 
+            if current_request.scope == EvidenceScope::LocalProcess && known_ranks > 1 {
+                InlineNotice {
+                    title: format!("Local metrics with {known_ranks} reported ranks"),
+                    detail: "Step, module, and allocator sections are scoped to this process. Placement and Megatron topology remain cluster-wide; enable Cluster fan-out for cross-rank metrics.".to_string(),
+                    tone: NoticeTone::Info,
+                }
+            }
+
             if !missing_sources.is_empty() {
                 InlineNotice {
                     title: "Sources not reported".to_string(),
@@ -302,7 +402,7 @@ pub fn TrainingPage() -> Element {
                     if !payload.value.is_empty() {
                         EvidenceSection {
                             title: "Placement".to_string(),
-                            subtitle: Some("One square per reported accelerator process; selecting a rank links its node, step, and exact communication-group evidence.".to_string()),
+                            subtitle: Some("One square per reported accelerator process. Megatron topology and selected-rank modules are always gathered cluster-wide.".to_string()),
                             divided: true,
                             if !placement_partial_sources.is_empty() {
                                 div { class: "border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900",
@@ -316,6 +416,8 @@ pub fn TrainingPage() -> Element {
                                 group_communication: group_view_state.clone(),
                                 rank_memory: rank_memory_view_state.clone(),
                                 device_memory: device_memory_view_state.clone(),
+                                megatron_rank_layout: megatron_rank_layout_view_state.clone(),
+                                megatron_module_catalog: megatron_module_catalog_view_state.clone(),
                             }
                         }
                     }
@@ -582,6 +684,7 @@ mod tests {
         assert!(DEVICE_MEMORY_SQL.contains("LIMIT 16"));
         assert!(DEVICE_MEMORY_SQL.contains("process.envs WHERE name = 'RANK'"));
         assert!(DEVICE_MEMORY_SQL.contains("process.envs WHERE name = 'LOCAL_RANK'"));
+        assert!(MEGATRON_RANK_LAYOUT_SQL.contains("python.megatron_rank_layout"));
     }
 
     #[test]

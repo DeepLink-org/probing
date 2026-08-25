@@ -35,6 +35,8 @@ def _reset_megatron_ext_state():
     megatron_ext._TRAINING_INIT = False
     megatron_ext._LAST_ROLE = None
     megatron_ext._LAST_ITERATION = None
+    megatron_ext._RECORDED_RANK_LAYOUTS.clear()
+    megatron_ext._CAPTURED_MODEL_IDS.clear()
     yield
     for key in list(sys.modules):
         if key == "megatron" or key.startswith("megatron."):
