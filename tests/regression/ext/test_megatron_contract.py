@@ -155,6 +155,84 @@ def test_train_step_wrap_syncs_iteration(megatron_env):
         assert int(probing.step.snapshot().micro_batches) == 4
 
 
+def test_get_model_wrap_captures_static_layout(megatron_env):
+    ps = make_parallel_state()
+    modules = install_megatron_stack(ps=ps)
+    training_mod = modules["megatron.training.training"]
+    model = object()
+    training_mod.get_model = lambda: [model]
+
+    with megatron_modules(modules), mock.patch.object(
+        megatron_ext, "capture_model_layout"
+    ) as capture:
+        megatron_ext.init_training()
+        assert getattr(training_mod.get_model, "_probing_wrapped", False)
+        assert training_mod.get_model() == [model]
+        capture.assert_called_once_with([model])
+
+
+def test_capture_model_layout_records_rank_layers_and_modules(
+    megatron_env, monkeypatch
+):
+    class FakeParameter:
+        requires_grad = True
+        dtype = "float16"
+        device = "cuda:0"
+
+        def numel(self):
+            return 128
+
+    class FakeModule:
+        def __init__(self, *, layer_number=None, parameters=None):
+            self.layer_number = layer_number
+            self._parameters = parameters or []
+
+        def parameters(self, recurse=True):
+            return iter(self._parameters)
+
+        def children(self):
+            return iter(())
+
+    root = FakeModule()
+    layer = FakeModule(layer_number=5, parameters=[FakeParameter()])
+    root.named_modules = lambda: iter(
+        [
+            ("", root),
+            ("decoder.layers.0", layer),
+            ("decoder.layers.0.mlp", FakeModule()),
+        ]
+    )
+    ps = make_parallel_state(tp=1, pp=1, dp=2)
+    monkeypatch.setenv("RANK", "11")
+    monkeypatch.setenv("WORLD_SIZE", "64")
+    monkeypatch.setenv("LOCAL_RANK", "3")
+
+    with mock.patch.object(
+        megatron_ext.MegatronModuleCatalog, "append_many"
+    ) as append_modules, mock.patch.object(
+        megatron_ext.MegatronRankLayout, "append"
+    ) as append_layout:
+        megatron_ext.capture_model_layout(root, ps)
+
+    records = append_modules.call_args.args[0]
+    assert len(records) == 3
+    assert records[1].local_layer_index == 0
+    assert records[1].global_layer_index == 4
+    assert records[1].parameter_count == 128
+    assert records[2].global_layer_index == 4
+
+    layout = append_layout.call_args.args[0]
+    assert layout.rank == 11
+    assert layout.local_rank == 3
+    assert layout.tp_rank == 1
+    assert layout.tp_size == 4
+    assert layout.pp_rank == 1
+    assert layout.pp_size == 2
+    assert layout.layer_start == 4
+    assert layout.layer_end == 4
+    assert layout.module_count == 3
+
+
 def test_sync_step_from_iteration(megatron_env):
     megatron_ext.sync_step_from_iteration(7, micro_batches=4, force=True)
     assert probing.step.local_step == 7

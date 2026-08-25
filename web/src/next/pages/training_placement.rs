@@ -21,6 +21,7 @@ struct PlacementProcess {
     coordinates: Vec<(String, String)>,
     status: Option<String>,
     timestamp: u64,
+    layout: Option<RankLayoutSummary>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -121,6 +122,29 @@ enum DeviceMemoryEvidence {
     Loaded(Vec<DeviceMemorySample>),
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct RankLayoutSummary {
+    layer_start: Option<i32>,
+    layer_end: Option<i32>,
+    module_count: usize,
+    model_chunks: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ModuleCatalogEntry {
+    model_chunk: i32,
+    module_path: String,
+    module_type: String,
+    depth: usize,
+    local_layer_index: Option<i32>,
+    global_layer_index: Option<i32>,
+    parameter_count: u64,
+    trainable_parameter_count: u64,
+    dtype: String,
+    device: String,
+    is_leaf: bool,
+}
+
 #[component]
 pub(super) fn TrainingPlacement(
     nodes: Vec<Node>,
@@ -129,9 +153,22 @@ pub(super) fn TrainingPlacement(
     group_communication: Option<Result<DataFrame>>,
     rank_memory: Option<Result<DataFrame>>,
     device_memory: Option<Result<DataFrame>>,
+    megatron_rank_layout: Option<Result<DataFrame>>,
+    megatron_module_catalog: Option<Result<DataFrame>>,
 ) -> Element {
-    let placement = build_placement(&nodes);
-    rsx! { PlacementDiagram { placement, local_step, step_health, group_communication, rank_memory, device_memory } }
+    let layouts = rank_layout_evidence(megatron_rank_layout.as_ref());
+    let placement = build_placement(&nodes, &layouts);
+    rsx! {
+        PlacementDiagram {
+            placement,
+            local_step,
+            step_health,
+            group_communication,
+            rank_memory,
+            device_memory,
+            megatron_module_catalog,
+        }
+    }
 }
 
 #[component]
@@ -142,6 +179,7 @@ fn PlacementDiagram(
     group_communication: Option<Result<DataFrame>>,
     rank_memory: Option<Result<DataFrame>>,
     device_memory: Option<Result<DataFrame>>,
+    megatron_module_catalog: Option<Result<DataFrame>>,
 ) -> Element {
     let missing_ranks = placement
         .expected_ranks
@@ -166,7 +204,148 @@ fn PlacementDiagram(
                     }
                 }
             }
-            PlacementOverview { placement, local_step, step_health, group_communication, rank_memory, device_memory }
+            LogicalTopology { placement: placement.clone(), local_step }
+            PlacementOverview { placement, local_step, step_health, group_communication, rank_memory, device_memory, megatron_module_catalog }
+        }
+    }
+}
+
+#[component]
+fn LogicalTopology(placement: PlacementModel, local_step: Option<i64>) -> Element {
+    let mut selected_dp = use_signal(|| 0);
+    let processes = placement
+        .hosts
+        .iter()
+        .flat_map(|host| host.processes.iter())
+        .cloned()
+        .collect::<Vec<_>>();
+    let dp_values = processes
+        .iter()
+        .filter_map(|process| coordinate_i32(process, "dp"))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    if dp_values.is_empty()
+        || !processes.iter().any(|process| {
+            coordinate(process, "pp").is_some() && coordinate(process, "tp").is_some()
+        })
+    {
+        return rsx! {};
+    }
+    let pinned_dp = INVESTIGATION_CONTEXT
+        .read()
+        .rank
+        .and_then(|rank| processes.iter().find(|process| process.rank == Some(rank)))
+        .and_then(|process| coordinate_i32(process, "dp"));
+    let default_dp = pinned_dp.unwrap_or(dp_values[0]);
+    let requested_dp = selected_dp();
+    let selected = if dp_values.contains(&requested_dp) {
+        requested_dp
+    } else {
+        default_dp
+    };
+    let pp_values = processes
+        .iter()
+        .filter(|process| coordinate_i32(process, "dp") == Some(selected))
+        .filter_map(|process| coordinate_i32(process, "pp"))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let tp_values = processes
+        .iter()
+        .filter(|process| coordinate_i32(process, "dp") == Some(selected))
+        .filter_map(|process| coordinate_i32(process, "tp"))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let pp_count = pp_values.len();
+    let mut cells = Vec::new();
+    for tp in &tp_values {
+        for pp in &pp_values {
+            let matching = processes
+                .iter()
+                .filter(|process| {
+                    coordinate_i32(process, "dp") == Some(selected)
+                        && coordinate_i32(process, "tp") == Some(*tp)
+                        && coordinate_i32(process, "pp") == Some(*pp)
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            cells.push((*tp, *pp, matching));
+        }
+    }
+
+    rsx! {
+        div { class: "rounded-md border border-gray-200 bg-white p-3",
+            div { class: "mb-3 flex flex-wrap items-center justify-between gap-2",
+                div {
+                    div { class: "text-xs font-semibold uppercase tracking-wide text-gray-600", "Logical model placement" }
+                    div { class: "mt-0.5 text-xs text-gray-500", "Pipeline stages by tensor-parallel lane; choose a data-parallel replica." }
+                }
+                div { class: "flex flex-wrap items-center gap-1",
+                    for dp in dp_values {
+                        button {
+                            r#type: "button",
+                            class: if dp == selected { "rounded border border-blue-600 bg-blue-600 px-2 py-1 font-mono text-xs font-semibold text-white" } else { "rounded border border-gray-300 bg-white px-2 py-1 font-mono text-xs text-gray-700 hover:border-blue-400" },
+                            onclick: move |_| selected_dp.set(dp),
+                            "DP{dp}"
+                        }
+                    }
+                }
+            }
+            div { class: "overflow-x-auto",
+                div {
+                    class: "grid min-w-max gap-1.5",
+                    style: "grid-template-columns: 3rem repeat({pp_count}, minmax(7.5rem, 1fr));",
+                    span {}
+                    for pp in &pp_values {
+                        div { class: "rounded bg-amber-50 px-2 py-1 text-center font-mono text-xs font-semibold text-amber-900", "PP{pp}" }
+                    }
+                    for tp in &tp_values {
+                        div { class: "flex items-center justify-center rounded bg-violet-50 px-2 font-mono text-xs font-semibold text-violet-900", "TP{tp}" }
+                        for (_, pp, processes) in cells.iter().filter(|(cell_tp, _, _)| cell_tp == tp) {
+                            if !processes.is_empty() {
+                                div { class: "grid gap-1 rounded border border-gray-200 bg-white p-1",
+                                    for process in processes {
+                                        LogicalRankCell { process: process.clone(), pp: *pp, local_step }
+                                    }
+                                }
+                            } else {
+                                div { class: "flex min-h-12 items-center justify-center rounded border border-dashed border-gray-200 text-xs text-gray-400", "missing" }
+                            }
+                        }
+                    }
+                }
+            }
+            div { class: "mt-2 text-xs text-gray-500", "Click a rank to inspect its static module tree." }
+        }
+    }
+}
+
+#[component]
+fn LogicalRankCell(process: PlacementProcess, pp: i32, local_step: Option<i64>) -> Element {
+    let rank = process.rank;
+    let rank_label = rank
+        .map(|rank| format!("R{rank}"))
+        .unwrap_or_else(|| "R?".to_string());
+    let layer_label = process
+        .layout
+        .as_ref()
+        .map(format_rank_layout)
+        .unwrap_or_else(|| "layers not reported".to_string());
+    let title = format!("{rank_label} · PP{pp} · {layer_label}");
+    rsx! {
+        button {
+            r#type: "button",
+            class: "min-h-12 rounded border border-gray-300 bg-gray-50 px-2 py-1 text-left hover:border-blue-500 hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-700",
+            title: "{title}",
+            onclick: move |_| {
+                if let Some(rank) = rank {
+                    set_training_rank_context(rank, local_step, None);
+                }
+            },
+            div { class: "font-mono text-xs font-semibold text-gray-950", "{rank_label}" }
+            div { class: "mt-0.5 truncate font-mono text-xs text-gray-600", "{layer_label}" }
         }
     }
 }
@@ -179,6 +358,7 @@ fn PlacementOverview(
     group_communication: Option<Result<DataFrame>>,
     rank_memory: Option<Result<DataFrame>>,
     device_memory: Option<Result<DataFrame>>,
+    megatron_module_catalog: Option<Result<DataFrame>>,
 ) -> Element {
     let mut hovered_rank = use_signal(|| None::<i32>);
     let mut tooltip_rank = use_signal(|| None::<i32>);
@@ -205,7 +385,6 @@ fn PlacementOverview(
         &placement_memory,
         DeviceMemoryEvidence::Loaded(samples) if !samples.is_empty()
     );
-    let host_columns = placement.hosts.len().clamp(1, 8);
     let tooltip_selection = tooltip_rank().and_then(|rank| {
         placement.hosts.iter().find_map(|host| {
             host.processes
@@ -241,14 +420,15 @@ fn PlacementOverview(
             div { class: "min-w-0",
                 div { class: "overflow-x-auto pb-0.5",
                     div {
-                        class: "inline-grid gap-1.5",
-                        style: "grid-template-columns: repeat({host_columns}, 3rem);",
+                        class: "flex min-w-max flex-wrap gap-1.5",
                         for (host_index, host) in placement.hosts.iter().enumerate() {
                             div {
                                 class: "min-w-0 rounded border border-gray-200 bg-white p-1",
                                 aria_label: "Host {host_index}: {host.name}",
                                 div { class: "mb-1 truncate text-center font-mono text-xs text-gray-600", "H{host_index}" }
-                                div { class: "grid grid-cols-1 justify-items-center gap-0.5",
+                                div {
+                                    class: "grid justify-items-center gap-0.5",
+                                    style: "grid-template-columns: repeat({host.processes.len().clamp(1, 8)}, 1.5rem);",
                                     for process in host.processes.iter() {
                                         PlacementCell {
                                             host: host.name.clone(),
@@ -306,6 +486,7 @@ fn PlacementOverview(
                         group_communication: group_communication.clone(),
                         rank_memory: rank_memory.clone(),
                         device_memory: device_memory.clone(),
+                        megatron_module_catalog: megatron_module_catalog.clone(),
                     }
                 }
             }
@@ -314,13 +495,10 @@ fn PlacementOverview(
 }
 
 fn placement_tooltip_style(position: PlacementTooltipPosition) -> String {
-    let left = position.x;
-    let top = position.y + 12.0;
-    format!(
-        "left: clamp(1rem, calc({left:.1}px - 22rem), calc(100vw - 45rem)); \
-         top: clamp(1rem, {top:.1}px, calc(100vh - 32rem)); \
-         width: min(44rem, calc(100vw - 2rem)); max-height: calc(100vh - 2rem);"
-    )
+    let _ = position;
+    "left: 50%; top: 50%; transform: translate(-50%, -50%); \
+     width: min(80rem, calc(100vw - 2rem)); height: calc(100vh - 2rem);"
+        .to_string()
 }
 
 fn placement_selection_is_pinned(active_rank: Option<i32>, pinned_rank: Option<i32>) -> bool {
@@ -334,6 +512,7 @@ fn PlacementSelectionDetail(
     group_sizes: Option<PlacementGroupSizes>,
     pinned: bool,
 ) -> Element {
+    let layout = process.layout.as_ref().map(format_rank_layout);
     let rank = process
         .rank
         .map(|value| format!("rank {value}"))
@@ -367,6 +546,9 @@ fn PlacementSelectionDetail(
             if !coordinates.is_empty() {
                 span { class: "font-mono", "{coordinates}" }
             }
+            if let Some(layout) = layout {
+                span { class: "font-mono font-medium text-cyan-800", "{layout}" }
+            }
             if let Some(sizes) = group_sizes {
                 span { class: "font-medium text-violet-800", "TP group {sizes.tensor}" }
                 span { class: "font-medium text-emerald-800", "DP group {sizes.data}" }
@@ -386,6 +568,7 @@ fn PlacementLinkedEvidence(
     group_communication: Option<Result<DataFrame>>,
     rank_memory: Option<Result<DataFrame>>,
     device_memory: Option<Result<DataFrame>>,
+    megatron_module_catalog: Option<Result<DataFrame>>,
 ) -> Element {
     let rank = process.rank;
     let status = process
@@ -445,6 +628,7 @@ fn PlacementLinkedEvidence(
                     }
                 }
             }
+            RankModulesPanel { rank, state: megatron_module_catalog }
             RankMemoryPanel { rank, local_rank: process.local_rank, memory, device_memory }
             div { class: "border-t border-gray-200 px-3 py-2",
                 div { class: "flex flex-wrap items-baseline justify-between gap-2",
@@ -474,6 +658,198 @@ fn PlacementLinkedEvidence(
                             communication,
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn RankModulesPanel(rank: Option<i32>, state: Option<Result<DataFrame>>) -> Element {
+    let mut filter = use_signal(String::new);
+    let mut layers_only = use_signal(|| false);
+    let mut group_by_layer = use_signal(|| true);
+    let all_entries = state
+        .as_ref()
+        .and_then(|result| result.as_ref().ok())
+        .map(parse_module_catalog)
+        .unwrap_or_default();
+    let total_entries = all_entries.len();
+    let query = filter().trim().to_ascii_lowercase();
+    let entries = all_entries
+        .into_iter()
+        .filter(|entry| {
+            (!layers_only()
+                || entry.global_layer_index.is_some()
+                || entry.local_layer_index.is_some())
+                && module_matches_filter(entry, &query)
+        })
+        .collect::<Vec<_>>();
+    let shown_entries = entries.len();
+    let mut grouped_entries = BTreeMap::<Option<i32>, Vec<ModuleCatalogEntry>>::new();
+    for entry in entries.iter().cloned() {
+        grouped_entries
+            .entry(entry.global_layer_index.or(entry.local_layer_index))
+            .or_default()
+            .push(entry);
+    }
+    rsx! {
+        div { class: "border-t border-gray-200 px-3 py-2",
+            div { class: "flex flex-wrap items-baseline justify-between gap-2",
+                div { class: "text-xs font-medium text-gray-900", "Megatron modules and layers" }
+                if let Some(rank) = rank {
+                    div { class: "font-mono text-xs text-gray-500", "rank {rank} · {shown_entries} / {total_entries} modules" }
+                }
+            }
+            if rank.is_some() && total_entries > 0 {
+                div { class: "mt-2 flex flex-wrap items-center gap-2",
+                    input {
+                        r#type: "search",
+                        class: "min-w-64 flex-1 rounded border border-gray-300 px-2 py-1.5 font-mono text-xs text-gray-700 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500",
+                        placeholder: "Filter module, type, dtype, device, or L12",
+                        value: "{filter}",
+                        oninput: move |event| filter.set(event.value()),
+                    }
+                    button {
+                        r#type: "button",
+                        class: if layers_only() {
+                            "rounded border border-cyan-300 bg-cyan-50 px-2 py-1.5 text-xs font-medium text-cyan-800"
+                        } else {
+                            "rounded border border-gray-300 bg-white px-2 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                        },
+                        aria_pressed: layers_only().to_string(),
+                        onclick: move |_| layers_only.toggle(),
+                        "Layers only"
+                    }
+                    button {
+                        r#type: "button",
+                        class: if group_by_layer() {
+                            "rounded border border-violet-300 bg-violet-50 px-2 py-1.5 text-xs font-medium text-violet-800"
+                        } else {
+                            "rounded border border-gray-300 bg-white px-2 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                        },
+                        aria_pressed: group_by_layer().to_string(),
+                        onclick: move |_| group_by_layer.toggle(),
+                        "Group by layer"
+                    }
+                }
+            }
+            match state {
+                None => rsx! { div { class: "mt-2 text-xs text-gray-500", "Loading static model layout…" } },
+                Some(Err(error)) => rsx! { div { class: "mt-2 text-xs text-gray-500", "Static model layout unavailable · {error.display_message()}" } },
+                Some(Ok(_)) if rank.is_none() => rsx! { div { class: "mt-2 text-xs text-gray-500", "Select a rank to load its static model layout." } },
+                Some(Ok(_)) if total_entries == 0 => rsx! { div { class: "mt-2 text-xs text-gray-500", "This rank has not reported a static Megatron module catalog." } },
+                Some(Ok(_)) if entries.is_empty() => rsx! { div { class: "mt-2 text-xs text-gray-500", "No modules match the current filters." } },
+                Some(Ok(_)) => rsx! {
+                    div {
+                        class: "mt-2 overflow-auto rounded border border-gray-200",
+                        style: "max-height: 60vh;",
+                        if group_by_layer() {
+                            for (layer, group) in grouped_entries {
+                                ModuleLayerGroup {
+                                    layer,
+                                    entries: group,
+                                    expanded: !query.is_empty(),
+                                }
+                            }
+                        } else {
+                            for entry in entries {
+                                ModuleCatalogRow { entry }
+                            }
+                        }
+                    }
+                },
+            }
+        }
+    }
+}
+
+#[component]
+fn ModuleLayerGroup(
+    layer: Option<i32>,
+    entries: Vec<ModuleCatalogEntry>,
+    expanded: bool,
+) -> Element {
+    let label = layer
+        .map(|index| format!("Layer {index}"))
+        .unwrap_or_else(|| "Shared / non-layer modules".to_string());
+    let parameters = entries
+        .iter()
+        .map(|entry| entry.parameter_count)
+        .sum::<u64>();
+    rsx! {
+        details { class: "border-b border-gray-200 last:border-b-0", open: expanded,
+            summary { class: "flex cursor-pointer list-none items-center justify-between gap-3 bg-gray-50 px-2 py-2 text-xs hover:bg-gray-100",
+                span { class: "font-semibold text-gray-800", "{label}" }
+                span { class: "font-mono text-gray-500", "{entries.len()} modules · {format_parameter_count(parameters)} params" }
+            }
+            div { class: "border-t border-gray-100",
+                for entry in entries {
+                    ModuleCatalogRow { entry }
+                }
+            }
+        }
+    }
+}
+
+fn module_matches_filter(entry: &ModuleCatalogEntry, query: &str) -> bool {
+    if query.is_empty() {
+        return true;
+    }
+    let layer = entry
+        .global_layer_index
+        .or(entry.local_layer_index)
+        .map(|index| format!("l{index}"))
+        .unwrap_or_default();
+    [
+        entry.module_path.as_str(),
+        entry.module_type.as_str(),
+        entry.dtype.as_str(),
+        entry.device.as_str(),
+        layer.as_str(),
+    ]
+    .iter()
+    .any(|value| value.to_ascii_lowercase().contains(query))
+}
+
+#[component]
+fn ModuleCatalogRow(entry: ModuleCatalogEntry) -> Element {
+    let indent = entry.depth.min(8) as f32 * 0.75;
+    let module_type = entry
+        .module_type
+        .rsplit('.')
+        .next()
+        .unwrap_or(entry.module_type.as_str())
+        .to_string();
+    let layer = entry
+        .global_layer_index
+        .map(|index| format!("L{index}"))
+        .or_else(|| {
+            entry
+                .local_layer_index
+                .map(|index| format!("local L{index}"))
+        });
+    let parameters = format_parameter_count(entry.parameter_count);
+    let trainable = format_parameter_count(entry.trainable_parameter_count);
+    let placement = [entry.dtype.as_str(), entry.device.as_str()]
+        .into_iter()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" · ");
+    rsx! {
+        div {
+            class: "grid grid-cols-[minmax(16rem,1fr)_auto] gap-3 border-b border-gray-100 px-2 py-1.5 text-xs last:border-b-0",
+            div { class: "min-w-0", style: "padding-left: {indent}rem;",
+                div { class: if entry.is_leaf { "truncate font-mono font-medium text-gray-900" } else { "truncate font-mono text-gray-700" }, "{entry.module_path}" }
+                div { class: "truncate text-gray-500", "chunk {entry.model_chunk} · {module_type}" }
+            }
+            div { class: "text-right",
+                if let Some(layer) = layer {
+                    div { class: "font-mono font-semibold text-cyan-800", "{layer}" }
+                }
+                div { class: "font-mono text-gray-600", "{parameters} params · {trainable} trainable" }
+                if !placement.is_empty() {
+                    div { class: "font-mono text-gray-500", "{placement}" }
                 }
             }
         }
@@ -620,6 +996,141 @@ fn group_communication_evidence(state: Option<&Result<DataFrame>>) -> GroupCommu
             GroupCommunicationEvidence::Loaded(parse_group_communication(dataframe))
         }
     }
+}
+
+fn rank_layout_evidence(state: Option<&Result<DataFrame>>) -> BTreeMap<i32, RankLayoutSummary> {
+    let Some(Ok(dataframe)) = state else {
+        return BTreeMap::new();
+    };
+    let index = |name: &str| dataframe.names.iter().position(|column| column == name);
+    let (
+        Some(recorded_at),
+        Some(rank),
+        Some(model_chunk),
+        Some(layer_start),
+        Some(layer_end),
+        Some(module_count),
+    ) = (
+        index("recorded_at_ns"),
+        index("rank"),
+        index("model_chunk"),
+        index("layer_start"),
+        index("layer_end"),
+        index("module_count"),
+    )
+    else {
+        return BTreeMap::new();
+    };
+    let mut latest = BTreeMap::<(i32, i32), (i64, i32, i32, usize)>::new();
+    for row in dataframe.iter() {
+        let Some(rank) = ele_i64(row.get(rank)).and_then(|value| i32::try_from(value).ok()) else {
+            continue;
+        };
+        let Some(chunk) = ele_i64(row.get(model_chunk)).and_then(|value| i32::try_from(value).ok())
+        else {
+            continue;
+        };
+        let timestamp = ele_i64(row.get(recorded_at)).unwrap_or_default();
+        let start = ele_i64(row.get(layer_start))
+            .and_then(|value| i32::try_from(value).ok())
+            .unwrap_or(-1);
+        let end = ele_i64(row.get(layer_end))
+            .and_then(|value| i32::try_from(value).ok())
+            .unwrap_or(-1);
+        let modules = ele_i64(row.get(module_count))
+            .and_then(|value| usize::try_from(value).ok())
+            .unwrap_or_default();
+        let key = (rank, chunk);
+        if latest
+            .get(&key)
+            .is_none_or(|(current, _, _, _)| timestamp > *current)
+        {
+            latest.insert(key, (timestamp, start, end, modules));
+        }
+    }
+    let ranks_with_chunks = latest
+        .keys()
+        .filter_map(|(rank, chunk)| (*chunk >= 0).then_some(*rank))
+        .collect::<BTreeSet<_>>();
+    let mut summaries = BTreeMap::<i32, RankLayoutSummary>::new();
+    for ((rank, chunk), (_, start, end, modules)) in latest {
+        if chunk < 0 && ranks_with_chunks.contains(&rank) {
+            continue;
+        }
+        let summary = summaries.entry(rank).or_default();
+        summary.module_count = summary.module_count.saturating_add(modules);
+        if chunk >= 0 {
+            summary.model_chunks += 1;
+        }
+        if start >= 0 {
+            summary.layer_start = Some(
+                summary
+                    .layer_start
+                    .map_or(start, |current| current.min(start)),
+            );
+        }
+        if end >= 0 {
+            summary.layer_end = Some(summary.layer_end.map_or(end, |current| current.max(end)));
+        }
+    }
+    summaries
+}
+
+fn parse_module_catalog(dataframe: &DataFrame) -> Vec<ModuleCatalogEntry> {
+    let index = |name: &str| dataframe.names.iter().position(|column| column == name);
+    let (
+        Some(model_chunk),
+        Some(module_path),
+        Some(module_type),
+        Some(depth),
+        Some(local_layer),
+        Some(global_layer),
+        Some(parameters),
+        Some(trainable),
+        Some(dtype),
+        Some(device),
+        Some(is_leaf),
+    ) = (
+        index("model_chunk"),
+        index("module_path"),
+        index("module_type"),
+        index("depth"),
+        index("local_layer_index"),
+        index("global_layer_index"),
+        index("parameter_count"),
+        index("trainable_parameter_count"),
+        index("dtype"),
+        index("device"),
+        index("is_leaf"),
+    )
+    else {
+        return Vec::new();
+    };
+    dataframe
+        .iter()
+        .filter_map(|row| {
+            let local_layer_index = ele_i64(row.get(local_layer))
+                .and_then(|value| i32::try_from(value).ok())
+                .filter(|value| *value >= 0);
+            let global_layer_index = ele_i64(row.get(global_layer))
+                .and_then(|value| i32::try_from(value).ok())
+                .filter(|value| *value >= 0);
+            Some(ModuleCatalogEntry {
+                model_chunk: i32::try_from(ele_i64(row.get(model_chunk))?).ok()?,
+                module_path: ele_string(row.get(module_path))?,
+                module_type: ele_string(row.get(module_type))?,
+                depth: usize::try_from(ele_i64(row.get(depth))?).ok()?,
+                local_layer_index,
+                global_layer_index,
+                parameter_count: u64::try_from(ele_i64(row.get(parameters))?).unwrap_or_default(),
+                trainable_parameter_count: u64::try_from(ele_i64(row.get(trainable))?)
+                    .unwrap_or_default(),
+                dtype: ele_string(row.get(dtype)).unwrap_or_default(),
+                device: ele_string(row.get(device)).unwrap_or_default(),
+                is_leaf: ele_i64(row.get(is_leaf)).unwrap_or_default() != 0,
+            })
+        })
+        .collect()
 }
 
 fn rank_memory_evidence(state: Option<&Result<DataFrame>>) -> RankMemoryEvidence {
@@ -902,6 +1413,18 @@ fn format_memory_ratio(allocated_mb: f64, reserved_mb: f64) -> String {
     }
 }
 
+fn format_parameter_count(count: u64) -> String {
+    if count >= 1_000_000_000 {
+        format!("{:.2}B", count as f64 / 1_000_000_000.0)
+    } else if count >= 1_000_000 {
+        format!("{:.2}M", count as f64 / 1_000_000.0)
+    } else if count >= 1_000 {
+        format!("{:.1}K", count as f64 / 1_000.0)
+    } else {
+        count.to_string()
+    }
+}
+
 fn format_binary_bytes(bytes: u64) -> String {
     format_bytes(bytes)
 }
@@ -1022,13 +1545,19 @@ fn PlacementCell(
     } else {
         format!(" · {coordinates}")
     };
+    let layout_detail = process
+        .layout
+        .as_ref()
+        .map(|layout| format!(" · {}", format_rank_layout(layout)))
+        .unwrap_or_default();
     let title = format!(
-        "{rank_label} · {host} · GPU{local_rank} · {status} · {role}{}{}{}",
+        "{rank_label} · {host} · GPU{local_rank} · {status} · {role}{}{}{}{}",
         coordinate_detail,
         group_name
             .map(|name| format!(" · {name}"))
             .unwrap_or_default(),
         memory_detail,
+        layout_detail,
     );
     let pinned_host = host.clone();
     let pinned = INVESTIGATION_CONTEXT.read().rank == rank;
@@ -1122,6 +1651,24 @@ fn coordinate<'a>(process: &'a PlacementProcess, dimension: &str) -> Option<&'a 
         .coordinates
         .iter()
         .find_map(|(key, value)| (key == dimension).then_some(value.as_str()))
+}
+
+fn coordinate_i32(process: &PlacementProcess, dimension: &str) -> Option<i32> {
+    coordinate(process, dimension)?.parse().ok()
+}
+
+fn format_rank_layout(layout: &RankLayoutSummary) -> String {
+    let layers = match (layout.layer_start, layout.layer_end) {
+        (Some(start), Some(end)) if start == end => format!("L{start}"),
+        (Some(start), Some(end)) => format!("L{start}–{end}"),
+        _ => "layers unknown".to_string(),
+    };
+    let chunks = (layout.model_chunks > 1).then(|| format!(" · {} chunks", layout.model_chunks));
+    format!(
+        "{layers} · {} modules{}",
+        layout.module_count,
+        chunks.unwrap_or_default()
+    )
 }
 
 fn placement_group_membership(
@@ -1257,7 +1804,7 @@ fn parse_coordinates(role: Option<&str>) -> Vec<(String, String)> {
         .collect()
 }
 
-fn build_placement(nodes: &[Node]) -> PlacementModel {
+fn build_placement(nodes: &[Node], layouts: &BTreeMap<i32, RankLayoutSummary>) -> PlacementModel {
     let mut hosts: BTreeMap<String, Vec<PlacementProcess>> = BTreeMap::new();
     let mut ranks = BTreeSet::new();
     let mut expected_ranks = 0usize;
@@ -1287,6 +1834,7 @@ fn build_placement(nodes: &[Node]) -> PlacementModel {
             coordinates,
             status: node.status.clone(),
             timestamp: node.timestamp,
+            layout: node.rank.and_then(|rank| layouts.get(&rank).cloned()),
         });
     }
 
@@ -1361,7 +1909,7 @@ mod tests {
                 ..Default::default()
             })
             .collect::<Vec<_>>();
-        let placement = build_placement(&nodes);
+        let placement = build_placement(&nodes, &BTreeMap::new());
 
         assert_eq!(placement.hosts.len(), 8);
         assert_eq!(placement.observed_ranks, 64);
@@ -1526,5 +2074,77 @@ mod tests {
         assert!(heat.contains("#ffffff"));
         assert!(memory_heat_style(Some(&sample), Some(PlacementGroup::Focus)).is_empty());
         assert!(memory_heat_style(None, None).is_empty());
+    }
+
+    #[test]
+    fn rank_layout_aggregates_model_chunks_and_ignores_initial_snapshot() {
+        let dataframe = DataFrame::new(
+            vec![
+                "recorded_at_ns".into(),
+                "rank".into(),
+                "model_chunk".into(),
+                "layer_start".into(),
+                "layer_end".into(),
+                "module_count".into(),
+            ],
+            vec![
+                Seq::SeqI64(vec![1, 2, 3]),
+                Seq::SeqI32(vec![7, 7, 7]),
+                Seq::SeqI32(vec![-1, 0, 1]),
+                Seq::SeqI32(vec![-1, 0, 8]),
+                Seq::SeqI32(vec![-1, 7, 15]),
+                Seq::SeqI64(vec![0, 120, 130]),
+            ],
+        );
+        let state = Ok(dataframe);
+        let layouts = rank_layout_evidence(Some(&state));
+        let layout = layouts.get(&7).unwrap();
+        assert_eq!(layout.layer_start, Some(0));
+        assert_eq!(layout.layer_end, Some(15));
+        assert_eq!(layout.module_count, 250);
+        assert_eq!(layout.model_chunks, 2);
+        assert_eq!(format_rank_layout(layout), "L0–15 · 250 modules · 2 chunks");
+    }
+
+    #[test]
+    fn module_catalog_preserves_layer_and_parameter_metadata() {
+        let dataframe = DataFrame::new(
+            vec![
+                "model_chunk".into(),
+                "module_path".into(),
+                "module_type".into(),
+                "depth".into(),
+                "local_layer_index".into(),
+                "global_layer_index".into(),
+                "parameter_count".into(),
+                "trainable_parameter_count".into(),
+                "dtype".into(),
+                "device".into(),
+                "is_leaf".into(),
+            ],
+            vec![
+                Seq::SeqI32(vec![0]),
+                Seq::SeqText(vec!["decoder.layers.0.mlp".into()]),
+                Seq::SeqText(vec!["megatron.MLP".into()]),
+                Seq::SeqI64(vec![4]),
+                Seq::SeqI32(vec![0]),
+                Seq::SeqI32(vec![8]),
+                Seq::SeqI64(vec![1_048_576]),
+                Seq::SeqI64(vec![1_048_576]),
+                Seq::SeqText(vec!["torch.float16".into()]),
+                Seq::SeqText(vec!["cuda:0".into()]),
+                Seq::SeqI32(vec![1]),
+            ],
+        );
+        let entries = parse_module_catalog(&dataframe);
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].global_layer_index, Some(8));
+        assert_eq!(entries[0].parameter_count, 1_048_576);
+        assert!(entries[0].is_leaf);
+        assert_eq!(format_parameter_count(entries[0].parameter_count), "1.05M");
+        assert!(module_matches_filter(&entries[0], "mlp"));
+        assert!(module_matches_filter(&entries[0], "float16"));
+        assert!(module_matches_filter(&entries[0], "l8"));
+        assert!(!module_matches_filter(&entries[0], "attention"));
     }
 }

@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use dioxus::prelude::*;
 use probing_proto::prelude::{DataFrame, Ele, Node};
@@ -80,24 +80,42 @@ pub fn MemoryPage() -> Element {
     });
     let devices = use_resource(move || {
         let request = evidence_request();
+        let available = capability_status(
+            "gpu",
+            "utilization",
+            &["device_id", "used_bytes", "total_bytes"],
+        );
         async move {
-            memory_query(
-                &device_summary_sql(request.window_us.unwrap_or_default()),
-                "gpu.utilization.latest",
-                &request,
-            )
-            .await
+            if available.allows_query() {
+                memory_query(
+                    &device_summary_sql(request.window_us.unwrap_or_default()),
+                    "gpu.utilization.latest",
+                    &request,
+                )
+                .await
+            } else {
+                Ok(empty_memory_query("gpu.utilization.latest", &request))
+            }
         }
     });
     let history = use_resource(move || {
         let request = evidence_request();
+        let available = capability_status(
+            "gpu",
+            "utilization",
+            &["device_id", "used_bytes", "total_bytes"],
+        );
         async move {
-            memory_query(
-                &device_history_sql(request.window_us.unwrap_or_default()),
-                "gpu.utilization.history",
-                &request,
-            )
-            .await
+            if available.allows_query() {
+                memory_query(
+                    &device_history_sql(request.window_us.unwrap_or_default()),
+                    "gpu.utilization.history",
+                    &request,
+                )
+                .await
+            } else {
+                Ok(empty_memory_query("gpu.utilization.history", &request))
+            }
         }
     });
     let allocator = use_resource(move || {
@@ -187,12 +205,24 @@ pub fn MemoryPage() -> Element {
         && matches!(device_state.as_ref(), Some(Ok(_)))
         && !device_rows.is_empty()
         && selected.is_none();
-    let scope = evidence_request().scope.label();
+    let current_request = evidence_request();
+    let scope = current_request.scope.label();
+    let known_ranks = node_rows
+        .iter()
+        .filter_map(|node| node.rank)
+        .collect::<BTreeSet<_>>()
+        .len();
     let allocator_source = capability_status(
         "python",
         "torch_trace",
         &["rank", "allocated", "max_allocated", "cached"],
     );
+    let device_source = capability_status(
+        "gpu",
+        "utilization",
+        &["device_id", "used_bytes", "total_bytes"],
+    );
+    let device_reported = device_source != CapabilityStatus::Missing;
 
     rsx! {
         WorkspacePage {
@@ -200,10 +230,30 @@ pub fn MemoryPage() -> Element {
             subtitle: "Physical device capacity, sampled usage, and framework allocator evidence for training and inference.".to_string(),
             actions: rsx! { span { class: "text-xs text-gray-500", "{scope} · {window_minutes}m window · {POLL_MS / 1000}s" } },
 
-            if allocator_source == CapabilityStatus::Missing {
+            if current_request.scope == EvidenceScope::LocalProcess && known_ranks > 1 {
+                InlineNotice {
+                    title: format!("Showing 1 of {known_ranks} ranks"),
+                    detail: "This page is scoped to the local process. Enable Cluster fan-out to compare memory across every reported rank.".to_string(),
+                    tone: NoticeTone::Info,
+                }
+            }
+
+            if allocator_source == CapabilityStatus::Missing && !device_reported {
+                InlineNotice {
+                    title: "Memory sources not reported".to_string(),
+                    detail: "Neither physical-device sampling nor PyTorch allocator evidence is enabled for this process.".to_string(),
+                    tone: NoticeTone::Info,
+                }
+            } else if allocator_source == CapabilityStatus::Missing {
                 InlineNotice {
                     title: "Allocator source not reported".to_string(),
                     detail: "Physical device memory remains available; PyTorch allocator and module-delta sections are hidden.".to_string(),
+                    tone: NoticeTone::Info,
+                }
+            } else if !device_reported {
+                InlineNotice {
+                    title: "Device memory source not reported".to_string(),
+                    detail: "The GPU collector is not enabled for this process; PyTorch allocator evidence remains available.".to_string(),
                     tone: NoticeTone::Info,
                 }
             }
@@ -223,7 +273,7 @@ pub fn MemoryPage() -> Element {
                 EvidenceSection {
                     title: "Device memory".to_string(),
                     subtitle: Some("Current usage is the latest reported sample; peak is the highest sample inside the selected window.".to_string()),
-                    DeviceOverview { state: device_state.clone(), devices: device_rows.clone() }
+                    DeviceOverview { state: device_state.clone(), devices: device_rows.clone(), source_reported: device_reported }
                 }
                 EvidenceSection {
                     title: "Memory timeline".to_string(),
@@ -233,6 +283,7 @@ pub fn MemoryPage() -> Element {
                         state: history_state,
                         selected: selected.clone(),
                         window_minutes,
+                        source_reported: device_reported,
                         mismatch_detail: selection_mismatch.then(|| format!(
                             "{} has no sample in the {scope} result.",
                             memory_context_label(&context),
@@ -308,7 +359,11 @@ fn push_memory_query(
 }
 
 #[component]
-fn DeviceOverview(state: Option<Result<MemoryQuery>>, devices: Vec<DeviceMemory>) -> Element {
+fn DeviceOverview(
+    state: Option<Result<MemoryQuery>>,
+    devices: Vec<DeviceMemory>,
+    source_reported: bool,
+) -> Element {
     match state {
         None => rsx! { LoadingPanel { label: "Loading device memory".to_string() } },
         Some(Err(error)) => rsx! { UnavailablePanel {
@@ -316,8 +371,12 @@ fn DeviceOverview(state: Option<Result<MemoryQuery>>, devices: Vec<DeviceMemory>
             detail: error.display_message(),
         }},
         Some(Ok(_)) if devices.is_empty() => rsx! { UnavailablePanel {
-            label: "No device memory samples".to_string(),
-            detail: "gpu.utilization returned no samples in the selected scope and window.".to_string(),
+            label: if source_reported { "No device memory samples".to_string() } else { "Device memory not reported".to_string() },
+            detail: if source_reported {
+                "The GPU collector returned no samples in the selected scope and window.".to_string()
+            } else {
+                "Enable the GPU collector to record physical-device memory usage.".to_string()
+            },
         }},
         Some(Ok(query)) => {
             let current = devices.iter().map(|row| row.current_bytes).sum::<u64>();
@@ -404,12 +463,23 @@ fn MemoryTimeline(
     state: Option<Result<MemoryQuery>>,
     selected: Option<DeviceMemory>,
     window_minutes: usize,
+    source_reported: bool,
     mismatch_detail: Option<String>,
 ) -> Element {
     let Some(selected) = selected else {
         return rsx! { UnavailablePanel {
-            label: if mismatch_detail.is_some() { "No matching device sample".to_string() } else { "Select a device".to_string() },
-            detail: mismatch_detail.unwrap_or_else(|| "Choose a device in the physical map to inspect its sampled timeline.".to_string()),
+            label: if !source_reported {
+                "Memory timeline not reported".to_string()
+            } else if mismatch_detail.is_some() {
+                "No matching device sample".to_string()
+            } else {
+                "Select a device".to_string()
+            },
+            detail: if !source_reported {
+                "The GPU collector is not enabled, so no physical-device timeline is available.".to_string()
+            } else {
+                mismatch_detail.unwrap_or_else(|| "Choose a device in the physical map to inspect its sampled timeline.".to_string())
+            },
         }};
     };
     match state {
@@ -439,26 +509,50 @@ fn MemoryTimeline(
 
 #[component]
 fn MemoryLineChart(points: Vec<MemoryPoint>, selected: DeviceMemory) -> Element {
+    let mut fit_data = use_signal(|| true);
     let width = 900.0;
-    let height = 180.0;
-    let left = 58.0;
-    let top = 10.0;
-    let plot_width = width - left - 10.0;
-    let plot_height = height - top - 24.0;
+    let height = 146.0;
     let total = points
         .iter()
         .map(|point| point.total_bytes)
         .max()
         .unwrap_or(1)
         .max(1);
+    let observed_min = points
+        .iter()
+        .map(|point| point.used_bytes)
+        .min()
+        .unwrap_or_default();
+    let observed_max = points
+        .iter()
+        .map(|point| point.used_bytes)
+        .max()
+        .unwrap_or(total);
+    let observed_span = observed_max.saturating_sub(observed_min);
+    let fit_padding = observed_span
+        .saturating_div(8)
+        .max(observed_max.saturating_div(50))
+        .max(256 * 1024 * 1024);
+    let y_min = if fit_data() {
+        observed_min.saturating_sub(fit_padding)
+    } else {
+        0
+    };
+    let y_max = if fit_data() {
+        observed_max.saturating_add(fit_padding).min(total)
+    } else {
+        total
+    };
+    let y_span = y_max.saturating_sub(y_min).max(1);
     let start = points.first().map(|point| point.ts).unwrap_or_default();
     let end = points.last().map(|point| point.ts).unwrap_or(start);
     let time_span = (end - start).max(1) as f64;
     let line = points
         .iter()
         .map(|point| {
-            let x = left + (point.ts - start) as f64 / time_span * plot_width;
-            let y = top + (1.0 - point.used_bytes as f64 / total as f64) * plot_height;
+            let x = (point.ts - start) as f64 / time_span * width;
+            let relative = point.used_bytes.saturating_sub(y_min) as f64 / y_span as f64;
+            let y = (1.0 - relative) * height;
             format!("{x:.1},{y:.1}")
         })
         .collect::<Vec<_>>()
@@ -467,30 +561,150 @@ fn MemoryLineChart(points: Vec<MemoryPoint>, selected: DeviceMemory) -> Element 
         .rank
         .map(|rank| format!("rank {rank} · "))
         .unwrap_or_default();
+    let history_span = format_history_span(end.saturating_sub(start).max(0) as u64);
+    let start_time = format_sample_time(start);
+    let end_time = format_sample_time(end);
+    let sample_age_us = unix_time_micros().saturating_sub(end.max(0) as u64);
+    let sample_age = format_sample_age(sample_age_us);
+    let sample_is_stale = sample_age_us > 15_000_000;
     rsx! {
-        div { role: "img", aria_label: "{rank}GPU {selected.device_id} memory used over time",
-            div { class: "mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-600",
-                span { class: "font-medium text-gray-900", "{selected.host} · {rank}GPU {selected.device_id}" }
-                span { "latest {format_bytes(selected.current_bytes)} · sampled peak {format_bytes(selected.peak_bytes)} · capacity {format_bytes(selected.total_bytes)}" }
+        div {
+            div { class: "mb-3 flex flex-wrap items-start justify-between gap-x-6 gap-y-1 text-xs",
+                div { class: "min-w-0",
+                    div { class: "font-semibold text-gray-900", "{rank}GPU {selected.device_id}" }
+                    div { class: "max-w-xl truncate text-gray-500", title: "{selected.host}", "{selected.host}" }
+                }
+                div { class: "flex flex-wrap items-center gap-x-4 gap-y-1 text-gray-600",
+                    span {
+                        class: if sample_is_stale {
+                            "rounded bg-amber-50 px-1.5 py-0.5 font-medium text-amber-800"
+                        } else {
+                            "rounded bg-emerald-50 px-1.5 py-0.5 font-medium text-emerald-700"
+                        },
+                        if sample_is_stale { "Stale · {sample_age}" } else { "Live · {sample_age}" }
+                    }
+                    span { "Latest " strong { class: "font-semibold text-gray-900", "{format_bytes(selected.current_bytes)}" } }
+                    span { "Peak " strong { class: "font-semibold text-gray-900", "{format_bytes(selected.peak_bytes)}" } }
+                    span { "Capacity " strong { class: "font-semibold text-gray-900", "{format_bytes(selected.total_bytes)}" } }
+                    button {
+                        r#type: "button",
+                        class: "rounded border border-gray-200 bg-white px-2 py-1 font-medium text-gray-600 hover:border-gray-300 hover:bg-gray-50",
+                        aria_pressed: fit_data().to_string(),
+                        onclick: move |_| fit_data.toggle(),
+                        if fit_data() { "Full capacity" } else { "Fit data" }
+                    }
+                }
             }
-            svg { class: "h-44 w-full", view_box: "0 0 {width} {height}", preserve_aspect_ratio: "none",
-                for tick in 0..=4 {
-                    {
-                        let ratio = tick as f64 / 4.0;
-                        let y = top + ratio * plot_height;
-                        let value = ((1.0 - ratio) * total as f64) as u64;
-                        rsx! {
-                            line { x1: "{left}", y1: "{y}", x2: "{left + plot_width}", y2: "{y}", stroke: "#e5e7eb", stroke_width: "1" }
-                            text { x: "{left - 6.0}", y: "{y + 3.0}", text_anchor: "end", font_size: "11", fill: "#6b7280", "{format_bytes(value)}" }
+            div {
+                class: "relative h-44",
+                role: "img",
+                aria_label: "{rank}GPU {selected.device_id} memory used over time; vertical scale from {format_bytes(y_min)} to {format_bytes(y_max)}",
+                div { class: "absolute bottom-6 left-0 top-0 w-14",
+                    for tick in 0..=4 {
+                        {
+                            let ratio = tick as f64 / 4.0;
+                            let value = y_max.saturating_sub((ratio * y_span as f64) as u64);
+                            let position = if tick == 0 || tick == 4 {
+                                String::new()
+                            } else {
+                                format!("top: {:.2}%;", ratio * 100.0)
+                            };
+                            rsx! {
+                                span {
+                                    class: if tick == 0 {
+                                        "absolute left-0 top-0 w-14 whitespace-nowrap text-right text-xs text-gray-500"
+                                    } else if tick == 4 {
+                                        "absolute bottom-0 left-0 w-14 whitespace-nowrap text-right text-xs text-gray-500"
+                                    } else {
+                                        "absolute left-0 w-14 -translate-y-1/2 whitespace-nowrap text-right text-xs text-gray-500"
+                                    },
+                                    style: "{position}",
+                                    "{format_bytes(value)}"
+                                }
+                            }
                         }
                     }
                 }
-                polyline { points: "{line}", fill: "none", stroke: "#7c3aed", stroke_width: "2.5", stroke_linejoin: "round", stroke_linecap: "round", vector_effect: "non-scaling-stroke" }
-                text { x: "{left}", y: "{height - 4.0}", font_size: "11", fill: "#6b7280", "oldest" }
-                text { x: "{left + plot_width}", y: "{height - 4.0}", text_anchor: "end", font_size: "11", fill: "#6b7280", "latest" }
+                div { class: "absolute bottom-6 left-16 right-3 top-0",
+                    svg { class: "h-full w-full", view_box: "0 0 {width} {height}", preserve_aspect_ratio: "none",
+                        for tick in 0..=4 {
+                            {
+                                let y = tick as f64 / 4.0 * height;
+                                rsx! {
+                                    line { x1: "0", y1: "{y}", x2: "{width}", y2: "{y}", stroke: "#e5e7eb", stroke_width: "1", vector_effect: "non-scaling-stroke" }
+                                }
+                            }
+                        }
+                        polyline { points: "{line}", fill: "none", stroke: "#7c3aed", stroke_width: "2.5", stroke_linejoin: "round", stroke_linecap: "round", vector_effect: "non-scaling-stroke" }
+                        for point in points.iter() {
+                            {
+                                let x = (point.ts - start) as f64 / time_span * width;
+                                let relative = point.used_bytes.saturating_sub(y_min) as f64 / y_span as f64;
+                                let y = (1.0 - relative) * height;
+                                let time = format_sample_time(point.ts);
+                                let used = format_bytes(point.used_bytes);
+                                rsx! {
+                                    circle {
+                                        cx: "{x}", cy: "{y}", r: "5",
+                                        fill: "transparent", stroke: "transparent",
+                                        class: "cursor-crosshair",
+                                        title { "{time} · {used}" }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                span { class: "absolute bottom-0 left-16 text-xs text-gray-500", "{start_time} · -{history_span}" }
+                span { class: "absolute bottom-0 right-3 text-xs text-gray-500", "{end_time} · Latest" }
             }
         }
     }
+}
+
+fn format_history_span(duration_us: u64) -> String {
+    let seconds = duration_us / 1_000_000;
+    if seconds >= 3600 {
+        format!("{:.1}h", seconds as f64 / 3600.0)
+    } else if seconds >= 60 {
+        format!("{:.1}m", seconds as f64 / 60.0)
+    } else {
+        format!("{seconds}s")
+    }
+}
+
+fn format_sample_age(age_us: u64) -> String {
+    let seconds = age_us / 1_000_000;
+    if seconds < 2 {
+        "now".to_string()
+    } else if seconds < 60 {
+        format!("{seconds}s ago")
+    } else {
+        format!("{:.1}m ago", seconds as f64 / 60.0)
+    }
+}
+
+fn format_sample_time(timestamp_us: i64) -> String {
+    chrono::DateTime::from_timestamp_micros(timestamp_us)
+        .map(|timestamp| timestamp.format("%H:%M:%S UTC").to_string())
+        .unwrap_or_else(|| "unknown time".to_string())
+}
+
+#[cfg(target_arch = "wasm32")]
+fn unix_time_micros() -> u64 {
+    (js_sys::Date::now() * 1_000.0).max(0.0) as u64
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn unix_time_micros() -> u64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_micros()
+        .try_into()
+        .unwrap_or(u64::MAX)
 }
 
 #[component]
@@ -796,6 +1010,11 @@ mod tests {
         assert_eq!(format_bytes(8 << 30), "8.0 GiB");
         assert_eq!(format_ratio(3, 4), "75.0%");
         assert_eq!(format_ratio(1, 0), "—");
+        assert_eq!(format_history_span(45_000_000), "45s");
+        assert_eq!(format_history_span(300_000_000), "5.0m");
+        assert_eq!(format_sample_age(1_000_000), "now");
+        assert_eq!(format_sample_age(12_000_000), "12s ago");
+        assert_eq!(format_sample_time(0), "00:00:00 UTC");
     }
 
     #[test]

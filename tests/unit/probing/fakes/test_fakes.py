@@ -19,6 +19,8 @@ def _clean_fakes():
     megatron_ext._TRAINING_INIT = False
     megatron_ext._LAST_ROLE = None
     megatron_ext._LAST_ITERATION = None
+    megatron_ext._RECORDED_RANK_LAYOUTS.clear()
+    megatron_ext._CAPTURED_MODEL_IDS.clear()
     if fakes.is_installed():
         fakes.uninstall()
     try:
@@ -35,6 +37,8 @@ def _clean_fakes():
         fakes.uninstall()
     megatron_ext._PARALLEL_STATE_INIT = False
     megatron_ext._TRAINING_INIT = False
+    megatron_ext._RECORDED_RANK_LAYOUTS.clear()
+    megatron_ext._CAPTURED_MODEL_IDS.clear()
 
 
 def test_device_remap_cuda_to_meta():

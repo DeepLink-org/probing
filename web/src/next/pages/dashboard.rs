@@ -76,8 +76,17 @@ pub fn DashboardPage() -> Element {
     });
     let gpu = use_resource(move || {
         let request = gpu_request();
+        let available = capability_status(
+            "gpu",
+            "utilization",
+            &["device_id", "used_bytes", "total_bytes"],
+        );
         async move {
-            let snapshots = ApiClient::new().fetch_gpu_latest().await?;
+            let snapshots = if available.allows_query() {
+                ApiClient::new().fetch_gpu_latest().await?
+            } else {
+                Vec::new()
+            };
             let receipt = EvidenceReceipt::local("gpu.utilization", &request, snapshots.len());
             Ok(EvidencePayload::new(snapshots, receipt))
         }
@@ -108,6 +117,12 @@ pub fn DashboardPage() -> Element {
         "trace_event",
         &["record_type", "span_id", "name", "time"],
     );
+    let gpu_source = capability_status(
+        "gpu",
+        "utilization",
+        &["device_id", "used_bytes", "total_bytes"],
+    );
+    let gpu_reported = gpu_source != CapabilityStatus::Missing;
     let step_presentation = dashboard_step_presentation(step_source, step_state.as_ref());
     let bundle_request = step_request();
     let bundle_step_state = step_state.clone();
@@ -166,11 +181,11 @@ pub fn DashboardPage() -> Element {
             }
 
             EvidenceSurface {
-                div { class: if matches!(step_presentation, StepPresentation::Ready | StepPresentation::Loading) { "grid items-start xl:grid-cols-2" } else { "grid items-start" },
+                div { class: if gpu_reported && matches!(step_presentation, StepPresentation::Ready | StepPresentation::Loading) { "grid items-start xl:grid-cols-2" } else { "grid items-start" },
                     if step_presentation == StepPresentation::Ready {
                         EvidenceSection {
                         title: "Cluster step time".to_string(),
-                        subtitle: Some("Completed train.step samples aggregated across the returned ranks.".to_string()),
+                        subtitle: Some("Summary metrics use the latest completed step; the chart shows recent cluster history.".to_string()),
                         actions: rsx! {
                             ScopeBadge { label: step_scope.clone() }
                             if step_partial {
@@ -186,30 +201,38 @@ pub fn DashboardPage() -> Element {
                             LoadingPanel { label: "Loading training steps".to_string() }
                         }
                     }
-                    div { class: if matches!(step_presentation, StepPresentation::Ready | StepPresentation::Loading) { "border-t border-gray-200 xl:border-l xl:border-t-0" } else { "" },
-                        EvidenceSection {
-                            title: "Local GPU load".to_string(),
-                            subtitle: Some("Latest accelerator samples exposed by the current server process only.".to_string()),
-                            actions: rsx! {
-                                ScopeBadge { label: "Process-local".to_string() }
-                                EvidenceLink { route: NextRoute::Memory {}, label: "Open Memory →".to_string() }
-                            },
-                            match gpu_state.as_ref() {
-                                None => rsx! { LoadingPanel { label: "Loading GPU samples".to_string() } },
-                                Some(Err(error)) => rsx! { UnavailablePanel {
-                                    label: "GPU samples unavailable".to_string(),
-                                    detail: error.display_message(),
-                                }},
-                                Some(Ok(payload)) if payload.value.is_empty() => rsx! { UnavailablePanel {
-                                    label: "No GPU samples".to_string(),
-                                    detail: "The latest utilization query returned no devices.".to_string(),
-                                }},
-                                Some(Ok(payload)) => rsx! { GpuLoadPanel {
-                                    snapshots: payload.value.clone(),
-                                    health: gpu_health.clone().unwrap_or_default(),
-                                }},
+                    if gpu_reported {
+                        div { class: if matches!(step_presentation, StepPresentation::Ready | StepPresentation::Loading) { "border-t border-gray-200 xl:border-l xl:border-t-0" } else { "" },
+                            EvidenceSection {
+                                title: "Local GPU load".to_string(),
+                                subtitle: Some("Latest accelerator samples exposed by the current server process only.".to_string()),
+                                actions: rsx! {
+                                    ScopeBadge { label: "Process-local".to_string() }
+                                    EvidenceLink { route: NextRoute::Memory {}, label: "Open Memory →".to_string() }
+                                },
+                                match gpu_state.as_ref() {
+                                    None => rsx! { LoadingPanel { label: "Loading GPU samples".to_string() } },
+                                    Some(Err(error)) => rsx! { UnavailablePanel {
+                                        label: "GPU samples unavailable".to_string(),
+                                        detail: error.display_message(),
+                                    }},
+                                    Some(Ok(payload)) if payload.value.is_empty() => rsx! { UnavailablePanel {
+                                        label: "No GPU samples".to_string(),
+                                        detail: "The GPU collector is active but has not returned a device sample yet.".to_string(),
+                                    }},
+                                    Some(Ok(payload)) => rsx! { GpuLoadPanel {
+                                        snapshots: payload.value.clone(),
+                                        health: gpu_health.clone().unwrap_or_default(),
+                                    }},
+                                }
                             }
                         }
+                    }
+                }
+                if !gpu_reported {
+                    div { class: "flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 px-4 py-2 text-xs text-gray-600",
+                        span { "Local GPU metrics are not enabled for this process." }
+                        EvidenceLink { route: NextRoute::Memory {}, label: "Open Memory →".to_string() }
                     }
                 }
                 if step_presentation == StepPresentation::Ready {
@@ -347,6 +370,7 @@ fn StepTimePanel(health: StepHealth) -> Element {
 
 #[component]
 pub(super) fn StepTrendChart(points: Vec<StepTrendPoint>) -> Element {
+    let mut hide_first = use_signal(|| false);
     if points.is_empty() {
         return rsx! {
             UnavailablePanel {
@@ -356,19 +380,19 @@ pub(super) fn StepTrendChart(points: Vec<StepTrendPoint>) -> Element {
         };
     }
 
-    let width = 720.0;
-    let height = 178.0;
-    let pad_left = 50.0;
-    let pad_right = 12.0;
-    let pad_top = 10.0;
-    let pad_bottom = 26.0;
-    let plot_width = width - pad_left - pad_right;
-    let plot_height = height - pad_top - pad_bottom;
-    let minimum = points
+    let can_hide_first = points.len() > 3;
+    let plotted = if can_hide_first && hide_first() {
+        points[1..].to_vec()
+    } else {
+        points
+    };
+    let width = 1000.0;
+    let height = 100.0;
+    let minimum = plotted
         .iter()
         .map(|point| point.median_ms)
         .fold(f64::INFINITY, f64::min);
-    let maximum = points
+    let maximum = plotted
         .iter()
         .map(|point| point.p95_ms)
         .fold(f64::NEG_INFINITY, f64::max);
@@ -378,14 +402,14 @@ pub(super) fn StepTrendChart(points: Vec<StepTrendPoint>) -> Element {
     let y_min = (minimum - padding).max(0.0);
     let y_max = maximum + padding;
     let y_span = (y_max - y_min).max(0.1);
-    let x_span = points.len().saturating_sub(1).max(1) as f64;
+    let point_count = plotted.len().max(1) as f64;
     let coordinates = |value: fn(&StepTrendPoint) -> f64| {
-        points
+        plotted
             .iter()
             .enumerate()
             .map(|(index, point)| {
-                let x = pad_left + index as f64 / x_span * plot_width;
-                let y = pad_top + (y_max - value(point)) / y_span * plot_height;
+                let x = (index as f64 + 0.5) / point_count * width;
+                let y = (y_max - value(point)) / y_span * height;
                 format!("{x:.1},{y:.1}")
             })
             .collect::<Vec<_>>()
@@ -393,8 +417,15 @@ pub(super) fn StepTrendChart(points: Vec<StepTrendPoint>) -> Element {
     };
     let median_line = coordinates(|point| point.median_ms);
     let p95_line = coordinates(|point| point.p95_ms);
-    let first_step = points.first().map(|point| point.step).unwrap_or_default();
-    let last_step = points.last().map(|point| point.step).unwrap_or_default();
+    let first_step = plotted.first().map(|point| point.step).unwrap_or_default();
+    let last_step = plotted.last().map(|point| point.step).unwrap_or_default();
+    let visible_ticks = step_tick_indices(plotted.len());
+    let step_ticks = plotted
+        .iter()
+        .enumerate()
+        .map(|(index, point)| visible_ticks.contains(&index).then_some(point.step))
+        .collect::<Vec<_>>();
+    let step_columns = step_ticks.len().max(1);
 
     rsx! {
         div {
@@ -402,62 +433,113 @@ pub(super) fn StepTrendChart(points: Vec<StepTrendPoint>) -> Element {
             role: "img",
             aria_label: "Recent step duration trend from step {first_step} to {last_step}; blue is median and violet is P95",
             div { class: "mb-1 flex items-center justify-between text-xs text-gray-500",
-                span { "Recent steps" }
+                div { class: "flex items-center gap-2",
+                    span { "Recent steps" }
+                    if can_hide_first {
+                        button {
+                            r#type: "button",
+                            class: "rounded border border-gray-200 px-1.5 py-0.5 font-medium text-gray-600 hover:border-gray-300 hover:bg-gray-50",
+                            aria_pressed: hide_first().to_string(),
+                            onclick: move |_| hide_first.toggle(),
+                            if hide_first() { "Show warmup" } else { "Hide warmup" }
+                        }
+                    }
+                }
                 div { class: "flex gap-3",
                     span { class: "flex items-center gap-1",
                         span { class: "inline-block h-px w-4 bg-blue-600" }
-                        "median"
+                        "Rank median"
                     }
                     span { class: "flex items-center gap-1",
                         span { class: "inline-block h-px w-4 bg-violet-500" }
-                        "P95"
+                        "Rank P95"
                     }
                 }
             }
-            svg {
-                class: "h-44 w-full",
-                view_box: "0 0 {width} {height}",
-                preserve_aspect_ratio: "none",
-                for tick in 0..=3 {
-                    {
-                        let ratio = tick as f64 / 3.0;
-                        let y = pad_top + ratio * plot_height;
-                        let value = y_max - ratio * y_span;
-                        rsx! {
-                            line {
-                                x1: "{pad_left}", y1: "{y}",
-                                x2: "{pad_left + plot_width}", y2: "{y}",
-                                stroke: "#e5e7eb", stroke_width: "1",
-                            }
-                            text {
-                                x: "{pad_left - 6.0}", y: "{y + 3.0}",
-                                text_anchor: "end", font_size: "11", fill: "#6b7280",
-                                "{format_duration(Some(value))}"
+            div { class: "relative h-44",
+                div { class: "absolute bottom-6 left-0 top-0 w-14",
+                    for tick in 0..=3 {
+                        {
+                            let ratio = tick as f64 / 3.0;
+                            let value = y_max - ratio * y_span;
+                            let position = if tick == 0 || tick == 3 {
+                                String::new()
+                            } else {
+                                format!("top: {:.2}%;", ratio * 100.0)
+                            };
+                            rsx! {
+                                span {
+                                    class: if tick == 0 {
+                                        "absolute left-0 top-0 w-14 whitespace-nowrap text-right text-xs text-gray-500"
+                                    } else if tick == 3 {
+                                        "absolute bottom-0 left-0 w-14 whitespace-nowrap text-right text-xs text-gray-500"
+                                    } else {
+                                        "absolute left-0 w-14 -translate-y-1/2 whitespace-nowrap text-right text-xs text-gray-500"
+                                    },
+                                    style: "{position}",
+                                    "{format_duration(Some(value))}"
+                                }
                             }
                         }
                     }
                 }
-                polyline {
-                    points: "{p95_line}", fill: "none", stroke: "#8b5cf6",
-                    stroke_width: "2", stroke_linejoin: "round", stroke_linecap: "round",
-                    vector_effect: "non-scaling-stroke",
+                div { class: "absolute bottom-6 left-16 right-3 top-0",
+                    svg {
+                        class: "h-full w-full",
+                        view_box: "0 0 {width} {height}",
+                        preserve_aspect_ratio: "none",
+                        for tick in 0..=3 {
+                            {
+                                let y = tick as f64 / 3.0 * height;
+                                rsx! {
+                                    line {
+                                        x1: "0", y1: "{y}",
+                                        x2: "{width}", y2: "{y}",
+                                        stroke: "#e5e7eb", stroke_width: "1",
+                                        vector_effect: "non-scaling-stroke",
+                                    }
+                                }
+                            }
+                        }
+                        polyline {
+                            points: "{p95_line}", fill: "none", stroke: "#8b5cf6",
+                            stroke_width: "4", stroke_opacity: "0.65",
+                            stroke_linejoin: "round", stroke_linecap: "round",
+                            vector_effect: "non-scaling-stroke",
+                        }
+                        polyline {
+                            points: "{median_line}", fill: "none", stroke: "#2563eb",
+                            stroke_width: "2", stroke_linejoin: "round", stroke_linecap: "round",
+                            vector_effect: "non-scaling-stroke",
+                        }
+                    }
                 }
-                polyline {
-                    points: "{median_line}", fill: "none", stroke: "#2563eb",
-                    stroke_width: "2.5", stroke_linejoin: "round", stroke_linecap: "round",
-                    vector_effect: "non-scaling-stroke",
-                }
-                text {
-                    x: "{pad_left}", y: "{height - 5.0}", text_anchor: "start",
-                    font_size: "11", fill: "#6b7280", "step {first_step}"
-                }
-                text {
-                    x: "{pad_left + plot_width}", y: "{height - 5.0}", text_anchor: "end",
-                    font_size: "11", fill: "#6b7280", "step {last_step}"
+                span { class: "absolute bottom-0 left-0 w-14 text-right text-xs text-gray-500", "Step" }
+                div {
+                    class: "absolute bottom-0 grid h-4 items-start",
+                    style: "left: 4rem; width: calc(100% - 4.75rem); grid-template-columns: repeat({step_columns}, minmax(0, 1fr));",
+                    for step in step_ticks {
+                        span {
+                            class: "min-w-0 truncate text-center font-mono text-xs text-gray-500",
+                            if let Some(step) = step {
+                                "{step}"
+                            }
+                        }
+                    }
                 }
             }
         }
     }
+}
+
+fn step_tick_indices(point_count: usize) -> Vec<usize> {
+    const MAX_TICKS: usize = 10;
+    if point_count <= MAX_TICKS {
+        return (0..point_count).collect();
+    }
+    let interval = point_count.div_ceil(MAX_TICKS);
+    let first = (point_count - 1) % interval;
+    (first..point_count).step_by(interval).collect()
 }
 
 #[component]
@@ -705,5 +787,20 @@ mod tests {
             dashboard_step_presentation(CapabilityStatus::Available, Some(&failed)),
             StepPresentation::Failed
         );
+    }
+
+    #[test]
+    fn step_ticks_adapt_integer_interval_to_total_steps() {
+        assert_eq!(step_tick_indices(4), vec![0, 1, 2, 3]);
+        assert_eq!(step_tick_indices(10), (0..10).collect::<Vec<_>>());
+        assert_eq!(
+            step_tick_indices(20),
+            vec![1, 3, 5, 7, 9, 11, 13, 15, 17, 19]
+        );
+        assert_eq!(
+            step_tick_indices(40),
+            vec![3, 7, 11, 15, 19, 23, 27, 31, 35, 39]
+        );
+        assert_eq!(step_tick_indices(21), vec![2, 5, 8, 11, 14, 17, 20]);
     }
 }

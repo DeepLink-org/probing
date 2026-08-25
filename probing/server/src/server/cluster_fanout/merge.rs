@@ -19,7 +19,7 @@ pub(super) fn merge_tagged_dataframes(parts: &[DataFrame]) -> DataFrame {
 
 #[cfg(test)]
 mod tests {
-    use probing_proto::prelude::{Seq, *};
+    use probing_proto::prelude::Seq;
 
     use super::*;
 

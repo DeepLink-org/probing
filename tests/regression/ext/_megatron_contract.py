@@ -20,6 +20,9 @@ def make_parallel_state(
     tp: int = 2,
     pp: int = 1,
     dp: int = 3,
+    tp_size: int = 4,
+    pp_size: int = 2,
+    dp_size: int = 8,
 ) -> types.ModuleType:
     ps = types.ModuleType("megatron.core.parallel_state")
 
@@ -28,8 +31,17 @@ def make_parallel_state(
 
     ps.model_parallel_is_initialized = model_parallel_is_initialized
     ps.get_tensor_model_parallel_rank = lambda: tp
+    ps.get_tensor_model_parallel_world_size = lambda: tp_size
     ps.get_pipeline_model_parallel_rank = lambda: pp
+    ps.get_pipeline_model_parallel_world_size = lambda: pp_size
     ps.get_data_parallel_rank = lambda: dp
+    ps.get_data_parallel_world_size = lambda: dp_size
+    ps.get_context_parallel_world_size = lambda: 1
+    ps.get_expert_model_parallel_world_size = lambda: 1
+    ps.get_virtual_pipeline_model_parallel_rank = lambda: 0
+    ps.get_virtual_pipeline_model_parallel_world_size = lambda: 1
+    ps.is_pipeline_first_stage = lambda: pp == 0
+    ps.is_pipeline_last_stage = lambda: pp == pp_size - 1
     ps.initialize_model_parallel = lambda *args, **kwargs: None
     return ps
 
