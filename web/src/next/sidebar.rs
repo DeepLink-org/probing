@@ -114,6 +114,18 @@ fn SidebarRail(
                     }
                 }
             }
+            if compact {
+                div { class: "shrink-0 px-2 pt-2",
+                    button {
+                        r#type: "button",
+                        class: "flex h-10 w-full items-center justify-center rounded-lg border border-blue-400/60 bg-blue-500/20 text-blue-200 shadow-sm hover:border-blue-300 hover:bg-blue-500/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400",
+                        title: "Expand sidebar",
+                        aria_label: "Expand sidebar",
+                        onclick: move |_| on_toggle_compact.call(()),
+                        Icon { icon: &icondata::AiMenuUnfoldOutlined, class: "h-5 w-5" }
+                    }
+                }
+            }
             div { class: "shrink-0 px-2 pt-2",
                 RailAction {
                     label: "Search pages and commands · ⌘K".to_string(),
@@ -327,7 +339,7 @@ fn DashboardControls() -> Element {
         ToggleRow {
             label: "Auto refresh",
             checked: enabled,
-            onchange: move |_| *DASHBOARD_AUTO_REFRESH.write() = !*DASHBOARD_AUTO_REFRESH.read(),
+            onchange: move |checked| *DASHBOARD_AUTO_REFRESH.write() = checked,
         }
         button {
             r#type: "button",
@@ -350,8 +362,8 @@ fn DistributedControls() -> Element {
         ToggleRow {
             label: "Cluster fan-out",
             checked: cluster,
-            onchange: move |_| {
-                *DISTRIBUTED_CLUSTER_SCOPE.write() = !*DISTRIBUTED_CLUSTER_SCOPE.read();
+            onchange: move |checked| {
+                *DISTRIBUTED_CLUSTER_SCOPE.write() = checked;
             },
         }
         RangeControl {
@@ -383,7 +395,10 @@ fn MemoryControls() -> Element {
         ToggleRow {
             label: "Cluster fan-out",
             checked: cluster,
-            onchange: move |_| *MEMORY_CLUSTER_SCOPE.write() = !*MEMORY_CLUSTER_SCOPE.read(),
+            onchange: move |checked| {
+                *MEMORY_CLUSTER_SCOPE.write() = checked;
+                *MEMORY_REFRESH.write() += 1;
+            },
         }
         RangeControl {
             label: "Window (minutes)",
@@ -707,7 +722,7 @@ fn StackControls(route: NextRoute) -> Element {
             ToggleRow {
                 label: "Cluster fan-out",
                 checked: cluster,
-                onchange: move |_| *STACK_DIST_CLUSTER.write() = !*STACK_DIST_CLUSTER.read(),
+                onchange: move |checked| *STACK_DIST_CLUSTER.write() = checked,
             }
             button {
                 r#type: "button",
@@ -808,7 +823,7 @@ fn ControlSummary(scope: String, update: String) -> Element {
 }
 
 #[component]
-fn ToggleRow(label: &'static str, checked: bool, onchange: EventHandler<()>) -> Element {
+fn ToggleRow(label: &'static str, checked: bool, onchange: EventHandler<bool>) -> Element {
     rsx! {
         label { class: "flex cursor-pointer items-center justify-between gap-3 text-xs text-slate-300",
             span { "{label}" }
@@ -816,7 +831,7 @@ fn ToggleRow(label: &'static str, checked: bool, onchange: EventHandler<()>) -> 
                 r#type: "checkbox",
                 checked,
                 class: "h-5 w-5 rounded border-slate-600 bg-slate-900 text-blue-600 focus:ring-2 focus:ring-blue-400 focus:ring-offset-1 focus:ring-offset-slate-900",
-                onchange: move |_| onchange.call(()),
+                oninput: move |event| onchange.call(event.checked()),
             }
         }
     }

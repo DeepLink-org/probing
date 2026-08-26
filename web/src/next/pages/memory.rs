@@ -416,13 +416,15 @@ fn DeviceMap(devices: Vec<DeviceMemory>) -> Element {
     }
 
     rsx! {
-        div { class: "grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3 border-t border-gray-100 pt-3",
-            for (host, rows) in hosts {
-                div { class: "rounded-md border border-gray-200 bg-gray-50/60 p-2",
-                    div { class: "mb-2 truncate text-xs font-medium text-gray-700", title: "{host}", "{host}" }
-                    div { class: "grid grid-cols-4 gap-1.5",
-                        for row in rows {
-                            {
+        div { class: "border-t border-gray-100 pt-3",
+            div { class: "mb-2 text-xs text-gray-500", "C = current usage · P = window peak" }
+            div { class: "grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3",
+                for (host, rows) in hosts {
+                    div { class: "rounded-md border border-gray-200 bg-gray-50/60 p-2",
+                        div { class: "mb-2 truncate text-xs font-medium text-gray-700", title: "{host}", "{host}" }
+                        div { class: "grid grid-cols-4 gap-1",
+                            for row in rows {
+                                {
                                 let active = context.device_id == Some(row.device_id)
                                     && (context.rank == row.rank || row.rank.is_none());
                                 let ratio = percent(row.current_bytes, row.total_bytes);
@@ -430,26 +432,30 @@ fn DeviceMap(devices: Vec<DeviceMemory>) -> Element {
                                 let host_for_click = row.host.clone();
                                 let rank = row.rank;
                                 let device_id = row.device_id;
+                                let coordinate_label = rank
+                                    .map(|rank| format!("Rank {rank} · GPU {device_id}"))
+                                    .unwrap_or_else(|| format!("GPU {device_id}"));
                                 rsx! {
                                     button {
                                         r#type: "button",
                                         class: if active {
-                                            "min-h-14 rounded border border-blue-500 bg-blue-50 px-1 py-1 text-left ring-1 ring-blue-200"
+                                            "min-h-14 min-w-0 rounded border border-blue-500 bg-blue-50 px-0.5 py-1 text-left ring-1 ring-blue-200"
                                         } else {
-                                            "min-h-14 rounded border border-gray-200 bg-white px-1 py-1 text-left hover:border-blue-300 hover:bg-blue-50/40"
+                                            "min-h-14 min-w-0 rounded border border-gray-200 bg-white px-0.5 py-1 text-left hover:border-blue-300 hover:bg-blue-50/40"
                                         },
-                                        title: "GPU {device_id} · current {ratio:.1}% · window peak {peak:.1}% · {row.sample_count} samples",
+                                        title: "{coordinate_label} · current {ratio:.1}% · window peak {peak:.1}% · {row.sample_count} samples",
                                         aria_pressed: active.to_string(),
                                         onclick: move |_| set_memory_device_context(rank, Some(&host_for_click), device_id),
-                                        div { class: "font-mono text-xs font-semibold text-gray-900", "G{device_id}" }
-                                        div { class: "text-xs tabular-nums text-gray-600", "C {ratio:.0}%" }
-                                        div { class: "text-xs tabular-nums text-gray-500", "P {peak:.0}%" }
+                                        div { class: "whitespace-nowrap font-mono text-xs font-semibold text-gray-900", "GPU{device_id}" }
+                                        div { class: "whitespace-nowrap text-xs tabular-nums text-gray-600", "C{ratio:.0}%" }
+                                        div { class: "whitespace-nowrap text-xs tabular-nums text-gray-500", "P{peak:.0}%" }
                                         div { class: "mt-1 h-1 rounded bg-gray-100",
                                             div { class: "h-full rounded bg-violet-500", style: "width: {ratio.clamp(0.0, 100.0):.1}%;" }
                                         }
                                     }
                                 }
                             }
+                        }
                         }
                     }
                 }
@@ -788,19 +794,21 @@ fn device_history_sql(window_us: u64) -> String {
       ORDER BY ts ASC LIMIT 1920")
 }
 
-const ALLOCATOR_SQL: &str = "SELECT rank, local_step, round(allocated, 1) AS allocated_mb, \
+const ALLOCATOR_SQL: &str = "WITH allocator AS (SELECT * FROM python.torch_trace) \
+  SELECT rank, local_step, round(allocated, 1) AS allocated_mb, \
   round(max_allocated, 1) AS peak_allocated_mb, round(cached, 1) AS reserved_mb, \
   round(CASE WHEN cached > 0 THEN allocated * 100.0 / cached ELSE 0 END, 1) AS allocated_of_reserved_pct \
-  FROM python.torch_trace WHERE rank >= 0 AND allocated >= 0 AND stage LIKE 'post %' \
+  FROM allocator WHERE rank >= 0 AND allocated >= 0 AND stage LIKE 'post %' \
   ORDER BY local_step DESC, seq DESC LIMIT 1";
 
-const ALLOCATION_EVIDENCE_SQL: &str = "SELECT rank, module, stage, count(*) AS samples, \
+const ALLOCATION_EVIDENCE_SQL: &str = "WITH trace_samples AS (SELECT * FROM python.torch_trace) \
+  SELECT rank, module, stage, count(*) AS samples, \
   round(avg(allocated_delta), 1) AS avg_alloc_delta_mb, \
   round(max(allocated_delta), 1) AS max_alloc_delta_mb, \
   round(max(max_allocated_delta), 1) AS peak_growth_mb \
-  FROM python.torch_trace WHERE stage LIKE 'post %' AND allocated_delta > 0 \
+  FROM trace_samples WHERE stage LIKE 'post %' AND allocated_delta > 0 \
     AND module IS NOT NULL AND module != '' AND module != 'None' \
-    AND local_step >= GREATEST(COALESCE((SELECT max(local_step) FROM python.torch_trace), 0) - 9, 1) \
+    AND local_step >= GREATEST(COALESCE((SELECT max(local_step) FROM trace_samples), 0) - 9, 1) \
   GROUP BY rank, module, stage ORDER BY peak_growth_mb DESC LIMIT 20";
 
 fn parse_devices(dataframe: &DataFrame, nodes: &[Node]) -> Vec<DeviceMemory> {

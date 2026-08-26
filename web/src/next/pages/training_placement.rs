@@ -326,8 +326,8 @@ fn LogicalTopology(placement: PlacementModel, local_step: Option<i64>) -> Elemen
 fn LogicalRankCell(process: PlacementProcess, pp: i32, local_step: Option<i64>) -> Element {
     let rank = process.rank;
     let rank_label = rank
-        .map(|rank| format!("R{rank}"))
-        .unwrap_or_else(|| "R?".to_string());
+        .map(|rank| format!("Rank {rank}"))
+        .unwrap_or_else(|| "Rank ?".to_string());
     let layer_label = process
         .layout
         .as_ref()
@@ -403,7 +403,7 @@ fn PlacementOverview(
                 div { class: "flex items-center gap-2",
                     span { class: "text-xs font-medium uppercase tracking-wide text-gray-500", "Overview" }
                     if let Some(rank) = active_rank {
-                        span { class: "font-mono text-xs font-semibold text-blue-700", "R{rank}" }
+                        span { class: "font-mono text-xs font-semibold text-blue-700", "Rank {rank}" }
                         if active_is_pinned {
                             span { class: "text-xs text-blue-600", "pinned" }
                         }
@@ -1442,7 +1442,7 @@ fn format_rank_members(members: &[i32]) -> String {
     let mut label = members
         .iter()
         .take(LIMIT)
-        .map(|rank| format!("R{rank}"))
+        .map(|rank| format!("Rank {rank}"))
         .collect::<Vec<_>>()
         .join(" ");
     if members.len() > LIMIT {
@@ -1503,8 +1503,8 @@ fn PlacementCell(
     let rank = process.rank;
     let local_device_id = process.local_rank;
     let rank_label = rank
-        .map(|value| format!("R{value}"))
-        .unwrap_or_else(|| "R?".to_string());
+        .map(|value| format!("Rank {value}"))
+        .unwrap_or_else(|| "Rank ?".to_string());
     let local_rank = process
         .local_rank
         .map(|value| value.to_string())
