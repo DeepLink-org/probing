@@ -154,10 +154,10 @@ pub fn InvestigationBar(support: super::page_registry::InvestigationSupport) -> 
                 ContextLink { route: NextRoute::Investigate {}, label: "Investigate" }
                 button {
                     r#type: "button",
-                    class: "ml-1 rounded px-1.5 py-1 text-gray-600 hover:bg-white hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600",
+                    class: "ml-1 rounded border border-red-300 bg-red-50 px-2.5 py-1 font-medium text-red-700 shadow-sm hover:border-red-400 hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500",
                     aria_label: "Clear pinned investigation context",
                     onclick: move |_| clear_investigation_context(),
-                    "Clear"
+                    "Clear selection"
                 }
             }
         }
