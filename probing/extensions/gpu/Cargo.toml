@@ -31,8 +31,8 @@ cudarc = { version = "0.19.7", default-features = false, features = [
 ], optional = true }
 
 [target.'cfg(all(not(target_os = "macos"), not(target_os = "windows")))'.dependencies]
-libloading = "0.8"
+libloading = "0.9"
 
 # macOS-only: Metal + sysctl + ioreg. Not resolved when building for Linux.
 [target.'cfg(target_os = "macos")'.dependencies]
-metal = "0.31.0"
+metal = "0.33.0"
