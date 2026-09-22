@@ -1,7 +1,12 @@
 use super::traces::{EventInfo, SpanInfo, TraceEvent};
 use super::ApiClient;
 use crate::utils::error::Result;
-use probing_proto::prelude::{DataFrame, Ele, Process};
+use probing_proto::prelude::{
+    DataFrame, Ele, Process, RlAboutResponse, RlBenchmarksResponse, RlCompositionResponse,
+    RlDatasetsResponse, RlEventsResponse, RlPassHistogramResponse, RlRunsResponse,
+    RlSamplerHistoryResponse, RlSamplesResponse, RlSeriesResponse, RlStalenessResponse,
+    RlStatusResponse, RlTagsResponse,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -648,5 +653,183 @@ impl ApiClient {
              ORDER BY timestamp_ns DESC LIMIT {limit}"
         ))
         .await
+    }
+
+    pub async fn fetch_rl_runs(&self) -> Result<RlRunsResponse> {
+        let response = self.get_request("/apis/rl/runs").await?;
+        Self::parse_json(&response)
+    }
+
+    pub async fn fetch_rl_status(&self, run_id: &str) -> Result<RlStatusResponse> {
+        let response = self
+            .get_request(&format!(
+                "/apis/rl/status?run_id={}",
+                urlencoding::encode(run_id)
+            ))
+            .await?;
+        Self::parse_json(&response)
+    }
+
+    pub async fn fetch_rl_tags(&self, run_id: &str) -> Result<RlTagsResponse> {
+        let response = self
+            .get_request(&format!(
+                "/apis/rl/tags?run_id={}",
+                urlencoding::encode(run_id)
+            ))
+            .await?;
+        Self::parse_json(&response)
+    }
+
+    pub async fn fetch_rl_series(
+        &self,
+        run_id: &str,
+        names: &[&str],
+        limit: usize,
+    ) -> Result<RlSeriesResponse> {
+        let names = names.join(",");
+        let response = self
+            .get_request(&format!(
+                "/apis/rl/series?run_id={}&names={}&limit={limit}",
+                urlencoding::encode(run_id),
+                urlencoding::encode(&names),
+            ))
+            .await?;
+        Self::parse_json(&response)
+    }
+
+    /// Series summarised server-side into at most `buckets` points per metric.
+    /// Unlike the row-limited form, the response size does not grow with the run,
+    /// so the full history stays visible however long the run gets.
+    pub async fn fetch_rl_series_bucketed(
+        &self,
+        run_id: &str,
+        names: &[&str],
+        buckets: usize,
+    ) -> Result<RlSeriesResponse> {
+        let names = names.join(",");
+        let response = self
+            .get_request(&format!(
+                "/apis/rl/series?run_id={}&names={}&buckets={buckets}",
+                urlencoding::encode(run_id),
+                urlencoding::encode(&names),
+            ))
+            .await?;
+        Self::parse_json(&response)
+    }
+
+    pub async fn fetch_rl_samples(&self, run_id: &str, limit: usize) -> Result<RlSamplesResponse> {
+        let response = self
+            .get_request(&format!(
+                "/apis/rl/samples?run_id={}&limit={limit}",
+                urlencoding::encode(run_id),
+            ))
+            .await?;
+        Self::parse_json(&response)
+    }
+
+    pub async fn fetch_rl_sampler(
+        &self,
+        run_id: &str,
+        limit: usize,
+    ) -> Result<RlSamplerHistoryResponse> {
+        let response = self
+            .get_request(&format!(
+                "/apis/rl/sampler?run_id={}&limit={limit}",
+                urlencoding::encode(run_id),
+            ))
+            .await?;
+        Self::parse_json(&response)
+    }
+
+    pub async fn fetch_rl_pass_histogram(
+        &self,
+        run_id: &str,
+        limit: usize,
+    ) -> Result<RlPassHistogramResponse> {
+        let response = self
+            .get_request(&format!(
+                "/apis/rl/pass_histogram?run_id={}&limit={limit}",
+                urlencoding::encode(run_id),
+            ))
+            .await?;
+        Self::parse_json(&response)
+    }
+
+    pub async fn fetch_rl_datasets(
+        &self,
+        run_id: &str,
+        limit: usize,
+    ) -> Result<RlDatasetsResponse> {
+        let response = self
+            .get_request(&format!(
+                "/apis/rl/datasets?run_id={}&limit={limit}",
+                urlencoding::encode(run_id),
+            ))
+            .await?;
+        Self::parse_json(&response)
+    }
+
+    pub async fn fetch_rl_composition(
+        &self,
+        run_id: &str,
+        dimension: &str,
+        limit: usize,
+    ) -> Result<RlCompositionResponse> {
+        let response = self
+            .get_request(&format!(
+                "/apis/rl/composition?run_id={}&dimension={}&limit={limit}",
+                urlencoding::encode(run_id),
+                urlencoding::encode(dimension),
+            ))
+            .await?;
+        Self::parse_json(&response)
+    }
+
+    pub async fn fetch_rl_staleness(
+        &self,
+        run_id: &str,
+        limit: usize,
+    ) -> Result<RlStalenessResponse> {
+        let response = self
+            .get_request(&format!(
+                "/apis/rl/staleness?run_id={}&limit={limit}",
+                urlencoding::encode(run_id),
+            ))
+            .await?;
+        Self::parse_json(&response)
+    }
+
+    pub async fn fetch_rl_benchmarks(
+        &self,
+        run_id: &str,
+        limit: usize,
+    ) -> Result<RlBenchmarksResponse> {
+        let response = self
+            .get_request(&format!(
+                "/apis/rl/benchmarks?run_id={}&limit={limit}",
+                urlencoding::encode(run_id),
+            ))
+            .await?;
+        Self::parse_json(&response)
+    }
+
+    pub async fn fetch_rl_about(&self, run_id: &str) -> Result<RlAboutResponse> {
+        let response = self
+            .get_request(&format!(
+                "/apis/rl/about?run_id={}",
+                urlencoding::encode(run_id),
+            ))
+            .await?;
+        Self::parse_json(&response)
+    }
+
+    pub async fn fetch_rl_events(&self, run_id: &str, limit: usize) -> Result<RlEventsResponse> {
+        let response = self
+            .get_request(&format!(
+                "/apis/rl/events?run_id={}&limit={limit}",
+                urlencoding::encode(run_id),
+            ))
+            .await?;
+        Self::parse_json(&response)
     }
 }

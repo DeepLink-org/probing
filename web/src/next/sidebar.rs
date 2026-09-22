@@ -229,8 +229,12 @@ fn ActiveSidebarPanel(route: NextRoute, on_navigate: EventHandler<()>) -> Elemen
                 SidebarIntro { text: "Throughput, latency, queue, and cache evidence." }
                 ControlPanel { title: "Inference controls", InferenceControls {} }
             },
-            NextRoute::Rollout {} | NextRoute::RolloutLegacy {} | NextRoute::RlTrain {} | NextRoute::RlSpans {} | NextRoute::ProcessTimeline {} | NextRoute::Perfetto {} => rsx! {
+            NextRoute::RlOverview {} | NextRoute::RlMetrics {} | NextRoute::RlSamples {} | NextRoute::RlAbout {} | NextRoute::Rollout {} | NextRoute::RolloutLegacy {} | NextRoute::RlTrain {} | NextRoute::RlSpans {} | NextRoute::ProcessTimeline {} | NextRoute::Perfetto {} => rsx! {
                 SidebarSectionLabel { label: "Views" }
+                NavLeaf { to: NextRoute::RlOverview {}, label: "Overview", icon: &icondata::AiDashboardOutlined, active: matches!(route, NextRoute::RlOverview {}), on_navigate }
+                NavLeaf { to: NextRoute::RlMetrics {}, label: "Metrics", icon: &icondata::AiLineChartOutlined, active: matches!(route, NextRoute::RlMetrics {}), on_navigate }
+                NavLeaf { to: NextRoute::RlSamples {}, label: "Samples", icon: &icondata::AiUnorderedListOutlined, active: matches!(route, NextRoute::RlSamples {}), on_navigate }
+                NavLeaf { to: NextRoute::RlAbout {}, label: "About", icon: &icondata::AiInfoCircleOutlined, active: matches!(route, NextRoute::RlAbout {}), on_navigate }
                 NavLeaf { to: NextRoute::Rollout {}, label: "Rollout", icon: &icondata::AiDeploymentUnitOutlined, active: matches!(route, NextRoute::Rollout {} | NextRoute::RolloutLegacy {}), on_navigate }
                 NavLeaf { to: NextRoute::RlTrain {}, label: "Policy training", icon: &icondata::AiLineChartOutlined, active: matches!(route, NextRoute::RlTrain {}), on_navigate }
                 NavLeaf { to: NextRoute::RlSpans {}, label: "Distributed spans", icon: &icondata::AiApartmentOutlined, active: matches!(route, NextRoute::RlSpans {}), on_navigate }

@@ -102,6 +102,36 @@ where
     use_resource(fetch)
 }
 
+/// A resource refreshed every `interval_ms`, skipping a tick while the previous
+/// load is still in flight.
+///
+/// Making the tick a dependency of [`use_resource`] instead cancels a load that
+/// outlives the interval, so a page whose data takes longer than the poll period
+/// to fetch restarts forever and never leaves its loading state. Ticks are also
+/// gated on `gate`, normally page visibility, so a backgrounded tab stops polling.
+pub fn use_polled_resource<T, F, Fut>(
+    interval_ms: u32,
+    gate: Option<Signal<bool>>,
+    fetch: F,
+) -> Resource<T>
+where
+    T: 'static,
+    F: FnMut() -> Fut + 'static,
+    Fut: Future<Output = T> + 'static,
+{
+    let tick = use_poll_tick_gated(interval_ms, gate);
+    let mut resource = use_resource(fetch);
+    use_effect(move || {
+        let _ = tick();
+        // Peek rather than read: subscribing to the state would rerun this on
+        // every load transition and restart the resource in a loop.
+        if !matches!(*resource.state().peek(), UseResourceState::Pending) {
+            resource.restart();
+        }
+    });
+    resource
+}
+
 /// Periodic tick signal for polling APIs (e.g. dashboard metrics).
 /// Use [`use_poll_tick_gated`] when the page can be hidden.
 pub fn use_poll_tick_gated(interval_ms: u32, gate: Option<Signal<bool>>) -> Signal<u32> {

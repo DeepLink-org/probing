@@ -7,6 +7,7 @@ mod model;
 mod page_registry;
 mod page_snapshot;
 mod pages;
+pub(crate) mod rl_run;
 mod routes;
 mod settings;
 mod shell;

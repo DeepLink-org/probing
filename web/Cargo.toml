@@ -55,6 +55,9 @@ icondata = { version = "0.5.0", default-features = false, features = [
 chrono = { version = "0.4", features = ["serde"] }
 gloo-timers = "0.3"
 
+# Concurrent request fan-out in the API client.
+futures-util = { version = "0.3", default-features = false, features = ["std", "async-await"] }
+
 # Markdown rendering (agent chat)
 pulldown-cmark = "0.13"
 

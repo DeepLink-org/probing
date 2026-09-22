@@ -14,7 +14,14 @@ pub mod prelude {
 
     pub use crate::protocol::query::{Data as QueryDataFormat, Options as QueryOptions, Query};
     pub use crate::protocol::query::{ErrorCode, QueryError};
-    pub use crate::protocol::training::{StepDurationSample, StepMatrixResponse};
+    pub use crate::protocol::training::{
+        RlAboutResponse, RlBenchmarkPoint, RlBenchmarksResponse, RlCompositionBucket,
+        RlCompositionResponse, RlCompositionStep, RlDatasetRow, RlDatasetsResponse, RlEvent,
+        RlEventsResponse, RlMetricPoint, RlPassBucket, RlPassHistogramResponse, RlRunSummary,
+        RlRunsResponse, RlSampleSummary, RlSamplerHistoryResponse, RlSamplerSnapshot,
+        RlSamplesResponse, RlSeriesResponse, RlStalenessBucket, RlStalenessResponse,
+        RlStatusResponse, RlTagsResponse, StepDurationSample, StepMatrixResponse,
+    };
     pub use crate::protocol::version::ProtocolVersion;
 
     // --- Core Data Types ---

@@ -134,6 +134,46 @@ impl NextRoute {
                 "Training",
                 Training
             ),
+            Self::RlOverview {} => page!(
+                "rl-overview",
+                "RL Overview",
+                "/rl/overview",
+                "Framework-neutral reward, policy, throughput, and timing trends.",
+                &["health_overview", "slow_rank"],
+                "Workloads",
+                "RL",
+                Rl
+            ),
+            Self::RlMetrics {} => page!(
+                "rl-metrics",
+                "RL Metrics",
+                "/rl/metrics",
+                "Browse canonical and source trainer metrics by step.",
+                &["health_overview"],
+                "Workloads",
+                "RL",
+                Rl
+            ),
+            Self::RlSamples {} => page!(
+                "rl-samples",
+                "RL Samples",
+                "/rl/samples",
+                "Recent rollout outcomes linked to distributed span evidence.",
+                &["health_overview", "module_bottleneck"],
+                "Workloads",
+                "RL",
+                Rl
+            ),
+            Self::RlAbout {} => page!(
+                "rl-about",
+                "RL About",
+                "/rl/about",
+                "Run identity, configuration, and experiment metadata.",
+                &["health_overview"],
+                "Workloads",
+                "RL",
+                Rl
+            ),
             Self::Rollout {} | Self::RolloutLegacy {} => page!(
                 "rl-rollout",
                 "RL Rollout",

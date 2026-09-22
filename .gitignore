@@ -39,3 +39,6 @@ probing/server/web-assets/
 # Legacy Python-side Web copy (assets embed into probing._core via server/web-assets)
 python/probing/bundled_web/
 frontend/
+__pycache__/
+# Trainer output (checkpoints, logs) from example runs, several GB.
+work_dirs/
