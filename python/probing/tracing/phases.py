@@ -58,11 +58,12 @@ def infer_from_stage(stage: str) -> Optional[str]:
 
 def resolve(name: str, phase: Optional[str]) -> Optional[str]:
     if phase is not None:
-        if phase not in ALL:
-            raise ValueError(
-                f"invalid training phase {phase!r}; use FORWARD, BACKWARD, or OPTIMIZER"
-            )
-        return phase
+        lowered = phase.lower() if isinstance(phase, str) else phase
+        if lowered in ALL:
+            return lowered
+        # RL / framework labels (e.g. "trajectory", "slime.setup") are span
+        # attributes, not training phases. Keep them off the phase stack.
+        return None
     return infer(name)
 
 
@@ -76,7 +77,7 @@ def resolve_span(
     """
     if phase is not None:
         resolved = resolve(name or phase, phase)
-        display = name if name is not None else resolved
+        display = name if name is not None else (resolved or phase)
         assert display is not None
         return display, resolved
     if name is not None:

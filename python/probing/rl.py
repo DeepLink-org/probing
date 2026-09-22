@@ -82,12 +82,12 @@ def span(
     """Record an RL span with standard rollout/sample attributes."""
 
     merged = merge_context(**attrs)
-    span_phase = phase if phase is not None else kind
     if phase is not None:
         merged["phase"] = phase
     else:
         merged.setdefault("phase", name)
-    with probing_span(name, phase=span_phase, **merged) as active_span:
+    merged.setdefault("kind", kind)
+    with probing_span(name, **merged) as active_span:
         yield active_span
 
 
