@@ -51,8 +51,20 @@ def _run_manual_spans(*, backends: list[str], iterations: int) -> float:
 def test_manual_span_memtable_overhead_bounded():
     """``probing.span`` with memtable backend should not dominate a tight loop."""
     iterations = 300
-    off = _run_manual_spans(backends=[], iterations=iterations)
-    on = _run_manual_spans(backends=["memtable"], iterations=iterations)
+    off_samples: list[float] = []
+    on_samples: list[float] = []
+    # The disabled side takes single-digit milliseconds, so one reading of it is
+    # mostly noise: a GC pause or a shared runner descheduling us moves the ratio
+    # by more than the thing being measured. Interleave the two sides so a slow
+    # patch of the machine lands on both, and compare medians.
+    for _ in range(5):
+        off_samples.append(_run_manual_spans(backends=[], iterations=iterations))
+        on_samples.append(
+            _run_manual_spans(backends=["memtable"], iterations=iterations)
+        )
+
+    off = statistics.median(off_samples)
+    on = statistics.median(on_samples)
 
     # Guard against flaky CI: allow generous headroom but catch regressions
     # where span persistence becomes orders of magnitude slower.
