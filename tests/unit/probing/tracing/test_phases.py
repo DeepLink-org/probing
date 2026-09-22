@@ -18,11 +18,10 @@ def test_infer_from_stage():
     assert phases.infer_from_stage("pre init") is None
 
 
-def test_invalid_phase_raises():
-    import pytest
-
-    with pytest.raises(ValueError, match="invalid training phase"):
-        phases.resolve("x", "custom")
+def test_non_training_phase_is_ignored():
+    assert phases.resolve("x", "custom") is None
+    assert phases.resolve("setup", "slime.setup") is None
+    assert phases.resolve("sample", "trajectory") is None
 
 
 def test_resolve_span_phase_only():
