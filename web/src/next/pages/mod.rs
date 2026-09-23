@@ -10,6 +10,10 @@ mod profiles;
 mod pulsing;
 mod python;
 mod rl;
+mod rl_about;
+mod rl_metrics;
+mod rl_overview;
+mod rl_samples;
 mod stacks;
 mod system;
 mod tracing;
@@ -29,6 +33,10 @@ pub use profiles::{ChromeTracePage, ProfileViewPage, ProfilesPage};
 pub use pulsing::PulsingPage;
 pub use python::PythonPage;
 pub use rl::{PerfettoPage, ProcessTimelinePage, RlSpansPage, RlTrainPage, RolloutPage};
+pub use rl_about::RlAboutPage;
+pub use rl_metrics::RlMetricsPage;
+pub use rl_overview::RlOverviewPage;
+pub use rl_samples::RlSamplesPage;
 pub use stacks::{DistributedPythonStackPage, DistributedStackPage, StackPage, StackThreadPage};
 pub use system::SystemPage;
 pub use tracing::SpansPage;
@@ -45,6 +53,10 @@ mod architecture_tests {
         ("inference", include_str!("inference.rs")),
         ("memory", include_str!("memory.rs")),
         ("rl", include_str!("rl.rs")),
+        ("rl overview", include_str!("rl_overview.rs")),
+        ("rl metrics", include_str!("rl_metrics.rs")),
+        ("rl about", include_str!("rl_about.rs")),
+        ("rl samples", include_str!("rl_samples.rs")),
         ("profiles", include_str!("profiles.rs")),
         ("stacks", include_str!("stacks.rs")),
         ("tracing", include_str!("tracing.rs")),

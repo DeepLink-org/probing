@@ -28,5 +28,6 @@ pub mod file_api;
 pub mod health;
 pub mod local_query;
 pub mod middleware;
+pub mod rl;
 pub mod system;
 pub mod training;

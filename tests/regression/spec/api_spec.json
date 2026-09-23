@@ -51,6 +51,58 @@
       "path": "/apis/training/step_matrix"
     },
     {
+      "method": "GET",
+      "path": "/apis/rl/runs"
+    },
+    {
+      "method": "GET",
+      "path": "/apis/rl/status"
+    },
+    {
+      "method": "GET",
+      "path": "/apis/rl/tags"
+    },
+    {
+      "method": "GET",
+      "path": "/apis/rl/series"
+    },
+    {
+      "method": "GET",
+      "path": "/apis/rl/samples"
+    },
+    {
+      "method": "GET",
+      "path": "/apis/rl/sampler"
+    },
+    {
+      "method": "GET",
+      "path": "/apis/rl/composition"
+    },
+    {
+      "method": "GET",
+      "path": "/apis/rl/datasets"
+    },
+    {
+      "method": "GET",
+      "path": "/apis/rl/pass_histogram"
+    },
+    {
+      "method": "GET",
+      "path": "/apis/rl/staleness"
+    },
+    {
+      "method": "GET",
+      "path": "/apis/rl/benchmarks"
+    },
+    {
+      "method": "GET",
+      "path": "/apis/rl/events"
+    },
+    {
+      "method": "GET",
+      "path": "/apis/rl/about"
+    },
+    {
       "method": "POST",
       "path": "/apis/cluster/query"
     },

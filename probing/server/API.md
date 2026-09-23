@@ -29,6 +29,19 @@ Registered in `server/api/mod.rs`:
 | GET | `/apis/files?path=…` | Read workspace file |
 | GET/PUT | `/apis/nodes` | Cluster node list / register |
 | GET | `/apis/training/step_matrix` | Cross-rank train.step samples (`cluster=false` default; set `cluster=true` for on-demand fan-out) |
+| GET | `/apis/rl/runs` | Latest snapshot of every framework-neutral RL run |
+| GET | `/apis/rl/status?run_id=…` | Latest state of one RL run |
+| GET | `/apis/rl/tags?run_id=…` | Available metric names for one RL run |
+| GET | `/apis/rl/series?run_id=…&names=…&limit=…&buckets=…` | Metric series keyed by trainer step; `buckets` summarises each metric into at most that many points instead of sharing `limit` rows across all names |
+| GET | `/apis/rl/samples?run_id=…&limit=…` | Recent rollout outcomes for sample-to-span drill-down |
+| GET | `/apis/rl/sampler?run_id=…&limit=…` | Recent sampler funnel snapshots for live feed |
+| GET | `/apis/rl/composition?run_id=…&dimension=task\|category\|status\|filter_reason&limit=…` | Sample composition buckets and shares, aggregate plus per step |
+| GET | `/apis/rl/datasets?run_id=…&limit=…` | Per-data-source sampling funnel (completed/filtered/failed/in-flight and pass rate) |
+| GET | `/apis/rl/pass_histogram?run_id=…&limit=…` | Nine-bucket distribution of per-prompt pass rates |
+| GET | `/apis/rl/staleness?run_id=…&limit=…` | Staleness histogram over recent samples |
+| GET | `/apis/rl/benchmarks?run_id=…&limit=…` | Versioned evaluation benchmark points |
+| GET | `/apis/rl/events?run_id=…&limit=…` | Live notice feed (operator notices, restarts, sampler failures, recent benchmarks) |
+| GET | `/apis/rl/about?run_id=…` | Run metadata, config hash, and about.* metrics |
 | POST | `/apis/cluster/query` | On-demand SQL fan-out (`{"expr":"…","cluster":true}`; read-only SQL only) |
 
 Flamegraphs are served by profiler extensions (extension fallback, not public routes):

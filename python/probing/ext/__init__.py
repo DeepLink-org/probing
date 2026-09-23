@@ -17,4 +17,6 @@ Submodules:
 - `vllm`: vLLM / vLLM-Metal inference role/step sync.
 - `engines`: Inference-engine Prometheus metrics adapters (e.g. SGLang) for agentic RL.
 - `slime`: Slime adapter — cmdline/env → neutral process roles; Slime router registration.
+- `rl_data`: Framework-neutral RL run, metric, sampler, sample, and benchmark tables.
+- `xtuner`: XTuner experiment-writer and trajectory adapter for the RL tables.
 """

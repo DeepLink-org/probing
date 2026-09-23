@@ -10,7 +10,7 @@ use axum::{
     Router,
 };
 
-use super::{cluster, cluster_query, file_api, local_query, system, training};
+use super::{cluster, cluster_query, file_api, local_query, rl, system, training};
 
 /// Canonical public `/apis` routes (method, path suffix under `/apis`).
 /// Keep in sync with `tests/regression/spec/api_spec.json` — verified by `spec_tests`.
@@ -20,6 +20,19 @@ pub const PUBLIC_API_ROUTES: &[(&str, &str)] = &[
     ("GET", "/nodes"),
     ("PUT", "/nodes"),
     ("GET", "/training/step_matrix"),
+    ("GET", "/rl/runs"),
+    ("GET", "/rl/status"),
+    ("GET", "/rl/tags"),
+    ("GET", "/rl/series"),
+    ("GET", "/rl/samples"),
+    ("GET", "/rl/sampler"),
+    ("GET", "/rl/composition"),
+    ("GET", "/rl/datasets"),
+    ("GET", "/rl/pass_histogram"),
+    ("GET", "/rl/staleness"),
+    ("GET", "/rl/benchmarks"),
+    ("GET", "/rl/events"),
+    ("GET", "/rl/about"),
     ("POST", "/cluster/query"),
     ("GET", "/processes/local"),
     ("POST", "/query/local-pid"),
@@ -37,6 +50,19 @@ fn public_routes() -> Router {
         .route("/files", get(file_api::read_file))
         .route("/nodes", get(cluster::get_nodes).put(cluster::put_node))
         .route("/training/step_matrix", get(training::get_step_matrix))
+        .route("/rl/runs", get(rl::get_runs))
+        .route("/rl/status", get(rl::get_status))
+        .route("/rl/tags", get(rl::get_tags))
+        .route("/rl/series", get(rl::get_series))
+        .route("/rl/samples", get(rl::get_samples))
+        .route("/rl/sampler", get(rl::get_sampler))
+        .route("/rl/composition", get(rl::get_composition))
+        .route("/rl/datasets", get(rl::get_datasets))
+        .route("/rl/pass_histogram", get(rl::get_pass_histogram))
+        .route("/rl/staleness", get(rl::get_staleness))
+        .route("/rl/benchmarks", get(rl::get_benchmarks))
+        .route("/rl/events", get(rl::get_events))
+        .route("/rl/about", get(rl::get_about))
         .route("/cluster/query", post(cluster_query::post_cluster_query))
         .route("/processes/local", get(system::get_local_processes_json))
         .route("/query/local-pid", post(local_query::query_local_pid))

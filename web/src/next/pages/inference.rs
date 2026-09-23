@@ -4,7 +4,9 @@ use dioxus::prelude::*;
 use probing_proto::prelude::{DataFrame, Ele};
 
 use crate::api::{ApiClient, EngineInfo};
-use crate::components::rl::metrics_line_chart::{ChartSeries, MetricsLineChart};
+use crate::components::rl::metrics_line_chart::{
+    ChartPoint, ChartSeries, ChartXAxis, MetricsLineChart,
+};
 use crate::hooks::{use_page_visible, use_poll_tick_gated};
 use crate::state::inference::INFERENCE_REFRESH;
 use crate::utils::error::{AppError, Result};
@@ -207,6 +209,7 @@ fn MetricHistory(state: Option<Result<InferenceEvidence>>) -> Element {
                             MetricsLineChart {
                                 title: title.to_string(),
                                 series: chart_series(&grouped, &colors, metric),
+                                x_axis: ChartXAxis::Time,
                             }
                         }
                     }
@@ -298,10 +301,20 @@ fn chart_series(
         .filter_map(|engine| {
             grouped
                 .get(&(metric.to_string(), engine.clone()))
-                .map(|points| ChartSeries {
-                    label: engine.clone(),
-                    points: points.clone(),
-                    color: colors.get(&engine).copied().unwrap_or("#64748b"),
+                .map(|points| {
+                    ChartSeries::plain(
+                        engine.clone(),
+                        points
+                            .iter()
+                            .map(|(x, y)| ChartPoint {
+                                x: *x,
+                                y: *y,
+                                step: -1,
+                                ..Default::default()
+                            })
+                            .collect(),
+                        colors.get(&engine).copied().unwrap_or("#64748b"),
+                    )
                 })
         })
         .collect()

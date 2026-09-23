@@ -9,10 +9,12 @@ use super::pages::{
     InvestigatePage as Investigate, MemoryPage as Memory, NotFoundPage as NotFound,
     PerfettoPage as Perfetto, ProcessTimelinePage as ProcessTimeline,
     ProfileViewPage as ProfileView, ProfilesPage as Profiles, ProfilesPage as ProfilingLegacy,
-    PulsingPage as Pulsing, PythonPage as Python, RlSpansPage as RlSpans, RlTrainPage as RlTrain,
-    RolloutPage as Rollout, RolloutPage as RolloutLegacy, SpansPage as Spans,
-    SpansPage as TracesLegacy, StackPage as Stack, StackThreadPage as StackThread,
-    SystemPage as System, TrainingPage as Training,
+    PulsingPage as Pulsing, PythonPage as Python, RlAboutPage as RlAbout,
+    RlMetricsPage as RlMetrics, RlOverviewPage as RlOverview, RlSamplesPage as RlSamples,
+    RlSpansPage as RlSpans, RlTrainPage as RlTrain, RolloutPage as Rollout,
+    RolloutPage as RolloutLegacy, SpansPage as Spans, SpansPage as TracesLegacy,
+    StackPage as Stack, StackThreadPage as StackThread, SystemPage as System,
+    TrainingPage as Training,
 };
 use super::shell::NextShell;
 
@@ -31,6 +33,18 @@ pub enum NextRoute {
 
         #[route("/rl")]
         Rollout {},
+
+        #[route("/rl/overview")]
+        RlOverview {},
+
+        #[route("/rl/metrics")]
+        RlMetrics {},
+
+        #[route("/rl/samples")]
+        RlSamples {},
+
+        #[route("/rl/about")]
+        RlAbout {},
 
         #[route("/rl/rollout")]
         RolloutLegacy {},
@@ -123,6 +137,10 @@ mod tests {
             "/",
             "/distributed",
             "/rl",
+            "/rl/overview",
+            "/rl/metrics",
+            "/rl/samples",
+            "/rl/about",
             "/rl/rollout",
             "/rl/train",
             "/rl/spans",
