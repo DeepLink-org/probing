@@ -18,7 +18,7 @@ from probing.tracing._bindings import (
     current_span,
 )
 from probing.tracing.coordinates import span_attrs, step
-from probing.tracing.phases import OPTIMIZER, resolve_span
+from probing.tracing.phases import ALL, OPTIMIZER, resolve_span
 
 _LOCATION_ENV = frozenset({"1", "true", "yes", "on"})
 
@@ -223,10 +223,18 @@ def _parse_span_kwargs(
     kwargs: dict,
 ) -> tuple[Optional[str], str, Optional[str], dict, bool]:
     phase = kwargs.pop("phase", None)
-    # Backward-compatible alias used by older RL helpers.
+    # Backward-compatible alias used by older RL helpers. Only map kind →
+    # training phase when it is actually FORWARD/BACKWARD/OPTIMIZER; otherwise
+    # keep it as a span attribute (Ray/slime demos pass kind="ray.actor").
     kind = kwargs.pop("kind", None)
-    if phase is None and kind is not None:
-        phase = kind
+    if kind is not None:
+        attrs_kind = str(kind)
+        kwargs.setdefault("kind", attrs_kind)
+        if phase is None and attrs_kind.lower() in ALL:
+            phase = attrs_kind.lower()
+    if phase is not None and str(phase).lower() not in ALL:
+        kwargs.setdefault("phase", phase)
+        phase = None
     source = kwargs.pop("source", "manual")
     location = kwargs.pop("location", None)
     auto_location = location is None and _location_enabled()
