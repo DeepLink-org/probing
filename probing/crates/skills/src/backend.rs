@@ -15,6 +15,9 @@ pub struct ClusterQueryMeta {
     pub peer_batches_dropped: usize,
 }
 
+// async-trait's generated `#[must_use]` shims clash with clippy 1.99's new
+// must_use handling of pinned boxed futures (double_must_use).
+#[allow(clippy::double_must_use)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 pub trait SkillBackend {

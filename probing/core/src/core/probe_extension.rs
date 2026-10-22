@@ -178,6 +178,9 @@ impl From<Vec<u8>> for ProbeExtensionResponse {
 
 /// Extension trait for handling HTTP API calls
 #[allow(unused)]
+// async-trait's generated `#[must_use]` shims clash with clippy 1.99's new
+// must_use handling of pinned boxed futures (double_must_use).
+#[allow(clippy::double_must_use)]
 #[async_trait]
 pub trait ProbeExtensionCall: Debug + Send + Sync {
     /// HTTP routes owned by this extension. Registration validates and indexes

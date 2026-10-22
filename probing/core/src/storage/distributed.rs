@@ -13,6 +13,9 @@ use super::topology::TopologyView;
 use crate::core::cluster_model::{NodeId, WorkerId};
 use crate::core::{EngineError, Result};
 
+// async-trait's generated `#[must_use]` shims clash with clippy 1.99's new
+// must_use handling of pinned boxed futures (double_must_use).
+#[allow(clippy::double_must_use)]
 #[async_trait]
 pub trait RemoteStoreClient: Send + Sync {
     async fn put(&self, key: &str, data: &[u8]) -> Result<()>;

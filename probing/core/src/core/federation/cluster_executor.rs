@@ -57,6 +57,9 @@ pub struct FanoutTarget {
 ///
 /// Implementations own scheduling, authentication, deadlines, and execution
 /// resources. Core and collectors only describe peer work through this contract.
+// async-trait's generated `#[must_use]` shims clash with clippy 1.99's new
+// must_use handling of pinned boxed futures (double_must_use).
+#[allow(clippy::double_must_use)]
 #[async_trait]
 pub trait FanoutService: Debug + Send + Sync {
     async fn query_peer(

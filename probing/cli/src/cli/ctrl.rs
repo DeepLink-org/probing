@@ -57,7 +57,7 @@ impl TryFrom<String> for ProbeEndpoint {
 impl From<ProbeEndpoint> for String {
     fn from(val: ProbeEndpoint) -> Self {
         match val {
-            ProbeEndpoint::Ptrace { pid } | ProbeEndpoint::Local { pid } => format! {"{pid}"},
+            ProbeEndpoint::Ptrace { pid } | ProbeEndpoint::Local { pid } => format!("{pid}"),
             ProbeEndpoint::Remote { addr } => addr,
             ProbeEndpoint::Launch { cmd } => cmd,
         }

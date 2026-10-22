@@ -22,6 +22,9 @@ use crate::auth::peer_auth_header_value;
 const FANOUT_WORKER_THREADS_ENV: &str = "PROBING_FANOUT_WORKER_THREADS";
 const DEFAULT_FANOUT_WORKER_THREADS: usize = 4;
 
+// async-trait's generated `#[must_use]` shims clash with clippy 1.99's new
+// must_use handling of pinned boxed futures (double_must_use).
+#[allow(clippy::double_must_use)]
 #[async_trait]
 pub(super) trait PeerQueryClient: Send + Sync {
     async fn query_leaf(&self, addr: &str, sql: &str) -> anyhow::Result<DataFrame>;
