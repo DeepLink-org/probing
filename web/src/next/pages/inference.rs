@@ -229,6 +229,19 @@ fn metric_history_error_detail(error: &AppError) -> String {
     }
 }
 
+/// The history endpoint's `timestamp_ns` column has carried different units
+/// across builds (ns here, ms over HTTP). Only epoch-milliseconds are
+/// ambiguous with nothing: they sit in the 1e12..1e15 band (years ~2001+),
+/// below any real ns stamp and above degenerate near-epoch ns. Values in that
+/// band pass through unchanged; everything else scales as ns.
+fn normalize_to_ms(timestamp: f64) -> f64 {
+    if (1.0e12..1.0e15).contains(&timestamp) {
+        timestamp
+    } else {
+        timestamp / 1.0e6
+    }
+}
+
 fn group_metric_rows(dataframe: &DataFrame) -> HashMap<(String, String), Vec<(f64, f64)>> {
     let index = |name: &str| dataframe.names.iter().position(|column| column == name);
     let (Some(timestamp), Some(engine), Some(metric), Some(value)) = (
@@ -253,7 +266,7 @@ fn group_metric_rows(dataframe: &DataFrame) -> HashMap<(String, String), Vec<(f6
             grouped
                 .entry((metric, engine))
                 .or_default()
-                .push((timestamp / 1_000_000.0, value));
+                .push((normalize_to_ms(timestamp), value));
         }
     }
     for points in grouped.values_mut() {
