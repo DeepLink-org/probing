@@ -35,7 +35,7 @@ pub fn acquire_ref(buf: &[u8]) -> u32 {
         return 0;
     };
     value
-        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+        .try_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
             current.checked_add(1)
         })
         .map(|previous| previous + 1)
@@ -49,7 +49,7 @@ pub fn release_ref(buf: &[u8]) -> u32 {
     let Some(value) = refcount_atomic(buf) else {
         return 0;
     };
-    let Ok(prev) = value.fetch_update(Ordering::Release, Ordering::Relaxed, |current| {
+    let Ok(prev) = value.try_update(Ordering::Release, Ordering::Relaxed, |current| {
         current.checked_sub(1)
     }) else {
         return 0;

@@ -1,3 +1,9 @@
+// pyo3's `#[pyclass(from_py_object)]` expansion clones the value inside a
+// generated impl, which clippy 1.99 flags as clone_on_copy when the type is
+// Copy. The allow must live here: generated impls do not inherit attributes
+// placed on the struct itself.
+#![allow(clippy::clone_on_copy)]
+
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyModule};
 use pyo3::IntoPyObjectExt;

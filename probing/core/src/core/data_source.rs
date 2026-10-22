@@ -273,6 +273,9 @@ impl TableProvider for LazyTableSource {
 /// Trait for implementing a custom namespace that can dynamically generate tables
 /// Provides a mechanism for on-demand table creation based on name/expression
 #[allow(unused)]
+// async-trait's generated `#[must_use]` shims clash with clippy 1.99's new
+// must_use handling of pinned boxed futures (double_must_use).
+#[allow(clippy::double_must_use)]
 #[async_trait]
 pub trait CustomNamespace: Sync + Send {
     /// Returns the name of the namespace

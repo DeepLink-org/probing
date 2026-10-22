@@ -69,6 +69,9 @@ pub trait PersistentEntity:
 }
 
 /// A generic storage interface that supports any type that implements PersistentEntity.
+// async-trait's generated `#[must_use]` shims clash with clippy 1.99's new
+// must_use handling of pinned boxed futures (double_must_use).
+#[allow(clippy::double_must_use)]
 #[async_trait]
 pub trait EntityStore: Send + Sync + 'static {
     /// Saves an entity.
