@@ -416,7 +416,8 @@ pub fn MetricsLineChart(
                                 points: "{polyline}",
                                 fill: "none",
                                 stroke: "{s.color}",
-                                stroke_width: "2",
+                                stroke_width: "1.5",
+                                stroke_opacity: "0.85",
                                 stroke_linejoin: "round",
                                 stroke_linecap: "round",
                             }
@@ -568,6 +569,7 @@ fn bounds(series: &[PlotSeries]) -> (f64, f64, f64, f64) {
         }
     }
 
+    let data_min = y_min;
     if y_min == y_max {
         let pad = if y_min.abs() > 1.0 {
             y_min.abs() * 0.1
@@ -580,6 +582,11 @@ fn bounds(series: &[PlotSeries]) -> (f64, f64, f64, f64) {
         let pad = (y_max - y_min) * 0.08;
         y_min -= pad;
         y_max += pad;
+    }
+    // Counters never go negative: padding must not invent negative ticks
+    // (an all-zero series would otherwise draw a -1..1 axis).
+    if data_min >= 0.0 {
+        y_min = y_min.max(0.0);
     }
 
     (x_min, x_max, y_min, y_max)
