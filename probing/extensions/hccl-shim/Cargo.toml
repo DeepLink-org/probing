@@ -17,7 +17,7 @@ probing-memtable = { path = "../../memtable" }
 env_logger = { workspace = true }
 log = { workspace = true }
 once_cell = { workspace = true }
-parking_lot = "0.12"
+parking_lot = "0.13"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2"

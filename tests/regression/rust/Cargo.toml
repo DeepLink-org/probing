@@ -10,7 +10,7 @@ description = "Rust regression / integration tests (mirrors probing crate layout
 path = "src/lib.rs"
 
 [build-dependencies]
-pyo3-build-config = "0.29.0"
+pyo3-build-config = "0.30.1"
 
 [dependencies]
 probing-core = { path = "../../../probing/core", features = ["test-utils"] }
@@ -30,7 +30,7 @@ axum = { version = "0.8.1", default-features = false, features = [
     "query",
     "json",
 ] }
-base64 = "0.21.5"
+base64 = "0.23.1"
 datafusion = { workspace = true }
 futures = "0.3.31"
 memmap2 = "0.9"
