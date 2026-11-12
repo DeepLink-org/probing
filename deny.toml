@@ -17,6 +17,9 @@ all-features = false
 ignore = [
     # bincode 1.x unmaintained; datafusion/arrow still pull 1.x — upgrade with engine bump.
     { id = "RUSTSEC-2025-0141", reason = "transitive bincode 1.x via datafusion/arrow" },
+    # rmcp Streamable HTTP unbounded response buffering; fix needs rmcp >= 3.9.0
+    # (major bump over the pinned 1.x) — tracked with the MCP engine upgrade.
+    { id = "RUSTSEC-2026-0462", reason = "rmcp 1.x pinned; fix requires 3.9 major bump" },
 ]
 unmaintained = "workspace"
 yanked = "warn"
