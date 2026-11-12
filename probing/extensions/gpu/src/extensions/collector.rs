@@ -12,7 +12,10 @@ use probing_memtable::discover::ExposedTable;
 use probing_memtable::{DType, Schema, Value};
 use thiserror::Error;
 
-use super::backend::{discover_backends, selected_backends, GpuBackend, GpuMemorySample};
+use super::backend::{
+    discover_backends, selected_backends, GpuBackend, GpuBackendKind, GpuMemoryModel,
+    GpuMemorySample,
+};
 
 #[cfg(feature = "cuda")]
 use super::backend::read_utilization_by_index;
@@ -188,13 +191,17 @@ fn opt_f32(v: Option<f32>) -> f32 {
     allow(unused_mut)
 )]
 fn sample_all(backends: &[Box<dyn GpuBackend>]) -> Vec<GpuMemorySample> {
+    // Fast path: in-process NVML reads utilization/memory/temperature/power for
+    // every NVIDIA device without the per-tick `nvidia-smi` subprocess or the
+    // cudarc context churn of the legacy path (both contend on driver locks
+    // with CUDA/NCCL work in other processes; see nvml.rs for measurements).
     #[cfg(feature = "cuda")]
-    let nvidia_utils = read_utilization_by_index();
+    let nvml_samples = super::backend::nvml::sample_all_devices();
 
     #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
     let npu_utils = if backends
         .iter()
-        .any(|backend| backend.kind() == super::backend::GpuBackendKind::Npu)
+        .any(|backend| backend.kind() == GpuBackendKind::Npu)
     {
         read_npu_utilization_by_index()
     } else {
@@ -202,19 +209,52 @@ fn sample_all(backends: &[Box<dyn GpuBackend>]) -> Vec<GpuMemorySample> {
     };
 
     let mut samples = Vec::new();
+
+    // Legacy path only: `nvidia-smi` subprocess + cudarc context reads,
+    // spawned lazily so the NVML fast path never forks it.
+    #[cfg(feature = "cuda")]
+    let mut nvidia_utils = None; // inferred from get_or_insert_with below
+
     for backend in backends {
+        #[cfg(feature = "cuda")]
+        if backend.kind() == GpuBackendKind::Cuda && !nvml_samples.is_empty() {
+            for (ordinal, n) in &nvml_samples {
+                samples.push(GpuMemorySample {
+                    backend: GpuBackendKind::Cuda,
+                    ordinal: *ordinal,
+                    name: n.name.clone(),
+                    free_bytes: n.free_bytes,
+                    total_bytes: n.total_bytes,
+                    memory_model: GpuMemoryModel::Dedicated,
+                    chip: None,
+                    gpu_util_pct: Some(n.gpu_util_pct),
+                    mem_controller_util_pct: Some(n.mem_controller_util_pct),
+                    renderer_util_pct: None,
+                    tiler_util_pct: None,
+                    driver_mem_bytes: None,
+                    vector_util_pct: None,
+                    mem_bandwidth_util_pct: None,
+                    temperature_c: Some(n.temperature_c),
+                    power_w: Some(n.power_w),
+                });
+            }
+            continue;
+        }
+
         for device in backend.probe_devices() {
             if let Some(mut sample) = backend.sample_memory(device.ordinal) {
                 #[cfg(feature = "cuda")]
-                if sample.backend == super::backend::GpuBackendKind::Cuda {
-                    if let Some(u) = nvidia_utils.get(&sample.ordinal) {
+                if sample.backend == GpuBackendKind::Cuda {
+                    let utils = nvidia_utils
+                        .get_or_insert_with(read_utilization_by_index);
+                    if let Some(u) = utils.get(&sample.ordinal) {
                         sample.gpu_util_pct = Some(u.gpu_util_pct);
                         sample.mem_controller_util_pct = Some(u.mem_controller_util_pct);
                     }
                 }
 
                 #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
-                if sample.backend == super::backend::GpuBackendKind::Npu {
+                if sample.backend == GpuBackendKind::Npu {
                     if let Some(u) = npu_utils.get(&sample.ordinal) {
                         sample.gpu_util_pct = Some(u.ai_core_util_pct);
                         sample.mem_controller_util_pct = Some(u.hbm_util_pct);
