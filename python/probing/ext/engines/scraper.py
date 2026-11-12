@@ -41,6 +41,10 @@ def scrape_interval_seconds() -> float:
 
 
 def scrape_engine(registration: EngineRegistration) -> dict:
+    if registration.engine_type == "lmdeploy":
+        from probing.ext.engines.lmdeploy import scrape_lmdeploy_engine
+
+        return scrape_lmdeploy_engine(registration)
     if registration.engine_type != "sglang":
         update_scrape_result(
             registration.engine_id,
