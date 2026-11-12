@@ -1,4 +1,5 @@
 mod nvidia_smi;
+pub mod nvml;
 
 use std::sync::Arc;
 
