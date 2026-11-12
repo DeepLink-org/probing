@@ -383,7 +383,11 @@ mod tests {
         let _guard = ENV_TEST_LOCK.lock().unwrap();
         clear_gpu_env();
         std::env::set_var("PROBING_GPU", "on");
-        assert_eq!(autostart_interval_ms(), Some(DEFAULT_SAMPLE_INTERVAL_MS));
+        assert_eq!(
+            autostart_interval_ms(),
+            Some(FORCED_ON_SAMPLE_INTERVAL_MS),
+            "explicit on must enable at the forced-on interval, not the (off) default"
+        );
         clear_gpu_env();
     }
 
@@ -406,27 +410,14 @@ mod tests {
     }
 
     #[test]
-    #[cfg(target_os = "macos")]
-    fn autostart_auto_when_backend_present() {
+    fn autostart_auto_is_off_by_default() {
         let _guard = ENV_TEST_LOCK.lock().unwrap();
         clear_gpu_env();
-        if discover_backends().is_empty() {
-            return;
-        }
-        assert_eq!(autostart_interval_ms(), Some(DEFAULT_SAMPLE_INTERVAL_MS));
+        // DEFAULT_SAMPLE_INTERVAL_MS == 0 keeps auto-off even when a backend
+        // is present; only explicit env/SET turns sampling on.
+        assert_eq!(DEFAULT_SAMPLE_INTERVAL_MS, 0);
+        assert!(autostart_interval_ms().is_none());
         clear_gpu_env();
-    }
-
-    #[test]
-    #[cfg(all(not(target_os = "macos"), not(feature = "cuda")))]
-    fn autostart_auto_matches_native_backend_discovery() {
-        let _guard = ENV_TEST_LOCK.lock().unwrap();
-        clear_gpu_env();
-        let has_backend = !discover_backends().is_empty();
-        assert_eq!(
-            autostart_interval_ms(),
-            has_backend.then_some(DEFAULT_SAMPLE_INTERVAL_MS)
-        );
     }
 
     #[test]
