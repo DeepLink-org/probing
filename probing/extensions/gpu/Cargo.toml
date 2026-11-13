@@ -36,3 +36,8 @@ libloading = "0.8"
 # macOS-only: Metal + sysctl + ioreg. Not resolved when building for Linux.
 [target.'cfg(target_os = "macos")'.dependencies]
 metal = "0.31.0"
+
+# In-process NVML for the GPU sampling fast path (no nvidia-smi subprocess,
+# no CUDA contexts; see backend/cuda/nvml.rs).
+[target.'cfg(target_os = "linux")'.dependencies]
+nvml-wrapper = { version = "0.10", default-features = false }
