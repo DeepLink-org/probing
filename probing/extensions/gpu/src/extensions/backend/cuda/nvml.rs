@@ -77,9 +77,7 @@ pub fn sample_all_devices() -> HashMap<i32, NvmlSample> {
         out.insert(
             index as i32,
             NvmlSample {
-                name: device
-                    .name()
-                    .unwrap_or_else(|_| format!("nvml:{index}")),
+                name: device.name().unwrap_or_else(|_| format!("nvml:{index}")),
                 gpu_util_pct: util.as_ref().map(|u| u.gpu as f32).unwrap_or(-1.0),
                 mem_controller_util_pct: util.as_ref().map(|u| u.memory as f32).unwrap_or(-1.0),
                 free_bytes: free,
