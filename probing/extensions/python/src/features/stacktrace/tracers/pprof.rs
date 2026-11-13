@@ -165,13 +165,10 @@ fn use_async_sigprof() -> bool {
         return false;
     }
     #[cfg(target_os = "macos")]
-    {
-        env_flag_truthy("PROBING_PPROF_SIGPROF")
-    }
+    let platform_enabled = env_flag_truthy("PROBING_PPROF_SIGPROF");
     #[cfg(not(target_os = "macos"))]
-    {
-        true
-    }
+    let platform_enabled = true;
+    platform_enabled
 }
 
 fn monotonic_ns() -> u64 {

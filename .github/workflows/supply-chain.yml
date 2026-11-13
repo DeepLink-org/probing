@@ -67,5 +67,33 @@ jobs:
 
       - name: Audit Python dependencies
         run: |
-          python -m pip install -q pip-audit
-          pip-audit -r /tmp/requirements-audit.txt
+          # Pin the audited version: the gate's JSON/flags are verified against it.
+          python -m pip install -q "pip-audit==2.10.1"
+          pip-audit --version
+          # Triage against the checked-in allowlist: known/adjudicated advisory
+          # IDs do not fail the build, any NEW one does. See the allowlist header.
+          pip-audit -r /tmp/requirements-audit.txt --no-deps --disable-pip \
+            -f json -o /tmp/pip-audit.json || true
+          python - <<'PY'
+          import json
+          import sys
+
+          allow = {
+              line.split("#", 1)[0].strip()
+              for line in open("security/pip-audit-allowlist.txt", encoding="utf-8")
+              if line.split("#", 1)[0].strip()
+          }
+          report = json.load(open("/tmp/pip-audit.json", encoding="utf-8"))
+          new = []
+          total = 0
+          for dep in report.get("dependencies", []):
+              for vuln in dep.get("vulns", []):
+                  total += 1
+                  ids = {vuln.get("id")} | set(vuln.get("aliases") or [])
+                  if not (ids & allow):
+                      new.append(f"{dep['name']}=={dep['version']}: {vuln.get('id')}")
+          print(f"pip-audit: {total} advisories, {len(new)} not allowlisted")
+          if new:
+              print("\n".join(new))
+              sys.exit(1)
+          PY

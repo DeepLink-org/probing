@@ -1,4 +1,10 @@
-#![allow(clippy::suspicious_else_formatting, clippy::useless_format)]
+// `unreachable_code` is triggered by the `Routable` derive's generated router
+// match on current stable rustc; the generated code is not ours to fix.
+#![allow(
+    clippy::suspicious_else_formatting,
+    clippy::useless_format,
+    unreachable_code
+)]
 
 use dioxus::prelude::*;
 

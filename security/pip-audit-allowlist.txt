@@ -1,0 +1,47 @@
+# pip-audit allowlist — advisories triaged as not actionable right now.
+#
+# The supply-chain workflow audits the uv-export closure with
+# `pip-audit --no-deps --disable-pip` (deterministic, no venv resolution) and
+# filters the JSON report through this file: listed IDs (or any alias) pass,
+# anything NEW fails. Derive entries from pip-audit's own `id`/`aliases`
+# fields, not from other advisory feeds — the ID spaces differ.
+#
+# Each block records the version's advisory IDs and the fixed release to
+# upgrade to; remove a block once the pin moves past it.
+#
+# filelock==3.32.2  (transitive via huggingface-hub cache locking; local filesystem only. upgrade to 4.2.1 tracked (major bump); fixed in 4.0.9, 4.2.1)
+CVE-2026-112940
+GHSA-v4x8-3wr5-3wq8
+CVE-2026-112913
+GHSA-9vhv-jxww-xfm5
+CVE-2026-112907
+GHSA-567q-5qvw-pf92
+CVE-2026-112938
+GHSA-m462-7rxw-wvpg
+CVE-2026-112936
+GHSA-j8f7-rjxc-mr56
+CVE-2026-112910
+GHSA-8mx5-7m5m-r77g
+CVE-2026-112909
+GHSA-69hj-f68j-2879
+CVE-2026-112911
+GHSA-9c4x-gm8v-wgc4
+CVE-2026-112939
+GHSA-rfpc-qcw5-3pc4
+CVE-2026-112915
+GHSA-cwqr-hh33-gh44
+CVE-2026-112935
+GHSA-fq56-3cx3-fjxp
+CVE-2026-112908
+GHSA-6627-m3xw-93mp
+
+# setuptools==83.0.0  (wheel-test/dev toolchain, not shipped. upgrade to 84.1.0 tracked; fixed in 84.1.0)
+GHSA-xmj3-9gf7-h52w
+
+# tornado==6.5.10  (transitive via tensorboard; request-DoS classes irrelevant to local single-user monitoring. upgrade to 6.6 tracked; fixed in 6.6)
+CVE-2026-116577
+GHSA-pcg2-g6cj-q92c
+CVE-2026-115927
+GHSA-r4j5-9xpp-3985
+CVE-2026-116578
+GHSA-pw9p-v7r6-gx4p
