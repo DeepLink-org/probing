@@ -245,8 +245,7 @@ fn sample_all(backends: &[Box<dyn GpuBackend>]) -> Vec<GpuMemorySample> {
             if let Some(mut sample) = backend.sample_memory(device.ordinal) {
                 #[cfg(feature = "cuda")]
                 if sample.backend == GpuBackendKind::Cuda {
-                    let utils = nvidia_utils
-                        .get_or_insert_with(read_utilization_by_index);
+                    let utils = nvidia_utils.get_or_insert_with(read_utilization_by_index);
                     if let Some(u) = utils.get(&sample.ordinal) {
                         sample.gpu_util_pct = Some(u.gpu_util_pct);
                         sample.mem_controller_util_pct = Some(u.mem_controller_util_pct);
