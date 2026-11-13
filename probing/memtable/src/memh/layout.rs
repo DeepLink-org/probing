@@ -220,8 +220,8 @@ fn pack_control(head_off: u32, generation: u32) -> u64 {
 #[inline(always)]
 fn begin_slot_write(buf: &[u8], slot_offset: usize) -> (u32, u32) {
     let h = header(buf);
-    for word in 0..SLOT_WORDS {
-        h.journal_words[word].store(
+    for (word, journal_word) in h.journal_words.iter().enumerate() {
+        journal_word.store(
             slot_word(buf, slot_offset, word).load(Ordering::SeqCst),
             Ordering::SeqCst,
         );
@@ -268,11 +268,9 @@ pub(crate) fn recover_slot_journal(buf: &[u8]) -> bool {
     }
     let (_, generation) = control_parts(slot_word(buf, slot_offset, 2).load(Ordering::SeqCst));
     if generation & 1 != 0 {
-        for word in 0..SLOT_WORDS {
-            slot_word(buf, slot_offset, word).store(
-                h.journal_words[word].load(Ordering::SeqCst),
-                Ordering::SeqCst,
-            );
+        for (word, journal_word) in h.journal_words.iter().enumerate() {
+            slot_word(buf, slot_offset, word)
+                .store(journal_word.load(Ordering::SeqCst), Ordering::SeqCst);
         }
     }
     h.journal_state.store(0, Ordering::SeqCst);
