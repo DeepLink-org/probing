@@ -243,7 +243,9 @@ def scrape_lmdeploy_engine(registration: Any) -> dict[str, Any]:
 
     if not normalized:
         normalized = _last_good.get(registration.engine_id, {})
-    update_scrape_result(registration.engine_id, normalized=normalized, scrape_error=error)
+    update_scrape_result(
+        registration.engine_id, normalized=normalized, scrape_error=error
+    )
     return {
         "engine_id": registration.engine_id,
         "rows": rows_written,
