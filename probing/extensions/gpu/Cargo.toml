@@ -10,7 +10,7 @@ license.workspace = true
 [features]
 default = []
 # NVIDIA CUDA via cudarc dynamic-loading (Linux/datacenter only).
-cuda = ["dep:cudarc"]
+cuda = ["dep:cudarc", "dep:nvml-wrapper"]
 
 [dependencies]
 probing-core = { path = "../../core" }
@@ -40,4 +40,4 @@ metal = "0.31.0"
 # In-process NVML for the GPU sampling fast path (no nvidia-smi subprocess,
 # no CUDA contexts; see backend/cuda/nvml.rs).
 [target.'cfg(target_os = "linux")'.dependencies]
-nvml-wrapper = { version = "0.10", default-features = false }
+nvml-wrapper = { version = "0.10", default-features = false, optional = true }

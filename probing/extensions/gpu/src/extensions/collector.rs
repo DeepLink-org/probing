@@ -13,9 +13,11 @@ use probing_memtable::{DType, Schema, Value};
 use thiserror::Error;
 
 use super::backend::{
-    discover_backends, selected_backends, GpuBackend, GpuBackendKind, GpuMemoryModel,
-    GpuMemorySample,
+    discover_backends, selected_backends, GpuBackend, GpuBackendKind, GpuMemorySample,
 };
+
+#[cfg(feature = "cuda")]
+use super::backend::GpuMemoryModel;
 
 #[cfg(feature = "cuda")]
 use super::backend::read_utilization_by_index;
