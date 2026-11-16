@@ -22,7 +22,19 @@ use super::backend::read_npu_utilization_by_index;
 
 const CHUNK_SIZE: u32 = 4096;
 const NUM_CHUNKS: u32 = 8;
-const DEFAULT_SAMPLE_INTERVAL_MS: u64 = 1000;
+/// Default GPU sampling interval: 0 (off). Measured on 8×H200 MoE-FSDP PPO
+/// colocated with the collector, ANY active NVML polling slows training even
+/// though the collector runs in another process (+26%/step at 1s, +5.5% at
+/// 60s; identical via the nvidia-smi path and in-process NVML — the cost is
+/// the NVML queries' driver-lock contention with CUDA/NCCL work, and it only
+/// manifests under real training load, not in microbenchmarks). RL telemetry
+/// needs no GPU polling. Opt in for monitoring windows:
+/// `PROBING_GPU_SAMPLE_MS=60000` or `SET probing.gpu.sample_interval_ms=60000`.
+const DEFAULT_SAMPLE_INTERVAL_MS: u64 = 0;
+
+/// Interval used when sampling is explicitly forced on (`PROBING_GPU=on`)
+/// while the auto default is off.
+const FORCED_ON_SAMPLE_INTERVAL_MS: u64 = 60000;
 
 /// Autostart interval from env, or `None` when GPU sampling should stay off.
 ///
@@ -55,10 +67,10 @@ pub fn autostart_interval_ms() -> Option<u64> {
         return Some(interval);
     }
     if forced_on {
-        return Some(DEFAULT_SAMPLE_INTERVAL_MS);
+        return Some(FORCED_ON_SAMPLE_INTERVAL_MS);
     }
 
-    if selected_backends().is_empty() {
+    if selected_backends().is_empty() || DEFAULT_SAMPLE_INTERVAL_MS == 0 {
         return None;
     }
 
@@ -371,7 +383,11 @@ mod tests {
         let _guard = ENV_TEST_LOCK.lock().unwrap();
         clear_gpu_env();
         std::env::set_var("PROBING_GPU", "on");
-        assert_eq!(autostart_interval_ms(), Some(DEFAULT_SAMPLE_INTERVAL_MS));
+        assert_eq!(
+            autostart_interval_ms(),
+            Some(FORCED_ON_SAMPLE_INTERVAL_MS),
+            "explicit on must enable at the forced-on interval, not the (off) default"
+        );
         clear_gpu_env();
     }
 
@@ -394,27 +410,14 @@ mod tests {
     }
 
     #[test]
-    #[cfg(target_os = "macos")]
-    fn autostart_auto_when_backend_present() {
+    fn autostart_auto_is_off_by_default() {
         let _guard = ENV_TEST_LOCK.lock().unwrap();
         clear_gpu_env();
-        if discover_backends().is_empty() {
-            return;
-        }
-        assert_eq!(autostart_interval_ms(), Some(DEFAULT_SAMPLE_INTERVAL_MS));
+        // DEFAULT_SAMPLE_INTERVAL_MS == 0 keeps auto-off even when a backend
+        // is present; only explicit env/SET turns sampling on.
+        assert_eq!(DEFAULT_SAMPLE_INTERVAL_MS, 0);
+        assert!(autostart_interval_ms().is_none());
         clear_gpu_env();
-    }
-
-    #[test]
-    #[cfg(all(not(target_os = "macos"), not(feature = "cuda")))]
-    fn autostart_auto_matches_native_backend_discovery() {
-        let _guard = ENV_TEST_LOCK.lock().unwrap();
-        clear_gpu_env();
-        let has_backend = !discover_backends().is_empty();
-        assert_eq!(
-            autostart_interval_ms(),
-            has_backend.then_some(DEFAULT_SAMPLE_INTERVAL_MS)
-        );
     }
 
     #[test]
