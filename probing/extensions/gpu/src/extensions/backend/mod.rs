@@ -14,6 +14,8 @@ pub use registry::{discover_backends, selected_backends};
 pub use traits::{GpuBackend, GpuBackendKind, GpuDeviceInfo, GpuMemoryModel, GpuMemorySample};
 
 #[cfg(feature = "cuda")]
+pub use cuda::nvml;
+#[cfg(feature = "cuda")]
 pub use cuda::read_utilization_by_index;
 
 #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]

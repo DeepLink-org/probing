@@ -38,10 +38,12 @@ GHSA-6627-m3xw-93mp
 # setuptools==83.0.0  (wheel-test/dev toolchain, not shipped. upgrade to 84.1.0 tracked; fixed in 84.1.0)
 GHSA-xmj3-9gf7-h52w
 
-# tornado==6.5.10  (transitive via tensorboard; request-DoS classes irrelevant to local single-user monitoring. upgrade to 6.6 tracked; fixed in 6.6)
+# tornado==6.5.10  (transitive via tensorboard; request-DoS/redirect classes irrelevant to local single-user monitoring. upgrade to 6.6.1 tracked; fixed in 6.6, 6.6.1)
 CVE-2026-116577
 GHSA-pcg2-g6cj-q92c
 CVE-2026-115927
 GHSA-r4j5-9xpp-3985
 CVE-2026-116578
 GHSA-pw9p-v7r6-gx4p
+CVE-2026-126347
+GHSA-5cjw-f85j-cv6r
