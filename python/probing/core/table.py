@@ -214,6 +214,13 @@ def table(
         setattr(cls, "drop", drop)
         setattr(cls, "save", save)
         _register_docs()
+        # Create the memtable eagerly so an empty table still has its real
+        # schema. Otherwise `SELECT ... FROM python.<table>` before the first
+        # row falls back to the Python-expression path and returns `_error`.
+        try:
+            cls.init_table()
+        except Exception:
+            pass
 
         return cls
 

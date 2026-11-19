@@ -234,6 +234,42 @@ tables:
       value: "变更后的值（字符串）"
       value_type: "值类型名"
 
+  python.gc:
+    description: "Python 垃圾回收代际计数与单次停顿（gc.callbacks，1Hz）"
+    synonyms: [gc, garbage collection, GC pause, 垃圾回收, GC 停顿]
+    key_columns:
+      ts: "采样时间戳（微秒 since epoch）"
+      pid: "进程 id"
+      gen0_count: "当前 gen0 分配计数（gc.get_count）"
+      gen1_count: "当前 gen1 分配计数"
+      gen2_count: "当前 gen2 分配计数"
+      gen0_collections: "gen0 累计回收次数"
+      gen1_collections: "gen1 累计回收次数"
+      gen2_collections: "gen2 累计回收次数"
+      gen0_collected: "gen0 累计回收对象数"
+      gen1_collected: "gen1 累计回收对象数"
+      gen2_collected: "gen2 累计回收对象数"
+      gen2_uncollectable: "gen2 不可回收对象数（循环引用中的 __del__ 等）"
+      max_pause_ms: "本采样周期内最长一次 GC 停顿（毫秒）"
+      last_pause_ms: "本周期最后一次 GC 停顿（毫秒）"
+      last_pause_gen: "最后一次 GC 的 generation"
+      pause_count: "本周期 GC 次数"
+      pause_histogram_json: "按 generation 统计的 GC 次数 JSON"
+
+  python.cuda_memory:
+    description: "进程内 PyTorch CUDA allocator 显存（allocated/reserved/峰值，默认 2Hz）"
+    synonyms: [cuda memory, torch allocator, 显存, 进程显存, allocated, reserved]
+    key_columns:
+      ts: "采样时间戳（微秒 since epoch）"
+      pid: "进程 id"
+      device_id: "设备序号"
+      allocated_bytes: "torch.cuda.memory_allocated（字节）"
+      reserved_bytes: "torch.cuda.memory_reserved（字节）"
+      max_allocated_bytes: "峰值 allocated（字节）"
+      max_reserved_bytes: "峰值 reserved（字节）"
+      free_bytes: "设备空闲显存（字节）"
+      total_bytes: "设备总显存（字节）"
+
   cpu.utilization:
     description: "主机 CPU / RSS 周期采样（进程级 + Top-N 线程）"
     synonyms: [cpu, host memory, RSS, 主机 CPU]
@@ -274,6 +310,21 @@ tables:
       delta_sys_ns: "内核态 CPU 增量（纳秒）"
       delta_total_ns: "总 CPU 增量（纳秒）"
 
+  host.memory:
+    description: "进程私有/共享内存分解（RSS/USS/PSS/anon/locked，每进程 1Hz）"
+    synonyms: [host memory, USS, PSS, RSS, 主机内存, 进程内存, 私有内存]
+    key_columns:
+      ts: "采样时间戳（微秒 since epoch）"
+      platform: "采样后端（linux | macos）"
+      pid: "进程 id"
+      comm: "进程名"
+      rss_bytes: "常驻集大小（包含共享页）"
+      uss_bytes: "Unique Set Size：私有 clean + dirty + hugetlb"
+      pss_bytes: "Proportional Set Size：共享页按映射进程数均摊"
+      anon_bytes: "匿名常驻页"
+      locked_bytes: "锁定（不可换出）页；CUDA pinned host 内存通常会计入这里"
+      thread_count: "线程数"
+
   gpu.utilization:
     description: "GPU 显存与利用率周期采样"
     synonyms: [gpu memory, VRAM, 显存, GPU利用率]
@@ -294,6 +345,33 @@ tables:
       tiler_util_pct: "Tiler 利用率（Apple MPS）"
       driver_mem_bytes: "驱动保留显存（字节）"
       wall_ns: "采样间隔（纳秒）"
+
+  gpu.process_memory:
+    description: "每进程 GPU 显存（NVML per-PID，默认关闭，需 PROBING_GPU_PROCESS_MEMORY=1）"
+    synonyms: [gpu process memory, per-pid vram, 进程显存, 每进程 GPU 内存]
+    key_columns:
+      ts: "采样时间戳（微秒）"
+      pid: "进程 id"
+      device_id: "设备序号"
+      used_bytes: "该进程在该设备上的显存（字节）"
+      name: "设备名称"
+
+  ray.object_store:
+    description: "Ray object store 使用量/容量/spill（driver 侧周期采样）"
+    synonyms: [ray object store, plasma, spill, 对象存储, 对象存储水位]
+    key_columns:
+      ts: "采样时间戳（微秒）"
+      host: "节点主机名（aggregate 为全集群汇总）"
+      node_id: "Ray node id（aggregate 为全集群汇总）"
+      used_bytes: "已用 object store 字节"
+      avail_bytes: "可用 object store 字节"
+      spilled_bytes_total: "累计 spill 字节"
+      spilled_objects_total: "累计 spill 对象数"
+      restored_bytes_total: "累计 restore 字节"
+      num_local_objects: "本地对象数"
+      num_primary_copies: "primary copy 数"
+      object_pulls_queued: "排队中的对象拉取数"
+      cumulative_created_bytes: "累计创建对象字节"
 
   process.kmsg:
     description: "Linux 内核 ring buffer（dmesg）— OOM、GPU Xid、IB 错误等"
