@@ -68,6 +68,7 @@ def table(
     name_or_class: Optional[Union[str, Type[Any]]] = None,
     *,
     capacity_bytes: Optional[int] = None,
+    eager: bool = False,
 ):
     """A decorator that converts a dataclass into a persistable table.
 
@@ -86,6 +87,9 @@ def table(
     capacity_bytes : Optional[int], default=None
         Mmap ring byte budget for this table (``discard_threshold``). When omitted, uses
         ``PROBING_TABLE_DEFAULT_MB`` (default 20 MiB per table).
+    eager : bool, default=False
+        Create the memtable at decoration time so an empty table keeps its
+        schema. Leave False to defer mmap until the first append.
 
     Returns
     -------
@@ -214,13 +218,13 @@ def table(
         setattr(cls, "drop", drop)
         setattr(cls, "save", save)
         _register_docs()
-        # Create the memtable eagerly so an empty table still has its real
-        # schema. Otherwise `SELECT ... FROM python.<table>` before the first
-        # row falls back to the Python-expression path and returns `_error`.
-        try:
-            cls.init_table()
-        except Exception:
-            pass
+        if eager:
+            # Opt-in only: an empty table still needs its real schema, but
+            # the default decorator contract keeps mmap deferred until append.
+            try:
+                cls.init_table()
+            except Exception:
+                pass
 
         return cls
 

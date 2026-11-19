@@ -119,6 +119,51 @@ def test_table_decorator_defers_mmap_until_append(monkeypatch):
     table_mod.cache.clear()
 
 
+def test_table_decorator_eager_creates_table(monkeypatch):
+    import importlib
+
+    table_mod = importlib.import_module("probing.core.table")
+    table_mod.cache.clear()
+    table_name = f"eager_table_{id(object())}"
+
+    class FakeExternalTable:
+        created: list[str] = []
+
+        @staticmethod
+        def get(_name):
+            raise ValueError("missing")
+
+        @staticmethod
+        def drop(_name):
+            return None
+
+        def __init__(self, name, columns, **kwargs):
+            FakeExternalTable.created.append(name)
+            self._columns = columns
+
+        def names(self):
+            return list(self._columns)
+
+        def append(self, _row):
+            return None
+
+        def take(self, _n):
+            return []
+
+    FakeExternalTable.created = []
+    monkeypatch.setattr(probing, "ExternalTable", FakeExternalTable)
+    monkeypatch.setattr(probing, "register_table_docs", lambda *a, **k: None)
+
+    @table_mod.table(table_name, eager=True)
+    @dataclass
+    class EagerMetrics:
+        value: int = 0
+
+    assert FakeExternalTable.created == [table_name]
+    EagerMetrics.drop()
+    table_mod.cache.clear()
+
+
 def test_table_capacity_bytes_override(monkeypatch):
     import importlib
 
