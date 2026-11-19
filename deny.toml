@@ -20,6 +20,9 @@ ignore = [
     # rmcp Streamable HTTP unbounded response buffering; fix needs rmcp >= 3.9.0
     # (major bump over the pinned 1.x) — tracked with the MCP engine upgrade.
     { id = "RUSTSEC-2026-0462", reason = "rmcp 1.x pinned; fix requires 3.9 major bump" },
+    # chrono has no patched version; it is a direct dependency and is also
+    # pulled by arrow/datafusion. Migration to jiff/time is tracked separately.
+    { id = "RUSTSEC-2026-0543", reason = "chrono unmaintained; direct and arrow/datafusion dependency, migration tracked separately" },
 ]
 unmaintained = "workspace"
 yanked = "warn"
