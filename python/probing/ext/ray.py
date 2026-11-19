@@ -45,6 +45,32 @@ _ray_store_started = False
 _ray_store_table: Any = None
 
 
+RAY_ACTOR_INFRA_CLASSES = frozenset(
+    {
+        "IDLE",
+        "DashboardAgent",
+        "RuntimeEnvAgent",
+        "Raylet",
+        "GcsServer",
+        "CoreWorker",
+        "Worker",
+    }
+)
+
+
+def actor_class_from_process_title(title: str) -> str:
+    """Extract the actor class from a Ray worker process title.
+
+    Ray titles look like ``ray::TrainingWorker.__init__`` or
+    ``ray::RolloutController``; non-Ray processes return an empty string.
+    """
+
+    prefix = "ray::"
+    if not title.startswith(prefix):
+        return ""
+    return title[len(prefix) :].split(".", 1)[0].split("(", 1)[0]
+
+
 RAY_PROCESS_FIELDS = [
     "timestamp_ns",
     "pid",

@@ -47,3 +47,20 @@ def test_ray_store_row_maps_driver_stats():
     row = _store_row(100, "host", "node", stats)
     assert len(row) == len(RAY_STORE_FIELDS)
     assert row == [100, "host", "node", 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+
+def test_actor_class_from_process_title():
+    from probing.ext.ray import (
+        RAY_ACTOR_INFRA_CLASSES,
+        actor_class_from_process_title,
+    )
+
+    assert (
+        actor_class_from_process_title("ray::TrainingWorker.__init__")
+        == "TrainingWorker"
+    )
+    assert (
+        actor_class_from_process_title("ray::RolloutController") == "RolloutController"
+    )
+    assert actor_class_from_process_title("python train.py") == ""
+    assert "IDLE" in RAY_ACTOR_INFRA_CLASSES
