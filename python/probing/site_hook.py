@@ -107,6 +107,29 @@ def _init_probing() -> None:
     except Exception as exc:
         print(f"Unexpected error in probing site hook: {exc}", file=sys.stderr)
 
+    if "probing" in sys.modules:
+        _start_gc_sampler()
+        _start_gpu_sampler()
+
+
+def _start_gc_sampler() -> None:
+    try:
+        from probing.gc import start
+
+        start()
+    except Exception as exc:
+        print(f"probing GC sampler start skipped: {exc}", file=sys.stderr)
+
+
+def _start_gpu_sampler() -> None:
+    try:
+        from probing.ext.gpu import start, start_cuda_memory
+
+        start()
+        start_cuda_memory()
+    except Exception as exc:
+        print(f"probing GPU process sampler start skipped: {exc}", file=sys.stderr)
+
 
 def _install_crash_handler() -> None:
     try:

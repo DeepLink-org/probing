@@ -116,6 +116,20 @@ fn tasks_schema() -> Schema {
         .col("delta_total_ns", DType::I64)
 }
 
+fn host_memory_schema() -> Schema {
+    Schema::new()
+        .col("ts", DType::I64)
+        .col("platform", DType::Str)
+        .col("pid", DType::I32)
+        .col("comm", DType::Str)
+        .col("rss_bytes", DType::I64)
+        .col("uss_bytes", DType::I64)
+        .col("pss_bytes", DType::I64)
+        .col("anon_bytes", DType::I64)
+        .col("locked_bytes", DType::I64)
+        .col("thread_count", DType::I32)
+}
+
 #[derive(Debug, Clone)]
 pub struct CpuCollectorConfig {
     pub interval: Duration,
@@ -220,6 +234,23 @@ fn push_utilization_row(
     }
 }
 
+fn push_host_memory_row(table: &mut ExposedTable, ts: i64, platform: &str, sample: &ProcessSample) {
+    if !table.push_row(&[
+        Value::I64(ts),
+        Value::Str(platform),
+        Value::I32(sample.pid),
+        Value::Str(&sample.comm),
+        Value::I64(sample.rss_bytes as i64),
+        Value::I64(sample.uss_bytes as i64),
+        Value::I64(sample.pss_bytes as i64),
+        Value::I64(sample.anon_bytes as i64),
+        Value::I64(sample.locked_bytes as i64),
+        Value::I32(sample.thread_count as i32),
+    ]) {
+        log::warn!("cpu collector: push_row failed for host.memory");
+    }
+}
+
 fn push_tasks_row(
     table: &mut ExposedTable,
     ts: i64,
@@ -265,6 +296,7 @@ fn lock_cpu_collector<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 struct CollectorTables {
     utilization: Mutex<ExposedTable>,
     tasks: Mutex<ExposedTable>,
+    host_memory: Mutex<ExposedTable>,
 }
 
 impl CollectorTables {
@@ -279,6 +311,12 @@ impl CollectorTables {
             tasks: Mutex::new(ExposedTable::create(
                 "cpu.tasks",
                 &tasks_schema(),
+                CHUNK_SIZE,
+                NUM_CHUNKS,
+            )?),
+            host_memory: Mutex::new(ExposedTable::create(
+                "host.memory",
+                &host_memory_schema(),
                 CHUNK_SIZE,
                 NUM_CHUNKS,
             )?),
@@ -385,6 +423,12 @@ impl CpuCollector {
                                     );
                                 }
                             }
+                            push_host_memory_row(
+                                &mut lock_cpu_table(&tables.host_memory),
+                                ts,
+                                &platform,
+                                &curr,
+                            );
                             state.last_process = Some(curr);
                         }
                         Err(e) => log::warn!("cpu process sample failed: {e}"),

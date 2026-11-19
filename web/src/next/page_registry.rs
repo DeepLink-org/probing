@@ -297,6 +297,16 @@ impl NextRoute {
                 "Memory",
                 Memory
             ),
+            Self::HostMemory {} => page!(
+                "host-memory",
+                "Host Memory",
+                "/memory/host",
+                "Per-actor host RSS/USS/PSS from the rl.actor_memory sampler.",
+                &["memory_leak", "gpu_pressure"],
+                "Advanced analysis",
+                "Host Memory",
+                Memory
+            ),
             Self::Profiles {}
             | Self::ProfilingLegacy {}
             | Self::ProfileView { .. }

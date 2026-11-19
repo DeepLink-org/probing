@@ -3,9 +3,19 @@
 /// Process-level CPU snapshot (cumulative counters).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProcessSample {
+    pub pid: i32,
+    pub comm: String,
     pub cputime_user_ns: u64,
     pub cputime_sys_ns: u64,
     pub rss_bytes: u64,
+    /// Unique set size: private clean + private dirty pages.
+    pub uss_bytes: u64,
+    /// Proportional set size from `/proc/self/smaps_rollup`.
+    pub pss_bytes: u64,
+    /// Anonymous resident pages.
+    pub anon_bytes: u64,
+    /// Locked (unswappable) pages.
+    pub locked_bytes: u64,
     pub thread_count: u32,
     pub vol_ctxt: u64,
     pub invol_ctxt: u64,

@@ -17,7 +17,7 @@ from probing.ext.engines.registry import (
 from probing.ext.engines.sglang import fetch_sglang_metrics, flatten_samples_for_storage
 
 
-@table("inference_engine_metric")
+@table("inference_engine_metric", eager=True)
 @dataclass
 class InferenceEngineMetric:
     timestamp_ns: int

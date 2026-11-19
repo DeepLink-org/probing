@@ -5,16 +5,16 @@ use super::pages::{
     AnalyticsPage as Analytics, ChromeTracePage as ChromeTrace, ClusterPage as Cluster,
     DashboardPage as Dashboard, DistributedPage as Distributed,
     DistributedPythonStackPage as DistributedPythonStack, DistributedStackPage as DistributedStack,
-    DistributedStatusPage as DistributedStatus, ExplorePage as Explore, InferencePage as Inference,
-    InvestigatePage as Investigate, MemoryPage as Memory, NotFoundPage as NotFound,
-    PerfettoPage as Perfetto, ProcessTimelinePage as ProcessTimeline,
-    ProfileViewPage as ProfileView, ProfilesPage as Profiles, ProfilesPage as ProfilingLegacy,
-    PulsingPage as Pulsing, PythonPage as Python, RlAboutPage as RlAbout,
-    RlMetricsPage as RlMetrics, RlOverviewPage as RlOverview, RlSamplesPage as RlSamples,
-    RlSpansPage as RlSpans, RlTrainPage as RlTrain, RolloutPage as Rollout,
-    RolloutPage as RolloutLegacy, SpansPage as Spans, SpansPage as TracesLegacy,
-    StackPage as Stack, StackThreadPage as StackThread, SystemPage as System,
-    TrainingPage as Training,
+    DistributedStatusPage as DistributedStatus, ExplorePage as Explore,
+    HostMemoryPage as HostMemory, InferencePage as Inference, InvestigatePage as Investigate,
+    MemoryPage as Memory, NotFoundPage as NotFound, PerfettoPage as Perfetto,
+    ProcessTimelinePage as ProcessTimeline, ProfileViewPage as ProfileView,
+    ProfilesPage as Profiles, ProfilesPage as ProfilingLegacy, PulsingPage as Pulsing,
+    PythonPage as Python, RlAboutPage as RlAbout, RlMetricsPage as RlMetrics,
+    RlOverviewPage as RlOverview, RlSamplesPage as RlSamples, RlSpansPage as RlSpans,
+    RlTrainPage as RlTrain, RolloutPage as Rollout, RolloutPage as RolloutLegacy,
+    SpansPage as Spans, SpansPage as TracesLegacy, StackPage as Stack,
+    StackThreadPage as StackThread, SystemPage as System, TrainingPage as Training,
 };
 use super::shell::NextShell;
 
@@ -91,6 +91,9 @@ pub enum NextRoute {
         #[route("/memory")]
         Memory {},
 
+        #[route("/memory/host")]
+        HostMemory {},
+
         #[route("/traces")]
         TracesLegacy {},
 
@@ -162,6 +165,7 @@ mod tests {
             "/traces",
             "/spans",
             "/memory",
+            "/memory/host",
             "/chrome-tracing",
             "/pulsing",
             "/training",

@@ -228,10 +228,16 @@ impl CpuHostSampler for MacSampler {
         let thread_count = mach::list_thread_ports()?.len() as u32;
 
         Ok(ProcessSample {
+            pid: std::process::id() as i32,
+            comm: String::new(),
             cputime_user_ns: timeval_to_ns(ru.ru_utime),
             cputime_sys_ns: timeval_to_ns(ru.ru_stime),
             // macOS reports ru_maxrss in bytes.
             rss_bytes: ru.ru_maxrss as u64,
+            uss_bytes: 0,
+            pss_bytes: 0,
+            anon_bytes: 0,
+            locked_bytes: 0,
             thread_count,
             vol_ctxt: ru.ru_nvcsw as u64,
             invol_ctxt: ru.ru_nivcsw as u64,

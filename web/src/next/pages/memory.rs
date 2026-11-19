@@ -10,6 +10,7 @@ use crate::state::investigation::{
     set_memory_device_context, InvestigationContext, INVESTIGATION_CONTEXT,
 };
 use crate::state::page_context::publish_page_evidence;
+use crate::utils::base_path::with_base;
 use crate::utils::error::Result;
 
 use super::super::capabilities::{capability_status, CapabilityStatus};
@@ -228,7 +229,14 @@ pub fn MemoryPage() -> Element {
         WorkspacePage {
             title: "Memory".to_string(),
             subtitle: "Physical device capacity, sampled usage, and framework allocator evidence for training and inference.".to_string(),
-            actions: rsx! { span { class: "text-xs text-gray-500", "{scope} · {window_minutes}m window · {POLL_MS / 1000}s" } },
+            actions: rsx! {
+                span { class: "text-xs text-gray-500", "{scope} · {window_minutes}m window · {POLL_MS / 1000}s" }
+                a {
+                    href: with_base("/memory/host"),
+                    class: "rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:border-gray-400 hover:bg-gray-50",
+                    "Host memory"
+                }
+            },
 
             if current_request.scope == EvidenceScope::LocalProcess && known_ranks > 1 {
                 InlineNotice {
