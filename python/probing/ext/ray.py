@@ -19,9 +19,30 @@ import functools
 import hashlib
 import os
 import socket
+import threading
+import time
 from typing import Any, Optional
 
 from probing.utils.py import _get_attr, _get_ray
+
+
+RAY_STORE_FIELDS = [
+    "ts",
+    "host",
+    "node_id",
+    "used_bytes",
+    "avail_bytes",
+    "spilled_bytes_total",
+    "spilled_objects_total",
+    "restored_bytes_total",
+    "num_local_objects",
+    "num_primary_copies",
+    "object_pulls_queued",
+    "cumulative_created_bytes",
+]
+_RAY_STORE_TABLE = "ray.object_store"
+_ray_store_started = False
+_ray_store_table: Any = None
 
 
 RAY_PROCESS_FIELDS = [
@@ -434,6 +455,177 @@ def _wrap_task_execution_in_worker():
 def init():
     """Initialize Ray tracing integration (called by import hook)."""
     enable_span_context()
+
+
+def worker_runtime_env(extra_env: Optional[dict[str, str]] = None) -> dict[str, str]:
+    """Build the ``runtime_env.env_vars`` payload that activates probing in workers.
+
+    Ray sanitises the driver environment before starting workers, so
+    ``PROBING=1`` on the driver is not enough. The site hook keys off
+    ``PROBING`` (not ``PROBING_ORIGINAL``) and each worker gets its own Unix
+    socket, so the driver's ``PROBING_PORT`` must not be propagated.
+
+    Args:
+        extra_env: Additional env vars merged last (take precedence).
+
+    Returns:
+        A dict suitable for ``runtime_env={"env_vars": ...}``.
+    """
+
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key.startswith("PROBING") and key != "PROBING_PORT"
+    }
+    env["PROBING"] = "1"
+    env.pop("PROBING_ORIGINAL", None)
+    # Workers already run next to the training loop; device-level NVML polling
+    # belongs to the driver only (see the GPU sampler overhead measurements).
+    env.setdefault("PROBING_GPU_SAMPLE_MS", "0")
+    if extra_env:
+        env.update(extra_env)
+    return env
+
+
+def init_job(
+    *,
+    address: str = "auto",
+    runtime_env: Optional[dict[str, Any]] = None,
+    **ray_init_kwargs: Any,
+):
+    """``ray.init`` with probing activated in every worker.
+
+    Call this before creating actors/tasks. Existing actor-level
+    ``runtime_env`` entries are merged; explicit actor env vars still win.
+    """
+
+    import ray
+
+    if ray.is_initialized():
+        return None
+
+    merged: dict[str, Any] = dict(runtime_env or {})
+    merged_env = dict(merged.get("env_vars") or {})
+    merged_env.update(worker_runtime_env())
+    merged["env_vars"] = merged_env
+    result = ray.init(address=address, runtime_env=merged, **ray_init_kwargs)
+    start_memory_sampler()
+    return result
+
+
+def _ray_store_table_handle():
+    global _ray_store_table
+    if _ray_store_table is not None:
+        return _ray_store_table
+    import probing
+
+    try:
+        _ray_store_table = probing.ExternalTable.get_or_create(
+            _RAY_STORE_TABLE, RAY_STORE_FIELDS
+        )
+    except Exception:
+        try:
+            _ray_store_table = probing.ExternalTable.get(_RAY_STORE_TABLE)
+        except Exception:
+            _ray_store_table = probing.ExternalTable(_RAY_STORE_TABLE, RAY_STORE_FIELDS)
+    return _ray_store_table
+
+
+def _store_row(timestamp_ns: int, host: str, node_id: str, stats: Any) -> list:
+    return [
+        timestamp_ns,
+        host,
+        node_id,
+        int(getattr(stats, "object_store_bytes_used", 0)),
+        int(getattr(stats, "object_store_bytes_avail", 0)),
+        int(getattr(stats, "spilled_bytes_total", 0)),
+        int(getattr(stats, "spilled_objects_total", 0)),
+        int(getattr(stats, "restored_bytes_total", 0)),
+        int(getattr(stats, "num_local_objects", 0)),
+        int(getattr(stats, "num_object_store_primary_copies", 0)),
+        int(getattr(stats, "object_pulls_queued", 0)),
+        int(getattr(stats, "cumulative_created_bytes", 0)),
+    ]
+
+
+def _ray_store_loop(interval_s: float) -> None:
+    from ray._private.internal_api import get_memory_info_reply, node_stats
+    from ray._private.state import state
+
+    while True:
+        try:
+            timestamp_ns = time.time_ns()
+            table = _ray_store_table_handle()
+            try:
+                reply = get_memory_info_reply(state)
+                table.append(
+                    _store_row(
+                        timestamp_ns, "aggregate", "aggregate", reply.store_stats
+                    )
+                )
+            except Exception:
+                pass
+
+            try:
+                import ray
+
+                for node in ray.nodes():
+                    if not node.get("Alive", True):
+                        continue
+                    address = node.get("NodeManagerAddress")
+                    port = node.get("NodeManagerPort")
+                    if not address or not port:
+                        continue
+                    try:
+                        reply = node_stats(address, port)
+                        table.append(
+                            _store_row(
+                                timestamp_ns,
+                                str(node.get("NodeManagerHostname") or address),
+                                str(node.get("NodeID") or address),
+                                reply.store_stats,
+                            )
+                        )
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+        except Exception:
+            pass
+        time.sleep(interval_s)
+
+
+def start_memory_sampler(interval_s: float = 5.0) -> bool:
+    """Sample Ray object-store stats into ``ray.object_store``.
+
+    Only the driver starts the sampler; actor/task processes would otherwise
+    scrape the same cluster stats N times. Returns True when the sampler is
+    running.
+    """
+
+    global _ray_store_started
+    try:
+        import ray
+
+        if not ray.is_initialized():
+            return False
+        context = ray.get_runtime_context()
+        if context.get_actor_id() is not None:
+            return False
+    except Exception:
+        return False
+
+    if _ray_store_started:
+        return True
+    _ray_store_started = True
+    thread = threading.Thread(
+        target=_ray_store_loop,
+        args=(max(float(interval_s), 1.0),),
+        name="probing-ray-object-store",
+        daemon=True,
+    )
+    thread.start()
+    return True
 
 
 def setup_tracing() -> None:
