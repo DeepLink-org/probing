@@ -8,6 +8,7 @@ from types import SimpleNamespace
 def test_worker_runtime_env_strips_driver_port(monkeypatch):
     monkeypatch.setenv("PROBING", "1")
     monkeypatch.setenv("PROBING_PORT", "18081")
+    monkeypatch.setenv("PROBING_SERVER_ADDR", "0.0.0.0:18081")
     monkeypatch.setenv("PROBING_ORIGINAL", "1")
 
     from probing.ext.ray import worker_runtime_env
@@ -15,6 +16,7 @@ def test_worker_runtime_env_strips_driver_port(monkeypatch):
     env = worker_runtime_env()
     assert env["PROBING"] == "1"
     assert "PROBING_PORT" not in env
+    assert "PROBING_SERVER_ADDR" not in env
     assert "PROBING_ORIGINAL" not in env
     assert env["PROBING_GPU_SAMPLE_MS"] == "0"
 

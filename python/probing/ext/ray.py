@@ -463,7 +463,8 @@ def worker_runtime_env(extra_env: Optional[dict[str, str]] = None) -> dict[str, 
     Ray sanitises the driver environment before starting workers, so
     ``PROBING=1`` on the driver is not enough. The site hook keys off
     ``PROBING`` (not ``PROBING_ORIGINAL``) and each worker gets its own Unix
-    socket, so the driver's ``PROBING_PORT`` must not be propagated.
+    socket, so the driver's ``PROBING_PORT`` / ``PROBING_SERVER_ADDR`` must not
+    be propagated.
 
     Args:
         extra_env: Additional env vars merged last (take precedence).
@@ -475,7 +476,8 @@ def worker_runtime_env(extra_env: Optional[dict[str, str]] = None) -> dict[str, 
     env = {
         key: value
         for key, value in os.environ.items()
-        if key.startswith("PROBING") and key != "PROBING_PORT"
+        if key.startswith("PROBING")
+        and key not in {"PROBING_PORT", "PROBING_SERVER_ADDR"}
     }
     env["PROBING"] = "1"
     env.pop("PROBING_ORIGINAL", None)
