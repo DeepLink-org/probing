@@ -110,6 +110,24 @@ fn setup_torchrun_cluster_env() {
     probing_server::maybe_start_torchrun_cluster();
 }
 
+/// Best-effort check that the requested HTTP address is free.
+///
+/// Ray's `ray start` inherits the driver environment, so `PROBING_PORT` is
+/// visible to every raylet/worker on the node. Only one process can own the
+/// port; the rest should fall back to their per-process Unix socket instead of
+/// retrying bind forever.
+fn tcp_port_available(address: &str) -> bool {
+    match std::net::TcpListener::bind(address) {
+        Ok(listener) => {
+            drop(listener);
+            true
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::AddrInUse => false,
+        // Let the real server surface other errors (permissions, bad address).
+        Err(_) => true,
+    }
+}
+
 /// Setup environment variables for server configuration (single-process only).
 ///
 /// Multi-process torchrun jobs bind HTTP and run hierarchical cluster report in Rust.
@@ -131,6 +149,13 @@ fn setup_env_settings() {
     match std::env::var(ENV_PROBING_PORT) {
         Ok(port_env_val) => match probing_server::bind_address_from_port(&port_env_val) {
             Ok(address) => {
+                if !tcp_port_available(&address) {
+                    log::warn!(
+                        "PROBING_PORT {port_env_val} is already in use; HTTP server disabled for pid {} (local Unix socket remains available)",
+                        std::process::id()
+                    );
+                    return;
+                }
                 log::debug!("PROBING_SERVER_ADDR set to {address}");
                 std::env::set_var("PROBING_SERVER_ADDR", address);
             }
