@@ -82,9 +82,7 @@ pub fn HostMemoryPage() -> Element {
     let missing_table = error_message
         .as_deref()
         .is_some_and(|message| message.to_ascii_lowercase().contains("not found"));
-    let loaded = latest_state
-        .as_ref()
-        .is_some_and(|state| state.is_ok());
+    let loaded = latest_state.as_ref().is_some_and(|state| state.is_ok());
 
     rsx! {
         WorkspacePage {
@@ -215,7 +213,12 @@ fn HostTimeline(points: Vec<HostSample>, actors: Vec<HostSample>) -> Element {
     let start = points.first().map(|point| point.ts).unwrap_or_default();
     let end = points.last().map(|point| point.ts).unwrap_or(start);
     let time_span = (end - start).max(1) as f64;
-    let max_uss = points.iter().map(|point| point.uss).max().unwrap_or(1).max(1);
+    let max_uss = points
+        .iter()
+        .map(|point| point.uss)
+        .max()
+        .unwrap_or(1)
+        .max(1);
     let width = 920.0_f64;
     let height = 200.0_f64;
 
@@ -298,7 +301,11 @@ fn HostTimeline(points: Vec<HostSample>, actors: Vec<HostSample>) -> Element {
 
 #[component]
 fn HostTable(actors: Vec<HostSample>) -> Element {
-    let latest_ts = actors.iter().map(|actor| actor.ts).max().unwrap_or_default();
+    let latest_ts = actors
+        .iter()
+        .map(|actor| actor.ts)
+        .max()
+        .unwrap_or_default();
     rsx! {
         div { class: "overflow-x-auto",
             table { class: "min-w-full text-left text-xs",
@@ -372,8 +379,10 @@ fn parse_samples(dataframe: &DataFrame) -> Vec<HostSample> {
                 rss: ele_u64(row.get(rss_col.unwrap_or(usize::MAX))).unwrap_or_default(),
                 uss: ele_u64(row.get(uss_col.unwrap_or(usize::MAX))).unwrap_or_default(),
                 pss: ele_u64(row.get(pss_col.unwrap_or(usize::MAX))).unwrap_or_default(),
-                threads: i32::try_from(ele_i64(row.get(threads_col.unwrap_or(usize::MAX))).unwrap_or_default())
-                    .unwrap_or_default(),
+                threads: i32::try_from(
+                    ele_i64(row.get(threads_col.unwrap_or(usize::MAX))).unwrap_or_default(),
+                )
+                .unwrap_or_default(),
             })
         })
         .collect()
@@ -398,7 +407,10 @@ fn actor_label(actor: &HostSample) -> String {
     if actor.actor_name.is_empty() {
         format!("{} · {}", actor.actor_class, actor.pid)
     } else {
-        format!("{} · {} · {}", actor.actor_class, actor.actor_name, actor.pid)
+        format!(
+            "{} · {} · {}",
+            actor.actor_class, actor.actor_name, actor.pid
+        )
     }
 }
 
