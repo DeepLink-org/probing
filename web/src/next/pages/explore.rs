@@ -114,6 +114,7 @@ fn canonical_capability_routes() -> Vec<NextRoute> {
         NextRoute::Inference {},
         NextRoute::Rollout {},
         NextRoute::Memory {},
+        NextRoute::HostMemory {},
         NextRoute::Profiles {},
         NextRoute::Stack {},
         NextRoute::Spans {},

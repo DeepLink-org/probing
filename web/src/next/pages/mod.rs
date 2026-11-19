@@ -5,6 +5,7 @@ mod distributed;
 mod explore;
 mod inference;
 mod investigate;
+mod host_memory;
 mod memory;
 mod profiles;
 mod pulsing;
@@ -28,6 +29,7 @@ pub use explore::{ExplorePage, NotFoundPage};
 pub use inference::InferencePage;
 pub use investigate::InvestigatePage;
 pub(crate) use investigate::InvestigateSession;
+pub use host_memory::HostMemoryPage;
 pub use memory::MemoryPage;
 pub use profiles::{ChromeTracePage, ProfileViewPage, ProfilesPage};
 pub use pulsing::PulsingPage;
@@ -52,6 +54,7 @@ mod architecture_tests {
         ("training placement", include_str!("training_placement.rs")),
         ("inference", include_str!("inference.rs")),
         ("memory", include_str!("memory.rs")),
+        ("host memory", include_str!("host_memory.rs")),
         ("rl", include_str!("rl.rs")),
         ("rl overview", include_str!("rl_overview.rs")),
         ("rl metrics", include_str!("rl_metrics.rs")),

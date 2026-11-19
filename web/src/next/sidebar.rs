@@ -256,8 +256,15 @@ fn ActiveSidebarPanel(route: NextRoute, on_navigate: EventHandler<()>) -> Elemen
                 SidebarIntro { text: "Expand the span hierarchy to the required diagnostic depth." }
                 ControlPanel { title: "Tracing controls", SpansControls {} }
             },
-            NextRoute::Memory {} => rsx! {
-                SidebarIntro { text: "Device capacity, sampled peaks, allocator state, and allocation evidence." }
+            NextRoute::Memory {} | NextRoute::HostMemory {} => rsx! {
+                SidebarSectionLabel { label: "Views" }
+                NavLeaf { to: NextRoute::Memory {}, label: "Device memory", icon: &icondata::AiDatabaseOutlined, active: matches!(route, NextRoute::Memory {}), on_navigate }
+                NavLeaf { to: NextRoute::HostMemory {}, label: "Host memory", icon: &icondata::AiDatabaseOutlined, active: matches!(route, NextRoute::HostMemory {}), on_navigate }
+                if matches!(route, NextRoute::HostMemory {}) {
+                    SidebarIntro { text: "Per-actor host RSS/USS/PSS from rl.actor_memory; RSS includes shared pages." }
+                } else {
+                    SidebarIntro { text: "Device capacity, sampled peaks, allocator state, and allocation evidence." }
+                }
                 ControlPanel { title: "Memory controls", MemoryControls {} }
             },
             NextRoute::Analytics {} | NextRoute::Python {} | NextRoute::Pulsing {} | NextRoute::System {} | NextRoute::Explore {} | NextRoute::NotFound { .. } => rsx! {

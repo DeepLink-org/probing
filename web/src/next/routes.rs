@@ -6,7 +6,7 @@ use super::pages::{
     DashboardPage as Dashboard, DistributedPage as Distributed,
     DistributedPythonStackPage as DistributedPythonStack, DistributedStackPage as DistributedStack,
     DistributedStatusPage as DistributedStatus, ExplorePage as Explore, InferencePage as Inference,
-    InvestigatePage as Investigate, MemoryPage as Memory, NotFoundPage as NotFound,
+    HostMemoryPage as HostMemory, InvestigatePage as Investigate, MemoryPage as Memory, NotFoundPage as NotFound,
     PerfettoPage as Perfetto, ProcessTimelinePage as ProcessTimeline,
     ProfileViewPage as ProfileView, ProfilesPage as Profiles, ProfilesPage as ProfilingLegacy,
     PulsingPage as Pulsing, PythonPage as Python, RlAboutPage as RlAbout,
@@ -91,6 +91,9 @@ pub enum NextRoute {
         #[route("/memory")]
         Memory {},
 
+        #[route("/memory/host")]
+        HostMemory {},
+
         #[route("/traces")]
         TracesLegacy {},
 
@@ -162,6 +165,7 @@ mod tests {
             "/traces",
             "/spans",
             "/memory",
+            "/memory/host",
             "/chrome-tracing",
             "/pulsing",
             "/training",
