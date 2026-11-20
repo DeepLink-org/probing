@@ -19,7 +19,6 @@ use probing_skills::pyo3::register_skills_bindings;
 use probing_python::pkg::TCPStore;
 
 const ENV_PROBING_LOGLEVEL: &str = "PROBING_LOGLEVEL";
-const ENV_PROBING_PORT: &str = "PROBING_PORT";
 
 #[cfg(feature = "use-mimalloc")]
 #[global_allocator]
@@ -110,24 +109,6 @@ fn setup_torchrun_cluster_env() {
     probing_server::maybe_start_torchrun_cluster();
 }
 
-/// Best-effort check that the requested HTTP address is free.
-///
-/// Ray's `ray start` inherits the driver environment, so `PROBING_PORT` is
-/// visible to every raylet/worker on the node. Only one process can own the
-/// port; the rest should fall back to their per-process Unix socket instead of
-/// retrying bind forever.
-fn tcp_port_available(address: &str) -> bool {
-    match std::net::TcpListener::bind(address) {
-        Ok(listener) => {
-            drop(listener);
-            true
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::AddrInUse => false,
-        // Let the real server surface other errors (permissions, bad address).
-        Err(_) => true,
-    }
-}
-
 /// Setup environment variables for server configuration (single-process only).
 ///
 /// Multi-process torchrun jobs bind HTTP and run hierarchical cluster report in Rust.
@@ -143,31 +124,6 @@ fn setup_env_settings() {
 
     if is_elastic_supervisor() {
         log::debug!("torchrun/elastic supervisor: defer probing HTTP bind to worker ranks");
-        return;
-    }
-
-    match std::env::var(ENV_PROBING_PORT) {
-        Ok(port_env_val) => match probing_server::bind_address_from_port(&port_env_val) {
-            Ok(address) => {
-                if !tcp_port_available(&address) {
-                    log::warn!(
-                        "PROBING_PORT {port_env_val} is already in use; HTTP server disabled for pid {} (local Unix socket remains available)",
-                        std::process::id()
-                    );
-                    return;
-                }
-                log::debug!("PROBING_SERVER_ADDR set to {address}");
-                std::env::set_var("PROBING_SERVER_ADDR", address);
-            }
-            Err(_) => {
-                log::warn!(
-                    "ENV_PROBING_PORT value '{port_env_val}' is not 'RANDOM' and not a valid port number."
-                );
-            }
-        },
-        Err(_) => {
-            log::debug!("ENV_PROBING_PORT not set. PROBING_SERVER_ADDR will not be set.");
-        }
     }
 }
 
