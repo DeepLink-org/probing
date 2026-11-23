@@ -228,7 +228,7 @@ fn HostTimeline(points: Vec<HostSample>, actors: Vec<HostSample>) -> Element {
         .cloned()
         .collect::<Vec<_>>();
     if current_mode == HostChartMode::Delta {
-        selected.sort_by(|left, right| activity(right.pid).cmp(&activity(left.pid)));
+        selected.sort_by_key(|actor| std::cmp::Reverse(activity(actor.pid)));
     }
     selected.truncate(12);
     selected.sort_by_key(|actor| actor.pid);
