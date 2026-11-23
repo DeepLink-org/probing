@@ -131,7 +131,7 @@ pub fn HostMemoryPage() -> Element {
                     }
                     EvidenceSection {
                         title: "USS timeline".to_string(),
-                        subtitle: Some("Last 10 minutes of unique-set size per actor; top 12 actors by latest USS are drawn.".to_string()),
+                        subtitle: Some("Last 10 minutes of unique-set size per actor. Δ view selects the 12 actors with the largest change; Absolute selects by latest USS.".to_string()),
                         divided: true,
                         HostTimeline { points, actors: actors.clone() }
                     }
@@ -185,8 +185,17 @@ fn HostSummary(actors: Vec<HostSample>) -> Element {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum HostChartMode {
+    Delta,
+    Absolute,
+}
+
 #[component]
 fn HostTimeline(points: Vec<HostSample>, actors: Vec<HostSample>) -> Element {
+    let mut mode = use_signal(|| HostChartMode::Delta);
+    let current_mode = mode();
+
     if points.is_empty() {
         return rsx! { UnavailablePanel {
             label: "No timeline samples".to_string(),
@@ -202,35 +211,94 @@ fn HostTimeline(points: Vec<HostSample>, actors: Vec<HostSample>) -> Element {
             .push((point.ts, point.uss));
     }
 
+    let activity = |pid: i32| -> u64 {
+        series
+            .get(&pid)
+            .map(|values| {
+                let min = values.iter().map(|(_, uss)| *uss).min().unwrap_or(0);
+                let max = values.iter().map(|(_, uss)| *uss).max().unwrap_or(0);
+                max.saturating_sub(min)
+            })
+            .unwrap_or(0)
+    };
+
     let mut selected = actors
         .iter()
         .filter(|actor| series.contains_key(&actor.pid))
-        .take(12)
         .cloned()
         .collect::<Vec<_>>();
+    if current_mode == HostChartMode::Delta {
+        selected.sort_by(|left, right| activity(right.pid).cmp(&activity(left.pid)));
+    }
+    selected.truncate(12);
     selected.sort_by_key(|actor| actor.pid);
+
+    if selected.is_empty() {
+        return rsx! { UnavailablePanel {
+            label: "No actor series".to_string(),
+            detail: "rl.actor_memory has samples but no actor is present in the current window.".to_string(),
+        }};
+    }
+
+    let mut scale_min = 0i64;
+    let mut scale_max = 0i64;
+    if current_mode == HostChartMode::Absolute {
+        scale_min = i64::MAX;
+        scale_max = i64::MIN;
+    }
+    for actor in &selected {
+        let Some(values) = series.get(&actor.pid) else {
+            continue;
+        };
+        let base = values
+            .first()
+            .map(|(_, uss)| *uss as i64)
+            .unwrap_or_default();
+        for (_, uss) in values {
+            let value = if current_mode == HostChartMode::Delta {
+                *uss as i64 - base
+            } else {
+                *uss as i64
+            };
+            scale_min = scale_min.min(value);
+            scale_max = scale_max.max(value);
+        }
+    }
+    if scale_min == i64::MAX {
+        scale_min = 0;
+        scale_max = 1;
+    }
+    let span = (scale_max - scale_min).max(1);
+    let padding = ((span as f64) * 0.15).ceil() as i64;
+    let scale_min = scale_min - padding;
+    let scale_max = scale_max + padding;
+    let range = (scale_max - scale_min).max(1) as f64;
 
     let start = points.first().map(|point| point.ts).unwrap_or_default();
     let end = points.last().map(|point| point.ts).unwrap_or(start);
     let time_span = (end - start).max(1) as f64;
-    let max_uss = points
-        .iter()
-        .map(|point| point.uss)
-        .max()
-        .unwrap_or(1)
-        .max(1);
     let width = 920.0_f64;
     let height = 200.0_f64;
+    let zero_y = (1.0 - (0.0 - scale_min as f64) / range) * height;
 
     let lines = selected
         .iter()
         .filter_map(|actor| {
             let values = series.get(&actor.pid)?;
+            let base = values
+                .first()
+                .map(|(_, uss)| *uss as i64)
+                .unwrap_or_default();
             let polyline = values
                 .iter()
                 .map(|(ts, uss)| {
+                    let value = if current_mode == HostChartMode::Delta {
+                        *uss as i64 - base
+                    } else {
+                        *uss as i64
+                    };
                     let x = (ts - start) as f64 / time_span * width;
-                    let y = (1.0 - *uss as f64 / max_uss as f64) * height;
+                    let y = (1.0 - (value as f64 - scale_min as f64) / range) * height;
                     format!("{x:.1},{y:.1}")
                 })
                 .collect::<Vec<_>>()
@@ -238,18 +306,70 @@ fn HostTimeline(points: Vec<HostSample>, actors: Vec<HostSample>) -> Element {
             Some((actor.clone(), polyline, color_for_pid(actor.pid)))
         })
         .collect::<Vec<_>>();
-    let hidden = actors.len().saturating_sub(lines.len());
+    let hidden = actors.len().saturating_sub(selected.len());
+    let mode_title = if current_mode == HostChartMode::Delta {
+        "Δ USS from window start"
+    } else {
+        "USS (absolute)"
+    };
+    let range_text = if current_mode == HostChartMode::Delta {
+        format!(
+            "range {} … {}",
+            format_delta(scale_min),
+            format_delta(scale_max)
+        )
+    } else {
+        format!(
+            "range {} … {}",
+            format_bytes(scale_min.max(0) as u64),
+            format_bytes(scale_max.max(0) as u64)
+        )
+    };
 
     rsx! {
         div {
-            div { class: "mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500",
-                span { "USS · peak {format_bytes(max_uss)} · window {format_seconds(end - start)}" }
-                span { "Top {lines.len()} of {actors.len()} actors" }
+            div { class: "mb-3 flex flex-wrap items-start justify-between gap-3",
+                div { class: "min-w-0",
+                    div { class: "text-xs font-medium text-gray-700", "{mode_title}" }
+                    div { class: "mt-1 text-xs text-gray-500",
+                        "{range_text} · window {format_seconds(end - start)} · top {selected.len()} of {actors.len()} actors"
+                    }
+                }
+                div { class: "inline-flex rounded-lg border border-gray-300 bg-gray-50 p-0.5",
+                    button {
+                        r#type: "button",
+                        class: if current_mode == HostChartMode::Delta {
+                            "rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white shadow-sm"
+                        } else {
+                            "rounded-md px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-white"
+                        },
+                        aria_pressed: if current_mode == HostChartMode::Delta { "true" } else { "false" },
+                        title: "Change in USS from the first sample in the window",
+                        onclick: move |_| mode.set(HostChartMode::Delta),
+                        "Δ USS"
+                    }
+                    button {
+                        r#type: "button",
+                        class: if current_mode == HostChartMode::Absolute {
+                            "rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white shadow-sm"
+                        } else {
+                            "rounded-md px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-white"
+                        },
+                        aria_pressed: if current_mode == HostChartMode::Absolute { "true" } else { "false" },
+                        title: "Absolute USS",
+                        onclick: move |_| mode.set(HostChartMode::Absolute),
+                        "Absolute"
+                    }
+                }
             }
             div {
                 class: "relative h-52",
                 role: "img",
-                aria_label: "Per-actor USS over the last 10 minutes",
+                aria_label: if current_mode == HostChartMode::Delta {
+                    "Per-actor USS change over the last 10 minutes"
+                } else {
+                    "Per-actor USS over the last 10 minutes"
+                },
                 svg {
                     class: "h-full w-full",
                     view_box: "0 0 {width} {height}",
@@ -270,6 +390,18 @@ fn HostTimeline(points: Vec<HostSample>, actors: Vec<HostSample>) -> Element {
                             }
                         }
                     }
+                    if current_mode == HostChartMode::Delta {
+                        line {
+                            x1: "0",
+                            y1: "{zero_y}",
+                            x2: "{width}",
+                            y2: "{zero_y}",
+                            stroke: "#94a3b8",
+                            stroke_width: "1",
+                            stroke_dasharray: "4 3",
+                            vector_effect: "non-scaling-stroke",
+                        }
+                    }
                     for (_, polyline, color) in lines.iter() {
                         polyline {
                             points: "{polyline}",
@@ -285,10 +417,25 @@ fn HostTimeline(points: Vec<HostSample>, actors: Vec<HostSample>) -> Element {
             }
             div { class: "mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-700",
                 for (actor, _, color) in lines.iter() {
-                    span { class: "inline-flex min-w-0 items-center gap-1.5",
-                        span { class: "h-2 w-2 shrink-0 rounded-full", style: "background: {color};" }
-                        span { class: "truncate", title: "{actor_label(actor)}", "{actor_label(actor)}" }
-                        span { class: "tabular-nums text-gray-500", "{format_bytes(actor.uss)}" }
+                    {
+                        let delta = series
+                            .get(&actor.pid)
+                            .map(|values| {
+                                values.last().map(|(_, uss)| *uss).unwrap_or_default() as i64
+                                    - values.first().map(|(_, uss)| *uss).unwrap_or_default() as i64
+                            })
+                            .unwrap_or_default();
+                        rsx! {
+                            span { class: "inline-flex min-w-0 items-center gap-1.5",
+                                span { class: "h-2 w-2 shrink-0 rounded-full", style: "background: {color};" }
+                                span { class: "truncate", title: "{actor_label(actor)}", "{actor_label(actor)}" }
+                                if current_mode == HostChartMode::Delta {
+                                    span { class: "tabular-nums text-gray-500", "{format_delta(delta)} · {format_bytes(actor.uss)}" }
+                                } else {
+                                    span { class: "tabular-nums text-gray-500", "{format_bytes(actor.uss)}" }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -452,6 +599,16 @@ fn ele_text(value: Option<&Ele>) -> String {
         Some(Ele::Text(value)) | Some(Ele::Url(value)) => value.clone(),
         Some(value) => value.to_string(),
         None => String::new(),
+    }
+}
+
+fn format_delta(bytes: i64) -> String {
+    if bytes == 0 {
+        "0 B".to_string()
+    } else if bytes > 0 {
+        format!("+{}", format_bytes(bytes as u64))
+    } else {
+        format!("-{}", format_bytes(bytes.unsigned_abs()))
     }
 }
 
