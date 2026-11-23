@@ -100,7 +100,7 @@ fn SidebarRail(
         &INVESTIGATION_CONTEXT.read().clone(),
     );
     rsx! {
-        div { class: "flex w-20 shrink-0 flex-col bg-slate-950",
+        div { class: "flex w-24 shrink-0 flex-col bg-slate-950",
             div { class: "flex h-16 shrink-0 items-center justify-center border-b border-slate-800",
                 a {
                     href: dashboard_href,
@@ -903,7 +903,7 @@ fn RailLink(
             aria_current: if active { "page" } else { "false" },
             onclick: move |_| on_navigate.call(()),
             Icon { icon, class: "h-5 w-5" }
-            span { class: "max-w-full truncate text-[10px] font-medium leading-none tracking-tight", "{label}" }
+            span { class: "max-w-full truncate text-xs font-medium leading-none tracking-tight", "{label}" }
         }
     }
 }
